@@ -1,0 +1,64 @@
+# ─── Dependencies ───────────────────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.js
+
+# ─── Build outputs ──────────────────────────────────────────────────────────
+dist/
+dist-ssr/
+.output/
+.vinxi/
+.nitro/
+build/
+*.tsbuildinfo
+
+# ─── Framework / bundler cache ──────────────────────────────────────────────
+.tanstack/
+.vite/
+.cache/
+
+# ─── Cloudflare Wrangler ────────────────────────────────────────────────────
+.wrangler/
+.dev.vars
+
+# ─── Environment & secrets ──────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.local
+
+# ─── Logs ───────────────────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ─── OS ─────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ─── Editors ──────────────────────────────────────────────────────────────────
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.vscode/*
+!.vscode/extensions.json
+
+# ─── AI / scaffold tooling (optional — remove block to keep specs) ──────────
+.kiro/
+.lovable/
+
+# ─── Test / coverage ────────────────────────────────────────────────────────
+coverage/
+.nyc_output/
+
+# ─── Temp ───────────────────────────────────────────────────────────────────
+tmp/
+.temp/
