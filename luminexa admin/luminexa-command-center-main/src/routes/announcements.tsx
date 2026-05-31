@@ -5,7 +5,7 @@ import { Plus, Megaphone, Eye, Pin } from "lucide-react";
 import { useState } from "react";
 
 export const Route = createFileRoute("/announcements")({
-  head: () => ({ meta: [{ title: "Announcements — Luminexa Admin" }] }),
+  head: () => ({ meta: [{ title: "Announcements — LumenX Admin" }] }),
   component: AnnouncementsPage,
 });
 

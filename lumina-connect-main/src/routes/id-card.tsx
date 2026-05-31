@@ -12,7 +12,7 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/id-card")({
   head: () => ({
     meta: [
-      { title: "Digital ID Card — Unify" },
+      { title: "Digital ID Card — LumenX Connect" },
       { name: "description", content: "Wallet-style digital student identity card with QR code." },
     ],
   }),
@@ -87,7 +87,7 @@ function IdCardPage() {
             <Row k="Student ID" v={profile.id} />
             <Row k="Roll No" v={profile.rollNo} />
             <Row k="Class" v={`${profile.className} • Sec ${profile.section}`} />
-            <Row k="Institute" v="Unify Academy" />
+            <Row k="Institute" v="LumenX Academy" />
             <Row k="Issued on" v="01 Apr 2024" />
             <Row k="Valid till" v="31 Mar 2025" />
             <Row k="Blood group" v="O+" />
@@ -138,7 +138,7 @@ function IdCard({
       <div className="relative flex items-center gap-3">
         <div className="size-9 rounded-xl bg-white/15 grid place-items-center font-bold">U</div>
         <div className="leading-tight">
-          <div className="font-display font-semibold">Unify Academy</div>
+          <div className="font-display font-semibold">LumenX Academy</div>
           <div className="text-[11px] opacity-80 uppercase tracking-widest">Student ID</div>
         </div>
       </div>

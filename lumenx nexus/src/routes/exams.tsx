@@ -3,7 +3,7 @@ import { AppShell } from "@/components/AppShell";
 import { Card, CardHeader, Kpi, Pill, Button } from "@/components/ui-kit";
 
 export const Route = createFileRoute("/exams")({
-  head: () => ({ meta: [{ title: "Exams & Marks — Luminexa Admin" }] }),
+  head: () => ({ meta: [{ title: "Exams & Marks — LumenX Nexus" }] }),
   component: ExamsPage,
 });
 

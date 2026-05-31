@@ -4,7 +4,7 @@ import { Card, CardHeader, Button } from "@/components/ui-kit";
 import { Plus } from "lucide-react";
 
 export const Route = createFileRoute("/timetable")({
-  head: () => ({ meta: [{ title: "Timetable — Luminexa Admin" }] }),
+  head: () => ({ meta: [{ title: "Timetable — LumenX Admin" }] }),
   component: TimetablePage,
 });
 

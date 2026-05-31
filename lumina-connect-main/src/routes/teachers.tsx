@@ -11,7 +11,7 @@ import { MessageSquare, Phone, Crown } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/teachers")({
-  head: () => ({ meta: [{ title: "Teachers — Unify" }] }),
+  head: () => ({ meta: [{ title: "Teachers — LumenX Connect" }] }),
   component: () => (
     <AppShell>
       <TeachersPage />

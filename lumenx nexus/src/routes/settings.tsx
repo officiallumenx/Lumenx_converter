@@ -3,7 +3,7 @@ import { AppShell } from "@/components/AppShell";
 import { Card, CardHeader, Button } from "@/components/ui-kit";
 
 export const Route = createFileRoute("/settings")({
-  head: () => ({ meta: [{ title: "Settings — Luminexa Admin" }] }),
+  head: () => ({ meta: [{ title: "Settings — LumenX Nexus" }] }),
   component: SettingsPage,
 });
 
@@ -27,7 +27,7 @@ function SettingsPage() {
           <CardHeader title="Institute" />
           <div className="px-5 pb-5">
             <Row label="Institute name" hint="Displayed across all admin tools">
-              <input defaultValue="Luminexa International School" className="h-9 w-64 px-3 rounded-md bg-background border border-border text-xs focus:outline-none focus:border-primary/40" />
+              <input defaultValue="LUMENX NEXUS International School" className="h-9 w-64 px-3 rounded-md bg-background border border-border text-xs focus:outline-none focus:border-primary/40" />
             </Row>
             <Row label="Academic session" hint="Current academic year">
               <select className="h-9 w-40 px-3 rounded-md bg-background border border-border text-xs">

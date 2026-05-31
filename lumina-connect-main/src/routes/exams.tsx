@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import type { FeeItem } from "@/lib/types";
 
 export const Route = createFileRoute("/exams")({
-  head: () => ({ meta: [{ title: "Exams — Unify" }] }),
+  head: () => ({ meta: [{ title: "Exams — LumenX Connect" }] }),
   component: () => (
     <AppShell>
       <ExamsPage />

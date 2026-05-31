@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 
 export const Route = createFileRoute("/")({
-  head: () => ({ meta: [{ title: "Command Center — Luminexa Admin" }] }),
+  head: () => ({ meta: [{ title: "Command Center — LumenX Nexus" }] }),
   component: Dashboard,
 });
 

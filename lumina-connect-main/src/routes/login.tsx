@@ -37,7 +37,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 
 export const Route = createFileRoute("/login")({
-  head: () => ({ meta: [{ title: "Sign in — Unify" }] }),
+  head: () => ({ meta: [{ title: "Sign in — LumenX Connect" }] }),
   component: LoginPage,
 });
 
@@ -178,7 +178,7 @@ function LoginPage() {
             <div className="size-10 rounded-2xl bg-white/15 grid place-items-center font-bold">
               U
             </div>
-            <div className="font-display text-lg font-semibold">Unify</div>
+            <div className="font-display text-lg font-semibold">LumenX Connect</div>
           </div>
           <div className="space-y-6 max-w-md">
             <h1 className="font-display text-4xl font-bold leading-tight lg:text-5xl">
@@ -206,7 +206,7 @@ function LoginPage() {
               ))}
             </div>
           </div>
-          <div className="text-xs text-primary-foreground/60">© Unify Education</div>
+          <div className="text-xs text-primary-foreground/60">© LumenX Education</div>
         </aside>
 
         <div className="flex items-center justify-center p-5 sm:p-8 md:p-12">
@@ -215,7 +215,7 @@ function LoginPage() {
               <div className="size-10 rounded-2xl bg-gradient-primary shadow-glow grid place-items-center text-primary-foreground font-bold">
                 U
               </div>
-              <div className="font-display font-semibold text-lg">Unify</div>
+              <div className="font-display font-semibold text-lg">LumenX Connect</div>
             </div>
 
             <Stepper step={step} />
@@ -420,7 +420,7 @@ function LoginPage() {
                   Continue
                 </Button>
                 <p className="text-xs text-muted-foreground text-center">
-                  By continuing you agree to Unify's Terms & Privacy.
+                  By continuing you agree to LumenX Connect's Terms & Privacy.
                 </p>
               </div>
             )}

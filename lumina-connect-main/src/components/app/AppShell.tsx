@@ -135,7 +135,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
               U
             </div>
             <div className="hidden min-w-0 md:block">
-              <div className="font-display font-semibold leading-none">Unify</div>
+              <div className="font-display font-semibold leading-none">LumenX Connect</div>
               <div className="truncate text-[11px] text-muted-foreground" title={institute?.name}>
                 {institute ? `${institute.name} · ${institute.code}` : "Education Ecosystem"}
               </div>
@@ -235,7 +235,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
               </Link>
             );
           })}
-          <div className="mt-auto text-[11px] text-muted-foreground px-3">v1.1 • Unify EDU</div>
+          <div className="mt-auto text-[11px] text-muted-foreground px-3">v1.1 • LumenX EDU</div>
         </aside>
 
         <main className="flex-1 min-w-0 pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-8">

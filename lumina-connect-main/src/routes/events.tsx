@@ -54,7 +54,7 @@ import type { SchoolEvent } from "@/lib/types";
 export const Route = createFileRoute("/events")({
   head: () => ({
     meta: [
-      { title: "Events & Holidays — Unify" },
+      { title: "Events & Holidays — LumenX Connect" },
       {
         name: "description",
         content: "Upcoming school events, holidays, workshops, seminars and announcements.",

@@ -27,7 +27,7 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/fees")({
   head: () => ({
     meta: [
-      { title: "Fees — Unify" },
+      { title: "Fees — LumenX Connect" },
       { name: "description", content: "Pending dues, payment history and fee receipts." },
     ],
   }),
@@ -194,7 +194,7 @@ function StudentFeesContent() {
             className="shrink-0 rounded-xl gap-2"
             onClick={() =>
               toast.success(
-                "Reminder queued for your parent/guardian. They will see it in Unify notifications.",
+                "Reminder queued for your parent/guardian. They will see it in LumenX Connect notifications.",
               )
             }
           >

@@ -4,7 +4,7 @@ import { Card, Button, Pill } from "@/components/ui-kit";
 import { Plus } from "lucide-react";
 
 export const Route = createFileRoute("/classes")({
-  head: () => ({ meta: [{ title: "Classes — Luminexa Admin" }] }),
+  head: () => ({ meta: [{ title: "Classes — LumenX Admin" }] }),
   component: ClassesPage,
 });
 

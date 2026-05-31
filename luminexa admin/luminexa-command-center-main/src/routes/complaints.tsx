@@ -5,7 +5,7 @@ import { Lock, FileText } from "lucide-react";
 import { useState } from "react";
 
 export const Route = createFileRoute("/complaints")({
-  head: () => ({ meta: [{ title: "Complaints — Luminexa Admin" }] }),
+  head: () => ({ meta: [{ title: "Complaints — LumenX Admin" }] }),
   component: ComplaintsPage,
 });
 

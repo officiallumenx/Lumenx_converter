@@ -5,7 +5,7 @@ import { Plus, CalendarDays, Users, MapPin, Clock } from "lucide-react";
 import { useState } from "react";
 
 export const Route = createFileRoute("/events")({
-  head: () => ({ meta: [{ title: "Events — Luminexa Admin" }] }),
+  head: () => ({ meta: [{ title: "Events — LumenX Nexus" }] }),
   component: EventsPage,
 });
 

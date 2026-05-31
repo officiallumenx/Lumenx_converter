@@ -36,7 +36,7 @@ import {
 } from "@/components/ui/table";
 
 export const Route = createFileRoute("/sports")({
-  head: () => ({ meta: [{ title: "Sports — Unify" }] }),
+  head: () => ({ meta: [{ title: "Sports — LumenX Connect" }] }),
   component: () => (
     <AppShell>
       <SportsPage />

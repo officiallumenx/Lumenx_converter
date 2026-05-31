@@ -9,7 +9,7 @@ import {
 import { useState } from "react";
 
 export const Route = createFileRoute("/modules")({
-  head: () => ({ meta: [{ title: "Modules — Luminexa Admin" }] }),
+  head: () => ({ meta: [{ title: "Modules — LumenX Admin" }] }),
   component: ModulesPage,
 });
 

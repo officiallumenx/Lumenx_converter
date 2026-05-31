@@ -38,7 +38,7 @@ import {
 } from "@/components/ui/form";
 
 export const Route = createFileRoute("/complaints")({
-  head: () => ({ meta: [{ title: "Complaints — Unify" }] }),
+  head: () => ({ meta: [{ title: "Complaints — LumenX Connect" }] }),
   component: () => (
     <AppShell>
       <ComplaintsPage />

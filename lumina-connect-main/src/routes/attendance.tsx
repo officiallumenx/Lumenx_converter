@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
 export const Route = createFileRoute("/attendance")({
-  head: () => ({ meta: [{ title: "Attendance — Unify" }] }),
+  head: () => ({ meta: [{ title: "Attendance — LumenX Connect" }] }),
   component: () => (
     <AppShell>
       <AttendancePage />

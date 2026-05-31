@@ -5,7 +5,7 @@ import { Search, Filter, Plus, MoreHorizontal, Download, ArrowUpDown, UserPlus, 
 import { useMemo, useState } from "react";
 
 export const Route = createFileRoute("/students")({
-  head: () => ({ meta: [{ title: "Students — Luminexa Admin" }] }),
+  head: () => ({ meta: [{ title: "Students — LumenX Admin" }] }),
   component: StudentsPage,
 });
 

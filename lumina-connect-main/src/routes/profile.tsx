@@ -22,7 +22,7 @@ import { toast } from "sonner";
 import { compressImageToDataUrl } from "@/lib/image-compress";
 
 export const Route = createFileRoute("/profile")({
-  head: () => ({ meta: [{ title: "Profile — Unify" }] }),
+  head: () => ({ meta: [{ title: "Profile — LumenX Connect" }] }),
   component: () => (
     <AppShell>
       <ProfilePage />

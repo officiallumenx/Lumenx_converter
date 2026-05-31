@@ -19,7 +19,7 @@ import { Send } from "lucide-react";
 import { subjects, teachers } from "@/lib/mock-data";
 
 export const Route = createFileRoute("/messages")({
-  head: () => ({ meta: [{ title: "Messages — Unify" }] }),
+  head: () => ({ meta: [{ title: "Messages — LumenX Connect" }] }),
   component: () => (
     <AppShell>
       <MessagesPage />

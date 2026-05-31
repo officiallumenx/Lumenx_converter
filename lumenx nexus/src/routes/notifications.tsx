@@ -4,7 +4,7 @@ import { Card, CardHeader, Button, Pill } from "@/components/ui-kit";
 import { Send, Users, GraduationCap, Heart, Bell } from "lucide-react";
 
 export const Route = createFileRoute("/notifications")({
-  head: () => ({ meta: [{ title: "Notifications — Luminexa Admin" }] }),
+  head: () => ({ meta: [{ title: "Notifications — LumenX Nexus" }] }),
   component: NotificationsPage,
 });
 

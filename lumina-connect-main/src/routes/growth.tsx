@@ -36,7 +36,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { Goal } from "@/lib/types";
 
 export const Route = createFileRoute("/growth")({
-  head: () => ({ meta: [{ title: "Growth — Unify" }] }),
+  head: () => ({ meta: [{ title: "Growth — LumenX Connect" }] }),
   component: () => (
     <AppShell>
       <GrowthPage />

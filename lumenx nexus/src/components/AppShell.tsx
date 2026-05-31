@@ -73,7 +73,7 @@ export function AppShell({ children, title, subtitle, actions }: {
           <Sparkles className="size-4 text-primary-foreground" />
         </div>
         <div className="leading-tight">
-          <div className="font-semibold tracking-tight text-sm">LUMINEXA</div>
+          <div className="font-semibold tracking-tight text-sm">LUMENX NEXUS</div>
           <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Admin OS</div>
         </div>
       </div>

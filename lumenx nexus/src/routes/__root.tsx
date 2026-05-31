@@ -16,7 +16,7 @@ function NotFoundComponent() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-bold tracking-tight">404</h1>
-        <p className="mt-3 text-muted-foreground">This page doesn't exist in the Luminexa system.</p>
+        <p className="mt-3 text-muted-foreground">This page doesn't exist in the LumenX Nexus system.</p>
         <Link to="/" className="mt-6 inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:brightness-110">
           Back to Intelligence
         </Link>
@@ -48,7 +48,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Luminexa Admin — Institute Intelligence Center" },
+      { title: "LumenX Nexus — Institute Intelligence Center" },
       { name: "description", content: "Premium institute operating system for principals, heads, and administrators." },
     ],
     links: [

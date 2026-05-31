@@ -5,7 +5,7 @@ import { Plus, KeyRound, Power, RefreshCw, Search, ShieldCheck } from "lucide-re
 import { useState } from "react";
 
 export const Route = createFileRoute("/accounts")({
-  head: () => ({ meta: [{ title: "Accounts & Access — Luminexa Admin" }] }),
+  head: () => ({ meta: [{ title: "Accounts & Access — LumenX Nexus" }] }),
   component: AccountsPage,
 });
 

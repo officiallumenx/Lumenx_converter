@@ -4,7 +4,7 @@ import { Card, CardHeader, Kpi, Button } from "@/components/ui-kit";
 import { Archive, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/storage")({
-  head: () => ({ meta: [{ title: "Storage — Luminexa Admin" }] }),
+  head: () => ({ meta: [{ title: "Storage — LumenX Admin" }] }),
   component: StoragePage,
 });
 

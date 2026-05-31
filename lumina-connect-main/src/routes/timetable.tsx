@@ -8,7 +8,7 @@ import { days, studentTimetable, teacherTimetable } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/timetable")({
-  head: () => ({ meta: [{ title: "Timetable — Unify" }] }),
+  head: () => ({ meta: [{ title: "Timetable — LumenX Connect" }] }),
   component: () => (
     <AppShell>
       <TimetablePage />

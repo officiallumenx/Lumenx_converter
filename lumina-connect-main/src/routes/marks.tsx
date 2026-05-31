@@ -27,7 +27,7 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/marks")({
   head: () => ({
     meta: [
-      { title: "Marks & Report Cards — Unify" },
+      { title: "Marks & Report Cards — LumenX Connect" },
       {
         name: "description",
         content: "Enter, publish and review subject-wise marks, grades and report cards.",

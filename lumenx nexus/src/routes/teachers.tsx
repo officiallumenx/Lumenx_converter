@@ -5,7 +5,7 @@ import { Plus, Mail, KeyRound, UserPlus } from "lucide-react";
 import { useState } from "react";
 
 export const Route = createFileRoute("/teachers")({
-  head: () => ({ meta: [{ title: "Teachers — Luminexa Admin" }] }),
+  head: () => ({ meta: [{ title: "Teachers — LumenX Nexus" }] }),
   component: TeachersPage,
 });
 

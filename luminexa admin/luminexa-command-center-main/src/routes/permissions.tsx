@@ -5,7 +5,7 @@ import { Plus, Shield, Edit3, Trash2, Copy, Save, Users as UsersIcon } from "luc
 import { useMemo, useState } from "react";
 
 export const Route = createFileRoute("/permissions")({
-  head: () => ({ meta: [{ title: "Permissions — Luminexa Admin" }] }),
+  head: () => ({ meta: [{ title: "Permissions — LumenX Admin" }] }),
   component: PermissionsPage,
 });
 

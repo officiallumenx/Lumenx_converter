@@ -75,13 +75,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Unify — Education Ecosystem for Parents, Teachers & Students" },
+      { title: "LumenX Connect — Education Ecosystem for Parents, Teachers & Students" },
       {
         name: "description",
         content:
           "A premium real-time education platform connecting parents, teachers and students with awareness, communication and improvement at its core.",
       },
-      { property: "og:title", content: "Unify — Education Ecosystem" },
+      { property: "og:title", content: "LumenX Connect — Education Ecosystem" },
       {
         property: "og:description",
         content: "Premium real-time education platform for parents, teachers and students.",

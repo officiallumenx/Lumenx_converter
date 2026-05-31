@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import type { NotificationCategory } from "@/lib/types";
 
 export const Route = createFileRoute("/notifications")({
-  head: () => ({ meta: [{ title: "Notifications — Unify" }] }),
+  head: () => ({ meta: [{ title: "Notifications — LumenX Connect" }] }),
   component: () => (
     <AppShell>
       <NotificationsPage />

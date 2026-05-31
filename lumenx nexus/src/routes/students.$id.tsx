@@ -4,7 +4,7 @@ import { Card, CardHeader, Button, Pill } from "@/components/ui-kit";
 import { ArrowLeft, Mail, Phone, KeyRound, Power, Edit3, BookOpen, Users } from "lucide-react";
 
 export const Route = createFileRoute("/students/$id")({
-  head: ({ params }) => ({ meta: [{ title: `${params.id} — Luminexa Admin` }] }),
+  head: ({ params }) => ({ meta: [{ title: `${params.id} — LumenX Nexus` }] }),
   component: StudentProfile,
 });
 
@@ -27,7 +27,7 @@ function StudentProfile() {
             <Pill tone="success">Active</Pill>
           </div>
           <div className="mt-6 space-y-3 text-xs">
-            <div className="flex items-center gap-2 text-muted-foreground"><Mail className="size-3.5" /> aanya@luminexa.edu</div>
+            <div className="flex items-center gap-2 text-muted-foreground"><Mail className="size-3.5" /> aanya@LUMENX NEXUS.edu</div>
             <div className="flex items-center gap-2 text-muted-foreground"><Phone className="size-3.5" /> +91 98765 11020</div>
             <div className="flex items-center gap-2 text-muted-foreground"><Users className="size-3.5" /> Guardian: Rohan Sharma</div>
           </div>

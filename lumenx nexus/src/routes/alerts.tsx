@@ -5,7 +5,7 @@ import { Plus, Siren, ShieldAlert, AlertTriangle, MessageSquareWarning, Clipboar
 import { useState } from "react";
 
 export const Route = createFileRoute("/alerts")({
-  head: () => ({ meta: [{ title: "Alerts — Luminexa Admin" }] }),
+  head: () => ({ meta: [{ title: "Alerts — LumenX Nexus" }] }),
   component: AlertsPage,
 });
 

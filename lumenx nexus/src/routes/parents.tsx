@@ -5,7 +5,7 @@ import { Plus, Mail, Phone, Search, MoreHorizontal, Link2, Users, KeyRound, Powe
 import { useState } from "react";
 
 export const Route = createFileRoute("/parents")({
-  head: () => ({ meta: [{ title: "Parents — Luminexa Admin" }] }),
+  head: () => ({ meta: [{ title: "Parents — LumenX Nexus" }] }),
   component: ParentsPage,
 });
 

@@ -58,7 +58,7 @@ import {
 } from "@/components/ui/form";
 
 export const Route = createFileRoute("/assignments")({
-  head: () => ({ meta: [{ title: "Assignments — Unify" }] }),
+  head: () => ({ meta: [{ title: "Assignments — LumenX Connect" }] }),
   component: () => (
     <AppShell>
       <AssignmentsPage />
