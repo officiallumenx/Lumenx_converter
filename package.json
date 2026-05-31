@@ -1,0 +1,17 @@
+{
+  "name": "lumenx",
+  "private": true,
+  "scripts": {
+    "dev:connect": "npm run dev --workspace=@lumenx/app-connect",
+    "dev:admin": "npm run dev --workspace=@lumenx/app-admin",
+    "dev:nexus": "npm run dev --workspace=@lumenx/app-nexus",
+    "build": "npm run build --workspaces --if-present",
+    "build:connect": "npm run build --workspace=@lumenx/app-connect",
+    "build:admin": "npm run build --workspace=@lumenx/app-admin",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}

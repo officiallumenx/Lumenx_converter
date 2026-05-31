@@ -6,72 +6,74 @@ LumenX is a modular education platform for institutes — connecting administrat
 
 | Product | Folder | Status | Description |
 |---------|--------|--------|-------------|
-| **LumenX Nexus** | `lumenx nexus/` | 🚧 In progress | Platform hub and institute command center |
-| **LumenX Admin** | `luminexa admin/luminexa-command-center-main/` | ✅ Runnable | Institute administration console |
-| **LumenX Connect** | `lumina-connect-main/` | ✅ Runnable | Parent, teacher, and student portal |
-| **LumenX Transport** | — | 📋 Planned | Fleet and route management (not yet in repo) |
+| **LumenX Nexus** | `apps/nexus/` | ✅ Runnable | Platform hub and institute command center |
+| **LumenX Admin** | `apps/admin/` | ✅ Runnable | Institute administration console |
+| **LumenX Connect** | `apps/connect/` | ✅ Runnable | Parent, teacher, and student portal |
+| **LumenX Transport** | `apps/transport/` | 📋 Planned | Fleet and route management (not yet in repo) |
 
 ## Tech Stack
 
 - **Framework:** [TanStack Start](https://tanstack.com/start) + [TanStack Router](https://tanstack.com/router)
 - **UI:** React 19, Tailwind CSS 4, [shadcn/ui](https://ui.shadcn.com) (Radix)
-- **Build:** Vite 7
+- **Build:** Vite 7, [Turborepo](https://turbo.build) (task orchestration)
 - **Deploy target:** Cloudflare Workers ([Wrangler](https://developers.cloudflare.com/workers/wrangler/))
 - **Data (current):** Mock data and localStorage — backend integration planned
 
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) 20+ (LTS recommended)
-- npm, pnpm, or [Bun](https://bun.sh)
+- npm (included with Node.js)
 
 ## Getting Started
 
-Each runnable app is self-contained. Install dependencies and start the dev server from the app directory.
-
-### LumenX Connect
+Install dependencies once from the repository root, then run any app.
 
 ```bash
-cd lumina-connect-main
 npm install
+npm run dev:connect   # LumenX Connect
+npm run dev:admin     # LumenX Admin
+npm run dev:nexus     # LumenX Nexus
+```
+
+Or run from an app directory:
+
+```bash
+cd apps/connect
 npm run dev
 ```
 
-Demo login password: see `src/routes/login.tsx` (demo/prototype only).
+Demo login password: see `apps/connect/src/routes/login.tsx` (demo/prototype only).
 
-### LumenX Admin
-
-```bash
-cd "luminexa admin/luminexa-command-center-main"
-npm install
-npm run dev
-```
-
-### LumenX Nexus
-
-> ⚠️ Source-only at this time — no `package.json` yet. Nexus shares Admin source; full standalone setup is pending.
-
-## Scripts (per app)
+## Scripts (root)
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Start development server |
-| `npm run build` | Production build |
-| `npm run preview` | Preview production build |
-| `npm run lint` | Run ESLint |
-| `npm run format` | Format with Prettier |
+| `npm run dev:connect` | Start Connect dev server |
+| `npm run dev:admin` | Start Admin dev server |
+| `npm run dev:nexus` | Start Nexus dev server |
+| `npm run build` | Build all apps |
+| `npm run build:connect` | Build Connect only |
+| `npm run build:admin` | Build Admin only |
+| `npm run lint` | Lint all apps |
 
 ## Project Structure
 
 ```
 lumenx/
-├── lumenx nexus/              # LumenX Nexus (source only)
-├── lumina-connect-main/       # LumenX Connect
-├── luminexa admin/
-│   └── luminexa-command-center-main/   # LumenX Admin
+├── apps/
+│   ├── connect/       # LumenX Connect
+│   ├── admin/         # LumenX Admin
+│   └── nexus/         # LumenX Nexus
+├── packages/          # Shared packages (planned)
+├── docs/
+│   ├── LUMENX_MASTER.md
+│   └── migration/
+├── package.json       # npm workspaces root
+├── turbo.json
 └── README.md
 ```
 
-> **Note:** Folder names and in-app branding are being migrated to the LumenX identity. See branding cleanup in project docs.
+See [docs/LUMENX_MASTER.md](docs/LUMENX_MASTER.md) for full ecosystem documentation.
 
 ## Environment Variables
 
@@ -87,4 +89,4 @@ TBD — add LICENSE before public release.
 
 ## Contributing
 
-TBD — monorepo restructuring and shared packages are planned.
+Monorepo Phase 1 is complete. Next: extract shared `@lumenx/ui` package and CI pipeline.
