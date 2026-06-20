@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
-import { Card, CardHeader, Kpi } from "@/components/ui-kit";
+import { Card, CardHeader, Kpi } from "@lumenx/ui-admin";
 
 export const Route = createFileRoute("/analytics")({
   head: () => ({ meta: [{ title: "Analytics — LumenX Nexus" }] }),

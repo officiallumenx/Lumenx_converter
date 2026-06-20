@@ -1,0 +1,105 @@
+/**
+ * UNDO REFERENCE — Admin theme before "colorful" pass (2026-06-02)
+ * To restore: copy the blocks below back into styles.css, remove colorful
+ * additions (lx-admin-sidebar, lx-admin-header, lx-kpi-accent rules), and
+ * revert AdminChrome class names. Or tell the agent: "undo admin colors".
+ */
+
+/* LIGHT MODE — premium polished primary experience */
+:root {
+  --radius: 0.625rem;
+  --background: oklch(0.985 0.005 250);
+  --foreground: oklch(0.18 0.02 260);
+  --surface: oklch(1 0 0);
+  --surface-hover: oklch(0.975 0.008 250);
+  --elevated: oklch(1 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.18 0.02 260);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.18 0.02 260);
+  --primary: oklch(0.54 0.20 254);
+  --primary-foreground: oklch(0.99 0.003 250);
+  --secondary: oklch(0.96 0.008 250);
+  --secondary-foreground: oklch(0.22 0.02 260);
+  --muted: oklch(0.96 0.008 250);
+  --muted-foreground: oklch(0.46 0.025 260);
+  --accent: oklch(0.95 0.018 254);
+  --accent-foreground: oklch(0.22 0.02 260);
+  --success: oklch(0.56 0.16 152);
+  --warning: oklch(0.62 0.17 70);
+  --destructive: oklch(0.56 0.22 22);
+  --destructive-foreground: oklch(0.99 0.003 250);
+  --border: oklch(0.20 0.02 260 / 0.09);
+  --border-strong: oklch(0.20 0.02 260 / 0.16);
+  --input: oklch(0.20 0.02 260 / 0.12);
+  --ring: oklch(0.54 0.20 254 / 0.45);
+  --chart-1: oklch(0.54 0.20 254);
+  --chart-2: oklch(0.56 0.16 152);
+  --chart-3: oklch(0.62 0.17 70);
+  --chart-4: oklch(0.56 0.22 22);
+  --chart-5: oklch(0.55 0.18 300);
+  --sidebar: oklch(0.992 0.004 250);
+  --sidebar-foreground: oklch(0.22 0.02 260);
+  --sidebar-primary: oklch(0.54 0.20 254);
+  --sidebar-primary-foreground: oklch(0.99 0.003 250);
+  --sidebar-accent: oklch(0.95 0.018 254);
+  --sidebar-accent-foreground: oklch(0.22 0.02 260);
+  --sidebar-border: oklch(0.20 0.02 260 / 0.08);
+  --sidebar-ring: oklch(0.54 0.20 254 / 0.5);
+}
+
+:root body {
+  background-image:
+    radial-gradient(1200px 600px at 100% -10%, oklch(0.54 0.20 254 / 0.06), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, oklch(0.55 0.18 300 / 0.05), transparent 60%);
+}
+
+.dark {
+  --background: oklch(0.155 0.022 260);
+  --foreground: oklch(0.98 0.005 250);
+  --surface: oklch(0.205 0.024 260);
+  --surface-hover: oklch(0.235 0.026 260);
+  --elevated: oklch(0.245 0.028 260);
+  --card: oklch(0.205 0.024 260);
+  --card-foreground: oklch(0.98 0.005 250);
+  --popover: oklch(0.225 0.026 260);
+  --popover-foreground: oklch(0.98 0.005 250);
+  --primary: oklch(0.68 0.18 254);
+  --primary-foreground: oklch(0.14 0.02 260);
+  --secondary: oklch(0.26 0.026 260);
+  --secondary-foreground: oklch(0.98 0.005 250);
+  --muted: oklch(0.24 0.024 260);
+  --muted-foreground: oklch(0.72 0.025 255);
+  --accent: oklch(0.28 0.04 260);
+  --accent-foreground: oklch(0.98 0.005 250);
+  --success: oklch(0.74 0.17 152);
+  --warning: oklch(0.80 0.16 70);
+  --destructive: oklch(0.68 0.22 22);
+  --destructive-foreground: oklch(0.98 0.005 250);
+  --border: oklch(1 0 0 / 0.08);
+  --border-strong: oklch(1 0 0 / 0.16);
+  --input: oklch(1 0 0 / 0.10);
+  --ring: oklch(0.68 0.18 254 / 0.55);
+  --chart-1: oklch(0.68 0.18 254);
+  --chart-2: oklch(0.74 0.17 152);
+  --chart-3: oklch(0.80 0.16 70);
+  --chart-4: oklch(0.68 0.22 22);
+  --chart-5: oklch(0.72 0.15 300);
+  --sidebar: oklch(0.135 0.02 260);
+  --sidebar-foreground: oklch(0.98 0.005 250);
+  --sidebar-primary: oklch(0.68 0.18 254);
+  --sidebar-primary-foreground: oklch(0.14 0.02 260);
+  --sidebar-accent: oklch(0.22 0.026 260);
+  --sidebar-accent-foreground: oklch(0.98 0.005 250);
+  --sidebar-border: oklch(1 0 0 / 0.06);
+  --sidebar-ring: oklch(0.68 0.18 254 / 0.6);
+  --shadow-elevated: 0 1px 0 0 oklch(1 0 0 / 0.04) inset, 0 8px 24px -12px oklch(0 0 0 / 0.5);
+  --shadow-pop: 0 1px 0 0 oklch(1 0 0 / 0.06) inset, 0 20px 40px -16px oklch(0 0 0 / 0.6);
+  --shadow-glow: 0 0 0 1px oklch(0.68 0.18 254 / 0.22), 0 8px 32px -8px oklch(0.68 0.18 254 / 0.4);
+}
+
+.dark body {
+  background-image:
+    radial-gradient(1100px 600px at 100% -10%, oklch(0.68 0.18 254 / 0.10), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, oklch(0.72 0.15 300 / 0.08), transparent 60%);
+}

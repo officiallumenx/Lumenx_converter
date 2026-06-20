@@ -1,6 +1,6 @@
 import { Flame } from "lucide-react";
-import type { Streak } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import type { Streak } from "@lumenx/types";
+import { cn } from "@lumenx/ui";
 
 const TONE = {
   primary: "from-primary/20 to-primary/5 text-primary",

@@ -7,18 +7,20 @@ const ThemeCtx = createContext<{ theme: Theme; toggle: () => void; set: (t: Them
   set: () => {},
 });
 
+const NEXUS_THEME_KEY = "lumenx-nexus-theme";
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("light");
+  const [theme, setTheme] = useState<Theme>("dark");
 
   useEffect(() => {
-    const stored = (typeof window !== "undefined" && localStorage.getItem("luminexa-theme")) as Theme | null;
+    const stored = (typeof window !== "undefined" && localStorage.getItem(NEXUS_THEME_KEY)) as Theme | null;
     if (stored === "dark" || stored === "light") setTheme(stored);
   }, []);
 
   useEffect(() => {
     const root = document.documentElement;
     root.classList.toggle("dark", theme === "dark");
-    try { localStorage.setItem("luminexa-theme", theme); } catch {}
+    try { localStorage.setItem(NEXUS_THEME_KEY, theme); } catch {}
   }, [theme]);
 
   return (

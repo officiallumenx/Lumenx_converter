@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
-import { Card, CardHeader, Button, Pill } from "@/components/ui-kit";
+import { Card, CardHeader, Button, Pill } from "@lumenx/ui-admin";
 import { ArrowLeft, Mail, Phone, KeyRound, Power, Edit3, BookOpen, Users } from "lucide-react";
 
 export const Route = createFileRoute("/students/$id")({

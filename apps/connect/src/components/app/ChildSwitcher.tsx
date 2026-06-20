@@ -1,9 +1,9 @@
 import { memo } from "react";
 import { Check, TrendingUp, TrendingDown, Minus } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@lumenx/ui";
 import { useApp } from "@/lib/app-state";
 import { children } from "@/lib/mock-data";
-import { cn } from "@/lib/utils";
+import { cn } from "@lumenx/ui";
 
 const TREND_ICON = { up: TrendingUp, down: TrendingDown, flat: Minus } as const;
 

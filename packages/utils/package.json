@@ -1,0 +1,15 @@
+{
+  "name": "@lumenx/utils",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": ["./src/error-capture.ts"],
+  "exports": {
+    ".": "./src/index.ts",
+    "./error-page": "./src/error-page.ts",
+    "./error-capture": "./src/error-capture.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}

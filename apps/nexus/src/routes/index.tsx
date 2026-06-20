@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
-import { Card, CardHeader, Kpi, Pill, Button } from "@/components/ui-kit";
+import { Card, CardHeader, Kpi, Pill, Button } from "@lumenx/ui-admin";
 import {
   Users, GraduationCap, ClipboardCheck, AlertTriangle, TrendingUp, Activity,
   FileDown, Send, ArrowUpRight, UserPlus, CalendarRange, Megaphone, CalendarDays,

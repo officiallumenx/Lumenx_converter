@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
-import { Card, CardHeader, Kpi, Button } from "@/components/ui-kit";
+import { Card, CardHeader, Kpi, Button } from "@lumenx/ui-admin";
 import { Archive, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/storage")({

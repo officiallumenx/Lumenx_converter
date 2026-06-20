@@ -1,0 +1,1 @@
+export { StudentAcademicHistoryPage } from "./StudentAcademicHistoryPage";

@@ -2,15 +2,27 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { AppShell } from "@/components/app/AppShell";
 import { PageHeader } from "@/components/app/PageHeader";
+import { SubjectMarksVisualization } from "@/components/app/SubjectMarksVisualization";
+import { TeacherExamsPage } from "@/teacher-portal";
 import { useApp } from "@/lib/app-state";
 import { useParentPortal } from "@/context/ParentPortalContext";
-import { exams, fees, performance } from "@/lib/mock-data";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { CalendarDays, Trophy, Plus, GraduationCap } from "lucide-react";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import { useStudentPortal } from "@/context/StudentPortalContext";
+import { exams, fees, performance, reportCards } from "@/lib/mock-data";
+import { isPassing, passFailLabel } from "@/lib/marks-utils";
+import { Badge, Button, cn } from "@lumenx/ui";
+import {
+  CalendarDays,
+  Trophy,
+  Plus,
+  GraduationCap,
+  Clock,
+  AlertTriangle,
+  ArrowRight,
+  Wallet,
+} from "lucide-react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell } from "recharts";
 import { toast } from "sonner";
-import type { FeeItem } from "@/lib/types";
+import type { FeeItem, ReportCard } from "@lumenx/types";
 
 export const Route = createFileRoute("/exams")({
   head: () => ({ meta: [{ title: "Exams — LumenX Connect" }] }),
@@ -21,184 +33,334 @@ export const Route = createFileRoute("/exams")({
   ),
 });
 
-const FEE_STATUS_LABEL: Record<FeeItem["status"], string> = {
-  paid: "Paid",
-  partial: "Partial",
-  overdue: "Overdue",
-  upcoming: "Upcoming",
+const FEE_STATUS: Record<
+  FeeItem["status"],
+  { label: string; cls: string; icon: typeof Clock }
+> = {
+  paid: { label: "Paid", cls: "bg-success/15 text-success border-success/20", icon: Wallet },
+  partial: { label: "Partial", cls: "bg-warning/15 text-warning-foreground border-warning/30", icon: Clock },
+  overdue: { label: "Overdue", cls: "bg-destructive/15 text-destructive border-destructive/30", icon: AlertTriangle },
+  upcoming: { label: "Due soon", cls: "bg-primary/10 text-primary border-primary/20", icon: Clock },
 };
 
 function ExamsPage() {
   const { role } = useApp();
-  const portal = useParentPortal();
-  const snap = role === "parent" && portal.isParent ? portal.snapshot : null;
+  if (role === "teacher") return <TeacherExamsPage />;
+  return <ParentStudentExamsPage />;
+}
+
+function ParentStudentExamsPage() {
+  const { role } = useApp();
+  const parentPortal = useParentPortal();
+  const studentPortal = useStudentPortal();
+  const parentSnap = role === "parent" && parentPortal.isParent ? parentPortal.snapshot : null;
+  const studentSnap =
+    role === "student" && studentPortal.isStudent ? studentPortal.snapshot : null;
+  const isLoading =
+    (role === "parent" && parentPortal.isParent && parentPortal.isLoading && !parentSnap) ||
+    (role === "student" && studentPortal.isStudent && studentPortal.isLoading && !studentSnap);
+
+  const reportCardsData = parentSnap?.reportCards ?? studentSnap?.reportCards ?? reportCards;
+  const perfFallback = parentSnap?.performance ?? studentSnap?.performance ?? performance;
+
+  const publishedCards = useMemo(
+    () => reportCardsData.filter((r) => r.status === "published"),
+    [reportCardsData],
+  );
+  const lastCard = publishedCards[publishedCards.length - 1] ?? reportCardsData[0];
+
+  const subjectMarks = useMemo(() => {
+    if (lastCard?.marks?.length) {
+      return lastCard.marks.map((m) => ({
+        subject: m.subject,
+        total: m.total,
+        internal: m.internal,
+        exam: m.exam,
+        grade: m.grade,
+      }));
+    }
+    return perfFallback.map((p) => ({
+      subject: p.subject,
+      total: p.score,
+      grade: undefined as string | undefined,
+    }));
+  }, [lastCard, perfFallback]);
+
   const examFees = useMemo(() => fees.filter((f) => f.category === "exam"), []);
-  const pendingExamFees = useMemo(() => examFees.filter((f) => f.status !== "paid"), [examFees]);
-  const perfRows = snap?.performance ?? performance;
-  const lastCard = snap?.reportCards.find((r) => r.status === "published") ?? snap?.reportCards[0];
+  const pendingExamFees = useMemo(
+    () => examFees.filter((f) => f.status !== "paid"),
+    [examFees],
+  );
+  const pendingTotal = pendingExamFees.reduce((s, f) => s + f.amount, 0);
+
+  const subtitle = parentSnap
+    ? `Schedule and trends for ${parentSnap.child.name} (${parentSnap.classTag})`
+    : studentSnap
+      ? `${studentSnap.profile.name} · ${studentSnap.profile.class} ${studentSnap.profile.section}`
+      : "Schedule, results and trends";
+
+  if (isLoading) {
+    return (
+      <div className="min-w-0 max-w-full space-y-4 animate-pulse">
+        <div className="h-10 w-48 rounded-lg bg-muted" />
+        <div className="h-32 rounded-2xl bg-muted" />
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="h-64 rounded-2xl bg-muted lg:col-span-2" />
+          <div className="h-64 rounded-2xl bg-muted" />
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-w-0 max-w-full">
-      <PageHeader
-        title="Exams & Marks"
-        subtitle={
-          snap
-            ? `Schedule and trends for ${snap.child.name} (${snap.classTag})`
-            : "Schedule, results and trends"
-        }
-        action={
-          role === "teacher" ? (
-            <Button
-              className="gap-2 rounded-xl shadow-glow"
-              onClick={() => toast.success("Exam created")}
-            >
-              <Plus className="size-4" /> New exam
-            </Button>
-          ) : undefined
-        }
-      />
+    <div className="min-w-0 max-w-full space-y-4">
+      <PageHeader title="Exams & Marks" subtitle={subtitle} />
 
-      {examFees.length > 0 && (
-        <div className="mb-4 min-w-0 rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-5">
-          <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="flex min-w-0 gap-3">
-              <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
-                <GraduationCap className="size-5 shrink-0" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="font-semibold">Examination fees</h3>
-                <p className="mt-0.5 text-sm text-muted-foreground">
-                  Pay applicable exam charges on the Fees page before hall tickets and practicals.
-                </p>
-                <ul className="mt-2 min-w-0 space-y-2 text-sm">
-                  {examFees.map((f) => (
-                    <li
-                      key={f.id}
-                      className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2 gap-y-1 border-b border-border pb-2 last:border-0 last:pb-0"
-                    >
-                      <span className="min-w-0 break-words font-medium">{f.title}</span>
-                      <span className="flex shrink-0 items-center gap-2 tabular-nums">
-                        <span className="text-muted-foreground">
-                          ₹{f.amount.toLocaleString("en-IN")}
-                        </span>
-                        <Badge variant="outline" className="text-[10px] sm:text-xs">
-                          {FEE_STATUS_LABEL[f.status]}
-                        </Badge>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-                {pendingExamFees.length > 0 && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {pendingExamFees.length} item{pendingExamFees.length > 1 ? "s" : ""} still need
-                    payment.
-                  </p>
-                )}
-              </div>
+      {pendingExamFees.length > 0 && (
+        <section className="min-w-0 space-y-3">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <h2 className="font-semibold flex items-center gap-2">
+                <GraduationCap className="size-4 text-primary" />
+                Pending exam payments
+              </h2>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                {pendingExamFees.length} fee{pendingExamFees.length > 1 ? "s" : ""} · ₹
+                {pendingTotal.toLocaleString("en-IN")} outstanding
+              </p>
             </div>
-            <Button asChild variant="outline" className="w-full shrink-0 rounded-xl sm:w-auto">
-              <Link to="/fees">Open fees</Link>
+            <Button asChild variant="outline" size="sm" className="rounded-xl gap-1.5">
+              <Link to="/fees">
+                Pay on fees page <ArrowRight className="size-3.5" />
+              </Link>
             </Button>
           </div>
-        </div>
+          <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {pendingExamFees.map((f) => (
+              <ExamFeeCard key={f.id} fee={f} />
+            ))}
+          </div>
+        </section>
       )}
 
       <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="min-w-0 overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-5 lg:col-span-2">
           <h3 className="mb-3 flex min-w-0 items-center gap-2 font-semibold">
-            <CalendarDays className="size-4 shrink-0 text-primary" />{" "}
+            <CalendarDays className="size-4 shrink-0 text-primary" />
             <span className="min-w-0 truncate">Upcoming exams</span>
           </h3>
           <div className="min-w-0 space-y-2">
-            {exams.map((e) => (
-              <div
-                key={e.id}
-                className="flex min-w-0 items-center gap-2 rounded-xl border border-border p-3 sm:gap-3"
-              >
-                <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-primary/10 text-center font-display text-sm font-semibold leading-tight text-primary">
-                  {e.date.split(" ")[1]}
-                  <br />
-                  {e.date.split(" ")[2]}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-medium">{e.title}</div>
-                  <div className="truncate text-xs text-muted-foreground">
-                    {e.duration} • {e.room}
-                  </div>
-                </div>
-                <Badge variant="outline" className="shrink-0 text-[10px] sm:text-xs">
-                  {e.subject}
-                </Badge>
-              </div>
+            {exams.slice(0, 4).map((e) => (
+              <UpcomingExamCard key={e.id} exam={e} />
             ))}
+          </div>
+          <div className="mt-3 flex justify-end">
+            <Link to="/marks" className="text-xs text-primary inline-flex items-center gap-1 hover:underline">
+              View all marks <ArrowRight className="size-3" />
+            </Link>
           </div>
         </div>
 
-        <div className="min-w-0 rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-5">
-          <h3 className="font-semibold mb-3 flex items-center gap-2">
-            <Trophy className="size-4 text-warning-foreground" /> Last exam
-          </h3>
-          <div className="text-4xl font-display font-bold">
-            {lastCard ? `${lastCard.percentage}%` : "87%"}
-          </div>
-          <div className="text-sm text-muted-foreground">
-            {lastCard ? `Class rank #${lastCard.rank} of 48` : "Class rank #7 of 48"}
-          </div>
-          <div className="mt-4 space-y-2 text-sm">
-            <Row label="Highest" value="96%" />
-            <Row label="Class average" value="72%" />
-            <Row label="Improvement" value="+5%" tone="success" />
-          </div>
-        </div>
+        <LastExamSummary card={lastCard} />
       </div>
 
       <div
-        key={snap?.child.id ?? "exams-default"}
-        className="min-w-0 overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-5 mt-4"
+        key={parentSnap?.child.id ?? studentSnap?.profile.id ?? "exams-default"}
+        className="min-w-0 overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-5"
       >
-        <h3 className="mb-3 font-semibold">Subject-wise marks</h3>
-        <div className="h-72 w-full min-w-0 max-w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={perfRows}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="oklch(0.92 0.01 250)" />
-              <XAxis
-                dataKey="subject"
-                tickLine={false}
-                axisLine={false}
-                fontSize={12}
-                stroke="oklch(0.5 0.02 260)"
-              />
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                fontSize={12}
-                stroke="oklch(0.5 0.02 260)"
-                domain={[0, 100]}
-              />
-              <Tooltip
-                contentStyle={{
-                  background: "var(--popover)",
-                  border: "1px solid var(--border)",
-                  borderRadius: 12,
-                }}
-              />
-              <Bar dataKey="score" fill="oklch(0.55 0.22 260)" radius={[8, 8, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        <SubjectMarksVisualization
+          marks={subjectMarks}
+          examLabel={lastCard ? `Latest: ${lastCard.term}` : undefined}
+        />
       </div>
     </div>
   );
 }
 
-function Row({ label, value, tone }: { label: string; value: string; tone?: "success" }) {
+function ExamFeeCard({ fee }: { fee: FeeItem }) {
+  const meta = FEE_STATUS[fee.status];
+  const Icon = meta.icon;
+  const dueLabel = feeDueLabel(fee.due, fee.status);
+
+  return (
+    <div
+      className={cn(
+        "flex min-w-0 flex-col rounded-2xl border p-4 shadow-soft transition-colors",
+        fee.status === "overdue"
+          ? "border-destructive/30 bg-destructive/[0.03]"
+          : "border-border bg-card",
+      )}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="font-medium leading-snug">{fee.title}</div>
+          <div className="mt-0.5 text-xs text-muted-foreground">{fee.term}</div>
+        </div>
+        <Badge variant="outline" className={cn("shrink-0 text-[10px]", meta.cls)}>
+          <Icon className="mr-1 size-3" />
+          {meta.label}
+        </Badge>
+      </div>
+      <div className="mt-3 flex items-end justify-between gap-2">
+        <div>
+          <div className="font-display text-xl font-semibold tabular-nums">
+            ₹{fee.amount.toLocaleString("en-IN")}
+          </div>
+          <div
+            className={cn(
+              "mt-1 flex items-center gap-1 text-xs",
+              fee.status === "overdue" ? "text-destructive font-medium" : "text-muted-foreground",
+            )}
+          >
+            <Clock className="size-3 shrink-0" />
+            Due {fee.due}
+            {dueLabel && <span> · {dueLabel}</span>}
+          </div>
+        </div>
+        <Button asChild size="sm" variant={fee.status === "overdue" ? "default" : "outline"} className="shrink-0 rounded-lg">
+          <Link to="/fees">Pay</Link>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function feeDueLabel(due: string, status: FeeItem["status"]): string | null {
+  if (status === "overdue") return "Payment overdue";
+  const parsed = Date.parse(due.replace(/(\d+) (\w+) (\d+)/, "$2 $1, $3"));
+  if (Number.isNaN(parsed)) return null;
+  const days = Math.ceil((parsed - Date.now()) / (1000 * 60 * 60 * 24));
+  if (days < 0) return "Overdue";
+  if (days === 0) return "Due today";
+  if (days === 1) return "Due tomorrow";
+  if (days <= 14) return `${days} days left`;
+  return null;
+}
+
+type ExamRow = (typeof exams)[number];
+
+function UpcomingExamCard({ exam }: { exam: ExamRow }) {
+  const parts = exam.date.split(" ");
+  const day = parts[1] ?? "—";
+  const month = parts[2] ?? "";
+
+  return (
+    <div className="group flex min-w-0 items-center gap-3 rounded-xl border border-border p-3 transition-colors hover:border-primary/30 hover:bg-primary/[0.02] sm:gap-4">
+      <div className="grid size-14 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-primary/15 to-primary/5 text-center font-display text-sm font-semibold leading-tight text-primary">
+        {day}
+        <span className="text-[10px] font-normal uppercase tracking-wide">{month}</span>
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate font-medium">{exam.title}</div>
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+          <span>{exam.duration}</span>
+          <span>·</span>
+          <span>{exam.room}</span>
+          {"series" in exam && exam.series && (
+            <>
+              <span>·</span>
+              <span className="text-primary/80">{exam.series}</span>
+            </>
+          )}
+        </div>
+      </div>
+      <Badge variant="outline" className="shrink-0 text-[10px] sm:text-xs">
+        {exam.subject}
+      </Badge>
+    </div>
+  );
+}
+
+function LastExamSummary({ card }: { card: ReportCard | undefined }) {
+  const pct = card?.percentage ?? 87;
+  const passed = isPassing(pct);
+  const trendData = card?.marks.slice(0, 4).map((m) => ({
+    subject: m.subject.slice(0, 4),
+    total: m.total,
+    passed: isPassing(m.total),
+  })) ?? [];
+
+  return (
+    <div className="min-w-0 rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-5">
+      <h3 className="mb-3 flex items-center gap-2 font-semibold">
+        <Trophy className="size-4 text-warning-foreground" />
+        {card ? card.term : "Last exam"}
+      </h3>
+      <div className="flex items-baseline gap-2">
+        <div className="text-4xl font-display font-bold tabular-nums">{pct}%</div>
+        <Badge
+          className={cn(
+            "border-0",
+            passed ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive",
+          )}
+        >
+          {passFailLabel(pct)}
+        </Badge>
+      </div>
+      <div className="text-sm text-muted-foreground">
+        {card ? `Class rank #${card.rank} · Grade ${card.grade}` : "Class rank #7 of 48"}
+      </div>
+
+      {trendData.length > 0 && (
+        <div className="mt-4 h-24 w-full min-w-0">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={trendData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="oklch(0.92 0.01 250)" />
+              <XAxis dataKey="subject" tickLine={false} axisLine={false} fontSize={10} />
+              <YAxis hide domain={[0, 100]} />
+              <Tooltip
+                contentStyle={{
+                  background: "var(--popover)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 12,
+                  fontSize: 12,
+                }}
+              />
+              <Bar dataKey="total" radius={[4, 4, 0, 0]}>
+                {trendData.map((entry, i) => (
+                  <Cell
+                    key={i}
+                    fill={entry.passed ? "oklch(0.58 0.2 145)" : "oklch(0.58 0.22 25)"}
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      <div className="mt-3 space-y-2 text-sm">
+        <SummaryRow label="Subjects passed" value={card ? `${card.marks.filter((m) => isPassing(m.total)).length}/${card.marks.length}` : "5/6"} />
+        <SummaryRow label="Class average" value="72%" />
+        <SummaryRow label="vs previous exam" value="+5%" tone="success" />
+      </div>
+      <Link
+        to="/marks"
+        className="mt-4 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+      >
+        Full report card <ArrowRight className="size-3" />
+      </Link>
+    </div>
+  );
+}
+
+function SummaryRow({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: "success";
+}) {
   return (
     <div className="flex min-w-0 justify-between gap-2">
       <span className="min-w-0 text-muted-foreground">{label}</span>
       <span
-        className={
-          tone === "success" ? "text-success shrink-0 font-medium" : "shrink-0 font-medium"
-        }
+        className={cn(
+          "shrink-0 font-medium tabular-nums",
+          tone === "success" && "text-success",
+        )}
       >
         {value}
       </span>

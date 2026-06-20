@@ -63,8 +63,11 @@ export function ParentPortalRegistry({ children }: { children: ReactNode }) {
         setIsLoading(false);
       })
       .catch((e: unknown) => {
-        if (e instanceof DOMException && e.name === "AbortError") return;
         if (seq.current !== my) return;
+        if (e instanceof DOMException && e.name === "AbortError") {
+          setIsLoading(false);
+          return;
+        }
         setIsLoading(false);
         setCached((prev) => (prev && prev.child.id === activeChildRef.current ? prev : null));
       });

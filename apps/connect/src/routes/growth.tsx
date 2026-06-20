@@ -1,23 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { AppShell } from "@/components/app/AppShell";
 import { PageHeader } from "@/components/app/PageHeader";
 import { useApp } from "@/lib/app-state";
 import { useParentPortal } from "@/context/ParentPortalContext";
-import {
-  achievements,
-  classAchievements,
-  goals,
-  instituteAssignedGoals,
-  streaks,
-  trend,
-  performance,
-} from "@/lib/mock-data";
+import { achievements, streaks, trend, performance } from "@/lib/mock-data";
 import { AchievementBadge } from "@/components/app/motivation/AchievementBadge";
 import { StreakCard } from "@/components/app/motivation/StreakCard";
-import { GoalCard } from "@/components/app/motivation/GoalCard";
 import { EncouragementCarousel } from "@/components/app/motivation/EncouragementCarousel";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -29,11 +19,43 @@ import {
   CartesianGrid,
   YAxis,
 } from "recharts";
-import { Award, Sparkles, TrendingUp, Trophy, Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
-import type { Goal } from "@/lib/types";
+import { Award, Activity, TrendingUp, Flame } from "lucide-react";
+import { Skeleton } from "@lumenx/ui";
+import { cn } from "@lumenx/ui";
+
+const GROWTH_ACTIVITIES = [
+  {
+    id: "act-1",
+    label: "Submitted Chemistry lab report on time",
+    when: "2 hours ago",
+    tone: "success" as const,
+  },
+  {
+    id: "act-2",
+    label: "Attended all classes today — streak day 18",
+    when: "Today",
+    tone: "primary" as const,
+  },
+  {
+    id: "act-3",
+    label: "Math quiz score improved by +8 points",
+    when: "Yesterday",
+    tone: "warning" as const,
+  },
+  {
+    id: "act-4",
+    label: "Joined school athletics practice",
+    when: "2 days ago",
+    tone: "muted" as const,
+  },
+];
+
+const ACTIVITY_TONE: Record<(typeof GROWTH_ACTIVITIES)[number]["tone"], string> = {
+  success: "bg-success/10 text-success",
+  primary: "bg-primary/10 text-primary",
+  warning: "bg-warning/10 text-warning",
+  muted: "bg-muted text-muted-foreground",
+};
 
 export const Route = createFileRoute("/growth")({
   head: () => ({ meta: [{ title: "Growth — LumenX Connect" }] }),
@@ -45,7 +67,7 @@ export const Route = createFileRoute("/growth")({
 });
 
 function GrowthPage() {
-  const { role, activeChildId, studentIncludedMode } = useApp();
+  const { role } = useApp();
   const portal = useParentPortal();
   const isParent = role === "parent";
   const snap = isParent && portal.isParent ? portal.snapshot : null;
@@ -54,26 +76,28 @@ function GrowthPage() {
   const streaksView = snap?.streaks ?? streaks;
   const trendView = snap?.trend ?? trend;
   const performanceView = snap?.performance ?? performance;
-  const goalsView = snap?.goals ?? goals;
-  const instituteGoalsView = snap?.instituteGoals ?? instituteAssignedGoals;
   const achievementsView = snap?.achievements ?? achievements;
 
-  const unlocked = achievementsView.filter((a) => !a.progress);
-  const inProgress = achievementsView.filter((a) => a.progress);
+  const attendanceStreak = useMemo(
+    () => streaksView.find((s) => s.id === "s-att" || /attendance/i.test(s.label)),
+    [streaksView],
+  );
+  const assignmentStreak = useMemo(
+    () => streaksView.find((s) => s.id === "s-asg" || /assignment/i.test(s.label)),
+    [streaksView],
+  );
+  const improvementStreak = useMemo(
+    () => streaksView.find((s) => s.id === "s-imp" || /improvement/i.test(s.label)),
+    [streaksView],
+  );
 
-  const classAchievementsView = useMemo(() => {
-    if (!snap) return classAchievements;
-    const tag = snap.classTag;
-    const filtered = classAchievements.filter((c) => c.section === tag);
-    return filtered.length > 0 ? filtered : classAchievements;
-  }, [snap]);
+  const badges = achievementsView.filter((a) => !a.progress);
 
   if (parentBoot) {
     return (
       <div className="min-w-0 max-w-full space-y-4">
         <PageHeader title="Your child's growth" subtitle="Loading this learner's growth profile…" />
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Skeleton className="h-28 rounded-2xl" />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Skeleton className="h-28 rounded-2xl" />
           <Skeleton className="h-28 rounded-2xl" />
         </div>
@@ -88,142 +112,65 @@ function GrowthPage() {
         title={isParent ? "Your child's growth" : "Your growth"}
         subtitle={
           isParent
-            ? "Celebrate progress, milestones and consistency."
-            : "Achievements, streaks, and goals — your story of improvement."
+            ? "Streaks, badges, activities, and performance overview."
+            : "Streaks, badges, activities, and performance overview."
         }
       />
 
       <div className="min-w-0 space-y-5">
         <EncouragementCarousel />
 
-        <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
-          {streaksView.map((s) => (
-            <StreakCard key={s.id} s={s} />
-          ))}
-        </div>
+        <section className="space-y-3">
+          <SectionHeading icon={Flame} label="Streaks" />
+          <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
+            {attendanceStreak ? <StreakCard s={attendanceStreak} /> : null}
+            {assignmentStreak ? <StreakCard s={assignmentStreak} /> : null}
+          </div>
+        </section>
 
-        <Tabs defaultValue="achievements" className="w-full min-w-0">
-          <TabsList className="grid w-full grid-cols-3 rounded-xl">
-            <TabsTrigger value="achievements" className="rounded-lg gap-1.5">
-              <Award className="size-3.5" /> Achievements
-            </TabsTrigger>
-            <TabsTrigger value="goals" className="rounded-lg gap-1.5">
-              <Sparkles className="size-3.5" /> Goals
-            </TabsTrigger>
-            <TabsTrigger value="trends" className="rounded-lg gap-1.5">
-              <TrendingUp className="size-3.5" /> Trends
-            </TabsTrigger>
-          </TabsList>
+        <section className="space-y-3">
+          <SectionHeading icon={Award} label={`Badges · ${badges.length}`} />
+          <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {badges.map((a) => (
+              <AchievementBadge key={a.id} a={a} />
+            ))}
+          </div>
+        </section>
 
-          <TabsContent value="achievements" className="mt-4 space-y-4">
-            <div>
-              <div className="text-xs uppercase tracking-widest text-muted-foreground font-medium mb-2">
-                Unlocked · {unlocked.length}
-              </div>
-              <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {unlocked.map((a) => (
-                  <AchievementBadge key={a.id} a={a} />
-                ))}
-              </div>
-            </div>
-            <div>
-              <div className="text-xs uppercase tracking-widest text-muted-foreground font-medium mb-2">
-                In progress · {inProgress.length}
-              </div>
-              <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {inProgress.map((a) => (
-                  <AchievementBadge key={a.id} a={a} />
-                ))}
-              </div>
-            </div>
-
-            <div className="min-w-0 rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-5">
-              <div className="mb-3 flex min-w-0 items-center gap-2">
-                <Trophy className="size-4 shrink-0 text-primary" />
-                <h3 className="min-w-0 font-semibold leading-snug">Class achievements</h3>
-              </div>
-              <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
-                {classAchievementsView.map((c) => (
-                  <div
-                    key={c.id}
-                    className="min-w-0 rounded-xl border border-border bg-muted/30 p-4"
-                  >
-                    <div className="text-[11px] uppercase tracking-widest text-muted-foreground">
-                      Section {c.section}
-                    </div>
-                    <div className="mt-1 break-words text-sm font-medium leading-snug line-clamp-3">
-                      {c.title}
-                    </div>
-                    <div className="mt-1 break-words text-xs font-medium text-success">
-                      {c.value}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <p className="text-[11px] text-muted-foreground mt-3">
-                Healthy class-level recognition. We never publicly rank individual students.
-              </p>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="goals" className="mt-4 space-y-4">
-            {!isParent && (
-              <>
-                <div>
-                  <div className="mb-2 text-xs font-medium uppercase tracking-widest text-muted-foreground">
-                    From your institute
-                  </div>
-                  <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
-                    {instituteAssignedGoals.map((g) => (
-                      <GoalCard key={g.id} g={g} />
-                    ))}
-                  </div>
+        <section className="space-y-3">
+          <SectionHeading icon={Activity} label="Recent activities" />
+          <div className="min-w-0 rounded-2xl border border-border bg-card shadow-soft divide-y divide-border">
+            {GROWTH_ACTIVITIES.map((act) => (
+              <div key={act.id} className="flex min-w-0 items-start gap-3 px-4 py-3 sm:px-5">
+                <span
+                  className={cn(
+                    "mt-0.5 size-2 shrink-0 rounded-full",
+                    act.tone === "success" && "bg-success",
+                    act.tone === "primary" && "bg-primary",
+                    act.tone === "warning" && "bg-warning",
+                    act.tone === "muted" && "bg-muted-foreground/40",
+                  )}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium leading-snug break-words">{act.label}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{act.when}</p>
                 </div>
-                <StudentPersonalGoals />
-              </>
-            )}
-            {isParent && snap && (
-              <div key={activeChildId} className="space-y-4">
-                <div>
-                  <div className="mb-2 text-xs font-medium uppercase tracking-widest text-muted-foreground">
-                    From your institute
-                  </div>
-                  <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
-                    {instituteGoalsView.map((g) => (
-                      <GoalCard key={g.id} g={g} />
-                    ))}
-                  </div>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Targets below are scoped to{" "}
-                  <span className="font-medium text-foreground">{snap.child.name}</span> (
-                  {snap.classTag}).
-                </p>
-                <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
-                  {goalsView.map((g) => (
-                    <GoalCard key={g.id} g={g} />
-                  ))}
-                </div>
-                {studentIncludedMode && (
-                  <StudentPersonalGoals
-                    storageKey={`ues_student_personal_goals_${activeChildId}`}
-                    title="Delegated personal goals"
-                  />
-                )}
+                <span
+                  className={cn(
+                    "shrink-0 rounded-lg px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide",
+                    ACTIVITY_TONE[act.tone],
+                  )}
+                >
+                  {act.tone === "muted" ? "Event" : "Win"}
+                </span>
               </div>
-            )}
-            {!isParent && (
-              <p className="text-xs text-muted-foreground px-1">
-                Tip: set 1–2 stretch goals and track tiny wins each week. Consistency beats
-                intensity.
-              </p>
-            )}
-          </TabsContent>
+            ))}
+          </div>
+        </section>
 
-          <TabsContent
-            value="trends"
-            className="mt-4 grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2"
-          >
+        <section className="space-y-3">
+          <SectionHeading icon={TrendingUp} label="Performance summary & overview" />
+          <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
             <div className="min-w-0 overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-soft md:p-5">
               <h3 className="mb-3 font-semibold">Improvement trend</h3>
               <div className="h-56 w-full min-w-0 max-w-full">
@@ -300,79 +247,29 @@ function GrowthPage() {
                 </ResponsiveContainer>
               </div>
             </div>
-          </TabsContent>
-        </Tabs>
+          </div>
+        </section>
+
+        {improvementStreak ? (
+          <section className="space-y-3">
+            <SectionHeading icon={TrendingUp} label="Improvement streak" />
+            <div className="max-w-md">
+              <StreakCard s={improvementStreak} />
+            </div>
+          </section>
+        ) : null}
       </div>
     </div>
   );
 }
 
-function StudentPersonalGoals({
-  storageKey = "ues_student_personal_goals",
-  title = "Your personal goals",
-}: {
-  storageKey?: string;
-  title?: string;
-}) {
-  const [goalTitle, setGoalTitle] = useState("");
-  const [personal, setPersonal] = useState<Goal[]>([]);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(storageKey);
-      if (raw) setPersonal(JSON.parse(raw) as Goal[]);
-      else setPersonal([]);
-    } catch {
-      void 0;
-    }
-  }, [storageKey]);
-
-  const persist = (next: Goal[]) => {
-    setPersonal(next);
-    localStorage.setItem(storageKey, JSON.stringify(next));
-  };
-
-  const add = () => {
-    const t = goalTitle.trim();
-    if (t.length < 4) return;
-    const g: Goal = {
-      id: `my-${Date.now()}`,
-      title: t,
-      metric: "assignments",
-      target: 100,
-      current: 0,
-      unit: "%",
-      due: "Self-paced",
-    };
-    persist([g, ...personal]);
-    setGoalTitle("");
-  };
-
+function SectionHeading({ icon: Icon, label }: { icon: typeof Flame; label: string }) {
   return (
-    <div>
-      <div className="mb-2 text-xs font-medium uppercase tracking-widest text-muted-foreground">
-        {title}
-      </div>
-      <div className="mb-3 flex min-w-0 flex-col gap-2 sm:flex-row">
-        <Input
-          value={goalTitle}
-          onChange={(e) => setGoalTitle(e.target.value)}
-          placeholder="e.g. Revise organic chemistry 3× this week"
-          className="min-w-0 flex-1 rounded-xl"
-        />
-        <Button type="button" className="shrink-0 rounded-xl gap-1.5" onClick={add}>
-          <Plus className="size-4" /> Add goal
-        </Button>
-      </div>
-      {personal.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No personal goals yet — add one above.</p>
-      ) : (
-        <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
-          {personal.map((g) => (
-            <GoalCard key={g.id} g={g} />
-          ))}
-        </div>
-      )}
+    <div className="flex min-w-0 items-center gap-2">
+      <Icon className="size-4 shrink-0 text-primary" />
+      <h2 className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+        {label}
+      </h2>
     </div>
   );
 }

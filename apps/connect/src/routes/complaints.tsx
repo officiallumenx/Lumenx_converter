@@ -7,17 +7,17 @@ import { AppShell } from "@/components/app/AppShell";
 import { PageHeader } from "@/components/app/PageHeader";
 import { useApp } from "@/lib/app-state";
 import { useParentPortal } from "@/context/ParentPortalContext";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@lumenx/ui";
+import { Input } from "@lumenx/ui";
+import { Textarea } from "@lumenx/ui";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
+} from "@lumenx/ui";
+import { Badge } from "@lumenx/ui";
 import { ShieldAlert, Lock, Plus } from "lucide-react";
 import {
   Dialog,
@@ -26,7 +26,7 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogFooter,
-} from "@/components/ui/dialog";
+} from "@lumenx/ui";
 import { toast } from "sonner";
 import {
   Form,
@@ -35,7 +35,8 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form";
+} from "@lumenx/ui";
+import { TeacherComplaintsPage } from "@/teacher-portal";
 
 export const Route = createFileRoute("/complaints")({
   head: () => ({ meta: [{ title: "Complaints — LumenX Connect" }] }),
@@ -80,6 +81,8 @@ const complaintItems = [
 
 function ComplaintsPage() {
   const { role, activeChildId } = useApp();
+  if (role === "teacher") return <TeacherComplaintsPage />;
+
   const portal = useParentPortal();
 
   const list = useMemo(() => {

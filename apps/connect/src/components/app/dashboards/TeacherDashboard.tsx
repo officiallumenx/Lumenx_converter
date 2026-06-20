@@ -18,8 +18,8 @@ import {
   teacherTimetable,
   classAchievements,
 } from "@/lib/mock-data";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@lumenx/ui";
+import { Badge } from "@lumenx/ui";
 
 export function TeacherDashboard() {
   const today = days[Math.max(0, Math.min(5, new Date().getDay() - 1))];

@@ -1,0 +1,1 @@
+export { TeacherRemarksPage } from "./TeacherRemarksPage";

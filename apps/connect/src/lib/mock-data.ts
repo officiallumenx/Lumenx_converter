@@ -1,3 +1,5 @@
+import { studentCertificateRecords } from "@/lib/student/mock-data";
+
 export const subjects = [
   "Mathematics",
   "Physics",
@@ -15,6 +17,17 @@ export const studentProfile = {
   section: "B",
   rollNo: "14",
   attendance: 92,
+  bloodGroup: "O+",
+  emergencyContact: "+91 98•••••12",
+  parentName: "Rajesh Sharma",
+  house: "Sapphire",
+  idCardIssuedOn: "01 Apr 2024",
+  idCardValidTill: "31 Mar 2025",
+  email: "aarav.sharma@student.lumenx.edu",
+  bio: "Interested in mathematics and robotics. Member of the school science club.",
+  classTeacher: "Ananya Iyer",
+  institute: "LumenX Academy",
+  address: "12 Green Park Road, Sector 4, Hyderabad — 500032",
 };
 
 export const childProfile = studentProfile;
@@ -27,6 +40,13 @@ export const teachers = [
     isClassTeacher: true,
     phone: "+91 98•••••12",
     initials: "AI",
+    email: "ananya.iyer@lumenx.edu",
+    qualification: "M.Sc Mathematics, B.Ed",
+    experienceYears: 12,
+    room: "Staff Room · Block A",
+    availability: "Mon–Fri, 2:00–3:30 PM",
+    bio: "Class teacher for 10-B. Focuses on problem-solving and board exam readiness. Coordinates the school mathematics club.",
+    languages: ["English", "Hindi", "Tamil"],
   },
   {
     id: "T2",
@@ -35,6 +55,13 @@ export const teachers = [
     isClassTeacher: false,
     phone: "+91 98•••••34",
     initials: "RV",
+    email: "rahul.verma@lumenx.edu",
+    qualification: "M.Sc Physics, B.Ed",
+    experienceYears: 9,
+    room: "Lab 2 · Science Block",
+    availability: "Tue & Thu, 3:00–4:00 PM",
+    bio: "Leads practical sessions and NEET foundation batches. Encourages hands-on experiments in class.",
+    languages: ["English", "Hindi"],
   },
   {
     id: "T3",
@@ -43,6 +70,13 @@ export const teachers = [
     isClassTeacher: false,
     phone: "+91 98•••••56",
     initials: "PM",
+    email: "priya.menon@lumenx.edu",
+    qualification: "M.A English Literature, B.Ed",
+    experienceYears: 11,
+    room: "Block B · Room 204",
+    availability: "Wed, 1:30–2:30 PM",
+    bio: "Guides essay writing, debate prep, and reading circles. Mentor for the school literary fest.",
+    languages: ["English", "Malayalam"],
   },
   {
     id: "T4",
@@ -51,6 +85,13 @@ export const teachers = [
     isClassTeacher: false,
     phone: "+91 98•••••78",
     initials: "SR",
+    email: "sandeep.rao@lumenx.edu",
+    qualification: "B.Tech CSE, M.Ed",
+    experienceYears: 7,
+    room: "Computer Lab · Block C",
+    availability: "Mon & Fri, 12:30–1:30 PM",
+    bio: "Runs coding club and robotics workshops. Supports students in hackathons and tech fairs.",
+    languages: ["English", "Hindi", "Kannada"],
   },
   {
     id: "T5",
@@ -59,6 +100,13 @@ export const teachers = [
     isClassTeacher: false,
     phone: "+91 98•••••90",
     initials: "NK",
+    email: "neha.kapoor@lumenx.edu",
+    qualification: "M.Sc Chemistry, B.Ed",
+    experienceYears: 8,
+    room: "Lab 1 · Science Block",
+    availability: "Thu, 2:00–3:00 PM",
+    bio: "Specialises in organic chemistry and lab safety. Helps students with science exhibition projects.",
+    languages: ["English", "Hindi"],
   },
   {
     id: "T6",
@@ -67,8 +115,15 @@ export const teachers = [
     isClassTeacher: false,
     phone: "+91 98•••••11",
     initials: "AB",
+    email: "arjun.bhatt@lumenx.edu",
+    qualification: "M.A History, B.Ed",
+    experienceYears: 10,
+    room: "Block B · Room 210",
+    availability: "Fri, 11:30 AM–12:30 PM",
+    bio: "Teaches modern Indian history and civics. Organises heritage walks and quiz competitions.",
+    languages: ["English", "Hindi", "Gujarati"],
   },
-];
+] as const;
 
 export const studentTimetable: Record<
   string,
@@ -142,38 +197,111 @@ export const teacherTimetable: Record<string, { time: string; class: string; sub
     Saturday: [{ time: "09:20 – 10:05", class: "10-B", subject: "Mathematics" }],
   };
 
-export const assignments = [
+export type StudentAssignmentType = "assignment" | "homework";
+export type StudentAssignmentStatus = "pending" | "submitted";
+
+export type StudentAssignment = {
+  id: string;
+  title: string;
+  subject: string;
+  due: string;
+  /** ISO date (YYYY-MM-DD) for due/overdue colour logic */
+  dueDate?: string;
+  status: StudentAssignmentStatus;
+  class: string;
+  type: StudentAssignmentType;
+};
+
+export const assignments: StudentAssignment[] = [
   {
     id: "A1",
     title: "Quadratic Equations Practice",
     subject: "Mathematics",
     due: "Tomorrow",
+    dueDate: "2026-06-02",
     status: "pending",
     class: "10-B",
+    type: "assignment",
   },
   {
     id: "A2",
     title: "Newton's Laws – Worksheet",
     subject: "Physics",
     due: "In 3 days",
+    dueDate: "2026-06-04",
     status: "pending",
     class: "10-B",
+    type: "assignment",
   },
   {
     id: "A3",
     title: "Essay: Climate Action",
     subject: "English",
     due: "Submitted",
+    dueDate: "2026-05-28",
     status: "submitted",
     class: "10-B",
+    type: "assignment",
   },
   {
     id: "A4",
     title: "Periodic Table Quiz",
     subject: "Chemistry",
     due: "In 5 days",
+    dueDate: "2026-06-06",
     status: "pending",
     class: "10-B",
+    type: "assignment",
+  },
+  {
+    id: "A5",
+    title: "Trigonometry Review Sheet",
+    subject: "Mathematics",
+    due: "May 28",
+    dueDate: "2026-05-28",
+    status: "pending",
+    class: "10-B",
+    type: "assignment",
+  },
+  {
+    id: "H1",
+    title: "Read Chapter 4 — Organic Chemistry",
+    subject: "Chemistry",
+    due: "Tonight",
+    dueDate: "2026-06-01",
+    status: "pending",
+    class: "10-B",
+    type: "homework",
+  },
+  {
+    id: "H2",
+    title: "Grammar exercises (Unit 6)",
+    subject: "English",
+    due: "Submitted",
+    dueDate: "2026-05-30",
+    status: "submitted",
+    class: "10-B",
+    type: "homework",
+  },
+  {
+    id: "H3",
+    title: "Map labeling — India physiography",
+    subject: "Geography",
+    due: "May 25",
+    dueDate: "2026-05-25",
+    status: "pending",
+    class: "10-B",
+    type: "homework",
+  },
+  {
+    id: "H4",
+    title: "Daily problem set — vectors",
+    subject: "Physics",
+    due: "In 2 days",
+    dueDate: "2026-06-03",
+    status: "pending",
+    class: "10-B",
+    type: "homework",
   },
 ];
 
@@ -229,33 +357,46 @@ export const exams = [
     id: "E1",
     title: "Mid-Term Mathematics",
     subject: "Mathematics",
-    date: "Mon 18 Nov",
+    date: "Mon 15 Jun",
     duration: "2h",
     room: "Hall 2",
+    series: "Mid-Term 2026",
   },
   {
     id: "E2",
     title: "Mid-Term Physics",
     subject: "Physics",
-    date: "Wed 20 Nov",
+    date: "Wed 17 Jun",
     duration: "2h",
     room: "Hall 1",
+    series: "Mid-Term 2026",
   },
   {
     id: "E3",
     title: "Mid-Term Chemistry",
     subject: "Chemistry",
-    date: "Fri 22 Nov",
+    date: "Fri 19 Jun",
     duration: "2h",
     room: "Hall 3",
+    series: "Mid-Term 2026",
   },
   {
     id: "E4",
     title: "Mid-Term English",
     subject: "English",
-    date: "Mon 25 Nov",
+    date: "Mon 22 Jun",
     duration: "2h",
     room: "Hall 2",
+    series: "Mid-Term 2026",
+  },
+  {
+    id: "E5",
+    title: "Final Mathematics",
+    subject: "Mathematics",
+    date: "Mon 16 Mar",
+    duration: "3h",
+    room: "Hall 2",
+    series: "Final 2026",
   },
 ];
 
@@ -406,7 +547,7 @@ export const studentsInClass = [
   "Anvi Desai",
 ].map((name, i) => ({ id: `S${1000 + i}`, name, roll: String(i + 1).padStart(2, "0") }));
 
-import type { Child } from "./types";
+import type { Child } from "@lumenx/types";
 
 export const children: Child[] = [
   {
@@ -460,8 +601,15 @@ export const feeDuesByChild: Record<
 > = {
   C1: [
     {
+      id: "pc1-t1",
+      title: "Tuition Fee",
+      amount: 21000,
+      due: "15 Jan 2025",
+      status: "upcoming",
+    },
+    {
       id: "pc1-1",
-      title: "Transport fee (H2)",
+      title: "Transport Fee",
       amount: 8000,
       due: "30 Nov 2024",
       status: "overdue",
@@ -470,11 +618,25 @@ export const feeDuesByChild: Record<
       id: "pc1-2",
       title: "Practical & viva examination fee",
       amount: 1800,
-      due: "05 Dec 2024",
+      due: "5 Dec 2025",
+      status: "overdue",
+    },
+    {
+      id: "pc1-3",
+      title: "Mid-Term examination fee",
+      amount: 3500,
+      due: "20 Jun 2026",
       status: "upcoming",
     },
   ],
   C2: [
+    {
+      id: "pc2-t1",
+      title: "Tuition Fee",
+      amount: 18000,
+      due: "15 Jan 2025",
+      status: "upcoming",
+    },
     {
       id: "pc2-1",
       title: "Annual activity fee",
@@ -482,19 +644,33 @@ export const feeDuesByChild: Record<
       due: "20 Jun 2026",
       status: "upcoming",
     },
+    {
+      id: "pc2-2",
+      title: "Half-yearly examination fee",
+      amount: 2800,
+      due: "10 Jun 2026",
+      status: "upcoming",
+    },
   ],
   C3: [
+    {
+      id: "pc3-t1",
+      title: "Tuition Fee",
+      amount: 15000,
+      due: "15 Jan 2025",
+      status: "upcoming",
+    },
     {
       id: "pc3-1",
       title: "Term stationery bundle",
       amount: 1200,
-      due: "01 Jun 2026",
+      due: "1 Jun 2026",
       status: "upcoming",
     },
   ],
 };
 
-import type { Achievement, Streak, Goal, SportEvent, SportTeam } from "./types";
+import type { Achievement, Streak, Goal, SportEvent, SportTeam } from "@lumenx/types";
 
 export const achievements: Achievement[] = [
   {
@@ -560,6 +736,22 @@ export const achievements: Achievement[] = [
     icon: "sparkles",
     tier: "bronze",
     progress: 53,
+  },
+  {
+    id: "ach-9",
+    title: "Cultural Day Star",
+    description: "Lead performer in the annual group dance showcase.",
+    icon: "star",
+    tier: "gold",
+    unlockedOn: "Aug 2024",
+  },
+  {
+    id: "ach-10",
+    title: "100m Sprint Silver",
+    description: "District athletics meet — 100m sprint, 2nd place.",
+    icon: "medal",
+    tier: "silver",
+    unlockedOn: "Dec 2024",
   },
 ];
 
@@ -670,24 +862,6 @@ export const classAchievements = [
 
 export const sportsEvents: SportEvent[] = [
   {
-    id: "se1",
-    title: "Inter-house Football Final",
-    sport: "Football",
-    date: "Sat 16 Nov",
-    time: "3:30 PM",
-    venue: "Main Ground",
-    status: "upcoming",
-  },
-  {
-    id: "se2",
-    title: "Annual Athletics Meet",
-    sport: "Athletics",
-    date: "Fri 22 Nov",
-    time: "8:00 AM",
-    venue: "Track & Field",
-    status: "upcoming",
-  },
-  {
     id: "se3",
     title: "Chess Tournament — Round 3",
     sport: "Chess",
@@ -695,6 +869,57 @@ export const sportsEvents: SportEvent[] = [
     time: "4:00 PM",
     venue: "Activity Hall",
     status: "ongoing",
+    kind: "sport",
+  },
+  {
+    id: "se1",
+    title: "Inter-house Football Final",
+    sport: "Football",
+    date: "Sat 14 Jun",
+    time: "3:30 PM",
+    venue: "Main Ground",
+    status: "upcoming",
+    kind: "sport",
+  },
+  {
+    id: "se-c1",
+    title: "Inter-house Group Dance",
+    sport: "Dance",
+    date: "Fri 20 Jun",
+    time: "5:00 PM",
+    venue: "Auditorium",
+    status: "upcoming",
+    kind: "cultural",
+  },
+  {
+    id: "se2",
+    title: "Annual Athletics Meet",
+    sport: "Athletics",
+    date: "Mon 23 Jun",
+    time: "8:00 AM",
+    venue: "Track & Field",
+    status: "upcoming",
+    kind: "sport",
+  },
+  {
+    id: "se-c2",
+    title: "Music Ensemble — Western Vocals",
+    sport: "Music",
+    date: "Wed 25 Jun",
+    time: "4:30 PM",
+    venue: "Auditorium",
+    status: "upcoming",
+    kind: "cultural",
+  },
+  {
+    id: "se-c3",
+    title: "Primary Cultural Showcase",
+    sport: "Arts",
+    date: "Sat 28 Jun",
+    time: "10:00 AM",
+    venue: "Activity Hall",
+    status: "upcoming",
+    kind: "cultural",
   },
   {
     id: "se4",
@@ -705,6 +930,7 @@ export const sportsEvents: SportEvent[] = [
     venue: "Court A",
     status: "completed",
     result: "Won 42–36",
+    kind: "sport",
   },
   {
     id: "se5",
@@ -715,6 +941,7 @@ export const sportsEvents: SportEvent[] = [
     venue: "Main Ground",
     status: "completed",
     result: "Drawn",
+    kind: "sport",
   },
 ];
 
@@ -796,7 +1023,7 @@ export const sportsAttendance = [
   { week: "W5", attended: 2, total: 3 },
 ];
 
-import type { ReportCard, FeeItem, SchoolEvent, AppNotification, Institute } from "./types";
+import type { ReportCard, SubjectMark, FeeItem, SchoolEvent, AppNotification, Institute } from "@lumenx/types";
 
 /** Campuses available at sign-in — drives institute-scoped session context. */
 export const registeredInstitutes: Institute[] = [
@@ -849,75 +1076,138 @@ const gradeFor = (pct: number) =>
 
 export { gradeFor };
 
+const buildReportCardMarks = (
+  rows: Array<
+    [subject: string, internal: number, exam: number, remark?: string]
+  >,
+): SubjectMark[] =>
+  rows.map(([subject, internal, exam, remark]) => {
+    const total = internal + exam;
+    return {
+      subject,
+      internal,
+      exam,
+      total,
+      grade: gradeFor(total),
+      ...(remark ? { remark } : {}),
+    };
+  });
+
+const avgPct = (marks: SubjectMark[]) =>
+  Math.round(marks.reduce((s, m) => s + m.total, 0) / marks.length);
+
 export const reportCards: ReportCard[] = [
   {
-    id: "rc-t1",
-    term: "Term 1 (2024-25)",
-    publishedOn: "12 Aug 2024",
+    id: "rc-u1",
+    term: "Unit Test 1",
+    publishedOn: "28 Jul 2024",
+    status: "published",
+    percentage: avgPct(
+      buildReportCardMarks([
+        ["Mathematics", 17, 58, "Good start — revise geometry"],
+        ["Physics", 15, 52, "Focus on units and formulas"],
+        ["Chemistry", 14, 48],
+        ["English", 18, 65, "Strong comprehension"],
+        ["Computer Sci", 19, 68, "Excellent logic skills"],
+        ["History", 14, 50],
+      ]),
+    ),
+    grade: "B+",
+    rank: 11,
+    marks: buildReportCardMarks([
+      ["Mathematics", 17, 58, "Good start — revise geometry"],
+      ["Physics", 15, 52, "Focus on units and formulas"],
+      ["Chemistry", 14, 48],
+      ["English", 18, 65, "Strong comprehension"],
+      ["Computer Sci", 19, 68, "Excellent logic skills"],
+      ["History", 14, 50],
+    ]),
+  },
+  {
+    id: "rc-u2",
+    term: "Unit Test 2",
+    publishedOn: "18 Sep 2024",
+    status: "published",
+    percentage: avgPct(
+      buildReportCardMarks([
+        ["Mathematics", 18, 62, "Improved in algebra"],
+        ["Physics", 16, 55],
+        ["Chemistry", 13, 45],
+        ["English", 19, 68],
+        ["Computer Sci", 20, 72],
+        ["History", 15, 54],
+      ]),
+    ),
+    grade: "B+",
+    rank: 9,
+    marks: buildReportCardMarks([
+      ["Mathematics", 18, 62, "Improved in algebra"],
+      ["Physics", 16, 55],
+      ["Chemistry", 13, 45],
+      ["English", 19, 68],
+      ["Computer Sci", 20, 72],
+      ["History", 15, 54],
+    ]),
+  },
+  {
+    id: "rc-u3",
+    term: "Unit Test 3",
+    publishedOn: "8 Nov 2024",
+    status: "published",
+    percentage: avgPct(
+      buildReportCardMarks([
+        ["Mathematics", 18, 66, "Strong improvement in algebra"],
+        ["Physics", 16, 58, "Practice numericals"],
+        ["Chemistry", 14, 52, "Focus on organic chemistry"],
+        ["English", 19, 70, "Excellent essays"],
+        ["Computer Sci", 20, 74, "Outstanding"],
+        ["History", 15, 56],
+      ]),
+    ),
+    grade: "A",
+    rank: 8,
+    marks: buildReportCardMarks([
+      ["Mathematics", 18, 66, "Strong improvement in algebra"],
+      ["Physics", 16, 58, "Practice numericals"],
+      ["Chemistry", 14, 52, "Focus on organic chemistry"],
+      ["English", 19, 70, "Excellent essays"],
+      ["Computer Sci", 20, 74, "Outstanding"],
+      ["History", 15, 56],
+    ]),
+  },
+  {
+    id: "rc-hy",
+    term: "Half-Yearly",
+    publishedOn: "20 Dec 2024",
     status: "published",
     percentage: 82,
     grade: "A",
     rank: 7,
-    marks: [
-      {
-        subject: "Mathematics",
-        internal: 18,
-        exam: 70,
-        total: 88,
-        grade: "A",
-        remark: "Strong improvement in algebra",
-      },
-      {
-        subject: "Physics",
-        internal: 16,
-        exam: 60,
-        total: 76,
-        grade: "B+",
-        remark: "Practice numericals",
-      },
-      {
-        subject: "Chemistry",
-        internal: 14,
-        exam: 50,
-        total: 64,
-        grade: "B",
-        remark: "Focus on organic chemistry",
-      },
-      {
-        subject: "English",
-        internal: 19,
-        exam: 72,
-        total: 91,
-        grade: "A+",
-        remark: "Excellent essays",
-      },
-      {
-        subject: "Computer Sci",
-        internal: 20,
-        exam: 75,
-        total: 95,
-        grade: "A+",
-        remark: "Outstanding",
-      },
-      { subject: "History", internal: 15, exam: 57, total: 72, grade: "B+" },
-    ],
+    marks: buildReportCardMarks([
+      ["Mathematics", 18, 70, "Strong improvement in algebra"],
+      ["Physics", 16, 60, "Practice numericals"],
+      ["Chemistry", 14, 50, "Focus on organic chemistry"],
+      ["English", 19, 72, "Excellent essays"],
+      ["Computer Sci", 20, 75, "Outstanding"],
+      ["History", 15, 57],
+    ]),
   },
   {
     id: "rc-mid",
-    term: "Mid-Term (2024-25)",
+    term: "Mid-Term",
     publishedOn: "Draft",
     status: "draft",
     percentage: 78,
     grade: "B+",
     rank: 9,
-    marks: [
-      { subject: "Mathematics", internal: 17, exam: 65, total: 82, grade: "A" },
-      { subject: "Physics", internal: 15, exam: 56, total: 71, grade: "B+" },
-      { subject: "Chemistry", internal: 13, exam: 47, total: 60, grade: "B" },
-      { subject: "English", internal: 18, exam: 70, total: 88, grade: "A" },
-      { subject: "Computer Sci", internal: 19, exam: 72, total: 91, grade: "A+" },
-      { subject: "History", internal: 14, exam: 56, total: 70, grade: "B+" },
-    ],
+    marks: buildReportCardMarks([
+      ["Mathematics", 17, 65],
+      ["Physics", 15, 56],
+      ["Chemistry", 13, 47],
+      ["English", 18, 70],
+      ["Computer Sci", 19, 72],
+      ["History", 14, 56],
+    ]),
   },
 ];
 
@@ -989,9 +1279,36 @@ export const fees: FeeItem[] = [
   {
     id: "f-ex2",
     title: "Practical & viva examination fee",
-    term: "Dec 2024",
+    term: "Dec 2025",
     amount: 1800,
-    due: "5 Dec 2024",
+    due: "5 Dec 2025",
+    status: "overdue",
+    category: "exam",
+  },
+  {
+    id: "f-ex3",
+    title: "Final examination fee",
+    term: "Mar 2026",
+    amount: 4200,
+    due: "15 Mar 2026",
+    status: "upcoming",
+    category: "exam",
+  },
+  {
+    id: "f-ex4",
+    title: "Half-yearly practical fee",
+    term: "Jun 2026",
+    amount: 2200,
+    due: "10 Jun 2026",
+    status: "upcoming",
+    category: "exam",
+  },
+  {
+    id: "f-ex5",
+    title: "Mid-Term examination fee",
+    term: "Jun 2026",
+    amount: 3500,
+    due: "20 Jun 2026",
     status: "upcoming",
     category: "exam",
   },
@@ -1099,6 +1416,8 @@ export const categorizedNotifications: Record<"parent" | "teacher" | "student", 
         category: "attendance",
         unread: true,
         priority: "normal",
+        detail:
+          "Aarav Sharma was marked present for Period 1 (Mathematics) at 9:12 AM. Class 10-B · Roll 14. If this looks incorrect, contact the class teacher within 24 hours.",
       },
       {
         id: "pn2",
@@ -1109,6 +1428,8 @@ export const categorizedNotifications: Record<"parent" | "teacher" | "student", 
         category: "academic",
         unread: true,
         priority: "high",
+        detail:
+          "The Half-Yearly report card is now available under Marks. Aggregate 82%, Grade A, class rank #7. Subject-wise breakdown and teacher remarks are included.",
       },
       {
         id: "pn3",
@@ -1119,6 +1440,8 @@ export const categorizedNotifications: Record<"parent" | "teacher" | "student", 
         category: "fees",
         unread: true,
         priority: "high",
+        detail:
+          "Q3 2024 tuition received a partial payment on 16 Oct. ₹7,000 remains due. Clear the balance on the Fees page to avoid late fees.",
       },
       {
         id: "pn4",
@@ -1226,6 +1549,8 @@ export const categorizedNotifications: Record<"parent" | "teacher" | "student", 
         category: "assignments",
         unread: true,
         priority: "high",
+        detail:
+          "Mathematics assignment posted by Ananya Iyer. Submit PDF or photo scan before 8:00 AM tomorrow. Late submissions may lose 10% per day.",
       },
       {
         id: "sn2",
@@ -1236,6 +1561,8 @@ export const categorizedNotifications: Record<"parent" | "teacher" | "student", 
         category: "academic",
         unread: true,
         priority: "high",
+        detail:
+          "Your Half-Yearly results are live. Open Marks to see subject-wise scores, pass/fail status, and performance charts. Class rank: #7.",
       },
       {
         id: "sn3",
@@ -1282,5 +1609,178 @@ export const categorizedNotifications: Record<"parent" | "teacher" | "student", 
         category: "events",
         priority: "normal",
       },
+      {
+        id: "sn8",
+        title: "School reopening notice",
+        desc: "Classes resume 6 Jun after regional holiday",
+        time: "3 days ago",
+        type: "info",
+        category: "circulars",
+        unread: true,
+        priority: "normal",
+      },
     ],
   };
+
+/** Mandatory & emergency alerts — separate from general notifications. */
+export const schoolAlerts: Record<"parent" | "student", import("@lumenx/types").SchoolAlert[]> = {
+  parent: [
+    {
+      id: "al-p1",
+      title: "Sent to sick bay — pickup required",
+      summary: "Aarav reported fever during Period 3. Nurse is monitoring.",
+      detail:
+        "Aarav Sharma was sent to the health office at 11:42 AM with a temperature of 38.2°C. He is resting in the sick bay. Please confirm pickup within 45 minutes or authorize the school to administer basic care per the medical consent form on file.",
+      severity: "emergency",
+      category: "health",
+      time: "32 min ago",
+      source: "Health office · Ms. Rekha",
+      childName: "Aarav Sharma",
+      childId: "C1",
+      unread: true,
+      acknowledged: false,
+      actionRequired: true,
+      actionLabel: "Confirm pickup",
+    },
+    {
+      id: "al-p2",
+      title: "Unplanned absence recorded",
+      summary: "Aarav marked absent for Period 1 today — no prior leave application.",
+      detail:
+        "Attendance for Class 10-B shows Aarav absent in Period 1 (Mathematics). If this is incorrect or you had applied leave, submit clarification via Messages or call the attendance desk before 2 PM to avoid an unexplained absence flag.",
+      severity: "mandatory",
+      category: "absence",
+      time: "2 hr ago",
+      source: "Attendance desk",
+      childName: "Aarav Sharma",
+      childId: "C1",
+      unread: true,
+      acknowledged: false,
+      actionRequired: true,
+      actionLabel: "Submit clarification",
+    },
+    {
+      id: "al-p3",
+      title: "Urgent teacher remark",
+      summary: "Class teacher flagged a behaviour concern requiring parent follow-up.",
+      detail:
+        "Ms. Ananya Iyer has posted an urgent remark regarding classroom conduct during the chemistry lab. Please review the full remark under Messages and acknowledge that you have discussed this with your child. A brief response is requested within 24 hours.",
+      severity: "mandatory",
+      category: "remark",
+      time: "Yesterday",
+      source: "Class teacher · Ms. Iyer",
+      childName: "Aarav Sharma",
+      childId: "C1",
+      unread: false,
+      acknowledged: false,
+      actionRequired: true,
+      actionLabel: "Acknowledge remark",
+    },
+    {
+      id: "al-p4",
+      title: "Early dismissal — inter-school event",
+      summary: "Anaya will return by 1:30 PM from the quiz competition.",
+      detail:
+        "Anaya Sharma is participating in the inter-school quiz at City Hall. The school bus will drop her at the regular stop by 1:30 PM. No action needed unless your pickup plan differs — reply to confirm alternate arrangements.",
+      severity: "mandatory",
+      category: "attendance",
+      time: "Today · 8:00 AM",
+      source: "Activity coordinator",
+      childName: "Anaya Sharma",
+      childId: "C2",
+      unread: true,
+      acknowledged: false,
+      actionRequired: false,
+    },
+    {
+      id: "al-p5",
+      title: "Allergy incident — resolved",
+      summary: "Vihaan had a mild reaction at lunch; antihistamine given per medical file.",
+      detail:
+        "During lunch, Vihaan reported mild itching after the dessert course. The nurse reviewed his allergy profile (nuts) and administered antihistamine as authorized. Symptoms subsided within 20 minutes. This is logged for your records — no immediate pickup required unless symptoms return.",
+      severity: "emergency",
+      category: "health",
+      time: "Yesterday",
+      source: "Health office",
+      childName: "Vihaan Sharma",
+      childId: "C3",
+      unread: false,
+      acknowledged: true,
+      actionRequired: false,
+    },
+    {
+      id: "al-p6",
+      title: "Bus safety drill reminder",
+      summary: "Mandatory acknowledgement before Friday's evacuation drill.",
+      detail:
+        "All parents must acknowledge receipt of the updated bus safety protocol before the district-mandated evacuation drill on Friday. Students will practice emergency exit procedures during Period 6.",
+      severity: "mandatory",
+      category: "safety",
+      time: "3 days ago",
+      source: "Transport office",
+      unread: false,
+      acknowledged: true,
+      actionRequired: false,
+    },
+  ],
+  student: [
+    {
+      id: "al-s1",
+      title: "Report to sick bay after lunch",
+      summary: "You were sent to the health office — inform your parent to confirm pickup.",
+      detail:
+        "You reported feeling unwell during Period 3. The nurse is monitoring you in the sick bay. Your parent has been notified. Stay in the health office until you are collected or cleared to return to class.",
+      severity: "emergency",
+      category: "health",
+      time: "32 min ago",
+      source: "Health office",
+      unread: true,
+      acknowledged: false,
+      actionRequired: false,
+    },
+    {
+      id: "al-s2",
+      title: "Absence flagged — Period 1",
+      summary: "You were marked absent this morning. Ask your parent to clarify if incorrect.",
+      detail:
+        "Your attendance record shows absent for Period 1 (Mathematics). If you were present, inform your class teacher immediately. Otherwise, your parent must submit leave clarification before end of day.",
+      severity: "mandatory",
+      category: "absence",
+      time: "2 hr ago",
+      source: "Attendance desk",
+      unread: true,
+      acknowledged: false,
+      actionRequired: false,
+    },
+    {
+      id: "al-s3",
+      title: "Urgent remark from class teacher",
+      summary: "Ms. Iyer posted a remark that requires your parent to acknowledge.",
+      detail:
+        "Your class teacher has flagged a behaviour concern from today's chemistry lab. Discuss this with your parents — they must acknowledge the remark in the Alerts section within 24 hours.",
+      severity: "mandatory",
+      category: "remark",
+      time: "Yesterday",
+      source: "Ms. Ananya Iyer",
+      unread: false,
+      acknowledged: false,
+      actionRequired: false,
+    },
+    {
+      id: "al-s4",
+      title: "Fire drill — Friday Period 6",
+      summary: "Mandatory participation. Review exit route for your classroom.",
+      detail:
+        "District-mandated evacuation drill on Friday during Period 6. Know your nearest exit from Room 10-B and assemble at the north field. No bags — line up quietly with your class.",
+      severity: "mandatory",
+      category: "safety",
+      time: "3 days ago",
+      source: "School administration",
+      unread: false,
+      acknowledged: true,
+      actionRequired: false,
+    },
+  ],
+};
+
+export const studentCertificates = studentCertificateRecords;

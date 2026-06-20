@@ -1,5 +1,6 @@
 @import "tailwindcss" source(none);
 @source "../src";
+@source "../../../packages/ui/src";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
@@ -214,6 +215,34 @@
   }
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
+  }
+  /* Teacher portal: ensure portaled overlays sit above sticky bars & mobile nav */
+  [data-radix-popper-content-wrapper] {
+    z-index: 100 !important;
+  }
+  /* Solid surface for selects, dropdowns, popovers (bg-popover lives in @lumenx/ui) */
+  [data-radix-popper-content-wrapper] > *,
+  [data-radix-select-content],
+  [data-radix-menu-content],
+  [role="listbox"][data-state],
+  [role="menu"][data-state] {
+    background-color: var(--popover) !important;
+    color: var(--popover-foreground);
+  }
+  [data-slot="select-content"],
+  [data-slot="dropdown-menu-content"],
+  [data-slot="dialog-overlay"],
+  [data-slot="dialog-content"],
+  [data-slot="sheet-content"] {
+    z-index: 100 !important;
+  }
+  .teacher-sticky-actions {
+    z-index: 35;
+  }
+  @media (max-width: 1023px) {
+    main {
+      isolation: isolate;
+    }
   }
   @media (prefers-reduced-motion: reduce) {
     .animate-in-up {

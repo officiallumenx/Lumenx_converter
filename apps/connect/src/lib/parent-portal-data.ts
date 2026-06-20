@@ -2,7 +2,7 @@
  * Parent portal: strictly scoped mock data per linked child.
  * Replace `buildParentPortalSnapshot` with API calls when backend is ready.
  */
-import type { AppNotification, Child, Goal, ReportCard, SubjectMark } from "@/lib/types";
+import type { AppNotification, Child, Goal, ReportCard, SubjectMark } from "@lumenx/types";
 import {
   achievements as baseAchievements,
   assignments as allAssignments,
@@ -109,24 +109,40 @@ function assignmentsForClass(classTag: string, childId: string) {
       title: "Weekly reading log",
       subject: "English",
       due: "Friday",
+      dueDate: "2026-06-06",
       status: "pending" as const,
       class: classTag,
+      type: "homework" as const,
     },
     {
       id: `A-X-${childId}-2`,
       title: "Number skills worksheet",
       subject: "Mathematics",
       due: "Next week",
+      dueDate: "2026-06-08",
       status: "pending" as const,
       class: classTag,
+      type: "assignment" as const,
     },
     {
       id: `A-X-${childId}-3`,
       title: "Science observation journal",
       subject: "Physics",
       due: "Submitted",
+      dueDate: "2026-05-29",
       status: "submitted" as const,
       class: classTag,
+      type: "homework" as const,
+    },
+    {
+      id: `A-X-${childId}-4`,
+      title: "Lab report draft",
+      subject: "Chemistry",
+      due: "May 27",
+      dueDate: "2026-05-27",
+      status: "pending" as const,
+      class: classTag,
+      type: "assignment" as const,
     },
   ].map((a, i) => ({
     ...a,
@@ -168,6 +184,16 @@ function buildNotifications(child: Child): AppNotification[] {
       category: "fees" as const,
       unread: false,
       priority: "normal" as const,
+    },
+    {
+      id: `pn-${child.id}-hw`,
+      title: `${first} has pending homework`,
+      desc: "Grammar exercises due tonight · check Assignments",
+      time: "Today",
+      type: "warning" as const,
+      category: "assignments" as const,
+      unread: true,
+      priority: "high" as const,
     },
     {
       id: `pn-${child.id}-d`,

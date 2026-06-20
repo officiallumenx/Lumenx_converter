@@ -2,19 +2,20 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { AppShell } from "@/components/app/AppShell";
 import { PageHeader } from "@/components/app/PageHeader";
+import { TeacherMessagesPage } from "@/teacher-portal";
 import { useApp } from "@/lib/app-state";
 import { useParentPortal } from "@/context/ParentPortalContext";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@lumenx/ui";
+import { Textarea } from "@lumenx/ui";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@lumenx/ui";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn } from "@lumenx/ui";
 import { Send } from "lucide-react";
 import { subjects, teachers } from "@/lib/mock-data";
 
@@ -73,38 +74,7 @@ function MessagesPage() {
     toast.success(`Message queued for ${recipientLabel}`);
   };
 
-  if (role === "teacher") {
-    return (
-      <div className="min-w-0 max-w-full">
-        <PageHeader title="Messages" subtitle="Reach parents, students or leadership securely." />
-        <div className="min-w-0 rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-5">
-          <div className="mb-3 text-sm font-medium">Quick route</div>
-          <div className="mb-4 flex flex-wrap gap-2">
-            {["Parent", "Student", "Principal", "Entire class"].map((o) => (
-              <span
-                key={o}
-                className="rounded-full border border-border bg-muted/40 px-3 py-1.5 text-sm text-muted-foreground"
-              >
-                {o}
-              </span>
-            ))}
-          </div>
-          <Textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            rows={6}
-            placeholder="Type your message…"
-            className="rounded-xl"
-          />
-          <div className="mt-3 flex justify-end">
-            <Button onClick={send} className="gap-2 rounded-xl shadow-glow">
-              <Send className="size-4" /> Send
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  if (role === "teacher") return <TeacherMessagesPage />;
 
   return (
     <div className="min-w-0 max-w-full">

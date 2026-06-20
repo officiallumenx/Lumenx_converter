@@ -1,6 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
-import { Card, Button, Pill, Modal, Field, TextInput, Select } from "@/components/ui-kit";
+import { Card, Button, Pill, Modal, Field, TextInput, Select } from "@lumenx/ui-admin";
+import {
+  MOCK_ADMIN_STUDENTS,
+  filterAdminStudents,
+  sortAdminStudents,
+  type AdminStudentSortKey,
+  type StudentStatus,
+} from "@lumenx/module-students";
 import { Search, Filter, Plus, MoreHorizontal, Download, ArrowUpDown, UserPlus, Upload, FileSpreadsheet } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -9,41 +16,20 @@ export const Route = createFileRoute("/students")({
   component: StudentsPage,
 });
 
-const students = [
-  { id: "STU-1042", name: "Aanya Sharma", grade: "10-A", attendance: 96, gpa: 3.8, status: "active", parent: "R. Sharma" },
-  { id: "STU-1043", name: "Julian Draxler", grade: "11-C", attendance: 71, gpa: 2.2, status: "at-risk", parent: "M. Draxler" },
-  { id: "STU-1044", name: "Ethan Wright", grade: "10-B", attendance: 85, gpa: 2.9, status: "watch", parent: "S. Wright" },
-  { id: "STU-1045", name: "Sana Khan", grade: "12-A", attendance: 91, gpa: 3.5, status: "active", parent: "I. Khan" },
-  { id: "STU-1046", name: "Alina Moreno", grade: "9-A", attendance: 68, gpa: 2.1, status: "at-risk", parent: "C. Moreno" },
-  { id: "STU-1047", name: "Marcus Lee", grade: "11-A", attendance: 99, gpa: 3.95, status: "active", parent: "H. Lee" },
-  { id: "STU-1048", name: "Priya Patel", grade: "9-B", attendance: 93, gpa: 3.6, status: "active", parent: "K. Patel" },
-  { id: "STU-1049", name: "Omar Haddad", grade: "12-B", attendance: 78, gpa: 2.8, status: "watch", parent: "F. Haddad" },
-];
-
-type SortKey = "name" | "grade" | "attendance" | "gpa";
-
 function StudentsPage() {
   const [q, setQ] = useState("");
-  const [filter, setFilter] = useState<"all" | "at-risk" | "watch" | "active">("all");
-  const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "name", dir: "asc" });
+  const [filter, setFilter] = useState<"all" | StudentStatus>("all");
+  const [sort, setSort] = useState<{ key: AdminStudentSortKey; dir: "asc" | "desc" }>({ key: "name", dir: "asc" });
   const [open, setOpen] = useState(false);
   const [bulk, setBulk] = useState(false);
 
   const list = useMemo(() => {
-    const base = students.filter((s) =>
-      (filter === "all" || s.status === filter) &&
-      (q === "" || s.name.toLowerCase().includes(q.toLowerCase()) || s.id.includes(q.toUpperCase()))
-    );
-    const dirMul = sort.dir === "asc" ? 1 : -1;
-    return [...base].sort((a, b) => {
-      const av = a[sort.key]; const bv = b[sort.key];
-      if (typeof av === "number" && typeof bv === "number") return (av - bv) * dirMul;
-      return String(av).localeCompare(String(bv)) * dirMul;
-    });
+    const filtered = filterAdminStudents(MOCK_ADMIN_STUDENTS, q, filter);
+    return sortAdminStudents(filtered, sort.key, sort.dir);
   }, [q, filter, sort]);
 
-  const toggleSort = (k: SortKey) => setSort((s) => ({ key: k, dir: s.key === k && s.dir === "asc" ? "desc" : "asc" }));
-  const Th = ({ k, label }: { k: SortKey; label: string }) => (
+  const toggleSort = (k: AdminStudentSortKey) => setSort((s) => ({ key: k, dir: s.key === k && s.dir === "asc" ? "desc" : "asc" }));
+  const Th = ({ k, label }: { k: AdminStudentSortKey; label: string }) => (
     <th className="px-5 py-3 font-semibold">
       <button onClick={() => toggleSort(k)} className="inline-flex items-center gap-1 hover:text-foreground">
         {label}<ArrowUpDown className="size-3 opacity-60" />

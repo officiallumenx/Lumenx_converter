@@ -7,7 +7,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { Institute, Role, User } from "./types";
+import type { Institute, Role, User } from "@lumenx/types";
+import { CONNECT_STORAGE_KEYS } from "@lumenx/auth";
 import { children as linkedChildren, registeredInstitutes } from "./mock-data";
 import { LINKED_CHILD_IDS, resolveLinkedChildId } from "./parent-portal-data";
 
@@ -19,6 +20,8 @@ function resolveInstitute(id: string | null): Institute | null {
 interface AppState {
   user: User | null;
   role: Role | null;
+  /** False until localStorage session is restored (avoids login redirect flash). */
+  hydrated: boolean;
   activeInstituteId: string | null;
   institute: Institute | null;
   theme: "light" | "dark";
@@ -54,12 +57,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     try {
-      const u = localStorage.getItem("ues_user");
-      const r = localStorage.getItem("ues_role") as Role | null;
-      const t = localStorage.getItem("ues_theme") as "light" | "dark" | null;
-      const c = localStorage.getItem("ues_child");
-      const ins = localStorage.getItem("ues_institute");
-      const sim = localStorage.getItem("ues_student_included");
+      const u = localStorage.getItem(CONNECT_STORAGE_KEYS.user);
+      const r = localStorage.getItem(CONNECT_STORAGE_KEYS.role) as Role | null;
+      const t = localStorage.getItem(CONNECT_STORAGE_KEYS.theme) as "light" | "dark" | null;
+      const c = localStorage.getItem(CONNECT_STORAGE_KEYS.child);
+      const ins = localStorage.getItem(CONNECT_STORAGE_KEYS.institute);
+      const sim = localStorage.getItem(CONNECT_STORAGE_KEYS.studentIncluded);
       if (u) setUser(JSON.parse(u));
       if (r) setRoleState(r);
       if (t) setTheme(t);
@@ -77,7 +80,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!hydrated) return;
     document.documentElement.classList.toggle("dark", theme === "dark");
-    localStorage.setItem("ues_theme", theme);
+    localStorage.setItem(CONNECT_STORAGE_KEYS.theme, theme);
   }, [theme, hydrated]);
 
   const institute = useMemo(() => resolveInstitute(activeInstituteId), [activeInstituteId]);
@@ -87,29 +90,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUser(u);
     setRoleState(r);
     setActiveInstituteIdState(instituteId);
-    localStorage.setItem("ues_user", JSON.stringify(u));
-    localStorage.setItem("ues_role", r);
-    localStorage.setItem("ues_institute", instituteId);
+    localStorage.setItem(CONNECT_STORAGE_KEYS.user, JSON.stringify(u));
+    localStorage.setItem(CONNECT_STORAGE_KEYS.role, r);
+    localStorage.setItem(CONNECT_STORAGE_KEYS.institute, instituteId);
   }, []);
 
   const signOut = useCallback(() => {
     setUser(null);
     setRoleState(null);
     setActiveInstituteIdState(null);
-    localStorage.removeItem("ues_user");
-    localStorage.removeItem("ues_role");
-    localStorage.removeItem("ues_institute");
+    localStorage.removeItem(CONNECT_STORAGE_KEYS.user);
+    localStorage.removeItem(CONNECT_STORAGE_KEYS.role);
+    localStorage.removeItem(CONNECT_STORAGE_KEYS.institute);
   }, []);
 
   const setActiveChildId = useCallback((id: string) => {
     if (!LINKED_CHILD_IDS.has(id)) return;
     setActiveChildIdState(id);
-    localStorage.setItem("ues_child", id);
+    localStorage.setItem(CONNECT_STORAGE_KEYS.child, id);
   }, []);
 
   const setStudentIncludedMode = useCallback((value: boolean) => {
     setStudentIncludedModeState(value);
-    localStorage.setItem("ues_student_included", value ? "1" : "0");
+    localStorage.setItem(CONNECT_STORAGE_KEYS.studentIncluded, value ? "1" : "0");
   }, []);
 
   const updateProfile = useCallback(
@@ -117,7 +120,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setUser((prev) => {
         if (!prev) return prev;
         const next = { ...prev, ...patch };
-        localStorage.setItem("ues_user", JSON.stringify(next));
+        localStorage.setItem(CONNECT_STORAGE_KEYS.user, JSON.stringify(next));
         return next;
       });
     },
@@ -130,6 +133,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     () => ({
       user,
       role,
+      hydrated,
       activeInstituteId,
       institute,
       theme,
@@ -145,6 +149,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [
       user,
       role,
+      hydrated,
       activeInstituteId,
       institute,
       theme,

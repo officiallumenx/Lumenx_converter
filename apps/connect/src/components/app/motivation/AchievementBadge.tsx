@@ -10,8 +10,8 @@ import {
   Crown,
   Rocket,
 } from "lucide-react";
-import type { Achievement } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import type { Achievement } from "@lumenx/types";
+import { cn } from "@lumenx/ui";
 
 const ICONS = {
   trophy: Trophy,

@@ -1,0 +1,1 @@
+export { TeacherTimetablePage } from "./TeacherTimetablePage";

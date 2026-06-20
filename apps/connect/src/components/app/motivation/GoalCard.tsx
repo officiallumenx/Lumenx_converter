@@ -1,7 +1,7 @@
-import type { Goal } from "@/lib/types";
+import type { Goal } from "@lumenx/types";
 import { Target, CheckCircle2 } from "lucide-react";
-import { Progress } from "@/components/ui/progress";
-import { cn } from "@/lib/utils";
+import { Progress } from "@lumenx/ui";
+import { cn } from "@lumenx/ui";
 
 export function GoalCard({ g }: { g: Goal }) {
   const pct = Math.min(100, Math.round((g.current / g.target) * 100));

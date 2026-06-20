@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
-import { Card, Button, Pill } from "@/components/ui-kit";
+import { Card, Button, Pill } from "@lumenx/ui-admin";
 import { Plus } from "lucide-react";
 
 export const Route = createFileRoute("/classes")({

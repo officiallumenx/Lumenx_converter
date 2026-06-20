@@ -2,7 +2,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import {
   LayoutDashboard, Users, GraduationCap, CalendarRange, ClipboardCheck,
   FileText, BarChart3, MessageSquareWarning, Bell, ShieldCheck,
-  HardDrive, Settings, Building2, Search, ChevronRight, Sparkles,
+  HardDrive, Settings, Building2, Search, ChevronRight, Hexagon,
   Heart, CalendarDays, Siren, KeyRound, Megaphone, Sun, Moon, Menu, Layers,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -69,18 +69,18 @@ export function AppShell({ children, title, subtitle, actions }: {
   const SidebarContent = (
     <>
       <div className="flex items-center gap-2.5 px-6 h-16 border-b border-sidebar-border">
-        <div className="size-8 rounded-md bg-primary flex items-center justify-center shadow-glow">
-          <Sparkles className="size-4 text-primary-foreground" />
+        <div className="size-8 rounded-md nexus-logo-ring flex items-center justify-center">
+          <Hexagon className="size-4 text-primary-foreground" strokeWidth={2.25} />
         </div>
         <div className="leading-tight">
-          <div className="font-semibold tracking-tight text-sm">LUMENX NEXUS</div>
-          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Admin OS</div>
+          <div className="font-semibold tracking-tight text-sm text-sidebar-foreground">LUMENX NEXUS</div>
+          <div className="text-[10px] uppercase tracking-[0.2em] text-sidebar-foreground/55 font-mono">Platform Command</div>
         </div>
       </div>
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
         {nav.map((group) => (
           <div key={group.label}>
-            <div className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            <div className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-sidebar-foreground/45 font-mono">
               {group.label}
             </div>
             <div className="space-y-0.5">
@@ -94,14 +94,13 @@ export function AppShell({ children, title, subtitle, actions }: {
                     onClick={() => setMobileOpen(false)}
                     className={`group relative flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-all duration-200 ${
                       active
-                        ? "bg-gradient-to-r from-primary/12 to-primary/[0.04] text-primary font-medium shadow-[inset_0_1px_0_0_oklch(1_0_0_/_0.4)]"
-                        : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
+                        ? "nexus-nav-active text-sidebar-primary font-medium"
+                        : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
                     }`}
                   >
-                    {active && <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r-full bg-primary" />}
-                    <Icon className={`size-4 shrink-0 transition-transform ${active ? "scale-110" : "group-hover:scale-105"}`} strokeWidth={active ? 2.25 : 1.75} />
+                    <Icon className={`size-4 shrink-0 transition-transform ${active ? "scale-110 text-sidebar-primary" : "group-hover:scale-105"}`} strokeWidth={active ? 2.25 : 1.75} />
                     <span className="flex-1">{item.label}</span>
-                    {active && <ChevronRight className="size-3.5 opacity-70" />}
+                    {active && <ChevronRight className="size-3.5 opacity-70 text-sidebar-primary" />}
                   </Link>
                 );
               })}
@@ -111,12 +110,12 @@ export function AppShell({ children, title, subtitle, actions }: {
       </nav>
       <div className="px-4 py-4 border-t border-sidebar-border">
         <div className="flex items-center gap-3 px-2">
-          <div className="size-9 rounded-full bg-gradient-to-br from-primary to-chart-5 ring-2 ring-sidebar-border flex items-center justify-center text-[11px] font-semibold text-primary-foreground">
-            AV
+          <div className="size-9 rounded-full bg-gradient-to-br from-[oklch(0.58_0.13_195)] to-[oklch(0.62_0.18_285)] ring-2 ring-sidebar-border flex items-center justify-center text-[11px] font-semibold text-primary-foreground font-mono">
+            PO
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-xs font-medium truncate">Dr. Alistair Vance</div>
-            <div className="text-[10px] text-muted-foreground truncate">Principal · Root Admin</div>
+            <div className="text-xs font-medium truncate text-sidebar-foreground">Platform Owner</div>
+            <div className="text-[10px] text-sidebar-foreground/50 truncate font-mono">nexus_root · LumenX</div>
           </div>
         </div>
       </div>
@@ -125,7 +124,7 @@ export function AppShell({ children, title, subtitle, actions }: {
 
   return (
     <div className="flex min-h-screen w-full bg-background text-foreground">
-      <aside className="hidden lg:flex w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar sticky top-0 h-screen">
+      <aside className="hidden lg:flex w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground nexus-sidebar-glow sticky top-0 h-screen">
         {SidebarContent}
       </aside>
 
@@ -138,28 +137,28 @@ export function AppShell({ children, title, subtitle, actions }: {
       )}
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 sticky top-0 z-20 flex items-center justify-between gap-3 px-4 md:px-8 border-b border-border bg-background/85 backdrop-blur-md">
+        <header className="h-16 sticky top-0 z-20 flex items-center justify-between gap-3 px-4 md:px-8 nexus-header-bar">
           <button onClick={() => setMobileOpen(true)} className="lg:hidden size-9 rounded-md border border-border bg-surface flex items-center justify-center">
             <Menu className="size-4" />
           </button>
           <div className="flex items-center gap-3 flex-1 max-w-md">
             <button
               onClick={() => setOpenSearch(true)}
-              className="hidden sm:flex items-center gap-2 w-full px-3 h-9 rounded-md bg-surface border border-border text-xs text-muted-foreground hover:bg-surface-hover transition-colors"
+              className="hidden sm:flex items-center gap-2 w-full px-3 h-9 rounded-md bg-surface border border-border text-xs text-muted-foreground hover:bg-surface-hover transition-colors font-mono"
             >
               <Search className="size-3.5" />
-              <span className="truncate">Search students, teachers, classes…</span>
+              <span className="truncate">Search institutes, plans, modules…</span>
               <kbd className="ml-auto hidden sm:inline-flex font-mono text-[10px] px-1.5 py-0.5 rounded border border-border bg-background/60">⌘K</kbd>
             </button>
           </div>
           <div className="flex items-center gap-2">
-            <div className="hidden xl:flex items-center gap-2 px-3 h-7 rounded-full bg-success/10 border border-success/20">
-              <span className="size-1.5 rounded-full bg-success animate-pulse" />
-              <span className="text-[10px] font-mono tracking-wide text-success">SYSTEMS OPTIMAL</span>
+            <div className="hidden xl:flex items-center gap-2 px-3 h-7 rounded-full nexus-status-pill">
+              <span className="size-1.5 rounded-full bg-primary pulse-cyan" />
+              <span className="text-[10px] font-mono tracking-wide uppercase">Platform live</span>
             </div>
-            <button className="hidden md:flex items-center gap-2 px-3 h-9 rounded-md border border-border bg-surface hover:bg-surface-hover text-xs">
-              <Building2 className="size-3.5" />
-              <span className="font-medium">Branch · Alpha</span>
+            <button className="hidden md:flex items-center gap-2 px-3 h-9 rounded-md border border-border bg-surface hover:bg-surface-hover text-xs font-mono">
+              <Building2 className="size-3.5 text-primary" />
+              <span className="font-medium">42 institutes</span>
             </button>
             <button onClick={toggle} aria-label="Toggle theme" className="size-9 rounded-md border border-border bg-surface hover:bg-surface-hover flex items-center justify-center">
               {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
@@ -175,6 +174,7 @@ export function AppShell({ children, title, subtitle, actions }: {
           <div className="max-w-[1440px] mx-auto w-full">
             <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
               <div>
+                <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-primary mb-1">Nexus</p>
                 <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">{title}</h1>
                 {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
               </div>
@@ -193,7 +193,7 @@ export function AppShell({ children, title, subtitle, actions }: {
               <input autoFocus placeholder="Search the institute…" className="flex-1 bg-transparent outline-none text-sm" />
               <kbd className="font-mono text-[10px] px-1.5 py-0.5 rounded border border-border">ESC</kbd>
             </div>
-            <div className="p-4 text-xs text-muted-foreground">Start typing to search students, teachers, complaints…</div>
+            <div className="p-4 text-xs text-muted-foreground font-mono">Search institutes, plans, modules, features…</div>
           </div>
         </div>
       )}

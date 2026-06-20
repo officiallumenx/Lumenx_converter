@@ -3,22 +3,25 @@ import { useMemo, useState } from "react";
 import { AppShell } from "@/components/app/AppShell";
 import { PageHeader } from "@/components/app/PageHeader";
 import { useApp } from "@/lib/app-state";
-import { Button } from "@/components/ui/button";
+import { Button } from "@lumenx/ui";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { studentsInClass, subjects, childProfile, studentProfile } from "@/lib/mock-data";
+} from "@lumenx/ui";
+import { studentsInClass, subjects, childProfile } from "@/lib/mock-data";
 import { useParentPortal } from "@/context/ParentPortalContext";
 import { Check, Save, UserCheck, UserX, CalendarDays, Search } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { Input } from "@lumenx/ui";
 import { toast } from "sonner";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@lumenx/ui";
+import { cn } from "@lumenx/ui";
+import { TeacherAttendancePage } from "@/teacher-portal";
+import { StudentAttendancePage } from "@/student-portal";
+import { AttendanceOverview } from "@/components/app/attendance/AttendanceOverview";
+import { seedFromString } from "@/lib/attendance/calendar";
 
 export const Route = createFileRoute("/attendance")({
   head: () => ({ meta: [{ title: "Attendance — LumenX Connect" }] }),
@@ -31,7 +34,7 @@ export const Route = createFileRoute("/attendance")({
 
 function AttendancePage() {
   const { role } = useApp();
-  if (role === "teacher") return <TeacherAttendance />;
+  if (role === "teacher") return <TeacherAttendancePage />;
   return <ViewAttendance />;
 }
 
@@ -238,100 +241,31 @@ function TeacherAttendance() {
 
 function ViewAttendance() {
   const { role } = useApp();
-  const portal = useParentPortal();
-
-  const who =
-    role === "parent" && portal.isParent && portal.snapshot
-      ? portal.snapshot.child.name
-      : role === "parent"
-        ? childProfile.name
-        : studentProfile.name;
-
-  const days = useMemo(() => {
-    if (role === "parent" && portal.isParent && portal.snapshot) {
-      return portal.snapshot.attendanceDays;
-    }
-    return Array.from({ length: 30 }, (_, i) => ({
-      day: i + 1,
-      status: i % 11 === 0 ? "absent" : i % 17 === 0 ? "leave" : "present",
-    })) as { day: number; status: "present" | "absent" | "leave" }[];
-  }, [role, portal]);
-
-  return (
-    <>
-      <PageHeader
-        title="Attendance"
-        subtitle={
-          role === "parent" && portal.isParent && portal.snapshot
-            ? `${who} • ${portal.snapshot.classTag} • This month`
-            : `${who} • This month`
-        }
-      />
-      <div
-        key={role === "parent" && portal.isParent ? portal.activeChildId : "student-att"}
-        className="mb-5 grid min-w-0 grid-cols-1 gap-3 md:grid-cols-3"
-      >
-        <SummaryCard
-          label="Present"
-          value={`${days.filter((d) => d.status === "present").length}`}
-          tone="success"
-        />
-        <SummaryCard
-          label="Absent"
-          value={`${days.filter((d) => d.status === "absent").length}`}
-          tone="destructive"
-        />
-        <SummaryCard
-          label="Leave"
-          value={`${days.filter((d) => d.status === "leave").length}`}
-          tone="warning"
-        />
-      </div>
-
-      <div className="min-w-0 rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-5">
-        <div className="mb-4 flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
-          <CalendarDays className="size-4 shrink-0" />{" "}
-          <span className="min-w-0 truncate">November 2025</span>
-        </div>
-        <div className="grid min-w-0 grid-cols-7 gap-1.5 sm:gap-2">
-          {days.map((d) => (
-            <div
-              key={d.day}
-              className={cn(
-                "aspect-square rounded-xl grid place-items-center text-sm font-medium border",
-                d.status === "present" && "bg-success/10 text-success border-success/20",
-                d.status === "absent" && "bg-destructive/10 text-destructive border-destructive/20",
-                d.status === "leave" && "bg-warning/15 text-warning-foreground border-warning/30",
-              )}
-            >
-              {d.day}
-            </div>
-          ))}
-        </div>
-      </div>
-    </>
-  );
+  if (role === "student") return <StudentAttendancePage />;
+  return <ParentAttendanceView />;
 }
 
-function SummaryCard({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone: "success" | "destructive" | "warning";
-}) {
-  const cls = {
-    success: "bg-success/10 text-success",
-    destructive: "bg-destructive/10 text-destructive",
-    warning: "bg-warning/15 text-warning-foreground",
-  }[tone];
+function ParentAttendanceView() {
+  const portal = useParentPortal();
+
+  if (portal.isParent && portal.isLoading && !portal.snapshot) {
+    return (
+      <>
+        <PageHeader title="Attendance" subtitle="Loading attendance for your child…" />
+      </>
+    );
+  }
+
+  const snap = portal.isParent ? portal.snapshot : null;
+  const who = snap?.child.name ?? childProfile.name;
+  const classTag = snap?.classTag ?? `${childProfile.className}-${childProfile.section}`;
+  const seed = snap ? seedFromString(snap.child.id) : 0;
+
   return (
-    <div className={cn("rounded-2xl p-5 border border-border", cls)}>
-      <div className="text-xs uppercase tracking-wide opacity-80">{label}</div>
-      <div className="font-display text-3xl font-semibold mt-1">{value}</div>
-    </div>
+    <AttendanceOverview
+      subtitle={`${who} · ${classTag}`}
+      seed={seed}
+    />
   );
 }
 

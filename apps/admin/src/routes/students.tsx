@@ -1,98 +1,161 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
-import { Card, Button, Pill, Modal, Field, TextInput, Select } from "@/components/ui-kit";
-import { Search, Filter, Plus, MoreHorizontal, Download, ArrowUpDown, UserPlus, Upload, FileSpreadsheet } from "lucide-react";
+import { Card, Button, Pill, Modal, Field, TextInput, Select, SearchInput, SegmentedControl, PageToolbar, ToolbarGroup, ToolbarSpacer, ToolbarMeta, DataTable, EmptyState, Th as TableTh, IconButton } from "@lumenx/ui-admin";
+import {
+  MOCK_ADMIN_STUDENTS,
+  filterAdminStudents,
+  sortAdminStudents,
+  type AdminStudentRecord,
+  type AdminStudentSortKey,
+  type StudentStatus,
+} from "@lumenx/module-students";
+import { Filter, Plus, MoreHorizontal, Download, ArrowUpDown, UserPlus, Upload, FileSpreadsheet, Users } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useAdminToast } from "@/components/AdminActionToast";
+import {
+  CLASS_OPTIONS,
+  SECTION_OPTIONS,
+  matchesClassSection,
+  classSectionLabel,
+  type ClassFilter,
+  type SectionFilter,
+} from "@/lib/class-section-filter";
 
 export const Route = createFileRoute("/students")({
   head: () => ({ meta: [{ title: "Students — LumenX Admin" }] }),
   component: StudentsPage,
 });
 
-const students = [
-  { id: "STU-1042", name: "Aanya Sharma", grade: "10-A", attendance: 96, gpa: 3.8, status: "active", parent: "R. Sharma" },
-  { id: "STU-1043", name: "Julian Draxler", grade: "11-C", attendance: 71, gpa: 2.2, status: "at-risk", parent: "M. Draxler" },
-  { id: "STU-1044", name: "Ethan Wright", grade: "10-B", attendance: 85, gpa: 2.9, status: "watch", parent: "S. Wright" },
-  { id: "STU-1045", name: "Sana Khan", grade: "12-A", attendance: 91, gpa: 3.5, status: "active", parent: "I. Khan" },
-  { id: "STU-1046", name: "Alina Moreno", grade: "9-A", attendance: 68, gpa: 2.1, status: "at-risk", parent: "C. Moreno" },
-  { id: "STU-1047", name: "Marcus Lee", grade: "11-A", attendance: 99, gpa: 3.95, status: "active", parent: "H. Lee" },
-  { id: "STU-1048", name: "Priya Patel", grade: "9-B", attendance: 93, gpa: 3.6, status: "active", parent: "K. Patel" },
-  { id: "STU-1049", name: "Omar Haddad", grade: "12-B", attendance: 78, gpa: 2.8, status: "watch", parent: "F. Haddad" },
-];
-
-type SortKey = "name" | "grade" | "attendance" | "gpa";
-
 function StudentsPage() {
+  const notify = useAdminToast();
+  const [rows, setRows] = useState<AdminStudentRecord[]>(() => [...MOCK_ADMIN_STUDENTS]);
   const [q, setQ] = useState("");
-  const [filter, setFilter] = useState<"all" | "at-risk" | "watch" | "active">("all");
-  const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "name", dir: "asc" });
+  const [filter, setFilter] = useState<"all" | StudentStatus>("all");
+  const [sort, setSort] = useState<{ key: AdminStudentSortKey; dir: "asc" | "desc" }>({ key: "name", dir: "asc" });
   const [open, setOpen] = useState(false);
   const [bulk, setBulk] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [classFilter, setClassFilter] = useState<ClassFilter>("all");
+  const [sectionFilter, setSectionFilter] = useState<SectionFilter>("all");
+  const [attMin, setAttMin] = useState(0);
+  const [newName, setNewName] = useState("");
+  const [newGrade, setNewGrade] = useState("Grade 10");
+  const [newSection, setNewSection] = useState("A");
+  const [newEmail, setNewEmail] = useState("");
+  const [newParent, setNewParent] = useState("");
 
   const list = useMemo(() => {
-    const base = students.filter((s) =>
-      (filter === "all" || s.status === filter) &&
-      (q === "" || s.name.toLowerCase().includes(q.toLowerCase()) || s.id.includes(q.toUpperCase()))
-    );
-    const dirMul = sort.dir === "asc" ? 1 : -1;
-    return [...base].sort((a, b) => {
-      const av = a[sort.key]; const bv = b[sort.key];
-      if (typeof av === "number" && typeof bv === "number") return (av - bv) * dirMul;
-      return String(av).localeCompare(String(bv)) * dirMul;
-    });
-  }, [q, filter, sort]);
+    let filtered = filterAdminStudents(rows, q, filter);
+    filtered = filtered.filter((s) => matchesClassSection(s.grade, classFilter, sectionFilter));
+    if (attMin > 0) filtered = filtered.filter((s) => s.attendance >= attMin);
+    return sortAdminStudents(filtered, sort.key, sort.dir);
+  }, [q, filter, sort, classFilter, sectionFilter, attMin, rows]);
 
-  const toggleSort = (k: SortKey) => setSort((s) => ({ key: k, dir: s.key === k && s.dir === "asc" ? "desc" : "asc" }));
-  const Th = ({ k, label }: { k: SortKey; label: string }) => (
-    <th className="px-5 py-3 font-semibold">
-      <button onClick={() => toggleSort(k)} className="inline-flex items-center gap-1 hover:text-foreground">
+  const scopeLabel = classSectionLabel(classFilter, sectionFilter);
+
+  const admitStudent = () => {
+    if (!newName.trim()) return;
+    const id = `STU-${1000 + rows.length + 1}`;
+    setRows((prev) => [
+      ...prev,
+      {
+        id,
+        name: newName.trim(),
+        grade: `${newGrade.replace("Grade ", "")}-${newSection}`,
+        attendance: 100,
+        gpa: 0,
+        status: "active" as const,
+        parent: newParent.trim() || "—",
+      },
+    ]);
+    setNewName("");
+    setNewEmail("");
+    setNewParent("");
+    setOpen(false);
+    notify(`${newName.trim()} admitted · credentials ${newEmail ? "sent to " + newEmail : "pending invite"}`);
+  };
+
+  const toggleSort = (k: AdminStudentSortKey) => setSort((s) => ({ key: k, dir: s.key === k && s.dir === "asc" ? "desc" : "asc" }));
+  const SortTh = ({ k, label }: { k: AdminStudentSortKey; label: string }) => (
+    <TableTh>
+      <button type="button" onClick={() => toggleSort(k)} className="inline-flex items-center gap-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded px-0.5">
         {label}<ArrowUpDown className="size-3 opacity-60" />
       </button>
-    </th>
+    </TableTh>
   );
 
+  const statusOptions = [
+    { value: "all" as const, label: "All" },
+    { value: "active" as const, label: "Active" },
+    { value: "watch" as const, label: "Needs attention" },
+    { value: "at-risk" as const, label: "At risk" },
+    { value: "inactive" as const, label: "Inactive" },
+  ];
+
   return (
-    <AppShell title="Student Directory" subtitle="2,842 students across 42 classes"
+    <AppShell title="Student Directory" subtitle={`${list.length} students · ${scopeLabel}`}
       actions={<>
         <Button onClick={() => setBulk(true)}><Upload className="size-3.5" /> Bulk Import</Button>
-        <Button><Download className="size-3.5" /> Export CSV</Button>
-        <Button><Filter className="size-3.5" /> Filters</Button>
+        <Button onClick={() => notify("Student export queued — CSV will download shortly")}><Download className="size-3.5" /> Export CSV</Button>
+        <Button onClick={() => setFiltersOpen(!filtersOpen)}><Filter className="size-3.5" /> Filters</Button>
         <Button variant="primary" onClick={() => setOpen(true)}><Plus className="size-3.5" /> Add Student</Button>
       </>}
     >
       <Card>
-        <div className="p-5 border-b border-border flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[240px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or ID…"
-              className="w-full h-9 pl-9 pr-3 rounded-md bg-background border border-border text-xs focus:outline-none focus:border-primary/40" />
+        <PageToolbar>
+          <SearchInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or ID…" className="flex-1 min-w-[200px]" />
+          <ToolbarGroup>
+            <SegmentedControl value={filter} onChange={setFilter} options={statusOptions} />
+          </ToolbarGroup>
+          <ToolbarGroup>
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Class</div>
+              <Select fieldSize="compact" value={classFilter} onChange={(e) => setClassFilter(e.target.value as ClassFilter)} className="w-28">
+                <option value="all">All classes</option>
+                {CLASS_OPTIONS.map((g) => (
+                  <option key={g} value={g}>Grade {g}</option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Section</div>
+              <Select fieldSize="compact" value={sectionFilter} onChange={(e) => setSectionFilter(e.target.value as SectionFilter)} className="w-24">
+                <option value="all">All</option>
+                {SECTION_OPTIONS.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </Select>
+            </div>
+          </ToolbarGroup>
+          <ToolbarSpacer />
+          <ToolbarMeta>{list.length} results</ToolbarMeta>
+        </PageToolbar>
+        {filtersOpen && (
+          <div className="px-4 sm:px-5 py-4 border-b border-border flex flex-wrap gap-4 bg-background/40">
+            <Field label="Min attendance %"><TextInput fieldSize="compact" type="number" value={attMin || ""} onChange={(e) => setAttMin(Number(e.target.value) || 0)} className="w-24" placeholder="0" /></Field>
+            {(classFilter !== "all" || sectionFilter !== "all") && (
+              <div className="flex items-end">
+                <Button onClick={() => { setClassFilter("all"); setSectionFilter("all"); }}>Clear class filter</Button>
+              </div>
+            )}
           </div>
-          <div className="flex items-center gap-1 p-1 bg-background rounded-md border border-border">
-            {(["all", "at-risk", "watch", "active"] as const).map((f) => (
-              <button key={f} onClick={() => setFilter(f)}
-                className={`px-3 h-7 rounded text-[11px] font-medium uppercase tracking-wide transition-colors ${
-                  filter === f ? "bg-surface text-foreground" : "text-muted-foreground hover:text-foreground"
-                }`}>
-                {f}
-              </button>
-            ))}
-          </div>
-          <div className="text-xs text-muted-foreground ml-auto font-mono">{list.length} results</div>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="text-[10px] uppercase tracking-wider text-muted-foreground bg-background/40 border-b border-border">
-                <Th k="name" label="Student" />
-                <Th k="grade" label="Class" />
-                <Th k="attendance" label="Attendance" />
-                <Th k="gpa" label="GPA" />
-                <th className="px-5 py-3 font-semibold">Guardian</th>
-                <th className="px-5 py-3 font-semibold">Status</th>
-                <th className="px-5 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
+        )}
+        {list.length === 0 ? (
+          <EmptyState icon={<Users className="size-5" />} title="No students found" hint={`No students in ${scopeLabel}. Try another class, section, or search term.`} />
+        ) : (
+        <DataTable>
+          <thead>
+            <tr>
+              <SortTh k="name" label="Student" />
+              <SortTh k="grade" label="Class" />
+              <SortTh k="attendance" label="Attendance" />
+              <SortTh k="gpa" label="GPA" />
+              <TableTh>Guardian</TableTh>
+              <TableTh>Status</TableTh>
+              <TableTh className="w-12" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
               {list.map((s) => (
                 <tr key={s.id} className="hover:bg-surface-hover transition-colors">
                   <td className="px-5 py-3">
@@ -119,19 +182,20 @@ function StudentsPage() {
                   <td className="px-5 py-3 text-xs text-muted-foreground">{s.parent}</td>
                   <td className="px-5 py-3">
                     {s.status === "active" && <Pill tone="success">Active</Pill>}
-                    {s.status === "watch" && <Pill tone="warning">Watch</Pill>}
+                    {s.status === "watch" && <Pill tone="warning">Needs attention</Pill>}
                     {s.status === "at-risk" && <Pill tone="danger">At risk</Pill>}
+                    {s.status === "inactive" && <Pill tone="neutral">Inactive</Pill>}
                   </td>
                   <td className="px-5 py-3">
-                    <button className="size-7 rounded-md hover:bg-surface-hover flex items-center justify-center text-muted-foreground"><MoreHorizontal className="size-4" /></button>
+                    <IconButton label="More actions" className="border-0 bg-transparent hover:bg-surface-hover"><MoreHorizontal className="size-4" /></IconButton>
                   </td>
                 </tr>
               ))}
             </tbody>
-          </table>
-        </div>
+        </DataTable>
+        )}
         <div className="px-5 py-3 border-t border-border flex items-center justify-between text-[11px] text-muted-foreground">
-          <span>Showing 1–{list.length} of 2,842</span>
+          <span>{list.length === 0 ? "No matches" : `Showing 1–${list.length} of ${rows.length}`}{classFilter !== "all" || sectionFilter !== "all" ? ` · ${scopeLabel}` : ""}</span>
           <div className="flex gap-1">
             <Button>Previous</Button>
             <Button>Next</Button>
@@ -140,24 +204,24 @@ function StudentsPage() {
       </Card>
 
       <Modal open={open} onClose={() => setOpen(false)} title="Admit new student" subtitle="Issue credentials and assign class on completion" size="lg"
-        footer={<><Button onClick={() => setOpen(false)}>Cancel</Button><Button variant="primary" onClick={() => setOpen(false)}><UserPlus className="size-3.5" /> Admit student</Button></>}
+        footer={<><Button onClick={() => setOpen(false)}>Cancel</Button><Button variant="primary" onClick={admitStudent} disabled={!newName.trim()}><UserPlus className="size-3.5" /> Admit student</Button></>}
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Full name" required><TextInput placeholder="Jane Doe" /></Field>
-          <Field label="Date of birth" required><TextInput type="date" /></Field>
-          <Field label="Gender"><Select><option>Female</option><option>Male</option><option>Other</option><option>Prefer not to say</option></Select></Field>
-          <Field label="Admission number" hint="auto if blank"><TextInput placeholder="STU-XXXX" /></Field>
-          <Field label="Grade" required><Select><option>Grade 9</option><option>Grade 10</option><option>Grade 11</option><option>Grade 12</option></Select></Field>
-          <Field label="Section" required><Select><option>A</option><option>B</option><option>C</option><option>D</option></Select></Field>
-          <Field label="Branch"><Select><option>Branch Alpha</option><option>Branch Beta</option><option>Branch Gamma</option></Select></Field>
-          <Field label="Guardian (Parent ID)" hint="leave blank to invite"><TextInput placeholder="PAR-XXXX" /></Field>
-          <Field label="Contact email"><TextInput type="email" placeholder="student@institute.edu" /></Field>
-          <Field label="Issue credentials"><Select><option>Email invite</option><option>Generate temp password</option><option>Skip for now</option></Select></Field>
+          <Field label="Full name" required><TextInput value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Jane Doe" /></Field>
+          <Field label="Date of birth" required><TextInput type="date" defaultValue="2010-01-15" /></Field>
+          <Field label="Gender"><Select defaultValue="Female"><option>Female</option><option>Male</option><option>Other</option><option>Prefer not to say</option></Select></Field>
+          <Field label="Admission number" hint="auto if blank"><TextInput placeholder="STU-XXXX" disabled className="opacity-60" /></Field>
+          <Field label="Grade" required><Select value={newGrade} onChange={(e) => setNewGrade(e.target.value)}><option>Grade 9</option><option>Grade 10</option><option>Grade 11</option><option>Grade 12</option></Select></Field>
+          <Field label="Section" required><Select value={newSection} onChange={(e) => setNewSection(e.target.value)}><option>A</option><option>B</option><option>C</option><option>D</option></Select></Field>
+          <Field label="Branch"><Select defaultValue="Branch Alpha"><option>Branch Alpha</option><option>Branch Beta</option><option>Branch Gamma</option></Select></Field>
+          <Field label="Guardian name"><TextInput value={newParent} onChange={(e) => setNewParent(e.target.value)} placeholder="Parent name" /></Field>
+          <Field label="Contact email"><TextInput type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="student@institute.edu" /></Field>
+          <Field label="Issue credentials"><Select defaultValue="Email invite"><option>Email invite</option><option>Generate temp password</option><option>Skip for now</option></Select></Field>
         </div>
       </Modal>
 
       <Modal open={bulk} onClose={() => setBulk(false)} title="Bulk import students" subtitle="Upload an Excel or CSV file — duplicates are detected and parents auto-linked" size="lg"
-        footer={<><Button onClick={() => setBulk(false)}>Cancel</Button><Button variant="primary" onClick={() => setBulk(false)}><Upload className="size-3.5" /> Validate & Import</Button></>}
+        footer={<><Button onClick={() => setBulk(false)}>Cancel</Button><Button variant="primary" onClick={() => { setBulk(false); notify("Import validated — 24 students queued for admission"); }}><Upload className="size-3.5" /> Validate & Import</Button></>}
       >
         <div className="space-y-4">
           <label className="block">

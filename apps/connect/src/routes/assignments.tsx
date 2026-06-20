@@ -7,9 +7,18 @@ import { AppShell } from "@/components/app/AppShell";
 import { PageHeader } from "@/components/app/PageHeader";
 import { useApp } from "@/lib/app-state";
 import { useParentPortal } from "@/context/ParentPortalContext";
+import { TeacherAssignmentsPage } from "@/teacher-portal";
 import { assignments, subjects, assignmentSubmissions } from "@/lib/mock-data";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import type { StudentAssignment } from "@/lib/mock-data";
+import {
+  getAssignmentVisualStatus,
+  ASSIGNMENT_CARD_STYLES,
+  ASSIGNMENT_LEGEND,
+} from "@/lib/assignment-status";
+import { resolveAssignmentDetail } from "@/lib/assignment-details";
+import { AssignmentDetailDialog } from "@/components/app/assignments/AssignmentDetailDialog";
+import { Button, cn } from "@lumenx/ui";
+import { Badge } from "@lumenx/ui";
 import { BookOpen, Plus, Upload, Calendar, Users, Filter, Loader2 } from "lucide-react";
 import {
   Dialog,
@@ -18,7 +27,7 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogFooter,
-} from "@/components/ui/dialog";
+} from "@lumenx/ui";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,18 +37,18 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+} from "@lumenx/ui";
+import { Input } from "@lumenx/ui";
+import { Textarea } from "@lumenx/ui";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@lumenx/ui";
 import { toast } from "sonner";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@lumenx/ui";
 import {
   Table,
   TableBody,
@@ -47,7 +56,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from "@lumenx/ui";
 import {
   Form,
   FormControl,
@@ -55,7 +64,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form";
+} from "@lumenx/ui";
 
 export const Route = createFileRoute("/assignments")({
   head: () => ({ meta: [{ title: "Assignments — LumenX Connect" }] }),
@@ -82,7 +91,10 @@ const submissionSchema = z.object({
 
 function AssignmentsPage() {
   const { role } = useApp();
+  if (role === "teacher") return <TeacherAssignmentsPage />;
+
   const portal = useParentPortal();
+  const [categoryType, setCategoryType] = useState<"assignment" | "homework">("assignment");
   const parentSubtitle =
     role === "parent" && portal.isParent && portal.snapshot
       ? `Work for ${portal.snapshot.child.name} (${portal.snapshot.classTag})`
@@ -90,15 +102,27 @@ function AssignmentsPage() {
 
   return (
     <div className="min-w-0 max-w-full">
-      <PageHeader
-        title="Assignments"
-        subtitle={role === "teacher" ? "Create & track homework for your classes" : parentSubtitle}
-        action={role === "teacher" ? <NewAssignment /> : undefined}
-      />
+      <PageHeader title="Assignments" subtitle={parentSubtitle} />
 
-      {role === "teacher" && <TeacherSubmissionConsole />}
+      <div className="mt-6 flex flex-wrap items-center gap-2">
+        {(["assignment", "homework"] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setCategoryType(t)}
+            className={cn(
+              "rounded-full px-4 py-2 text-sm font-medium capitalize transition-colors",
+              categoryType === t
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {t === "assignment" ? "Assignments" : "Homework"}
+          </button>
+        ))}
+      </div>
 
-      <Tabs defaultValue="pending" className="mt-6 w-full min-w-0">
+      <Tabs defaultValue="pending" className="mt-5 w-full min-w-0">
         <TabsList>
           <TabsTrigger value="pending">Pending</TabsTrigger>
           <TabsTrigger value="submitted">Submitted</TabsTrigger>
@@ -106,22 +130,63 @@ function AssignmentsPage() {
         </TabsList>
         {(["pending", "submitted", "all"] as const).map((t) => (
           <TabsContent key={t} value={t} className="mt-4">
-            <List filter={t} />
+            <List filter={t} categoryType={categoryType} />
           </TabsContent>
         ))}
       </Tabs>
+
+      <AssignmentColorLegend />
     </div>
   );
 }
 
-function List({ filter }: { filter: "pending" | "submitted" | "all" }) {
-  const { role, studentIncludedMode } = useApp();
+function AssignmentColorLegend() {
+  return (
+    <div className="mt-8 min-w-0 rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-5">
+      <h3 className="mb-3 text-sm font-semibold">Card colours</h3>
+      <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {ASSIGNMENT_LEGEND.map((item) => {
+          const styles = ASSIGNMENT_CARD_STYLES[item.status];
+          return (
+            <div
+              key={item.status}
+              className={cn("min-w-0 rounded-xl p-3 text-sm", styles.card)}
+            >
+              <div className="font-medium">{item.title}</div>
+              <div
+                className={cn(
+                  "mt-1 text-xs leading-relaxed",
+                  item.status === "overdue" ? "text-destructive/90" : "text-muted-foreground",
+                )}
+              >
+                {item.description}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function List({
+  filter,
+  categoryType,
+}: {
+  filter: "pending" | "submitted" | "all";
+  categoryType: "assignment" | "homework";
+}) {
+  const { role } = useApp();
   const portal = useParentPortal();
   const source =
     role === "parent" && portal.isParent && portal.snapshot
       ? portal.snapshot.assignments
       : assignments;
-  const items = source.filter((a) => (filter === "all" ? true : a.status === filter));
+  const items = source.filter((a) => {
+    const type = a.type ?? "assignment";
+    if (type !== categoryType) return false;
+    return filter === "all" ? true : a.status === filter;
+  });
   return (
     <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
       {items.map((a) => (
@@ -129,7 +194,7 @@ function List({ filter }: { filter: "pending" | "submitted" | "all" }) {
       ))}
       {!items.length && (
         <div className="col-span-full p-8 text-center text-sm text-muted-foreground">
-          Nothing here yet.
+          No {categoryType === "assignment" ? "assignments" : "homework"} here yet.
         </div>
       )}
     </div>
@@ -140,10 +205,14 @@ function AssignmentCard({
   a,
   role,
 }: {
-  a: (typeof assignments)[number];
+  a: StudentAssignment;
   role: ReturnType<typeof useApp>["role"];
 }) {
   const { studentIncludedMode } = useApp();
+  const detail = resolveAssignmentDetail(a);
+  const visual = getAssignmentVisualStatus(a);
+  const styles = ASSIGNMENT_CARD_STYLES[visual];
+  const [detailOpen, setDetailOpen] = useState(false);
   const [submitOpen, setSubmitOpen] = useState(false);
   const [note, setNote] = useState("");
   const [noteError, setNoteError] = useState<string | null>(null);
@@ -151,6 +220,8 @@ function AssignmentCard({
   const fileRef = useRef<HTMLInputElement>(null);
   const [fileLabel, setFileLabel] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const canSubmit =
+    (role === "student" || (role === "parent" && studentIncludedMode)) && a.status === "pending";
 
   const confirmSubmit = async () => {
     const parsed = submissionSchema.safeParse({ note });
@@ -193,38 +264,77 @@ function AssignmentCard({
   };
 
   return (
-    <div className="min-w-0 rounded-2xl border border-border bg-card p-4 shadow-soft transition-shadow hover:shadow-elevated sm:p-5">
-      <div className="flex min-w-0 items-start justify-between gap-2">
-        <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
-          <BookOpen className="size-5" />
+    <>
+      <button
+        type="button"
+        onClick={() => setDetailOpen(true)}
+        className={cn(
+          "min-w-0 rounded-2xl border p-4 text-left shadow-soft transition-shadow hover:shadow-elevated sm:p-5 w-full",
+          styles.card,
+          visual === "overdue" && "ring-1 ring-destructive/30",
+        )}
+      >
+        <div className="flex min-w-0 items-start justify-between gap-2">
+          <div className={cn("grid size-10 shrink-0 place-items-center rounded-xl", styles.icon)}>
+            <BookOpen className="size-5" />
+          </div>
+          <Badge variant="outline" className={cn("shrink-0 text-[10px] sm:text-xs", styles.badge)}>
+            {styles.label}
+          </Badge>
         </div>
-        <Badge
-          variant={a.status === "submitted" ? "secondary" : "outline"}
-          className="shrink-0 text-[10px] capitalize sm:text-xs"
-        >
-          {a.status}
-        </Badge>
-      </div>
-      <h3 className="mt-3 line-clamp-2 font-semibold leading-snug break-words">{a.title}</h3>
-      <div className="mt-1 truncate text-xs text-muted-foreground">
-        {a.subject} • {a.class}
-      </div>
-      <div className="mt-4 flex min-w-0 flex-wrap items-center justify-between gap-2">
-        <div className="inline-flex min-w-0 items-center gap-1.5 truncate text-xs text-muted-foreground">
-          <Calendar className="size-3.5 shrink-0" /> Due {a.due}
+        <h3 className="mt-3 line-clamp-2 font-semibold leading-snug break-words">{a.title}</h3>
+        <div className="mt-1 truncate text-xs text-muted-foreground">
+          {a.subject} · {detail.teacherName} · {a.class}
         </div>
-        {(role === "student" || (role === "parent" && studentIncludedMode)) &&
-          a.status === "pending" && (
+        {detail.attachments.length > 0 && (
+          <p className="mt-1 text-[10px] text-primary">
+            {detail.attachments.length} teacher file{detail.attachments.length > 1 ? "s" : ""} attached
+          </p>
+        )}
+        <div className="mt-4 flex min-w-0 flex-wrap items-center justify-between gap-2">
+          <div className="inline-flex min-w-0 items-center gap-1.5 truncate text-xs text-muted-foreground">
+            <Calendar className="size-3.5 shrink-0" />
+            {visual === "submitted"
+              ? "Submitted"
+              : visual === "overdue"
+                ? `Overdue · was due ${a.due}`
+                : `Due ${a.due}`}
+          </div>
+          {canSubmit && (
             <Button
               size="sm"
               variant="outline"
               className="gap-1.5 rounded-lg"
-              onClick={() => setSubmitOpen(true)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setSubmitOpen(true);
+              }}
             >
               <Upload className="size-3.5" /> Submit
             </Button>
           )}
-      </div>
+        </div>
+      </button>
+
+      <AssignmentDetailDialog
+        assignment={detail}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        footer={
+          canSubmit ? (
+            <Button
+              type="button"
+              className="rounded-xl gap-2 w-full sm:w-auto"
+              onClick={() => {
+                setDetailOpen(false);
+                setSubmitOpen(true);
+              }}
+            >
+              <Upload className="size-4" /> Submit work
+            </Button>
+          ) : undefined
+        }
+      />
 
       <AlertDialog
         open={submitOpen}
@@ -305,7 +415,7 @@ function AssignmentCard({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   );
 }
 

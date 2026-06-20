@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
-import { Card, CardHeader, Button, Pill, Modal, Field, TextInput, TextArea } from "@/components/ui-kit";
+import { Card, CardHeader, Button, Pill, Modal, Field, TextInput, TextArea } from "@lumenx/ui-admin";
 import { Plus, Shield, Edit3, Trash2, Copy, Save, Users as UsersIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -9,11 +9,10 @@ export const Route = createFileRoute("/permissions")({
   component: PermissionsPage,
 });
 
-const MODULES = [
-  "Students", "Teachers", "Parents", "Attendance", "Timetable",
-  "Exams", "Complaints", "Notifications", "Events", "Storage", "Analytics",
-] as const;
-type Module = typeof MODULES[number];
+import { PLAN_DETAILS, MODULE_CATALOG, isModuleAvailable, type PlanTier } from "@/lib/admin-plan-config";
+
+const MODULES = MODULE_CATALOG.map((m) => m.label) as readonly string[];
+type Module = (typeof MODULES)[number];
 type Perm = "full" | "read" | "none";
 
 type Role = {
@@ -51,6 +50,8 @@ const dot = {
 } as const;
 
 function PermissionsPage() {
+  const [plan] = useState<PlanTier>("plus");
+  const roleCap = PLAN_DETAILS[plan].customRoleCap;
   const [roles, setRoles] = useState<Role[]>(initial);
   const [openCreate, setOpenCreate] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -58,12 +59,20 @@ function PermissionsPage() {
   const editing = useMemo(() => roles.find((r) => r.id === editingId) ?? null, [roles, editingId]);
 
   const handleSave = (role: Role) => {
+    const customCount = roles.filter((r) => !r.system).length;
+    const isNew = !roles.some((r) => r.id === role.id);
+    if (isNew && !role.system && customCount >= roleCap) return;
     setRoles((prev) => {
       const exists = prev.some((r) => r.id === role.id);
       return exists ? prev.map((r) => (r.id === role.id ? role : r)) : [...prev, role];
     });
     setOpenCreate(false);
     setEditingId(null);
+  };
+
+  const moduleAvailable = (label: string) => {
+    const mod = MODULE_CATALOG.find((m) => m.label === label);
+    return mod ? isModuleAvailable(mod, plan) : true;
   };
 
   const handleDelete = (id: string) => {
@@ -76,10 +85,10 @@ function PermissionsPage() {
   };
 
   return (
-    <AppShell title="Access & Permissions" subtitle="IAM-style role delegation across modules and branches"
-      actions={<Button variant="primary" onClick={() => setOpenCreate(true)}><Plus className="size-3.5" /> New Role</Button>}
+    <AppShell title="Access & Permissions" subtitle={`IAM roles · ${PLAN_DETAILS[plan].customRoleCap === Infinity ? "Unlimited" : roleCap} custom roles on ${plan} plan`}
+      actions={<Button variant="primary" onClick={() => setOpenCreate(true)} disabled={roles.filter((r) => !r.system).length >= roleCap}><Plus className="size-3.5" /> New Role</Button>}
     >
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="lx-kpi-grid mb-6">
         {[
           { l: "Total roles", v: String(roles.length) },
           { l: "Active admins", v: String(roles.reduce((s, r) => s + r.users, 0)) },

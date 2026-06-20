@@ -1,15 +1,29 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
-import { Card, Button, Pill } from "@/components/ui-kit";
+import { Card, CardHeader, Button, Pill, PageStack } from "@lumenx/ui-admin";
 import { Lock, FileText } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useAdminToast } from "@/components/AdminActionToast";
 
 export const Route = createFileRoute("/complaints")({
   head: () => ({ meta: [{ title: "Complaints — LumenX Admin" }] }),
   component: ComplaintsPage,
 });
 
-const complaints = [
+type ComplaintStatus = "pending" | "review" | "resolved";
+
+type Complaint = {
+  id: string;
+  title: string;
+  from: string;
+  role: string;
+  priority: "P0" | "P1" | "P2" | "P3";
+  status: ComplaintStatus;
+  time: string;
+  body: string;
+};
+
+const INITIAL: Complaint[] = [
   { id: "CMP-201", title: "Broken HVAC in Block B", from: "Prof. Sterling", role: "Teacher", priority: "P0", status: "pending", time: "2m ago", body: "AC unit in classroom 204 has failed for the third day. Affecting exam preparation." },
   { id: "CMP-200", title: "Bullying incident — Grade 9-B", from: "Anonymous Parent", role: "Parent", priority: "P0", status: "review", time: "1h ago", body: "Repeated incidents reported by multiple parents. Evidence attached." },
   { id: "CMP-199", title: "Cafeteria food quality", from: "Student Council", role: "Student", priority: "P2", status: "pending", time: "3h ago", body: "Quality has deteriorated over the past week. Petition signed by 80 students." },
@@ -17,35 +31,44 @@ const complaints = [
   { id: "CMP-197", title: "Library access request", from: "External Research", role: "External", priority: "P3", status: "resolved", time: "2d ago", body: "Resolved — access approved through Director's office." },
 ];
 
-const cols: { key: typeof complaints[number]["status"]; label: string; tone: "warning" | "info" | "success" }[] = [
+const cols: { key: ComplaintStatus; label: string; tone: "warning" | "info" | "success" }[] = [
   { key: "pending", label: "Pending", tone: "warning" },
   { key: "review", label: "Under Review", tone: "info" },
   { key: "resolved", label: "Resolved", tone: "success" },
 ];
 
 function ComplaintsPage() {
-  const [active, setActive] = useState(complaints[0]);
+  const notify = useAdminToast();
+  const [items, setItems] = useState(INITIAL);
+  const [activeId, setActiveId] = useState(INITIAL[0]!.id);
+
+  const active = useMemo(() => items.find((c) => c.id === activeId) ?? items[0]!, [items, activeId]);
+
+  const setStatus = (id: string, status: ComplaintStatus) => {
+    setItems((prev) => prev.map((c) => (c.id === id ? { ...c, status } : c)));
+    notify(`Complaint ${id} moved to ${status.replace("_", " ")}`);
+  };
+
   return (
     <AppShell title="Complaint Triage" subtitle="Confidential · Principal & root admins only"
-      actions={<Button><Lock className="size-3.5" /> Privacy log</Button>}
+      actions={<Button onClick={() => notify("Privacy audit log exported")}><Lock className="size-3.5" /> Privacy log</Button>}
     >
+      <PageStack>
       <div className="grid grid-cols-12 gap-4">
-        <div className="col-span-12 lg:col-span-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="col-span-12 lg:col-span-8 lx-kanban-grid">
           {cols.map((col) => {
-            const items = complaints.filter((c) => c.status === col.key);
+            const colItems = items.filter((c) => c.status === col.key);
             return (
-              <div key={col.key} className="bg-surface border border-border rounded-xl p-3 min-h-[420px]">
-                <div className="flex items-center justify-between px-2 pb-3">
-                  <div className="flex items-center gap-2">
-                    <Pill tone={col.tone}>{col.label}</Pill>
-                    <span className="text-[10px] text-muted-foreground font-mono">{items.length}</span>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  {items.map((c) => (
-                    <button key={c.id} onClick={() => setActive(c)}
-                      className={`w-full text-left rounded-lg p-3 border transition-colors ${
-                        active.id === c.id ? "bg-elevated border-primary/30" : "bg-background/40 border-border hover:bg-surface-hover"
+              <Card key={col.key} className="flex flex-col min-h-[min(420px,55vh)] md:min-h-[420px]">
+                <CardHeader
+                  title={col.label}
+                  action={<span className="text-[10px] text-muted-foreground font-mono tabular-nums">{colItems.length}</span>}
+                />
+                <div className="flex-1 overflow-y-auto px-3 sm:px-4 pb-4 space-y-2">
+                  {colItems.map((c) => (
+                    <button key={c.id} onClick={() => setActiveId(c.id)}
+                      className={`w-full text-left rounded-lg p-3 border transition-all duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                        active.id === c.id ? "bg-elevated border-primary/30 shadow-xs" : "bg-background/40 border-border hover:bg-surface-hover hover:border-border-strong"
                       }`}>
                       <div className="flex items-center gap-2 mb-1.5">
                         <Pill tone={c.priority === "P0" ? "danger" : c.priority === "P1" ? "warning" : "neutral"}>{c.priority}</Pill>
@@ -56,12 +79,12 @@ function ComplaintsPage() {
                     </button>
                   ))}
                 </div>
-              </div>
+              </Card>
             );
           })}
         </div>
 
-        <Card className="col-span-12 lg:col-span-4 p-5">
+        <Card className="col-span-12 lg:col-span-4 p-4 sm:p-5 lg:sticky lg:top-4 lg:self-start">
           <div className="flex items-center gap-2 mb-3">
             <Pill tone={active.priority === "P0" ? "danger" : "warning"}>{active.priority}</Pill>
             <Pill tone="info">{active.role}</Pill>
@@ -76,11 +99,16 @@ function ComplaintsPage() {
             <FileText className="size-3.5" /> 2 attachments · 0 comments
           </div>
           <div className="flex gap-2 mt-5">
-            <Button variant="primary" className="flex-1 justify-center">Mark Resolved</Button>
-            <Button className="flex-1 justify-center">Move to Review</Button>
+            <Button variant="primary" className="flex-1 justify-center" disabled={active.status === "resolved"} onClick={() => setStatus(active.id, "resolved")}>
+              Mark Resolved
+            </Button>
+            <Button className="flex-1 justify-center" disabled={active.status === "review"} onClick={() => setStatus(active.id, "review")}>
+              Move to Review
+            </Button>
           </div>
         </Card>
       </div>
+      </PageStack>
     </AppShell>
   );
 }

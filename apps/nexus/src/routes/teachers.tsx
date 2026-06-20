@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
-import { Card, Button, Pill, Modal, Field, TextInput, Select } from "@/components/ui-kit";
+import { Card, Button, Pill, Modal, Field, TextInput, Select } from "@lumenx/ui-admin";
 import { Plus, Mail, KeyRound, UserPlus } from "lucide-react";
 import { useState } from "react";
 

@@ -1,0 +1,1 @@
+export { StudentMarksPage } from "./StudentMarksPage";

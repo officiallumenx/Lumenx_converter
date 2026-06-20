@@ -1,28 +1,42 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/app/AppShell";
 import { PageHeader } from "@/components/app/PageHeader";
 import { SectionCard } from "@/components/app/SectionCard";
 import {
-  Wallet,
   AlertTriangle,
   CheckCircle2,
   Clock,
   Receipt,
   Bell,
   GraduationCap,
+  Users,
 } from "lucide-react";
-import { fees, feeSummary, children as allChildren, feeDuesByChild } from "@/lib/mock-data";
-import type { FeeItem, Role } from "@/lib/types";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
+import { fees, children as allChildren, feeDuesByChild } from "@/lib/mock-data";
+import type { FeeItem, Role } from "@lumenx/types";
+import { FeeDuesOverviewCard } from "@/components/app/fees/FeeDuesOverviewCard";
+import {
+  FEE_CATEGORY_LABELS,
+  FEE_CATEGORY_ORDER,
+  formatInr,
+  inferFeeCategory,
+  isOutstandingStatus,
+  statusHint,
+  summarizeDueRows,
+  summarizeFeeItems,
+  summarizeHouseholdFees,
+} from "@/lib/fees-utils";
+import { Badge } from "@lumenx/ui";
+import { Button } from "@lumenx/ui";
+import { Progress } from "@lumenx/ui";
+import { Checkbox } from "@lumenx/ui";
+import { Label } from "@lumenx/ui";
 import { toast } from "sonner";
 import { useApp } from "@/lib/app-state";
 import { useParentPortal } from "@/context/ParentPortalContext";
-import { cn } from "@/lib/utils";
+import { teacherRepository } from "@/lib/teacher/repositories";
+import type { TeacherFeeRecord } from "@/lib/teacher/repositories";
+import { cn } from "@lumenx/ui";
 
 export const Route = createFileRoute("/fees")({
   head: () => ({
@@ -47,8 +61,111 @@ const STATUS: Record<string, { label: string; cls: string; icon: typeof CheckCir
 
 function FeesPage() {
   const { role } = useApp();
+  if (role === "teacher") return <TeacherFeesContent />;
   if (role === "parent") return <ParentFeesContent />;
   return <StudentFeesContent />;
+}
+
+function TeacherFeesContent() {
+  const [records, setRecords] = useState<TeacherFeeRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<"all" | "due" | "overdue">("all");
+
+  useEffect(() => {
+    teacherRepository.getClassFees().then((r) => { setRecords(r); setLoading(false); });
+  }, []);
+
+  const displayed = useMemo(() => {
+    if (filter === "all") return records;
+    if (filter === "overdue") return records.filter((r) => r.tuition.status === "overdue" || r.examFee.status === "overdue" || r.transport?.status === "overdue");
+    return records.filter((r) => r.totalDue > 0);
+  }, [records, filter]);
+
+  const totalDue = records.reduce((s, r) => s + r.totalDue, 0);
+  const overdueCount = records.filter((r) => r.tuition.status === "overdue" || r.examFee.status === "overdue").length;
+  const clearedCount = records.filter((r) => r.totalDue === 0).length;
+
+  return (
+    <div className="min-w-0 space-y-5">
+      <PageHeader title="Fees" subtitle="Class-wise fee status for your students (class teacher view)" />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border bg-card p-4 shadow-soft">
+          <Users className="mb-2 size-4 text-muted-foreground" />
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Total students</div>
+          <div className="font-display text-xl font-semibold">{records.length}</div>
+        </div>
+        <div className="rounded-2xl border bg-destructive/5 p-4 shadow-soft">
+          <AlertTriangle className="mb-2 size-4 text-destructive" />
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Overdue</div>
+          <div className="font-display text-xl font-semibold text-destructive">{overdueCount}</div>
+        </div>
+        <div className="rounded-2xl border bg-success/5 p-4 shadow-soft col-span-2 sm:col-span-1">
+          <CheckCircle2 className="mb-2 size-4 text-success" />
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Cleared</div>
+          <div className="font-display text-xl font-semibold text-success">{clearedCount}</div>
+        </div>
+      </div>
+      {totalDue > 0 && (
+        <div className="flex items-start gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-4">
+          <AlertTriangle className="mt-0.5 size-5 shrink-0 text-destructive" />
+          <div>
+            <div className="font-medium text-destructive">₹{totalDue.toLocaleString("en-IN")} total outstanding</div>
+            <p className="text-sm text-muted-foreground mt-0.5">Across {overdueCount} students with overdue payments.</p>
+          </div>
+        </div>
+      )}
+      <div className="flex flex-wrap gap-2">
+        {(["all", "due", "overdue"] as const).map((f) => (
+          <button key={f} type="button" onClick={() => setFilter(f)} className={cn("rounded-full px-3 py-1.5 text-xs font-medium capitalize", filter === f ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
+            {f === "all" ? "All students" : f === "due" ? "Has dues" : "Overdue only"}
+          </button>
+        ))}
+      </div>
+      {loading ? <p className="text-sm text-muted-foreground">Loading…</p> : (
+        <div className="overflow-x-auto rounded-2xl border shadow-soft">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/40">
+              <tr>
+                <th className="p-3 text-left font-medium">Student</th>
+                <th className="p-3 text-left font-medium">Tuition</th>
+                <th className="p-3 text-left font-medium">Exam fee</th>
+                <th className="p-3 text-left font-medium">Transport</th>
+                <th className="p-3 text-right font-medium">Total due</th>
+              </tr>
+            </thead>
+            <tbody>
+              {displayed.map((r) => (
+                <tr key={r.studentId} className="border-t border-border hover:bg-muted/20">
+                  <td className="p-3">
+                    <div className="font-medium">{r.studentName}</div>
+                    <div className="text-xs text-muted-foreground">Roll {r.roll} · {r.classLabel}</div>
+                  </td>
+                  <td className="p-3"><FeeCellBadge amount={r.tuition.amount} status={r.tuition.status} /></td>
+                  <td className="p-3"><FeeCellBadge amount={r.examFee.amount} status={r.examFee.status} /></td>
+                  <td className="p-3">{r.transport ? <FeeCellBadge amount={r.transport.amount} status={r.transport.status} /> : <span className="text-muted-foreground">—</span>}</td>
+                  <td className="p-3 text-right font-semibold tabular-nums">
+                    {r.totalDue > 0 ? <span className="text-destructive">₹{r.totalDue.toLocaleString("en-IN")}</span> : <span className="text-success">Cleared</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="text-center text-[11px] text-muted-foreground">Fee data is read-only. Payment processing is handled by admin.</p>
+    </div>
+  );
+}
+
+function FeeCellBadge({ amount, status }: { amount: number; status: "paid" | "due" | "overdue" }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="tabular-nums text-xs">₹{amount.toLocaleString("en-IN")}</span>
+      <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium capitalize", status === "paid" ? "bg-success/15 text-success" : status === "overdue" ? "bg-destructive/15 text-destructive" : "bg-warning/15 text-warning-foreground")}>
+        {status}
+      </span>
+    </div>
+  );
 }
 
 function ParentFeesContent() {
@@ -60,134 +177,199 @@ function ParentFeesContent() {
       ? portal.snapshot.child
       : (allChildren.find((c) => c.id === activeChildId) ?? allChildren[0]);
 
-  const { examFees } = useMemo(() => {
-    const exam = fees.filter((f) => f.category === "exam");
-    return { examFees: exam };
-  }, []);
+  const household = useMemo(
+    () => summarizeHouseholdFees(allChildren, feeDuesByChild),
+    [],
+  );
 
-  const parentOverdue = useMemo(() => {
-    const rows: { childName: string; title: string; amount: number; due: string }[] = [];
-    for (const c of allChildren) {
-      for (const row of feeDuesByChild[c.id] ?? []) {
-        if (row.status === "overdue")
-          rows.push({ childName: c.name, title: row.title, amount: row.amount, due: row.due });
-      }
+  const activeSummary = useMemo(() => {
+    const rows = (feeDuesByChild[activeChild.id] ?? []).filter((r) =>
+      isOutstandingStatus(r.status),
+    );
+    return summarizeDueRows(rows);
+  }, [activeChild.id]);
+
+  const activeRows = (feeDuesByChild[activeChild.id] ?? []).filter((r) =>
+    isOutstandingStatus(r.status),
+  );
+
+  const activeByCategory = useMemo(() => {
+    const map = new Map<string, typeof activeRows>();
+    for (const row of activeRows) {
+      const cat = inferFeeCategory(row.title);
+      const list = map.get(cat) ?? [];
+      list.push(row);
+      map.set(cat, list);
     }
-    return rows;
-  }, []);
-
-  const activeRows = (feeDuesByChild[activeChild.id] ?? []).filter((f) => f.status !== "paid");
+    return FEE_CATEGORY_ORDER.filter((c) => map.has(c)).map((c) => ({
+      category: c,
+      rows: map.get(c)!,
+    }));
+  }, [activeRows]);
 
   return (
-    <div className="min-w-0 max-w-full">
+    <div className="min-w-0 max-w-full space-y-4">
       <PageHeader
-        title="Fees"
-        subtitle={`Outstanding dues for ${activeChild.name}. Use the header switcher or Home to change the active learner.`}
+        title="Fees & Payments"
+        subtitle="Household dues across all linked children — tuition, exams, transport and more"
       />
 
-      {parentOverdue.length > 0 && (
-        <div className="mb-4 flex min-w-0 flex-col gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-4 sm:flex-row sm:items-start">
-          <AlertTriangle className="mt-0.5 size-5 shrink-0 text-destructive" />
-          <div className="min-w-0 flex-1">
-            <div className="font-medium text-destructive">Overdue across your children</div>
-            <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-muted-foreground">
-              {parentOverdue.map((r, i) => (
-                <li key={`${r.childName}-${i}`}>
-                  <span className="font-medium text-foreground">{r.childName}</span>: {r.title} — ₹
-                  {r.amount.toLocaleString("en-IN")} (due {r.due})
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      )}
+      <FeeDuesOverviewCard
+        title="Household fee summary"
+        subtitle={`${allChildren.length} linked children · ${household.perChild.length} with outstanding dues`}
+        summary={household.household}
+        perChild={household.perChild}
+      />
 
-      <div className="mb-4 space-y-4" key={activeChild.id}>
+      <div className="space-y-4" key={activeChild.id}>
         <SectionCard
           title={`${activeChild.name} · ${activeChild.className} ${activeChild.section}`}
-          className="ring-2 ring-primary/25 ring-offset-2 ring-offset-background"
+          action={
+            activeSummary.totalOutstanding > 0 ? (
+              <Badge variant="outline" className="tabular-nums">
+                {formatInr(activeSummary.totalOutstanding)} due
+              </Badge>
+            ) : (
+              <Badge className="border-0 bg-success/15 text-success">Cleared</Badge>
+            )
+          }
         >
+          <p className="mb-3 text-sm text-muted-foreground">
+            Switch the active learner in the header to review another child&apos;s breakdown.
+          </p>
+
           {activeRows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No outstanding dues for this child.</p>
+            <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+              No outstanding dues for {activeChild.name}.
+            </p>
           ) : (
-            <ul className="min-w-0 space-y-3">
-              {activeRows.map((row) => (
-                <li
-                  key={row.id}
-                  className="flex min-w-0 flex-col gap-2 rounded-xl border border-border p-3 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="min-w-0">
-                    <div className="font-medium break-words">{row.title}</div>
-                    <div className="text-xs text-muted-foreground">Due {row.due}</div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <span className="font-semibold tabular-nums">
-                      ₹{row.amount.toLocaleString("en-IN")}
-                    </span>
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        row.status === "overdue" && "border-destructive/40 text-destructive",
-                      )}
-                    >
-                      {row.status === "partial"
-                        ? "Partial"
-                        : row.status === "overdue"
-                          ? "Overdue"
-                          : "Due"}
-                    </Badge>
-                  </div>
-                </li>
+            <div className="space-y-4">
+              {activeByCategory.map(({ category, rows }) => (
+                <div key={category}>
+                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {FEE_CATEGORY_LABELS[category]}
+                  </h3>
+                  <ul className="min-w-0 space-y-2">
+                    {rows.map((row) => (
+                      <ParentDueRow key={row.id} row={row} />
+                    ))}
+                  </ul>
+                </div>
               ))}
-            </ul>
+            </div>
           )}
         </SectionCard>
-
-        <p className="text-xs text-muted-foreground">
-          Other linked children: switch the active learner in the bar above to review their dues in
-          isolation.
-        </p>
       </div>
 
-      {examFees.length > 0 && (
-        <SectionCard title="Examination fees (institute-wide)" className="mb-4">
-          <div className="space-y-2">
-            {examFees.map((f) => (
-              <FeeScheduleRow key={f.id} f={f} role="parent" />
-            ))}
-          </div>
-        </SectionCard>
-      )}
-
-      <p className="text-center text-[11px] text-muted-foreground">
-        Payment history and receipts will appear here after the payment gateway is enabled.
-      </p>
+      <SectionCard title="How payments work">
+        <ul className="space-y-2 text-sm text-muted-foreground">
+          <li className="flex gap-2">
+            <span className="text-primary">•</span>
+            <span>
+              <strong className="text-foreground">Tuition</strong> is billed quarterly. Partial
+              payments show until the instalment is cleared.
+            </span>
+          </li>
+          <li className="flex gap-2">
+            <span className="text-primary">•</span>
+            <span>
+              <strong className="text-foreground">Examination fees</strong> are separate — pay before
+              hall tickets and practicals are released.
+            </span>
+          </li>
+          <li className="flex gap-2">
+            <span className="text-primary">•</span>
+            <span>
+              <strong className="text-foreground">Transport & activity</strong> fees may have
+              different due dates per term.
+            </span>
+          </li>
+        </ul>
+        <p className="mt-4 text-center text-[11px] text-muted-foreground">
+          Online payment and receipts will appear here once the gateway is enabled.
+        </p>
+      </SectionCard>
     </div>
+  );
+}
+
+function ParentDueRow({
+  row,
+}: {
+  row: {
+    id: string;
+    title: string;
+    amount: number;
+    due: string;
+    status: FeeItem["status"];
+  };
+}) {
+  const s = STATUS[row.status];
+  return (
+    <li className="flex min-w-0 flex-col gap-2 rounded-xl border border-border p-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0 flex-1">
+        <div className="font-medium break-words">{row.title}</div>
+        <div className="mt-0.5 text-xs text-muted-foreground">{statusHint(row.status, row.due)}</div>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <span className="font-semibold tabular-nums">{formatInr(row.amount)}</span>
+        <Badge variant="outline" className={cn("border-0", s.cls)}>
+          {s.label}
+        </Badge>
+        {(row.status === "overdue" || row.status === "partial") && (
+          <Button
+            size="sm"
+            className="rounded-lg"
+            onClick={() => toast.info("Payment gateway coming soon")}
+          >
+            Pay
+          </Button>
+        )}
+      </div>
+    </li>
   );
 }
 
 function StudentFeesContent() {
   const { role } = useApp();
   const [notifyParents, setNotifyParents] = useState(false);
-  const paidPct = Math.round((feeSummary.paid / feeSummary.total) * 100);
+
+  const summary = useMemo(() => summarizeFeeItems(fees), []);
+  const paidPct = Math.round((summary.totalPaid / Math.max(summary.totalAnnual, 1)) * 100);
+
   const { examFees, generalFees } = useMemo(() => {
     const exam = fees.filter((f) => f.category === "exam");
     const general = fees.filter((f) => f.category !== "exam");
     return { examFees: exam, generalFees: general };
   }, []);
+
   const overdue = fees.filter((f) => f.status === "overdue");
+  const pendingGeneral = generalFees.filter((f) => isOutstandingStatus(f.status));
+  const pendingExam = examFees.filter((f) => isOutstandingStatus(f.status));
 
   return (
-    <div className="min-w-0 max-w-full">
-      <PageHeader title="Fees" subtitle="Your fee status and history" />
+    <div className="min-w-0 max-w-full space-y-4">
+      <PageHeader title="Fees & Payments" subtitle="Your fee status, breakdown and payment history" />
 
-      {role === "student" && (
-        <div className="mb-4 flex min-w-0 flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-soft sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <div className="font-medium">Need a parent to follow up?</div>
-            <p className="text-sm text-muted-foreground">
-              Sends an in-app reminder to linked guardians (push where the parent app allows it).
-            </p>
+      <FeeDuesOverviewCard
+        title="Your fee summary"
+        subtitle="Outstanding across tuition, exams, transport and other charges"
+        summary={summary}
+        showProgress
+      />
+
+      {role === "student" && overdue.length > 0 && (
+        <div className="flex min-w-0 flex-col gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-destructive" />
+            <div>
+              <div className="font-medium text-destructive">
+                {overdue.length} overdue payment{overdue.length > 1 ? "s" : ""}
+              </div>
+              <div className="text-sm text-muted-foreground">
+                {formatInr(overdue.reduce((s, f) => s + f.amount, 0))} needs immediate attention.
+              </div>
+            </div>
           </div>
           <Button
             variant="outline"
@@ -203,30 +385,8 @@ function StudentFeesContent() {
         </div>
       )}
 
-      {overdue.length > 0 && (
-        <div className="mb-4 flex min-w-0 flex-col gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-4 sm:flex-row sm:items-start">
-          <AlertTriangle className="mt-0.5 size-5 shrink-0 text-destructive" />
-          <div className="min-w-0 flex-1">
-            <div className="font-medium text-destructive">
-              {overdue.length} overdue payment{overdue.length > 1 ? "s" : ""}
-            </div>
-            <div className="text-sm text-muted-foreground">
-              Total ₹{overdue.reduce((s, f) => s + f.amount, 0).toLocaleString("en-IN")} pending.
-              Please clear at the earliest.
-            </div>
-          </div>
-          <Button
-            size="sm"
-            className="rounded-xl shrink-0"
-            onClick={() => toast.success("Reminder sent")}
-          >
-            <Bell className="size-4 mr-1.5" /> Remind me
-          </Button>
-        </div>
-      )}
-
       {role === "student" && overdue.length > 0 && (
-        <div className="mb-4 flex items-start gap-3 rounded-xl border border-border bg-muted/30 p-3">
+        <div className="flex items-start gap-3 rounded-xl border border-border bg-muted/30 p-3">
           <Checkbox
             id="fee-parent-nudge"
             checked={notifyParents}
@@ -246,45 +406,50 @@ function StudentFeesContent() {
         </div>
       )}
 
-      <div className="mb-4 grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <SummaryStat
-          icon={Wallet}
-          label="Total annual"
-          value={`₹${feeSummary.total.toLocaleString("en-IN")}`}
-          tone="default"
-        />
-        <SummaryStat
-          icon={CheckCircle2}
-          label="Paid"
-          value={`₹${feeSummary.paid.toLocaleString("en-IN")}`}
-          tone="success"
-        />
-        <SummaryStat
-          icon={AlertTriangle}
-          label="Outstanding"
-          value={`₹${feeSummary.due.toLocaleString("en-IN")}`}
-          tone="warning"
-        />
-        <SummaryStat icon={Clock} label="Next due" value={feeSummary.nextDue} tone="primary" />
-      </div>
-
-      <SectionCard title="Year progress" className="mb-4">
-        <div className="flex items-center justify-between text-sm mb-2">
-          <span className="text-muted-foreground">Paid {paidPct}% of annual fees</span>
-          <span className="font-medium">
-            ₹{feeSummary.paid.toLocaleString("en-IN")} / ₹{feeSummary.total.toLocaleString("en-IN")}
-          </span>
-        </div>
-        <Progress value={paidPct} className="h-2.5" />
-      </SectionCard>
+      {pendingGeneral.length > 0 && (
+        <SectionCard
+          title="Tuition & school fees"
+          action={
+            <Badge variant="outline" className="tabular-nums">
+              {formatInr(
+                pendingGeneral.reduce(
+                  (s, f) => s + (f.status === "partial" ? Math.round(f.amount * 0.5) : f.amount),
+                  0,
+                ),
+              )}{" "}
+              pending
+            </Badge>
+          }
+        >
+          <p className="mb-3 text-sm text-muted-foreground">
+            Quarterly tuition, transport, and activity charges billed by the institute.
+          </p>
+          <div className="space-y-2">
+            {generalFees.map((f) => (
+              <FeeScheduleRow key={f.id} f={f} role={role} />
+            ))}
+          </div>
+        </SectionCard>
+      )}
 
       {examFees.length > 0 && (
-        <SectionCard title="Examination fees" className="mb-4">
+        <SectionCard
+          title="Examination fees"
+          action={
+            pendingExam.length > 0 ? (
+              <Badge variant="outline" className="tabular-nums">
+                {formatInr(
+                  pendingExam.reduce((s, f) => s + f.amount, 0),
+                )}{" "}
+                pending
+              </Badge>
+            ) : undefined
+          }
+        >
           <div className="mb-3 flex min-w-0 items-start gap-2 rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm text-muted-foreground">
             <GraduationCap className="mt-0.5 size-4 shrink-0 text-primary" />
             <p className="min-w-0 leading-snug">
-              These charges are separate from tuition. Clear them before hall tickets or practical
-              slots are released, per school policy.
+              Separate from tuition. Pay before hall tickets, practicals, or viva slots are confirmed.
             </p>
           </div>
           <div className="space-y-2">
@@ -295,14 +460,16 @@ function StudentFeesContent() {
         </SectionCard>
       )}
 
-      <SectionCard title="Fee history & schedule">
-        <div className="space-y-2">
-          {generalFees.map((f) => (
-            <FeeScheduleRow key={f.id} f={f} role={role} />
-          ))}
+      <SectionCard title="Payment progress">
+        <div className="flex items-center justify-between text-sm mb-2">
+          <span className="text-muted-foreground">Paid {paidPct}% of annual fees</span>
+          <span className="font-medium tabular-nums">
+            {formatInr(summary.totalPaid)} / {formatInr(summary.totalAnnual)}
+          </span>
         </div>
-        <p className="text-[11px] text-muted-foreground mt-4">
-          Payments integration is coming soon. Receipt numbers shown are placeholders.
+        <Progress value={paidPct} className="h-2.5" />
+        <p className="mt-3 text-[11px] text-muted-foreground">
+          Receipt numbers shown are placeholders until online payments are connected.
         </p>
       </SectionCard>
     </div>
@@ -312,24 +479,36 @@ function StudentFeesContent() {
 function FeeScheduleRow({ f, role }: { f: FeeItem; role: Role | null }) {
   const s = STATUS[f.status];
   const Icon = s.icon;
+  const category = inferFeeCategory(f.title, f.category);
+  const catLabel = FEE_CATEGORY_LABELS[category];
+
   return (
-    <div className="flex min-w-0 flex-col gap-3 rounded-xl border border-border p-3 sm:flex-row sm:items-center sm:gap-3">
-      <div className={cn("size-10 shrink-0 grid place-items-center rounded-xl", s.cls)}>
+    <div
+      className={cn(
+        "flex min-w-0 flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center sm:gap-3",
+        f.status === "overdue" && "border-destructive/25 bg-destructive/[0.02]",
+        f.status === "paid" && "opacity-90",
+      )}
+    >
+      <div className={cn("grid size-10 shrink-0 place-items-center rounded-xl", s.cls)}>
         <Icon className="size-5" />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate font-medium">
-          {f.title} <span className="text-xs font-normal text-muted-foreground">• {f.term}</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-medium">{f.title}</span>
+          <Badge variant="outline" className="text-[10px] font-normal">
+            {catLabel}
+          </Badge>
         </div>
-        <div className="truncate text-xs text-muted-foreground">
-          Due {f.due}
-          {f.paidOn && ` • Paid ${f.paidOn}`}
-          {f.receiptNo && ` • ${f.receiptNo}`}
-        </div>
+        <div className="mt-0.5 text-xs text-muted-foreground">{f.term}</div>
+        <div className="mt-1 text-xs text-muted-foreground">{statusHint(f.status, f.due)}</div>
+        {f.receiptNo && f.status === "paid" && (
+          <div className="mt-0.5 text-[10px] text-muted-foreground">Receipt {f.receiptNo}</div>
+        )}
       </div>
       <div className="flex w-full shrink-0 flex-wrap items-center justify-end gap-2 sm:w-auto sm:flex-nowrap">
         <div className="text-right">
-          <div className="font-semibold tabular-nums">₹{f.amount.toLocaleString("en-IN")}</div>
+          <div className="font-semibold tabular-nums">{formatInr(f.amount)}</div>
           <Badge className={cn("mt-1 border-0", s.cls)}>{s.label}</Badge>
         </div>
         {f.status === "paid" && (
@@ -345,57 +524,16 @@ function FeeScheduleRow({ f, role }: { f: FeeItem; role: Role | null }) {
             <Receipt className="size-4" />
           </Button>
         )}
-        {(f.status === "overdue" || f.status === "partial") && role === "parent" && (
-          <Button
-            size="sm"
-            className="shrink-0 rounded-xl"
-            onClick={() => toast.info("Payment gateway coming soon")}
-          >
-            Pay now
-          </Button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function SummaryStat({
-  icon: Icon,
-  label,
-  value,
-  tone,
-}: {
-  icon: typeof Wallet;
-  label: string;
-  value: string;
-  tone: "default" | "success" | "warning" | "primary";
-}) {
-  const cls = {
-    default: "bg-card",
-    success: "bg-success/10",
-    warning: "bg-warning/10",
-    primary: "bg-primary/10",
-  }[tone];
-  const iconCls = {
-    default: "bg-muted text-foreground",
-    success: "bg-success/15 text-success",
-    warning: "bg-warning/20 text-warning-foreground",
-    primary: "bg-primary/15 text-primary",
-  }[tone];
-  return (
-    <div className={cn("min-w-0 rounded-2xl border border-border p-4 shadow-soft md:p-5", cls)}>
-      <div className="flex min-w-0 items-center gap-3">
-        <div className={cn("size-10 rounded-xl grid place-items-center", iconCls)}>
-          <Icon className="size-5" />
-        </div>
-        <div className="min-w-0">
-          <div className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">
-            {label}
-          </div>
-          <div className="font-display text-lg md:text-xl font-semibold leading-tight truncate">
-            {value}
-          </div>
-        </div>
+        {(f.status === "overdue" || f.status === "partial" || f.status === "upcoming") &&
+          role === "parent" && (
+            <Button
+              size="sm"
+              className="shrink-0 rounded-xl"
+              onClick={() => toast.info("Payment gateway coming soon")}
+            >
+              Pay now
+            </Button>
+          )}
       </div>
     </div>
   );

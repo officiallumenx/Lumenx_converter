@@ -9,7 +9,7 @@ LumenX is a modular education platform for institutes — connecting administrat
 | **LumenX Nexus** | `apps/nexus/` | ✅ Runnable | Platform hub and institute command center |
 | **LumenX Admin** | `apps/admin/` | ✅ Runnable | Institute administration console |
 | **LumenX Connect** | `apps/connect/` | ✅ Runnable | Parent, teacher, and student portal |
-| **LumenX Transport** | `apps/transport/` | 📋 Planned | Fleet and route management (not yet in repo) |
+| **LumenX Transport** | `apps/transport/` | ✅ Runnable | Fleet and route management |
 
 ## Tech Stack
 
@@ -33,6 +33,7 @@ npm install
 npm run dev:connect   # LumenX Connect
 npm run dev:admin     # LumenX Admin
 npm run dev:nexus     # LumenX Nexus
+npm run dev:transport # LumenX Transport
 ```
 
 Or run from an app directory:
@@ -51,9 +52,12 @@ Demo login password: see `apps/connect/src/routes/login.tsx` (demo/prototype onl
 | `npm run dev:connect` | Start Connect dev server |
 | `npm run dev:admin` | Start Admin dev server |
 | `npm run dev:nexus` | Start Nexus dev server |
+| `npm run dev:transport` | Start Transport dev server |
 | `npm run build` | Build all apps |
 | `npm run build:connect` | Build Connect only |
 | `npm run build:admin` | Build Admin only |
+| `npm run build:nexus` | Build Nexus only |
+| `npm run build:transport` | Build Transport only |
 | `npm run lint` | Lint all apps |
 
 ## Project Structure
@@ -63,8 +67,17 @@ lumenx/
 ├── apps/
 │   ├── connect/       # LumenX Connect
 │   ├── admin/         # LumenX Admin
-│   └── nexus/         # LumenX Nexus
-├── packages/          # Shared packages (planned)
+│   ├── nexus/         # LumenX Nexus
+│   └── transport/     # LumenX Transport
+├── packages/          # Shared packages
+│   ├── ui/            # @lumenx/ui — shadcn components
+│   ├── ui-admin/      # @lumenx/ui-admin — admin shell components
+│   ├── types/         # @lumenx/types — domain types
+│   ├── auth/          # @lumenx/auth — session contracts
+│   ├── utils/         # @lumenx/utils — errors, formatters
+│   ├── database/      # @lumenx/database — entity schema
+│   ├── config/        # @lumenx/config — tsconfig, ESLint, module registry
+│   └── module-*/      # Domain modules (students, transport, …)
 ├── docs/
 │   ├── LUMENX_MASTER.md
 │   └── migration/
@@ -89,4 +102,4 @@ TBD — add LICENSE before public release.
 
 ## Contributing
 
-Monorepo Phase 1 is complete. Next: extract shared `@lumenx/ui` package and CI pipeline.
+Monorepo Phases 1–7 complete — four runnable apps and 20+ shared packages. See [docs/migration/PHASE3-7.md](docs/migration/PHASE3-7.md).

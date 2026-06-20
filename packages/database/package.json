@@ -1,0 +1,17 @@
+{
+  "name": "@lumenx/database",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./entities": "./src/entities.ts"
+  },
+  "dependencies": {
+    "@lumenx/config": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}

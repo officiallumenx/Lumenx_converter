@@ -1,14 +1,14 @@
 import { useMemo } from "react";
 import { Phone } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { Input } from "@lumenx/ui";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { cn } from "@/lib/utils";
+} from "@lumenx/ui";
+import { cn } from "@lumenx/ui";
 
 export interface Country {
   code: string; // dial code, e.g. "+91"

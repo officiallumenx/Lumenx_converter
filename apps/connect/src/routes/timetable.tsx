@@ -2,10 +2,24 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { AppShell } from "@/components/app/AppShell";
 import { PageHeader } from "@/components/app/PageHeader";
+import { TimetableDayPicker } from "@/components/app/timetable/TimetableDayPicker";
+import {
+  buildStudentPeriodRows,
+  PeriodTimeline,
+} from "@/components/app/timetable/PeriodTimeline";
 import { useApp } from "@/lib/app-state";
 import { useParentPortal } from "@/context/ParentPortalContext";
-import { days, studentTimetable, teacherTimetable } from "@/lib/mock-data";
-import { cn } from "@/lib/utils";
+import { useStudentPortal } from "@/context/StudentPortalContext";
+import { days, studentTimetable } from "@/lib/mock-data";
+import {
+  getCurrentAndNextPeriod,
+  getTodayDayName,
+  splitPeriodTime,
+  subjectStyle,
+} from "@/lib/student/timetable-utils";
+import { TeacherTimetablePage } from "@/teacher-portal";
+import { Badge, cn } from "@lumenx/ui";
+import { Clock, User } from "lucide-react";
 
 export const Route = createFileRoute("/timetable")({
   head: () => ({ meta: [{ title: "Timetable — LumenX Connect" }] }),
@@ -16,69 +30,144 @@ export const Route = createFileRoute("/timetable")({
   ),
 });
 
-type TimetablePeriod =
-  | { time: string; subject: string; teacher: string }
-  | { time: string; subject: string; class: string };
-
 function TimetablePage() {
   const { role } = useApp();
-  const portal = useParentPortal();
-  const snap = role === "parent" && portal.isParent ? portal.snapshot : null;
-  const data = useMemo(() => {
-    if (snap) return snap.timetable;
-    return role === "teacher" ? teacherTimetable : studentTimetable;
-  }, [role, snap]);
-  const [day, setDay] = useState(days[Math.max(0, Math.min(5, new Date().getDay() - 1))]);
+  if (role === "teacher") return <TeacherTimetablePage />;
 
-  const subtitle = snap
-    ? `${snap.child.name} · ${snap.classTag}`
-    : "Your weekly schedule at a glance";
+  const parentPortal = useParentPortal();
+  const studentPortal = useStudentPortal();
+
+  const parentSnap = role === "parent" && parentPortal.isParent ? parentPortal.snapshot : null;
+  const studentSnap =
+    role === "student" && studentPortal.isStudent ? studentPortal.snapshot : null;
+
+  const data = useMemo(() => {
+    if (parentSnap) return parentSnap.timetable;
+    if (studentSnap) return studentSnap.timetable;
+    return studentTimetable;
+  }, [parentSnap, studentSnap]);
+
+  const todayName = getTodayDayName(days);
+  const [day, setDay] = useState(todayName);
+  const isToday = day === todayName;
+
+  const periodCounts = useMemo(
+    () =>
+      Object.fromEntries(days.map((d) => [d, (data[d] ?? []).length])) as Record<string, number>,
+    [data],
+  );
+
+  const dayPeriods = (data[day] ?? []) as { time: string; subject: string; teacher: string }[];
+
+  const { current, next } = useMemo(
+    () => (isToday ? getCurrentAndNextPeriod(dayPeriods) : { current: null, next: null }),
+    [dayPeriods, isToday],
+  );
+
+  const periodRows = useMemo(
+    () => buildStudentPeriodRows(dayPeriods, { isToday, current, next }),
+    [dayPeriods, isToday, current, next],
+  );
+
+  const subtitle = parentSnap
+    ? `${parentSnap.child.name} · ${parentSnap.classTag}`
+    : studentSnap
+      ? `${studentSnap.profile.name} · ${studentSnap.profile.class} ${studentSnap.profile.section}`
+      : "Your weekly schedule at a glance";
 
   return (
-    <div className="min-w-0 max-w-full">
+    <div className="min-w-0 max-w-full space-y-4">
       <PageHeader title="Timetable" subtitle={subtitle} />
 
-      <div className="mb-4 flex min-w-0 gap-2 overflow-x-auto pb-2 scrollbar-hide">
-        {days.map((d) => (
-          <button
-            key={d}
-            onClick={() => setDay(d)}
-            className={cn(
-              "px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all",
-              day === d
-                ? "bg-primary text-primary-foreground shadow-glow"
-                : "bg-muted text-muted-foreground hover:bg-accent",
-            )}
-          >
-            {d}
-          </button>
-        ))}
-      </div>
-
-      <div className="min-w-0 overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
-        <div className="px-5 py-4 border-b border-border bg-muted/30">
-          <div className="font-semibold">{day}</div>
-          <div className="text-xs text-muted-foreground">{data[day]?.length ?? 0} periods</div>
+      {isToday && (current || next) && (
+        <div className="grid min-w-0 grid-cols-1 gap-3 lg:grid-cols-2">
+          {current && <NowNextHighlight period={current} variant="now" />}
+          {next && <NowNextHighlight period={next} variant="next" />}
         </div>
-        <ul className="divide-y divide-border">
-          {(data[day] ?? []).map((p: TimetablePeriod, i: number) => (
-            <li key={i} className="flex min-w-0 items-center gap-2 p-4 sm:gap-4">
-              <div className="w-[4.25rem] shrink-0 text-xs font-medium tabular-nums text-muted-foreground sm:w-24">
-                <span className="block truncate">{p.time}</span>
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-medium">{p.subject}</div>
-                <div className="truncate text-xs text-muted-foreground">
-                  {"class" in p ? `Class ${p.class}` : p.teacher}
-                </div>
-              </div>
-              <div className="size-2 rounded-full bg-primary" />
-            </li>
-          ))}
-          {!data[day]?.length && (
-            <li className="p-8 text-center text-sm text-muted-foreground">No classes scheduled.</li>
+      )}
+
+      {isToday && !current && !next && dayPeriods.length > 0 && (
+        <div className="rounded-2xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+          No more classes scheduled for today.
+        </div>
+      )}
+
+      <TimetableDayPicker
+        days={days}
+        selected={day}
+        onSelect={setDay}
+        todayName={todayName}
+        periodCounts={periodCounts}
+      />
+
+      <section className="min-w-0 rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-5">
+        <header className="mb-4 flex flex-wrap items-end justify-between gap-2 border-b border-border pb-4">
+          <div>
+            <h2 className="font-semibold">{day}</h2>
+            <p className="text-xs text-muted-foreground">
+              {dayPeriods.length} period{dayPeriods.length === 1 ? "" : "s"}
+              {isToday ? " · Today’s schedule" : ""}
+            </p>
+          </div>
+          {isToday && current && (
+            <Badge className="border-0 bg-primary text-primary-foreground">In session</Badge>
           )}
-        </ul>
+        </header>
+
+        <PeriodTimeline
+          periods={periodRows}
+          emptyMessage={`No classes on ${day}.`}
+          showPastMuted={isToday}
+        />
+      </section>
+    </div>
+  );
+}
+
+function NowNextHighlight({
+  period,
+  variant,
+}: {
+  period: { time: string; subject: string; teacher: string };
+  variant: "now" | "next";
+}) {
+  const style = subjectStyle(period.subject);
+  const { start, end } = splitPeriodTime(period.time);
+  const isNow = variant === "now";
+
+  return (
+    <div
+      className={cn(
+        "relative min-w-0 overflow-hidden rounded-2xl border p-4 shadow-soft sm:p-5",
+        isNow ? "border-primary/40 bg-primary/[0.06]" : "border-border bg-card",
+      )}
+    >
+      <div className={cn("absolute inset-y-0 left-0 w-1 sm:w-1.5", style.stripe)} aria-hidden />
+      <Badge
+        className={cn(
+          "mb-3",
+          isNow ? "border-0 bg-primary text-primary-foreground" : "",
+        )}
+        variant={isNow ? "default" : "outline"}
+      >
+        {isNow ? "Now" : "Up next"}
+      </Badge>
+      <div className="font-display text-lg font-semibold sm:text-xl">{period.subject}</div>
+      <div className="mt-2 flex flex-col gap-1.5 text-sm text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5 tabular-nums">
+          <Clock className="size-3.5 shrink-0" />
+          <span className="sm:hidden">
+            {start}
+            {end ? ` – ${end}` : ""}
+          </span>
+          <span className="hidden sm:inline">{period.time}</span>
+        </span>
+        {period.teacher !== "—" && (
+          <span className="inline-flex items-center gap-1.5">
+            <User className="size-3.5 shrink-0" />
+            {period.teacher}
+          </span>
+        )}
       </div>
     </div>
   );

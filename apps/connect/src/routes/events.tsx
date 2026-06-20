@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { AppShell } from "@/components/app/AppShell";
 import { PageHeader } from "@/components/app/PageHeader";
+import { TeacherEventsPage } from "@/teacher-portal";
 import { SectionCard } from "@/components/app/SectionCard";
 import { schoolEvents } from "@/lib/mock-data";
 import {
@@ -19,17 +20,17 @@ import {
   BookOpen,
   Sparkles,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@lumenx/ui";
+import { Badge } from "@lumenx/ui";
+import { Input } from "@lumenx/ui";
+import { Textarea } from "@lumenx/ui";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@lumenx/ui";
 import {
   Dialog,
   DialogContent,
@@ -37,7 +38,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
+} from "@lumenx/ui";
 import {
   Form,
   FormControl,
@@ -45,11 +46,11 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form";
+} from "@lumenx/ui";
 import { useApp } from "@/lib/app-state";
-import { cn } from "@/lib/utils";
+import { cn } from "@lumenx/ui";
 import { toast } from "sonner";
-import type { SchoolEvent } from "@/lib/types";
+import type { SchoolEvent } from "@lumenx/types";
 
 export const Route = createFileRoute("/events")({
   head: () => ({
@@ -268,6 +269,7 @@ function NewEventDialog({ onCreated }: { onCreated: (e: SchoolEvent) => void }) 
 
 function EventsPage() {
   const { role } = useApp();
+  if (role === "teacher") return <TeacherEventsPage />;
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
   const [events, setEvents] = useState<SchoolEvent[]>(() => [...schoolEvents]);
 

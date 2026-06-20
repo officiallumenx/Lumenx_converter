@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { ChevronDown, Home, Loader2, Users } from "lucide-react";
 import { useApp } from "@/lib/app-state";
 import { children } from "@/lib/mock-data";
-import { Button } from "@/components/ui/button";
+import { Button } from "@lumenx/ui";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,9 +10,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@lumenx/ui";
 import { useParentPortal } from "@/context/ParentPortalContext";
-import { cn } from "@/lib/utils";
+import { cn } from "@lumenx/ui";
 
 /** Sticky context for parents: active learner + quick switch (validated IDs only). */
 export function ParentContextBar() {

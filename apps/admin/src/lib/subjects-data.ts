@@ -1,0 +1,176 @@
+/** Subject catalog — create subjects, assign qualified teachers, feed timetable. */
+
+export const GRADES = ["Grade 9", "Grade 10", "Grade 11", "Grade 12"] as const;
+
+export type SubjectCatalogItem = {
+  id: string;
+  name: string;
+  code: string;
+  category: string;
+  periodsPerWeek: number;
+  grades: string[];
+  assignedTeacherIds: string[];
+  status: "active" | "draft";
+};
+
+export type InstituteTeacher = {
+  id: string;
+  name: string;
+  subjects: string[];
+  experienceYears: number;
+  qualification: string;
+  department: string;
+};
+
+export type TimetableSubject = { id: string; name: string; code: string; periodsPerWeek: number };
+
+export const SUBJECT_CATEGORIES = ["Sciences", "Languages", "Humanities", "Arts", "Other"] as const;
+
+const INITIAL_TEACHERS: InstituteTeacher[] = [
+  { id: "T-M1", name: "Sarah Jenkins", subjects: ["Mathematics", "MTH 101", "MTH 204"], experienceYears: 14, qualification: "M.Sc Mathematics", department: "Mathematics" },
+  { id: "T-M2", name: "Raj Mehta", subjects: ["Mathematics", "MTH 101", "MTH 204"], experienceYears: 10, qualification: "M.Sc Mathematics", department: "Mathematics" },
+  { id: "T-M3", name: "Lena Ortiz", subjects: ["Mathematics", "MTH 101"], experienceYears: 6, qualification: "B.Ed Mathematics", department: "Mathematics" },
+  { id: "T-M4", name: "Aiden Brooks", subjects: ["Mathematics", "MTH 101"], experienceYears: 3, qualification: "B.Sc Mathematics", department: "Mathematics" },
+  { id: "T-P1", name: "David Koal", subjects: ["Physics", "PHY 201"], experienceYears: 12, qualification: "M.Sc Physics", department: "Physics" },
+  { id: "T-P2", name: "Nina Volkov", subjects: ["Physics", "PHY 201"], experienceYears: 8, qualification: "M.Sc Physics", department: "Physics" },
+  { id: "T-P3", name: "James Chen", subjects: ["Physics", "PHY 201"], experienceYears: 5, qualification: "B.Ed Physics", department: "Physics" },
+  { id: "T-P4", name: "Ella Wright", subjects: ["Physics", "PHY 201"], experienceYears: 2, qualification: "B.Sc Physics", department: "Physics" },
+  { id: "T-E1", name: "Marcus Whitfield", subjects: ["English", "ENG 301"], experienceYears: 15, qualification: "M.A English Literature", department: "English" },
+  { id: "T-E2", name: "Sofia Alvarez", subjects: ["English", "ENG 301"], experienceYears: 11, qualification: "M.A English", department: "English" },
+  { id: "T-E3", name: "Tom Hughes", subjects: ["English", "ENG 301"], experienceYears: 7, qualification: "B.Ed English", department: "English" },
+  { id: "T-E4", name: "Yuki Tanaka", subjects: ["English", "ENG 301"], experienceYears: 4, qualification: "B.A English", department: "English" },
+  { id: "T-B1", name: "Priya Iyer", subjects: ["Biology", "BIO 110"], experienceYears: 11, qualification: "M.Sc Biology", department: "Biology" },
+  { id: "T-B2", name: "Carlos Mendez", subjects: ["Biology", "BIO 110"], experienceYears: 7, qualification: "M.Sc Biology", department: "Biology" },
+  { id: "T-B3", name: "Amy Laurent", subjects: ["Biology", "BIO 110"], experienceYears: 4, qualification: "B.Ed Biology", department: "Biology" },
+  { id: "T-B4", name: "Noah Park", subjects: ["Biology", "BIO 110"], experienceYears: 2, qualification: "B.Sc Biology", department: "Biology" },
+  { id: "T-C1", name: "Hana Suzuki", subjects: ["Chemistry", "CHEM 220"], experienceYears: 10, qualification: "M.Sc Chemistry", department: "Chemistry" },
+  { id: "T-C2", name: "Ibrahim Hale", subjects: ["Chemistry", "CHEM 220"], experienceYears: 7, qualification: "M.Sc Chemistry", department: "Chemistry" },
+  { id: "T-C3", name: "Grace Miller", subjects: ["Chemistry", "CHEM 220"], experienceYears: 5, qualification: "B.Ed Chemistry", department: "Chemistry" },
+  { id: "T-C4", name: "Leo Santos", subjects: ["Chemistry", "CHEM 220"], experienceYears: 3, qualification: "B.Sc Chemistry", department: "Chemistry" },
+  { id: "T-H1", name: "Omar Faris", subjects: ["History", "HIST 150"], experienceYears: 12, qualification: "M.A History", department: "History" },
+  { id: "T-H2", name: "Claire Dubois", subjects: ["History", "HIST 150"], experienceYears: 8, qualification: "M.A History", department: "History" },
+  { id: "T-H3", name: "Ben Okonkwo", subjects: ["History", "HIST 150"], experienceYears: 5, qualification: "B.Ed History", department: "History" },
+  { id: "T-H4", name: "Zara Khan", subjects: ["History", "HIST 150"], experienceYears: 3, qualification: "B.A History", department: "History" },
+];
+
+const INITIAL_CATALOG: SubjectCatalogItem[] = [
+  { id: "S-MTH-101", name: "Mathematics", code: "MTH 101", category: "Sciences", periodsPerWeek: 6, grades: ["Grade 9", "Grade 10"], assignedTeacherIds: ["T-M1", "T-M2", "T-M3", "T-M4"], status: "active" },
+  { id: "S-MTH-204", name: "Mathematics", code: "MTH 204", category: "Sciences", periodsPerWeek: 6, grades: ["Grade 11", "Grade 12"], assignedTeacherIds: ["T-M1", "T-M2"], status: "active" },
+  { id: "S-PHY", name: "Physics", code: "PHY 201", category: "Sciences", periodsPerWeek: 5, grades: ["Grade 9", "Grade 10", "Grade 11", "Grade 12"], assignedTeacherIds: ["T-P1", "T-P2", "T-P3", "T-P4"], status: "active" },
+  { id: "S-ENG", name: "English", code: "ENG 301", category: "Languages", periodsPerWeek: 5, grades: ["Grade 9", "Grade 10", "Grade 11", "Grade 12"], assignedTeacherIds: ["T-E1", "T-E2", "T-E3", "T-E4"], status: "active" },
+  { id: "S-BIO", name: "Biology", code: "BIO 110", category: "Sciences", periodsPerWeek: 4, grades: ["Grade 9", "Grade 10", "Grade 12"], assignedTeacherIds: ["T-B1", "T-B2", "T-B3", "T-B4"], status: "active" },
+  { id: "S-CHEM", name: "Chemistry", code: "CHEM 220", category: "Sciences", periodsPerWeek: 4, grades: ["Grade 10", "Grade 11", "Grade 12"], assignedTeacherIds: ["T-C1", "T-C2", "T-C3", "T-C4"], status: "active" },
+  { id: "S-HIST", name: "History", code: "HIST 150", category: "Humanities", periodsPerWeek: 3, grades: ["Grade 10"], assignedTeacherIds: ["T-H1", "T-H2", "T-H3", "T-H4"], status: "active" },
+];
+
+let subjectCatalog: SubjectCatalogItem[] = INITIAL_CATALOG.map((s) => ({ ...s, grades: [...s.grades], assignedTeacherIds: [...s.assignedTeacherIds] }));
+let instituteTeachers: InstituteTeacher[] = INITIAL_TEACHERS.map((t) => ({ ...t, subjects: [...t.subjects] }));
+
+function syncTeacherSubjectsFromCatalog() {
+  instituteTeachers = instituteTeachers.map((teacher) => {
+    const tags = new Set<string>();
+    for (const sub of subjectCatalog) {
+      if (!sub.assignedTeacherIds.includes(teacher.id)) continue;
+      tags.add(sub.name);
+      tags.add(sub.code);
+    }
+    return { ...teacher, subjects: [...tags] };
+  });
+}
+
+syncTeacherSubjectsFromCatalog();
+
+export function getSubjectCatalog(): SubjectCatalogItem[] {
+  return subjectCatalog.map((s) => ({ ...s, grades: [...s.grades], assignedTeacherIds: [...s.assignedTeacherIds] }));
+}
+
+export function getInstituteTeachers(): InstituteTeacher[] {
+  return instituteTeachers.map((t) => ({ ...t, subjects: [...t.subjects] }));
+}
+
+export function getSubjectsByGrade(): Record<string, TimetableSubject[]> {
+  const out: Record<string, TimetableSubject[]> = {};
+  for (const grade of GRADES) {
+    out[grade] = subjectCatalog
+      .filter((s) => s.status === "active" && s.grades.includes(grade))
+      .map((s) => ({ id: s.id, name: s.name, code: s.code, periodsPerWeek: s.periodsPerWeek }));
+  }
+  return out;
+}
+
+export function addSubject(input: {
+  name: string;
+  code: string;
+  category: string;
+  periodsPerWeek: number;
+  grades: string[];
+  status?: SubjectCatalogItem["status"];
+}): SubjectCatalogItem {
+  const item: SubjectCatalogItem = {
+    id: `S-${Date.now()}`,
+    name: input.name.trim(),
+    code: input.code.trim().toUpperCase(),
+    category: input.category,
+    periodsPerWeek: input.periodsPerWeek,
+    grades: [...input.grades],
+    assignedTeacherIds: [],
+    status: input.status ?? "active",
+  };
+  subjectCatalog = [...subjectCatalog, item];
+  return item;
+}
+
+export function updateSubject(id: string, patch: Partial<Omit<SubjectCatalogItem, "id">>): SubjectCatalogItem | null {
+  let updated: SubjectCatalogItem | null = null;
+  subjectCatalog = subjectCatalog.map((s) => {
+    if (s.id !== id) return s;
+    updated = {
+      ...s,
+      ...patch,
+      name: patch.name !== undefined ? patch.name.trim() : s.name,
+      code: patch.code !== undefined ? patch.code.trim().toUpperCase() : s.code,
+      grades: patch.grades ? [...patch.grades] : s.grades,
+      assignedTeacherIds: patch.assignedTeacherIds ? [...patch.assignedTeacherIds] : s.assignedTeacherIds,
+    };
+    return updated;
+  });
+  if (updated) syncTeacherSubjectsFromCatalog();
+  return updated;
+}
+
+export function deleteSubject(id: string): boolean {
+  const before = subjectCatalog.length;
+  subjectCatalog = subjectCatalog.filter((s) => s.id !== id);
+  if (subjectCatalog.length === before) return false;
+  syncTeacherSubjectsFromCatalog();
+  return true;
+}
+
+export function getSubjectById(id: string) {
+  const s = subjectCatalog.find((x) => x.id === id);
+  if (!s) return null;
+  return { ...s, grades: [...s.grades], assignedTeacherIds: [...s.assignedTeacherIds] };
+}
+
+export function assignTeachersToSubject(subjectId: string, teacherIds: string[]): SubjectCatalogItem | null {
+  return updateSubject(subjectId, { assignedTeacherIds: teacherIds });
+}
+
+export function teachersForSubjectCode(subjectCode: string, subjectName?: string): InstituteTeacher[] {
+  const assigned = subjectCatalog.find((s) => s.code === subjectCode || s.name === subjectName);
+  if (assigned && assigned.assignedTeacherIds.length > 0) {
+    return instituteTeachers.filter((t) => assigned.assignedTeacherIds.includes(t.id));
+  }
+  return instituteTeachers.filter((t) =>
+    t.subjects.some(
+      (s) =>
+        s === subjectCode ||
+        s === subjectName ||
+        (subjectName != null && subjectName.toLowerCase().includes(s.toLowerCase())),
+    ),
+  );
+}
+
+export function teacherById(id: string) {
+  return instituteTeachers.find((t) => t.id === id);
+}

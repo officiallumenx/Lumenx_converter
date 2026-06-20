@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   ShieldCheck,
@@ -15,16 +15,16 @@ import {
   Check,
   School,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { Button } from "@lumenx/ui";
+import { Input } from "@lumenx/ui";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@lumenx/ui";
 import { useApp } from "@/lib/app-state";
-import type { Role } from "@/lib/types";
+import type { Role } from "@lumenx/types";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn } from "@lumenx/ui";
 import { PhoneInput, COUNTRIES, validatePhone, type Country } from "@/components/app/PhoneInput";
 import { registeredInstitutes } from "@/lib/mock-data";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@lumenx/ui";
 import {
   Command,
   CommandEmpty,
@@ -32,9 +32,10 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from "@/components/ui/command";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
+} from "@lumenx/ui";
+import { Checkbox } from "@lumenx/ui";
+import { Label } from "@lumenx/ui";
+import { DEMO_CONNECT_OTP, DEMO_CONNECT_PASSWORD } from "@lumenx/auth";
 
 export const Route = createFileRoute("/login")({
   head: () => ({ meta: [{ title: "Sign in — LumenX Connect" }] }),
@@ -50,8 +51,6 @@ const INSTITUTE_KIND_LABEL: Record<string, string> = {
   engineering: "Engineering",
   university: "University",
 };
-const DEMO_PASSWORD = "unify123";
-const DEMO_OTP = "123456";
 
 const ROLES: { id: Role; label: string; tagline: string; icon: typeof Users }[] = [
   {
@@ -134,11 +133,11 @@ function LoginPage() {
       setLoading(true);
       setTimeout(() => {
         setLoading(false);
-        if (password !== DEMO_PASSWORD)
-          return toast.error(`Incorrect password (demo: ${DEMO_PASSWORD})`);
+        if (password !== DEMO_CONNECT_PASSWORD)
+          return toast.error(`Incorrect password (demo: ${DEMO_CONNECT_PASSWORD})`);
         setOtp("");
         setStep("otp");
-        toast.success(`OTP sent to ${fullPhone} — use ${DEMO_OTP}`);
+        toast.success(`OTP sent to ${fullPhone} — use ${DEMO_CONNECT_OTP}`);
       }, 500);
       return;
     }
@@ -147,7 +146,7 @@ function LoginPage() {
       setLoading(true);
       setTimeout(() => {
         setLoading(false);
-        if (otp !== DEMO_OTP) return toast.error(`Incorrect OTP (demo: ${DEMO_OTP})`);
+        if (otp !== DEMO_CONNECT_OTP) return toast.error(`Incorrect OTP (demo: ${DEMO_CONNECT_OTP})`);
         if (!instituteId) return toast.error("Missing institute — go back and select your campus");
         try {
           if (rememberInstitute) localStorage.setItem("ues_last_institute", instituteId);
@@ -301,6 +300,18 @@ function LoginPage() {
                 >
                   Continue
                 </Button>
+                <p className="text-center text-sm text-muted-foreground">
+                  New to {selectedInstitute?.name ?? "this institute"}?{" "}
+                  <Link to="/admissions" className="font-medium text-primary hover:underline">
+                    Apply for admission
+                  </Link>
+                </p>
+                <p className="text-center text-sm text-muted-foreground">
+                  Looking for a job?{" "}
+                  <Link to="/careers" className="font-medium text-primary hover:underline">
+                    Careers
+                  </Link>
+                </p>
               </div>
             )}
 
@@ -456,7 +467,7 @@ function LoginPage() {
                     </button>
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    Demo password: <span className="font-mono">{DEMO_PASSWORD}</span>
+                    Demo password: <span className="font-mono">{DEMO_CONNECT_PASSWORD}</span>
                   </p>
                 </div>
                 <Button
@@ -499,7 +510,7 @@ function LoginPage() {
                   {loading ? "Verifying…" : "Verify & continue"}
                 </Button>
                 <p className="text-[11px] text-muted-foreground text-center">
-                  Demo OTP: <span className="font-mono">{DEMO_OTP}</span>
+                  Demo OTP: <span className="font-mono">{DEMO_CONNECT_OTP}</span>
                 </p>
               </div>
             )}

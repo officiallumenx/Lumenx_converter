@@ -1,17 +1,23 @@
+import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
 
 import appCss from "../styles.css?url";
-import { AppProvider } from "@/lib/app-state";
-import { ParentPortalRegistry } from "@/context/ParentPortalContext";
-import { Toaster } from "@/components/ui/sonner";
+import { Toaster } from "@lumenx/ui/sonner";
+
+const ConnectPortalProviders = lazy(() =>
+  import("@/components/app/ConnectPortalProviders").then((m) => ({
+    default: m.ConnectPortalProviders,
+  })),
+);
 
 function NotFoundComponent() {
   return (
@@ -95,12 +101,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: appCss,
       },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@500;600;700;800&display=swap",
-      },
     ],
   }),
   shellComponent: RootShell,
@@ -114,6 +114,22 @@ function RootShell({ children }: { children: React.ReactNode }) {
     <html lang="en">
       <head>
         <HeadContent />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@500;600;700;800&display=swap"
+          media="print"
+          onLoad={(e) => {
+            (e.currentTarget as HTMLLinkElement).media = "all";
+          }}
+        />
+        <noscript>
+          <link
+            rel="stylesheet"
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@500;600;700;800&display=swap"
+          />
+        </noscript>
       </head>
       <body>
         {children}
@@ -123,17 +139,29 @@ function RootShell({ children }: { children: React.ReactNode }) {
   );
 }
 
+function ConnectProvidersFallback() {
+  return <div className="min-h-screen bg-background" aria-hidden />;
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const isolated = useRouterState({
+    select: (s) =>
+      s.location.pathname.startsWith("/careers") || s.location.pathname.startsWith("/admissions"),
+  });
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AppProvider>
-        <ParentPortalRegistry>
-          <Outlet />
-        </ParentPortalRegistry>
-        <Toaster position="top-center" richColors />
-      </AppProvider>
+      {isolated ? (
+        <Outlet />
+      ) : (
+        <Suspense fallback={<ConnectProvidersFallback />}>
+          <ConnectPortalProviders>
+            <Outlet />
+          </ConnectPortalProviders>
+        </Suspense>
+      )}
+      <Toaster position="top-center" richColors />
     </QueryClientProvider>
   );
 }

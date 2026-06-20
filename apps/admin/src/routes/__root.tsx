@@ -1,6 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
-  Outlet,
   createRootRouteWithContext,
   useRouter,
   HeadContent,
@@ -10,6 +9,8 @@ import {
 
 import appCss from "../styles.css?url";
 import { ThemeProvider } from "@/components/theme-provider";
+import { AdminActionToastProvider } from "@/components/AdminActionToast";
+import { AdminChrome } from "@/components/AdminChrome";
 
 function NotFoundComponent() {
   return (
@@ -81,7 +82,9 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <Outlet />
+        <AdminActionToastProvider>
+          <AdminChrome />
+        </AdminActionToastProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

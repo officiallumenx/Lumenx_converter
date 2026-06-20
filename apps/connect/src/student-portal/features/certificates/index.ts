@@ -1,0 +1,1 @@
+export { StudentCertificatesPage } from "./StudentCertificatesPage";

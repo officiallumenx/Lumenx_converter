@@ -9,27 +9,44 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TransportRouteImport } from './routes/transport'
 import { Route as TimetableRouteImport } from './routes/timetable'
 import { Route as TeachersRouteImport } from './routes/teachers'
+import { Route as TeacherPerformanceRouteImport } from './routes/teacher-performance'
+import { Route as TeacherAttendanceRouteImport } from './routes/teacher-attendance'
+import { Route as SubjectsRouteImport } from './routes/subjects'
 import { Route as StudentsRouteImport } from './routes/students'
 import { Route as StorageRouteImport } from './routes/storage'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as PermissionsRouteImport } from './routes/permissions'
 import { Route as ParentsRouteImport } from './routes/parents'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as ModulesRouteImport } from './routes/modules'
+import { Route as MarksRouteImport } from './routes/marks'
+import { Route as LeaveRouteImport } from './routes/leave'
+import { Route as InstituteRouteImport } from './routes/institute'
+import { Route as FeesRouteImport } from './routes/fees'
 import { Route as ExamsRouteImport } from './routes/exams'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as ComplaintsRouteImport } from './routes/complaints'
 import { Route as ClassesRouteImport } from './routes/classes'
+import { Route as CareersRouteImport } from './routes/careers'
+import { Route as CalendarRouteImport } from './routes/calendar'
 import { Route as AttendanceRouteImport } from './routes/attendance'
 import { Route as AnnouncementsRouteImport } from './routes/announcements'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as AlertsRouteImport } from './routes/alerts'
+import { Route as AdmissionsRouteImport } from './routes/admissions'
 import { Route as AccountsRouteImport } from './routes/accounts'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as StudentsIdRouteImport } from './routes/students.$id'
 
+const TransportRoute = TransportRouteImport.update({
+  id: '/transport',
+  path: '/transport',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TimetableRoute = TimetableRouteImport.update({
   id: '/timetable',
   path: '/timetable',
@@ -38,6 +55,21 @@ const TimetableRoute = TimetableRouteImport.update({
 const TeachersRoute = TeachersRouteImport.update({
   id: '/teachers',
   path: '/teachers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TeacherPerformanceRoute = TeacherPerformanceRouteImport.update({
+  id: '/teacher-performance',
+  path: '/teacher-performance',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TeacherAttendanceRoute = TeacherAttendanceRouteImport.update({
+  id: '/teacher-attendance',
+  path: '/teacher-attendance',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SubjectsRoute = SubjectsRouteImport.update({
+  id: '/subjects',
+  path: '/subjects',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StudentsRoute = StudentsRouteImport.update({
@@ -53,6 +85,11 @@ const StorageRoute = StorageRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReportsRoute = ReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PermissionsRoute = PermissionsRouteImport.update({
@@ -75,6 +112,26 @@ const ModulesRoute = ModulesRouteImport.update({
   path: '/modules',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MarksRoute = MarksRouteImport.update({
+  id: '/marks',
+  path: '/marks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LeaveRoute = LeaveRouteImport.update({
+  id: '/leave',
+  path: '/leave',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InstituteRoute = InstituteRouteImport.update({
+  id: '/institute',
+  path: '/institute',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FeesRoute = FeesRouteImport.update({
+  id: '/fees',
+  path: '/fees',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ExamsRoute = ExamsRouteImport.update({
   id: '/exams',
   path: '/exams',
@@ -93,6 +150,16 @@ const ComplaintsRoute = ComplaintsRouteImport.update({
 const ClassesRoute = ClassesRouteImport.update({
   id: '/classes',
   path: '/classes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CareersRoute = CareersRouteImport.update({
+  id: '/careers',
+  path: '/careers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CalendarRoute = CalendarRouteImport.update({
+  id: '/calendar',
+  path: '/calendar',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AttendanceRoute = AttendanceRouteImport.update({
@@ -115,6 +182,11 @@ const AlertsRoute = AlertsRouteImport.update({
   path: '/alerts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdmissionsRoute = AdmissionsRouteImport.update({
+  id: '/admissions',
+  path: '/admissions',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AccountsRoute = AccountsRouteImport.update({
   id: '/accounts',
   path: '/accounts',
@@ -134,68 +206,104 @@ const StudentsIdRoute = StudentsIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/accounts': typeof AccountsRoute
+  '/admissions': typeof AdmissionsRoute
   '/alerts': typeof AlertsRoute
   '/analytics': typeof AnalyticsRoute
   '/announcements': typeof AnnouncementsRoute
   '/attendance': typeof AttendanceRoute
+  '/calendar': typeof CalendarRoute
+  '/careers': typeof CareersRoute
   '/classes': typeof ClassesRoute
   '/complaints': typeof ComplaintsRoute
   '/events': typeof EventsRoute
   '/exams': typeof ExamsRoute
+  '/fees': typeof FeesRoute
+  '/institute': typeof InstituteRoute
+  '/leave': typeof LeaveRoute
+  '/marks': typeof MarksRoute
   '/modules': typeof ModulesRoute
   '/notifications': typeof NotificationsRoute
   '/parents': typeof ParentsRoute
   '/permissions': typeof PermissionsRoute
+  '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
   '/storage': typeof StorageRoute
   '/students': typeof StudentsRouteWithChildren
+  '/subjects': typeof SubjectsRoute
+  '/teacher-attendance': typeof TeacherAttendanceRoute
+  '/teacher-performance': typeof TeacherPerformanceRoute
   '/teachers': typeof TeachersRoute
   '/timetable': typeof TimetableRoute
+  '/transport': typeof TransportRoute
   '/students/$id': typeof StudentsIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/accounts': typeof AccountsRoute
+  '/admissions': typeof AdmissionsRoute
   '/alerts': typeof AlertsRoute
   '/analytics': typeof AnalyticsRoute
   '/announcements': typeof AnnouncementsRoute
   '/attendance': typeof AttendanceRoute
+  '/calendar': typeof CalendarRoute
+  '/careers': typeof CareersRoute
   '/classes': typeof ClassesRoute
   '/complaints': typeof ComplaintsRoute
   '/events': typeof EventsRoute
   '/exams': typeof ExamsRoute
+  '/fees': typeof FeesRoute
+  '/institute': typeof InstituteRoute
+  '/leave': typeof LeaveRoute
+  '/marks': typeof MarksRoute
   '/modules': typeof ModulesRoute
   '/notifications': typeof NotificationsRoute
   '/parents': typeof ParentsRoute
   '/permissions': typeof PermissionsRoute
+  '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
   '/storage': typeof StorageRoute
   '/students': typeof StudentsRouteWithChildren
+  '/subjects': typeof SubjectsRoute
+  '/teacher-attendance': typeof TeacherAttendanceRoute
+  '/teacher-performance': typeof TeacherPerformanceRoute
   '/teachers': typeof TeachersRoute
   '/timetable': typeof TimetableRoute
+  '/transport': typeof TransportRoute
   '/students/$id': typeof StudentsIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/accounts': typeof AccountsRoute
+  '/admissions': typeof AdmissionsRoute
   '/alerts': typeof AlertsRoute
   '/analytics': typeof AnalyticsRoute
   '/announcements': typeof AnnouncementsRoute
   '/attendance': typeof AttendanceRoute
+  '/calendar': typeof CalendarRoute
+  '/careers': typeof CareersRoute
   '/classes': typeof ClassesRoute
   '/complaints': typeof ComplaintsRoute
   '/events': typeof EventsRoute
   '/exams': typeof ExamsRoute
+  '/fees': typeof FeesRoute
+  '/institute': typeof InstituteRoute
+  '/leave': typeof LeaveRoute
+  '/marks': typeof MarksRoute
   '/modules': typeof ModulesRoute
   '/notifications': typeof NotificationsRoute
   '/parents': typeof ParentsRoute
   '/permissions': typeof PermissionsRoute
+  '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
   '/storage': typeof StorageRoute
   '/students': typeof StudentsRouteWithChildren
+  '/subjects': typeof SubjectsRoute
+  '/teacher-attendance': typeof TeacherAttendanceRoute
+  '/teacher-performance': typeof TeacherPerformanceRoute
   '/teachers': typeof TeachersRoute
   '/timetable': typeof TimetableRoute
+  '/transport': typeof TransportRoute
   '/students/$id': typeof StudentsIdRoute
 }
 export interface FileRouteTypes {
@@ -203,94 +311,149 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/accounts'
+    | '/admissions'
     | '/alerts'
     | '/analytics'
     | '/announcements'
     | '/attendance'
+    | '/calendar'
+    | '/careers'
     | '/classes'
     | '/complaints'
     | '/events'
     | '/exams'
+    | '/fees'
+    | '/institute'
+    | '/leave'
+    | '/marks'
     | '/modules'
     | '/notifications'
     | '/parents'
     | '/permissions'
+    | '/reports'
     | '/settings'
     | '/storage'
     | '/students'
+    | '/subjects'
+    | '/teacher-attendance'
+    | '/teacher-performance'
     | '/teachers'
     | '/timetable'
+    | '/transport'
     | '/students/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/accounts'
+    | '/admissions'
     | '/alerts'
     | '/analytics'
     | '/announcements'
     | '/attendance'
+    | '/calendar'
+    | '/careers'
     | '/classes'
     | '/complaints'
     | '/events'
     | '/exams'
+    | '/fees'
+    | '/institute'
+    | '/leave'
+    | '/marks'
     | '/modules'
     | '/notifications'
     | '/parents'
     | '/permissions'
+    | '/reports'
     | '/settings'
     | '/storage'
     | '/students'
+    | '/subjects'
+    | '/teacher-attendance'
+    | '/teacher-performance'
     | '/teachers'
     | '/timetable'
+    | '/transport'
     | '/students/$id'
   id:
     | '__root__'
     | '/'
     | '/accounts'
+    | '/admissions'
     | '/alerts'
     | '/analytics'
     | '/announcements'
     | '/attendance'
+    | '/calendar'
+    | '/careers'
     | '/classes'
     | '/complaints'
     | '/events'
     | '/exams'
+    | '/fees'
+    | '/institute'
+    | '/leave'
+    | '/marks'
     | '/modules'
     | '/notifications'
     | '/parents'
     | '/permissions'
+    | '/reports'
     | '/settings'
     | '/storage'
     | '/students'
+    | '/subjects'
+    | '/teacher-attendance'
+    | '/teacher-performance'
     | '/teachers'
     | '/timetable'
+    | '/transport'
     | '/students/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountsRoute: typeof AccountsRoute
+  AdmissionsRoute: typeof AdmissionsRoute
   AlertsRoute: typeof AlertsRoute
   AnalyticsRoute: typeof AnalyticsRoute
   AnnouncementsRoute: typeof AnnouncementsRoute
   AttendanceRoute: typeof AttendanceRoute
+  CalendarRoute: typeof CalendarRoute
+  CareersRoute: typeof CareersRoute
   ClassesRoute: typeof ClassesRoute
   ComplaintsRoute: typeof ComplaintsRoute
   EventsRoute: typeof EventsRoute
   ExamsRoute: typeof ExamsRoute
+  FeesRoute: typeof FeesRoute
+  InstituteRoute: typeof InstituteRoute
+  LeaveRoute: typeof LeaveRoute
+  MarksRoute: typeof MarksRoute
   ModulesRoute: typeof ModulesRoute
   NotificationsRoute: typeof NotificationsRoute
   ParentsRoute: typeof ParentsRoute
   PermissionsRoute: typeof PermissionsRoute
+  ReportsRoute: typeof ReportsRoute
   SettingsRoute: typeof SettingsRoute
   StorageRoute: typeof StorageRoute
   StudentsRoute: typeof StudentsRouteWithChildren
+  SubjectsRoute: typeof SubjectsRoute
+  TeacherAttendanceRoute: typeof TeacherAttendanceRoute
+  TeacherPerformanceRoute: typeof TeacherPerformanceRoute
   TeachersRoute: typeof TeachersRoute
   TimetableRoute: typeof TimetableRoute
+  TransportRoute: typeof TransportRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/transport': {
+      id: '/transport'
+      path: '/transport'
+      fullPath: '/transport'
+      preLoaderRoute: typeof TransportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/timetable': {
       id: '/timetable'
       path: '/timetable'
@@ -303,6 +466,27 @@ declare module '@tanstack/react-router' {
       path: '/teachers'
       fullPath: '/teachers'
       preLoaderRoute: typeof TeachersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/teacher-performance': {
+      id: '/teacher-performance'
+      path: '/teacher-performance'
+      fullPath: '/teacher-performance'
+      preLoaderRoute: typeof TeacherPerformanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/teacher-attendance': {
+      id: '/teacher-attendance'
+      path: '/teacher-attendance'
+      fullPath: '/teacher-attendance'
+      preLoaderRoute: typeof TeacherAttendanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/subjects': {
+      id: '/subjects'
+      path: '/subjects'
+      fullPath: '/subjects'
+      preLoaderRoute: typeof SubjectsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/students': {
@@ -324,6 +508,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reports': {
+      id: '/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof ReportsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/permissions': {
@@ -354,6 +545,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ModulesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/marks': {
+      id: '/marks'
+      path: '/marks'
+      fullPath: '/marks'
+      preLoaderRoute: typeof MarksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/leave': {
+      id: '/leave'
+      path: '/leave'
+      fullPath: '/leave'
+      preLoaderRoute: typeof LeaveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/institute': {
+      id: '/institute'
+      path: '/institute'
+      fullPath: '/institute'
+      preLoaderRoute: typeof InstituteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/fees': {
+      id: '/fees'
+      path: '/fees'
+      fullPath: '/fees'
+      preLoaderRoute: typeof FeesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/exams': {
       id: '/exams'
       path: '/exams'
@@ -382,6 +601,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClassesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/careers': {
+      id: '/careers'
+      path: '/careers'
+      fullPath: '/careers'
+      preLoaderRoute: typeof CareersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/calendar': {
+      id: '/calendar'
+      path: '/calendar'
+      fullPath: '/calendar'
+      preLoaderRoute: typeof CalendarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/attendance': {
       id: '/attendance'
       path: '/attendance'
@@ -408,6 +641,13 @@ declare module '@tanstack/react-router' {
       path: '/alerts'
       fullPath: '/alerts'
       preLoaderRoute: typeof AlertsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admissions': {
+      id: '/admissions'
+      path: '/admissions'
+      fullPath: '/admissions'
+      preLoaderRoute: typeof AdmissionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/accounts': {
@@ -449,23 +689,35 @@ const StudentsRouteWithChildren = StudentsRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountsRoute: AccountsRoute,
+  AdmissionsRoute: AdmissionsRoute,
   AlertsRoute: AlertsRoute,
   AnalyticsRoute: AnalyticsRoute,
   AnnouncementsRoute: AnnouncementsRoute,
   AttendanceRoute: AttendanceRoute,
+  CalendarRoute: CalendarRoute,
+  CareersRoute: CareersRoute,
   ClassesRoute: ClassesRoute,
   ComplaintsRoute: ComplaintsRoute,
   EventsRoute: EventsRoute,
   ExamsRoute: ExamsRoute,
+  FeesRoute: FeesRoute,
+  InstituteRoute: InstituteRoute,
+  LeaveRoute: LeaveRoute,
+  MarksRoute: MarksRoute,
   ModulesRoute: ModulesRoute,
   NotificationsRoute: NotificationsRoute,
   ParentsRoute: ParentsRoute,
   PermissionsRoute: PermissionsRoute,
+  ReportsRoute: ReportsRoute,
   SettingsRoute: SettingsRoute,
   StorageRoute: StorageRoute,
   StudentsRoute: StudentsRouteWithChildren,
+  SubjectsRoute: SubjectsRoute,
+  TeacherAttendanceRoute: TeacherAttendanceRoute,
+  TeacherPerformanceRoute: TeacherPerformanceRoute,
   TeachersRoute: TeachersRoute,
   TimetableRoute: TimetableRoute,
+  TransportRoute: TransportRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

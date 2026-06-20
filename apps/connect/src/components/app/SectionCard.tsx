@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@lumenx/ui";
 
 /** Reusable dashboard/section card with consistent paddings, shadow, height. */
 export function SectionCard({
