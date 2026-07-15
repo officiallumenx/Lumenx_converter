@@ -13,11 +13,7 @@ export const PORTAL_LABEL: Record<Role, string> = {
   student: "Student Portal",
 };
 
-const PORTAL_TONE: Record<Role, string> = {
-  parent: "bg-gradient-primary text-primary-foreground shadow-glow",
-  teacher: "bg-gradient-to-br from-violet-600 to-indigo-700 text-white shadow-glow",
-  student: "bg-gradient-to-br from-emerald-600 to-teal-700 text-white shadow-glow",
-};
+const PORTAL_TONE = "bg-primary text-primary-foreground shadow-soft";
 
 /** Letter badge identifying P / T / S portal — header & sidebar. */
 export function PortalMark({
@@ -34,9 +30,9 @@ export function PortalMark({
   return (
     <div
       className={cn(
-        "rounded-xl grid place-items-center font-display font-bold shrink-0",
+        "connect-portal-mark rounded-xl grid place-items-center font-display font-bold shrink-0",
         dim,
-        PORTAL_TONE[role],
+        PORTAL_TONE,
         className,
       )}
       aria-label={PORTAL_LABEL[role]}

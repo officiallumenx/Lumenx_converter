@@ -37,9 +37,18 @@ export function TimetableCard({
       </div>
       {highlighted || badge ? (
         <div className="flex shrink-0 flex-col items-end gap-1">
-          {badge && <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">{badge}</span>}
+          {badge && (
+            <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">
+              {badge}
+            </span>
+          )}
           {showMarkLink && highlighted && (
-            <Link to="/attendance" className="rounded-lg bg-primary px-2.5 py-1 text-[10px] font-medium text-primary-foreground sm:text-xs">Mark</Link>
+            <Link
+              to="/attendance"
+              className="rounded-lg bg-primary px-2.5 py-1 text-[10px] font-medium text-primary-foreground sm:text-xs"
+            >
+              Mark
+            </Link>
           )}
         </div>
       ) : (

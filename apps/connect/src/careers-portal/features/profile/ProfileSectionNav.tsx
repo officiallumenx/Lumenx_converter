@@ -43,7 +43,11 @@ export function ProfileSectionNav({
   }, [updateScrollState, sections.length]);
 
   useEffect(() => {
-    tabRefs.current[active]?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    tabRefs.current[active]?.scrollIntoView({
+      behavior: "smooth",
+      inline: "center",
+      block: "nearest",
+    });
     updateScrollState();
   }, [active, updateScrollState]);
 
@@ -55,9 +59,7 @@ export function ProfileSectionNav({
     <div className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
-          Step{" "}
-          <span className="font-medium text-foreground">{activeIndex + 1}</span>
-          {" "}of{" "}
+          Step <span className="font-medium text-foreground">{activeIndex + 1}</span> of{" "}
           <span className="font-medium text-foreground">{sections.length}</span>
           {" · "}
           <span className="font-medium text-foreground">{sections[activeIndex]?.label}</span>
@@ -90,7 +92,10 @@ export function ProfileSectionNav({
         )}
         {isOverflowing && canScrollRight && (
           <div className="pointer-events-none absolute right-0 top-0 bottom-0 z-10 w-10 bg-gradient-to-l from-background to-transparent flex items-center justify-end pr-1">
-            <ChevronRight className="size-4 text-primary/70 motion-safe:animate-pulse" aria-hidden />
+            <ChevronRight
+              className="size-4 text-primary/70 motion-safe:animate-pulse"
+              aria-hidden
+            />
           </div>
         )}
 
@@ -214,7 +219,9 @@ export function ProfileSectionFooter({
         )}
       </div>
       {dirty && !isLast && (
-        <p className="text-[11px] text-center text-muted-foreground">You have unsaved changes — save anytime from the top.</p>
+        <p className="text-[11px] text-center text-muted-foreground">
+          You have unsaved changes — save anytime from the top.
+        </p>
       )}
     </div>
   );
@@ -257,7 +264,9 @@ export function ProfileSubsection({
   return (
     <div className="space-y-3 pt-2 first:pt-0">
       <div className="flex items-center justify-between gap-2">
-        <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</h4>
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {title}
+        </h4>
         {action}
       </div>
       {children}
@@ -308,7 +317,12 @@ export function TagInput({
               className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary"
             >
               {tag}
-              <button type="button" className="hover:text-destructive" onClick={() => removeTag(tag)} aria-label={`Remove ${tag}`}>
+              <button
+                type="button"
+                className="hover:text-destructive"
+                onClick={() => removeTag(tag)}
+                aria-label={`Remove ${tag}`}
+              >
                 ×
               </button>
             </span>
@@ -338,16 +352,19 @@ export function TagInput({
       </div>
       {suggestions && suggestions.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
-          {suggestions.filter((s) => !value.includes(s)).slice(0, 8).map((s) => (
-            <button
-              key={s}
-              type="button"
-              className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground hover:border-primary hover:text-primary"
-              onClick={() => addTag(s)}
-            >
-              + {s}
-            </button>
-          ))}
+          {suggestions
+            .filter((s) => !value.includes(s))
+            .slice(0, 8)
+            .map((s) => (
+              <button
+                key={s}
+                type="button"
+                className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground hover:border-primary hover:text-primary"
+                onClick={() => addTag(s)}
+              >
+                + {s}
+              </button>
+            ))}
         </div>
       )}
     </div>

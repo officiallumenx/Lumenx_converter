@@ -1,10 +1,10 @@
 import {
   achievements,
   exams,
+  getConnectStudentProfile,
   performance,
   reportCards,
   schoolEvents,
-  studentProfile,
   studentTimetable,
   teachers,
   trend,
@@ -29,7 +29,7 @@ export const studentRepository = {
   async getSnapshot(): Promise<StudentSnapshot> {
     await delay();
     return {
-      profile: { ...studentProfile },
+      profile: { ...getConnectStudentProfile() },
       reportCards: [...reportCards],
       performance: [...performance],
       trend: [...trend],

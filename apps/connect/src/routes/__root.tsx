@@ -11,7 +11,9 @@ import {
 } from "@tanstack/react-router";
 
 import appCss from "../styles.css?url";
+import logoUrl from "../assets/lumenx-logo.png?url";
 import { Toaster } from "@lumenx/ui/sonner";
+import { LumenXNativeShell } from "@lumenx/capacitor/native-shell";
 
 const ConnectPortalProviders = lazy(() =>
   import("@/components/app/ConnectPortalProviders").then((m) => ({
@@ -44,6 +46,7 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
+  const isDev = import.meta.env.DEV;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -54,6 +57,11 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
         <p className="mt-2 text-sm text-muted-foreground">
           Something went wrong on our end. You can try refreshing or head back home.
         </p>
+        {isDev ? (
+          <pre className="mt-4 max-h-40 overflow-auto rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-left text-[11px] text-destructive whitespace-pre-wrap">
+            {error.message}
+          </pre>
+        ) : null}
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {
@@ -80,7 +88,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "LumenX Connect — Education Ecosystem for Parents, Teachers & Students" },
       {
         name: "description",
@@ -97,9 +105,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:site", content: "@Lovable" },
     ],
     links: [
+      { rel: "icon", href: logoUrl, type: "image/png" },
       {
         rel: "stylesheet",
         href: appCss,
+      },
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
+      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@500;600;700;800&display=swap",
       },
     ],
   }),
@@ -114,22 +129,6 @@ function RootShell({ children }: { children: React.ReactNode }) {
     <html lang="en">
       <head>
         <HeadContent />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@500;600;700;800&display=swap"
-          media="print"
-          onLoad={(e) => {
-            (e.currentTarget as HTMLLinkElement).media = "all";
-          }}
-        />
-        <noscript>
-          <link
-            rel="stylesheet"
-            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@500;600;700;800&display=swap"
-          />
-        </noscript>
       </head>
       <body>
         {children}
@@ -152,6 +151,7 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <LumenXNativeShell />
       {isolated ? (
         <Outlet />
       ) : (
@@ -161,7 +161,11 @@ function RootComponent() {
           </ConnectPortalProviders>
         </Suspense>
       )}
-      <Toaster position="top-center" richColors />
+      <Toaster
+        position="top-center"
+        richColors
+        offset="calc(max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top-measured, 0px), var(--safe-area-top-fallback, 0px)) + 1rem)"
+      />
     </QueryClientProvider>
   );
 }

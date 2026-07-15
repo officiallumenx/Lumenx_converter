@@ -1,4 +1,10 @@
 import { studentCertificateRecords } from "@/lib/student/mock-data";
+import { DEFAULT_DEMO_PROFILE_ID, getDemoProfile } from "@lumenx/types";
+import { toLocalIsoDate } from "@/lib/leave-utils";
+import { gradeFor } from "./marks-utils";
+import { summarizeFeeItems } from "./fees-utils";
+
+const DEMO_TODAY = toLocalIsoDate(new Date());
 
 export const subjects = [
   "Mathematics",
@@ -29,6 +35,33 @@ export const studentProfile = {
   institute: "LumenX Academy",
   address: "12 Green Park Road, Sector 4, Hyderabad — 500032",
 };
+
+/** Profile-aware student — switches between school and college demo data. */
+export function getConnectStudentProfile() {
+  const p = getDemoProfile(DEFAULT_DEMO_PROFILE_ID).connect.studentProfile;
+  return {
+    id: p.id,
+    name: p.name,
+    class: p.year,
+    section: p.section,
+    course: p.department || p.course,
+    department: p.department || p.course,
+    classDisplay: p.classDisplay,
+    rollNo: p.rollNo,
+    attendance: p.attendance,
+    bloodGroup: p.bloodGroup,
+    emergencyContact: p.emergencyContact,
+    parentName: p.parentName,
+    house: p.house,
+    idCardIssuedOn: p.idCardIssuedOn,
+    idCardValidTill: p.idCardValidTill,
+    email: p.email,
+    bio: p.bio,
+    classTeacher: p.classTeacher,
+    institute: p.institute,
+    address: p.address,
+  };
+}
 
 export const childProfile = studentProfile;
 
@@ -299,6 +332,26 @@ export const assignments: StudentAssignment[] = [
     subject: "Physics",
     due: "In 2 days",
     dueDate: "2026-06-03",
+    status: "pending",
+    class: "10-B",
+    type: "homework",
+  },
+  {
+    id: "A-TODAY",
+    title: "Algebra revision — quadratic graphs",
+    subject: "Mathematics",
+    due: "Today",
+    dueDate: DEMO_TODAY,
+    status: "pending",
+    class: "10-B",
+    type: "assignment",
+  },
+  {
+    id: "H-TODAY",
+    title: "Reading comprehension — Chapter 12",
+    subject: "English",
+    due: "Today",
+    dueDate: DEMO_TODAY,
     status: "pending",
     class: "10-B",
     type: "homework",
@@ -587,6 +640,17 @@ export const children: Child[] = [
     accent: "warning",
   },
 ];
+
+/** Class teacher name per linked child (demo routing for leave alerts). */
+export const classTeacherByChildId: Record<string, string> = {
+  C1: "Ananya Iyer",
+  C2: "Priya Menon",
+  C3: "Sandeep Rao",
+};
+
+export function getClassTeacherForChild(childId: string): string {
+  return classTeacherByChildId[childId] ?? "Class teacher";
+}
 
 /** Parent fees: outstanding / due items per child (no payment history until gateway). */
 export const feeDuesByChild: Record<
@@ -1023,9 +1087,16 @@ export const sportsAttendance = [
   { week: "W5", attended: 2, total: 3 },
 ];
 
-import type { ReportCard, SubjectMark, FeeItem, SchoolEvent, AppNotification, Institute } from "@lumenx/types";
+import type {
+  ReportCard,
+  SubjectMark,
+  FeeItem,
+  SchoolEvent,
+  AppNotification,
+  Institute,
+} from "@lumenx/types";
 
-/** Campuses available at sign-in — drives institute-scoped session context. */
+/** Campuses available at Connect sign-in. */
 export const registeredInstitutes: Institute[] = [
   {
     id: "ins-delhi-riverside",
@@ -1059,27 +1130,10 @@ export const registeredInstitutes: Institute[] = [
   },
 ];
 
-const gradeFor = (pct: number) =>
-  pct >= 90
-    ? "A+"
-    : pct >= 80
-      ? "A"
-      : pct >= 70
-        ? "B+"
-        : pct >= 60
-          ? "B"
-          : pct >= 50
-            ? "C"
-            : pct >= 40
-              ? "D"
-              : "F";
-
 export { gradeFor };
 
 const buildReportCardMarks = (
-  rows: Array<
-    [subject: string, internal: number, exam: number, remark?: string]
-  >,
+  rows: Array<[subject: string, internal: number, exam: number, remark?: string]>,
 ): SubjectMark[] =>
   rows.map(([subject, internal, exam, remark]) => {
     const total = internal + exam;
@@ -1096,127 +1150,73 @@ const buildReportCardMarks = (
 const avgPct = (marks: SubjectMark[]) =>
   Math.round(marks.reduce((s, m) => s + m.total, 0) / marks.length);
 
+/** Build a report card so percentage and grade are always derived from the marks shown. */
+const buildReportCard = (
+  base: Pick<ReportCard, "id" | "term" | "publishedOn" | "status" | "rank">,
+  rows: Array<[subject: string, internal: number, exam: number, remark?: string]>,
+): ReportCard => {
+  const marks = buildReportCardMarks(rows);
+  const percentage = avgPct(marks);
+  return { ...base, percentage, grade: gradeFor(percentage), marks };
+};
+
 export const reportCards: ReportCard[] = [
-  {
-    id: "rc-u1",
-    term: "Unit Test 1",
-    publishedOn: "28 Jul 2024",
-    status: "published",
-    percentage: avgPct(
-      buildReportCardMarks([
-        ["Mathematics", 17, 58, "Good start — revise geometry"],
-        ["Physics", 15, 52, "Focus on units and formulas"],
-        ["Chemistry", 14, 48],
-        ["English", 18, 65, "Strong comprehension"],
-        ["Computer Sci", 19, 68, "Excellent logic skills"],
-        ["History", 14, 50],
-      ]),
-    ),
-    grade: "B+",
-    rank: 11,
-    marks: buildReportCardMarks([
+  buildReportCard(
+    { id: "rc-u1", term: "Unit Test 1", publishedOn: "28 Jul 2024", status: "published", rank: 11 },
+    [
       ["Mathematics", 17, 58, "Good start — revise geometry"],
       ["Physics", 15, 52, "Focus on units and formulas"],
       ["Chemistry", 14, 48],
       ["English", 18, 65, "Strong comprehension"],
-      ["Computer Sci", 19, 68, "Excellent logic skills"],
+      ["Computer Science", 19, 68, "Excellent logic skills"],
       ["History", 14, 50],
-    ]),
-  },
-  {
-    id: "rc-u2",
-    term: "Unit Test 2",
-    publishedOn: "18 Sep 2024",
-    status: "published",
-    percentage: avgPct(
-      buildReportCardMarks([
-        ["Mathematics", 18, 62, "Improved in algebra"],
-        ["Physics", 16, 55],
-        ["Chemistry", 13, 45],
-        ["English", 19, 68],
-        ["Computer Sci", 20, 72],
-        ["History", 15, 54],
-      ]),
-    ),
-    grade: "B+",
-    rank: 9,
-    marks: buildReportCardMarks([
+    ],
+  ),
+  buildReportCard(
+    { id: "rc-u2", term: "Unit Test 2", publishedOn: "18 Sep 2024", status: "published", rank: 9 },
+    [
       ["Mathematics", 18, 62, "Improved in algebra"],
       ["Physics", 16, 55],
       ["Chemistry", 13, 45],
       ["English", 19, 68],
-      ["Computer Sci", 20, 72],
+      ["Computer Science", 20, 72],
       ["History", 15, 54],
-    ]),
-  },
-  {
-    id: "rc-u3",
-    term: "Unit Test 3",
-    publishedOn: "8 Nov 2024",
-    status: "published",
-    percentage: avgPct(
-      buildReportCardMarks([
-        ["Mathematics", 18, 66, "Strong improvement in algebra"],
-        ["Physics", 16, 58, "Practice numericals"],
-        ["Chemistry", 14, 52, "Focus on organic chemistry"],
-        ["English", 19, 70, "Excellent essays"],
-        ["Computer Sci", 20, 74, "Outstanding"],
-        ["History", 15, 56],
-      ]),
-    ),
-    grade: "A",
-    rank: 8,
-    marks: buildReportCardMarks([
+    ],
+  ),
+  buildReportCard(
+    { id: "rc-u3", term: "Unit Test 3", publishedOn: "8 Nov 2024", status: "published", rank: 8 },
+    [
       ["Mathematics", 18, 66, "Strong improvement in algebra"],
       ["Physics", 16, 58, "Practice numericals"],
       ["Chemistry", 14, 52, "Focus on organic chemistry"],
       ["English", 19, 70, "Excellent essays"],
-      ["Computer Sci", 20, 74, "Outstanding"],
+      ["Computer Science", 20, 74, "Outstanding"],
       ["History", 15, 56],
-    ]),
-  },
-  {
-    id: "rc-hy",
-    term: "Half-Yearly",
-    publishedOn: "20 Dec 2024",
-    status: "published",
-    percentage: 82,
-    grade: "A",
-    rank: 7,
-    marks: buildReportCardMarks([
+    ],
+  ),
+  buildReportCard(
+    { id: "rc-hy", term: "Half-Yearly", publishedOn: "20 Dec 2024", status: "published", rank: 7 },
+    [
       ["Mathematics", 18, 70, "Strong improvement in algebra"],
       ["Physics", 16, 60, "Practice numericals"],
       ["Chemistry", 14, 50, "Focus on organic chemistry"],
       ["English", 19, 72, "Excellent essays"],
-      ["Computer Sci", 20, 75, "Outstanding"],
+      ["Computer Science", 20, 75, "Outstanding"],
       ["History", 15, 57],
-    ]),
-  },
-  {
-    id: "rc-mid",
-    term: "Mid-Term",
-    publishedOn: "Draft",
-    status: "draft",
-    percentage: 78,
-    grade: "B+",
-    rank: 9,
-    marks: buildReportCardMarks([
+    ],
+  ),
+  buildReportCard(
+    { id: "rc-mid", term: "Mid-Term", publishedOn: "Draft", status: "draft", rank: 9 },
+    [
       ["Mathematics", 17, 65],
       ["Physics", 15, 56],
       ["Chemistry", 13, 47],
       ["English", 18, 70],
-      ["Computer Sci", 19, 72],
+      ["Computer Science", 19, 72],
       ["History", 14, 56],
-    ]),
-  },
+    ],
+  ),
 ];
-
-export const feeSummary = {
-  total: 84000,
-  paid: 56000,
-  due: 28000,
-  nextDue: "30 Nov 2024",
-};
 
 export const fees: FeeItem[] = [
   {
@@ -1321,6 +1321,16 @@ export const fees: FeeItem[] = [
     status: "upcoming",
   },
 ];
+
+// Derived from the fee items via the shared fees engine, so the headline totals can never
+// drift from the itemised list (single source of truth for paid/due/total).
+const feeSummaryComputed = summarizeFeeItems(fees);
+export const feeSummary = {
+  total: feeSummaryComputed.totalAnnual,
+  paid: feeSummaryComputed.totalPaid,
+  due: feeSummaryComputed.totalOutstanding,
+  nextDue: feeSummaryComputed.nextDueDate ?? "—",
+};
 
 export const schoolEvents: SchoolEvent[] = [
   {
@@ -1450,6 +1460,7 @@ export const categorizedNotifications: Record<"parent" | "teacher" | "student", 
         time: "2 days ago",
         type: "info",
         category: "holidays",
+        unread: false,
         priority: "normal",
       },
       {
@@ -1459,6 +1470,7 @@ export const categorizedNotifications: Record<"parent" | "teacher" | "student", 
         time: "3 days ago",
         type: "info",
         category: "events",
+        unread: false,
         priority: "normal",
       },
       {
@@ -1468,6 +1480,7 @@ export const categorizedNotifications: Record<"parent" | "teacher" | "student", 
         time: "4 days ago",
         type: "warning",
         category: "academic",
+        unread: false,
         priority: "normal",
       },
       {
@@ -1477,7 +1490,28 @@ export const categorizedNotifications: Record<"parent" | "teacher" | "student", 
         time: "1 week ago",
         type: "info",
         category: "circulars",
+        unread: false,
         priority: "low",
+      },
+      {
+        id: "pn8",
+        title: "Mid-Term exam schedule released",
+        desc: "Starts 18 Nov · check Exams for full timetable",
+        time: "5 days ago",
+        type: "info",
+        category: "exams",
+        unread: true,
+        priority: "high",
+      },
+      {
+        id: "pn9",
+        title: "Annual Day rehearsal",
+        desc: "Class 10 students report to auditorium at 2 PM",
+        time: "6 days ago",
+        type: "info",
+        category: "events",
+        unread: false,
+        priority: "normal",
       },
     ],
     teacher: [
@@ -1571,6 +1605,7 @@ export const categorizedNotifications: Record<"parent" | "teacher" | "student", 
         time: "Yesterday",
         type: "info",
         category: "exams",
+        unread: false,
         priority: "high",
       },
       {
@@ -1580,6 +1615,7 @@ export const categorizedNotifications: Record<"parent" | "teacher" | "student", 
         time: "2 days ago",
         type: "positive",
         category: "academic",
+        unread: false,
         priority: "normal",
       },
       {
@@ -1589,6 +1625,7 @@ export const categorizedNotifications: Record<"parent" | "teacher" | "student", 
         time: "3 days ago",
         type: "info",
         category: "sports",
+        unread: false,
         priority: "normal",
       },
       {
@@ -1598,6 +1635,7 @@ export const categorizedNotifications: Record<"parent" | "teacher" | "student", 
         time: "4 days ago",
         type: "info",
         category: "holidays",
+        unread: false,
         priority: "low",
       },
       {
@@ -1607,6 +1645,7 @@ export const categorizedNotifications: Record<"parent" | "teacher" | "student", 
         time: "1 week ago",
         type: "info",
         category: "events",
+        unread: false,
         priority: "normal",
       },
       {
@@ -1615,6 +1654,16 @@ export const categorizedNotifications: Record<"parent" | "teacher" | "student", 
         desc: "Classes resume 6 Jun after regional holiday",
         time: "3 days ago",
         type: "info",
+        category: "circulars",
+        unread: true,
+        priority: "normal",
+      },
+      {
+        id: "sn9",
+        title: "Library book due reminder",
+        desc: "Return 'Physics Vol. II' by Friday to avoid fine",
+        time: "5 days ago",
+        type: "warning",
         category: "circulars",
         unread: true,
         priority: "normal",
@@ -1664,21 +1713,86 @@ export const schoolAlerts: Record<"parent" | "student", import("@lumenx/types").
       title: "Urgent teacher remark",
       summary: "Class teacher flagged a behaviour concern requiring parent follow-up.",
       detail:
-        "Ms. Ananya Iyer has posted an urgent remark regarding classroom conduct during the chemistry lab. Please review the full remark under Messages and acknowledge that you have discussed this with your child. A brief response is requested within 24 hours.",
+        "Ms. Ananya Iyer has posted an urgent remark regarding classroom conduct during the chemistry lab. Please review the full remark under Messages and confirm that you have discussed this with your child. A brief response is requested within 24 hours.",
       severity: "mandatory",
       category: "remark",
       time: "Yesterday",
       source: "Class teacher · Ms. Iyer",
       childName: "Aarav Sharma",
       childId: "C1",
-      unread: false,
+      unread: true,
       acknowledged: false,
       actionRequired: true,
-      actionLabel: "Acknowledge remark",
+      actionLabel: "Mark as read",
+    },
+    {
+      id: "al-p7",
+      title: "Leave request pending approval",
+      summary: "Aarav's leave for 4–5 Jun is awaiting class teacher review.",
+      detail:
+        "You submitted a leave request for Aarav Sharma (4–5 Jun, family wedding). Ms. Ananya Iyer has not yet approved or rejected it. Open Leave to track status or follow up with the class teacher.",
+      severity: "mandatory",
+      category: "leave",
+      time: "Today · 9:15 AM",
+      source: "Leave module",
+      childName: "Aarav Sharma",
+      childId: "C1",
+      unread: true,
+      acknowledged: false,
+      actionRequired: true,
+      actionLabel: "Review leave",
+    },
+    {
+      id: "al-p5",
+      title: "Allergy incident — resolved",
+      summary: "Aarav had a mild reaction at lunch; antihistamine given per medical file.",
+      detail:
+        "During lunch, Aarav reported mild itching after the dessert course. The nurse reviewed his allergy profile (nuts) and administered antihistamine as authorized. Symptoms subsided within 20 minutes. This is logged for your records — no immediate pickup required unless symptoms return.",
+      severity: "emergency",
+      category: "health",
+      time: "Yesterday",
+      source: "Health office",
+      childName: "Aarav Sharma",
+      childId: "C1",
+      unread: false,
+      acknowledged: true,
+      actionRequired: false,
+    },
+    {
+      id: "al-p6",
+      title: "Bus safety drill reminder",
+      summary: "You confirmed receipt before Friday's evacuation drill.",
+      detail:
+        "All parents must confirm they received the updated bus safety protocol before the district-mandated evacuation drill on Friday. Students will practice emergency exit procedures during Period 6.",
+      severity: "mandatory",
+      category: "safety",
+      time: "3 days ago",
+      source: "Transport office",
+      childName: "Aarav Sharma",
+      childId: "C1",
+      unread: false,
+      acknowledged: true,
+      actionRequired: false,
+    },
+    {
+      id: "al-p8",
+      title: "Early dismissal — inter-school event",
+      summary: "Aarav returned by 1:30 PM from the quiz competition.",
+      detail:
+        "Aarav participated in the inter-school quiz at City Hall. The school bus dropped him at the regular stop by 1:30 PM. This alert is closed — no further action needed.",
+      severity: "mandatory",
+      category: "attendance",
+      time: "Last week",
+      source: "Activity coordinator",
+      childName: "Aarav Sharma",
+      childId: "C1",
+      unread: false,
+      acknowledged: true,
+      actionRequired: false,
     },
     {
       id: "al-p4",
-      title: "Early dismissal — inter-school event",
+      title: "Anaya — quiz event pickup change",
       summary: "Anaya will return by 1:30 PM from the quiz competition.",
       detail:
         "Anaya Sharma is participating in the inter-school quiz at City Hall. The school bus will drop her at the regular stop by 1:30 PM. No action needed unless your pickup plan differs — reply to confirm alternate arrangements.",
@@ -1690,36 +1804,6 @@ export const schoolAlerts: Record<"parent" | "student", import("@lumenx/types").
       childId: "C2",
       unread: true,
       acknowledged: false,
-      actionRequired: false,
-    },
-    {
-      id: "al-p5",
-      title: "Allergy incident — resolved",
-      summary: "Vihaan had a mild reaction at lunch; antihistamine given per medical file.",
-      detail:
-        "During lunch, Vihaan reported mild itching after the dessert course. The nurse reviewed his allergy profile (nuts) and administered antihistamine as authorized. Symptoms subsided within 20 minutes. This is logged for your records — no immediate pickup required unless symptoms return.",
-      severity: "emergency",
-      category: "health",
-      time: "Yesterday",
-      source: "Health office",
-      childName: "Vihaan Sharma",
-      childId: "C3",
-      unread: false,
-      acknowledged: true,
-      actionRequired: false,
-    },
-    {
-      id: "al-p6",
-      title: "Bus safety drill reminder",
-      summary: "Mandatory acknowledgement before Friday's evacuation drill.",
-      detail:
-        "All parents must acknowledge receipt of the updated bus safety protocol before the district-mandated evacuation drill on Friday. Students will practice emergency exit procedures during Period 6.",
-      severity: "mandatory",
-      category: "safety",
-      time: "3 days ago",
-      source: "Transport office",
-      unread: false,
-      acknowledged: true,
       actionRequired: false,
     },
   ],
@@ -1755,14 +1839,28 @@ export const schoolAlerts: Record<"parent" | "student", import("@lumenx/types").
     {
       id: "al-s3",
       title: "Urgent remark from class teacher",
-      summary: "Ms. Iyer posted a remark that requires your parent to acknowledge.",
+      summary: "Ms. Iyer posted a remark that needs your parent to confirm.",
       detail:
-        "Your class teacher has flagged a behaviour concern from today's chemistry lab. Discuss this with your parents — they must acknowledge the remark in the Alerts section within 24 hours.",
+        "Your class teacher has flagged a behaviour concern from today's chemistry lab. Discuss this with your parents — they should open Alerts and mark it as read within 24 hours.",
       severity: "mandatory",
       category: "remark",
       time: "Yesterday",
       source: "Ms. Ananya Iyer",
-      unread: false,
+      unread: true,
+      acknowledged: false,
+      actionRequired: false,
+    },
+    {
+      id: "al-s5",
+      title: "Homework not submitted",
+      summary: "Grammar exercises were due last night — submit today to avoid penalty.",
+      detail:
+        "Your English homework (Grammar Unit 4) was due yesterday at 8:00 PM. Submit on the Assignments page today to avoid a late mark. Contact your teacher if you had a valid reason.",
+      severity: "mandatory",
+      category: "general",
+      time: "Today · 7:30 AM",
+      source: "Ms. Priya · English",
+      unread: true,
       acknowledged: false,
       actionRequired: false,
     },
@@ -1776,6 +1874,34 @@ export const schoolAlerts: Record<"parent" | "student", import("@lumenx/types").
       category: "safety",
       time: "3 days ago",
       source: "School administration",
+      unread: false,
+      acknowledged: true,
+      actionRequired: false,
+    },
+    {
+      id: "al-s6",
+      title: "Sports day rehearsal",
+      summary: "Report to auditorium at 2 PM — you confirmed attendance.",
+      detail:
+        "Annual Day rehearsal for Class 10 students. You marked this alert as read and confirmed you will attend at 2:00 PM in the main auditorium.",
+      severity: "mandatory",
+      category: "general",
+      time: "4 days ago",
+      source: "Activity coordinator",
+      unread: false,
+      acknowledged: true,
+      actionRequired: false,
+    },
+    {
+      id: "al-s7",
+      title: "Fee receipt uploaded",
+      summary: "Q2 tuition payment recorded — no action needed.",
+      detail:
+        "Your Q2 tuition payment has been recorded by the accounts office. Download the receipt from the Fees page if you need a copy for your records.",
+      severity: "mandatory",
+      category: "general",
+      time: "1 week ago",
+      source: "Accounts office",
       unread: false,
       acknowledged: true,
       actionRequired: false,

@@ -20,22 +20,31 @@ export function AdmissionsHomePage() {
     <div className="space-y-8 animate-in fade-in duration-300">
       <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/15 via-primary/5 to-background border border-primary/20 p-6 sm:p-8">
         <div className="relative z-10 max-w-xl">
-          <p className="text-xs font-semibold uppercase tracking-wider text-primary">Admissions 2026–27</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+            Admissions 2026–27
+          </p>
           <h1 className="mt-2 font-display text-3xl font-bold tracking-tight sm:text-4xl">
             Discover & apply to {ADMISSION_INSTITUTES.length}+ institutes
           </h1>
           <p className="mt-3 text-sm text-muted-foreground sm:text-base">
-            Browse schools and colleges, compare programs, apply online, and track your admission journey — mobile-first.
+            Browse schools and colleges, compare programs, apply online, and track your admission
+            journey — mobile-first.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Button size="lg" asChild>
-              <Link to="/admissions/institutes">Explore institutes <ArrowRight className="size-4 ml-1" /></Link>
+              <Link to="/admissions/institutes">
+                Explore institutes <ArrowRight className="size-4 ml-1" />
+              </Link>
             </Button>
             <Button size="lg" variant="outline" asChild>
-              <Link to="/admissions/signup" search={{ type: "parent" }}>Parent sign up</Link>
+              <Link to="/admissions/signup" search={{ type: "parent" }}>
+                Parent sign up
+              </Link>
             </Button>
             <Button size="lg" variant="outline" asChild>
-              <Link to="/admissions/signup" search={{ type: "institute" }}>Institute sign up</Link>
+              <Link to="/admissions/signup" search={{ type: "institute" }}>
+                Institute sign up
+              </Link>
             </Button>
           </div>
         </div>
@@ -66,7 +75,9 @@ export function AdmissionsHomePage() {
       <SectionCard title="Achievements">
         <ul className="space-y-2">
           {ACHIEVEMENTS.map((a) => (
-            <li key={a} className="text-sm text-muted-foreground">• {a}</li>
+            <li key={a} className="text-sm text-muted-foreground">
+              • {a}
+            </li>
           ))}
         </ul>
       </SectionCard>
@@ -86,7 +97,9 @@ export function AdmissionsHomePage() {
         <ol className="space-y-4">
           {ADMISSION_PROCESS_STEPS.map((s) => (
             <li key={s.step} className="flex gap-3">
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">{s.step}</span>
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                {s.step}
+              </span>
               <div>
                 <p className="font-medium text-sm">{s.title}</p>
                 <p className="text-xs text-muted-foreground">{s.desc}</p>
@@ -101,7 +114,9 @@ export function AdmissionsHomePage() {
           {SUCCESS_STORIES.map((s) => (
             <blockquote key={s.name} className="rounded-xl bg-muted/40 p-4 text-sm">
               <p className="italic text-muted-foreground">&ldquo;{s.quote}&rdquo;</p>
-              <footer className="mt-2 font-medium">{s.name} · {s.program}</footer>
+              <footer className="mt-2 font-medium">
+                {s.name} · {s.program}
+              </footer>
             </blockquote>
           ))}
         </div>
@@ -110,8 +125,14 @@ export function AdmissionsHomePage() {
       <SectionCard title="Important dates">
         <ul className="space-y-2">
           {IMPORTANT_DATES.map((d) => (
-            <li key={d.label} className="flex items-center justify-between text-sm border-b border-border pb-2 last:border-0">
-              <span className="flex items-center gap-2"><Calendar className="size-4 text-primary" />{d.label}</span>
+            <li
+              key={d.label}
+              className="flex items-center justify-between text-sm border-b border-border pb-2 last:border-0"
+            >
+              <span className="flex items-center gap-2">
+                <Calendar className="size-4 text-primary" />
+                {d.label}
+              </span>
               <span className="font-medium">{d.date}</span>
             </li>
           ))}
@@ -121,13 +142,21 @@ export function AdmissionsHomePage() {
       <div className="rounded-2xl bg-primary p-6 text-center text-primary-foreground">
         <h2 className="font-display text-xl font-bold">Ready to apply?</h2>
         <p className="mt-2 text-sm opacity-90">Start your application in under 10 minutes.</p>
-        <Button className="mt-4 bg-background text-foreground hover:bg-background/90" size="lg" asChild>
-          <Link to="/admissions/signup" search={{ type: "parent" }}>Get started</Link>
+        <Button
+          className="mt-4 bg-background text-foreground hover:bg-background/90"
+          size="lg"
+          asChild
+        >
+          <Link to="/admissions/signup" search={{ type: "parent" }}>
+            Get started
+          </Link>
         </Button>
       </div>
 
       <div className="text-center pb-4">
-        <Link to="/admissions/contact" className="text-sm text-primary hover:underline">Contact admissions office</Link>
+        <Link to="/admissions/contact" className="text-sm text-primary hover:underline">
+          Contact admissions office
+        </Link>
       </div>
     </div>
   );
@@ -158,7 +187,12 @@ export function ProgramsPage() {
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             {group.programs.map((p) => (
-              <ProgramCard key={p.id} program={p} instituteId={group.instituteId} showInstitute={false} />
+              <ProgramCard
+                key={p.id}
+                program={p}
+                instituteId={group.instituteId}
+                showInstitute={false}
+              />
             ))}
           </div>
         </section>

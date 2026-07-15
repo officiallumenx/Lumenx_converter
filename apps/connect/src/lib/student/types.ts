@@ -1,9 +1,5 @@
 import type { Achievement, AppNotification, ReportCard } from "@lumenx/types";
-import type {
-  AttendanceDayStatus,
-  ExamHistoryEntry,
-  StudentCertificateRecord,
-} from "./mock-data";
+import type { AttendanceDayStatus, ExamHistoryEntry, StudentCertificateRecord } from "./mock-data";
 
 export interface StudentProfile {
   id: string;
@@ -72,7 +68,14 @@ export interface StudentSnapshot {
   attendanceTrend: { week: string; pct: number }[];
   attendanceLog: { date: string; status: "present" | "absent" | "leave"; note: string }[];
   notifications: AppNotification[];
-  exams: { id: string; title: string; subject: string; date: string; duration: string; room: string }[];
+  exams: {
+    id: string;
+    title: string;
+    subject: string;
+    date: string;
+    duration: string;
+    room: string;
+  }[];
   schoolEvents: { id: string; title: string; kind: string; date: string; venue?: string }[];
 }
 

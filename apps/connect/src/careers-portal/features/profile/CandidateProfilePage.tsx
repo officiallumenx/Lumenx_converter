@@ -15,7 +15,10 @@ import {
   ProfileSkillsLanguagesSection,
   ProfileWorkSection,
 } from "@/careers-portal/features/profile/ProfileEditorSections";
-import { ProfileSectionFooter, ProfileSectionNav } from "@/careers-portal/features/profile/ProfileSectionNav";
+import {
+  ProfileSectionFooter,
+  ProfileSectionNav,
+} from "@/careers-portal/features/profile/ProfileSectionNav";
 import {
   PROFILE_SECTIONS,
   computeProfileCompletion,
@@ -34,7 +37,9 @@ import type { CandidateProfile } from "@/lib/careers/types";
 
 export function CandidateProfilePage() {
   const { user, refresh } = useCareersAuth();
-  const [profile, setProfile] = useState<CandidateProfile | null>(() => (user ? getCandidateProfile(user.id) : null));
+  const [profile, setProfile] = useState<CandidateProfile | null>(() =>
+    user ? getCandidateProfile(user.id) : null,
+  );
   const [activeSection, setActiveSection] = useState<ProfileSectionId>("overview");
   const [dirty, setDirty] = useState(false);
   const sectionTopRef = useRef<HTMLDivElement>(null);
@@ -91,7 +96,9 @@ export function CandidateProfilePage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm font-medium">{user.name}</p>
-            <p className="text-xs text-muted-foreground">{profile.headline || "Add a headline to stand out"}</p>
+            <p className="text-xs text-muted-foreground">
+              {profile.headline || "Add a headline to stand out"}
+            </p>
           </div>
           <ProfileStrengthBadge strength={profileStrengthLabel(strength)} percent={pct} />
         </div>
@@ -100,14 +107,23 @@ export function CandidateProfilePage() {
         </div>
       </div>
 
-      <ProfileSectionNav sections={[...PROFILE_SECTIONS]} active={activeSection} onChange={goToSection} />
+      <ProfileSectionNav
+        sections={[...PROFILE_SECTIONS]}
+        active={activeSection}
+        onChange={goToSection}
+      />
 
       <div className="space-y-4 pt-2">
         {activeSection === "overview" && (
           <ProfileOverviewSection profile={profile} userName={user.name} onChange={patchProfile} />
         )}
         {activeSection === "contact" && (
-          <ProfileContactAddressSection profile={profile} email={user.email} phone={user.phone} onChange={patchProfile} />
+          <ProfileContactAddressSection
+            profile={profile}
+            email={user.email}
+            phone={user.phone}
+            onChange={patchProfile}
+          />
         )}
         {activeSection === "experience" && (
           <ProfileWorkSection
@@ -117,7 +133,10 @@ export function CandidateProfilePage() {
           />
         )}
         {activeSection === "education" && (
-          <ProfileEducationSection qualifications={profile.qualifications} onChange={(qualifications) => patchProfile({ qualifications })} />
+          <ProfileEducationSection
+            qualifications={profile.qualifications}
+            onChange={(qualifications) => patchProfile({ qualifications })}
+          />
         )}
         {activeSection === "certifications" && (
           <ProfileCertificationsAchievementsSection
@@ -156,7 +175,10 @@ export function CandidateProfilePage() {
           <Save className="size-4 mr-2" /> Save profile
         </Button>
         <p className="text-xs text-muted-foreground self-center">
-          <Link to="/careers/apply" className="text-primary hover:underline">Apply to jobs</Link> — your profile pre-fills applications.
+          <Link to="/careers/apply" className="text-primary hover:underline">
+            Apply to jobs
+          </Link>{" "}
+          — your profile pre-fills applications.
         </p>
       </div>
     </div>

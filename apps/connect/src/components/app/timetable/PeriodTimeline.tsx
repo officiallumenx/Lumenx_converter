@@ -1,5 +1,5 @@
 import { Badge, cn } from "@lumenx/ui";
-import { Clock, User } from "lucide-react";
+import { BookOpen, Clock, User } from "lucide-react";
 import {
   isPeriodPast,
   splitPeriodTime,
@@ -26,20 +26,19 @@ export function PeriodTimeline({
 }) {
   if (!periods.length) {
     return (
-      <div className="rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground">
+      <div className="rounded-2xl border border-dashed border-border bg-muted/10 p-10 text-center text-sm text-muted-foreground">
         {emptyMessage}
       </div>
     );
   }
 
   return (
-    <ol className="relative min-w-0 space-y-0">
+    <ol className="relative min-w-0 space-y-3">
       {periods.map((p, i) => (
         <PeriodTimelineItem
           key={`${p.time}-${p.subject}-${i}`}
           period={p}
           index={i + 1}
-          isLast={i === periods.length - 1}
           showPastMuted={showPastMuted}
         />
       ))}
@@ -50,12 +49,10 @@ export function PeriodTimeline({
 function PeriodTimelineItem({
   period,
   index,
-  isLast,
   showPastMuted,
 }: {
   period: PeriodRow;
   index: number;
-  isLast: boolean;
   showPastMuted: boolean;
 }) {
   const style = subjectStyle(period.subject);
@@ -65,86 +62,77 @@ function PeriodTimelineItem({
   const isNext = period.state === "next";
 
   return (
-    <li className="relative flex min-w-0 gap-3 pb-4 sm:gap-4 sm:pb-5">
-      {!isLast && (
-        <span
-          className={cn(
-            "absolute left-[1.125rem] top-10 bottom-0 w-px sm:left-[1.375rem]",
-            isPast ? "bg-border/60" : "bg-border",
-          )}
-          aria-hidden
-        />
-      )}
-
-      <div className="relative z-[1] flex shrink-0 flex-col items-center pt-1">
-        <span
-          className={cn(
-            "grid size-9 place-items-center rounded-full border-2 bg-card text-xs font-bold tabular-nums sm:size-10",
-            isCurrent && "border-primary bg-primary text-primary-foreground",
-            isNext && "border-primary/50 bg-primary/10 text-primary",
-            !isCurrent && !isNext && "border-border text-muted-foreground",
-          )}
-        >
-          {index}
-        </span>
-      </div>
-
+    <li>
       <article
         className={cn(
-          "min-w-0 flex-1 overflow-hidden rounded-2xl border shadow-soft transition-colors",
-          isCurrent && "border-primary/40 bg-primary/[0.06]",
-          isNext && !isCurrent && "border-primary/20 bg-muted/40",
-          isPast && "border-border/60 bg-muted/20 opacity-75",
+          "relative min-w-0 overflow-hidden rounded-2xl border shadow-soft transition-colors",
+          isCurrent && "border-primary bg-primary/[0.06] ring-1 ring-primary/25",
+          isNext && !isCurrent && "border-primary/30 bg-primary/[0.03]",
+          isPast && "border-border/70 bg-muted/15 opacity-80",
           !isCurrent && !isNext && !isPast && "border-border bg-card",
         )}
       >
-        <div className="flex min-w-0">
-          <div className={cn("w-1 shrink-0 sm:w-1.5", style.stripe)} aria-hidden />
-          <div className="min-w-0 flex-1 p-3 sm:p-4">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div className="min-w-0">
-                <span
-                  className={cn(
-                    "inline-flex rounded-md px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide",
-                    style.chip,
+        <div className={cn("absolute inset-y-0 left-0 w-1 bg-primary/80", isPast && "opacity-50")} />
+        <div className="min-w-0 pl-4 pr-3 py-3 sm:pl-5 sm:pr-4 sm:py-4">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0 flex flex-1 gap-3">
+              <span
+                className={cn(
+                  "grid size-8 shrink-0 place-items-center rounded-full text-xs font-bold tabular-nums sm:size-9",
+                  isCurrent
+                    ? "bg-primary text-white"
+                    : "bg-primary/10 text-primary border border-primary/20",
+                )}
+              >
+                {index}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                      style.chip,
+                    )}
+                  >
+                    <BookOpen className="size-3 shrink-0 opacity-80" />
+                    {period.subject}
+                  </span>
+                  {isCurrent && (
+                    <Badge className="h-5 border-0 bg-primary px-2 text-[10px] text-white">
+                      Live
+                    </Badge>
                   )}
-                >
-                  {period.subject}
-                </span>
-                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <span className="inline-flex items-center gap-1.5 text-sm font-medium tabular-nums">
-                    <Clock className="size-3.5 shrink-0 text-muted-foreground" />
+                  {isNext && !isCurrent && (
+                    <Badge
+                      variant="outline"
+                      className="h-5 border-primary/30 px-2 text-[10px] text-primary"
+                    >
+                      Next
+                    </Badge>
+                  )}
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                  <span className="inline-flex items-center gap-1.5 font-medium tabular-nums text-foreground">
+                    <Clock className="size-3.5 shrink-0 text-primary" />
                     <span className="sm:hidden">
                       {start}
                       {end ? ` – ${end}` : ""}
                     </span>
                     <span className="hidden sm:inline">{period.time}</span>
                   </span>
+                  {period.subtitle && (
+                    <span className="inline-flex min-w-0 items-center gap-1.5 text-xs">
+                      <User className="size-3.5 shrink-0 text-primary" />
+                      <span className="truncate">{period.subtitle}</span>
+                    </span>
+                  )}
                 </div>
               </div>
-              <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-                {isCurrent && (
-                  <Badge className="h-6 border-0 bg-primary px-2 text-[10px] text-primary-foreground">
-                    Live
-                  </Badge>
-                )}
-                {isNext && !isCurrent && (
-                  <Badge variant="outline" className="h-6 px-2 text-[10px]">
-                    Next
-                  </Badge>
-                )}
-                {period.badge && !isCurrent && !isNext && (
-                  <Badge variant="outline" className="h-6 px-2 text-[10px]">
-                    {period.badge}
-                  </Badge>
-                )}
-              </div>
             </div>
-            {period.subtitle && (
-              <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-                <User className="size-3.5 shrink-0" />
-                <span className="truncate">{period.subtitle}</span>
-              </div>
+            {period.badge && !isCurrent && !isNext && (
+              <Badge variant="outline" className="h-6 shrink-0 px-2 text-[10px] text-primary border-primary/25">
+                {period.badge}
+              </Badge>
             )}
           </div>
         </div>
@@ -164,8 +152,7 @@ export function buildStudentPeriodRows(
   return periods.map((p) => {
     const isCurrent =
       opts.isToday && opts.current?.time === p.time && opts.current?.subject === p.subject;
-    const isNext =
-      opts.isToday && opts.next?.time === p.time && opts.next?.subject === p.subject;
+    const isNext = opts.isToday && opts.next?.time === p.time && opts.next?.subject === p.subject;
     const past = opts.isToday && !isCurrent && !isNext && isPeriodPast(p);
 
     return {

@@ -25,6 +25,8 @@ export interface TeacherProfile {
   avatar?: string;
   language?: string;
   bio?: string;
+  /** When true, teacher can open Transport (route monitor). School must offer transport. */
+  hasTransport?: boolean;
 }
 
 export interface StudentAttentionItem {
@@ -170,6 +172,8 @@ export interface TeacherNotification {
     | "urgent";
   time: string;
   unread: boolean;
+  /** Defaults to subject workspace when omitted. Activity items live in workspace-communication store. */
+  portalScope?: "subject" | "activity";
 }
 
 export interface TeacherComplaint {
@@ -207,6 +211,8 @@ export interface TeacherMessage {
   unread: boolean;
   archived: boolean;
   draft: boolean;
+  /** Defaults to subject workspace when omitted. */
+  portalScope?: "subject" | "activity";
 }
 
 export interface TeacherMessageTarget {
@@ -313,6 +319,8 @@ export interface AssignmentSubmission {
   submittedAt: string | null;
   note: string;
   graded: boolean;
+  marks: number | null;
+  maxMarks: number;
 }
 
 export interface HomeworkAttendanceRow {

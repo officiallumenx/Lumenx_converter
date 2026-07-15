@@ -10,13 +10,7 @@ import { useParentPortal } from "@/context/ParentPortalContext";
 import { Button } from "@lumenx/ui";
 import { Input } from "@lumenx/ui";
 import { Textarea } from "@lumenx/ui";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@lumenx/ui";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@lumenx/ui";
 import { Badge } from "@lumenx/ui";
 import { ShieldAlert, Lock, Plus } from "lucide-react";
 import {
@@ -28,14 +22,7 @@ import {
   DialogFooter,
 } from "@lumenx/ui";
 import { toast } from "sonner";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@lumenx/ui";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@lumenx/ui";
 import { TeacherComplaintsPage } from "@/teacher-portal";
 
 export const Route = createFileRoute("/complaints")({
@@ -81,14 +68,14 @@ const complaintItems = [
 
 function ComplaintsPage() {
   const { role, activeChildId } = useApp();
-  if (role === "teacher") return <TeacherComplaintsPage />;
-
   const portal = useParentPortal();
 
   const list = useMemo(() => {
     if (role === "parent") return complaintItems.filter((c) => c.childId === activeChildId);
     return complaintItems;
   }, [role, activeChildId]);
+
+  if (role === "teacher") return <TeacherComplaintsPage />;
 
   const childLabel =
     role === "parent" && portal.isParent && portal.snapshot ? portal.snapshot.child.name : null;

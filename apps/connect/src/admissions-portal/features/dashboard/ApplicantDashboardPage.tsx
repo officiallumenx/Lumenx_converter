@@ -1,7 +1,16 @@
 import { Link } from "@tanstack/react-router";
 import { Button, Badge } from "@lumenx/ui";
 import {
-  FilePlus, FolderOpen, Bell, Calendar, FileText, Heart, GraduationCap, Upload, MessageSquare, Phone,
+  FilePlus,
+  FolderOpen,
+  Bell,
+  Calendar,
+  FileText,
+  Heart,
+  GraduationCap,
+  Upload,
+  MessageSquare,
+  Phone,
 } from "lucide-react";
 import { StatCard } from "@/components/app/StatCard";
 import { SectionCard } from "@/components/app/SectionCard";
@@ -20,7 +29,12 @@ export function ApplicantDashboardPage() {
   const apps = getApplicationsForUser(user.id);
   const unread = unreadNotificationCount(user.id);
   const pendingDocs = apps.filter((a) =>
-    a.documents.some((d) => d.status === "resubmission_required" || d.status === "requires_resubmission" || d.status === "not_uploaded"),
+    a.documents.some(
+      (d) =>
+        d.status === "resubmission_required" ||
+        d.status === "requires_resubmission" ||
+        d.status === "not_uploaded",
+    ),
   ).length;
   const upcomingInterviews = apps.filter((a) => a.interview?.status === "scheduled").length;
   const savedInstitutes = getSavedInstituteIds(user.id);
@@ -28,13 +42,26 @@ export function ApplicantDashboardPage() {
 
   return (
     <div className="animate-in fade-in duration-300 space-y-8">
-      <AdmissionsPageHeader title={`Welcome, ${user.name.split(" ")[0]}`} subtitle="Your admission command center" />
+      <AdmissionsPageHeader
+        title={`Welcome, ${user.name.split(" ")[0]}`}
+        subtitle="Your admission command center"
+      />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Applications" value={String(apps.length)} icon={FolderOpen} />
-        <StatCard label="Pending documents" value={String(pendingDocs)} icon={Upload} tone={pendingDocs > 0 ? "warning" : "default"} />
+        <StatCard
+          label="Pending documents"
+          value={String(pendingDocs)}
+          icon={Upload}
+          tone={pendingDocs > 0 ? "warning" : "default"}
+        />
         <StatCard label="Interviews" value={String(upcomingInterviews)} icon={Calendar} />
-        <StatCard label="Notifications" value={String(unread)} icon={Bell} tone={unread > 0 ? "warning" : "default"} />
+        <StatCard
+          label="Notifications"
+          value={String(unread)}
+          icon={Bell}
+          tone={unread > 0 ? "warning" : "default"}
+        />
       </div>
 
       <SectionCard title="Quick actions">
@@ -46,7 +73,10 @@ export function ApplicantDashboardPage() {
             { label: "Contact admissions", to: "/admissions/inquiries", icon: MessageSquare },
           ].map((a) => (
             <Button key={a.to} variant="outline" className="h-auto py-3 justify-start" asChild>
-              <Link to={a.to}><a.icon className="size-4 mr-2 shrink-0" />{a.label}</Link>
+              <Link to={a.to}>
+                <a.icon className="size-4 mr-2 shrink-0" />
+                {a.label}
+              </Link>
             </Button>
           ))}
         </div>
@@ -54,7 +84,12 @@ export function ApplicantDashboardPage() {
 
       <SectionCard title="Recent applications" link="/admissions/applications" linkLabel="View all">
         {apps.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No applications yet. <Link to="/admissions/apply" className="text-primary hover:underline">Start applying</Link></p>
+          <p className="text-sm text-muted-foreground">
+            No applications yet.{" "}
+            <Link to="/admissions/apply" className="text-primary hover:underline">
+              Start applying
+            </Link>
+          </p>
         ) : (
           <div className="space-y-2">
             {apps.slice(0, 3).map((app) => (
@@ -66,7 +101,9 @@ export function ApplicantDashboardPage() {
               >
                 <div>
                   <p className="font-medium text-sm">{app.student.name}</p>
-                  <p className="text-xs text-muted-foreground">{app.programName} · {app.id}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {app.programName} · {app.id}
+                  </p>
                 </div>
                 <Badge variant={statusTone(app.status)}>{statusLabel(app.status)}</Badge>
               </Link>
@@ -84,7 +121,11 @@ export function ApplicantDashboardPage() {
                   const inst = getInstituteById(id);
                   return inst ? (
                     <li key={id}>
-                      <Link to="/admissions/institutes/$instituteId" params={{ instituteId: id }} className="flex items-center gap-2 hover:text-primary">
+                      <Link
+                        to="/admissions/institutes/$instituteId"
+                        params={{ instituteId: id }}
+                        className="flex items-center gap-2 hover:text-primary"
+                      >
                         <Heart className="size-3 text-destructive fill-destructive" /> {inst.name}
                       </Link>
                     </li>
@@ -100,7 +141,11 @@ export function ApplicantDashboardPage() {
                   const prog = getProgramByIdV2(id);
                   return prog ? (
                     <li key={id}>
-                      <Link to="/admissions/programs/$programId" params={{ programId: id }} className="flex items-center gap-2 hover:text-primary">
+                      <Link
+                        to="/admissions/programs/$programId"
+                        params={{ programId: id }}
+                        className="flex items-center gap-2 hover:text-primary"
+                      >
                         <GraduationCap className="size-3" /> {prog.name}
                       </Link>
                     </li>
@@ -117,7 +162,9 @@ export function ApplicantDashboardPage() {
           <Phone className="size-4 text-primary" />
           <span>Need help? Ask the admissions team</span>
         </div>
-        <Button size="sm" variant="outline" asChild><Link to="/admissions/inquiries">Open inquiry center</Link></Button>
+        <Button size="sm" variant="outline" asChild>
+          <Link to="/admissions/inquiries">Open inquiry center</Link>
+        </Button>
       </div>
     </div>
   );

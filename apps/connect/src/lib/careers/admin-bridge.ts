@@ -83,7 +83,11 @@ export function applicationToSyncRow(app: JobApplication): AdminCareerSyncRow {
     institute: app.instituteName,
     stage: STATUS_TO_STAGE[status] ?? "review",
     applied: app.submittedAt
-      ? new Date(app.submittedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+      ? new Date(app.submittedAt).toLocaleDateString("en-IN", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        })
       : "—",
     docs: `${verified}/${total}`,
     jobId: app.jobId,

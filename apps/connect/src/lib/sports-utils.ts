@@ -1,14 +1,5 @@
 import type { Achievement, SportEvent } from "@lumenx/types";
-import {
-  achievementCategoryMap,
-  studentCompetitions,
-} from "@/lib/student/mock-data";
-import {
-  achievements,
-  sportsEvents,
-  sportsTeamRoster,
-  sportsTeams,
-} from "@/lib/mock-data";
+import { achievements, sportsEvents, sportsTeamRoster, sportsTeams } from "@/lib/mock-data";
 
 export type LearnerRef = { name: string; rollNo: string; childId?: string };
 
@@ -23,7 +14,132 @@ export type SquadInfo = {
 
 const normRoll = (r: string) => r.replace(/^0+/, "") || "0";
 
+/** Per-linked-child squad data when roster tables do not list younger siblings. */
+const LEARNER_SQUADS_BY_CHILD: Record<string, SquadInfo[]> = {
+  C1: [
+    {
+      teamId: "t-fb",
+      teamName: "School Football XI",
+      sport: "Football",
+      coach: "Coach Imran",
+      presentLastSession: true,
+      squadRank: 3,
+    },
+    {
+      teamId: "t-ath",
+      teamName: "Athletics Core",
+      sport: "Athletics",
+      coach: "Coach Manish",
+      presentLastSession: true,
+      squadRank: 2,
+    },
+  ],
+  C2: [
+    {
+      teamId: "t-ch",
+      teamName: "Chess Club",
+      sport: "Chess",
+      coach: "Mr. Bhatt",
+      presentLastSession: true,
+      squadRank: 1,
+    },
+    {
+      teamId: "t-bb",
+      teamName: "Basketball Squad",
+      sport: "Basketball",
+      coach: "Coach Reena",
+      presentLastSession: false,
+      squadRank: 4,
+    },
+  ],
+  C3: [
+    {
+      teamId: "t-ath",
+      teamName: "Athletics Core",
+      sport: "Athletics",
+      coach: "Coach Manish",
+      presentLastSession: true,
+      squadRank: 5,
+    },
+  ],
+};
+
+const LEARNER_COMPETITIONS_BY_CHILD: Record<
+  string,
+  {
+    id: string;
+    title: string;
+    category: "sports" | "cultural";
+    date: string;
+    result: string;
+    rank: string;
+    venue: string;
+  }[]
+> = {
+  C1: [
+    {
+      id: "comp-c1-1",
+      title: "Annual Athletics Meet — 100m Sprint",
+      category: "sports",
+      date: "10 Dec 2024",
+      result: "Silver Medal",
+      rank: "2nd",
+      venue: "Main Ground",
+    },
+    {
+      id: "comp-c1-2",
+      title: "Inter-House Football Final",
+      category: "sports",
+      date: "18 Nov 2024",
+      result: "Runners-up",
+      rank: "2nd",
+      venue: "Sports Complex",
+    },
+  ],
+  C2: [
+    {
+      id: "comp-c2-1",
+      title: "District Chess Championship",
+      category: "sports",
+      date: "22 Jan 2025",
+      result: "Gold Medal",
+      rank: "District 1st",
+      venue: "City Hall",
+    },
+    {
+      id: "comp-c2-2",
+      title: "Inter-School Quiz Bowl",
+      category: "cultural",
+      date: "8 Feb 2025",
+      result: "Champions",
+      rank: "1st",
+      venue: "Auditorium",
+    },
+  ],
+  C3: [
+    {
+      id: "comp-c3-1",
+      title: "Primary Sports Day — Relay",
+      category: "sports",
+      date: "15 Dec 2024",
+      result: "Participation",
+      rank: "4th",
+      venue: "Junior Ground",
+    },
+  ],
+};
+
+const LEARNER_ACHIEVEMENT_IDS: Record<string, string[]> = {
+  C1: ["ach-6", "ach-10"],
+  C2: ["ach-8", "ach-9", "ach-6"],
+  C3: ["ach-6"],
+};
+
 export function getLearnerSquads(learner: LearnerRef): SquadInfo[] {
+  if (learner.childId && LEARNER_SQUADS_BY_CHILD[learner.childId]) {
+    return LEARNER_SQUADS_BY_CHILD[learner.childId];
+  }
+
   const cr = normRoll(learner.rollNo);
   const out: SquadInfo[] = [];
   for (const team of sportsTeams) {
@@ -64,29 +180,29 @@ export function pickNextHighlight(events: SportEvent[]): SportEvent | null {
   return upcoming[0] ?? null;
 }
 
-export function isSportsOrCulturalAchievement(a: Achievement): boolean {
-  const cat = achievementCategoryMap[a.id];
-  if (cat === "sports" || cat === "cultural") return true;
-  const t = `${a.title} ${a.description}`.toLowerCase();
-  return (
-    ["zap", "trophy", "medal"].includes(a.icon) &&
-    /sport|athletic|football|basketball|cultural|dance|music|chess|meet/.test(t)
-  );
+export function getLearnerSportsAchievements(learner: LearnerRef): Achievement[] {
+  const ids = learner.childId ? LEARNER_ACHIEVEMENT_IDS[learner.childId] : null;
+  if (ids?.length) {
+    return achievements.filter((a) => ids.includes(a.id));
+  }
+  // No mapping for this learner: show nothing rather than another learner's achievements.
+  return [];
 }
 
-export function getSportsCulturalAchievements(): Achievement[] {
-  return achievements.filter(isSportsOrCulturalAchievement);
-}
-
-export function getSportsCulturalCompetitions() {
-  return studentCompetitions.filter(
-    (c) => c.category === "sports" || c.category === "cultural",
-  );
+export function getLearnerCompetitions(learner: LearnerRef) {
+  if (learner.childId && LEARNER_COMPETITIONS_BY_CHILD[learner.childId]) {
+    return LEARNER_COMPETITIONS_BY_CHILD[learner.childId];
+  }
+  // Never fall back to C1's results for an unknown learner.
+  return [];
 }
 
 export const learnerSportsProfiles: Record<
   string,
-  { registeredEventIds: string[]; practiceWeeks: { week: string; attended: number; total: number }[] }
+  {
+    registeredEventIds: string[];
+    practiceWeeks: { week: string; attended: number; total: number }[];
+  }
 > = {
   C1: {
     registeredEventIds: ["se1", "se2", "se-c1", "se3"],
@@ -124,7 +240,6 @@ export function resolveLearnerSportsProfile(learner: LearnerRef) {
   if (learner.childId && learnerSportsProfiles[learner.childId]) {
     return learnerSportsProfiles[learner.childId];
   }
-  if (learner.name === "Aarav Sharma") return learnerSportsProfiles.C1;
   return learnerSportsProfiles.C1;
 }
 

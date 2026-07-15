@@ -39,9 +39,7 @@ export function TeacherClassesPage({ selectedId }: { selectedId?: string }) {
   if (portal.isLoading) return <PageSkeleton />;
 
   if (selectedId && selected) {
-    return (
-      <ClassDetailView cls={selected} students={students} loading={loadingStudents} />
-    );
+    return <ClassDetailView cls={selected} students={students} loading={loadingStudents} />;
   }
 
   return (
@@ -97,7 +95,10 @@ function ClassDetailView({
           { icon: BookOpen, label: "Homework", value: `${cls.homeworkSubmissionRate}%` },
           { icon: TrendingUp, label: "Avg score", value: `${cls.avgScore}%` },
         ].map((s) => (
-          <div key={s.label} className="rounded-2xl border border-border bg-card p-3 text-center sm:p-4">
+          <div
+            key={s.label}
+            className="rounded-2xl border border-border bg-card p-3 text-center sm:p-4"
+          >
             <s.icon className="mx-auto mb-1 size-4 text-primary" />
             <div className="text-[10px] uppercase text-muted-foreground">{s.label}</div>
             <div className="font-display text-lg font-semibold">{s.value}</div>

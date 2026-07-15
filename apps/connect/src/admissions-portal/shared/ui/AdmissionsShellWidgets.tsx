@@ -17,8 +17,12 @@ export function ProgramCard({
 }) {
   const { user } = useAdmissionsAuth();
   const resolvedInstituteId = instituteId ?? program.instituteId;
-  const institute = showInstitute && resolvedInstituteId ? getInstituteById(resolvedInstituteId) : undefined;
-  const applySearch = { program: program.id, ...(resolvedInstituteId ? { institute: resolvedInstituteId } : {}) };
+  const institute =
+    showInstitute && resolvedInstituteId ? getInstituteById(resolvedInstituteId) : undefined;
+  const applySearch = {
+    program: program.id,
+    ...(resolvedInstituteId ? { institute: resolvedInstituteId } : {}),
+  };
   const applyTo =
     user?.accountType === "parent"
       ? { to: "/admissions/apply" as const, search: applySearch }
@@ -36,11 +40,22 @@ export function ProgramCard({
         </p>
       )}
       <h3 className="font-display text-lg font-bold">{program.name}</h3>
-      <p className="mt-2 flex-1 text-sm text-muted-foreground line-clamp-3">{program.description}</p>
+      <p className="mt-2 flex-1 text-sm text-muted-foreground line-clamp-3">
+        {program.description}
+      </p>
       <dl className="mt-4 space-y-1.5 text-xs">
-        <div className="flex justify-between"><dt className="text-muted-foreground">Duration</dt><dd className="font-medium">{program.duration}</dd></div>
-        <div className="flex justify-between"><dt className="text-muted-foreground">Eligibility</dt><dd className="font-medium text-right max-w-[55%]">{program.eligibility}</dd></div>
-        <div className="flex justify-between"><dt className="text-muted-foreground">Seats</dt><dd className="font-medium text-primary">{program.seatsAvailable} open</dd></div>
+        <div className="flex justify-between">
+          <dt className="text-muted-foreground">Duration</dt>
+          <dd className="font-medium">{program.duration}</dd>
+        </div>
+        <div className="flex justify-between">
+          <dt className="text-muted-foreground">Eligibility</dt>
+          <dd className="font-medium text-right max-w-[55%]">{program.eligibility}</dd>
+        </div>
+        <div className="flex justify-between">
+          <dt className="text-muted-foreground">Seats</dt>
+          <dd className="font-medium text-primary">{program.seatsAvailable} open</dd>
+        </div>
       </dl>
       <div className="mt-4 flex gap-2">
         <Button className="flex-1" asChild>
@@ -49,21 +64,33 @@ export function ProgramCard({
           </Link>
         </Button>
         <Button variant="outline" asChild>
-          <Link to="/admissions/programs/$programId" params={{ programId: program.id }}>Details</Link>
+          <Link to="/admissions/programs/$programId" params={{ programId: program.id }}>
+            Details
+          </Link>
         </Button>
       </div>
     </div>
   );
 }
 
-export function ApplicationStatusTimeline({ events }: { events: { label: string; at: string; note?: string }[] }) {
+export function ApplicationStatusTimeline({
+  events,
+}: {
+  events: { label: string; at: string; note?: string }[];
+}) {
   return (
     <ol className="relative space-y-4 border-l border-border pl-6">
       {events.map((e, i) => (
         <li key={i} className="relative">
           <span className="absolute -left-[1.6rem] top-1 flex size-3 rounded-full bg-primary ring-4 ring-background" />
           <p className="text-sm font-medium">{e.label}</p>
-          <p className="text-xs text-muted-foreground">{new Date(e.at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</p>
+          <p className="text-xs text-muted-foreground">
+            {new Date(e.at).toLocaleDateString("en-IN", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            })}
+          </p>
           {e.note && <p className="mt-1 text-xs text-muted-foreground">{e.note}</p>}
         </li>
       ))}
@@ -88,7 +115,9 @@ export function DocumentUploadCard({
         <div className="min-w-0">
           <p className="text-sm font-medium">{label}</p>
           {fileName && <p className="text-xs text-muted-foreground mt-0.5 truncate">{fileName}</p>}
-          {status && <p className="text-xs text-primary mt-1 capitalize">{status.replace(/_/g, " ")}</p>}
+          {status && (
+            <p className="text-xs text-primary mt-1 capitalize">{status.replace(/_/g, " ")}</p>
+          )}
         </div>
         <label className="cursor-pointer shrink-0">
           <Button size="sm" variant="outline" asChild>

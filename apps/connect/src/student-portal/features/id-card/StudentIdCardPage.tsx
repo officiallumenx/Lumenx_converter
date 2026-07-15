@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { getInitials } from "@lumenx/utils";
 import { PageHeader } from "@/components/app/PageHeader";
 import { IdCardDetailsPanel, IdCardQrDialog, IdCardVisual } from "@/components/app/id-card";
 import { IdCardScanUrlHint, useStudentQrUrl } from "@/components/app/id-card/useStudentQrUrl";
@@ -22,11 +23,7 @@ export function StudentIdCardPage() {
 
   const profile = portal.snapshot.profile;
   const displayName = user?.name ?? profile.name;
-  const initials = displayName
-    .split(" ")
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join("");
+  const initials = getInitials(displayName, 2);
 
   const card = {
     name: displayName,
@@ -45,9 +42,7 @@ export function StudentIdCardPage() {
     address: profile.address ?? studentProfile.address,
   };
 
-  return (
-    <StudentIdCardContent card={card} qrOpen={qrOpen} setQrOpen={setQrOpen} />
-  );
+  return <StudentIdCardContent card={card} qrOpen={qrOpen} setQrOpen={setQrOpen} />;
 }
 
 function StudentIdCardContent({
@@ -83,14 +78,14 @@ function StudentIdCardContent({
         subtitle="Scan the QR from any phone to open the full student profile — no login needed."
         action={
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" className="gap-2 rounded-xl" onClick={() => setQrOpen(true)}>
+            <Button variant="outline" className="student-primary-action gap-2 rounded-xl" onClick={() => setQrOpen(true)}>
               <QrCode className="size-4" /> QR Preview
             </Button>
-            <Button variant="outline" className="gap-2 rounded-xl" onClick={() => window.print()}>
+            <Button variant="outline" className="student-primary-action gap-2 rounded-xl" onClick={() => window.print()}>
               <Printer className="size-4" /> Print
             </Button>
             <Button
-              className="gap-2 rounded-xl shadow-glow"
+              className="student-primary-action gap-2 rounded-xl shadow-glow"
               onClick={() => toast.success("Saved to device wallet (demo)")}
             >
               <Download className="size-4" /> Save

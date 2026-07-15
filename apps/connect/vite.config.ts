@@ -18,17 +18,21 @@ export default defineConfig({
   },
   vite: {
     cacheDir: "../../node_modules/.vite-connect",
-    ssr: {
-      noExternal: [/^@lumenx\//],
-    },
     server: {
+      port: 5174,
+      strictPort: false,
+      open: "/login",
       warmup: {
         clientFiles: [
           "./src/routes/__root.tsx",
           "./src/router.tsx",
           "./src/styles.css",
+          "./src/routes/login.tsx",
         ],
       },
+    },
+    ssr: {
+      noExternal: [/^@lumenx\//],
     },
     optimizeDeps: {
       include: [

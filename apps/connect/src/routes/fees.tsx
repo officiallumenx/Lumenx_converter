@@ -12,31 +12,36 @@ import {
   GraduationCap,
   Users,
 } from "lucide-react";
-import { fees, children as allChildren, feeDuesByChild } from "@/lib/mock-data";
+import { fees } from "@/lib/mock-data";
 import type { FeeItem, Role } from "@lumenx/types";
 import { FeeDuesOverviewCard } from "@/components/app/fees/FeeDuesOverviewCard";
 import {
   FEE_CATEGORY_LABELS,
-  FEE_CATEGORY_ORDER,
   formatInr,
   inferFeeCategory,
   isOutstandingStatus,
+  outstandingAmount,
   statusHint,
-  summarizeDueRows,
   summarizeFeeItems,
-  summarizeHouseholdFees,
 } from "@/lib/fees-utils";
-import { Badge } from "@lumenx/ui";
-import { Button } from "@lumenx/ui";
-import { Progress } from "@lumenx/ui";
-import { Checkbox } from "@lumenx/ui";
-import { Label } from "@lumenx/ui";
+import {
+  Badge,
+  Button,
+  Checkbox,
+  Label,
+  Progress,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  cn,
+} from "@lumenx/ui";
 import { toast } from "sonner";
 import { useApp } from "@/lib/app-state";
-import { useParentPortal } from "@/context/ParentPortalContext";
 import { teacherRepository } from "@/lib/teacher/repositories";
 import type { TeacherFeeRecord } from "@/lib/teacher/repositories";
-import { cn } from "@lumenx/ui";
+import { ParentFeesContent } from "@/parent-portal/features/fees/ParentFeesContent";
 
 export const Route = createFileRoute("/fees")({
   head: () => ({
@@ -69,64 +74,157 @@ function FeesPage() {
 function TeacherFeesContent() {
   const [records, setRecords] = useState<TeacherFeeRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"all" | "due" | "overdue">("all");
+  const [classNameFilter, setClassNameFilter] = useState("all");
+  const [sectionFilter, setSectionFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "due" | "overdue">("all");
 
   useEffect(() => {
-    teacherRepository.getClassFees().then((r) => { setRecords(r); setLoading(false); });
+    teacherRepository.getClassFees().then((r) => {
+      setRecords(r);
+      setLoading(false);
+    });
   }, []);
 
-  const displayed = useMemo(() => {
-    if (filter === "all") return records;
-    if (filter === "overdue") return records.filter((r) => r.tuition.status === "overdue" || r.examFee.status === "overdue" || r.transport?.status === "overdue");
-    return records.filter((r) => r.totalDue > 0);
-  }, [records, filter]);
+  const classNames = useMemo(
+    () =>
+      [...new Set(records.map((r) => r.className))].sort((a, b) =>
+        a.localeCompare(b, undefined, { numeric: true }),
+      ),
+    [records],
+  );
 
-  const totalDue = records.reduce((s, r) => s + r.totalDue, 0);
-  const overdueCount = records.filter((r) => r.tuition.status === "overdue" || r.examFee.status === "overdue").length;
-  const clearedCount = records.filter((r) => r.totalDue === 0).length;
+  const sections = useMemo(() => {
+    const pool =
+      classNameFilter === "all"
+        ? records
+        : records.filter((r) => r.className === classNameFilter);
+    return [...new Set(pool.map((r) => r.section))].sort();
+  }, [records, classNameFilter]);
+
+  useEffect(() => {
+    if (sectionFilter !== "all" && !sections.includes(sectionFilter)) {
+      setSectionFilter("all");
+    }
+  }, [sections, sectionFilter]);
+
+  const scopedRecords = useMemo(() => {
+    return records.filter((r) => {
+      if (classNameFilter !== "all" && r.className !== classNameFilter) return false;
+      if (sectionFilter !== "all" && r.section !== sectionFilter) return false;
+      return true;
+    });
+  }, [records, classNameFilter, sectionFilter]);
+
+  const hasOverdue = (r: TeacherFeeRecord) =>
+    r.tuition.status === "overdue" ||
+    r.examFee.status === "overdue" ||
+    r.transport?.status === "overdue";
+
+  const isFullyPaid = (r: TeacherFeeRecord) => r.totalDue === 0;
+
+  const displayed = useMemo(() => {
+    if (statusFilter === "all") return scopedRecords;
+    if (statusFilter === "paid") return scopedRecords.filter(isFullyPaid);
+    if (statusFilter === "overdue") return scopedRecords.filter(hasOverdue);
+    return scopedRecords.filter((r) => r.totalDue > 0);
+  }, [scopedRecords, statusFilter]);
+
+  const classSummary = useMemo(() => {
+    const totalDue = scopedRecords.reduce((s, r) => s + r.totalDue, 0);
+    const pendingStudents = scopedRecords.filter((r) => r.totalDue > 0).length;
+    const overdueStudents = scopedRecords.filter(hasOverdue).length;
+    const clearedStudents = scopedRecords.filter(isFullyPaid).length;
+    const dueOnlyStudents = scopedRecords.filter((r) => r.totalDue > 0 && !hasOverdue(r)).length;
+    return {
+      totalDue,
+      pendingStudents,
+      overdueStudents,
+      clearedStudents,
+      dueOnlyStudents,
+      studentCount: scopedRecords.length,
+    };
+  }, [scopedRecords]);
+
+  const scopeLabel =
+    classNameFilter === "all" && sectionFilter === "all"
+      ? "All classes"
+      : sectionFilter === "all"
+        ? `Class ${classNameFilter}`
+        : `Class ${classNameFilter}-${sectionFilter}`;
 
   return (
     <div className="min-w-0 space-y-5">
-      <PageHeader title="Fees" subtitle="Class-wise fee status for your students (class teacher view)" />
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl border bg-card p-4 shadow-soft">
-          <Users className="mb-2 size-4 text-muted-foreground" />
-          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Total students</div>
-          <div className="font-display text-xl font-semibold">{records.length}</div>
-        </div>
-        <div className="rounded-2xl border bg-destructive/5 p-4 shadow-soft">
-          <AlertTriangle className="mb-2 size-4 text-destructive" />
-          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Overdue</div>
-          <div className="font-display text-xl font-semibold text-destructive">{overdueCount}</div>
-        </div>
-        <div className="rounded-2xl border bg-success/5 p-4 shadow-soft col-span-2 sm:col-span-1">
-          <CheckCircle2 className="mb-2 size-4 text-success" />
-          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Cleared</div>
-          <div className="font-display text-xl font-semibold text-success">{clearedCount}</div>
-        </div>
-      </div>
-      {totalDue > 0 && (
-        <div className="flex items-start gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-4">
-          <AlertTriangle className="mt-0.5 size-5 shrink-0 text-destructive" />
+      <PageHeader
+        title="Fees"
+        subtitle="Class-wise fee status — filter by class, section, and payment status"
+      />
+
+      <ClassSectionFilterRow
+        classNameFilter={classNameFilter}
+        sectionFilter={sectionFilter}
+        classNames={classNames}
+        sections={sections}
+        onClassChange={(v) => {
+          setClassNameFilter(v);
+          setSectionFilter("all");
+        }}
+        onSectionChange={setSectionFilter}
+      />
+
+      <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 shadow-soft">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="font-medium text-destructive">₹{totalDue.toLocaleString("en-IN")} total outstanding</div>
-            <p className="text-sm text-muted-foreground mt-0.5">Across {overdueCount} students with overdue payments.</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+              {scopeLabel} summary
+            </p>
+            <p className="mt-1 font-display text-2xl font-semibold tabular-nums text-destructive">
+              {formatInr(classSummary.totalDue)}
+            </p>
+            <p className="text-sm text-muted-foreground">Total outstanding fees</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <SummaryChip label="Students" value={String(classSummary.studentCount)} />
+            <SummaryChip label="Pending" value={String(classSummary.pendingStudents)} tone="warning" />
+            <SummaryChip label="Overdue" value={String(classSummary.overdueStudents)} tone="danger" />
+            <SummaryChip label="Cleared" value={String(classSummary.clearedStudents)} tone="success" />
           </div>
         </div>
-      )}
+      </div>
+
       <div className="flex flex-wrap gap-2">
-        {(["all", "due", "overdue"] as const).map((f) => (
-          <button key={f} type="button" onClick={() => setFilter(f)} className={cn("rounded-full px-3 py-1.5 text-xs font-medium capitalize", filter === f ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
-            {f === "all" ? "All students" : f === "due" ? "Has dues" : "Overdue only"}
+        {(
+          [
+            { id: "all" as const, label: "All" },
+            { id: "due" as const, label: "Due" },
+            { id: "overdue" as const, label: "Overdue" },
+            { id: "paid" as const, label: "Paid / cleared" },
+          ] as const
+        ).map((f) => (
+          <button
+            key={f.id}
+            type="button"
+            onClick={() => setStatusFilter(f.id)}
+            className={cn(
+              "rounded-full px-3 py-1.5 text-xs font-medium",
+              statusFilter === f.id
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground",
+            )}
+          >
+            {f.label}
           </button>
         ))}
       </div>
-      {loading ? <p className="text-sm text-muted-foreground">Loading…</p> : (
+
+      {loading ? (
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      ) : displayed.length ? (
         <div className="overflow-x-auto rounded-2xl border shadow-soft">
           <table className="w-full text-sm">
             <thead className="bg-muted/40">
               <tr>
                 <th className="p-3 text-left font-medium">Student</th>
+                <th className="p-3 text-left font-medium">Class</th>
                 <th className="p-3 text-left font-medium">Tuition</th>
                 <th className="p-3 text-left font-medium">Exam fee</th>
                 <th className="p-3 text-left font-medium">Transport</th>
@@ -138,21 +236,132 @@ function TeacherFeesContent() {
                 <tr key={r.studentId} className="border-t border-border hover:bg-muted/20">
                   <td className="p-3">
                     <div className="font-medium">{r.studentName}</div>
-                    <div className="text-xs text-muted-foreground">Roll {r.roll} · {r.classLabel}</div>
+                    <div className="text-xs text-muted-foreground">Roll {r.roll}</div>
                   </td>
-                  <td className="p-3"><FeeCellBadge amount={r.tuition.amount} status={r.tuition.status} /></td>
-                  <td className="p-3"><FeeCellBadge amount={r.examFee.amount} status={r.examFee.status} /></td>
-                  <td className="p-3">{r.transport ? <FeeCellBadge amount={r.transport.amount} status={r.transport.status} /> : <span className="text-muted-foreground">—</span>}</td>
+                  <td className="p-3 text-muted-foreground">{r.classLabel}</td>
+                  <td className="p-3">
+                    <FeeCellBadge amount={r.tuition.amount} status={r.tuition.status} />
+                  </td>
+                  <td className="p-3">
+                    <FeeCellBadge amount={r.examFee.amount} status={r.examFee.status} />
+                  </td>
+                  <td className="p-3">
+                    {r.transport ? (
+                      <FeeCellBadge amount={r.transport.amount} status={r.transport.status} />
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
                   <td className="p-3 text-right font-semibold tabular-nums">
-                    {r.totalDue > 0 ? <span className="text-destructive">₹{r.totalDue.toLocaleString("en-IN")}</span> : <span className="text-success">Cleared</span>}
+                    {r.totalDue > 0 ? (
+                      <span className={hasOverdue(r) ? "text-destructive" : "text-warning-foreground"}>
+                        {formatInr(r.totalDue)}
+                      </span>
+                    ) : (
+                      <span className="text-success">Cleared</span>
+                    )}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      ) : (
+        <p className="rounded-2xl border border-dashed py-10 text-center text-sm text-muted-foreground">
+          No students match these filters.
+        </p>
       )}
-      <p className="text-center text-[11px] text-muted-foreground">Fee data is read-only. Payment processing is handled by admin.</p>
+
+      <p className="text-center text-[11px] text-muted-foreground">
+        Fee data is read-only. Payment processing is handled by admin.
+      </p>
+    </div>
+  );
+}
+
+function ClassSectionFilterRow({
+  classNameFilter,
+  sectionFilter,
+  classNames,
+  sections,
+  onClassChange,
+  onSectionChange,
+}: {
+  classNameFilter: string;
+  sectionFilter: string;
+  classNames: string[];
+  sections: string[];
+  onClassChange: (value: string) => void;
+  onSectionChange: (value: string) => void;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:max-w-md sm:gap-3">
+      <div>
+        <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Class</label>
+        <Select value={classNameFilter} onValueChange={onClassChange}>
+          <SelectTrigger className="h-11 rounded-xl">
+            <SelectValue placeholder="All classes" />
+          </SelectTrigger>
+          <SelectContent position="popper" className="z-[100]">
+            <SelectItem value="all">All classes</SelectItem>
+            {classNames.map((c) => (
+              <SelectItem key={c} value={c}>
+                Class {c}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Section</label>
+        <Select value={sectionFilter} onValueChange={onSectionChange}>
+          <SelectTrigger className="h-11 rounded-xl">
+            <SelectValue placeholder="All sections" />
+          </SelectTrigger>
+          <SelectContent position="popper" className="z-[100]">
+            <SelectItem value="all">All sections</SelectItem>
+            {sections.map((s) => (
+              <SelectItem key={s} value={s}>
+                Section {s}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  );
+}
+
+function SummaryChip({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  tone?: "default" | "warning" | "danger" | "success";
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-xl border px-3 py-2 text-center",
+        tone === "warning" && "border-warning/30 bg-warning/10",
+        tone === "danger" && "border-destructive/30 bg-destructive/10",
+        tone === "success" && "border-success/30 bg-success/10",
+        tone === "default" && "border-border bg-card",
+      )}
+    >
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div
+        className={cn(
+          "font-display text-lg font-semibold tabular-nums",
+          tone === "danger" && "text-destructive",
+          tone === "success" && "text-success",
+          tone === "warning" && "text-warning-foreground",
+        )}
+      >
+        {value}
+      </div>
     </div>
   );
 }
@@ -161,172 +370,19 @@ function FeeCellBadge({ amount, status }: { amount: number; status: "paid" | "du
   return (
     <div className="flex items-center gap-1.5">
       <span className="tabular-nums text-xs">₹{amount.toLocaleString("en-IN")}</span>
-      <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium capitalize", status === "paid" ? "bg-success/15 text-success" : status === "overdue" ? "bg-destructive/15 text-destructive" : "bg-warning/15 text-warning-foreground")}>
+      <span
+        className={cn(
+          "rounded-full px-2 py-0.5 text-[10px] font-medium capitalize",
+          status === "paid"
+            ? "bg-success/15 text-success"
+            : status === "overdue"
+              ? "bg-destructive/15 text-destructive"
+              : "bg-warning/15 text-warning-foreground",
+        )}
+      >
         {status}
       </span>
     </div>
-  );
-}
-
-function ParentFeesContent() {
-  const { activeChildId } = useApp();
-  const portal = useParentPortal();
-
-  const activeChild =
-    portal.isParent && portal.snapshot
-      ? portal.snapshot.child
-      : (allChildren.find((c) => c.id === activeChildId) ?? allChildren[0]);
-
-  const household = useMemo(
-    () => summarizeHouseholdFees(allChildren, feeDuesByChild),
-    [],
-  );
-
-  const activeSummary = useMemo(() => {
-    const rows = (feeDuesByChild[activeChild.id] ?? []).filter((r) =>
-      isOutstandingStatus(r.status),
-    );
-    return summarizeDueRows(rows);
-  }, [activeChild.id]);
-
-  const activeRows = (feeDuesByChild[activeChild.id] ?? []).filter((r) =>
-    isOutstandingStatus(r.status),
-  );
-
-  const activeByCategory = useMemo(() => {
-    const map = new Map<string, typeof activeRows>();
-    for (const row of activeRows) {
-      const cat = inferFeeCategory(row.title);
-      const list = map.get(cat) ?? [];
-      list.push(row);
-      map.set(cat, list);
-    }
-    return FEE_CATEGORY_ORDER.filter((c) => map.has(c)).map((c) => ({
-      category: c,
-      rows: map.get(c)!,
-    }));
-  }, [activeRows]);
-
-  return (
-    <div className="min-w-0 max-w-full space-y-4">
-      <PageHeader
-        title="Fees & Payments"
-        subtitle="Household dues across all linked children — tuition, exams, transport and more"
-      />
-
-      <FeeDuesOverviewCard
-        title="Household fee summary"
-        subtitle={`${allChildren.length} linked children · ${household.perChild.length} with outstanding dues`}
-        summary={household.household}
-        perChild={household.perChild}
-      />
-
-      <div className="space-y-4" key={activeChild.id}>
-        <SectionCard
-          title={`${activeChild.name} · ${activeChild.className} ${activeChild.section}`}
-          action={
-            activeSummary.totalOutstanding > 0 ? (
-              <Badge variant="outline" className="tabular-nums">
-                {formatInr(activeSummary.totalOutstanding)} due
-              </Badge>
-            ) : (
-              <Badge className="border-0 bg-success/15 text-success">Cleared</Badge>
-            )
-          }
-        >
-          <p className="mb-3 text-sm text-muted-foreground">
-            Switch the active learner in the header to review another child&apos;s breakdown.
-          </p>
-
-          {activeRows.length === 0 ? (
-            <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-              No outstanding dues for {activeChild.name}.
-            </p>
-          ) : (
-            <div className="space-y-4">
-              {activeByCategory.map(({ category, rows }) => (
-                <div key={category}>
-                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {FEE_CATEGORY_LABELS[category]}
-                  </h3>
-                  <ul className="min-w-0 space-y-2">
-                    {rows.map((row) => (
-                      <ParentDueRow key={row.id} row={row} />
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          )}
-        </SectionCard>
-      </div>
-
-      <SectionCard title="How payments work">
-        <ul className="space-y-2 text-sm text-muted-foreground">
-          <li className="flex gap-2">
-            <span className="text-primary">•</span>
-            <span>
-              <strong className="text-foreground">Tuition</strong> is billed quarterly. Partial
-              payments show until the instalment is cleared.
-            </span>
-          </li>
-          <li className="flex gap-2">
-            <span className="text-primary">•</span>
-            <span>
-              <strong className="text-foreground">Examination fees</strong> are separate — pay before
-              hall tickets and practicals are released.
-            </span>
-          </li>
-          <li className="flex gap-2">
-            <span className="text-primary">•</span>
-            <span>
-              <strong className="text-foreground">Transport & activity</strong> fees may have
-              different due dates per term.
-            </span>
-          </li>
-        </ul>
-        <p className="mt-4 text-center text-[11px] text-muted-foreground">
-          Online payment and receipts will appear here once the gateway is enabled.
-        </p>
-      </SectionCard>
-    </div>
-  );
-}
-
-function ParentDueRow({
-  row,
-}: {
-  row: {
-    id: string;
-    title: string;
-    amount: number;
-    due: string;
-    status: FeeItem["status"];
-  };
-}) {
-  const s = STATUS[row.status];
-  return (
-    <li className="flex min-w-0 flex-col gap-2 rounded-xl border border-border p-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="min-w-0 flex-1">
-        <div className="font-medium break-words">{row.title}</div>
-        <div className="mt-0.5 text-xs text-muted-foreground">{statusHint(row.status, row.due)}</div>
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
-        <span className="font-semibold tabular-nums">{formatInr(row.amount)}</span>
-        <Badge variant="outline" className={cn("border-0", s.cls)}>
-          {s.label}
-        </Badge>
-        {(row.status === "overdue" || row.status === "partial") && (
-          <Button
-            size="sm"
-            className="rounded-lg"
-            onClick={() => toast.info("Payment gateway coming soon")}
-          >
-            Pay
-          </Button>
-        )}
-      </div>
-    </li>
   );
 }
 
@@ -349,7 +405,10 @@ function StudentFeesContent() {
 
   return (
     <div className="min-w-0 max-w-full space-y-4">
-      <PageHeader title="Fees & Payments" subtitle="Your fee status, breakdown and payment history" />
+      <PageHeader
+        title="Fees & Payments"
+        subtitle="Your fee status, breakdown and payment history"
+      />
 
       <FeeDuesOverviewCard
         title="Your fee summary"
@@ -412,10 +471,7 @@ function StudentFeesContent() {
           action={
             <Badge variant="outline" className="tabular-nums">
               {formatInr(
-                pendingGeneral.reduce(
-                  (s, f) => s + (f.status === "partial" ? Math.round(f.amount * 0.5) : f.amount),
-                  0,
-                ),
+                pendingGeneral.reduce((s, f) => s + outstandingAmount(f.amount, f.status), 0),
               )}{" "}
               pending
             </Badge>
@@ -438,9 +494,7 @@ function StudentFeesContent() {
           action={
             pendingExam.length > 0 ? (
               <Badge variant="outline" className="tabular-nums">
-                {formatInr(
-                  pendingExam.reduce((s, f) => s + f.amount, 0),
-                )}{" "}
+                {formatInr(pendingExam.reduce((s, f) => s + outstandingAmount(f.amount, f.status), 0))}{" "}
                 pending
               </Badge>
             ) : undefined
@@ -449,7 +503,8 @@ function StudentFeesContent() {
           <div className="mb-3 flex min-w-0 items-start gap-2 rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm text-muted-foreground">
             <GraduationCap className="mt-0.5 size-4 shrink-0 text-primary" />
             <p className="min-w-0 leading-snug">
-              Separate from tuition. Pay before hall tickets, practicals, or viva slots are confirmed.
+              Separate from tuition. Pay before hall tickets, practicals, or viva slots are
+              confirmed.
             </p>
           </div>
           <div className="space-y-2">
@@ -508,7 +563,9 @@ function FeeScheduleRow({ f, role }: { f: FeeItem; role: Role | null }) {
       </div>
       <div className="flex w-full shrink-0 flex-wrap items-center justify-end gap-2 sm:w-auto sm:flex-nowrap">
         <div className="text-right">
-          <div className="font-semibold tabular-nums">{formatInr(f.amount)}</div>
+          <div className="font-semibold tabular-nums">
+            {formatInr(f.status === "paid" ? f.amount : outstandingAmount(f.amount, f.status))}
+          </div>
           <Badge className={cn("mt-1 border-0", s.cls)}>{s.label}</Badge>
         </div>
         {f.status === "paid" && (

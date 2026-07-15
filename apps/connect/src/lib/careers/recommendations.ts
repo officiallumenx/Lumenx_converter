@@ -12,7 +12,10 @@ function parseExperienceYears(val: string): number {
   return m ? Number(m[1]) : 0;
 }
 
-export function scoreJobForCandidate(job: JobPosting, profile: CandidateProfile | null): RecommendedJob {
+export function scoreJobForCandidate(
+  job: JobPosting,
+  profile: CandidateProfile | null,
+): RecommendedJob {
   let score = 0;
   const reasons: string[] = [];
 
@@ -28,10 +31,9 @@ export function scoreJobForCandidate(job: JobPosting, profile: CandidateProfile 
     return { job, score, reasons };
   }
 
-  const profileSubjects = [
-    ...profile.subjects,
-    ...(profile.teaching.academic?.subjects ?? []),
-  ].map((s) => s.toLowerCase());
+  const profileSubjects = [...profile.subjects, ...(profile.teaching.academic?.subjects ?? [])].map(
+    (s) => s.toLowerCase(),
+  );
 
   const jobHay = `${job.title} ${job.department} ${job.skills.join(" ")}`.toLowerCase();
   const subjectHits = profileSubjects.filter((s) => s && jobHay.includes(s.toLowerCase()));

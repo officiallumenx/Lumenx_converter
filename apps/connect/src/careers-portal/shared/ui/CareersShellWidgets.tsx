@@ -33,7 +33,9 @@ export function JobCard({
     !!user?.organizationId &&
     job.instituteId === user.organizationId &&
     !!job.postedByRecruiterId;
-  const [saved, setSaved] = useState(() => (user && !browseMarket ? isJobSaved(user.id, job.id) : false));
+  const [saved, setSaved] = useState(() =>
+    user && !browseMarket ? isJobSaved(user.id, job.id) : false,
+  );
 
   const toggleSave = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -52,33 +54,60 @@ export function JobCard({
     : { to: "/careers/login" as const, search: { redirect: "/careers/apply", job: job.id } };
 
   return (
-    <div className={cn("rounded-2xl border border-border bg-card p-4 shadow-soft transition-all motion-safe:hover:border-primary/20", compact && "p-3")}>
+    <div
+      className={cn(
+        "rounded-2xl border border-border bg-card p-4 shadow-soft transition-all motion-safe:hover:border-primary/20",
+        compact && "p-3",
+      )}
+    >
       <div className={cn("mb-3 h-2 rounded-full bg-gradient-to-r", job.imageGradient)} />
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <Link to="/careers/jobs/$jobId" params={{ jobId: job.id }} className="font-display text-lg font-bold hover:text-primary line-clamp-2">
+          <Link
+            to="/careers/jobs/$jobId"
+            params={{ jobId: job.id }}
+            className="font-display text-lg font-bold hover:text-primary line-clamp-2"
+          >
             {job.title}
           </Link>
-          <p className="text-sm text-muted-foreground mt-0.5">{job.instituteName} · {job.department}</p>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {job.instituteName} · {job.department}
+          </p>
         </div>
         {!browseMarket && (
-          <button type="button" onClick={toggleSave} className="shrink-0 rounded-lg p-2 text-muted-foreground hover:text-primary" aria-label={saved ? "Unsave job" : "Save job"}>
+          <button
+            type="button"
+            onClick={toggleSave}
+            className="shrink-0 rounded-lg p-2 text-muted-foreground hover:text-primary"
+            aria-label={saved ? "Unsave job" : "Save job"}
+          >
             <Bookmark className={cn("size-4", saved && "fill-primary text-primary")} />
           </button>
         )}
       </div>
       <div className="mt-2 flex flex-wrap gap-1.5">
         {ownListing && <Badge className="text-[10px]">Your listing</Badge>}
-        <Badge variant="secondary" className="text-[10px]">{JOB_CATEGORY_LABEL[job.category]}</Badge>
-        <Badge variant="outline" className="text-[10px] capitalize">{job.employmentType.replace(/_/g, " ")}</Badge>
-        <Badge variant="outline" className="text-[10px] capitalize">{job.workMode}</Badge>
+        <Badge variant="secondary" className="text-[10px]">
+          {JOB_CATEGORY_LABEL[job.category]}
+        </Badge>
+        <Badge variant="outline" className="text-[10px] capitalize">
+          {job.employmentType.replace(/_/g, " ")}
+        </Badge>
+        <Badge variant="outline" className="text-[10px] capitalize">
+          {job.workMode}
+        </Badge>
       </div>
       <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
         <MapPin className="size-3 shrink-0" />
         <span className="truncate">{job.location || `${job.city}, ${job.state}`}</span>
       </p>
       {job.overview && (
-        <p className={cn("mt-2 text-sm text-muted-foreground", compact ? "line-clamp-1" : "line-clamp-2")}>
+        <p
+          className={cn(
+            "mt-2 text-sm text-muted-foreground",
+            compact ? "line-clamp-1" : "line-clamp-2",
+          )}
+        >
           {job.overview}
         </p>
       )}
@@ -94,7 +123,11 @@ export function JobCard({
             <span className="hidden sm:inline text-border">·</span>
             <span>
               Deadline:{" "}
-              {new Date(job.deadline).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+              {new Date(job.deadline).toLocaleDateString("en-IN", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              })}
             </span>
           </>
         )}
@@ -111,24 +144,34 @@ export function JobCard({
             ownListing ? (
               <>
                 <Button className="flex-1" size="sm" asChild>
-                  <Link to="/careers/recruiter/jobs/$jobId/edit" params={{ jobId: job.id }}>Edit</Link>
+                  <Link to="/careers/recruiter/jobs/$jobId/edit" params={{ jobId: job.id }}>
+                    Edit
+                  </Link>
                 </Button>
                 <Button variant="outline" size="sm" asChild>
-                  <Link to="/careers/jobs/$jobId" params={{ jobId: job.id }}>Preview</Link>
+                  <Link to="/careers/jobs/$jobId" params={{ jobId: job.id }}>
+                    Preview
+                  </Link>
                 </Button>
               </>
             ) : (
               <Button className="flex-1" size="sm" variant="outline" asChild>
-                <Link to="/careers/jobs/$jobId" params={{ jobId: job.id }}>View listing</Link>
+                <Link to="/careers/jobs/$jobId" params={{ jobId: job.id }}>
+                  View listing
+                </Link>
               </Button>
             )
           ) : (
             <>
               <Button className="flex-1" size="sm" asChild>
-                <Link to={applyTo.to} search={applyTo.search}>Apply</Link>
+                <Link to={applyTo.to} search={applyTo.search}>
+                  Apply
+                </Link>
               </Button>
               <Button variant="outline" size="sm" asChild>
-                <Link to="/careers/jobs/$jobId" params={{ jobId: job.id }}>Details</Link>
+                <Link to="/careers/jobs/$jobId" params={{ jobId: job.id }}>
+                  Details
+                </Link>
               </Button>
             </>
           )}
@@ -159,7 +202,11 @@ export function SaveJobButton({ jobId }: { jobId: string }) {
   );
 }
 
-export function ApplicationTimeline({ events }: { events: { label: string; at: string; note?: string }[] }) {
+export function ApplicationTimeline({
+  events,
+}: {
+  events: { label: string; at: string; note?: string }[];
+}) {
   return (
     <ol className="relative space-y-4 border-l border-border pl-6">
       {events.map((e, i) => (
@@ -167,7 +214,11 @@ export function ApplicationTimeline({ events }: { events: { label: string; at: s
           <span className="absolute -left-[1.6rem] top-1 flex size-3 rounded-full bg-primary ring-4 ring-background" />
           <p className="text-sm font-medium">{e.label}</p>
           <p className="text-xs text-muted-foreground">
-            {new Date(e.at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+            {new Date(e.at).toLocaleDateString("en-IN", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            })}
           </p>
           {e.note && <p className="mt-1 text-xs text-muted-foreground">{e.note}</p>}
         </li>
@@ -193,7 +244,9 @@ export function DocumentUploadCard({
         <div className="min-w-0">
           <p className="text-sm font-medium">{label}</p>
           {fileName && <p className="text-xs text-muted-foreground mt-0.5 truncate">{fileName}</p>}
-          {status && <p className="text-xs text-primary mt-1 capitalize">{status.replace(/_/g, " ")}</p>}
+          {status && (
+            <p className="text-xs text-primary mt-1 capitalize">{status.replace(/_/g, " ")}</p>
+          )}
         </div>
         <label className="cursor-pointer shrink-0">
           <Button size="sm" variant="outline" asChild>

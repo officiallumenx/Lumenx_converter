@@ -11,18 +11,26 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>("light");
 
   useEffect(() => {
-    const stored = (typeof window !== "undefined" && localStorage.getItem("luminexa-theme")) as Theme | null;
+    const stored = (typeof window !== "undefined" &&
+      localStorage.getItem("luminexa-theme")) as Theme | null;
     if (stored === "dark" || stored === "light") setTheme(stored);
   }, []);
 
   useEffect(() => {
     const root = document.documentElement;
     root.classList.toggle("dark", theme === "dark");
-    try { localStorage.setItem("luminexa-theme", theme); } catch {}
+    root.style.colorScheme = theme;
+    try {
+      localStorage.setItem("luminexa-theme", theme);
+    } catch (_) {
+      /* storage unavailable */
+    }
   }, [theme]);
 
   return (
-    <ThemeCtx.Provider value={{ theme, set: setTheme, toggle: () => setTheme(theme === "dark" ? "light" : "dark") }}>
+    <ThemeCtx.Provider
+      value={{ theme, set: setTheme, toggle: () => setTheme(theme === "dark" ? "light" : "dark") }}
+    >
       {children}
     </ThemeCtx.Provider>
   );

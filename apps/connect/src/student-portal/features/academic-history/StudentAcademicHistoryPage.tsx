@@ -3,8 +3,11 @@ import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { SectionCard } from "@/components/app/SectionCard";
 import { StatCard } from "@/components/app/StatCard";
+import { prefersReducedMotion } from "@/lib/prefers-reduced-motion";
 import { useStudentPortal } from "@/context/StudentPortalContext";
+import { useParentPortal } from "@/context/ParentPortalContext";
 import type { ExamHistoryEntry } from "@/lib/student/mock-data";
+import { examHistory as demoExamHistory, academicTermSummaries as demoAcademicTerms } from "@/lib/student/mock-data";
 import { Badge, Tabs, TabsList, TabsTrigger, TabsContent } from "@lumenx/ui";
 import {
   ResponsiveContainer,
@@ -28,19 +31,30 @@ import {
 } from "lucide-react";
 import { EmptyState, PageSkeleton } from "@/student-portal/shared/ui";
 
-export function StudentAcademicHistoryPage() {
+export function StudentAcademicHistoryPage({ readOnlyParent = false }: { readOnlyParent?: boolean }) {
   const portal = useStudentPortal();
+  const parentPortal = useParentPortal();
+  const parentSnap = readOnlyParent && parentPortal.isParent ? parentPortal.snapshot : null;
   const [activeTerm, setActiveTerm] = useState("");
 
-  const snap = portal.isStudent ? portal.snapshot : null;
+  const snap = readOnlyParent ? parentSnap : portal.isStudent ? portal.snapshot : null;
   const reportCards = snap?.reportCards ?? [];
   const trend = snap?.trend ?? [];
   const performance = snap?.performance ?? [];
-  const examHistory = snap?.examHistory ?? [];
-  const academicTermSummaries = snap?.academicTerms ?? [];
-  const studentProfile = snap?.profile;
+  const examHistory = readOnlyParent ? demoExamHistory : (snap?.examHistory ?? []);
+  const academicTermSummaries = readOnlyParent ? demoAcademicTerms : (snap?.academicTerms ?? []);
+  const studentProfile = readOnlyParent && parentSnap
+    ? {
+        name: parentSnap.child.name,
+        class: parentSnap.child.className,
+        section: parentSnap.child.section,
+      }
+    : snap?.profile;
 
-  const published = useMemo(() => reportCards.filter((r) => r.status === "published"), [reportCards]);
+  const published = useMemo(
+    () => reportCards.filter((r) => r.status === "published"),
+    [reportCards],
+  );
   const resolvedTerm = activeTerm || academicTermSummaries[0]?.id || "";
   const termSummary = useMemo(
     () => academicTermSummaries.find((t) => t.id === resolvedTerm) ?? academicTermSummaries[0],
@@ -51,7 +65,8 @@ export function StudentAcademicHistoryPage() {
   const termExams = useMemo(
     () =>
       examHistory.filter(
-        (e) => e.term === termSummary?.label || e.term.includes(termSummary?.label.split(" ")[0] ?? ""),
+        (e) =>
+          e.term === termSummary?.label || e.term.includes(termSummary?.label.split(" ")[0] ?? ""),
       ),
     [termSummary, examHistory],
   );
@@ -63,20 +78,38 @@ export function StudentAcademicHistoryPage() {
     () => examHistory.filter((e) => e.status === "upcoming"),
     [examHistory],
   );
-  const subjectChart = activeReport?.marks.map((m) => ({ subject: m.subject.slice(0, 8), score: m.total })) ?? [];
+  const subjectChart =
+    activeReport?.marks.map((m) => ({ subject: m.subject.slice(0, 8), score: m.total })) ?? [];
   const bestSubject = useMemo(
     () => [...performance].sort((a, b) => b.score - a.score)[0],
     [performance],
   );
 
-  if (!portal.isStudent) return null;
-  if (portal.isLoading || !snap || !studentProfile) return <PageSkeleton rows={6} />;
+  if (!readOnlyParent && !portal.isStudent) return null;
+  if (readOnlyParent && parentPortal.isLoading && !parentSnap) return <PageSkeleton rows={6} />;
+  if (readOnlyParent && !parentSnap) {
+    return (
+      <EmptyState
+        icon={History}
+        title="Academic history unavailable"
+        description="Select a linked child to view their academic record."
+      />
+    );
+  }
+  if (!readOnlyParent && (portal.isLoading || !snap || !studentProfile)) {
+    return <PageSkeleton rows={6} />;
+  }
+  if (readOnlyParent && !studentProfile) return <PageSkeleton rows={6} />;
 
   return (
     <div className="min-w-0 space-y-5">
       <PageHeader
         title="Academic History"
-        subtitle={`${studentProfile.name} · ${studentProfile.class} ${studentProfile.section} · Full academic record`}
+        subtitle={
+          readOnlyParent
+            ? `Read-only record for ${studentProfile.name} · ${studentProfile.class} ${studentProfile.section}`
+            : `${studentProfile.name} · ${studentProfile.class} ${studentProfile.section} · Full academic record`
+        }
       />
 
       <div className="grid min-w-0 auto-rows-fr grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-4">
@@ -130,14 +163,20 @@ export function StudentAcademicHistoryPage() {
               <SectionCard
                 title="Report card summary"
                 action={
-                  <Link to="/marks" className="text-xs text-primary hover:underline inline-flex items-center gap-1">
+                  <Link
+                    to="/marks"
+                    className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                  >
                     Full report <ArrowRight className="size-3" />
                   </Link>
                 }
               >
                 <div className="space-y-2">
                   {activeReport.marks.map((m) => (
-                    <div key={m.subject} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm">
+                    <div
+                      key={m.subject}
+                      className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm"
+                    >
                       <span className="font-medium">{m.subject}</span>
                       <div className="flex items-center gap-2">
                         <span className="tabular-nums text-muted-foreground">{m.total}/100</span>
@@ -172,6 +211,7 @@ export function StudentAcademicHistoryPage() {
                   stroke="oklch(0.55 0.22 260)"
                   strokeWidth={2}
                   fill="url(#hist-g)"
+                  isAnimationActive={!prefersReducedMotion()}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -183,11 +223,20 @@ export function StudentAcademicHistoryPage() {
             {subjectChart.length ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={subjectChart}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="oklch(0.92 0.01 250)" />
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                    stroke="oklch(0.92 0.01 250)"
+                  />
                   <XAxis dataKey="subject" tickLine={false} axisLine={false} fontSize={10} />
                   <YAxis hide domain={[0, 100]} />
                   <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid var(--border)" }} />
-                  <Bar dataKey="score" fill="oklch(0.55 0.22 260)" radius={[6, 6, 0, 0]} />
+                  <Bar
+                    dataKey="score"
+                    fill="oklch(0.55 0.22 260)"
+                    radius={[6, 6, 0, 0]}
+                    isAnimationActive={!prefersReducedMotion()}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -205,9 +254,7 @@ export function StudentAcademicHistoryPage() {
       <SectionCard title="Exam-wise results">
         <div className="space-y-2">
           {termExams.length ? (
-            termExams.map((e) => (
-              <ExamRow key={e.id} e={e} />
-            ))
+            termExams.map((e) => <ExamRow key={e.id} e={e} />)
           ) : (
             <EmptyState
               icon={ClipboardCheck}
@@ -240,15 +287,23 @@ export function StudentAcademicHistoryPage() {
       <SectionCard title="Published report cards">
         <div className="space-y-3">
           {published.map((r) => (
-            <div key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border p-4">
+            <div
+              key={r.id}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-xl border p-4"
+            >
               <div>
                 <div className="font-medium">{r.term}</div>
-                <div className="text-xs text-muted-foreground">Published {r.publishedOn} · Rank #{r.rank}</div>
+                <div className="text-xs text-muted-foreground">
+                  Published {r.publishedOn} · Rank #{r.rank}
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <Badge className="border-0 bg-primary/15 text-primary">{r.percentage}%</Badge>
                 <Badge variant="outline">Grade {r.grade}</Badge>
-                <Link to="/marks" className="text-xs text-primary hover:underline inline-flex items-center gap-1">
+                <Link
+                  to="/marks"
+                  className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                >
                   View <ArrowRight className="size-3" />
                 </Link>
               </div>
@@ -278,7 +333,8 @@ function MiniStat({ label, value }: { label: string; value: string }) {
 }
 
 function ExamRow({ e }: { e: ExamHistoryEntry }) {
-  const pct = e.status === "completed" && e.maxMarks > 0 ? Math.round((e.obtained / e.maxMarks) * 100) : null;
+  const pct =
+    e.status === "completed" && e.maxMarks > 0 ? Math.round((e.obtained / e.maxMarks) * 100) : null;
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3 text-sm">
       <div className="min-w-0">

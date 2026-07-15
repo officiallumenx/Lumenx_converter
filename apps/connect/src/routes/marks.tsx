@@ -7,14 +7,7 @@ import { useApp } from "@/lib/app-state";
 import { reportCards, performance, gradeFor } from "@/lib/mock-data";
 import { Button, Input } from "@lumenx/ui";
 import { Badge } from "@lumenx/ui";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@lumenx/ui";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@lumenx/ui";
 import { Save, Send } from "lucide-react";
 import { toast } from "sonner";
 import { ReportCardView } from "@/components/app/ReportCardView";
@@ -211,7 +204,7 @@ function SelectField({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-10 w-full rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:border-primary"
+        className="h-10 w-full rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-primary/40"
       >
         {options.map((o) => (
           <option key={o} value={o}>

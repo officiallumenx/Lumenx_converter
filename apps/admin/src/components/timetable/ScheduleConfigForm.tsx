@@ -50,7 +50,9 @@ export function ScheduleConfigForm({
           <Clock className="size-4 text-primary shrink-0" />
           <div>
             <div className="text-sm font-semibold">School timings</div>
-            <p className="text-[11px] text-muted-foreground mt-0.5">Start time, period length, and lunch break</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Start time, period length, and lunch break
+            </p>
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
@@ -113,7 +115,9 @@ export function ScheduleConfigForm({
               <Field label="Lunch duration">
                 <Select
                   value={String(value.lunchDurationMins)}
-                  onChange={(e) => onChange({ ...value, lunchDurationMins: Number(e.target.value) })}
+                  onChange={(e) =>
+                    onChange({ ...value, lunchDurationMins: Number(e.target.value) })
+                  }
                 >
                   <option value="30">30 min</option>
                   <option value="45">45 min</option>
@@ -130,7 +134,9 @@ export function ScheduleConfigForm({
           <CalendarDays className="size-4 text-chart-2 shrink-0" />
           <div>
             <div className="text-sm font-semibold">Working days</div>
-            <p className="text-[11px] text-muted-foreground mt-0.5">Tap a day to include or exclude it from the schedule</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Tap a day to include or exclude it from the schedule
+            </p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2 mt-3">
@@ -170,7 +176,9 @@ export function ScheduleConfigForm({
       </div>
 
       <div className="lx-schedule-form__preview">
-        <div className="text-[10px] font-mono uppercase tracking-wide text-muted-foreground">Preview</div>
+        <div className="text-[10px] font-mono uppercase tracking-wide text-muted-foreground">
+          Preview
+        </div>
         <p className="text-xs text-muted-foreground mt-1">{scheduleSummary(preview)}</p>
         <div className="flex flex-wrap gap-1.5 mt-2">
           {teachingRows.map((r) => (

@@ -23,7 +23,13 @@ import { Copy, Mail, MessageSquarePlus } from "lucide-react";
 import { toast } from "sonner";
 import { PARENT_FAQS, PARENT_HELP_TOPICS, SUPPORT_EMAIL } from "./support-content";
 
-export function ParentFaqDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+export function ParentFaqDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+}) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85dvh] overflow-y-auto rounded-2xl sm:max-w-lg">
@@ -34,7 +40,9 @@ export function ParentFaqDialog({ open, onOpenChange }: { open: boolean; onOpenC
           {PARENT_FAQS.map((item, i) => (
             <AccordionItem key={item.q} value={`faq-${i}`}>
               <AccordionTrigger className="text-left text-sm">{item.q}</AccordionTrigger>
-              <AccordionContent className="text-sm text-muted-foreground">{item.a}</AccordionContent>
+              <AccordionContent className="text-sm text-muted-foreground">
+                {item.a}
+              </AccordionContent>
             </AccordionItem>
           ))}
         </Accordion>
@@ -59,7 +67,9 @@ export function ParentHelpCenterDialog({
         <Accordion type="single" collapsible className="w-full">
           {PARENT_HELP_TOPICS.map((topic, i) => (
             <AccordionItem key={topic.title} value={`help-${i}`}>
-              <AccordionTrigger className="text-left text-sm font-medium">{topic.title}</AccordionTrigger>
+              <AccordionTrigger className="text-left text-sm font-medium">
+                {topic.title}
+              </AccordionTrigger>
               <AccordionContent className="text-sm leading-relaxed text-muted-foreground">
                 {topic.body}
               </AccordionContent>
@@ -96,7 +106,8 @@ export function ParentContactSupportDialog({
           <DialogTitle>Contact support</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
-          Reach the LumenX team for portal, account, or technical help. We typically respond within 1–2 business days.
+          Reach the LumenX team for portal, account, or technical help. We typically respond within
+          1–2 business days.
         </p>
         <div className="rounded-xl border bg-muted/30 p-4">
           <p className="text-xs font-medium text-muted-foreground">Support email</p>
@@ -117,7 +128,13 @@ export function ParentContactSupportDialog({
   );
 }
 
-export function ParentFeedbackDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+export function ParentFeedbackDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+}) {
   const [category, setCategory] = useState("general");
   const [message, setMessage] = useState("");
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef, type ReactNode } from "react";
 import { useSearch } from "@tanstack/react-router";
 import { PageHeader } from "@/components/app/PageHeader";
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
@@ -41,7 +41,11 @@ import type {
 export function TeacherAttendancePage() {
   const portal = useTeacherPortal();
   const search = useSearch({ strict: false }) as { classId?: string };
-  const [classId, setClassId] = useState(search.classId ?? "cls-10b-math");
+  const teacherClasses = portal.isTeacher ? portal.classes : [];
+  const defaultClass = teacherClasses[0] ?? null;
+  const [className, setClassName] = useState(defaultClass?.className ?? "10");
+  const [section, setSection] = useState(defaultClass?.section ?? "B");
+  const [classId, setClassId] = useState(search.classId ?? defaultClass?.id ?? "cls-10b-math");
   const [students, setStudents] = useState<TeacherStudent[]>([]);
   const [absent, setAbsent] = useState<Set<string>>(new Set());
   const [onLeave, setOnLeave] = useState<Set<string>>(new Set());
@@ -56,17 +60,71 @@ export function TeacherAttendancePage() {
   const [hasSavedRecord, setHasSavedRecord] = useState(false);
   const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
   const [selfAttendance, setSelfAttendance] = useState<TeacherSelfAttendanceRecord[]>([]);
+  const loadSeqRef = useRef(0);
 
   useEffect(() => {
     leaveStore.init();
   }, []);
 
   useEffect(() => {
-    if (search.classId) setClassId(search.classId);
-  }, [search.classId]);
+    if (!portal.isTeacher || !teacherClasses.length) return;
+    if (search.classId) {
+      const fromSearch = teacherClasses.find((c) => c.id === search.classId);
+      if (fromSearch) {
+        setClassName(fromSearch.className);
+        setSection(fromSearch.section);
+        setClassId(fromSearch.id);
+      }
+      return;
+    }
+    const match = teacherClasses.find((c) => c.className === className && c.section === section);
+    if (match) setClassId(match.id);
+  }, [search.classId, portal.isTeacher, teacherClasses, className, section]);
+
+  const classOptions = useMemo(
+    () =>
+      [...new Set(teacherClasses.map((c) => c.className))].sort((a, b) =>
+        a.localeCompare(b, undefined, { numeric: true }),
+      ),
+    [teacherClasses],
+  );
+
+  const sectionOptions = useMemo(
+    () =>
+      [...new Set(teacherClasses.filter((c) => c.className === className).map((c) => c.section))].sort(),
+    [teacherClasses, className],
+  );
+
+  const pickClass = (nextClassName: string) => {
+    setClassName(nextClassName);
+    const sections = teacherClasses
+      .filter((c) => c.className === nextClassName)
+      .map((c) => c.section);
+    const nextSection = sections.includes(section) ? section : sections[0];
+    if (nextSection) setSection(nextSection);
+    const match = teacherClasses.find(
+      (c) => c.className === nextClassName && c.section === (nextSection ?? section),
+    );
+    if (match) {
+      setClassId(match.id);
+      setEditingDate(null);
+      setQ("");
+    }
+  };
+
+  const pickSection = (nextSection: string) => {
+    setSection(nextSection);
+    const match = teacherClasses.find((c) => c.className === className && c.section === nextSection);
+    if (match) {
+      setClassId(match.id);
+      setEditingDate(null);
+      setQ("");
+    }
+  };
 
   const loadStudents = useCallback(async () => {
     if (!portal.isTeacher) return;
+    const my = ++loadSeqRef.current;
     setLoading(true);
     const [s, r, h, existing] = await Promise.all([
       teacherRepository.getStudents(classId),
@@ -74,6 +132,8 @@ export function TeacherAttendancePage() {
       teacherRepository.getAttendanceHistory(classId),
       teacherRepository.getAttendanceRecord(classId, editingDate ?? undefined),
     ]);
+    // Drop stale responses when the class/date changed before this load resolved.
+    if (loadSeqRef.current !== my) return;
     setStudents(s);
     setReports(r);
     setHistory(h);
@@ -114,6 +174,15 @@ export function TeacherAttendancePage() {
 
   useEffect(() => {
     void loadStudents();
+  }, [loadStudents]);
+
+  // React to leave approvals (which update stored attendance records) so the roster's
+  // on-leave state reflects the latest decisions without a manual reload.
+  useEffect(() => {
+    const unsub = leaveStore.subscribe(() => {
+      void loadStudents();
+    });
+    return unsub;
   }, [loadStudents]);
 
   const filtered = useMemo(() => {
@@ -161,12 +230,21 @@ export function TeacherAttendancePage() {
 
   const { run: submit, pending: saving } = useAsyncAction(submitFn);
 
-  const openHistoryRecord = (record: AttendanceRecord) => {
+  const openHistoryRecord = async (record: AttendanceRecord) => {
+    const cls = teacherClasses.find((c) => c.id === record.classId);
+    if (cls) {
+      setClassName(cls.className);
+      setSection(cls.section);
+    }
     setClassId(record.classId);
     setEditingDate(record.date);
-    setAbsent(new Set(record.absentIds));
-    setOnLeave(new Set(record.leaveIds ?? []));
-    setBaselineAbsent([...record.absentIds]);
+    setQ("");
+    // Read the freshest record (the history row may predate later leave approvals).
+    const fresh =
+      (await teacherRepository.getAttendanceRecord(record.classId, record.date)) ?? record;
+    setAbsent(new Set(fresh.absentIds));
+    setOnLeave(new Set(fresh.leaveIds ?? []));
+    setBaselineAbsent([...fresh.absentIds]);
     setHasSavedRecord(true);
     setView("mark");
   };
@@ -233,28 +311,40 @@ export function TeacherAttendancePage() {
             </div>
           )}
 
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)] sm:gap-3">
             <Field label="Class">
-              <Select
-                value={classId}
-                onValueChange={(v) => {
-                  setClassId(v);
-                  setEditingDate(null);
-                }}
-              >
+              <Select value={className} onValueChange={pickClass}>
                 <SelectTrigger className="h-11 rounded-xl">
-                  <SelectValue />
+                  <SelectValue placeholder="Class" />
                 </SelectTrigger>
                 <SelectContent position="popper" className="z-[100]">
-                  {portal.classes.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      Class {c.className}-{c.section}
+                  {classOptions.map((name) => (
+                    <SelectItem key={name} value={name}>
+                      Class {name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Find student">
+            <Field label="Section">
+              <Select
+                value={section}
+                onValueChange={pickSection}
+                disabled={!sectionOptions.length}
+              >
+                <SelectTrigger className="h-11 rounded-xl">
+                  <SelectValue placeholder="Section" />
+                </SelectTrigger>
+                <SelectContent position="popper" className="z-[100]">
+                  {sectionOptions.map((sec) => (
+                    <SelectItem key={sec} value={sec}>
+                      Section {sec}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Find student" className="col-span-2 sm:col-span-1">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -291,9 +381,9 @@ export function TeacherAttendancePage() {
             </Button>
           </div>
 
-          {/* List scrolls; action bar stays fixed directly beneath it */}
-          <div className="flex max-h-[calc(100dvh-15.5rem)] min-h-[20rem] flex-col overflow-hidden rounded-2xl border bg-card shadow-soft md:max-h-[calc(100dvh-13rem)]">
-            <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b bg-muted/40 px-4 py-3">
+          {/* Student list + integrated action footer */}
+          <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/40 px-4 py-3">
               <span className="text-sm font-semibold">{classLabel}</span>
               <div className="flex flex-wrap gap-1.5">
                 <Badge className="border-0 bg-success text-success-foreground">
@@ -310,7 +400,7 @@ export function TeacherAttendancePage() {
               </div>
             </div>
 
-            <ul className="min-h-0 flex-1 divide-y overflow-y-auto overscroll-contain">
+            <ul className="divide-y divide-border">
               {filtered.map((s) => (
                 <li key={s.id}>
                   <AttendanceRow
@@ -339,19 +429,33 @@ export function TeacherAttendancePage() {
               />
             )}
 
-            <div className="shrink-0 border-t bg-card px-4 py-3">
-              <div className="flex gap-2">
+            <div className="border-t border-border bg-primary/[0.04] px-4 py-4 sm:px-5">
+              <p className="mb-3 text-center text-xs text-muted-foreground sm:text-left">
+                <span className="font-semibold text-foreground">{presentCount}</span> present
+                <span className="mx-1.5 text-border">·</span>
+                <span className="font-semibold text-destructive">{absentCount}</span> absent
+                {leaveCount > 0 && (
+                  <>
+                    <span className="mx-1.5 text-border">·</span>
+                    <span className="font-semibold text-warning-foreground">{leaveCount}</span> on
+                    leave
+                  </>
+                )}
+                <span className="mx-1.5 text-border">·</span>
+                {students.length} total
+              </p>
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
                 <Button
                   variant="outline"
                   disabled={saving || !students.length}
-                  className="h-11 flex-1 rounded-xl"
+                  className="h-11 w-full rounded-xl sm:w-auto sm:min-w-[9.5rem]"
                   onClick={() => submit(true)}
                 >
                   {saving ? "Saving…" : "Save draft"}
                 </Button>
                 <Button
                   disabled={saving || !students.length}
-                  className="h-11 flex-1 rounded-xl gap-2 font-semibold shadow-glow"
+                  className="h-11 w-full gap-2 rounded-xl font-semibold shadow-glow sm:min-w-[11.5rem] sm:w-auto"
                   onClick={() => setSubmitConfirmOpen(true)}
                 >
                   <Save className="size-4" />
@@ -515,9 +619,17 @@ function ReportsView({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <div>
+    <div className={className}>
       <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{label}</label>
       {children}
     </div>

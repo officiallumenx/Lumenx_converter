@@ -22,6 +22,11 @@ import type {
   TeacherStudent,
   TimetableSlot,
 } from "./types";
+import { getInitials } from "@lumenx/utils";
+import { gradeFor } from "@/lib/marks-utils";
+import { getTodayDayName } from "@/lib/weekday";
+
+export { getTodayDayName };
 
 export const teacherProfile: TeacherProfile = {
   id: "T-1042",
@@ -35,6 +40,7 @@ export const teacherProfile: TeacherProfile = {
   department: "Science & Mathematics",
   joinedOn: "June 2018",
   bio: "Passionate mathematics educator with 8 years of experience in secondary education. Specialises in making abstract concepts concrete through visual learning and real-world applications. Class teacher for 10-B.",
+  hasTransport: true,
 };
 
 export const teacherClasses: TeacherClass[] = [
@@ -119,24 +125,6 @@ const STUDENT_NAMES = [
   "Kiran Das",
 ];
 
-function initials(name: string) {
-  return name
-    .split(" ")
-    .map((p) => p[0])
-    .join("")
-    .slice(0, 2);
-}
-
-function gradeFor(total: number) {
-  if (total >= 90) return "A+";
-  if (total >= 80) return "A";
-  if (total >= 70) return "B+";
-  if (total >= 60) return "B";
-  if (total >= 50) return "C";
-  if (total >= 33) return "D";
-  return "F";
-}
-
 const INSTITUTE_GRADES = ["6", "7", "8", "9", "10", "11", "12"] as const;
 const INSTITUTE_SECTIONS = ["A", "B", "C"] as const;
 
@@ -182,7 +170,7 @@ function buildInstituteStudents(): TeacherStudent[] {
         homeworkSubmissionPct: 58 + ((nameIdx * 11 + i * 2) % 42),
         avgScore: score,
         grade: gradeFor(score),
-        avatarInitials: initials(name),
+        avatarInitials: getInitials(name, 2),
       });
       nameIdx += 1;
     }
@@ -366,6 +354,13 @@ function buildSubmissions(): AssignmentSubmission[] {
           : null,
         note: submitted ? "Submitted via Connect portal." : "",
         graded: asg.status === "submitted" && submitted,
+        marks:
+          submitted && asg.type === "assignment"
+            ? Math.min(100, 55 + ((i * 13) % 45))
+            : submitted && asg.type === "homework"
+              ? Math.min(10, 6 + (i % 5))
+              : null,
+        maxMarks: asg.type === "assignment" ? 100 : 10,
       });
     });
   }
@@ -859,9 +854,10 @@ export function getClassTimetableForDay(classId: string, day: string): Timetable
   return getClassTimetable(classId).filter((s) => s.day === day);
 }
 
-export function getTodayDayName(): string {
-  const idx = Math.max(0, Math.min(5, new Date().getDay() - 1));
-  return DAYS[idx];
+/** Current day if it is a teaching day, otherwise the first teaching day (for a default tab). */
+export function getDefaultTeacherDay(): string {
+  const today = getTodayDayName();
+  return (DAYS as readonly string[]).includes(today) ? today : DAYS[0];
 }
 
 export const teacherNotifications: TeacherNotification[] = [
@@ -1043,6 +1039,8 @@ export interface TeacherFeeRecord {
   studentId: string;
   studentName: string;
   roll: string;
+  className: string;
+  section: string;
   classLabel: string;
   tuition: { amount: number; status: "paid" | "due" | "overdue" };
   examFee: { amount: number; status: "paid" | "due" | "overdue" };
@@ -1050,82 +1048,47 @@ export interface TeacherFeeRecord {
   totalDue: number;
 }
 
-export const teacherClassFees: TeacherFeeRecord[] = [
-  {
-    studentId: "cls-10b-math-s01",
-    studentName: "Arjun Mehta",
-    roll: "01",
-    classLabel: "10-B",
-    tuition: { amount: 12000, status: "overdue" },
-    examFee: { amount: 1500, status: "overdue" },
-    transport: { amount: 3000, status: "due" },
-    totalDue: 16500,
-  },
-  {
-    studentId: "cls-10b-math-s02",
-    studentName: "Anitha Kumar",
-    roll: "02",
-    classLabel: "10-B",
-    tuition: { amount: 12000, status: "paid" },
-    examFee: { amount: 1500, status: "due" },
-    totalDue: 1500,
-  },
-  {
-    studentId: "cls-10b-math-s03",
-    studentName: "Bharath Raj",
-    roll: "03",
-    classLabel: "10-B",
-    tuition: { amount: 12000, status: "paid" },
-    examFee: { amount: 1500, status: "paid" },
-    totalDue: 0,
-  },
-  {
-    studentId: "cls-10b-math-s04",
-    studentName: "Deepa Nair",
-    roll: "04",
-    classLabel: "10-B",
-    tuition: { amount: 12000, status: "due" },
-    examFee: { amount: 1500, status: "paid" },
-    transport: { amount: 3000, status: "overdue" },
-    totalDue: 15000,
-  },
-  {
-    studentId: "cls-10b-math-s05",
-    studentName: "Priya Sharma",
-    roll: "05",
-    classLabel: "10-B",
-    tuition: { amount: 12000, status: "paid" },
-    examFee: { amount: 1500, status: "paid" },
-    totalDue: 0,
-  },
-  {
-    studentId: "cls-10b-math-s06",
-    studentName: "Rahul Singh",
-    roll: "06",
-    classLabel: "10-B",
-    tuition: { amount: 12000, status: "overdue" },
-    examFee: { amount: 1500, status: "due" },
-    totalDue: 13500,
-  },
-  {
-    studentId: "cls-10b-math-s07",
-    studentName: "Sonal Joshi",
-    roll: "07",
-    classLabel: "10-B",
-    tuition: { amount: 12000, status: "paid" },
-    examFee: { amount: 1500, status: "due" },
-    totalDue: 1500,
-  },
-  {
-    studentId: "cls-10b-math-s08",
-    studentName: "Kavya Nair",
-    roll: "08",
-    classLabel: "10-B",
-    tuition: { amount: 12000, status: "due" },
-    examFee: { amount: 1500, status: "due" },
-    totalDue: 13500,
-  },
-];
+function feeStatusForStudent(index: number, slot: 0 | 1 | 2): "paid" | "due" | "overdue" {
+  const cycle: ("paid" | "due" | "overdue")[] = ["paid", "due", "overdue", "paid", "due"];
+  return cycle[(index + slot) % cycle.length];
+}
+
+function buildTeacherClassFees(): TeacherFeeRecord[] {
+  const rows: TeacherFeeRecord[] = [];
+  for (const cls of teacherClasses) {
+    const students = getStudentsByClass(cls.id).slice(0, 6);
+    students.forEach((s, i) => {
+      const tuitionStatus = feeStatusForStudent(i, 0);
+      const examStatus = feeStatusForStudent(i, 1);
+      const hasTransport = i % 3 !== 1;
+      const transportStatus = hasTransport ? feeStatusForStudent(i, 2) : undefined;
+      const tuition = { amount: 12000, status: tuitionStatus };
+      const examFee = { amount: 1500, status: examStatus };
+      const transport = hasTransport
+        ? { amount: 3000, status: transportStatus! }
+        : undefined;
+      const totalDue =
+        (tuition.status !== "paid" ? tuition.amount : 0) +
+        (examFee.status !== "paid" ? examFee.amount : 0) +
+        (transport && transport.status !== "paid" ? transport.amount : 0);
+      rows.push({
+        studentId: s.id,
+        studentName: s.name,
+        roll: s.roll,
+        className: cls.className,
+        section: cls.section,
+        classLabel: `${cls.className}-${cls.section}`,
+        tuition,
+        examFee,
+        transport,
+        totalDue,
+      });
+    });
+  }
+  return rows;
+}
+
+export const teacherClassFees: TeacherFeeRecord[] = buildTeacherClassFees();
 
 export const attendanceReports: AttendanceReport[] = [
   { period: "daily", label: "Today", present: 30, absent: 2, rate: 94 },

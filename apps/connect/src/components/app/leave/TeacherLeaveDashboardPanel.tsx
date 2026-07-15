@@ -11,11 +11,7 @@ export function TeacherLeaveDashboardPanel() {
     leaveStore.init();
   }, []);
 
-  const requests = useSyncExternalStore(
-    leaveStore.subscribe,
-    leaveStore.getAll,
-    leaveStore.getAll,
-  );
+  const requests = useSyncExternalStore(leaveStore.subscribe, leaveStore.getAll, leaveStore.getAll);
   const pending = leaveStore.getPending().slice(0, 2);
 
   return (
@@ -25,12 +21,18 @@ export function TeacherLeaveDashboardPanel() {
           <BellRing className="size-4 text-warning-foreground" />
           <h2 className="font-semibold">Leave alerts</h2>
           {pending.length > 0 && (
-            <Badge variant="outline" className="border-warning/40 text-warning-foreground text-[10px]">
+            <Badge
+              variant="outline"
+              className="border-warning/40 text-warning-foreground text-[10px]"
+            >
               {leaveStore.getPending().length} pending
             </Badge>
           )}
         </div>
-        <Link to="/leave" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+        <Link
+          to="/leave"
+          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+        >
           Manage <ArrowRight className="size-3" />
         </Link>
       </div>

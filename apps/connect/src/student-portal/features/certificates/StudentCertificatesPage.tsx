@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { useStudentPortal } from "@/context/StudentPortalContext";
-import { type StudentCertificateRecord } from "@/lib/student/mock-data";
+import { useParentPortal } from "@/context/ParentPortalContext";
+import { studentCertificateRecords as demoCertificateRecords } from "@/lib/student/mock-data";
 import { Badge, Button, cn, Input } from "@lumenx/ui";
 import { FileText, Download, Eye, Share2, Search } from "lucide-react";
 import { toast } from "sonner";
@@ -15,15 +16,28 @@ const CATEGORY_LABEL = {
   technical: "Technical",
 } as const;
 
-export function StudentCertificatesPage() {
+export function StudentCertificatesPage({ readOnlyParent = false }: { readOnlyParent?: boolean }) {
   const portal = useStudentPortal();
+  const parentPortal = useParentPortal();
+  const parentSnap = readOnlyParent && parentPortal.isParent ? parentPortal.snapshot : null;
   const [filter, setFilter] = useState<"all" | keyof typeof CATEGORY_LABEL>("all");
   const [query, setQuery] = useState("");
   const [preview, setPreview] = useState<StudentCertificateRecord | null>(null);
 
   const studentCertificateRecords =
-    portal.isStudent && portal.snapshot ? portal.snapshot.certificates : [];
-  const studentProfile = portal.snapshot?.profile;
+    readOnlyParent && parentSnap
+      ? demoCertificateRecords
+      : portal.isStudent && portal.snapshot
+        ? portal.snapshot.certificates
+        : [];
+  const studentProfile =
+    readOnlyParent && parentSnap
+      ? {
+          name: parentSnap.child.name,
+          class: parentSnap.child.className,
+          section: parentSnap.child.section,
+        }
+      : portal.snapshot?.profile;
 
   const filtered = useMemo(() => {
     let list = studentCertificateRecords;
@@ -42,14 +56,30 @@ export function StudentCertificatesPage() {
     );
   }, [filter, query, studentCertificateRecords]);
 
-  if (!portal.isStudent) return null;
-  if (portal.isLoading || !portal.snapshot || !studentProfile) return <PageSkeleton rows={6} />;
+  if (!readOnlyParent && !portal.isStudent) return null;
+  if (readOnlyParent && parentPortal.isLoading && !parentSnap) return <PageSkeleton rows={6} />;
+  if (readOnlyParent && !parentSnap) {
+    return (
+      <EmptyState
+        icon={FileText}
+        title="Certificates unavailable"
+        description="Select a linked child to view their certificates."
+      />
+    );
+  }
+  if (!readOnlyParent && (portal.isLoading || !portal.snapshot || !studentProfile)) {
+    return <PageSkeleton rows={6} />;
+  }
 
   return (
     <div className="min-w-0 space-y-5">
       <PageHeader
         title="Certificates"
-        subtitle={`${studentCertificateRecords.length} certificates on record · Download or share anytime`}
+        subtitle={
+          readOnlyParent && parentSnap
+            ? `Read-only certificates for ${parentSnap.child.name}`
+            : `${studentCertificateRecords.length} certificates on record · Download or share anytime`
+        }
       />
 
       <div className="relative max-w-md">
@@ -68,10 +98,7 @@ export function StudentCertificatesPage() {
             key={f}
             type="button"
             onClick={() => setFilter(f)}
-            className={cn(
-              "rounded-full px-3 py-1.5 text-xs font-medium capitalize transition-colors",
-              filter === f ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80",
-            )}
+            className={cn("student-filter-chip capitalize", filter === f && "is-active")}
           >
             {f === "all" ? "All" : CATEGORY_LABEL[f]}
           </button>
@@ -81,7 +108,7 @@ export function StudentCertificatesPage() {
       {filtered.length ? (
         <div className="grid gap-3 sm:grid-cols-2">
           {filtered.map((c) => (
-            <article key={c.id} className="rounded-2xl border bg-card p-4 shadow-soft">
+            <article key={c.id} className="student-list-row rounded-2xl border bg-card p-4 shadow-soft">
               <div className="flex items-start gap-3">
                 <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
                   <FileText className="size-5" />
@@ -91,15 +118,20 @@ export function StudentCertificatesPage() {
                   <p className="mt-1 text-xs text-muted-foreground">
                     Issued {c.issuedOn} · {c.issuer}
                   </p>
-                  <p className="mt-0.5 text-[10px] text-muted-foreground font-mono">{c.refNo}</p>
-                  <Badge variant="outline" className="mt-2 text-[10px]">
+                  <p className="mt-0.5 text-xs text-muted-foreground font-mono">{c.refNo}</p>
+                  <Badge variant="outline" className="mt-2 text-xs">
                     {CATEGORY_LABEL[c.category]}
                   </Badge>
                 </div>
               </div>
               <p className="mt-3 text-xs text-muted-foreground line-clamp-2">{c.description}</p>
               <div className="mt-4 flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" className="rounded-lg gap-1.5" onClick={() => setPreview(c)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-lg gap-1.5"
+                  onClick={() => setPreview(c)}
+                >
                   <Eye className="size-3.5" /> Preview
                 </Button>
                 <Button
@@ -155,7 +187,9 @@ export function StudentCertificatesPage() {
                 <div className="text-xs uppercase tracking-widest text-muted-foreground">
                   Certificate of Achievement
                 </div>
-                <div className="mt-1 text-[10px] font-mono text-muted-foreground">{preview.refNo}</div>
+                <div className="mt-1 text-[10px] font-mono text-muted-foreground">
+                  {preview.refNo}
+                </div>
                 <div className="mt-3 font-display text-lg font-semibold">{preview.title}</div>
                 <div className="mt-2 text-muted-foreground">Awarded to {studentProfile.name}</div>
                 <div className="mt-2 text-xs leading-relaxed text-muted-foreground px-2">

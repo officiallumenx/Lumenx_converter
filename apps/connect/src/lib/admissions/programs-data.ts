@@ -230,7 +230,11 @@ export function getFeaturedPrograms(limit = 4): AdmissionProgram[] {
   return picked;
 }
 
-export function getProgramsGroupedByInstitute(): { instituteId: string; instituteName: string; programs: AdmissionProgram[] }[] {
+export function getProgramsGroupedByInstitute(): {
+  instituteId: string;
+  instituteName: string;
+  programs: AdmissionProgram[];
+}[] {
   const byInstitute = new Map<string, AdmissionProgram[]>();
   for (const p of ADMISSION_PROGRAMS_V2) {
     const list = byInstitute.get(p.instituteId) ?? [];

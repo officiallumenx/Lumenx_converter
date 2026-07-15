@@ -65,7 +65,9 @@ export function AdmissionsAuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AdmissionsAuthContext.Provider value={{ user, hydrated, signUp, signIn, resetPassword, signOut, refresh }}>
+    <AdmissionsAuthContext.Provider
+      value={{ user, hydrated, signUp, signIn, resetPassword, signOut, refresh }}
+    >
       {children}
     </AdmissionsAuthContext.Provider>
   );

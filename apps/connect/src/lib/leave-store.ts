@@ -71,7 +71,7 @@ function parentStatusAlert(
   };
 }
 
-function teacherNewLeaveAlert(req: LeaveRequest): SchoolAlert {
+function teacherNewLeaveAlert(req: LeaveRequest, classTeacherName = "Class teacher"): SchoolAlert {
   const range = formatLeaveRequestDates(req);
   const days = leaveDayCount(req);
   return {
@@ -82,7 +82,7 @@ function teacherNewLeaveAlert(req: LeaveRequest): SchoolAlert {
     severity: "mandatory",
     category: "leave",
     time: req.appliedAt,
-    source: "Parent portal",
+    source: `Parent portal · ${classTeacherName}`,
     childName: req.childName,
     childId: req.childId,
     unread: true,
@@ -110,6 +110,11 @@ export const leaveStore = {
       }
     }
   },
+  reset() {
+    requests = seedLeaveRequests.map((r) => ({ ...r }));
+    initialized = false;
+    notify();
+  },
   getAll: (): LeaveRequest[] => requests,
   getForChild: (childId: string): LeaveRequest[] => requests.filter((r) => r.childId === childId),
   getPending: (): LeaveRequest[] => requests.filter((r) => r.status === "pending"),
@@ -124,6 +129,7 @@ export const leaveStore = {
     childName: string;
     className: string;
     section: string;
+    classTeacherName?: string;
     leaveStartDate: string;
     leaveEndDate: string;
     description: string;
@@ -141,15 +147,16 @@ export const leaveStore = {
     notify();
 
     const range = formatLeaveRequestDates(req);
+    const classTeacher = input.classTeacherName ?? "Class teacher";
     alertStore.addAlert(
       parentStatusAlert(
         req,
         "Leave application submitted",
-        `Pending class teacher approval for ${range}`,
-        `Your leave request for ${req.childName} (${range}) has been sent to the class teacher.\n\nReason: ${req.description}\n\nYou will receive an alert when it is approved, rejected, or reviewed.`,
+        `Pending approval from ${classTeacher} for ${range}`,
+        `Your leave request for ${req.childName} (${range}) has been sent to ${classTeacher}.\n\nReason: ${req.description}\n\nYou will receive an alert when it is approved, rejected, or reviewed.`,
       ),
     );
-    alertStore.addAlert(teacherNewLeaveAlert(req));
+    alertStore.addAlert(teacherNewLeaveAlert(req, classTeacher));
 
     return req;
   },
@@ -168,6 +175,9 @@ export const leaveStore = {
     notify();
     const req = requests.find((r) => r.id === id);
     if (!req) return;
+
+    // Clear the "Review leave" action prompt now that the request is decided.
+    alertStore.resolveByLeaveId(id);
 
     void import("@/lib/teacher/repositories").then(({ teacherRepository }) =>
       teacherRepository.applyApprovedLeave(req),
@@ -199,6 +209,7 @@ export const leaveStore = {
     notify();
     const req = requests.find((r) => r.id === id);
     if (!req) return;
+    alertStore.resolveByLeaveId(id);
     const range = formatLeaveRequestDates(req);
     alertStore.addAlert(
       parentStatusAlert(
@@ -224,6 +235,7 @@ export const leaveStore = {
     notify();
     const req = requests.find((r) => r.id === id);
     if (!req) return;
+    alertStore.resolveByLeaveId(id);
     const range = formatLeaveRequestDates(req);
     alertStore.addAlert(
       parentStatusAlert(

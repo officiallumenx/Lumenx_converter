@@ -1,11 +1,4 @@
 import { cn } from "@lumenx/ui";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@lumenx/ui";
 import { CalendarDays } from "lucide-react";
 
 export function TimetableDayPicker({
@@ -24,85 +17,69 @@ export function TimetableDayPicker({
   const countFor = (d: string) => periodCounts?.[d] ?? 0;
 
   return (
-    <div className="min-w-0 space-y-3">
-      <div className="md:hidden">
-        <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-          Select day
-        </label>
-        <Select value={selected} onValueChange={onSelect}>
-          <SelectTrigger className="h-11 w-full rounded-xl">
-            <span className="flex min-w-0 flex-1 items-center gap-2">
-              <CalendarDays className="size-4 shrink-0 text-primary" />
-              <SelectValue placeholder="Choose a day" />
-            </span>
-          </SelectTrigger>
-          <SelectContent position="popper" className="z-[100]">
-            {days.map((d) => (
-              <SelectItem key={d} value={d}>
-                {d}
-                {d === todayName ? " · Today" : ""} — {countFor(d)} period
-                {countFor(d) === 1 ? "" : "s"}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+    <section className="min-w-0 rounded-2xl border border-border bg-card p-3 shadow-soft sm:p-4">
+      <div className="mb-3 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+        <CalendarDays className="size-3.5 text-primary shrink-0" />
+        Select day
       </div>
 
-      <div className="hidden min-w-0 gap-2 overflow-x-auto pb-1 scrollbar-hide md:flex lg:hidden">
-        {days.map((d) => (
-          <button
-            key={d}
-            type="button"
-            onClick={() => onSelect(d)}
-            className={cn(
-              "shrink-0 rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap transition-all",
-              selected === d
-                ? "bg-primary text-primary-foreground shadow-glow"
-                : "bg-muted text-muted-foreground hover:bg-accent",
-              d === todayName && selected !== d && "ring-1 ring-primary/30",
-            )}
-          >
-            {d.slice(0, 3)}
-            {d === todayName && <span className="ml-1 text-[10px] opacity-90">· Today</span>}
-          </button>
-        ))}
-      </div>
-
-      <div className="hidden min-w-0 grid-cols-3 gap-2 lg:grid xl:grid-cols-6">
+      <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
         {days.map((d) => {
-          const count = countFor(d);
           const isSelected = selected === d;
           const isToday = d === todayName;
+          const count = countFor(d);
+
           return (
             <button
               key={d}
               type="button"
               onClick={() => onSelect(d)}
+              aria-pressed={isSelected}
+              aria-label={isToday ? `${d}, today` : d}
               className={cn(
-                "rounded-xl border p-3 text-left transition-all",
+                "flex min-w-0 flex-col items-center justify-center rounded-xl px-0.5 py-2 sm:py-2.5 motion-fast transition-[background-color,color,box-shadow,transform] touch-manipulation",
                 isSelected
-                  ? "border-primary bg-primary/8 shadow-soft ring-1 ring-primary/20"
-                  : "border-border bg-card hover:border-primary/30 hover:bg-muted/30",
-                isToday && !isSelected && "ring-1 ring-primary/20",
+                  ? "bg-primary text-white shadow-soft scale-[1.02]"
+                  : "bg-white text-primary border border-primary/30 hover:border-primary/50 hover:bg-primary/[0.04] dark:bg-background dark:border-primary/25",
+                isToday && !isSelected && "ring-2 ring-primary/20 ring-offset-1 ring-offset-card",
               )}
             >
-              <div className="flex items-center justify-between gap-1">
-                <span className={cn("text-sm font-semibold", isSelected && "text-primary")}>
-                  {d}
+              <span className="text-[11px] font-semibold leading-none sm:text-xs">{d.slice(0, 3)}</span>
+              {isToday && (
+                <span
+                  className={cn(
+                    "mt-0.5 text-[8px] font-medium leading-none sm:text-[9px]",
+                    isSelected ? "text-white/90" : "text-primary/80",
+                  )}
+                >
+                  Today
                 </span>
-                {isToday && (
-                  <span className="rounded-md bg-primary/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-primary">
-                    Today
-                  </span>
-                )}
-              </div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                {count} period{count === 1 ? "" : "s"}
-              </div>
+              )}
+              {!isToday && count > 0 && (
+                <span
+                  className={cn(
+                    "mt-0.5 text-[8px] tabular-nums leading-none sm:text-[9px]",
+                    isSelected ? "text-white/80" : "text-muted-foreground",
+                  )}
+                >
+                  {count}p
+                </span>
+              )}
             </button>
           );
         })}
       </div>
-    </div>
+
+      <p className="mt-3 text-xs text-muted-foreground">
+        <span className="font-medium text-foreground">{selected}</span>
+        {selected === todayName ? " · Today" : ""}
+        {countFor(selected) > 0 && (
+          <span>
+            {" "}
+            · {countFor(selected)} period{countFor(selected) === 1 ? "" : "s"}
+          </span>
+        )}
+      </p>
+    </section>
   );
 }

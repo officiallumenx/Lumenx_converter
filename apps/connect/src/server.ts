@@ -1,4 +1,4 @@
-import "@lumenx/utils/error-capture";
+import "../../../packages/utils/src/error-capture";
 
 import { consumeLastCapturedError } from "@lumenx/utils";
 import { renderErrorPage } from "@lumenx/utils";

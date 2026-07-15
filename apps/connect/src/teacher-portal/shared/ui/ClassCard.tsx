@@ -10,7 +10,7 @@ export function ClassCard({ cls, className }: { cls: TeacherClass; className?: s
       to="/classes"
       search={{ id: cls.id }}
       className={cn(
-        "group flex min-w-0 flex-col rounded-2xl border border-border bg-card p-4 shadow-soft transition-all hover:border-primary/30 hover:shadow-glow active:scale-[0.99] sm:p-5",
+        "teacher-list-row group flex min-w-0 flex-col rounded-2xl border border-border bg-card p-4 shadow-soft hover:border-primary/30 sm:p-5",
         className,
       )}
     >

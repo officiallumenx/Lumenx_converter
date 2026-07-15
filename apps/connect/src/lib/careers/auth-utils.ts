@@ -8,11 +8,15 @@ export function isRecruiter(user: CareersUser | null | undefined): boolean {
   return user?.accountType === "recruiter";
 }
 
-export function careersDefaultRoute(user: CareersUser): "/careers/dashboard" | "/careers/recruiter" {
+export function careersDefaultRoute(
+  user: CareersUser,
+): "/careers/dashboard" | "/careers/recruiter" {
   return user.accountType === "recruiter" ? "/careers/recruiter" : "/careers/dashboard";
 }
 
-export function normalizeCareersUser(raw: Partial<CareersUser> & Pick<CareersUser, "id" | "name" | "passwordHash" | "createdAt">): CareersUser {
+export function normalizeCareersUser(
+  raw: Partial<CareersUser> & Pick<CareersUser, "id" | "name" | "passwordHash" | "createdAt">,
+): CareersUser {
   return {
     id: raw.id,
     name: raw.name,
@@ -30,7 +34,10 @@ export function normalizeCareersUser(raw: Partial<CareersUser> & Pick<CareersUse
   };
 }
 
-export const ORGANIZATION_TYPE_OPTIONS: { value: import("./types").OrganizationType; label: string }[] = [
+export const ORGANIZATION_TYPE_OPTIONS: {
+  value: import("./types").OrganizationType;
+  label: string;
+}[] = [
   { value: "education", label: "Education" },
   { value: "healthcare", label: "Healthcare" },
   { value: "technology", label: "Technology" },

@@ -1,17 +1,18 @@
 import { useMemo } from "react";
 import { SectionCard } from "@/components/app/SectionCard";
+import { ChildSwitcher } from "@/components/app/ChildSwitcher";
 import { AchievementBadge } from "@/components/app/motivation/AchievementBadge";
 import {
+  getLearnerCompetitions,
   getLearnerEvents,
   getLearnerSquads,
-  getSportsCulturalAchievements,
-  getSportsCulturalCompetitions,
+  getLearnerSportsAchievements,
   pickNextHighlight,
   practiceAttendancePct,
   resolveLearnerSportsProfile,
   type LearnerRef,
 } from "@/lib/sports-utils";
-import { children as allChildren } from "@/lib/mock-data";
+import { prefersReducedMotion } from "@/lib/prefers-reduced-motion";
 import { Badge, cn, Tabs, TabsList, TabsTrigger, TabsContent } from "@lumenx/ui";
 import {
   Trophy,
@@ -23,15 +24,7 @@ import {
   Sparkles,
   Clock,
 } from "lucide-react";
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-  Tooltip,
-} from "recharts";
+import { ResponsiveContainer, BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip } from "recharts";
 import type { SportEvent } from "@lumenx/types";
 
 const STATUS_TONE = {
@@ -43,68 +36,38 @@ const STATUS_TONE = {
 export function LearnerSportsView({
   learner,
   subtitle,
-  showAllChildrenStrip,
+  showChildSwitcher,
 }: {
   learner: LearnerRef;
   subtitle: string;
-  showAllChildrenStrip?: boolean;
+  showChildSwitcher?: boolean;
 }) {
-  const squads = useMemo(() => getLearnerSquads(learner), [learner]);
-  const profile = useMemo(() => resolveLearnerSportsProfile(learner), [learner]);
+  const childKey = learner.childId ?? `${learner.name}:${learner.rollNo}`;
+
+  const squads = useMemo(() => getLearnerSquads(learner), [childKey, learner]);
+  const profile = useMemo(() => resolveLearnerSportsProfile(learner), [childKey, learner]);
   const events = useMemo(
     () => getLearnerEvents(squads, profile.registeredEventIds),
-    [squads, profile],
+    [squads, profile, childKey],
   );
   const nextEvent = useMemo(() => pickNextHighlight(events), [events]);
-  const sportsAchievements = useMemo(() => getSportsCulturalAchievements(), []);
-  const competitions = useMemo(() => getSportsCulturalCompetitions(), []);
+  const sportsAchievements = useMemo(() => getLearnerSportsAchievements(learner), [childKey, learner]);
+  const competitions = useMemo(() => getLearnerCompetitions(learner), [childKey, learner]);
   const attendancePct = practiceAttendancePct(profile.practiceWeeks);
-
-  const childSummaries = useMemo(() => {
-    if (!showAllChildrenStrip) return [];
-    return allChildren.map((c) => {
-      const ref: LearnerRef = { name: c.name, rollNo: c.rollNo, childId: c.id };
-      const sq = getLearnerSquads(ref);
-      const prof = resolveLearnerSportsProfile(ref);
-      const ev = getLearnerEvents(sq, prof.registeredEventIds);
-      const next = pickNextHighlight(ev);
-      return { child: c, squads: sq.length, next };
-    });
-  }, [showAllChildrenStrip]);
+  // Scale the chart to the busiest week (min 3) so bars never clip when a week has >3 sessions.
+  const practiceMax = useMemo(
+    () => Math.max(3, ...profile.practiceWeeks.map((w) => w.total)),
+    [profile.practiceWeeks],
+  );
 
   return (
     <div className="min-w-0 space-y-4">
-      {showAllChildrenStrip && childSummaries.length > 0 && (
-        <SectionCard title="Your children — sports & cultural">
-          <div className="grid min-w-0 gap-2 sm:grid-cols-3">
-            {childSummaries.map(({ child, squads: sc, next }) => (
-              <div
-                key={child.id}
-                className={cn(
-                  "rounded-xl border p-3 text-sm",
-                  learner.childId === child.id
-                    ? "border-primary/40 bg-primary/5"
-                    : "border-border bg-muted/20",
-                )}
-              >
-                <div className="font-medium">{child.name}</div>
-                <div className="text-xs text-muted-foreground">
-                  {child.className} {child.section} · {sc} squad{sc === 1 ? "" : "s"}
-                </div>
-                {next ? (
-                  <div className="mt-2 text-xs">
-                    <span className="text-muted-foreground">Next: </span>
-                    <span className="font-medium">{next.title}</span>
-                  </div>
-                ) : (
-                  <div className="mt-2 text-xs text-muted-foreground">No upcoming events</div>
-                )}
-              </div>
-            ))}
-          </div>
-          <p className="mt-2 text-xs text-muted-foreground">{subtitle}</p>
-        </SectionCard>
-      )}
+      {showChildSwitcher ? (
+        <div className="space-y-2">
+          <ChildSwitcher />
+          <p className="text-xs text-muted-foreground">{subtitle}</p>
+        </div>
+      ) : null}
 
       {nextEvent && <UpcomingHighlight event={nextEvent} learnerName={learner.name} />}
 
@@ -181,19 +144,27 @@ export function LearnerSportsView({
                 <BarChart data={profile.practiceWeeks}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="week" fontSize={11} tickLine={false} axisLine={false} />
-                  <YAxis domain={[0, 3]} fontSize={11} tickLine={false} axisLine={false} />
+                  <YAxis
+                    domain={[0, practiceMax]}
+                    allowDecimals={false}
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                  />
                   <Tooltip />
                   <Bar
                     dataKey="total"
                     fill="oklch(0.86 0.04 250)"
                     radius={[6, 6, 0, 0]}
                     name="Scheduled"
+                    isAnimationActive={!prefersReducedMotion()}
                   />
                   <Bar
                     dataKey="attended"
                     fill="oklch(0.55 0.22 260)"
                     radius={[6, 6, 0, 0]}
                     name="Attended"
+                    isAnimationActive={!prefersReducedMotion()}
                   />
                 </BarChart>
               </ResponsiveContainer>
@@ -201,6 +172,11 @@ export function LearnerSportsView({
           </div>
           <div>
             <h3 className="mb-2 font-semibold">Competition results</h3>
+            {competitions.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No competition results recorded for {learner.name} yet.
+              </p>
+            ) : (
             <ul className="space-y-2">
               {competitions.map((c) => (
                 <li
@@ -224,6 +200,7 @@ export function LearnerSportsView({
                 </li>
               ))}
             </ul>
+            )}
           </div>
         </TabsContent>
 

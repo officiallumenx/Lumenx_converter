@@ -1,4 +1,11 @@
 /** Student-portal demo data for Phase 2 modules */
+import {
+  buildAttendanceDays as buildStudentAttendanceDays,
+  computeAttendanceSummary,
+  shiftMonth,
+} from "@/lib/attendance/calendar";
+
+export { buildStudentAttendanceDays };
 
 export type AchievementCategory = "academic" | "sports" | "discipline" | "cultural";
 
@@ -243,19 +250,48 @@ export const studentCertificateRecords: StudentCertificateRecord[] = [
 
 export type AttendanceDayStatus = import("@/lib/attendance/types").AttendanceDayStatus;
 
+const STUDENT_ATTENDANCE_YEAR = 2026;
+const STUDENT_ATTENDANCE_MONTH = 5; // June 2026
+const STUDENT_ATTENDANCE_SEED = 0;
+
+// Derive the summary from the same calendar computation that renders the day grid so the
+// headline percentage/counts can never diverge from the calendar (single source of truth).
+const studentAttendanceComputed = computeAttendanceSummary(
+  buildStudentAttendanceDays(STUDENT_ATTENDANCE_YEAR, STUDENT_ATTENDANCE_MONTH, STUDENT_ATTENDANCE_SEED),
+  STUDENT_ATTENDANCE_YEAR,
+  STUDENT_ATTENDANCE_MONTH,
+);
+
 export const studentAttendanceSummary = {
-  monthLabel: "June 2026",
-  year: 2026,
-  month: 5,
-  attendancePct: 92,
+  monthLabel: studentAttendanceComputed.monthLabel,
+  year: STUDENT_ATTENDANCE_YEAR,
+  month: STUDENT_ATTENDANCE_MONTH,
+  attendancePct: studentAttendanceComputed.attendancePct,
   classAvgPct: 89,
-  present: 18,
-  absent: 1,
-  leave: 1,
-  workingDays: 20,
+  present: studentAttendanceComputed.present,
+  absent: studentAttendanceComputed.absent,
+  leave: studentAttendanceComputed.leave,
+  workingDays: studentAttendanceComputed.workingDays,
 };
 
-export { buildAttendanceDays as buildStudentAttendanceDays } from "@/lib/attendance/calendar";
+export const STUDENT_ATTENDANCE_DEFAULTS = {
+  year: STUDENT_ATTENDANCE_YEAR,
+  month: STUDENT_ATTENDANCE_MONTH,
+  seed: STUDENT_ATTENDANCE_SEED,
+};
+
+// Month-over-month attendance delta, computed from the calendar rather than hardcoded.
+const studentAttendancePrevMonth = (() => {
+  const prev = shiftMonth(STUDENT_ATTENDANCE_YEAR, STUDENT_ATTENDANCE_MONTH, -1);
+  return computeAttendanceSummary(
+    buildStudentAttendanceDays(prev.year, prev.month, STUDENT_ATTENDANCE_SEED),
+    prev.year,
+    prev.month,
+  );
+})();
+
+export const studentAttendanceMonthDelta =
+  studentAttendanceComputed.attendancePct - studentAttendancePrevMonth.attendancePct;
 
 export const studentAttendanceTrend = [
   { week: "Week 1", pct: 88 },

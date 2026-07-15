@@ -1,0 +1,1 @@
+export { ActivityExtraCurricularPage } from "./ActivityExtraCurricularPage";

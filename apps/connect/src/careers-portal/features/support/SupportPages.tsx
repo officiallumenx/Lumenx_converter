@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "@lumenx/ui";
 import { Bell } from "lucide-react";
 import { toast } from "sonner";
@@ -20,7 +20,10 @@ import {
   CareersHelpCenterDialog,
   CareersReportIssueDialog,
 } from "@/careers-portal/features/support/CareersSupportDialogs";
-import { CAREERS_APP_VERSION, CAREERS_CONTACT } from "@/careers-portal/features/support/careers-support-content";
+import {
+  CAREERS_APP_VERSION,
+  CAREERS_CONTACT,
+} from "@/careers-portal/features/support/careers-support-content";
 import {
   getAllDocumentsForUser,
   getNotifications,
@@ -79,7 +82,9 @@ export function NotificationsPage() {
       <div className="animate-in fade-in duration-300 text-center py-16">
         <Bell className="mx-auto size-8 text-muted-foreground" />
         <p className="mt-3 text-sm font-medium">No notifications</p>
-        <p className="text-xs text-muted-foreground mt-1">Updates about your applications will appear here.</p>
+        <p className="text-xs text-muted-foreground mt-1">
+          Updates about your applications will appear here.
+        </p>
       </div>
     );
   }
@@ -88,10 +93,7 @@ export function NotificationsPage() {
 
   return (
     <div className="animate-in fade-in duration-300" key={tick}>
-      <CareersPageHeader
-        title="Notifications"
-        subtitle={`${unread} unread`}
-      />
+      <CareersPageHeader title="Notifications" subtitle={`${unread} unread`} />
       {unread > 0 && (
         <Button
           variant="outline"
@@ -120,7 +122,9 @@ export function NotificationsPage() {
           >
             <p className="font-medium text-sm">{n.title}</p>
             <p className="mt-1 text-xs text-muted-foreground">{n.body}</p>
-            <p className="mt-2 text-[10px] text-muted-foreground">{new Date(n.createdAt).toLocaleString("en-IN")}</p>
+            <p className="mt-2 text-[10px] text-muted-foreground">
+              {new Date(n.createdAt).toLocaleString("en-IN")}
+            </p>
           </button>
         ))}
       </div>
@@ -145,16 +149,35 @@ export function SettingsPage() {
 
       {user && (
         <SettingsSection title="Account" description="Signed in to Careers portal">
-          <SettingsRow label="Name" right={<span className="text-sm text-muted-foreground">{user.name}</span>} />
-          {user.email && <SettingsRow label="Email" right={<span className="text-sm text-muted-foreground">{user.email}</span>} />}
-          {user.phone && <SettingsRow label="Mobile" right={<span className="text-sm text-muted-foreground">{user.phone}</span>} />}
+          <SettingsRow
+            label="Name"
+            right={<span className="text-sm text-muted-foreground">{user.name}</span>}
+          />
+          {user.email && (
+            <SettingsRow
+              label="Email"
+              right={<span className="text-sm text-muted-foreground">{user.email}</span>}
+            />
+          )}
+          {user.phone && (
+            <SettingsRow
+              label="Mobile"
+              right={<span className="text-sm text-muted-foreground">{user.phone}</span>}
+            />
+          )}
         </SettingsSection>
       )}
 
       <SettingsSection title="Appearance">
         <div className="flex flex-wrap gap-2 py-1">
           {(["light", "dark", "system"] as CareersThemeMode[]).map((mode) => (
-            <Button key={mode} size="sm" variant={theme === mode ? "default" : "outline"} onClick={() => setTheme(mode)} className="capitalize">
+            <Button
+              key={mode}
+              size="sm"
+              variant={theme === mode ? "default" : "outline"}
+              onClick={() => setTheme(mode)}
+              className="capitalize"
+            >
               {mode}
             </Button>
           ))}
@@ -176,10 +199,24 @@ export function SettingsPage() {
       />
 
       <SettingsSection title="Legal">
-        <p className="text-sm text-muted-foreground py-1">Privacy Policy · Terms of Service (demo placeholders)</p>
+        <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+          <Link to="/careers/terms" className="text-primary font-medium hover:underline">
+            Terms & Conditions
+          </Link>
+          <Link to="/careers/privacy" className="text-primary font-medium hover:underline">
+            Privacy Policy
+          </Link>
+        </div>
       </SettingsSection>
 
-      <Button variant="destructive" className="w-full rounded-xl" onClick={() => { signOut(); nav({ to: "/careers/login" }); }}>
+      <Button
+        variant="destructive"
+        className="w-full rounded-xl"
+        onClick={() => {
+          signOut();
+          nav({ to: "/careers/login" });
+        }}
+      >
         Log out
       </Button>
 

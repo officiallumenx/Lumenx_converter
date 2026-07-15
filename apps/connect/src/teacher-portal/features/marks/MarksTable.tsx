@@ -1,5 +1,14 @@
-import { Input, Badge, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@lumenx/ui";
-import { gradeFor } from "@/lib/teacher/mock-data";
+import {
+  Input,
+  Badge,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@lumenx/ui";
+import { gradeFor, isPassing } from "@/lib/marks-utils";
 import type { MarkEntry } from "@/lib/teacher/types";
 
 function totalOf(r: MarkEntry): number | null {
@@ -32,7 +41,7 @@ export function MarksTable({
         <TableBody>
           {rows.map((r) => {
             const total = totalOf(r);
-            const passed = total != null && total >= 33;
+            const passed = total != null && isPassing(total);
             return (
               <TableRow key={r.studentId} className="hover:bg-muted/20">
                 <TableCell>
@@ -52,7 +61,11 @@ export function MarksTable({
                       placeholder="—"
                       onChange={(e) => {
                         const v = e.target.value;
-                        onUpdate(r.studentId, "internal", v === "" ? null : Math.max(0, Math.min(20, Number(v))));
+                        onUpdate(
+                          r.studentId,
+                          "internal",
+                          v === "" ? null : Math.max(0, Math.min(20, Number(v))),
+                        );
                       }}
                       className="h-9 w-20"
                     />
@@ -71,7 +84,11 @@ export function MarksTable({
                       placeholder="—"
                       onChange={(e) => {
                         const v = e.target.value;
-                        onUpdate(r.studentId, "exam", v === "" ? null : Math.max(0, Math.min(80, Number(v))));
+                        onUpdate(
+                          r.studentId,
+                          "exam",
+                          v === "" ? null : Math.max(0, Math.min(80, Number(v))),
+                        );
                       }}
                       className="h-9 w-20"
                     />
@@ -79,11 +96,21 @@ export function MarksTable({
                 </TableCell>
                 <TableCell className="font-semibold tabular-nums">{total ?? "—"}</TableCell>
                 <TableCell>
-                  {total != null ? <Badge variant="outline">{gradeFor(total)}</Badge> : <span className="text-muted-foreground">—</span>}
+                  {total != null ? (
+                    <Badge variant="outline">{gradeFor(total)}</Badge>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
                 </TableCell>
                 <TableCell>
                   {total != null ? (
-                    <Badge className={passed ? "border-0 bg-success/15 text-success" : "border-0 bg-destructive/15 text-destructive"}>
+                    <Badge
+                      className={
+                        passed
+                          ? "border-0 bg-success/15 text-success"
+                          : "border-0 bg-destructive/15 text-destructive"
+                      }
+                    >
                       {passed ? "Pass" : "Fail"}
                     </Badge>
                   ) : (
@@ -105,7 +132,7 @@ export function MarksAnalytics({ rows }: { rows: MarkEntry[] }) {
   const avg = Math.round(scored.reduce((a, b) => a + b, 0) / scored.length);
   const highest = Math.max(...scored);
   const lowest = Math.min(...scored);
-  const passCount = scored.filter((t) => t >= 33).length;
+  const passCount = scored.filter((t) => isPassing(t)).length;
   const failCount = scored.length - passCount;
 
   return (
@@ -115,9 +142,16 @@ export function MarksAnalytics({ rows }: { rows: MarkEntry[] }) {
         { label: "Highest", value: `${highest}/100` },
         { label: "Lowest", value: `${lowest}/100` },
         { label: "Passed", value: String(passCount), cls: "bg-success/10" },
-        { label: "Failed", value: String(failCount), cls: failCount > 0 ? "bg-destructive/10" : "bg-muted/30" },
+        {
+          label: "Failed",
+          value: String(failCount),
+          cls: failCount > 0 ? "bg-destructive/10" : "bg-muted/30",
+        },
       ].map((s) => (
-        <div key={s.label} className={`rounded-xl border border-border p-3 text-center ${s.cls ?? "bg-muted/30"}`}>
+        <div
+          key={s.label}
+          className={`rounded-xl border border-border p-3 text-center ${s.cls ?? "bg-muted/30"}`}
+        >
           <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{s.label}</div>
           <div className="font-display text-lg font-semibold tabular-nums">{s.value}</div>
         </div>

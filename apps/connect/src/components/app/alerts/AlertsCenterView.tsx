@@ -1,15 +1,7 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Link } from "@tanstack/react-router";
 import type { AlertCategory, AlertSeverity, SchoolAlert } from "@lumenx/types";
-import {
-  Badge,
-  Button,
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  cn,
-} from "@lumenx/ui";
+import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, cn } from "@lumenx/ui";
 import {
   AlertTriangle,
   BellRing,
@@ -61,9 +53,43 @@ const SEVERITY_STYLES: Record<
     stripe: "bg-warning",
     badge: "bg-warning/15 text-warning-foreground border-warning/30",
     ring: "border-warning/35",
-    label: "Acknowledge within 24h",
+    label: "Respond within 24h",
   },
 };
+
+const READ_ALERT_STYLES = {
+  stripe: "bg-muted-foreground/25",
+  ring: "border-border",
+  card: "border-border bg-muted/25 shadow-none",
+  severityBadge: "bg-muted text-muted-foreground border-border",
+  statusBadge: "bg-muted text-muted-foreground border-border",
+  title: "font-normal text-muted-foreground",
+  summary: "text-muted-foreground/75",
+} as const;
+
+function getAlertVisuals(alert: SchoolAlert) {
+  const sev = SEVERITY_STYLES[alert.severity];
+  if (alert.acknowledged) {
+    return {
+      isRead: true as const,
+      stripe: READ_ALERT_STYLES.stripe,
+      card: READ_ALERT_STYLES.card,
+      severityBadge: READ_ALERT_STYLES.severityBadge,
+      statusBadge: READ_ALERT_STYLES.statusBadge,
+      title: READ_ALERT_STYLES.title,
+      summary: READ_ALERT_STYLES.summary,
+    };
+  }
+  return {
+    isRead: false as const,
+    stripe: sev.stripe,
+    card: cn("bg-card shadow-soft", sev.ring, alert.unread && "ring-1 ring-primary/20"),
+    severityBadge: sev.badge,
+    statusBadge: "border-primary/30 text-primary bg-primary/5",
+    title: "font-semibold text-foreground",
+    summary: "text-muted-foreground",
+  };
+}
 
 const FILTERS: { id: AlertFilterId; label: string }[] = [
   { id: "all", label: "All" },
@@ -79,7 +105,11 @@ function WorkflowStrip() {
   const steps = [
     { n: 1, title: "School sends alert", desc: "Absence, health, or urgent remark" },
     { n: 2, title: "You review details", desc: "Open the alert to read full context" },
-    { n: 3, title: "Acknowledge & act", desc: "Emergency → act now · Mandatory → confirm within 24h" },
+    {
+      n: 3,
+      title: "Mark as read & act",
+      desc: "Emergency → act now · Mandatory → confirm within 24h",
+    },
   ];
 
   return (
@@ -106,9 +136,9 @@ function WorkflowStrip() {
 
 function SummaryCards({ alerts }: { alerts: SchoolAlert[] }) {
   const emergency = countEmergency(alerts);
-  const pending = countUnacknowledged(alerts);
+  const unread = countUnacknowledged(alerts);
   const mandatory = alerts.filter((a) => a.severity === "mandatory" && !a.acknowledged).length;
-  const done = alerts.filter((a) => a.acknowledged).length;
+  const read = alerts.filter((a) => a.acknowledged).length;
 
   return (
     <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -126,36 +156,30 @@ function SummaryCards({ alerts }: { alerts: SchoolAlert[] }) {
           <span className="text-xs font-semibold uppercase tracking-wide">Mandatory</span>
         </div>
         <p className="mt-2 text-2xl font-bold tabular-nums">{mandatory}</p>
-        <p className="text-xs text-muted-foreground">Acknowledge within 24h</p>
+        <p className="text-xs text-muted-foreground">Respond within 24h</p>
       </div>
       <div className="rounded-2xl border border-border bg-card p-4">
         <div className="flex items-center gap-2 text-muted-foreground">
           <BellRing className="size-4" />
-          <span className="text-xs font-semibold uppercase tracking-wide">Pending</span>
+          <span className="text-xs font-semibold uppercase tracking-wide">Unread</span>
         </div>
-        <p className="mt-2 text-2xl font-bold tabular-nums">{pending}</p>
-        <p className="text-xs text-muted-foreground">Awaiting your response</p>
+        <p className="mt-2 text-2xl font-bold tabular-nums">{unread}</p>
+        <p className="text-xs text-muted-foreground">Not read yet</p>
       </div>
       <div className="rounded-2xl border border-success/30 bg-success/5 p-4">
         <div className="flex items-center gap-2 text-success">
           <CheckCircle2 className="size-4" />
-          <span className="text-xs font-semibold uppercase tracking-wide">Done</span>
+          <span className="text-xs font-semibold uppercase tracking-wide">Read</span>
         </div>
-        <p className="mt-2 text-2xl font-bold tabular-nums">{done}</p>
-        <p className="text-xs text-muted-foreground">Acknowledged</p>
+        <p className="mt-2 text-2xl font-bold tabular-nums">{read}</p>
+        <p className="text-xs text-muted-foreground">Already read</p>
       </div>
     </div>
   );
 }
 
-function AlertCard({
-  alert,
-  onOpen,
-}: {
-  alert: SchoolAlert;
-  onOpen: (a: SchoolAlert) => void;
-}) {
-  const sev = SEVERITY_STYLES[alert.severity];
+function AlertCard({ alert, onOpen }: { alert: SchoolAlert; onOpen: (a: SchoolAlert) => void }) {
+  const visuals = getAlertVisuals(alert);
   const CatIcon = CATEGORY_ICONS[alert.category];
 
   return (
@@ -163,43 +187,55 @@ function AlertCard({
       type="button"
       onClick={() => onOpen(alert)}
       className={cn(
-        "group flex min-w-0 w-full items-stretch gap-0 overflow-hidden rounded-2xl border bg-card text-left shadow-soft transition-colors",
-        !alert.acknowledged ? sev.ring : "border-border",
-        alert.unread && !alert.acknowledged && "ring-1 ring-primary/20",
+        "group flex min-w-0 w-full items-stretch gap-0 overflow-hidden rounded-2xl border text-left motion-fast transition-colors",
+        visuals.card,
         "hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
       )}
     >
-      <div className={cn("w-1.5 shrink-0", sev.stripe)} aria-hidden />
+      <div className={cn("w-1.5 shrink-0", visuals.stripe)} aria-hidden />
       <div className="min-w-0 flex-1 p-4">
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className={cn("text-[10px] font-semibold", sev.badge)}>
+          <Badge variant="outline" className={cn("text-[10px] font-semibold", visuals.severityBadge)}>
             {ALERT_SEVERITY_LABELS[alert.severity]}
           </Badge>
-          <Badge variant="outline" className="gap-1 text-[10px]">
+          <Badge
+            variant="outline"
+            className={cn(
+              "gap-1 text-[10px]",
+              visuals.isRead
+                ? "border-border bg-muted text-muted-foreground"
+                : "border-border bg-card text-muted-foreground",
+            )}
+          >
             <CatIcon className="size-3" />
             {ALERT_CATEGORY_LABELS[alert.category]}
           </Badge>
-          {alert.acknowledged && (
-            <Badge variant="outline" className="text-[10px] bg-success/10 text-success border-success/30">
-              Acknowledged
-            </Badge>
-          )}
+          <Badge variant="outline" className={cn("text-[10px]", visuals.statusBadge)}>
+            {visuals.isRead ? "Read" : "Unread"}
+          </Badge>
           {alert.actionRequired && !alert.acknowledged && (
             <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">
               Action required
             </Badge>
           )}
         </div>
-        <p className="text-sm font-semibold leading-snug line-clamp-2">{alert.title}</p>
-        <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{alert.summary}</p>
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
+        <p className={cn("text-sm leading-snug line-clamp-2", visuals.title)}>{alert.title}</p>
+        <p className={cn("mt-1 text-xs line-clamp-2", visuals.summary)}>{alert.summary}</p>
+        <div
+          className={cn(
+            "mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px]",
+            visuals.isRead ? "text-muted-foreground/70" : "text-muted-foreground",
+          )}
+        >
           <span>{alert.time}</span>
           <span>·</span>
           <span>{alert.source}</span>
           {alert.childName && (
             <>
               <span>·</span>
-              <span className="font-medium text-foreground/80">{alert.childName}</span>
+              <span className={visuals.isRead ? "text-muted-foreground" : "font-medium text-foreground/80"}>
+                {alert.childName}
+              </span>
             </>
           )}
         </div>
@@ -223,26 +259,45 @@ function AlertDetailDialog({
   onAcknowledge: (id: string) => void;
 }) {
   if (!alert) return null;
+  const visuals = getAlertVisuals(alert);
   const sev = SEVERITY_STYLES[alert.severity];
   const CatIcon = CATEGORY_ICONS[alert.category];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg gap-0 overflow-hidden p-0">
-        <div className={cn("h-1.5 w-full", sev.stripe)} />
+        <div className={cn("h-1.5 w-full", visuals.stripe)} />
         <div className="p-6">
           <DialogHeader className="space-y-3 text-left">
             <div className="flex flex-wrap gap-2">
-              <Badge variant="outline" className={cn("font-semibold", sev.badge)}>
+              <Badge
+                variant="outline"
+                className={cn("font-semibold", visuals.severityBadge)}
+              >
                 {ALERT_SEVERITY_LABELS[alert.severity]}
               </Badge>
-              <Badge variant="outline" className="gap-1">
+              <Badge
+                variant="outline"
+                className={cn(
+                  "gap-1",
+                  visuals.isRead && "border-border bg-muted text-muted-foreground",
+                )}
+              >
                 <CatIcon className="size-3" />
                 {ALERT_CATEGORY_LABELS[alert.category]}
               </Badge>
             </div>
-            <DialogTitle className="text-lg leading-snug">{alert.title}</DialogTitle>
-            <p className="text-sm text-muted-foreground">{sev.label}</p>
+            <DialogTitle
+              className={cn(
+                "text-lg leading-snug",
+                visuals.isRead ? "text-muted-foreground font-normal" : "text-foreground",
+              )}
+            >
+              {alert.title}
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              {visuals.isRead ? "Already read" : sev.label}
+            </p>
           </DialogHeader>
           <div className="mt-4 space-y-4">
             <p className="text-sm leading-relaxed text-foreground/90">{alert.detail}</p>
@@ -270,13 +325,13 @@ function AlertDetailDialog({
                   onOpenChange(false);
                 }}
               >
-                {alert.actionLabel ?? "Acknowledge alert"}
+                {alert.actionLabel ?? "Mark as read"}
               </Button>
             )}
             {alert.acknowledged && (
-              <div className="flex items-center justify-center gap-2 rounded-xl border border-success/30 bg-success/5 py-3 text-sm text-success">
+              <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-muted/30 py-3 text-sm text-muted-foreground">
                 <CheckCircle2 className="size-4" />
-                You acknowledged this alert
+                Marked as read
               </div>
             )}
           </div>
@@ -298,15 +353,16 @@ export function AlertsCenterView({
   showChildSwitcher = false,
   subtitle,
 }: AlertsCenterProps) {
-  const alerts = useSyncExternalStore(alertStore.subscribe, alertStore.getItems, alertStore.getItems);
+  const alerts = useSyncExternalStore(
+    alertStore.subscribe,
+    alertStore.getItems,
+    alertStore.getItems,
+  );
   const [filter, setFilter] = useState<AlertFilterId>("all");
   const [selected, setSelected] = useState<SchoolAlert | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const scoped = useMemo(
-    () => sortAlerts(alertsForChild(alerts, childId)),
-    [alerts, childId],
-  );
+  const scoped = useMemo(() => sortAlerts(alertsForChild(alerts, childId)), [alerts, childId]);
   const list = useMemo(() => filterAlerts(scoped, filter), [scoped, filter]);
 
   const counts = useMemo(() => {
@@ -318,7 +374,7 @@ export function AlertsCenterView({
     return map;
   }, [scoped]);
 
-  const pending = countUnacknowledged(scoped);
+  const unread = countUnacknowledged(scoped);
 
   const openAlert = (a: SchoolAlert) => {
     setSelected(a);
@@ -327,20 +383,24 @@ export function AlertsCenterView({
 
   return (
     <div className="min-w-0 max-w-full">
-      {showChildSwitcher && <div className="mb-4"><ChildSwitcher /></div>}
+      {showChildSwitcher && (
+        <div className="mb-4">
+          <ChildSwitcher />
+        </div>
+      )}
 
       <PageHeader
         title="Alerts"
         subtitle={
           subtitle ??
-          (pending > 0
-            ? `${pending} pending · Emergency alerts need immediate action`
-            : "All alerts acknowledged")
+          (unread > 0
+            ? `${unread} unread · Emergency alerts need immediate action`
+            : "All alerts read")
         }
         action={
-          pending > 0 ? (
+          unread > 0 ? (
             <Button variant="outline" size="sm" onClick={() => alertStore.acknowledgeAll()}>
-              Acknowledge all
+              Mark all as read
             </Button>
           ) : undefined
         }
@@ -413,7 +473,10 @@ export function AlertsDashboardPanel({
   childId?: string;
 }) {
   const scoped = useMemo(
-    () => sortAlerts(alertsForChild(alerts, childId)).filter((a) => !a.acknowledged).slice(0, 4),
+    () =>
+      sortAlerts(alertsForChild(alerts, childId))
+        .filter((a) => !a.acknowledged)
+        .slice(0, 4),
     [alerts, childId],
   );
   const emergency = countEmergency(alertsForChild(alerts, childId));
@@ -439,10 +502,10 @@ export function AlertsDashboardPanel({
       </div>
       <div className="min-w-0 flex-1 space-y-2">
         {scoped.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">No pending alerts.</p>
+          <p className="py-6 text-center text-sm text-muted-foreground">No unread alerts.</p>
         ) : (
           scoped.map((a) => {
-            const sev = SEVERITY_STYLES[a.severity];
+            const visuals = getAlertVisuals(a);
             const CatIcon = CATEGORY_ICONS[a.category];
             return (
               <Link
@@ -450,13 +513,18 @@ export function AlertsDashboardPanel({
                 to="/alerts"
                 className={cn(
                   "flex min-w-0 items-start gap-2.5 rounded-xl border p-3 transition-colors hover:bg-muted/30",
-                  !a.acknowledged ? sev.ring : "border-border",
+                  visuals.isRead ? READ_ALERT_STYLES.card : cn("bg-card", SEVERITY_STYLES[a.severity].ring),
                 )}
               >
-                <div className={cn("mt-1.5 size-2 shrink-0 rounded-full", sev.stripe)} />
+                <div className={cn("mt-1.5 size-2 shrink-0 rounded-full", visuals.stripe)} />
                 <div className="min-w-0 flex-1">
                   <div className="mb-1 flex flex-wrap gap-1">
-                    <span className={cn("rounded px-1.5 py-px text-[9px] font-semibold uppercase", sev.badge)}>
+                    <span
+                      className={cn(
+                        "rounded px-1.5 py-px text-[9px] font-semibold uppercase",
+                        visuals.severityBadge,
+                      )}
+                    >
                       {a.severity}
                     </span>
                     <span className="inline-flex items-center gap-0.5 rounded bg-muted px-1.5 py-px text-[9px] text-muted-foreground">
@@ -464,8 +532,15 @@ export function AlertsDashboardPanel({
                       {ALERT_CATEGORY_LABELS[a.category]}
                     </span>
                   </div>
-                  <p className="text-sm font-medium leading-snug line-clamp-2">{a.title}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">{a.summary}</p>
+                  <p
+                    className={cn(
+                      "text-sm leading-snug line-clamp-2",
+                      visuals.isRead ? "font-normal text-muted-foreground" : "font-semibold",
+                    )}
+                  >
+                    {a.title}
+                  </p>
+                  <p className={cn("mt-0.5 text-xs line-clamp-1", visuals.summary)}>{a.summary}</p>
                 </div>
                 <span className="shrink-0 text-[10px] text-muted-foreground">{a.time}</span>
               </Link>
@@ -479,6 +554,6 @@ export function AlertsDashboardPanel({
 
 export function useAlertStoreInit(seed: SchoolAlert[]) {
   useEffect(() => {
-    alertStore.init(seed);
+    alertStore.initOnce(seed);
   }, [seed]);
 }

@@ -1,16 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { getInitials } from "@lumenx/utils";
 import { useMemo, useState } from "react";
 import { AppShell } from "@/components/app/AppShell";
 import { PageHeader } from "@/components/app/PageHeader";
 import { useApp } from "@/lib/app-state";
 import { Button } from "@lumenx/ui";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@lumenx/ui";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@lumenx/ui";
 import { studentsInClass, subjects, childProfile } from "@/lib/mock-data";
 import { useParentPortal } from "@/context/ParentPortalContext";
 import { Check, Save, UserCheck, UserX, CalendarDays, Search } from "lucide-react";
@@ -186,10 +181,7 @@ function TeacherAttendance() {
                     </div>
                     <Avatar className="size-9 shrink-0">
                       <AvatarFallback className="text-xs">
-                        {s.name
-                          .split(" ")
-                          .map((p) => p[0])
-                          .join("")}
+                        {getInitials(s.name)}
                       </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0 flex-1 truncate font-medium">{s.name}</div>
@@ -212,7 +204,7 @@ function TeacherAttendance() {
       </div>
 
       {/* Sticky save — sits above bottom nav on mobile */}
-      <div className="fixed inset-x-0 z-[45] min-w-0 pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:relative lg:inset-auto lg:z-auto lg:pb-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] lg:bottom-auto">
+      <div className="fixed inset-x-0 z-[45] min-w-0 pb-[max(0.5rem,var(--safe-area-bottom))] lg:relative lg:inset-auto lg:z-auto lg:pb-0 bottom-[calc(4.25rem+var(--safe-area-bottom))] lg:bottom-auto">
         <div className="min-w-0 px-3 lg:mx-auto lg:max-w-6xl lg:px-8">
           <div className="flex min-w-0 flex-col gap-2 rounded-2xl border border-border p-3 glass shadow-elevated sm:flex-row sm:items-center sm:justify-between sm:gap-3 lg:p-3">
             <div className="min-w-0 text-center text-sm sm:flex-1 sm:text-left">
@@ -261,12 +253,7 @@ function ParentAttendanceView() {
   const classTag = snap?.classTag ?? `${childProfile.className}-${childProfile.section}`;
   const seed = snap ? seedFromString(snap.child.id) : 0;
 
-  return (
-    <AttendanceOverview
-      subtitle={`${who} · ${classTag}`}
-      seed={seed}
-    />
-  );
+  return <AttendanceOverview subtitle={`${who} · ${classTag}`} seed={seed} />;
 }
 
 function Field({

@@ -1,9 +1,10 @@
 import type { StudentAssignment } from "@/lib/mock-data";
+import { toLocalIsoDate } from "@/lib/leave-utils";
 
 /** Pending with due date within this many days (inclusive) = urgent / low due date */
 const DUE_SOON_DAYS = 2;
 
-export type AssignmentVisualStatus = "submitted" | "due" | "dueSoon" | "overdue";
+export type AssignmentVisualStatus = "submitted" | "due" | "dueToday" | "dueSoon" | "overdue";
 
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -24,6 +25,7 @@ export function getAssignmentVisualStatus(
   if (a.dueDate) {
     const days = daysUntilDue(a.dueDate);
     if (days < 0) return "overdue";
+    if (days === 0) return "dueToday";
     if (days <= DUE_SOON_DAYS) return "dueSoon";
   }
   return "due";
@@ -32,6 +34,7 @@ export function getAssignmentVisualStatus(
 export const ASSIGNMENT_STATUS_DOT: Record<AssignmentVisualStatus, string> = {
   submitted: "bg-success",
   due: "bg-warning",
+  dueToday: "bg-primary",
   dueSoon: "bg-destructive",
   overdue: "bg-destructive",
 };
@@ -39,6 +42,7 @@ export const ASSIGNMENT_STATUS_DOT: Record<AssignmentVisualStatus, string> = {
 export const ASSIGNMENT_STATUS_LABEL: Record<AssignmentVisualStatus, string> = {
   submitted: "Submitted",
   due: "Pending",
+  dueToday: "Due today",
   dueSoon: "Due soon",
   overdue: "Overdue",
 };
@@ -59,6 +63,12 @@ export const ASSIGNMENT_CARD_STYLES: Record<
     icon: "bg-warning/15 text-warning-foreground",
     badge: "border-warning/40 bg-warning/10 text-warning-foreground",
   },
+  dueToday: {
+    label: "Due today",
+    card: "border-primary/45 bg-primary/[0.06] border-l-4 border-l-primary",
+    icon: "bg-primary/15 text-primary",
+    badge: "border-primary/40 bg-primary/10 text-primary",
+  },
   dueSoon: {
     label: "Due soon",
     card: "border-destructive/50 bg-destructive/5 border-l-4 border-l-destructive",
@@ -76,17 +86,32 @@ export const ASSIGNMENT_CARD_STYLES: Record<
 const URGENCY_ORDER: Record<AssignmentVisualStatus, number> = {
   overdue: 0,
   dueSoon: 1,
-  due: 2,
-  submitted: 3,
+  dueToday: 2,
+  due: 3,
+  submitted: 4,
 };
 
 export function sortAssignmentsByUrgency(a: StudentAssignment, b: StudentAssignment) {
   return URGENCY_ORDER[getAssignmentVisualStatus(a)] - URGENCY_ORDER[getAssignmentVisualStatus(b)];
 }
 
-export function pendingWorkForChild(assignments: StudentAssignment[], type: StudentAssignment["type"]) {
+export function pendingWorkForChild(
+  assignments: StudentAssignment[],
+  type: StudentAssignment["type"],
+) {
   return assignments
     .filter((a) => a.type === type && a.status === "pending")
+    .sort(sortAssignmentsByUrgency);
+}
+
+/** Assignments or homework with due date = today (local calendar). */
+export function todayWorkForChild(
+  assignments: StudentAssignment[],
+  type: StudentAssignment["type"],
+) {
+  const today = toLocalIsoDate(new Date());
+  return assignments
+    .filter((a) => a.type === type && a.dueDate === today)
     .sort(sortAssignmentsByUrgency);
 }
 
@@ -100,6 +125,11 @@ export const ASSIGNMENT_LEGEND = [
     status: "due" as const,
     title: "Pending",
     description: "Assignment or homework not yet due",
+  },
+  {
+    status: "dueToday" as const,
+    title: "Due today",
+    description: "Due today — complete and submit",
   },
   {
     status: "dueSoon" as const,

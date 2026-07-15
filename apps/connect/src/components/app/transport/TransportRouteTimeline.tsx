@@ -25,9 +25,7 @@ export function TransportEtaBanner({ tracking }: { tracking: TransportTracking }
           <p className="mt-1 font-display text-2xl font-semibold">
             {arrived ? "Bus at your stop" : formatEtaMinutes(tracking.etaMinutes)}
           </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Next: {tracking.nextStopName}
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">Next: {tracking.nextStopName}</p>
         </div>
         <Badge
           variant="outline"
@@ -96,7 +94,9 @@ export function TransportRouteTimeline({
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="font-medium text-sm">{stop.name}</p>
-                  <span className="text-xs tabular-nums text-muted-foreground">{stop.scheduledTime}</span>
+                  <span className="text-xs tabular-nums text-muted-foreground">
+                    {stop.scheduledTime}
+                  </span>
                 </div>
                 <p className="mt-0.5 flex items-start gap-1 text-xs text-muted-foreground">
                   <MapPin className="size-3 shrink-0 mt-0.5" />

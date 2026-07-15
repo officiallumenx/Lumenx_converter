@@ -1,12 +1,4 @@
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  Badge,
-  Button,
-  cn,
-} from "@lumenx/ui";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, Badge, Button, cn } from "@lumenx/ui";
 import { Crown, Mail, MapPin, Clock, Phone, MessageSquare } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { teachers } from "@/lib/mock-data";
@@ -50,7 +42,9 @@ export function TeacherDetailDialog({
                 <div className="text-sm text-muted-foreground">{t.qualification}</div>
               )}
               {"experienceYears" in t && t.experienceYears && (
-                <div className="text-xs text-muted-foreground">{t.experienceYears} years teaching</div>
+                <div className="text-xs text-muted-foreground">
+                  {t.experienceYears} years teaching
+                </div>
               )}
             </div>
           </div>

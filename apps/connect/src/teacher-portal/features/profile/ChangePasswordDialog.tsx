@@ -89,7 +89,9 @@ export function ChangePasswordDialog({
               Enter a new password, confirm it, then verify with OTP sent to your registered phone.
             </p>
             <div>
-              <Label htmlFor="new-password" className="text-xs text-muted-foreground">New password</Label>
+              <Label htmlFor="new-password" className="text-xs text-muted-foreground">
+                New password
+              </Label>
               <Input
                 id="new-password"
                 type="password"
@@ -101,7 +103,9 @@ export function ChangePasswordDialog({
               />
             </div>
             <div>
-              <Label htmlFor="confirm-password" className="text-xs text-muted-foreground">Re-enter password</Label>
+              <Label htmlFor="confirm-password" className="text-xs text-muted-foreground">
+                Re-enter password
+              </Label>
               <Input
                 id="confirm-password"
                 type="password"
@@ -113,15 +117,17 @@ export function ChangePasswordDialog({
               />
             </div>
             <DialogFooter className="gap-2 pt-2">
-              <Button variant="ghost" className="rounded-xl" onClick={() => onOpenChange(false)}>Cancel</Button>
-              <Button className="rounded-xl" onClick={sendOtp}>Continue to OTP</Button>
+              <Button variant="ghost" className="rounded-xl" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button className="rounded-xl" onClick={sendOtp}>
+                Continue to OTP
+              </Button>
             </DialogFooter>
           </div>
         ) : (
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Enter the 6-digit code sent to {phone}.
-            </p>
+            <p className="text-sm text-muted-foreground">Enter the 6-digit code sent to {phone}.</p>
             <div className="flex justify-center">
               <InputOTP maxLength={6} value={otp} onChange={setOtp}>
                 <InputOTPGroup>
@@ -135,7 +141,9 @@ export function ChangePasswordDialog({
               Demo OTP: <span className="font-mono">{DEMO_CONNECT_OTP}</span>
             </p>
             <DialogFooter className="flex-col gap-2 sm:flex-row">
-              <Button variant="ghost" className="rounded-xl" onClick={() => setStep("password")}>Back</Button>
+              <Button variant="ghost" className="rounded-xl" onClick={() => setStep("password")}>
+                Back
+              </Button>
               <Button
                 className="rounded-xl"
                 disabled={pending || otp.length !== 6}

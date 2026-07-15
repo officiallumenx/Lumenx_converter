@@ -1,13 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, type FocusEventHandler } from "react";
 import { Phone } from "lucide-react";
 import { Input } from "@lumenx/ui";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@lumenx/ui";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@lumenx/ui";
 import { cn } from "@lumenx/ui";
 
 export interface Country {
@@ -38,6 +32,7 @@ export function PhoneInput({
   onEnter,
   error,
   id,
+  onFocus,
 }: {
   country: Country;
   onCountryChange: (c: Country) => void;
@@ -45,6 +40,7 @@ export function PhoneInput({
   onChange: (digits: string) => void;
   autoFocus?: boolean;
   onEnter?: () => void;
+  onFocus?: FocusEventHandler<HTMLInputElement>;
   error?: string | null;
   id?: string;
 }) {
@@ -102,6 +98,7 @@ export function PhoneInput({
             maxLength={country.maxLen}
             value={digits}
             onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, country.maxLen))}
+            onFocus={onFocus}
             onKeyDown={(e) => {
               if (e.key === "Enter" && onEnter) onEnter();
               // block non-numeric typing (allow control keys)
@@ -111,7 +108,7 @@ export function PhoneInput({
           />
         </div>
       </div>
-      <div className="flex items-center justify-between text-[11px]">
+      <div className="flex items-center justify-between text-xs leading-snug">
         <span className={cn("text-muted-foreground", error && "text-destructive")}>
           {error ?? `Enter your ${country.maxLen}-digit number`}
         </span>

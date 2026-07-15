@@ -9,41 +9,47 @@ const TREND_ICON = { up: TrendingUp, down: TrendingDown, flat: Minus } as const;
 
 export const ChildSwitcher = memo(function ChildSwitcher() {
   const { activeChildId, setActiveChildId } = useApp();
+
   return (
-    <div className="max-w-full min-w-0 rounded-2xl border border-border bg-card p-3 shadow-soft">
-      <div className="flex items-center justify-between px-1 pb-2">
-        <div className="text-xs font-medium text-muted-foreground uppercase tracking-widest">
+    <section className="min-w-0 rounded-xl border border-border/80 bg-card/80 p-3 shadow-soft backdrop-blur-sm">
+      <div className="mb-2.5 flex items-center justify-between gap-2 px-0.5">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Your children
-        </div>
-        <div className="text-[11px] text-muted-foreground">{children.length} linked</div>
+        </h2>
+        <span className="text-xs text-muted-foreground/90">{children.length} linked</span>
       </div>
-      <div className="-mx-1 flex min-w-0 gap-2 overflow-x-auto px-1 scrollbar-hide snap-x snap-mandatory">
+
+      <div
+        className="-mx-0.5 flex min-w-0 gap-2 overflow-x-auto px-0.5 pb-0.5 scrollbar-hide snap-x snap-mandatory"
+        role="tablist"
+        aria-label="Select child"
+      >
         {children.map((c) => {
           const active = c.id === activeChildId;
           const Trend = TREND_ICON[c.trend];
+
           return (
             <button
               key={c.id}
               type="button"
+              role="tab"
+              aria-selected={active}
               onClick={() => setActiveChildId(c.id)}
               className={cn(
-                "snap-start shrink-0 w-[200px] min-h-[44px] text-left rounded-xl p-3 border transition-all duration-200",
-                "active:scale-[0.98]",
+                "parent-child-switcher-card snap-start w-[10.25rem] shrink-0 rounded-xl border px-3 py-2.5 text-left",
                 active
-                  ? "border-primary/40 bg-primary/5 shadow-glow"
-                  : "border-border hover:border-primary/30 bg-card",
+                  ? "border-primary/45 bg-primary/[0.05] ring-1 ring-primary/15"
+                  : "border-border/70 bg-background/60 hover:border-primary/20 hover:bg-muted/30",
               )}
             >
-              <div className="flex items-center gap-3">
-                <Avatar
-                  className={cn("size-10 ring-2", active ? "ring-primary/40" : "ring-transparent")}
-                >
+              <div className="flex items-center gap-2">
+                <Avatar className={cn("size-9 shrink-0", active && "ring-1 ring-primary/35")}>
                   <AvatarFallback
                     className={cn(
                       "text-xs font-semibold",
-                      c.accent === "primary" && "bg-primary/15 text-primary",
-                      c.accent === "success" && "bg-success/15 text-success",
-                      c.accent === "warning" && "bg-warning/15 text-warning-foreground",
+                      c.accent === "primary" && "bg-primary/12 text-primary",
+                      c.accent === "success" && "bg-success/12 text-success",
+                      c.accent === "warning" && "bg-warning/12 text-warning-foreground",
                     )}
                   >
                     {c.initials}
@@ -51,28 +57,32 @@ export const ChildSwitcher = memo(function ChildSwitcher() {
                 </Avatar>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1">
-                    <div className="font-medium text-sm truncate">{c.name.split(" ")[0]}</div>
-                    {active && <Check className="size-3.5 text-primary" />}
+                    <span className="truncate text-sm font-semibold leading-tight">
+                      {c.name.split(" ")[0]}
+                    </span>
+                    {active && <Check className="size-3.5 shrink-0 text-primary" aria-hidden />}
                   </div>
-                  <div className="text-[11px] text-muted-foreground truncate">
-                    {c.className} • {c.section}
-                  </div>
+                  <p className="truncate text-xs leading-tight text-muted-foreground">
+                    {c.className} · {c.section}
+                  </p>
                 </div>
               </div>
-              <div className="mt-2.5 flex items-center justify-between text-[11px]">
+
+              <div className="mt-2 flex items-center justify-between border-t border-border/50 pt-2 text-xs">
                 <span className="text-muted-foreground">
-                  Att <span className="text-foreground font-medium">{c.attendance}%</span>
+                  Att <span className="font-medium text-foreground">{c.attendance}%</span>
                 </span>
                 <span className="text-muted-foreground">
-                  Avg <span className="text-foreground font-medium">{c.avgScore}%</span>
+                  Avg <span className="font-medium text-foreground">{c.avgScore}%</span>
                 </span>
                 <span
                   className={cn(
-                    "inline-flex items-center gap-0.5 font-medium",
+                    "inline-flex items-center",
                     c.trend === "up" && "text-success",
                     c.trend === "down" && "text-destructive",
                     c.trend === "flat" && "text-muted-foreground",
                   )}
+                  aria-hidden
                 >
                   <Trend className="size-3" />
                 </span>
@@ -81,6 +91,6 @@ export const ChildSwitcher = memo(function ChildSwitcher() {
           );
         })}
       </div>
-    </div>
+    </section>
   );
 });

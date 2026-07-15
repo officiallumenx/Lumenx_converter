@@ -1,11 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import {
-  Briefcase,
-  CalendarDays,
-  Palmtree,
-  UserCheck,
-  UserX,
-} from "lucide-react";
+import { Briefcase, CalendarDays, Palmtree, UserCheck, UserX } from "lucide-react";
 import { cn } from "@lumenx/ui";
 import type { AttendancePeriodSummary } from "@/lib/attendance/types";
 
@@ -18,10 +12,7 @@ type Metric = {
   tone?: MetricTone;
 };
 
-const toneStyles: Record<
-  MetricTone,
-  { cell: string; icon: string; value: string }
-> = {
+const toneStyles: Record<MetricTone, { cell: string; icon: string; value: string }> = {
   default: {
     cell: "",
     icon: "bg-muted/60 text-muted-foreground",
@@ -55,10 +46,7 @@ function MetricCell({ icon: Icon, label, value, tone = "default" }: Metric) {
       )}
     >
       <div
-        className={cn(
-          "grid size-7 shrink-0 place-items-center rounded-lg sm:size-8",
-          styles.icon,
-        )}
+        className={cn("grid size-7 shrink-0 place-items-center rounded-lg sm:size-8", styles.icon)}
       >
         <Icon className="size-3.5 sm:size-4" />
       </div>

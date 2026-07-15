@@ -12,7 +12,6 @@ import {
   User,
   Settings,
   LogIn,
-  Sparkles,
   Building2,
   Moon,
   Sun,
@@ -24,9 +23,11 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@lumenx/ui";
-import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@lumenx/ui";
+import { Sheet, SheetTrigger } from "@lumenx/ui";
+import { MobileMoreSheetContent } from "@/components/app/MobileMoreSheetContent";
 import { cn } from "@lumenx/ui";
 import { useAdmissionsAuth } from "@/admissions-portal/core/AdmissionsAuthProvider";
+import { LumenXLogo } from "@/components/app/LumenXLogo";
 import { useAdmissionsTheme } from "@/admissions-portal/core/AdmissionsThemeProvider";
 import { isMinimalShellRoute } from "@/admissions-portal/core/guards";
 import { unreadNotificationCount } from "@/lib/admissions/repositories";
@@ -46,15 +47,39 @@ const PRIMARY_NAV: NavItem[] = [
   { to: "/admissions", label: "Home", icon: Home, exact: true },
   { to: "/admissions/institutes", label: "Institutes", icon: Building2 },
   { to: "/admissions/programs", label: "Programs", icon: GraduationCap },
-  { to: "/admissions/dashboard", label: "Dashboard", icon: LayoutDashboard, auth: true, parentOnly: true },
+  {
+    to: "/admissions/dashboard",
+    label: "Dashboard",
+    icon: LayoutDashboard,
+    auth: true,
+    parentOnly: true,
+  },
   { to: "/admissions/apply", label: "Apply", icon: FilePlus, auth: true, parentOnly: true },
 ];
 
 const MORE_NAV: NavItem[] = [
-  { to: "/admissions/applications", label: "Applications", icon: FolderOpen, auth: true, parentOnly: true },
+  {
+    to: "/admissions/applications",
+    label: "Applications",
+    icon: FolderOpen,
+    auth: true,
+    parentOnly: true,
+  },
   { to: "/admissions/documents", label: "Documents", icon: FileText, auth: true, parentOnly: true },
-  { to: "/admissions/interviews", label: "Interviews", icon: Calendar, auth: true, parentOnly: true },
-  { to: "/admissions/inquiries", label: "Inquiries", icon: MessageSquare, auth: true, parentOnly: true },
+  {
+    to: "/admissions/interviews",
+    label: "Interviews",
+    icon: Calendar,
+    auth: true,
+    parentOnly: true,
+  },
+  {
+    to: "/admissions/inquiries",
+    label: "Inquiries",
+    icon: MessageSquare,
+    auth: true,
+    parentOnly: true,
+  },
   { to: "/admissions/notifications", label: "Notifications", icon: Bell, auth: true },
   { to: "/admissions/faq", label: "FAQs", icon: HelpCircle },
   { to: "/admissions/contact", label: "Contact", icon: Phone },
@@ -95,7 +120,9 @@ function isActive(pathname: string, to: string, exact?: boolean) {
     return pathname === to || pathname === `${to}/`;
   }
   if (to === "/admissions/institute/profile" || to === "/admissions/institute/settings") {
-    return pathname === "/admissions/institute/profile" || pathname === "/admissions/institute/settings";
+    return (
+      pathname === "/admissions/institute/profile" || pathname === "/admissions/institute/settings"
+    );
   }
   if (to.startsWith("/admissions/institute/")) {
     return pathname === to || pathname.startsWith(`${to}/`);
@@ -126,7 +153,9 @@ export function AdmissionsShell({ children }: { children: React.ReactNode }) {
   const minimal = isMinimalShellRoute(loc.pathname);
   const unread = user ? unreadNotificationCount(user.id) : 0;
   const isInstituteAdmin = user?.accountType === "institute_admin";
-  const mainNav = isInstituteAdmin ? INSTITUTE_ADMIN_NAV : PRIMARY_NAV.filter((item) => navVisible(item, user));
+  const mainNav = isInstituteAdmin
+    ? INSTITUTE_ADMIN_NAV
+    : PRIMARY_NAV.filter((item) => navVisible(item, user));
 
   const NavLink = (item: NavItem) => {
     const { to, label, icon: Icon, exact } = item;
@@ -156,11 +185,11 @@ export function AdmissionsShell({ children }: { children: React.ReactNode }) {
         <header className="sticky top-0 z-20 border-b border-border bg-background/90 backdrop-blur-md">
           <div className="mx-auto flex h-14 max-w-lg items-center justify-between gap-2 px-4">
             <Link to="/admissions" className="flex items-center gap-2 min-w-0">
-              <div className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-                <Sparkles className="size-4" />
-              </div>
+              <LumenXLogo size="sm" />
               <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Admissions</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Admissions
+                </p>
                 <p className="text-sm font-bold leading-tight truncate">LumenX Connect</p>
               </div>
             </Link>
@@ -177,11 +206,11 @@ export function AdmissionsShell({ children }: { children: React.ReactNode }) {
       <aside className="hidden lg:flex w-60 shrink-0 flex-col border-r border-border bg-sidebar h-screen sticky top-0">
         <div className="flex h-16 shrink-0 items-center justify-between gap-2 border-b border-border px-4">
           <Link to="/admissions" className="flex items-center gap-2 min-w-0">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <Sparkles className="size-4" />
-            </div>
+            <LumenXLogo size="sm" />
             <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Admissions</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Admissions
+              </p>
               <p className="text-sm font-bold truncate">LumenX</p>
             </div>
           </Link>
@@ -193,7 +222,9 @@ export function AdmissionsShell({ children }: { children: React.ReactNode }) {
           ))}
           {!isInstituteAdmin && (
             <div className="my-2 border-t border-border pt-2">
-              <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">More</p>
+              <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                More
+              </p>
               {MORE_NAV.filter((item) => navVisible(item, user)).map((item) => (
                 <NavLink key={item.to} {...item} />
               ))}
@@ -201,7 +232,9 @@ export function AdmissionsShell({ children }: { children: React.ReactNode }) {
           )}
           {isInstituteAdmin && (
             <div className="my-2 border-t border-border pt-2">
-              <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">More</p>
+              <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                More
+              </p>
               {[
                 { to: "/admissions/institutes", label: "Browse institutes", icon: Building2 },
                 { to: "/admissions/profile", label: "Profile", icon: User, auth: true },
@@ -214,16 +247,27 @@ export function AdmissionsShell({ children }: { children: React.ReactNode }) {
         </nav>
         <div className="shrink-0 border-t border-border p-3">
           {user ? (
-            <Button variant="ghost" className="w-full justify-start" onClick={() => { signOut(); nav({ to: "/admissions/login" }); }}>
+            <Button
+              variant="ghost"
+              className="w-full justify-start"
+              onClick={() => {
+                signOut();
+                nav({ to: "/admissions/login" });
+              }}
+            >
               Sign out
             </Button>
           ) : (
             <div className="flex flex-col gap-2">
               <Button className="w-full" asChild>
-                <Link to="/admissions/signup" search={{ type: "parent" }}><LogIn className="size-4 mr-2" /> Parent sign up</Link>
+                <Link to="/admissions/signup" search={{ type: "parent" }}>
+                  <LogIn className="size-4 mr-2" /> Parent sign up
+                </Link>
               </Button>
               <Button variant="outline" className="w-full" asChild>
-                <Link to="/admissions/signup" search={{ type: "institute" }}>Institute sign up</Link>
+                <Link to="/admissions/signup" search={{ type: "institute" }}>
+                  Institute sign up
+                </Link>
               </Button>
               <Button variant="ghost" className="w-full" asChild>
                 <Link to="/admissions/login">Sign in</Link>
@@ -236,15 +280,16 @@ export function AdmissionsShell({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-screen min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between border-b border-border bg-background/90 px-4 backdrop-blur-md lg:hidden">
           <Link to="/admissions" className="flex items-center gap-2 min-w-0">
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Sparkles className="size-3.5" />
-            </div>
+            <LumenXLogo size="sm" className="h-8" />
             <span className="truncate text-sm font-bold">Admissions</span>
           </Link>
           <div className="flex items-center gap-1">
             <ThemeToggle />
             {user && (
-              <Link to="/admissions/notifications" className="relative flex size-9 items-center justify-center rounded-lg border border-border">
+              <Link
+                to="/admissions/notifications"
+                className="relative flex size-9 items-center justify-center rounded-lg border border-border"
+              >
                 <Bell className="size-4" />
                 {unread > 0 && (
                   <span className="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground">
@@ -278,49 +323,48 @@ export function AdmissionsShell({ children }: { children: React.ReactNode }) {
                   PRIMARY_NAV[0],
                   PRIMARY_NAV[1],
                   PRIMARY_NAV[2],
-                  user
-                    ? PRIMARY_NAV[3]
-                    : { ...PRIMARY_NAV[4], login: true },
+                  user ? PRIMARY_NAV[3] : { ...PRIMARY_NAV[4], login: true },
                 ]
             )
               .filter(Boolean)
               .map((item) => {
-              const navItem = item as NavItem & { login?: boolean };
-              const target = navItem.login
-                ? { to: "/admissions/login" as const, search: { redirect: navItem.to } }
-                : navTarget(navItem, user);
-              const active = isActive(loc.pathname, navItem.to, navItem.exact);
-              const Icon = navItem.icon;
-              return (
-                <Link
-                  key={navItem.to}
-                  to={target.to}
-                  search={"search" in target ? target.search : undefined}
-                  className={cn(
-                    "flex flex-1 flex-col items-center gap-0.5 rounded-lg py-2 text-[10px] transition-colors min-w-0",
-                    active ? "text-primary font-medium" : "text-muted-foreground",
-                  )}
-                >
-                  <Icon className={cn("size-5 shrink-0", active && "scale-110")} />
-                  <span className="truncate max-w-full px-0.5">{navItem.label}</span>
-                </Link>
-              );
-            })}
+                const navItem = item as NavItem & { login?: boolean };
+                const target = navItem.login
+                  ? { to: "/admissions/login" as const, search: { redirect: navItem.to } }
+                  : navTarget(navItem, user);
+                const active = isActive(loc.pathname, navItem.to, navItem.exact);
+                const Icon = navItem.icon;
+                return (
+                  <Link
+                    key={navItem.to}
+                    to={target.to}
+                    search={"search" in target ? target.search : undefined}
+                    className={cn(
+                      "flex flex-1 flex-col items-center gap-0.5 rounded-lg py-2 text-[10px] transition-colors min-w-0",
+                      active ? "text-primary font-medium" : "text-muted-foreground",
+                    )}
+                  >
+                    <Icon className={cn("size-5 shrink-0", active && "scale-110")} />
+                    <span className="truncate max-w-full px-0.5">{navItem.label}</span>
+                  </Link>
+                );
+              })}
             <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
               <SheetTrigger asChild>
                 <button
                   type="button"
                   className={cn(
                     "flex flex-1 flex-col items-center gap-0.5 rounded-lg py-2 text-[10px] min-w-0",
-                    MORE_NAV.some((m) => isActive(loc.pathname, m.to)) ? "text-primary font-medium" : "text-muted-foreground",
+                    MORE_NAV.some((m) => isActive(loc.pathname, m.to))
+                      ? "text-primary font-medium"
+                      : "text-muted-foreground",
                   )}
                 >
                   <MoreHorizontal className="size-5" />
                   More
                 </button>
               </SheetTrigger>
-              <SheetContent side="bottom" className="rounded-t-2xl pb-8 max-h-[70vh] overflow-y-auto">
-                <SheetTitle className="mb-4 text-left">More</SheetTitle>
+              <MobileMoreSheetContent title="More">
                 <div className="grid grid-cols-2 gap-2">
                   {MORE_NAV.filter((item) => navVisible(item, user)).map((item) => {
                     const target = navTarget(item, user);
@@ -339,16 +383,24 @@ export function AdmissionsShell({ children }: { children: React.ReactNode }) {
                   })}
                   {!user && (
                     <>
-                      <Link to="/admissions/login" onClick={() => setMoreOpen(false)} className="flex items-center gap-2 rounded-xl border border-border p-3 text-sm">
+                      <Link
+                        to="/admissions/login"
+                        onClick={() => setMoreOpen(false)}
+                        className="flex items-center gap-2 rounded-xl border border-border p-3 text-sm"
+                      >
                         <LogIn className="size-4" /> Sign in
                       </Link>
-                      <Link to="/admissions/signup" onClick={() => setMoreOpen(false)} className="flex items-center gap-2 rounded-xl border border-border p-3 text-sm">
+                      <Link
+                        to="/admissions/signup"
+                        onClick={() => setMoreOpen(false)}
+                        className="flex items-center gap-2 rounded-xl border border-border p-3 text-sm"
+                      >
                         <User className="size-4" /> Sign up
                       </Link>
                     </>
                   )}
                 </div>
-              </SheetContent>
+              </MobileMoreSheetContent>
             </Sheet>
           </div>
         </nav>
@@ -357,4 +409,8 @@ export function AdmissionsShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-export { ProgramCard, ApplicationStatusTimeline, DocumentUploadCard } from "./AdmissionsShellWidgets";
+export {
+  ProgramCard,
+  ApplicationStatusTimeline,
+  DocumentUploadCard,
+} from "./AdmissionsShellWidgets";

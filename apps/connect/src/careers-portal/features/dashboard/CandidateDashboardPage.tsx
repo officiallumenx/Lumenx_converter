@@ -1,7 +1,15 @@
 import { Link } from "@tanstack/react-router";
 import { Button, Badge } from "@lumenx/ui";
 import {
-  Briefcase, Bookmark, Calendar, FileText, Bell, User, Upload, FolderOpen, Sparkles,
+  Briefcase,
+  Bookmark,
+  Calendar,
+  FileText,
+  Bell,
+  User,
+  Upload,
+  FolderOpen,
+  Sparkles,
 } from "lucide-react";
 import { StatCard } from "@/components/app/StatCard";
 import { SectionCard } from "@/components/app/SectionCard";
@@ -14,7 +22,12 @@ import {
   getSavedJobs,
   unreadNotificationCount,
 } from "@/lib/careers/repositories";
-import { getCandidateProfile, computeProfileCompletion, computeProfileStrength, profileStrengthLabel } from "@/lib/careers/profile-repository";
+import {
+  getCandidateProfile,
+  computeProfileCompletion,
+  computeProfileStrength,
+  profileStrengthLabel,
+} from "@/lib/careers/profile-repository";
 import { getTalentPoolEntries, isInTalentPool } from "@/lib/careers/talent-pool-store";
 import { getRecommendedJobs } from "@/lib/careers/recommendations";
 import { statusLabel, statusTone } from "@/lib/careers/status-utils";
@@ -46,26 +59,44 @@ export function CandidateDashboardPage() {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Applications" value={String(apps.length)} icon={FolderOpen} />
         <StatCard label="Saved jobs" value={String(saved.length)} icon={Bookmark} />
-        <StatCard label="Interviews" value={String(upcomingInterviews)} icon={Calendar} tone={upcomingInterviews > 0 ? "warning" : "default"} />
-        <StatCard label="Notifications" value={String(unread)} icon={Bell} tone={unread > 0 ? "warning" : "default"} />
+        <StatCard
+          label="Interviews"
+          value={String(upcomingInterviews)}
+          icon={Calendar}
+          tone={upcomingInterviews > 0 ? "warning" : "default"}
+        />
+        <StatCard
+          label="Notifications"
+          value={String(unread)}
+          icon={Bell}
+          tone={unread > 0 ? "warning" : "default"}
+        />
       </div>
 
       <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border p-4">
         <User className="size-5 text-primary shrink-0" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium">Profile completion</p>
-          <p className="text-xs text-muted-foreground">Stronger profiles get better recommendations</p>
+          <p className="text-xs text-muted-foreground">
+            Stronger profiles get better recommendations
+          </p>
         </div>
         <ProfileStrengthBadge strength={strength} percent={pct} />
-        <Button size="sm" variant="outline" asChild><Link to="/careers/profile">Update profile</Link></Button>
+        <Button size="sm" variant="outline" asChild>
+          <Link to="/careers/profile">Update profile</Link>
+        </Button>
       </div>
 
       {isInTalentPool(user.id) && (
         <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 flex items-start gap-3">
           <Sparkles className="size-5 text-primary shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-medium">You&apos;re in {talentPool.length} talent pool{talentPool.length !== 1 ? "s" : ""}</p>
-            <p className="text-xs text-muted-foreground mt-1">Employers may reach out for future opportunities matching your profile.</p>
+            <p className="text-sm font-medium">
+              You&apos;re in {talentPool.length} talent pool{talentPool.length !== 1 ? "s" : ""}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Employers may reach out for future opportunities matching your profile.
+            </p>
           </div>
         </div>
       )}
@@ -79,7 +110,10 @@ export function CandidateDashboardPage() {
             { label: "Track applications", to: "/careers/applications", icon: FolderOpen },
           ].map((a) => (
             <Button key={a.to} variant="outline" className="h-auto py-3 justify-start" asChild>
-              <Link to={a.to}><a.icon className="size-4 mr-2 shrink-0" />{a.label}</Link>
+              <Link to={a.to}>
+                <a.icon className="size-4 mr-2 shrink-0" />
+                {a.label}
+              </Link>
             </Button>
           ))}
         </div>
@@ -97,7 +131,12 @@ export function CandidateDashboardPage() {
 
       <SectionCard title="Recent applications" link="/careers/applications" linkLabel="View all">
         {apps.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No applications yet. <Link to="/careers/jobs" className="text-primary hover:underline">Browse jobs</Link></p>
+          <p className="text-sm text-muted-foreground">
+            No applications yet.{" "}
+            <Link to="/careers/jobs" className="text-primary hover:underline">
+              Browse jobs
+            </Link>
+          </p>
         ) : (
           <div className="space-y-2">
             {apps.slice(0, 4).map((app) => (
@@ -109,7 +148,9 @@ export function CandidateDashboardPage() {
               >
                 <div className="min-w-0">
                   <p className="font-medium text-sm truncate">{app.jobTitle}</p>
-                  <p className="text-xs text-muted-foreground">{app.instituteName} · {app.id}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {app.instituteName} · {app.id}
+                  </p>
                 </div>
                 <Badge variant={statusTone(app.status)}>{statusLabel(app.status)}</Badge>
               </Link>
@@ -120,9 +161,13 @@ export function CandidateDashboardPage() {
 
       {pendingDocs > 0 && (
         <SectionCard title="Pending documents">
-          <p className="text-sm text-muted-foreground">{pendingDocs} application(s) need document attention.</p>
+          <p className="text-sm text-muted-foreground">
+            {pendingDocs} application(s) need document attention.
+          </p>
           <Button className="mt-3" size="sm" variant="outline" asChild>
-            <Link to="/careers/documents"><FileText className="size-4 mr-1" /> Document center</Link>
+            <Link to="/careers/documents">
+              <FileText className="size-4 mr-1" /> Document center
+            </Link>
           </Button>
         </SectionCard>
       )}

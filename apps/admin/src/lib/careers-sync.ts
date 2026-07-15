@@ -86,9 +86,7 @@ export function persistAdminCareerStageChange(appId: string, stage: AdminCareerS
       writeSnapshot({
         ...snap,
         updatedAt: at,
-        applications: snap.applications.map((r) =>
-          r.id === appId ? { ...r, stage } : r,
-        ),
+        applications: snap.applications.map((r) => (r.id === appId ? { ...r, stage } : r)),
       });
     }
     return true;

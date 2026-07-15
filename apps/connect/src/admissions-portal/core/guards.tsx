@@ -55,7 +55,11 @@ export function RedirectIfAuthed({ children }: { children: React.ReactNode }) {
   if (user) {
     return (
       <Navigate
-        to={user.accountType === "institute_admin" ? "/admissions/institute" : "/admissions/applications"}
+        to={
+          user.accountType === "institute_admin"
+            ? "/admissions/institute"
+            : "/admissions/applications"
+        }
         replace
       />
     );

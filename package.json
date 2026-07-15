@@ -8,6 +8,7 @@
     "dev:transport": "npm run dev --workspace=@lumenx/app-transport",
     "build": "npm run build --workspaces --if-present",
     "build:connect": "npm run build --workspace=@lumenx/app-connect",
+    "build:connect:capacitor": "npm run build:capacitor --workspace=@lumenx/app-connect",
     "build:admin": "npm run build --workspace=@lumenx/app-admin",
     "build:nexus": "npm run build --workspace=@lumenx/app-nexus",
     "build:transport": "npm run build --workspace=@lumenx/app-transport",

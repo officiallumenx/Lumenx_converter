@@ -1,10 +1,25 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
-import { Card, Button, Pill, Modal, Field, TextInput, Select, SearchInput, PageToolbar, ToolbarSpacer, ToolbarMeta, DataTable, EmptyState, Th } from "@lumenx/ui-admin";
-import { BookOpen, Pencil, Plus, Trash2, UserPlus } from "lucide-react";
-import { useMemo, useState } from "react";
 import {
-  GRADES,
+  Card,
+  Button,
+  Pill,
+  Modal,
+  Field,
+  TextInput,
+  Select,
+  SearchInput,
+  PageToolbar,
+  ToolbarSpacer,
+  ToolbarMeta,
+  DataTable,
+  EmptyState,
+  Th,
+} from "@lumenx/ui-admin";
+import { BookOpen, Pencil, Plus, Trash2, UserPlus } from "lucide-react";
+import { useMemo, useState, useEffect } from "react";
+import {
+  getGrades,
   SUBJECT_CATEGORIES,
   addSubject,
   assignTeachersToSubject,
@@ -14,6 +29,8 @@ import {
   updateSubject,
   type SubjectCatalogItem,
 } from "@/lib/subjects-data";
+import { useDemoProfile } from "@/lib/demo-profile-context";
+import { isCollegeMode } from "@/lib/academic-data";
 
 export const Route = createFileRoute("/subjects")({
   head: () => ({ meta: [{ title: "Subjects — LumenX Admin" }] }),
@@ -22,16 +39,21 @@ export const Route = createFileRoute("/subjects")({
 
 type FormMode = "create" | "edit";
 
-const emptyForm = () => ({
+const emptyForm = (defaultGrade: string) => ({
   name: "",
   code: "",
   category: SUBJECT_CATEGORIES[0]!,
   periods: "5",
   status: "active" as SubjectCatalogItem["status"],
-  selectedGrades: ["Grade 10"] as string[],
+  selectedGrades: [defaultGrade] as string[],
 });
 
 function SubjectsPage() {
+  const { profileId, profile } = useDemoProfile();
+  const college = isCollegeMode();
+  const grades = useMemo(() => [...getGrades()], [profileId]);
+  const defaultGrade = grades[0] ?? "Grade 10";
+
   const [catalog, setCatalog] = useState(() => getSubjectCatalog());
   const teachers = useMemo(() => getInstituteTeachers(), [catalog]);
 
@@ -51,10 +73,15 @@ function SubjectsPage() {
   const [category, setCategory] = useState<string>(SUBJECT_CATEGORIES[0]!);
   const [periods, setPeriods] = useState("5");
   const [status, setStatus] = useState<SubjectCatalogItem["status"]>("active");
-  const [selectedGrades, setSelectedGrades] = useState<string[]>(["Grade 10"]);
+  const [selectedGrades, setSelectedGrades] = useState<string[]>([defaultGrade]);
   const [assignIds, setAssignIds] = useState<string[]>([]);
 
   const refresh = () => setCatalog(getSubjectCatalog());
+
+  useEffect(() => {
+    refresh();
+    setSelectedGrades([grades[0] ?? "Grade 10"]);
+  }, [profileId]);
 
   const list = useMemo(() => {
     return catalog.filter((s) => {
@@ -66,7 +93,7 @@ function SubjectsPage() {
   }, [catalog, q, categoryFilter]);
 
   const resetForm = () => {
-    const e = emptyForm();
+    const e = emptyForm(defaultGrade);
     setName(e.name);
     setCode(e.code);
     setCategory(e.category);
@@ -154,7 +181,7 @@ function SubjectsPage() {
 
   return (
     <AppShell
-      title="Subjects"
+      title={profile.academic.subjectsPageTitle}
       subtitle={`${catalog.length} subjects · create, edit, and assign teachers`}
       actions={
         <Button variant="primary" onClick={openCreate}>
@@ -164,11 +191,23 @@ function SubjectsPage() {
     >
       <Card>
         <PageToolbar>
-          <SearchInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search subject name or code…" className="flex-1 min-w-[200px]" />
-          <Select fieldSize="compact" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="w-40">
+          <SearchInput
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search subject name or code…"
+            className="flex-1 min-w-[200px]"
+          />
+          <Select
+            fieldSize="compact"
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="w-40"
+          >
             <option value="all">All categories</option>
             {SUBJECT_CATEGORIES.map((c) => (
-              <option key={c} value={c}>{c}</option>
+              <option key={c} value={c}>
+                {c}
+              </option>
             ))}
           </Select>
           <ToolbarSpacer />
@@ -176,20 +215,29 @@ function SubjectsPage() {
         </PageToolbar>
 
         {list.length === 0 ? (
-          <EmptyState icon={<BookOpen className="size-5" />} title="No subjects found" hint="Try another search term or category filter." action={<Button variant="primary" onClick={openCreate}><Plus className="size-3.5" /> New subject</Button>} />
+          <EmptyState
+            icon={<BookOpen className="size-5" />}
+            title="No subjects found"
+            hint="Try another search term or category filter."
+            action={
+              <Button variant="primary" onClick={openCreate}>
+                <Plus className="size-3.5" /> New subject
+              </Button>
+            }
+          />
         ) : (
-        <DataTable>
-          <thead>
-            <tr>
-              <Th>Subject</Th>
-              <Th>Category</Th>
-              <Th>Grades</Th>
-              <Th>Periods/wk</Th>
-              <Th>Teachers</Th>
-              <Th>Status</Th>
-              <Th className="text-right">Actions</Th>
-            </tr>
-          </thead>
+          <DataTable>
+            <thead>
+              <tr>
+                <Th>Subject</Th>
+                <Th>Category</Th>
+                <Th>{college ? "Years" : "Grades"}</Th>
+                <Th>Periods/wk</Th>
+                <Th>Teachers</Th>
+                <Th>Status</Th>
+                <Th className="text-right">Actions</Th>
+              </tr>
+            </thead>
             <tbody className="divide-y divide-border">
               {list.map((s) => {
                 const assigned = teachers.filter((t) => s.assignedTeacherIds.includes(t.id));
@@ -201,7 +249,9 @@ function SubjectsPage() {
                     </td>
                     <td className="px-5 py-3 text-xs">{s.category}</td>
                     <td className="px-5 py-3 text-[11px] text-muted-foreground max-w-[180px]">
-                      {s.grades.map((g) => g.replace("Grade ", "G")).join(", ")}
+                      {s.grades
+                        .map((g) => (college ? g : g.replace("Grade ", "G")))
+                        .join(", ")}
                     </td>
                     <td className="px-5 py-3 text-xs font-mono">{s.periodsPerWeek}</td>
                     <td className="px-5 py-3">
@@ -214,7 +264,9 @@ function SubjectsPage() {
                               {t.name.split(" ")[0]}
                             </Pill>
                           ))}
-                          {assigned.length > 3 && <Pill tone="neutral">+{assigned.length - 3}</Pill>}
+                          {assigned.length > 3 && (
+                            <Pill tone="neutral">+{assigned.length - 3}</Pill>
+                          )}
                         </div>
                       )}
                     </td>
@@ -238,23 +290,32 @@ function SubjectsPage() {
                 );
               })}
             </tbody>
-        </DataTable>
+          </DataTable>
         )}
       </Card>
 
       <Modal
         open={formOpen}
-        onClose={() => { setFormOpen(false); resetForm(); }}
+        onClose={() => {
+          setFormOpen(false);
+          resetForm();
+        }}
         title={formMode === "edit" ? "Edit subject" : "New subject"}
         subtitle={
           formMode === "edit"
             ? "Update subject details — changes apply to timetable generation"
-            : "Subjects appear in timetable auto-generation for selected grades"
+            : `Courses appear in timetable auto-generation for selected ${college ? "years" : "grades"}`
         }
         size="lg"
         footer={
           <>
-            <Button onClick={() => { setFormOpen(false); resetForm(); }} className="mr-auto">
+            <Button
+              onClick={() => {
+                setFormOpen(false);
+                resetForm();
+              }}
+              className="mr-auto"
+            >
               Cancel
             </Button>
             <Button
@@ -269,10 +330,18 @@ function SubjectsPage() {
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Subject name" required>
-            <TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Mathematics" />
+            <TextInput
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Mathematics"
+            />
           </Field>
           <Field label="Subject code" required>
-            <TextInput value={code} onChange={(e) => setCode(e.target.value)} placeholder="MTH 101" />
+            <TextInput
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="MTH 101"
+            />
           </Field>
           <Field label="Category">
             <Select value={category} onChange={(e) => setCategory(e.target.value)}>
@@ -284,10 +353,19 @@ function SubjectsPage() {
             </Select>
           </Field>
           <Field label="Periods per week">
-            <TextInput type="number" min={1} max={12} value={periods} onChange={(e) => setPeriods(e.target.value)} />
+            <TextInput
+              type="number"
+              min={1}
+              max={12}
+              value={periods}
+              onChange={(e) => setPeriods(e.target.value)}
+            />
           </Field>
           <Field label="Status">
-            <Select value={status} onChange={(e) => setStatus(e.target.value as SubjectCatalogItem["status"])}>
+            <Select
+              value={status}
+              onChange={(e) => setStatus(e.target.value as SubjectCatalogItem["status"])}
+            >
               <option value="active">Active</option>
               <option value="draft">Draft</option>
             </Select>
@@ -295,12 +373,16 @@ function SubjectsPage() {
           <div className="sm:col-span-2">
             <Field label="Offered in grades" required>
               <div className="flex flex-wrap gap-2 mt-1">
-                {GRADES.map((g) => (
+                {grades.map((g) => (
                   <label
                     key={g}
                     className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md border text-xs cursor-pointer ${selectedGrades.includes(g) ? "border-primary bg-primary/5" : "border-border"}`}
                   >
-                    <input type="checkbox" checked={selectedGrades.includes(g)} onChange={() => toggleGrade(g)} />
+                    <input
+                      type="checkbox"
+                      checked={selectedGrades.includes(g)}
+                      onChange={() => toggleGrade(g)}
+                    />
                     {g}
                   </label>
                 ))}
@@ -312,11 +394,20 @@ function SubjectsPage() {
 
       <Modal
         open={deleteOpen}
-        onClose={() => { setDeleteOpen(false); setActiveSubject(null); }}
+        onClose={() => {
+          setDeleteOpen(false);
+          setActiveSubject(null);
+        }}
         title="Delete subject"
         footer={
           <>
-            <Button onClick={() => { setDeleteOpen(false); setActiveSubject(null); }} className="mr-auto">
+            <Button
+              onClick={() => {
+                setDeleteOpen(false);
+                setActiveSubject(null);
+              }}
+              className="mr-auto"
+            >
               Cancel
             </Button>
             <Button variant="danger" onClick={confirmDelete}>
@@ -332,8 +423,8 @@ function SubjectsPage() {
               <span className="font-mono text-muted-foreground">({activeSubject.code})</span>?
             </p>
             <p className="text-[11px] text-muted-foreground">
-              This removes the subject from the catalog and timetable auto-generation. Teacher assignments for this
-              subject will be cleared. This cannot be undone.
+              This removes the subject from the catalog and timetable auto-generation. Teacher
+              assignments for this subject will be cleared. This cannot be undone.
             </p>
           </div>
         )}
@@ -341,13 +432,26 @@ function SubjectsPage() {
 
       <Modal
         open={assignOpen}
-        onClose={() => { setAssignOpen(false); setActiveSubject(null); }}
+        onClose={() => {
+          setAssignOpen(false);
+          setActiveSubject(null);
+        }}
         title={activeSubject ? `Assign teachers · ${activeSubject.name}` : "Assign teachers"}
-        subtitle={activeSubject ? `${activeSubject.code} · select all qualified teachers for this subject` : undefined}
+        subtitle={
+          activeSubject
+            ? `${activeSubject.code} · select all qualified teachers for this subject`
+            : undefined
+        }
         size="lg"
         footer={
           <>
-            <Button onClick={() => { setAssignOpen(false); setActiveSubject(null); }} className="mr-auto">
+            <Button
+              onClick={() => {
+                setAssignOpen(false);
+                setActiveSubject(null);
+              }}
+              className="mr-auto"
+            >
               Cancel
             </Button>
             <Button variant="primary" onClick={saveAssignments}>
@@ -359,20 +463,28 @@ function SubjectsPage() {
         {activeSubject && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Assigned teachers are used by the timetable module for auto-generation and conflict checks.
+              Assigned teachers are used by the timetable module for auto-generation and conflict
+              checks.
             </p>
             <div className="rounded-lg border border-border divide-y divide-border">
               {teachers.map((t) => {
                 const checked = assignIds.includes(t.id);
                 const related =
                   t.department.toLowerCase().includes(activeSubject.name.toLowerCase()) ||
-                  t.subjects.some((sub) => sub === activeSubject.code || sub === activeSubject.name);
+                  t.subjects.some(
+                    (sub) => sub === activeSubject.code || sub === activeSubject.name,
+                  );
                 return (
                   <label
                     key={t.id}
                     className={`flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-surface-hover ${checked ? "bg-primary/5" : ""}`}
                   >
-                    <input type="checkbox" checked={checked} onChange={() => toggleTeacher(t.id)} className="mt-1" />
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleTeacher(t.id)}
+                      className="mt-1"
+                    />
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium flex items-center gap-2">
                         {t.name}
@@ -388,7 +500,8 @@ function SubjectsPage() {
             </div>
             <div className="text-[11px] text-muted-foreground flex items-center gap-2">
               <BookOpen className="size-3.5" />
-              {assignIds.length} teacher{assignIds.length !== 1 ? "s" : ""} selected for {activeSubject.code}
+              {assignIds.length} teacher{assignIds.length !== 1 ? "s" : ""} selected for{" "}
+              {activeSubject.code}
             </div>
           </div>
         )}

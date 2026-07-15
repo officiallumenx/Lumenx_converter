@@ -15,13 +15,20 @@ export const INSTITUTE_CAREER_PROFILES: InstituteCareerProfile[] = [
     logoInitials: "LX",
     logoGradient: "from-primary/80 to-chart-5/60",
     tagline: "Excellence in K-12 education since 1998",
-    about: "LumenX Academy is a premier K-12 institution with integrated digital learning, strong STEM programs, and championship sports teams.",
+    about:
+      "LumenX Academy is a premier K-12 institution with integrated digital learning, strong STEM programs, and championship sports teams.",
     principalName: "Dr. Alistair Vance",
-    principalMessage: "We seek passionate educators who put students first. Join a community where innovation meets tradition.",
+    principalMessage:
+      "We seek passionate educators who put students first. Join a community where innovation meets tradition.",
     culture: ["Student-first", "Collaborative teams", "Continuous learning", "Inclusive workplace"],
     mission: "Deliver holistic education with strong academics, sports, and digital fluency.",
     vision: "Every learner discovers their potential through excellence, empathy, and innovation.",
-    benefits: ["Health insurance", "Professional development fund", "Performance bonus", "On-campus childcare"],
+    benefits: [
+      "Health insurance",
+      "Professional development fund",
+      "Performance bonus",
+      "On-campus childcare",
+    ],
     facilities: ["Olympic-size pool", "STEM labs", "Smart classrooms", "Sports complex"],
     achievements: ["NAAC A+", "State cricket champions", "98% board pass rate"],
     gallery: [
@@ -46,9 +53,11 @@ export const INSTITUTE_CAREER_PROFILES: InstituteCareerProfile[] = [
     logoInitials: "DR",
     logoGradient: "from-blue-500/70 to-cyan-500/50",
     tagline: "CBSE excellence on the Yamuna riverside",
-    about: "A CBSE school with arts academy, strong athletics, and a nurturing environment for faculty growth.",
+    about:
+      "A CBSE school with arts academy, strong athletics, and a nurturing environment for faculty growth.",
     principalName: "Mrs. Kavita Menon",
-    principalMessage: "Our teachers inspire creativity alongside academic rigour. We welcome coaches and faculty who lead by example.",
+    principalMessage:
+      "Our teachers inspire creativity alongside academic rigour. We welcome coaches and faculty who lead by example.",
     culture: ["Creativity", "Athletic excellence", "Community service", "Mentorship"],
     mission: "Inspire lifelong learners through inclusive, innovative education.",
     vision: "Learning without boundaries — local roots, global outlook.",
@@ -76,18 +85,18 @@ export const INSTITUTE_CAREER_PROFILES: InstituteCareerProfile[] = [
     logoInitials: "SX",
     logoGradient: "from-amber-500/70 to-orange-500/50",
     tagline: "MPC, BiPC & commerce with JEE foundation",
-    about: "Mumbai's trusted junior college for science and commerce streams with structured mentoring and strong labs.",
+    about:
+      "Mumbai's trusted junior college for science and commerce streams with structured mentoring and strong labs.",
     principalName: "Fr. Michael D'Souza",
-    principalMessage: "We prepare students for board excellence and competitive success. Faculty who mentor with care thrive here.",
+    principalMessage:
+      "We prepare students for board excellence and competitive success. Faculty who mentor with care thrive here.",
     culture: ["Academic rigour", "Ethical leadership", "Mentoring", "Faith & service"],
     mission: "Structured mentoring, strong labs, and counselling for every stream.",
     vision: "Science & commerce excellence with ethical leadership.",
     benefits: ["Research sabbatical", "Library access", "Exam duty allowances"],
     facilities: ["Science labs", "Counselling cell", "Auditorium"],
     achievements: ["State rank holders", "IIT selections annually"],
-    gallery: [
-      { id: "sx-1", title: "Fort Campus", gradient: "from-amber-500/20 to-orange-500/15" },
-    ],
+    gallery: [{ id: "sx-1", title: "Fort Campus", gradient: "from-amber-500/20 to-orange-500/15" }],
     contact: {
       phone: "+91 22 2200 3300",
       email: "careers@stxavierjc.edu",
@@ -105,9 +114,11 @@ export const INSTITUTE_CAREER_PROFILES: InstituteCareerProfile[] = [
     logoInitials: "FC",
     logoGradient: "from-rose-500/60 to-pink-500/40",
     tagline: "Heritage degree college since 1885",
-    about: "One of India's oldest colleges offering undergraduate programs with vibrant campus life and research culture.",
+    about:
+      "One of India's oldest colleges offering undergraduate programs with vibrant campus life and research culture.",
     principalName: "Dr. Ramesh Kulkarni",
-    principalMessage: "Fergusson values scholarly faculty who blend teaching with research and student mentorship.",
+    principalMessage:
+      "Fergusson values scholarly faculty who blend teaching with research and student mentorship.",
     culture: ["Heritage", "Research", "Debate & culture", "Inclusivity"],
     mission: "Foster critical thinking and civic responsibility through quality higher education.",
     vision: "A globally respected institution rooted in Pune's intellectual tradition.",
@@ -133,18 +144,18 @@ export const INSTITUTE_CAREER_PROFILES: InstituteCareerProfile[] = [
     logoInitials: "VN",
     logoGradient: "from-emerald-500/60 to-teal-500/40",
     tagline: "National Institute of Technology — Nagpur",
-    about: "Premier engineering institute with strong academic and administrative teams supporting 10,000+ students.",
+    about:
+      "Premier engineering institute with strong academic and administrative teams supporting 10,000+ students.",
     principalName: "Prof. S. N. Sharma",
-    principalMessage: "We recruit faculty and staff who uphold academic integrity and institutional excellence.",
+    principalMessage:
+      "We recruit faculty and staff who uphold academic integrity and institutional excellence.",
     culture: ["Innovation", "Meritocracy", "Campus community", "National mission"],
     mission: "Advance technical education and research for national development.",
     vision: "Global leadership in engineering education and innovation.",
     benefits: ["Medical insurance", "Gratuity", "Book allowance", "Campus facilities"],
     facilities: ["Central library", "Research labs", "Hostels", "Sports complex"],
     achievements: ["NIRF top 50", "Strong placement record"],
-    gallery: [
-      { id: "vn-1", title: "Main Gate", gradient: "from-emerald-500/20 to-teal-500/15" },
-    ],
+    gallery: [{ id: "vn-1", title: "Main Gate", gradient: "from-emerald-500/20 to-teal-500/15" }],
     contact: {
       phone: "+91 712 222 8800",
       email: "recruitment@vnit.ac.in",
@@ -161,9 +172,11 @@ export const INSTITUTE_CAREER_PROFILES: InstituteCareerProfile[] = [
     logoInitials: "BH",
     logoGradient: "from-violet-500/60 to-indigo-500/40",
     tagline: "Coaching & foundation programs in Varanasi",
-    about: "Growing academy offering foundation courses, test prep, and school partnership programs across UP.",
+    about:
+      "Growing academy offering foundation courses, test prep, and school partnership programs across UP.",
     principalName: "Mr. Anil Verma",
-    principalMessage: "Join a fast-growing team shaping the next generation of competitive exam achievers.",
+    principalMessage:
+      "Join a fast-growing team shaping the next generation of competitive exam achievers.",
     culture: ["Growth mindset", "Results-driven", "Student counselling", "Team energy"],
     mission: "Accessible quality coaching with ethical admission practices.",
     vision: "North India's most trusted education academy.",

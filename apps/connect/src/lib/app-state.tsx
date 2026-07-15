@@ -7,10 +7,13 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { Capacitor } from "@capacitor/core";
 import type { Institute, Role, User } from "@lumenx/types";
 import { CONNECT_STORAGE_KEYS } from "@lumenx/auth";
-import { children as linkedChildren, registeredInstitutes } from "./mock-data";
+import { registeredInstitutes, children as linkedChildren } from "./mock-data";
 import { LINKED_CHILD_IDS, resolveLinkedChildId } from "./parent-portal-data";
+import { appLockStore } from "./app-lock-store";
+import { resetAllConnectStores } from "./reset-stores";
 
 function resolveInstitute(id: string | null): Institute | null {
   if (!id) return null;
@@ -30,7 +33,7 @@ interface AppState {
   studentIncludedMode: boolean;
   setActiveChildId: (id: string) => void;
   setStudentIncludedMode: (value: boolean) => void;
-  signIn: (phone: string, role: Role, instituteId: string) => void;
+  signIn: (phone: string, role: Role, instituteId: string, opts?: { displayName?: string }) => void;
   updateProfile: (
     patch: Partial<Pick<User, "name" | "phone" | "email" | "address" | "avatar">>,
   ) => void;
@@ -68,8 +71,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (t) setTheme(t);
       if (c) setActiveChildIdState(resolveLinkedChildId(c));
       if (ins) setActiveInstituteIdState(ins);
-      else if (u && r && registeredInstitutes[0])
-        setActiveInstituteIdState(registeredInstitutes[0].id);
+      else if (u && r && registeredInstitutes[0]) setActiveInstituteIdState(registeredInstitutes[0].id);
       if (sim === "1") setStudentIncludedModeState(true);
     } catch {
       void 0;
@@ -81,12 +83,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!hydrated) return;
     document.documentElement.classList.toggle("dark", theme === "dark");
     localStorage.setItem(CONNECT_STORAGE_KEYS.theme, theme);
+    // Sync native status-bar icon color to the in-app theme (the app's theme is a manual
+    // toggle, independent of the system light/dark setting). No-op on web.
+    if (Capacitor.isNativePlatform()) {
+      void import("@capacitor/status-bar")
+        .then(({ StatusBar, Style }) =>
+          StatusBar.setStyle({ style: theme === "dark" ? Style.Dark : Style.Light }),
+        )
+        .catch(() => {
+          /* status-bar plugin unavailable — native theme fallback still applies */
+        });
+    }
   }, [theme, hydrated]);
 
   const institute = useMemo(() => resolveInstitute(activeInstituteId), [activeInstituteId]);
 
-  const signIn = useCallback((phone: string, r: Role, instituteId: string) => {
-    const u: User = { ...DEMO_USER, phone };
+  const signIn = useCallback((phone: string, r: Role, instituteId: string, opts?: { displayName?: string }) => {
+    const u: User = { ...DEMO_USER, phone, name: opts?.displayName ?? DEMO_USER.name };
     setUser(u);
     setRoleState(r);
     setActiveInstituteIdState(instituteId);
@@ -96,12 +109,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(() => {
+    appLockStore.lockSession();
+    resetAllConnectStores();
     setUser(null);
     setRoleState(null);
     setActiveInstituteIdState(null);
+    setActiveChildIdState(linkedChildren[0]?.id ?? "C1");
+    setStudentIncludedModeState(false);
     localStorage.removeItem(CONNECT_STORAGE_KEYS.user);
     localStorage.removeItem(CONNECT_STORAGE_KEYS.role);
     localStorage.removeItem(CONNECT_STORAGE_KEYS.institute);
+    localStorage.removeItem(CONNECT_STORAGE_KEYS.child);
+    localStorage.removeItem(CONNECT_STORAGE_KEYS.studentIncluded);
   }, []);
 
   const setActiveChildId = useCallback((id: string) => {

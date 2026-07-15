@@ -23,3 +23,15 @@ export function formatLabel(value: string): string {
     .replace(/[-_]/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
+
+/**
+ * Initials from a person's name — the first letter of each space-separated part.
+ * Pass `max` to cap the number of letters (e.g. 2 for an avatar fallback).
+ */
+export function getInitials(name: string, max?: number): string {
+  const letters = name
+    .split(" ")
+    .map((p) => p.charAt(0))
+    .join("");
+  return max === undefined ? letters : letters.slice(0, max);
+}

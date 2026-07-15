@@ -48,9 +48,7 @@ export function CareersThemeProvider({ children }: { children: ReactNode }) {
   const setTheme = (t: CareersThemeMode) => setThemeState(t);
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, isDark }}>
-      {children}
-    </ThemeContext.Provider>
+    <ThemeContext.Provider value={{ theme, setTheme, isDark }}>{children}</ThemeContext.Provider>
   );
 }
 

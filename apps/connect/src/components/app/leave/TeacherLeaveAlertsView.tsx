@@ -13,11 +13,7 @@ export function TeacherLeaveAlertsView() {
     leaveStore.init();
   }, []);
 
-  const requests = useSyncExternalStore(
-    leaveStore.subscribe,
-    leaveStore.getAll,
-    leaveStore.getAll,
-  );
+  const requests = useSyncExternalStore(leaveStore.subscribe, leaveStore.getAll, leaveStore.getAll);
   const pending = useMemo(
     () => requests.filter((request) => request.status === "pending"),
     [requests],
@@ -38,7 +34,10 @@ export function TeacherLeaveAlertsView() {
         title="Leave alerts"
         subtitle="Parent leave requests appear here · Approve, reject, or ignore — status updates instantly for parents"
         action={
-          <Link to="/leave" className="text-sm text-primary hover:underline inline-flex items-center gap-1">
+          <Link
+            to="/leave"
+            className="text-sm text-primary hover:underline inline-flex items-center gap-1"
+          >
             Full leave module <ArrowRight className="size-3.5" />
           </Link>
         }
@@ -69,13 +68,12 @@ export function TeacherLeaveAlertsView() {
 
       {leaveAlerts.length > 0 && (
         <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-          <h2 className="mb-3 font-semibold text-sm text-muted-foreground">Leave notification log</h2>
+          <h2 className="mb-3 font-semibold text-sm text-muted-foreground">
+            Leave notification log
+          </h2>
           <ul className="space-y-2">
             {leaveAlerts.slice(0, 8).map((a) => (
-              <li
-                key={a.id}
-                className="rounded-xl border border-border px-3 py-2.5 text-sm"
-              >
+              <li key={a.id} className="rounded-xl border border-border px-3 py-2.5 text-sm">
                 <p className="font-medium">{a.title}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">{a.summary}</p>
                 <p className="text-[10px] text-muted-foreground mt-1">{a.time}</p>

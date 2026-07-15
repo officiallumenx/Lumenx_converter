@@ -20,9 +20,11 @@ import {
   Search,
 } from "lucide-react";
 import { useState } from "react";
-import { Button, Sheet, SheetContent, SheetTitle, SheetTrigger, cn } from "@lumenx/ui";
+import { Button, Sheet, SheetTrigger, cn } from "@lumenx/ui";
+import { MobileMoreSheetContent } from "@/components/app/MobileMoreSheetContent";
 import { useCareersAuth } from "@/careers-portal/core/CareersAuthProvider";
 import { useCareersTheme } from "@/careers-portal/core/CareersThemeProvider";
+import { LumenXLogo } from "@/components/app/LumenXLogo";
 import { isMinimalShellRoute } from "@/careers-portal/core/guards";
 import { isRecruiter } from "@/lib/careers/auth-utils";
 import { unreadNotificationCount } from "@/lib/careers/repositories";
@@ -94,8 +96,20 @@ function ThemeToggle({ className }: { className?: string }) {
     setTheme(order[(idx + 1) % order.length]!);
   };
   return (
-    <Button variant="ghost" size="icon" onClick={cycle} aria-label="Toggle theme" className={className}>
-      {theme === "dark" ? <Sun className="size-4" /> : theme === "system" ? <Monitor className="size-4" /> : <Moon className="size-4" />}
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={cycle}
+      aria-label="Toggle theme"
+      className={className}
+    >
+      {theme === "dark" ? (
+        <Sun className="size-4" />
+      ) : theme === "system" ? (
+        <Monitor className="size-4" />
+      ) : (
+        <Moon className="size-4" />
+      )}
     </Button>
   );
 }
@@ -121,7 +135,9 @@ export function CareersShell({ children }: { children: React.ReactNode }) {
         onClick={() => setMoreOpen(false)}
         className={cn(
           "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors min-h-10",
-          active ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+          active
+            ? "bg-primary/10 text-primary font-medium"
+            : "text-muted-foreground hover:bg-muted hover:text-foreground",
         )}
       >
         <Icon className="size-4 shrink-0" />
@@ -136,11 +152,11 @@ export function CareersShell({ children }: { children: React.ReactNode }) {
         <header className="sticky top-0 z-20 border-b border-border bg-background/90 backdrop-blur-md">
           <div className="mx-auto flex h-14 max-w-lg items-center justify-between gap-2 px-4">
             <Link to="/careers" className="flex items-center gap-2 min-w-0">
-              <div className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-                <BriefcaseBusiness className="size-4" />
-              </div>
+              <LumenXLogo size="sm" />
               <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Careers</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Careers
+                </p>
                 <p className="text-sm font-bold leading-tight truncate">LumenX Connect</p>
               </div>
             </Link>
@@ -157,11 +173,11 @@ export function CareersShell({ children }: { children: React.ReactNode }) {
       <aside className="hidden lg:flex w-60 shrink-0 flex-col border-r border-border bg-sidebar h-screen sticky top-0">
         <div className="flex h-16 shrink-0 items-center justify-between gap-2 border-b border-border px-4">
           <Link to="/careers" className="flex items-center gap-2 min-w-0">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <BriefcaseBusiness className="size-4" />
-            </div>
+            <LumenXLogo size="sm" />
             <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Careers</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Careers
+              </p>
               <p className="text-sm font-bold truncate">LumenX</p>
             </div>
           </Link>
@@ -172,7 +188,9 @@ export function CareersShell({ children }: { children: React.ReactNode }) {
             <NavLink key={item.to} {...item} />
           ))}
           <div className="my-2 border-t border-border pt-2">
-            <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">More</p>
+            <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              More
+            </p>
             {moreNav.map((item) => (
               <NavLink key={item.to} {...item} />
             ))}
@@ -180,13 +198,22 @@ export function CareersShell({ children }: { children: React.ReactNode }) {
         </nav>
         <div className="shrink-0 border-t border-border p-3">
           {user ? (
-            <Button variant="ghost" className="w-full justify-start" onClick={() => { signOut(); nav({ to: "/careers/login" }); }}>
+            <Button
+              variant="ghost"
+              className="w-full justify-start"
+              onClick={() => {
+                signOut();
+                nav({ to: "/careers/login" });
+              }}
+            >
               Sign out
             </Button>
           ) : (
             <div className="flex flex-col gap-2">
               <Button className="w-full" asChild>
-                <Link to="/careers/signup" search={{ type: "job_seeker" }}><LogIn className="size-4 mr-2" /> Sign up</Link>
+                <Link to="/careers/signup" search={{ type: "job_seeker" }}>
+                  <LogIn className="size-4 mr-2" /> Sign up
+                </Link>
               </Button>
               <Button variant="outline" className="w-full" asChild>
                 <Link to="/careers/login">Sign in</Link>
@@ -199,15 +226,16 @@ export function CareersShell({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-screen min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between border-b border-border bg-background/90 px-4 backdrop-blur-md lg:hidden">
           <Link to="/careers" className="flex items-center gap-2 min-w-0">
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <BriefcaseBusiness className="size-3.5" />
-            </div>
+            <LumenXLogo size="sm" className="h-8" />
             <span className="truncate text-sm font-bold">Careers</span>
           </Link>
           <div className="flex items-center gap-1">
             <ThemeToggle />
             {user && !isRecruiter(user) && (
-              <Link to="/careers/notifications" className="relative flex size-9 items-center justify-center rounded-lg border border-border">
+              <Link
+                to="/careers/notifications"
+                className="relative flex size-9 items-center justify-center rounded-lg border border-border"
+              >
                 <Bell className="size-4" />
                 {unread > 0 && (
                   <span className="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground">
@@ -265,15 +293,16 @@ export function CareersShell({ children }: { children: React.ReactNode }) {
                   type="button"
                   className={cn(
                     "flex flex-1 flex-col items-center gap-0.5 rounded-lg py-2 text-[10px] min-w-0",
-                    moreNav.some((m) => isActive(loc.pathname, m.to)) ? "text-primary font-medium" : "text-muted-foreground",
+                    moreNav.some((m) => isActive(loc.pathname, m.to))
+                      ? "text-primary font-medium"
+                      : "text-muted-foreground",
                   )}
                 >
                   <MoreHorizontal className="size-5" />
                   More
                 </button>
               </SheetTrigger>
-              <SheetContent side="bottom" className="rounded-t-2xl pb-8 max-h-[70vh] overflow-y-auto">
-                <SheetTitle className="mb-4 text-left">More</SheetTitle>
+              <MobileMoreSheetContent title="More">
                 <div className="grid grid-cols-2 gap-2">
                   {moreNav.map((item) => {
                     const target = navTarget(item, user);
@@ -292,16 +321,25 @@ export function CareersShell({ children }: { children: React.ReactNode }) {
                   })}
                   {!user && (
                     <>
-                      <Link to="/careers/login" onClick={() => setMoreOpen(false)} className="flex items-center gap-2 rounded-xl border border-border p-3 text-sm">
+                      <Link
+                        to="/careers/login"
+                        onClick={() => setMoreOpen(false)}
+                        className="flex items-center gap-2 rounded-xl border border-border p-3 text-sm"
+                      >
                         <LogIn className="size-4" /> Sign in
                       </Link>
-                      <Link to="/careers/signup" search={{ type: "job_seeker" }} onClick={() => setMoreOpen(false)} className="flex items-center gap-2 rounded-xl border border-border p-3 text-sm">
+                      <Link
+                        to="/careers/signup"
+                        search={{ type: "job_seeker" }}
+                        onClick={() => setMoreOpen(false)}
+                        className="flex items-center gap-2 rounded-xl border border-border p-3 text-sm"
+                      >
                         <User className="size-4" /> Sign up
                       </Link>
                     </>
                   )}
                 </div>
-              </SheetContent>
+              </MobileMoreSheetContent>
             </Sheet>
           </div>
         </nav>
@@ -310,4 +348,9 @@ export function CareersShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-export { JobCard, ApplicationTimeline, DocumentUploadCard, SaveJobButton } from "./CareersShellWidgets";
+export {
+  JobCard,
+  ApplicationTimeline,
+  DocumentUploadCard,
+  SaveJobButton,
+} from "./CareersShellWidgets";

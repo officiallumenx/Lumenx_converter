@@ -74,7 +74,11 @@ export function applicationToSyncRow(app: AdmissionApplication): AdminSyncRow {
     grade: app.grade,
     stage: STATUS_TO_STAGE[status] ?? "review",
     applied: app.submittedAt
-      ? new Date(app.submittedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+      ? new Date(app.submittedAt).toLocaleDateString("en-IN", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        })
       : "—",
     docs: `${verified}/${total}`,
     instituteId: app.instituteId,
@@ -139,9 +143,6 @@ export function applyAdminStageToApplication(
     ...app,
     status,
     updatedAt: at,
-    timeline: [
-      ...app.timeline,
-      { id: `sync-${Date.now()}`, status, label, at },
-    ],
+    timeline: [...app.timeline, { id: `sync-${Date.now()}`, status, label, at }],
   };
 }

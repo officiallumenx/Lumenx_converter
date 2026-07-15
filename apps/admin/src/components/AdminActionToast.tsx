@@ -23,7 +23,11 @@ export function AdminActionToastProvider({ children }: { children: ReactNode }) 
   return (
     <AdminToastContext.Provider value={notify}>
       {children}
-      <div className="fixed bottom-4 right-3 sm:right-4 z-[200] flex flex-col gap-2 pointer-events-none max-w-[min(100vw-1.5rem,24rem)]" aria-live="polite" aria-relevant="additions">
+      <div
+        className="fixed bottom-4 right-3 sm:right-4 z-[200] flex flex-col gap-2 pointer-events-none max-w-[min(100vw-1.5rem,24rem)]"
+        aria-live="polite"
+        aria-relevant="additions"
+      >
         {toasts.map((t) => (
           <div
             key={t.id}

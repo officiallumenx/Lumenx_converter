@@ -40,11 +40,13 @@ export function TeacherPortalRegistry({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const [tick, setTick] = useState(0);
   const seq = useRef(0);
+  const loadedRef = useRef(false);
 
   const refresh = useCallback(() => setTick((t) => t + 1), []);
 
   useEffect(() => {
     if (role !== "teacher") {
+      loadedRef.current = false;
       setProfile(null);
       setClasses([]);
       setDashboard(null);
@@ -54,7 +56,10 @@ export function TeacherPortalRegistry({ children }: { children: ReactNode }) {
     }
 
     const my = ++seq.current;
-    setIsLoading(true);
+    // Only show the skeleton on the very first load for this role session; subsequent
+    // refresh() calls (e.g. re-entering the dashboard after a mutation) update silently.
+    const showSpinner = !loadedRef.current;
+    if (showSpinner) setIsLoading(true);
 
     Promise.all([
       teacherRepository.getProfile(),
@@ -68,11 +73,12 @@ export function TeacherPortalRegistry({ children }: { children: ReactNode }) {
         setClasses(c);
         setDashboard(d);
         setStudents(s);
-        setIsLoading(false);
+        loadedRef.current = true;
+        if (showSpinner) setIsLoading(false);
       })
       .catch(() => {
         if (seq.current !== my) return;
-        setIsLoading(false);
+        if (showSpinner) setIsLoading(false);
       });
   }, [role, tick]);
 

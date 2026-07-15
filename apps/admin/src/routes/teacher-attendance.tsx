@@ -70,7 +70,9 @@ function TeacherAttendancePage() {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [rows, setRows] = useState<TeacherAttendanceRecord[]>([]);
   const [registerStatus, setRegisterStatus] = useState<RegisterStatus>("draft");
-  const [meta, setMeta] = useState<Pick<TeacherDayRegister, "updatedAt" | "submittedAt" | "submittedBy">>({
+  const [meta, setMeta] = useState<
+    Pick<TeacherDayRegister, "updatedAt" | "submittedAt" | "submittedBy">
+  >({
     updatedAt: new Date().toISOString(),
   });
   const [deptFilter, setDeptFilter] = useState("all");
@@ -120,7 +122,12 @@ function TeacherAttendancePage() {
               ...r,
               status,
               checkIn: defaultCheckIn(status),
-              note: status === "leave" ? r.note ?? "Approved" : status === "absent" ? undefined : r.note,
+              note:
+                status === "leave"
+                  ? (r.note ?? "Approved")
+                  : status === "absent"
+                    ? undefined
+                    : r.note,
             }
           : r,
       ),
@@ -130,7 +137,9 @@ function TeacherAttendancePage() {
   const markAllPresent = () => {
     if (isSubmitted) return;
     setRows((prev) =>
-      prev.map((r) => (r.status === "leave" ? r : { ...r, status: "present" as const, checkIn: "08:20" })),
+      prev.map((r) =>
+        r.status === "leave" ? r : { ...r, status: "present" as const, checkIn: "08:20" },
+      ),
     );
   };
 
@@ -181,14 +190,30 @@ function TeacherAttendancePage() {
       }
     >
       <PageStack>
-      <div className="lx-kpi-grid">
-        <Kpi label="Present" value={String(stats.present)} delta={`of ${stats.total}`} tone="up" icon={<CheckCircle2 className="size-3.5" />} />
-        <Kpi label="Late / half" value={String(stats.late + stats.half)} delta="Today" icon={<Clock className="size-3.5" />} />
-        <Kpi label="Absent" value={String(stats.absent)} tone="down" icon={<UserX className="size-3.5" />} />
-        <Kpi label="On leave" value={String(stats.onLeave)} />
-      </div>
+        <div className="lx-kpi-grid">
+          <Kpi
+            label="Present"
+            value={String(stats.present)}
+            delta={`of ${stats.total}`}
+            tone="up"
+            icon={<CheckCircle2 className="size-3.5" />}
+          />
+          <Kpi
+            label="Late / half"
+            value={String(stats.late + stats.half)}
+            delta="Today"
+            icon={<Clock className="size-3.5" />}
+          />
+          <Kpi
+            label="Absent"
+            value={String(stats.absent)}
+            tone="down"
+            icon={<UserX className="size-3.5" />}
+          />
+          <Kpi label="On leave" value={String(stats.onLeave)} />
+        </div>
 
-      <SegmentedControl<PageTab>
+        <SegmentedControl<PageTab>
           value={tab}
           onChange={setTab}
           options={[
@@ -197,70 +222,80 @@ function TeacherAttendancePage() {
           ]}
         />
 
-      {tab === "history" ? (
-        <HistoryPanel history={history} onOpen={openHistoryDay} />
-      ) : (
-        <Card>
-          <CardHeader
-            title={formatDisplayDate(date)}
-            hint={
-              isSubmitted
-                ? `Submitted ${formatDateTime(meta.submittedAt)} · ${meta.submittedBy ?? "Admin"}`
-                : `Draft · last updated ${formatDateTime(meta.updatedAt)}`
-            }
-            action={
-              <Pill tone={isSubmitted ? "success" : "warning"} pulse={isDraft}>
-                {isSubmitted ? "Submitted" : "Draft"}
-              </Pill>
-            }
-          />
+        {tab === "history" ? (
+          <HistoryPanel history={history} onOpen={openHistoryDay} />
+        ) : (
+          <Card>
+            <CardHeader
+              title={formatDisplayDate(date)}
+              hint={
+                isSubmitted
+                  ? `Submitted ${formatDateTime(meta.submittedAt)} · ${meta.submittedBy ?? "Admin"}`
+                  : `Draft · last updated ${formatDateTime(meta.updatedAt)}`
+              }
+              action={
+                <Pill tone={isSubmitted ? "success" : "warning"} pulse={isDraft}>
+                  {isSubmitted ? "Submitted" : "Draft"}
+                </Pill>
+              }
+            />
 
-          <div className="px-5 pb-4 grid grid-cols-1 sm:grid-cols-3 gap-3 items-end border-b border-border">
-            <label className="block">
-              <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Date</span>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="mt-1.5 w-full h-9 px-3 rounded-md bg-background border border-border text-xs"
-              />
-            </label>
-            {!isSubmitted && (
+            <div className="px-5 pb-4 grid grid-cols-1 sm:grid-cols-3 gap-3 items-end border-b border-border">
+              <label className="block">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+                  Date
+                </span>
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="mt-1.5 w-full h-9 px-3 rounded-md bg-background border border-border text-xs"
+                />
+              </label>
+              {!isSubmitted && (
+                <>
+                  <label className="block">
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+                      Department
+                    </span>
+                    <Select
+                      value={deptFilter}
+                      onChange={(e) => setDeptFilter(e.target.value)}
+                      className="mt-1.5 w-full h-9 text-xs"
+                    >
+                      <option value="all">All</option>
+                      {DEPARTMENTS.map((d) => (
+                        <option key={d} value={d}>
+                          {d}
+                        </option>
+                      ))}
+                    </Select>
+                  </label>
+                  <label className="block">
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+                      Search
+                    </span>
+                    <SearchInput
+                      className="mt-1.5"
+                      placeholder="Name or ID"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                  </label>
+                </>
+              )}
+            </div>
+
+            {isSubmitted ? (
+              <SubmittedView rows={rows} onReopen={reopenDraft} />
+            ) : (
               <>
-                <label className="block">
-                  <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Department</span>
-                  <Select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)} className="mt-1.5 w-full h-9 text-xs">
-                    <option value="all">All</option>
-                    {DEPARTMENTS.map((d) => (
-                      <option key={d} value={d}>
-                        {d}
-                      </option>
-                    ))}
-                  </Select>
-                </label>
-                <label className="block">
-                  <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Search</span>
-                  <SearchInput
-                    className="mt-1.5"
-                    placeholder="Name or ID"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
-                </label>
+                <RegisterTable list={list} editable onStatus={setStatus} />
+                <ActionBar onSaveDraft={saveDraft} onSubmit={() => setSubmitOpen(true)} />
               </>
             )}
-          </div>
-
-          {isSubmitted ? (
-            <SubmittedView rows={rows} onReopen={reopenDraft} />
-          ) : (
-            <>
-              <RegisterTable list={list} editable onStatus={setStatus} />
-              <ActionBar onSaveDraft={saveDraft} onSubmit={() => setSubmitOpen(true)} />
-            </>
-          )}
-        </Card>
-      )}
+          </Card>
+        )}
       </PageStack>
 
       <Modal
@@ -278,7 +313,8 @@ function TeacherAttendancePage() {
         }
       >
         <p className="text-sm text-muted-foreground">
-          After submit, this day is locked and shown as a read-only record. You can reopen it as a draft from the submitted view if you need to correct it.
+          After submit, this day is locked and shown as a read-only record. You can reopen it as a
+          draft from the submitted view if you need to correct it.
         </p>
       </Modal>
     </AppShell>
@@ -301,7 +337,8 @@ function SubmittedView({
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-foreground">Attendance submitted for this day</p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {stats.present} present · {stats.late} late · {stats.half} half day · {stats.onLeave} leave · {stats.absent} absent
+            {stats.present} present · {stats.late} late · {stats.half} half day · {stats.onLeave}{" "}
+            leave · {stats.absent} absent
           </p>
         </div>
         <Button size="sm" variant="outline" onClick={onReopen}>
@@ -356,7 +393,11 @@ function RegisterTable({
                 <td className="px-5 py-2.5 text-sm text-muted-foreground truncate">{row.dept}</td>
                 <td className="px-5 py-2.5">
                   {editable && onStatus ? (
-                    <QuickStatusButtons value={row.status} name={row.name} onChange={(s) => onStatus(row.id, s)} />
+                    <QuickStatusButtons
+                      value={row.status}
+                      name={row.name}
+                      onChange={(s) => onStatus(row.id, s)}
+                    />
                   ) : (
                     <Pill tone={statusMeta(row.status).tone}>{statusMeta(row.status).label}</Pill>
                   )}
@@ -383,7 +424,11 @@ function QuickStatusButtons({
   onChange: (s: TeacherAttStatus) => void;
 }) {
   return (
-    <div className="inline-flex rounded-md border border-border overflow-hidden bg-background" role="group" aria-label={`Mark ${name}`}>
+    <div
+      className="inline-flex rounded-md border border-border overflow-hidden bg-background"
+      role="group"
+      aria-label={`Mark ${name}`}
+    >
       {QUICK_STATUS.map((opt, i) => {
         const active = value === opt.value;
         return (
@@ -394,7 +439,9 @@ function QuickStatusButtons({
             aria-pressed={active}
             onClick={() => onChange(opt.value)}
             className={`w-9 h-8 text-[10px] font-semibold transition-colors ${i > 0 ? "border-l border-border" : ""} ${
-              active ? opt.active : "text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+              active
+                ? opt.active
+                : "text-muted-foreground hover:bg-surface-hover hover:text-foreground"
             }`}
           >
             {opt.abbr}
@@ -418,13 +465,21 @@ function ActionBar({ onSaveDraft, onSubmit }: { onSaveDraft: () => void; onSubmi
   );
 }
 
-function HistoryPanel({ history, onOpen }: { history: TeacherDayRegister[]; onOpen: (date: string) => void }) {
+function HistoryPanel({
+  history,
+  onOpen,
+}: {
+  history: TeacherDayRegister[];
+  onOpen: (date: string) => void;
+}) {
   if (!history.length) {
     return (
       <Card className="p-8 text-center">
         <History className="size-8 mx-auto text-muted-foreground opacity-50" />
         <p className="mt-3 text-sm font-medium">No submitted days yet</p>
-        <p className="text-xs text-muted-foreground mt-1">Mark attendance and submit to see records here.</p>
+        <p className="text-xs text-muted-foreground mt-1">
+          Mark attendance and submit to see records here.
+        </p>
       </Card>
     );
   }

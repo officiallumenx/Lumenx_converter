@@ -57,7 +57,9 @@ export function AttendanceRow({
       <div
         className={cn(
           "size-10 shrink-0 rounded-full grid place-items-center transition-all duration-200",
-          isAbsent ? "bg-destructive text-destructive-foreground scale-100" : "bg-success/15 text-success",
+          isAbsent
+            ? "bg-destructive text-destructive-foreground scale-100"
+            : "bg-success/15 text-success",
         )}
       >
         {isAbsent ? <UserX className="size-4" /> : <Check className="size-4" />}

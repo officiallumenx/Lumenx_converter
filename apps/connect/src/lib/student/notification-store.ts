@@ -11,6 +11,10 @@ function notify() {
 }
 
 export const studentNotificationStore = {
+  reset: () => {
+    items = categorizedNotifications.student.map((n) => ({ ...n }));
+    notify();
+  },
   getItems: (): AppNotification[] => items,
   getUnreadCount: (): number => items.filter((n) => n.unread).length,
   markRead: (id: string) => {

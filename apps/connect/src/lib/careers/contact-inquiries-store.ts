@@ -1,9 +1,5 @@
 import { CAREERS_STORAGE_KEYS, createBrowserAuthStorage } from "@lumenx/auth";
-import type {
-  ContactInquiry,
-  ContactInquiryCategory,
-  ContactInquiryResponse,
-} from "./types";
+import type { ContactInquiry, ContactInquiryCategory, ContactInquiryResponse } from "./types";
 
 const storage = createBrowserAuthStorage();
 
@@ -46,7 +42,10 @@ const DEMO_INQUIRIES: ContactInquiry[] = [
   },
 ];
 
-function normalizeInquiry(raw: Partial<ContactInquiry> & Pick<ContactInquiry, "id" | "name" | "email" | "message" | "createdAt">): ContactInquiry {
+function normalizeInquiry(
+  raw: Partial<ContactInquiry> &
+    Pick<ContactInquiry, "id" | "name" | "email" | "message" | "createdAt">,
+): ContactInquiry {
   const createdAt = raw.createdAt;
   return {
     id: raw.id,
@@ -71,7 +70,10 @@ function readAll(): ContactInquiry[] {
   try {
     const raw = storage.getItem(CAREERS_STORAGE_KEYS.contactInquiries);
     if (!raw) return DEMO_INQUIRIES;
-    const parsed = JSON.parse(raw) as Array<Partial<ContactInquiry> & Pick<ContactInquiry, "id" | "name" | "email" | "message" | "createdAt">>;
+    const parsed = JSON.parse(raw) as Array<
+      Partial<ContactInquiry> &
+        Pick<ContactInquiry, "id" | "name" | "email" | "message" | "createdAt">
+    >;
     return parsed.map(normalizeInquiry);
   } catch {
     return DEMO_INQUIRIES;

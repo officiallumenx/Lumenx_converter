@@ -34,6 +34,12 @@ export function TeacherNotificationsPage() {
 
   useEffect(() => {
     load();
+    // Reflect notifications added/changed elsewhere (announcements, mark-all-read, etc.)
+    // without a full skeleton reload.
+    const unsub = teacherRepository.subscribeNotifications(() => {
+      teacherRepository.getNotifications().then(setItems);
+    });
+    return unsub;
   }, []);
 
   const filtered = useMemo(() => {
@@ -43,14 +49,14 @@ export function TeacherNotificationsPage() {
 
   const unread = items.filter((n) => n.unread).length;
 
-  const markRead = async (id: string) => {
-    await teacherRepository.markNotificationRead(id);
-    load();
+  const markRead = (id: string) => {
+    setItems((prev) => prev.map((n) => (n.id === id ? { ...n, unread: false } : n)));
+    void teacherRepository.markNotificationRead(id);
   };
 
   const markAllRead = async () => {
+    setItems((prev) => prev.map((n) => ({ ...n, unread: false })));
     await teacherRepository.markAllNotificationsRead();
-    load();
   };
 
   return (
@@ -60,7 +66,7 @@ export function TeacherNotificationsPage() {
         subtitle={`${unread} unread · Announcements, events, exams & staff notices`}
         action={
           unread ? (
-            <Button variant="outline" className="rounded-xl gap-2" onClick={markAllRead}>
+            <Button variant="outline" className="teacher-primary-action rounded-xl gap-2" onClick={markAllRead}>
               <CheckCheck className="size-4" /> Mark all read
             </Button>
           ) : null
@@ -73,12 +79,7 @@ export function TeacherNotificationsPage() {
             key={f.id}
             type="button"
             onClick={() => setFilter(f.id)}
-            className={cn(
-              "h-8 rounded-full border px-3 text-xs font-medium transition-colors",
-              filter === f.id
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-card text-muted-foreground hover:bg-muted/40",
-            )}
+            className={cn("teacher-filter-chip", filter === f.id && "is-active")}
           >
             {f.label}
           </button>

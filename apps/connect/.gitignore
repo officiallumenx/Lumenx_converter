@@ -20,6 +20,15 @@ dist-ssr
 .wrangler/
 .dev.vars
 
+# Capacitor / Android (build artifacts only — native project is committed)
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/*.iml
+android/capacitor-cordova-android-plugins/build/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

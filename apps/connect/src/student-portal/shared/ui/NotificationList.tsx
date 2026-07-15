@@ -1,21 +1,7 @@
 import { useState } from "react";
 import type { AppNotification, NotificationCategory } from "@lumenx/types";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  Badge,
-  cn,
-} from "@lumenx/ui";
-import {
-  Bell,
-  Sparkles,
-  AlertTriangle,
-  Info,
-  Flame,
-  ChevronRight,
-} from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, Badge, cn } from "@lumenx/ui";
+import { Bell, Sparkles, AlertTriangle, Info, Flame, ChevronRight } from "lucide-react";
 
 const CATEGORY_LABELS: Record<NotificationCategory, string> = {
   academic: "Academic",
@@ -59,7 +45,7 @@ export function NotificationList({
 
   const openDetail = (n: AppNotification) => {
     onSelect?.(n.id);
-    setSelected(n);
+    setSelected({ ...n, unread: false });
   };
 
   return (
@@ -74,48 +60,73 @@ export function NotificationList({
               type="button"
               onClick={() => openDetail(n)}
               className={cn(
-                "group flex min-w-0 w-full items-stretch gap-0 overflow-hidden rounded-2xl border bg-card text-left shadow-soft transition-colors",
-                n.unread ? "border-primary/35" : "border-border",
+                "student-list-row group flex min-w-0 w-full items-stretch gap-0 overflow-hidden rounded-2xl border border-border bg-card text-left motion-fast",
+                n.unread && "shadow-soft",
                 "hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
               )}
             >
               <div
                 className={cn(
                   "w-1 shrink-0",
-                  n.type === "warning" && "bg-warning",
-                  n.type === "positive" && "bg-success",
-                  n.type === "info" && "bg-primary",
+                  n.unread &&
+                    (n.type === "warning"
+                      ? "bg-warning"
+                      : n.type === "positive"
+                        ? "bg-success"
+                        : "bg-primary"),
                 )}
                 aria-hidden
               />
               <div className="flex min-w-0 flex-1 items-start gap-3 p-4">
-                <div className={cn("grid size-10 shrink-0 place-items-center rounded-xl", meta.tone)}>
+                <div
+                  className={cn(
+                    "grid size-10 shrink-0 place-items-center rounded-xl",
+                    meta.tone,
+                    !n.unread && "opacity-80",
+                  )}
+                >
                   <Icon className="size-5" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       {CATEGORY_LABELS[n.category]}
                     </span>
                     {n.unread && (
-                      <span className="rounded-full bg-primary px-1.5 py-px text-[9px] font-medium text-primary-foreground">
-                        New
+                      <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground">
+                        Unread
                       </span>
                     )}
                     {n.priority === "high" && (
-                      <Badge variant="outline" className="h-5 gap-1 border-destructive/40 px-1.5 text-[10px] text-destructive">
+                      <Badge
+                        variant="outline"
+                        className="h-5 gap-1 border-destructive/40 px-1.5 text-xs text-destructive"
+                      >
                         <Flame className="size-3" /> High
                       </Badge>
                     )}
                   </div>
-                  <div className="mt-0.5 font-medium leading-snug">{n.title}</div>
+                  <div
+                    className={cn(
+                      "mt-0.5 leading-snug text-foreground",
+                      n.unread ? "font-semibold" : "font-normal",
+                    )}
+                  >
+                    {n.title}
+                  </div>
                   <div className="mt-1 line-clamp-2 text-sm text-muted-foreground">{n.desc}</div>
-                  <div className="mt-2 flex items-center gap-1 text-xs text-primary opacity-0 transition-opacity group-hover:opacity-100">
+                  <div className="mt-2 flex items-center gap-1 text-xs text-primary opacity-0 transition-opacity group-hover:opacity-70">
                     Tap for details <ChevronRight className="size-3" />
                   </div>
                 </div>
                 <div className="shrink-0 self-start text-right">
-                  <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {n.unread && (
+                    <span
+                      className="mb-1 ml-auto block size-2 rounded-full bg-primary"
+                      aria-label="Unread"
+                    />
+                  )}
+                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     {meta.label}
                   </div>
                   <div className="mt-0.5 text-xs tabular-nums text-muted-foreground">{n.time}</div>
@@ -125,10 +136,12 @@ export function NotificationList({
           );
         })}
         {list.length === 0 && (
-          <div className="rounded-2xl border border-dashed py-12 text-center">
-            <Bell className="mx-auto mb-2 size-8 opacity-40" />
+          <div className="rounded-2xl border border-dashed border-border bg-muted/20 px-6 py-10 text-center sm:py-12">
+            <Bell className="mx-auto mb-3 size-8 opacity-40" aria-hidden />
             <div className="font-medium">No notifications here</div>
-            <p className="mt-1 text-sm text-muted-foreground">You&apos;re all caught up in this category.</p>
+            <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+              You&apos;re all caught up in this category.
+            </p>
           </div>
         )}
       </div>
@@ -185,8 +198,8 @@ function NotificationDetailDialog({
             </div>
           ) : (
             <p className="text-muted-foreground">
-              No additional details were attached to this alert. Check the related section in the app
-              for the latest status.
+              No additional details were attached to this alert. Check the related section in the
+              app for the latest status.
             </p>
           )}
           <div className="text-xs text-muted-foreground">Received {notification.time}</div>

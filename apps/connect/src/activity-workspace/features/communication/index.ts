@@ -1,0 +1,1 @@
+export { WorkspaceCommunicationPage } from "./WorkspaceCommunicationPage";

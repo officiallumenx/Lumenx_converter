@@ -18,7 +18,12 @@ import {
 import { normalizeCareersUser } from "./auth-utils";
 import type { CareersAccountType, OrganizationType } from "./types";
 import { filterJobs, JOB_POSTINGS } from "./jobs-data";
-import { getOpenRecruiterJobs, getRecruiterJobById, getRecruiterPostedJobs, seedRecruiterDemoJobs } from "./recruiter-jobs-store";
+import {
+  getOpenRecruiterJobs,
+  getRecruiterJobById,
+  getRecruiterPostedJobs,
+  seedRecruiterDemoJobs,
+} from "./recruiter-jobs-store";
 import { pushSyncSnapshot } from "./admin-bridge";
 import { computeProfileCompletion } from "./profile-repository";
 import { enrollRejectedCandidate } from "./talent-pool-store";
@@ -119,7 +124,9 @@ function saveApplications(apps: JobApplication[]) {
 
 function getNotificationsStore(): CareersNotification[] {
   if (!notifCache) {
-    notifCache = readJson<CareersNotification[]>(CAREERS_STORAGE_KEYS.notifications, [...DEMO_NOTIFICATIONS]);
+    notifCache = readJson<CareersNotification[]>(CAREERS_STORAGE_KEYS.notifications, [
+      ...DEMO_NOTIFICATIONS,
+    ]);
   }
   return notifCache;
 }
@@ -290,14 +297,20 @@ const DOC_LABELS: Record<CareerDocumentType, string> = {
 };
 
 const defaultDocs = (): ApplicationDocument[] =>
-  (["resume", "certificates", "experience_letters", "identity_proof", "profile_photo"] as CareerDocumentType[]).map(
-    (type) => ({
-      id: `doc-${type}`,
-      type,
-      label: DOC_LABELS[type],
-      status: "uploaded" as const,
-    }),
-  );
+  (
+    [
+      "resume",
+      "certificates",
+      "experience_letters",
+      "identity_proof",
+      "profile_photo",
+    ] as CareerDocumentType[]
+  ).map((type) => ({
+    id: `doc-${type}`,
+    type,
+    label: DOC_LABELS[type],
+    status: "uploaded" as const,
+  }));
 
 export function submitApplication(
   candidateId: string,
@@ -337,7 +350,11 @@ export function submitApplication(
   return app;
 }
 
-export function updateApplicationStatus(applicationId: string, status: JobApplication["status"], note?: string) {
+export function updateApplicationStatus(
+  applicationId: string,
+  status: JobApplication["status"],
+  note?: string,
+) {
   const apps = getApplicationsStore();
   const idx = apps.findIndex((a) => a.id === applicationId);
   if (idx < 0) return;
@@ -387,7 +404,9 @@ export function uploadDocument(
   return doc;
 }
 
-export function getAllDocumentsForUser(candidateId: string): { applicationId: string; jobTitle: string; documents: ApplicationDocument[] }[] {
+export function getAllDocumentsForUser(
+  candidateId: string,
+): { applicationId: string; jobTitle: string; documents: ApplicationDocument[] }[] {
   return getApplicationsForUser(candidateId).map((a) => ({
     applicationId: a.id,
     jobTitle: a.jobTitle,

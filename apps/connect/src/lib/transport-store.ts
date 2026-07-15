@@ -20,6 +20,7 @@ import type {
 type Listener = () => void;
 
 let initialized = false;
+let activeRole: "parent" | "student" | "teacher" | null = null;
 let activeLearnerKey = "S-2041";
 let assignment: StudentTransportAssignment = { ...studentTransportAssignment };
 let tracking: TransportTracking = { ...initialTracking };
@@ -62,17 +63,32 @@ function pushAlert(
   alerts = [alert, ...alerts].slice(0, 30);
   notify();
 
-  studentNotificationStore.add({
-    id: alert.id,
-    title: alert.title,
-    desc: alert.message,
-    time: alert.time,
-    type: type === "delay" || type === "eta_5min" ? "warning" : "positive",
-    category: "circulars",
-    unread: true,
-    priority: type === "delay" ? "high" : "normal",
-    detail: message,
-  });
+  // Only mirror into the student notification bell when a student is the active viewer —
+  // a parent/teacher watching transport must not inflate the student's unread badge.
+  if (activeRole === "student") {
+    studentNotificationStore.add({
+      id: alert.id,
+      title: alert.title,
+      desc: alert.message,
+      time: alert.time,
+      type: type === "delay" || type === "eta_5min" ? "warning" : "positive",
+      category: "circulars",
+      unread: true,
+      priority: type === "delay" ? "high" : "normal",
+      detail: message,
+    });
+  }
+}
+
+/** Reset all per-learner runtime (tracking, milestones, alerts, roster) for the active learner. */
+function resetLearnerRuntime() {
+  const next = transportAssignmentForLearner(activeLearnerKey);
+  assignment = { ...next, bus: { ...next.bus } };
+  tracking = { ...initialTracking, nextStopName: next.pickupStop.name };
+  firedMilestones.clear();
+  alerts = seedTransportAlerts.map((a) => ({ ...a }));
+  routeStudents = routeStudentsMorning.map((s) => ({ ...s }));
+  syncRouteOverview();
 }
 
 function syncRouteOverview() {
@@ -203,40 +219,44 @@ function stopSimulation() {
 }
 
 export const transportStore = {
-  init(learnerKey?: string) {
-    if (learnerKey) {
-      this.selectLearner(learnerKey);
+  init(learnerKey?: string, role?: "parent" | "student" | "teacher") {
+    if (role) activeRole = role;
+    if (learnerKey && learnerKey !== activeLearnerKey) {
+      activeLearnerKey = learnerKey;
+      resetLearnerRuntime();
+      notify();
     }
     if (initialized) {
       startSimulation();
       return;
     }
     initialized = true;
-    assignment = {
-      ...transportAssignmentForLearner(activeLearnerKey),
-      bus: { ...transportAssignmentForLearner(activeLearnerKey).bus },
-    };
-    tracking = { ...initialTracking };
-    alerts = seedTransportAlerts.map((a) => ({ ...a }));
-    routeStudents = routeStudentsMorning.map((s) => ({ ...s }));
-    syncRouteOverview();
+    if (learnerKey) activeLearnerKey = learnerKey;
+    resetLearnerRuntime();
     startSimulation();
     notify();
   },
 
   selectLearner(learnerKey: string) {
+    if (learnerKey === activeLearnerKey) return;
     activeLearnerKey = learnerKey;
-    const next = transportAssignmentForLearner(learnerKey);
-    assignment = { ...next, bus: { ...next.bus } };
-    tracking = {
-      ...tracking,
-      nextStopName: next.pickupStop.name,
-    };
+    // Full runtime reset so the new learner never shows the previous learner's ETA,
+    // progress, fired milestones, route statuses, or alerts.
+    resetLearnerRuntime();
     notify();
   },
 
   destroy() {
     stopSimulation();
+  },
+
+  reset() {
+    stopSimulation();
+    initialized = false;
+    activeRole = null;
+    activeLearnerKey = "S-2041";
+    resetLearnerRuntime();
+    notify();
   },
 
   getAssignment: (): StudentTransportAssignment => assignment,

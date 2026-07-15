@@ -90,7 +90,10 @@ function saveUsers(users: AdmissionsUser[]) {
 
 function getApplicationsStore(): AdmissionApplication[] {
   if (!appsCache) {
-    const stored = readJson<AdmissionApplication[] | null>(ADMISSIONS_STORAGE_KEYS.applications, null);
+    const stored = readJson<AdmissionApplication[] | null>(
+      ADMISSIONS_STORAGE_KEYS.applications,
+      null,
+    );
     appsCache = stored ?? [...DEMO_APPLICATIONS];
   }
   return appsCache;
@@ -104,7 +107,9 @@ function saveApplications(apps: AdmissionApplication[]) {
 
 function getNotificationsStore(): AdmissionsNotification[] {
   if (!notifCache) {
-    notifCache = readJson<AdmissionsNotification[]>(ADMISSIONS_STORAGE_KEYS.notifications, [...DEMO_NOTIFICATIONS]);
+    notifCache = readJson<AdmissionsNotification[]>(ADMISSIONS_STORAGE_KEYS.notifications, [
+      ...DEMO_NOTIFICATIONS,
+    ]);
   }
   return notifCache;
 }
@@ -161,7 +166,8 @@ export function registerUser(input: {
     email: input.email,
     phone: input.phone,
     passwordHash: input.password,
-    profileComplete: input.accountType === "institute_admin" ? 100 : input.email && input.phone ? 80 : 60,
+    profileComplete:
+      input.accountType === "institute_admin" ? 100 : input.email && input.phone ? 80 : 60,
     createdAt: new Date().toISOString(),
     accountType: input.accountType ?? "parent",
     instituteId: input.instituteId,
@@ -242,7 +248,10 @@ const DOC_LABELS: Record<DocumentType, string> = {
 
 export function submitApplication(
   applicantId: string,
-  data: Omit<AdmissionApplication, "id" | "applicantId" | "status" | "updatedAt" | "timeline" | "submittedAt">,
+  data: Omit<
+    AdmissionApplication,
+    "id" | "applicantId" | "status" | "updatedAt" | "timeline" | "submittedAt"
+  >,
 ): AdmissionApplication {
   const apps = getApplicationsStore();
   const app: AdmissionApplication = {
@@ -266,7 +275,10 @@ export function submitApplication(
   return app;
 }
 
-export function saveDraftApplication(applicantId: string, partial: Partial<AdmissionApplication>): AdmissionApplication {
+export function saveDraftApplication(
+  applicantId: string,
+  partial: Partial<AdmissionApplication>,
+): AdmissionApplication {
   const apps = getApplicationsStore();
   const existing = apps.find((a) => a.applicantId === applicantId && a.status === "draft");
   if (existing) {
@@ -282,12 +294,38 @@ export function saveDraftApplication(applicantId: string, partial: Partial<Admis
     programName: partial.programName ?? "",
     grade: partial.grade ?? "",
     academicYear: partial.academicYear ?? "2026–27",
-    student: partial.student ?? { name: "", gender: "", dateOfBirth: "", nationality: "Indian", bloodGroup: "" },
-    parent: partial.parent ?? { fatherName: "", motherName: "", guardianName: "", mobile: "", email: "", occupation: "" },
-    address: partial.address ?? { address: "", city: "", state: "", country: "India", postalCode: "" },
-    academic: partial.academic ?? { currentSchool: "", currentGrade: "", previousResults: "", performance: "" },
+    student: partial.student ?? {
+      name: "",
+      gender: "",
+      dateOfBirth: "",
+      nationality: "Indian",
+      bloodGroup: "",
+    },
+    parent: partial.parent ?? {
+      fatherName: "",
+      motherName: "",
+      guardianName: "",
+      mobile: "",
+      email: "",
+      occupation: "",
+    },
+    address: partial.address ?? {
+      address: "",
+      city: "",
+      state: "",
+      country: "India",
+      postalCode: "",
+    },
+    academic: partial.academic ?? {
+      currentSchool: "",
+      currentGrade: "",
+      previousResults: "",
+      performance: "",
+    },
     documents: partial.documents ?? [],
-    timeline: [{ id: "draft", status: "draft", label: "Draft saved", at: new Date().toISOString() }],
+    timeline: [
+      { id: "draft", status: "draft", label: "Draft saved", at: new Date().toISOString() },
+    ],
     updatedAt: new Date().toISOString(),
   };
   saveApplications([app, ...apps]);
@@ -335,9 +373,7 @@ export function markNotificationRead(id: string) {
 
 export function markAllNotificationsRead(applicantId: string) {
   const all = getNotificationsStore();
-  saveNotifications(
-    all.map((n) => (n.applicantId === applicantId ? { ...n, read: true } : n)),
-  );
+  saveNotifications(all.map((n) => (n.applicantId === applicantId ? { ...n, read: true } : n)));
 }
 
 export function addNotification(input: Omit<AdmissionsNotification, "id" | "read" | "createdAt">) {

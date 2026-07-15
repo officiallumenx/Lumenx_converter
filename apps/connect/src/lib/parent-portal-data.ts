@@ -3,6 +3,9 @@
  * Replace `buildParentPortalSnapshot` with API calls when backend is ready.
  */
 import type { AppNotification, Child, Goal, ReportCard, SubjectMark } from "@lumenx/types";
+import { clamp } from "@lumenx/utils";
+import { buildAttendanceDays, seedFromString } from "@/lib/attendance/calendar";
+import type { AttendanceDay } from "@/lib/attendance/types";
 import {
   achievements as baseAchievements,
   assignments as allAssignments,
@@ -16,6 +19,8 @@ import {
   studentTimetable,
   trend as baseTrend,
 } from "@/lib/mock-data";
+import { toLocalIsoDate } from "@/lib/leave-utils";
+import { gradeFor } from "@/lib/marks-utils";
 
 export const LINKED_CHILD_IDS = new Set(children.map((c) => c.id));
 
@@ -41,10 +46,6 @@ function seedFromId(id: string): number {
   return id.split("").reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
 }
 
-function clamp(n: number, lo: number, hi: number) {
-  return Math.max(lo, Math.min(hi, n));
-}
-
 function jitterPerformance(rows: { subject: string; score: number; prev: number }[], seed: number) {
   const d = (seed % 5) - 2;
   return rows.map((r) => ({
@@ -62,48 +63,57 @@ function jitterTrend(rows: { term: string; score: number }[], base: number, seed
   }));
 }
 
-function cloneReportCards(seed: number, avgHint: number): ReportCard[] {
+function cloneReportCards(seed: number): ReportCard[] {
   const adjustMarks = (marks: SubjectMark[]): SubjectMark[] =>
     marks.map((m) => {
       const bump = (seed + m.subject.length) % 5;
       const exam = clamp(m.exam + bump - 2, 35, 80);
       const internal = clamp(m.internal + (seed % 3) - 1, 10, 20);
       const total = internal + exam;
-      const grade =
-        total >= 90 ? "A+" : total >= 80 ? "A" : total >= 70 ? "B+" : total >= 60 ? "B" : "C";
-      return { ...m, internal, exam, total, grade };
+      return { ...m, internal, exam, total, grade: gradeFor(total) };
     });
 
   return baseReportCards.map((rc, idx) => {
     const marks = adjustMarks(rc.marks);
-    const pct = Math.round(marks.reduce((s, m) => s + m.total, 0) / marks.length);
-    const blended = Math.round((pct + avgHint) / 2 + (seed % 3) - 1);
-    const percentage = clamp(blended, 55, 97);
+    // Aggregate = average of the subject totals actually shown, so header % and grade
+    // never disagree with the marks table (shared gradeFor policy).
+    const percentage = Math.round(marks.reduce((s, m) => s + m.total, 0) / marks.length);
     const rank = clamp(12 - (seed % 8) + idx, 1, 18);
     return {
       ...rc,
       marks,
       percentage,
-      grade: percentage >= 90 ? "A+" : percentage >= 80 ? "A" : percentage >= 70 ? "B+" : "B",
+      grade: gradeFor(percentage),
       rank,
     };
   });
 }
 
-function buildAttendanceDays(seed: number) {
-  return Array.from({ length: 30 }, (_, i) => {
-    const day = i + 1;
-    const absent = (day + seed) % 13 === 0;
-    const leave = !absent && (day + seed * 2) % 19 === 0;
-    const status = absent ? "absent" : leave ? "leave" : "present";
-    return { day, status: status as "present" | "absent" | "leave" };
-  });
-}
-
-function assignmentsForClass(classTag: string, childId: string) {
+export function assignmentsForClass(classTag: string, childId: string) {
   const matched = allAssignments.filter((a) => a.class === classTag);
   if (matched.length > 0) return matched;
+  const today = toLocalIsoDate(new Date());
   return [
+    {
+      id: `A-X-${childId}-today-a`,
+      title: "Class worksheet",
+      subject: "Mathematics",
+      due: "Today",
+      dueDate: today,
+      status: "pending" as const,
+      class: classTag,
+      type: "assignment" as const,
+    },
+    {
+      id: `A-X-${childId}-today-h`,
+      title: "Daily practice",
+      subject: "English",
+      due: "Today",
+      dueDate: today,
+      status: "pending" as const,
+      class: classTag,
+      type: "homework" as const,
+    },
     {
       id: `A-X-${childId}-1`,
       title: "Weekly reading log",
@@ -215,6 +225,36 @@ function buildNotifications(child: Child): AppNotification[] {
       unread: false,
       priority: "normal" as const,
     },
+    {
+      id: `pn-${child.id}-f`,
+      title: "Mid-Term exam schedule",
+      desc: `${first}'s exam timetable published · ${tag}`,
+      time: "4 days ago",
+      type: "info" as const,
+      category: "exams" as const,
+      unread: true,
+      priority: "high" as const,
+    },
+    {
+      id: `pn-${child.id}-g`,
+      title: "Diwali break announced",
+      desc: "School closed 1–5 Nov",
+      time: "5 days ago",
+      type: "info" as const,
+      category: "holidays" as const,
+      unread: false,
+      priority: "normal" as const,
+    },
+    {
+      id: `pn-${child.id}-h`,
+      title: "Bus route update",
+      desc: "Pickup time shifted by 10 minutes on Route 4",
+      time: "1 week ago",
+      type: "info" as const,
+      category: "circulars" as const,
+      unread: false,
+      priority: "low" as const,
+    },
   ];
 }
 
@@ -245,7 +285,7 @@ export interface ParentPortalSnapshot {
   goals: Goal[];
   instituteGoals: typeof instituteAssignedGoals;
   reportCards: ReportCard[];
-  attendanceDays: { day: number; status: "present" | "absent" | "leave" }[];
+  attendanceDays: AttendanceDay[];
   assignments: ReturnType<typeof assignmentsForClass>;
   notifications: AppNotification[];
   /** Timetable rows mirror student layout; keyed per day. */
@@ -283,8 +323,13 @@ export function buildParentPortalSnapshot(
     streaks,
     goals: goalsForChild(child, seed),
     instituteGoals: instituteAssignedGoals,
-    reportCards: cloneReportCards(seed, child.avgScore),
-    attendanceDays: buildAttendanceDays(seed),
+    reportCards: cloneReportCards(seed),
+    // Same engine + child seed as the parent attendance calendar, so the current-month
+    // days shown here (Growth) match what the Attendance screen renders for this child.
+    attendanceDays: (() => {
+      const now = new Date();
+      return buildAttendanceDays(now.getFullYear(), now.getMonth(), seedFromString(child.id));
+    })(),
     assignments: assignmentsForClass(classTag, child.id),
     notifications: buildNotifications(child),
     timetable: studentTimetable,

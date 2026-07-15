@@ -23,7 +23,13 @@ import { Copy, Mail, MessageSquarePlus } from "lucide-react";
 import { toast } from "sonner";
 import { HELP_TOPICS, SUPPORT_EMAIL, TEACHER_FAQS } from "./support-content";
 
-export function FaqDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+export function FaqDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+}) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85dvh] overflow-y-auto rounded-2xl sm:max-w-lg">
@@ -34,7 +40,9 @@ export function FaqDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
           {TEACHER_FAQS.map((item, i) => (
             <AccordionItem key={item.q} value={`faq-${i}`}>
               <AccordionTrigger className="text-left text-sm">{item.q}</AccordionTrigger>
-              <AccordionContent className="text-sm text-muted-foreground">{item.a}</AccordionContent>
+              <AccordionContent className="text-sm text-muted-foreground">
+                {item.a}
+              </AccordionContent>
             </AccordionItem>
           ))}
         </Accordion>
@@ -43,7 +51,13 @@ export function FaqDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
   );
 }
 
-export function HelpCenterDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+export function HelpCenterDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+}) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85dvh] overflow-y-auto rounded-2xl sm:max-w-lg">
@@ -53,7 +67,9 @@ export function HelpCenterDialog({ open, onOpenChange }: { open: boolean; onOpen
         <Accordion type="single" collapsible className="w-full">
           {HELP_TOPICS.map((topic, i) => (
             <AccordionItem key={topic.title} value={`help-${i}`}>
-              <AccordionTrigger className="text-left text-sm font-medium">{topic.title}</AccordionTrigger>
+              <AccordionTrigger className="text-left text-sm font-medium">
+                {topic.title}
+              </AccordionTrigger>
               <AccordionContent className="text-sm leading-relaxed text-muted-foreground">
                 {topic.body}
               </AccordionContent>
@@ -65,7 +81,13 @@ export function HelpCenterDialog({ open, onOpenChange }: { open: boolean; onOpen
   );
 }
 
-export function ContactSupportDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+export function ContactSupportDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+}) {
   const mailto = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("LumenX Connect — Teacher Support")}`;
 
   const copyEmail = async () => {
@@ -84,7 +106,8 @@ export function ContactSupportDialog({ open, onOpenChange }: { open: boolean; on
           <DialogTitle>Contact support</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
-          Reach the LumenX team for account, portal, or technical help. We typically respond within 1–2 business days.
+          Reach the LumenX team for account, portal, or technical help. We typically respond within
+          1–2 business days.
         </p>
         <div className="rounded-xl border bg-muted/30 p-4">
           <p className="text-xs font-medium text-muted-foreground">Support email</p>
@@ -105,7 +128,13 @@ export function ContactSupportDialog({ open, onOpenChange }: { open: boolean; on
   );
 }
 
-export function FeedbackDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+export function FeedbackDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+}) {
   const [category, setCategory] = useState("general");
   const [message, setMessage] = useState("");
 
@@ -157,15 +186,25 @@ export function FeedbackDialog({ open, onOpenChange }: { open: boolean; onOpenCh
           </div>
         </div>
         <DialogFooter>
-          <Button variant="ghost" className="rounded-xl" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button className="rounded-xl" onClick={submit}>Submit feedback</Button>
+          <Button variant="ghost" className="rounded-xl" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button className="rounded-xl" onClick={submit}>
+            Submit feedback
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
 
-export function ReportIssueDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+export function ReportIssueDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+}) {
   const [subject, setSubject] = useState("");
   const [details, setDetails] = useState("");
 
@@ -204,8 +243,12 @@ export function ReportIssueDialog({ open, onOpenChange }: { open: boolean; onOpe
           />
         </div>
         <DialogFooter>
-          <Button variant="ghost" className="rounded-xl" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button className="rounded-xl" onClick={submit}>Report via email</Button>
+          <Button variant="ghost" className="rounded-xl" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button className="rounded-xl" onClick={submit}>
+            Report via email
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

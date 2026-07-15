@@ -2,11 +2,10 @@ import { Link } from "@tanstack/react-router";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@lumenx/ui";
 
-const TONES = {
-  default: "bg-card",
-  primary: "bg-primary/10 text-primary",
-  success: "bg-success/10 text-success",
-  warning: "bg-warning/10 text-warning-foreground",
+const VALUE_TONES = {
+  default: "text-foreground",
+  primary: "text-primary",
+  alert: "text-primary",
 } as const;
 
 export function StatCard({
@@ -16,52 +15,61 @@ export function StatCard({
   hint,
   tone = "default",
   className,
+  labelClassName = "teacher-stat-label",
 }: {
   icon: LucideIcon;
   label: string;
   value: string;
   hint?: string;
-  tone?: keyof typeof TONES;
+  tone?: keyof typeof VALUE_TONES;
   className?: string;
+  labelClassName?: string;
 }) {
   return (
     <div
       className={cn(
-        "flex min-w-0 flex-col rounded-2xl border border-border p-4 shadow-soft sm:p-5",
-        TONES[tone],
+        "flex min-w-0 flex-col rounded-xl border border-border bg-card p-2.5 shadow-soft sm:p-3",
         className,
       )}
     >
-      <div className="mb-2 flex items-center gap-2">
-        <Icon className="size-4 shrink-0 opacity-70" />
-        <span className="truncate text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-          {label}
-        </span>
+      <div className="mb-1 flex items-center gap-1.5">
+        <div className="grid size-7 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+          <Icon className="size-3.5" />
+        </div>
+        <span className={cn("truncate", labelClassName)}>{label}</span>
       </div>
-      <div className="font-display text-2xl font-semibold tabular-nums sm:text-3xl">{value}</div>
+      <div
+        className={cn(
+          "font-display text-lg font-semibold tabular-nums leading-none sm:text-xl",
+          VALUE_TONES[tone],
+        )}
+      >
+        {value}
+      </div>
       {hint ? <p className="mt-1 truncate text-xs text-muted-foreground">{hint}</p> : null}
     </div>
   );
 }
 
-const quickActionCls =
-  "flex flex-col items-center gap-2 rounded-2xl border border-border bg-card p-4 text-center shadow-soft transition-all hover:border-primary/30 hover:bg-muted/30 active:scale-[0.97] touch-manipulation min-w-0";
-
 export function QuickActionLink({
   icon: Icon,
   label,
   to,
+  search,
+  className = "teacher-quick-link",
 }: {
   icon: LucideIcon;
   label: string;
   to: string;
+  search?: Record<string, string>;
+  className?: string;
 }) {
   return (
-    <Link to={to} className={quickActionCls}>
-      <div className="grid size-11 place-items-center rounded-xl bg-primary/10 text-primary">
-        <Icon className="size-5" />
+    <Link to={to} search={search} className={className}>
+      <div className="grid size-8 place-items-center rounded-lg bg-primary/10 text-primary">
+        <Icon className="size-4" />
       </div>
-      <span className="text-xs font-medium leading-tight">{label}</span>
+      <span className="line-clamp-2 text-xs font-medium leading-tight text-foreground">{label}</span>
     </Link>
   );
 }

@@ -94,7 +94,10 @@ export function encodeStudentProfileToken(profile: StudentIdQrPayload): string |
   return null;
 }
 
-export function decodeStudentProfileToken(token: string, verifyUrl: string): StudentIdQrPayload | null {
+export function decodeStudentProfileToken(
+  token: string,
+  verifyUrl: string,
+): StudentIdQrPayload | null {
   try {
     const json = new TextDecoder().decode(base64UrlToBytes(token));
     const shape = JSON.parse(json) as TokenShape;

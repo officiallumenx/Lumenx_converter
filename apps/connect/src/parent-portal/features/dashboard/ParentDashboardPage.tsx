@@ -1,4 +1,6 @@
 import { memo, useMemo, useSyncExternalStore } from "react";
+import { prefersReducedMotion } from "@/lib/prefers-reduced-motion";
+import { getInitials } from "@lumenx/utils";
 import { Link } from "@tanstack/react-router";
 import {
   ClipboardCheck,
@@ -16,17 +18,14 @@ import { children as allChildren, schoolAlerts } from "@/lib/mock-data";
 import type { StudentAssignment } from "@/lib/mock-data";
 import { useApp } from "@/lib/app-state";
 import { useParentPortal } from "@/context/ParentPortalContext";
-import {
-  AlertsDashboardPanel,
-  useAlertStoreInit,
-} from "@/components/app/alerts/AlertsCenterView";
+import { AlertsDashboardPanel, useAlertStoreInit } from "@/components/app/alerts/AlertsCenterView";
 import { alertStore } from "@/lib/alert-store";
 import {
   getAssignmentVisualStatus,
   ASSIGNMENT_STATUS_DOT,
   ASSIGNMENT_STATUS_LABEL,
   ASSIGNMENT_CARD_STYLES,
-  pendingWorkForChild,
+  todayWorkForChild,
 } from "@/lib/assignment-status";
 import { Badge, cn } from "@lumenx/ui";
 import { Avatar, AvatarFallback } from "@lumenx/ui";
@@ -66,12 +65,12 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
   const remarks = snap?.remarks ?? [];
   const childAssignments = snap?.assignments ?? [];
 
-  const pendingAssignments = useMemo(
-    () => pendingWorkForChild(childAssignments, "assignment").slice(0, 4),
+  const todayAssignments = useMemo(
+    () => todayWorkForChild(childAssignments, "assignment").slice(0, 4),
     [childAssignments],
   );
-  const pendingHomework = useMemo(
-    () => pendingWorkForChild(childAssignments, "homework").slice(0, 4),
+  const todayHomework = useMemo(
+    () => todayWorkForChild(childAssignments, "homework").slice(0, 4),
     [childAssignments],
   );
 
@@ -119,7 +118,9 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <div className="text-xs text-muted-foreground uppercase tracking-widest">Your child</div>
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Your child
+            </div>
             <h2 className="font-display mt-0.5 truncate text-xl font-semibold sm:text-2xl md:text-3xl">
               {child.name}
             </h2>
@@ -140,7 +141,7 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
           </div>
           <div className="flex w-full min-w-0 shrink-0 gap-2 sm:w-auto">
             <Link to="/messages" className="min-w-0 flex-1 sm:flex-none">
-              <Button variant="outline" className="w-full gap-2 rounded-xl">
+              <Button variant="outline" className="parent-hero-action w-full gap-2 rounded-xl">
                 <MessageSquare className="size-4" /> Message
               </Button>
             </Link>
@@ -180,17 +181,17 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
 
       <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-3">
         <PendingWorkPanel
-          title="Pending assignments"
+          title="Today's assignments"
           icon={BookOpen}
-          items={pendingAssignments}
-          emptyLabel="No pending assignments"
+          items={todayAssignments}
+          emptyLabel="No assignments due today"
           viewAllLabel="All assignments"
         />
         <PendingWorkPanel
-          title="Pending homework"
+          title="Today's homework"
           icon={BookOpen}
-          items={pendingHomework}
-          emptyLabel="No pending homework"
+          items={todayHomework}
+          emptyLabel="No homework due today"
           viewAllLabel="All homework"
         />
         <AlertsDashboardPanel alerts={portalAlerts} childId={activeChildId} />
@@ -200,11 +201,8 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
         <div className="min-w-0 overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-soft md:p-5 lg:col-span-3">
           <div className="mb-3 flex min-w-0 items-center justify-between gap-2">
             <h3 className="min-w-0 truncate font-semibold">Subject performance</h3>
-            <Link
-              to="/marks"
-              className="inline-flex shrink-0 items-center gap-1 text-xs text-primary hover:underline whitespace-nowrap"
-            >
-              Details <ArrowRight className="size-3 shrink-0" />
+            <Link to="/marks" className="parent-section-link whitespace-nowrap">
+              Details <ArrowRight className="size-3 shrink-0" aria-hidden />
             </Link>
           </div>
           <div className="h-56 w-full min-w-0 max-w-full">
@@ -236,8 +234,18 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
                     borderRadius: 12,
                   }}
                 />
-                <Bar dataKey="prev" fill="oklch(0.86 0.04 250)" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="score" fill="oklch(0.55 0.22 260)" radius={[6, 6, 0, 0]} />
+                <Bar
+                  dataKey="prev"
+                  fill="oklch(0.86 0.04 250)"
+                  radius={[6, 6, 0, 0]}
+                  isAnimationActive={!prefersReducedMotion()}
+                />
+                <Bar
+                  dataKey="score"
+                  fill="oklch(0.55 0.22 260)"
+                  radius={[6, 6, 0, 0]}
+                  isAnimationActive={!prefersReducedMotion()}
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -275,6 +283,7 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
                   stroke="oklch(0.7 0.16 155)"
                   strokeWidth={2.5}
                   fill="url(#g2)"
+                  isAnimationActive={!prefersReducedMotion()}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -286,11 +295,8 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
         <div className="min-w-0 rounded-2xl border border-border bg-card p-4 shadow-soft flex flex-col h-full sm:p-5">
           <div className="mb-3 flex min-w-0 items-center justify-between gap-2">
             <h3 className="min-w-0 font-semibold">Latest from teachers</h3>
-            <Link
-              to="/messages"
-              className="inline-flex shrink-0 items-center gap-1 text-xs text-primary hover:underline whitespace-nowrap"
-            >
-              Message teacher <ArrowRight className="size-3 shrink-0" />
+            <Link to="/messages" className="parent-section-link whitespace-nowrap">
+              Message teacher <ArrowRight className="size-3 shrink-0" aria-hidden />
             </Link>
           </div>
           <p className="mb-3 text-xs text-muted-foreground leading-relaxed">
@@ -299,16 +305,13 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
           </p>
           <div className="min-w-0 flex-1 space-y-3">
             {remarks.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">No remarks yet.</p>
+              <p className="parent-empty-state py-8">No remarks yet.</p>
             ) : (
               remarks.map((r, i) => (
                 <div key={i} className="flex min-w-0 gap-3 rounded-xl bg-muted/40 p-3">
                   <Avatar className="size-9 shrink-0">
                     <AvatarFallback className="text-xs">
-                      {r.teacher
-                        .split(" ")
-                        .map((p) => p[0])
-                        .join("")}
+                      {getInitials(r.teacher)}
                     </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0 flex-1">
@@ -316,8 +319,9 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
                       <Badge
                         variant="outline"
                         className={cn(
-                          "text-[10px]",
-                          r.tone === "warning" && "border-warning/40 text-warning-foreground bg-warning/10",
+                          "text-xs",
+                          r.tone === "warning" &&
+                            "border-warning/40 text-warning-foreground bg-warning/10",
                           r.tone === "positive" && "border-success/40 text-success bg-success/10",
                         )}
                       >
@@ -338,18 +342,15 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
         <div className="min-w-0 rounded-2xl border border-border bg-card p-4 shadow-soft flex flex-col h-full sm:p-5">
           <div className="mb-3 flex min-w-0 items-center justify-between gap-2">
             <h3 className="min-w-0 truncate font-semibold">Recent updates</h3>
-            <Link
-              to="/notifications"
-              className="inline-flex shrink-0 items-center gap-1 text-xs text-primary hover:underline whitespace-nowrap"
-            >
-              View all <ArrowRight className="size-3 shrink-0" />
+            <Link to="/notifications" className="parent-section-link whitespace-nowrap">
+              View all <ArrowRight className="size-3 shrink-0" aria-hidden />
             </Link>
           </div>
           <div className="min-w-0 flex-1 space-y-2">
             {(snap?.notifications ?? []).slice(0, 4).map((n) => (
               <div
                 key={n.id}
-                className="flex min-w-0 items-start gap-2 rounded-xl border border-border p-3 sm:gap-3"
+                className="parent-list-row flex min-w-0 items-start gap-2 rounded-xl border border-border p-3 sm:gap-3"
               >
                 <div
                   className={`mt-1.5 size-2 shrink-0 rounded-full ${n.type === "warning" ? "bg-warning" : n.type === "positive" ? "bg-success" : "bg-primary"}`}
@@ -360,7 +361,7 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
                     {n.desc}
                   </div>
                 </div>
-                <div className="max-w-[4.25rem] shrink-0 self-start text-right text-[10px] leading-tight text-muted-foreground sm:max-w-[5rem] sm:text-[11px]">
+                <div className="max-w-[4.5rem] shrink-0 self-start text-right text-xs leading-tight text-muted-foreground sm:max-w-[5.5rem]">
                   {n.time}
                 </div>
               </div>
@@ -392,16 +393,13 @@ function PendingWorkPanel({
           <Icon className="size-4 shrink-0 text-primary" />
           <h3 className="min-w-0 font-semibold leading-snug">{title}</h3>
         </div>
-        <Link
-          to="/assignments"
-          className="inline-flex shrink-0 items-center gap-1 text-xs text-primary hover:underline whitespace-nowrap"
-        >
-          {viewAllLabel} <ArrowRight className="size-3 shrink-0" />
+        <Link to="/assignments" className="parent-section-link whitespace-nowrap">
+          {viewAllLabel} <ArrowRight className="size-3 shrink-0" aria-hidden />
         </Link>
       </div>
       <div className="min-w-0 flex-1 space-y-2">
         {items.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">{emptyLabel}</p>
+          <p className="parent-empty-state py-8">{emptyLabel}</p>
         ) : (
           items.map((a) => {
             const visual = getAssignmentVisualStatus(a);
@@ -411,15 +409,20 @@ function PendingWorkPanel({
                 key={a.id}
                 to="/assignments"
                 className={cn(
-                  "flex min-w-0 items-start gap-2.5 rounded-xl border p-3 transition-colors hover:shadow-sm",
+                  "parent-list-row flex min-w-0 items-start gap-2.5 rounded-xl border p-3 hover:shadow-sm",
                   visual === "overdue" ? cardStyle.card : cn("bg-card", cardStyle.card),
                 )}
               >
                 <span
-                  className={cn("mt-1.5 size-2 shrink-0 rounded-full", ASSIGNMENT_STATUS_DOT[visual])}
+                  className={cn(
+                    "mt-1.5 size-2 shrink-0 rounded-full",
+                    ASSIGNMENT_STATUS_DOT[visual],
+                  )}
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium leading-snug line-clamp-2 break-words">{a.title}</p>
+                  <p className="text-sm font-medium leading-snug line-clamp-2 break-words">
+                    {a.title}
+                  </p>
                   <p className="mt-0.5 text-xs text-muted-foreground truncate">
                     {a.subject} • {ASSIGNMENT_STATUS_LABEL[visual]} • {a.due}
                   </p>

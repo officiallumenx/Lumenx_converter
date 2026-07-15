@@ -68,9 +68,27 @@ export const WEEKLY_PRESENCE = [
 ] as const;
 
 export const ATTENDANCE_ALERTS = [
-  { id: "A1", tone: "danger" as const, title: "Unmarked absence", detail: "Marcus Whitfield · no check-in by 09:30", time: "09:32" },
-  { id: "A2", tone: "warning" as const, title: "Repeated late", detail: "James Chen · 3rd late this week", time: "09:15" },
-  { id: "A3", tone: "info" as const, title: "Substitute needed", detail: "Priya Iyer on leave · Grade 12 Biology P3", time: "08:50" },
+  {
+    id: "A1",
+    tone: "danger" as const,
+    title: "Unmarked absence",
+    detail: "Marcus Whitfield · no check-in by 09:30",
+    time: "09:32",
+  },
+  {
+    id: "A2",
+    tone: "warning" as const,
+    title: "Repeated late",
+    detail: "James Chen · 3rd late this week",
+    time: "09:15",
+  },
+  {
+    id: "A3",
+    tone: "info" as const,
+    title: "Substitute needed",
+    detail: "Priya Iyer on leave · Grade 12 Biology P3",
+    time: "08:50",
+  },
 ];
 
 export const DEPARTMENTS = [...new Set(FACULTY.map((t) => t.dept))].sort();

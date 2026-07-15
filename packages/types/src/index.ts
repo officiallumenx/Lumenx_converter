@@ -227,3 +227,5 @@ export interface SchoolEvent {
   venue?: string;
   description?: string;
 }
+
+export * from "./demo-profiles";

@@ -20,11 +20,15 @@ export function SavedJobsPage() {
         <div className="text-center py-16 rounded-2xl border border-dashed border-border">
           <Bookmark className="mx-auto size-10 text-muted-foreground/50" />
           <p className="mt-4 text-sm text-muted-foreground">No saved jobs yet.</p>
-          <Button className="mt-4" asChild><Link to="/careers/jobs">Browse jobs</Link></Button>
+          <Button className="mt-4" asChild>
+            <Link to="/careers/jobs">Browse jobs</Link>
+          </Button>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {saved.map((job) => <JobCard key={job.id} job={job} />)}
+          {saved.map((job) => (
+            <JobCard key={job.id} job={job} />
+          ))}
         </div>
       )}
     </div>

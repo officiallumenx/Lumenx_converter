@@ -13,18 +13,11 @@ import {
 } from "lucide-react";
 import { StatCard } from "@/components/app/StatCard";
 import { days } from "@/lib/mock-data";
+import { prefersReducedMotion } from "@/lib/prefers-reduced-motion";
 import { studentNotificationStore } from "@/lib/student/notification-store";
 import { useStudentPortal } from "@/context/StudentPortalContext";
-import { Badge } from "@lumenx/ui";
-import { Progress } from "@lumenx/ui";
-import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-} from "recharts";
+import { Badge, cn, Progress } from "@lumenx/ui";
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from "recharts";
 import { AchievementBadge } from "@/components/app/motivation/AchievementBadge";
 import { useSyncExternalStore } from "react";
 import { PageSkeleton, EmptyState } from "@/student-portal/shared/ui";
@@ -64,7 +57,7 @@ export function StudentDashboardPage() {
         <div className="absolute -top-10 -right-10 size-40 rounded-full bg-white/10 blur-2xl" />
         <div className="relative flex min-w-0 flex-col items-start justify-between gap-4 md:flex-row md:gap-6">
           <div className="min-w-0 max-w-full flex-1">
-            <div className="text-xs uppercase tracking-widest opacity-80">Today, {today}</div>
+            <div className="student-stat-label opacity-80">Today, {today}</div>
             <h2 className="mt-1 font-display text-xl font-semibold leading-snug break-words sm:text-2xl md:text-3xl">
               Hi {snap.profile.name.split(" ")[0]}, welcome back.
             </h2>
@@ -117,13 +110,9 @@ export function StudentDashboardPage() {
       <Card title="Quick access">
         <div className="grid min-w-0 auto-rows-fr grid-cols-2 items-stretch gap-2 sm:grid-cols-3 lg:grid-cols-5">
           {QUICK_LINKS.map((q) => (
-            <Link
-              key={q.to}
-              to={q.to}
-              className="flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center gap-2 rounded-xl border border-border bg-muted/20 p-3 text-center transition-colors hover:bg-muted/50"
-            >
+            <Link key={q.to} to={q.to} className="student-quick-link">
               <q.icon className="size-5 shrink-0 text-primary" />
-              <span className="text-xs font-medium leading-tight">{q.label}</span>
+              <span className="text-sm font-medium leading-tight">{q.label}</span>
             </Link>
           ))}
         </div>
@@ -136,7 +125,10 @@ export function StudentDashboardPage() {
               {recentNotifications.map((n) => (
                 <div
                   key={n.id}
-                  className={`flex min-w-0 gap-2 rounded-xl border p-3 ${n.unread ? "border-primary/30 bg-primary/[0.03]" : "border-border"}`}
+                  className={cn(
+                    "student-list-row flex min-w-0 gap-2 rounded-xl border p-3",
+                    n.unread ? "border-primary/30 bg-primary/[0.03]" : "border-border",
+                  )}
                 >
                   <Bell className="mt-0.5 size-4 shrink-0 text-primary" />
                   <div className="min-w-0 flex-1">
@@ -189,12 +181,10 @@ export function StudentDashboardPage() {
           {upcomingEvents.length ? (
             <div className="min-w-0 flex-1 space-y-2">
               {upcomingEvents.map((e) => (
-                <div key={e.id} className="rounded-xl border border-border p-3">
+                <div key={e.id} className="student-list-row rounded-xl border border-border p-3.5">
                   <div className="text-xs text-muted-foreground">{e.date}</div>
                   <div className="mt-0.5 font-medium leading-snug">{e.title}</div>
-                  {e.venue && (
-                    <div className="mt-0.5 text-xs text-muted-foreground">{e.venue}</div>
-                  )}
+                  {e.venue && <div className="mt-0.5 text-xs text-muted-foreground">{e.venue}</div>}
                 </div>
               ))}
             </div>
@@ -258,6 +248,7 @@ export function StudentDashboardPage() {
                   stroke="oklch(0.55 0.22 260)"
                   strokeWidth={2.5}
                   fill="url(#g)"
+                  isAnimationActive={!prefersReducedMotion()}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -292,7 +283,7 @@ export function StudentDashboardPage() {
             {upcomingExams.map((e) => (
               <div
                 key={e.id}
-                className="flex min-h-0 min-w-0 flex-col rounded-xl border border-border p-3 sm:p-4"
+                className="student-list-row flex min-h-0 min-w-0 flex-col rounded-xl border border-border p-3.5 sm:p-4"
               >
                 <div className="text-xs text-muted-foreground">{e.date}</div>
                 <div className="mt-1 font-medium leading-snug break-words line-clamp-2">
@@ -301,7 +292,7 @@ export function StudentDashboardPage() {
                 <div className="mt-1 text-xs leading-snug text-muted-foreground break-words line-clamp-2">
                   {e.duration} • {e.room}
                 </div>
-                <Badge variant="outline" className="mt-2 w-fit text-[10px]">
+                <Badge variant="outline" className="mt-2 w-fit text-xs">
                   Scheduled
                 </Badge>
               </div>
@@ -336,11 +327,8 @@ function Card({
           {title}
         </h3>
         {link && (
-          <Link
-            to={link}
-            className="inline-flex shrink-0 items-center gap-1 text-xs text-primary hover:underline"
-          >
-            View all <ArrowRight className="size-3 shrink-0" />
+          <Link to={link} className="student-section-link whitespace-nowrap">
+            View all <ArrowRight className="size-3 shrink-0" aria-hidden />
           </Link>
         )}
       </div>

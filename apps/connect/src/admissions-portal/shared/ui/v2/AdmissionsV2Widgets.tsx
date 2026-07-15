@@ -60,7 +60,12 @@ export function InstituteDirectoryCard({
             className="shrink-0 rounded-lg p-2 hover:bg-muted"
             aria-label={saved ? "Remove from saved" : "Save institute"}
           >
-            <Heart className={cn("size-4", saved ? "fill-destructive text-destructive" : "text-muted-foreground")} />
+            <Heart
+              className={cn(
+                "size-4",
+                saved ? "fill-destructive text-destructive" : "text-muted-foreground",
+              )}
+            />
           </button>
         )}
       </div>
@@ -73,10 +78,14 @@ export function InstituteDirectoryCard({
       </div>
       <div className="mt-4 flex gap-2">
         <Button className="flex-1" size="sm" asChild>
-          <Link to="/admissions/apply" search={applySearch}>Apply</Link>
+          <Link to="/admissions/apply" search={applySearch}>
+            Apply
+          </Link>
         </Button>
         <Button variant="outline" size="sm" className="flex-1" asChild>
-          <Link to="/admissions/institutes/$instituteId" params={{ instituteId: institute.id }}>View profile</Link>
+          <Link to="/admissions/institutes/$instituteId" params={{ instituteId: institute.id }}>
+            View profile
+          </Link>
         </Button>
       </div>
     </article>
@@ -103,7 +112,8 @@ export function ApplicationTimelineV2({
           </div>
           <Progress value={progress} className="h-2" />
           <p className="mt-2 text-xs text-muted-foreground">
-            Current: <span className="font-medium text-foreground">{statusLabel(currentStatus)}</span>
+            Current:{" "}
+            <span className="font-medium text-foreground">{statusLabel(currentStatus)}</span>
           </p>
         </div>
       )}
@@ -164,7 +174,9 @@ export function DocumentVerificationCard({
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-sm font-medium">{doc.label}</p>
-          {doc.fileName && <p className="text-xs text-muted-foreground mt-0.5 truncate">{doc.fileName}</p>}
+          {doc.fileName && (
+            <p className="text-xs text-muted-foreground mt-0.5 truncate">{doc.fileName}</p>
+          )}
           {doc.version && doc.version > 1 && (
             <p className="text-[10px] text-muted-foreground">Version {doc.version}</p>
           )}
@@ -175,13 +187,17 @@ export function DocumentVerificationCard({
         <div className="rounded-lg bg-warning/5 border border-warning/20 px-3 py-2 text-xs text-muted-foreground">
           <p className="font-medium text-warning">Admin notes</p>
           <ul className="mt-1 list-disc pl-4">
-            {doc.adminNotes.map((n) => <li key={n}>{n}</li>)}
+            {doc.adminNotes.map((n) => (
+              <li key={n}>{n}</li>
+            ))}
           </ul>
         </div>
       )}
       {doc.verificationTimeline && doc.verificationTimeline.length > 0 && (
         <div className="space-y-1 border-t border-border pt-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Verification timeline</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Verification timeline
+          </p>
           {doc.verificationTimeline.map((v) => (
             <p key={v.id} className="text-[11px] text-muted-foreground">
               {documentStatusLabel(v.status)} · {new Date(v.at).toLocaleDateString("en-IN")}
@@ -192,10 +208,14 @@ export function DocumentVerificationCard({
       )}
       <div className="flex flex-wrap gap-2">
         {doc.fileName && onPreview && (
-          <Button size="sm" variant="outline" onClick={onPreview}>Preview</Button>
+          <Button size="sm" variant="outline" onClick={onPreview}>
+            Preview
+          </Button>
         )}
         <label className="cursor-pointer">
-          <Button size="sm" variant="outline" asChild><span>{doc.fileName ? "Replace" : "Upload"}</span></Button>
+          <Button size="sm" variant="outline" asChild>
+            <span>{doc.fileName ? "Replace" : "Upload"}</span>
+          </Button>
           <input
             type="file"
             className="hidden"
@@ -211,10 +231,17 @@ export function DocumentVerificationCard({
   );
 }
 
-export function InstituteLogoBadge({ instituteId, size = "md" }: { instituteId: string; size?: "sm" | "md" | "lg" }) {
+export function InstituteLogoBadge({
+  instituteId,
+  size = "md",
+}: {
+  instituteId: string;
+  size?: "sm" | "md" | "lg";
+}) {
   const institute = getInstituteById(instituteId);
   const ext = getInstituteProfileExtended(instituteId);
-  const sz = size === "lg" ? "size-16 text-lg" : size === "sm" ? "size-8 text-[10px]" : "size-12 text-sm";
+  const sz =
+    size === "lg" ? "size-16 text-lg" : size === "sm" ? "size-8 text-[10px]" : "size-12 text-sm";
   return (
     <div
       className={cn(

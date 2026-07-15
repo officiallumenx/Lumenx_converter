@@ -53,6 +53,16 @@ export const signupPasswordSchema = z
     path: ["confirmPassword"],
   });
 
+export const termsAcceptanceSchema = z.object({
+  acceptedTerms: z.literal(true, {
+    errorMap: () => ({
+      message: "You must accept the Terms & Conditions and Privacy Policy.",
+    }),
+  }),
+});
+
+export const signupWithTermsSchema = signupPasswordSchema.and(termsAcceptanceSchema);
+
 export const signupProfileSchema = z.object({
   name: z.string().min(2, "Full name is required"),
   city: z.string().min(2, "City is required"),

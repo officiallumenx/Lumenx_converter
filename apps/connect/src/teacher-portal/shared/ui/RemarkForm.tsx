@@ -1,5 +1,13 @@
 import { useState } from "react";
-import { Button, Textarea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@lumenx/ui";
+import {
+  Button,
+  Textarea,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@lumenx/ui";
 import type { RemarkType, StudentRemark } from "@/lib/teacher/types";
 
 const REMARK_TYPES: { value: RemarkType; label: string }[] = [

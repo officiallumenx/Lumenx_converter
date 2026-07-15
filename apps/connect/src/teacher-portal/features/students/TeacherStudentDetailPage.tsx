@@ -81,9 +81,15 @@ export function TeacherStudentDetailPage({
         </Avatar>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap gap-2">
-            <Badge className="border-0 bg-success/15 text-success">{detail.attendancePct}% attendance</Badge>
-            <Badge className="border-0 bg-primary/15 text-primary">{detail.homeworkSubmissionPct}% homework</Badge>
-            <Badge variant="outline">{detail.avgScore}% avg · Grade {detail.grade}</Badge>
+            <Badge className="border-0 bg-success/15 text-success">
+              {detail.attendancePct}% attendance
+            </Badge>
+            <Badge className="border-0 bg-primary/15 text-primary">
+              {detail.homeworkSubmissionPct}% homework
+            </Badge>
+            <Badge variant="outline">
+              {detail.avgScore}% avg · Grade {detail.grade}
+            </Badge>
           </div>
         </div>
       </div>
@@ -92,6 +98,3 @@ export function TeacherStudentDetailPage({
     </div>
   );
 }
-
-
-

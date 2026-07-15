@@ -38,7 +38,9 @@ export function statusLabel(status: ApplicationStatus): string {
   return STATUS_LABELS[normalizeApplicationStatus(status)] ?? status;
 }
 
-export function statusTone(status: ApplicationStatus): "default" | "secondary" | "destructive" | "outline" {
+export function statusTone(
+  status: ApplicationStatus,
+): "default" | "secondary" | "destructive" | "outline" {
   const s = normalizeApplicationStatus(status);
   switch (s) {
     case "approved":
@@ -59,7 +61,9 @@ export function statusTone(status: ApplicationStatus): "default" | "secondary" |
   }
 }
 
-export function normalizeDocumentStatus(status: DocumentVerificationStatus): DocumentVerificationStatus {
+export function normalizeDocumentStatus(
+  status: DocumentVerificationStatus,
+): DocumentVerificationStatus {
   if (status === "pending_verification") return "under_review";
   if (status === "requires_resubmission") return "resubmission_required";
   return status;

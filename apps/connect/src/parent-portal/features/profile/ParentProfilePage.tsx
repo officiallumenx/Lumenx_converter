@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { getInitials } from "@lumenx/utils";
 import {
   LogOut,
   Bell,
@@ -14,6 +15,7 @@ import { PageHeader } from "@/components/app/PageHeader";
 import { useApp } from "@/lib/app-state";
 import { Avatar, AvatarFallback, AvatarImage, Button, Input, Switch } from "@lumenx/ui";
 import { compressImageToDataUrl } from "@/lib/image-compress";
+import { AppLockSettings } from "@/components/app/AppLockSettings";
 import { toast } from "sonner";
 import { SUPPORT_EMAIL } from "./support-content";
 import {
@@ -32,7 +34,7 @@ import {
   SettingsSupportPanel,
 } from "@/components/app/settings/SettingsPrimitives";
 
-const APP_VERSION = "2.4.0";
+import { CONNECT_APP_VERSION_LABEL } from "@/lib/app-version";
 
 export function ParentProfilePage({ initialSection }: { initialSection?: "support" }) {
   const {
@@ -66,7 +68,16 @@ export function ParentProfilePage({ initialSection }: { initialSection?: "suppor
     if (initialSection === "support") setSupportOpen(true);
   }, [initialSection]);
 
-  if (!user) return null;
+  if (!user) {
+    return (
+      <SettingsLayout>
+        <div className="animate-pulse space-y-4">
+          <div className="settings-loading-block h-8 w-40 rounded-lg" />
+          <div className="settings-loading-block h-48 rounded-2xl" />
+        </div>
+      </SettingsLayout>
+    );
+  }
 
   const onAvatarPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -126,6 +137,7 @@ export function ParentProfilePage({ initialSection }: { initialSection?: "suppor
               type="file"
               accept="image/jpeg,image/png,image/webp,image/gif"
               className="sr-only"
+              aria-label="Upload profile photo"
               onChange={onAvatarPick}
             />
             <Avatar className="size-20 sm:size-24 ring-4 ring-primary/10">
@@ -133,20 +145,16 @@ export function ParentProfilePage({ initialSection }: { initialSection?: "suppor
                 <AvatarImage src={user.avatar} alt="" className="object-cover" />
               ) : null}
               <AvatarFallback className="bg-gradient-primary font-display text-2xl text-primary-foreground">
-                {user.name
-                  .split(" ")
-                  .map((p) => p[0])
-                  .slice(0, 2)
-                  .join("")}
+                {getInitials(user.name, 2)}
               </AvatarFallback>
             </Avatar>
             <button
               type="button"
               aria-label="Change profile photo"
               onClick={() => fileRef.current?.click()}
-              className="absolute -bottom-1 -right-1 grid size-9 place-items-center rounded-full bg-primary text-primary-foreground shadow-glow touch-manipulation"
+              className="settings-avatar-action bg-primary text-primary-foreground shadow-glow"
             >
-              <Camera className="size-4" />
+              <Camera className="size-4" aria-hidden />
             </button>
           </div>
           <div className="min-w-0 flex-1 text-center sm:text-left">
@@ -157,7 +165,12 @@ export function ParentProfilePage({ initialSection }: { initialSection?: "suppor
 
         <div className="mt-6 grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
           <SettingsField label="Full name">
-            <Input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" className="rounded-xl" />
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoComplete="name"
+              className="rounded-xl"
+            />
           </SettingsField>
           <SettingsField label="Mobile">
             <Input value={user.phone} readOnly className="rounded-xl bg-muted/50" />
@@ -185,11 +198,16 @@ export function ParentProfilePage({ initialSection }: { initialSection?: "suppor
 
         <div className="mt-5 flex min-w-0 flex-wrap justify-end gap-2 border-t border-border pt-4">
           {user.avatar && (
-            <Button type="button" variant="outline" className="rounded-xl gap-2" onClick={clearAvatar}>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-xl gap-2"
+              onClick={clearAvatar}
+            >
               <UserCircle2 className="size-4" /> Remove photo
             </Button>
           )}
-          <Button type="button" className="rounded-xl" onClick={saveProfile}>
+          <Button type="button" className="settings-primary-action rounded-xl" onClick={saveProfile}>
             Save changes
           </Button>
         </div>
@@ -202,10 +220,8 @@ export function ParentProfilePage({ initialSection }: { initialSection?: "suppor
       >
         <SettingsRow
           label="Include student modules"
-          desc="Adds Growth, Digital ID, and assignment submission to your menu — so you can act for your learner from this portal."
-          right={
-            <Switch checked={studentIncludedMode} onCheckedChange={setStudentIncludedMode} />
-          }
+          desc="Adds Growth to your menu — read-only learner views when your child does not have their own device. ID cards stay available for all children."
+          right={<Switch checked={studentIncludedMode} onCheckedChange={setStudentIncludedMode} />}
         />
       </SettingsSection>
 
@@ -239,7 +255,7 @@ export function ParentProfilePage({ initialSection }: { initialSection?: "suppor
       </SettingsSection>
 
       <SettingsSection title="Security & privacy" icon={Lock}>
-        <SettingsRow label="App lock" desc="Require biometrics to open the app" right={<Switch />} />
+        <AppLockSettings />
         <SettingsRow
           label="Hide phone number"
           desc="From other parents and students"
@@ -251,7 +267,7 @@ export function ParentProfilePage({ initialSection }: { initialSection?: "suppor
         open={supportOpen}
         onToggle={() => setSupportOpen((v) => !v)}
         portalName="LumenX Connect Parent Portal"
-        version={APP_VERSION}
+        version={CONNECT_APP_VERSION_LABEL}
         supportEmail={SUPPORT_EMAIL}
         onFaq={() => setFaqOpen(true)}
         onHelp={() => setHelpOpen(true)}
@@ -262,10 +278,10 @@ export function ParentProfilePage({ initialSection }: { initialSection?: "suppor
 
       <Button
         variant="outline"
-        className="w-full min-w-0 rounded-xl gap-2 text-destructive border-destructive/30 hover:bg-destructive/5 h-11 touch-manipulation"
+        className="settings-sign-out rounded-xl gap-2 text-destructive border-destructive/30 hover:bg-destructive/5"
         onClick={signOut}
       >
-        <LogOut className="size-4" /> Sign out
+        <LogOut className="size-4" aria-hidden /> Sign out
       </Button>
 
       <ParentFaqDialog open={faqOpen} onOpenChange={setFaqOpen} />

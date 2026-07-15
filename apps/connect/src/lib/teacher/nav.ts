@@ -44,5 +44,9 @@ export const TEACHER_NAV = [
   { to: "/profile", label: "Settings", icon: UserIcon },
 ] as const;
 
+export function getTeacherNavItems(hasTransport = false) {
+  return TEACHER_NAV.filter((item) => item.to !== "/transport" || hasTransport);
+}
+
 /** Mobile bottom bar — highest-touch modules. */
 export const TEACHER_MOBILE_PRIMARY = ["/", "/attendance", "/leave", "/assignments"] as const;

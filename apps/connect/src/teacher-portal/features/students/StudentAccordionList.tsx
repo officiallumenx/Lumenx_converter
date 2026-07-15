@@ -44,8 +44,7 @@ export function StudentAccordionList({
     <div className="space-y-2">
       {students.map((s) => {
         const open = expandedId === s.id;
-        const tone =
-          s.avgScore >= 75 ? "success" : s.avgScore >= 50 ? "warning" : "destructive";
+        const tone = s.avgScore >= 75 ? "success" : s.avgScore >= 50 ? "warning" : "destructive";
 
         return (
           <article

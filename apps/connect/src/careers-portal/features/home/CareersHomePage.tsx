@@ -66,7 +66,9 @@ export function CareersHomePage() {
     <div className="space-y-8 animate-in fade-in duration-300">
       <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/15 via-primary/5 to-background border border-primary/20 p-6 sm:p-8">
         <div className="relative z-10 max-w-2xl">
-          <p className="text-xs font-semibold uppercase tracking-wider text-primary">LumenX Careers</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+            LumenX Careers
+          </p>
           <h1 className="mt-2 font-display text-3xl font-bold tracking-tight sm:text-4xl">
             {recruiter ? "Hire talent on LumenX Careers" : CAREERS_HERO.title}
           </h1>
@@ -130,7 +132,9 @@ export function CareersHomePage() {
                       <Link to="/careers/signup">Create account</Link>
                     </Button>
                     <Button size="lg" variant="ghost" asChild>
-                      <Link to="/careers/signup" search={{ type: "recruiter" }}>For recruiters</Link>
+                      <Link to="/careers/signup" search={{ type: "recruiter" }}>
+                        For recruiters
+                      </Link>
                     </Button>
                   </>
                 )}
@@ -142,7 +146,11 @@ export function CareersHomePage() {
       </section>
 
       {recruiter && myJobs.length > 0 && (
-        <SectionCard title="Your recent listings" link="/careers/recruiter/jobs" linkLabel="All jobs">
+        <SectionCard
+          title="Your recent listings"
+          link="/careers/recruiter/jobs"
+          linkLabel="All jobs"
+        >
           <div className="grid gap-4 sm:grid-cols-2">
             {myJobs.slice(0, 2).map((job) => (
               <JobCard
@@ -205,7 +213,9 @@ export function CareersHomePage() {
         <SectionCard title="Benefits candidates look for">
           <ul className="space-y-2">
             {BENEFITS.map((b) => (
-              <li key={b} className="text-sm text-muted-foreground">• {b}</li>
+              <li key={b} className="text-sm text-muted-foreground">
+                • {b}
+              </li>
             ))}
           </ul>
         </SectionCard>
@@ -213,7 +223,9 @@ export function CareersHomePage() {
 
       <SectionCard title="Featured openings" link="/careers/jobs" linkLabel="View all">
         {featured.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-4 text-center">No open roles right now. Check back soon.</p>
+          <p className="text-sm text-muted-foreground py-4 text-center">
+            No open roles right now. Check back soon.
+          </p>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
             {featured.map((j) => (
@@ -230,7 +242,9 @@ export function CareersHomePage() {
               {TESTIMONIALS.map((t) => (
                 <blockquote key={t.name} className="rounded-xl border border-border p-4">
                   <p className="text-sm italic text-muted-foreground">&ldquo;{t.quote}&rdquo;</p>
-                  <footer className="mt-2 text-xs font-medium">{t.name} — {t.role}</footer>
+                  <footer className="mt-2 text-xs font-medium">
+                    {t.name} — {t.role}
+                  </footer>
                 </blockquote>
               ))}
             </div>
@@ -266,9 +280,13 @@ export function CareersHomePage() {
         </p>
         <Button className="mt-4" asChild>
           {recruiter ? (
-            <Link to="/careers/recruiter/jobs/new"><Plus className="size-4 mr-2" /> Post a new job</Link>
+            <Link to="/careers/recruiter/jobs/new">
+              <Plus className="size-4 mr-2" /> Post a new job
+            </Link>
           ) : (
-            <Link to="/careers/jobs"><Users className="size-4 mr-2" /> Open positions</Link>
+            <Link to="/careers/jobs">
+              <Users className="size-4 mr-2" /> Open positions
+            </Link>
           )}
         </Button>
       </section>

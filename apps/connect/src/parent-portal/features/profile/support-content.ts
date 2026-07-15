@@ -15,7 +15,7 @@ export const PARENT_FAQS = [
   },
   {
     q: "What is on-behalf child access?",
-    a: "In Settings, turn on Include student modules to show Growth, Digital ID, and assignment submission in your parent menu — useful when your child does not carry their own phone.",
+    a: "In Settings, turn on Include student modules to add Growth to your menu — useful when your child does not carry their own phone. Digital ID cards are always available for every linked child.",
   },
   {
     q: "Can I message teachers directly?",

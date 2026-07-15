@@ -7,11 +7,13 @@ import { PageSkeleton } from "@/student-portal/shared/ui";
 
 export function StudentTransportPage() {
   const portal = useStudentPortal();
-  const learnerId = portal.isStudent ? (portal.snapshot?.profile.id ?? studentProfile.id) : studentProfile.id;
+  const learnerId = portal.isStudent
+    ? (portal.snapshot?.profile.id ?? studentProfile.id)
+    : studentProfile.id;
 
   useEffect(() => {
     if (portal.isStudent) {
-      transportStore.init(learnerId);
+      transportStore.init(learnerId, "student");
     }
   }, [portal.isStudent, learnerId]);
 
@@ -21,9 +23,5 @@ export function StudentTransportPage() {
 
   const name = portal.snapshot?.profile.name ?? studentProfile.name;
 
-  return (
-    <LearnerTransportView
-      subtitle={`${name} · Live bus tracking, route & pickup alerts`}
-    />
-  );
+  return <LearnerTransportView subtitle={`${name} · Live bus tracking, route & pickup alerts`} />;
 }

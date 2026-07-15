@@ -52,7 +52,10 @@ export function TransportStudentsTable({ students }: { students: RouteStudentRow
                 <td className="p-2 tabular-nums">{student.rollNo}</td>
                 <td className="p-2 text-muted-foreground">{student.pickupStop}</td>
                 <td className="p-2">
-                  <Badge variant="outline" className={cn("text-[10px]", STATUS_TONE[student.status])}>
+                  <Badge
+                    variant="outline"
+                    className={cn("text-[10px]", STATUS_TONE[student.status])}
+                  >
                     {STATUS_LABEL[student.status]}
                   </Badge>
                 </td>

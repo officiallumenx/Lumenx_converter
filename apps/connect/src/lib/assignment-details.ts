@@ -30,8 +30,30 @@ export function downloadAssignmentAttachment(file: AssignmentAttachment) {
   const link = document.createElement("a");
   link.href = url;
   link.download = file.fileName;
+  document.body.appendChild(link);
   link.click();
+  link.remove();
   URL.revokeObjectURL(url);
+}
+
+export function openAssignmentAttachment(file: AssignmentAttachment) {
+  const blob = new Blob([file.content], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  window.open(url, "_blank", "noopener,noreferrer");
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+function defaultAttachments(a: StudentAssignment, instructions: string): AssignmentAttachment[] {
+  const safeName = a.title.replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "_") || "Worksheet";
+  return [
+    {
+      id: `att-${a.id}-sheet`,
+      fileName: `${safeName}.pdf`,
+      fileSize: "128 KB",
+      mimeType: "application/pdf",
+      content: `${a.title}\n\nSubject: ${a.subject}\nClass: ${a.class}\nDue: ${a.due}\n\nInstructions:\n${instructions}`,
+    },
+  ];
 }
 
 export const ASSIGNMENT_DETAIL_BY_ID: Record<
@@ -52,7 +74,8 @@ export const ASSIGNMENT_DETAIL_BY_ID: Record<
         fileName: "Quadratic_Equations_Worksheet.pdf",
         fileSize: "248 KB",
         mimeType: "application/pdf",
-        content: "Quadratic Equations Practice — Exercises 1–20\n\nShow all working.\nDue: see portal.",
+        content:
+          "Quadratic Equations Practice — Exercises 1–20\n\nShow all working.\nDue: see portal.",
       },
       {
         id: "att-a1-2",
@@ -64,8 +87,10 @@ export const ASSIGNMENT_DETAIL_BY_ID: Record<
     ],
   },
   A2: {
-    description: "Worksheet on Newton's three laws of motion with numerical and conceptual questions.",
-    instructions: "Answer all parts. Include units in numerical answers. Diagrams required for Q5–Q8.",
+    description:
+      "Worksheet on Newton's three laws of motion with numerical and conceptual questions.",
+    instructions:
+      "Answer all parts. Include units in numerical answers. Diagrams required for Q5–Q8.",
     teacherId: "T2",
     teacherName: "Rahul Verma",
     publishedAt: "30 May 2026",
@@ -89,7 +114,8 @@ export const ASSIGNMENT_DETAIL_BY_ID: Record<
     attachments: [],
   },
   A4: {
-    description: "Quiz preparation covering periodic table groups, atomic numbers, and element properties.",
+    description:
+      "Quiz preparation covering periodic table groups, atomic numbers, and element properties.",
     instructions: "Review the attached reference table. Be ready for a 20-minute in-class quiz.",
     teacherId: "T5",
     teacherName: "Neha Kapoor",
@@ -178,6 +204,38 @@ export const ASSIGNMENT_DETAIL_BY_ID: Record<
       },
     ],
   },
+  "A-TODAY": {
+    description: "Revision worksheet on quadratic graphs, roots, and turning points.",
+    instructions: "Complete all graph sketches. Label axes and key points clearly.",
+    teacherId: "T1",
+    teacherName: "Ananya Iyer",
+    publishedAt: "Today",
+    attachments: [
+      {
+        id: "att-a-today-1",
+        fileName: "Quadratic_Graphs_Today.pdf",
+        fileSize: "196 KB",
+        mimeType: "application/pdf",
+        content: "Algebra revision — quadratic graphs worksheet for Class 10-B.",
+      },
+    ],
+  },
+  "H-TODAY": {
+    description: "Reading comprehension passage with inference and vocabulary questions.",
+    instructions: "Read the passage twice. Answer all questions in complete sentences.",
+    teacherId: "T3",
+    teacherName: "Priya Menon",
+    publishedAt: "Today",
+    attachments: [
+      {
+        id: "att-h-today-1",
+        fileName: "Reading_Comprehension_Ch12.pdf",
+        fileSize: "154 KB",
+        mimeType: "application/pdf",
+        content: "Reading comprehension — Chapter 12 passage and questions.",
+      },
+    ],
+  },
 };
 
 export function resolveAssignmentDetail(a: StudentAssignment): StudentAssignmentDetail {
@@ -186,14 +244,21 @@ export function resolveAssignmentDetail(a: StudentAssignment): StudentAssignment
     ? { id: extra.teacherId ?? "T0", name: extra.teacherName }
     : teacherForSubject(a.subject);
 
+  const description = extra?.description ?? `${a.title} — work assigned for ${a.subject}.`;
+  const instructions =
+    extra?.instructions ?? "Follow your teacher's instructions and submit before the due date.";
+  const attachments =
+    extra && Object.prototype.hasOwnProperty.call(extra, "attachments")
+      ? (extra.attachments ?? [])
+      : defaultAttachments(a, instructions);
+
   return {
     ...a,
-    description: extra?.description ?? `${a.title} — work assigned for ${a.subject}.`,
-    instructions:
-      extra?.instructions ?? "Follow your teacher's instructions and submit before the due date.",
+    description,
+    instructions,
     teacherId: teacher.id,
     teacherName: teacher.name,
-    attachments: extra?.attachments ?? [],
+    attachments,
     publishedAt: extra?.publishedAt,
   };
 }

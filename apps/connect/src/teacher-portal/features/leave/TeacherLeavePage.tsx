@@ -3,6 +3,9 @@ import { Link } from "@tanstack/react-router";
 import { ArrowRight, CalendarOff, BellRing } from "lucide-react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { LeaveRequestCard } from "@/components/app/leave/LeaveRequestCard";
+import {
+  DateRangePickerRow,
+} from "@/components/app/attendance/AttendanceDatePicker";
 import { LeaveStatusBadge } from "@/components/app/leave/LeaveStatusBadge";
 import { leaveStore } from "@/lib/leave-store";
 import { teacherLeaveStore } from "@/lib/teacher-leave-store";
@@ -33,7 +36,7 @@ import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
 
 export function TeacherLeavePage() {
   const portal = useTeacherPortal();
-  const [tab, setTab] = useState<"my-leave" | "requests">("my-leave");
+  const [tab, setTab] = useState<"my-leave" | "requests">("requests");
   const [type, setType] = useState<TeacherLeaveRequest["type"]>("casual");
   const [approver, setApprover] = useState<TeacherLeaveRequest["to"]>("admin");
   const minDate = minLeaveDateIso();
@@ -120,20 +123,15 @@ export function TeacherLeavePage() {
       <div className="flex flex-wrap gap-2">
         {(
           [
-            { id: "my-leave" as const, label: "My leave requests" },
             { id: "requests" as const, label: "Parent leave requests" },
+            { id: "my-leave" as const, label: "My leave requests" },
           ] satisfies { id: "my-leave" | "requests"; label: string }[]
         ).map((item) => (
           <button
             key={item.id}
             type="button"
             onClick={() => setTab(item.id)}
-            className={cn(
-              "rounded-full border px-4 py-2 text-sm font-medium transition",
-              tab === item.id
-                ? "border-primary bg-primary text-primary-foreground shadow-glow"
-                : "border-border bg-muted text-foreground",
-            )}
+            className={cn("teacher-filter-chip", tab === item.id && "is-active")}
           >
             {item.label}
           </button>
@@ -175,35 +173,24 @@ export function TeacherLeavePage() {
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="From date">
-                <Input
-                  type="date"
-                  min={minDate}
-                  value={fromDate}
-                  onChange={(event) => {
-                    const next = event.target.value;
-                    setFromDate(next);
-                    if (toDate < next) setToDate(next);
-                  }}
-                  className="rounded-xl"
-                />
-              </Field>
-              <Field label="To date">
-                <Input
-                  type="date"
-                  min={fromDate || minDate}
-                  value={toDate}
-                  onChange={(event) => setToDate(event.target.value)}
-                  className="rounded-xl"
-                />
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {leaveDayCount({ leaveStartDate: fromDate, leaveEndDate: toDate })} day
-                  {leaveDayCount({ leaveStartDate: fromDate, leaveEndDate: toDate }) > 1
-                    ? "s"
-                    : ""}{" "}
-                  selected
-                </p>
-              </Field>
+            </div>
+            <div className="mt-3">
+              <DateRangePickerRow
+                startLabel="From date"
+                endLabel="To date"
+                startValue={fromDate}
+                endValue={toDate}
+                startMin={minDate}
+                onStartChange={(iso) => {
+                  setFromDate(iso);
+                  if (toDate < iso) setToDate(iso);
+                }}
+                onEndChange={setToDate}
+                endMin={fromDate || minDate}
+                hint={`${leaveDayCount({ leaveStartDate: fromDate, leaveEndDate: toDate })} day${
+                  leaveDayCount({ leaveStartDate: fromDate, leaveEndDate: toDate }) > 1 ? "s" : ""
+                } selected`}
+              />
             </div>
             <Textarea
               rows={4}

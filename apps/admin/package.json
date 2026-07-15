@@ -14,6 +14,7 @@
   "dependencies": {
     "@cloudflare/vite-plugin": "^1.25.5",
     "@lumenx/config": "*",
+    "@lumenx/types": "*",
     "@lumenx/module-students": "*",
     "@lumenx/ui": "*",
     "@lumenx/ui-admin": "*",

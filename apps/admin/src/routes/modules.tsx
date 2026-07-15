@@ -1,11 +1,43 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
+import { IconChip } from "@/components/IconChip";
 import { Card, CardHeader, Button, Pill, Select } from "@lumenx/ui-admin";
 import {
-  Users, GraduationCap, Heart, Building2, CalendarRange, ClipboardCheck, FileText,
-  MessageSquareWarning, Bell, Megaphone, CalendarDays, Siren, ShieldCheck, HardDrive,
-  BarChart3, Sparkles, Zap, Crown, Check, ClipboardList, Bus, Plane, Receipt, UserCheck,
-  Briefcase, Landmark, FileBarChart, Award, BookOpen,
+  Users,
+  GraduationCap,
+  Heart,
+  CalendarRange,
+  ClipboardCheck,
+  MessageSquareWarning,
+  Bell,
+  Megaphone,
+  CalendarDays,
+  Siren,
+  ShieldCheck,
+  HardDrive,
+  BarChart3,
+  Sparkles,
+  Zap,
+  Crown,
+  Check,
+  ClipboardList,
+  Bus,
+  UserCheck,
+  Briefcase,
+  Landmark,
+  FileBarChart,
+  Award,
+  BookOpen,
+  // corrected icons
+  LayoutGrid,
+  CalendarOff,
+  IndianRupee,
+  CalendarCheck,
+  ClipboardPen,
+  Layers,
+  Calendar,
+  LayoutTemplate,
+  FolderOpen,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
@@ -26,23 +58,52 @@ export const Route = createFileRoute("/modules")({
 });
 
 const iconMap: Record<string, typeof Users> = {
-  students: Users, teachers: GraduationCap, parents: Heart, classes: Building2, subjects: BookOpen,
-  attendance: ClipboardCheck, "teacher-attendance": ClipboardCheck, timetable: CalendarRange,
-  exams: FileText, marks: ClipboardList, complaints: MessageSquareWarning,
-  notifications: Bell, announcements: Megaphone, events: CalendarDays, alerts: Siren,
-  analytics: BarChart3, permissions: ShieldCheck, storage: HardDrive,
-  transport: Bus, leave: Plane, fees: Receipt, admissions: UserCheck, careers: Briefcase,
-  institute: Landmark, calendar: CalendarDays, reports: FileBarChart,
+  students:              Users,
+  teachers:              GraduationCap,
+  parents:               Heart,
+  classes:               LayoutGrid,       // grid of sections, not a building
+  subjects:              BookOpen,
+  attendance:            ClipboardCheck,
+  "teacher-attendance":  CalendarCheck,    // calendar check = marking attendance
+  timetable:             CalendarRange,
+  exams:                 ClipboardPen,     // clipboard + pen = writing an exam
+  marks:                 ClipboardList,
+  complaints:            MessageSquareWarning,
+  notifications:         Bell,
+  announcements:         Megaphone,
+  events:                CalendarDays,
+  alerts:                Siren,
+  analytics:             BarChart3,
+  permissions:           ShieldCheck,
+  storage:               HardDrive,
+  modules:               Layers,
+  transport:             Bus,
+  leave:                 CalendarOff,      // calendar marked off = leave/absence
+  fees:                  IndianRupee,      // ₹ — contextually correct for Indian school fees
+  admissions:            UserCheck,
+  careers:               Briefcase,
+  institute:             Landmark,
+  templates:             LayoutTemplate,
+  documents:             FolderOpen,
+  calendar:              Calendar,
+  reports:               FileBarChart,
   "teacher-performance": Award,
 };
 
-const planIcons: Record<PlanTier, typeof Zap> = { core: Zap, plus: Sparkles, max: Crown, custom: Crown };
+const planIcons: Record<PlanTier, typeof Zap> = {
+  core: Zap,
+  plus: Sparkles,
+  max: Crown,
+  custom: Crown,
+};
 
 function ModulesPage() {
   const [plan, setPlan] = useState<PlanTier>("plus");
   const [term, setTerm] = useState<BillingTerm>("1yr");
   const [paymentPending, setPaymentPending] = useState(false);
-  const [enabled, setEnabled] = useState<Record<string, boolean>>(() => defaultEnabledModules("plus"));
+  const [enabled, setEnabled] = useState<Record<string, boolean>>(() =>
+    defaultEnabledModules("plus"),
+  );
 
   const handlePlanChange = (p: PlanTier) => {
     setPlan(p);
@@ -64,7 +125,9 @@ function ModulesPage() {
   const lockedCount = MODULE_CATALOG.filter((m) => !isAvailable(m)).length;
 
   return (
-    <AppShell title="Modules & Plan" subtitle="Activate operational modules — availability depends on your subscription plan"
+    <AppShell
+      title="Modules & Plan"
+      subtitle="Activate operational modules — availability depends on your subscription plan"
       actions={
         <Button variant="primary" onClick={() => setPaymentPending(false)}>
           {paymentPending ? "Activate after payment" : "Plan active"}
@@ -73,8 +136,16 @@ function ModulesPage() {
     >
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <span className="text-xs text-muted-foreground">Billing term:</span>
-        <Select value={term} onChange={(e) => setTerm(e.target.value as BillingTerm)} className="w-36 h-9 text-xs">
-          {BILLING_TERMS.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+        <Select
+          value={term}
+          onChange={(e) => setTerm(e.target.value as BillingTerm)}
+          className="w-36 h-9 text-xs"
+        >
+          {BILLING_TERMS.map((t) => (
+            <option key={t.key} value={t.key}>
+              {t.label}
+            </option>
+          ))}
         </Select>
         {paymentPending && <Pill tone="warning">Payment pending — modules preview only</Pill>}
       </div>
@@ -85,15 +156,22 @@ function ModulesPage() {
           const details = PLAN_DETAILS[p];
           const active = plan === p;
           return (
-            <button key={p} onClick={() => handlePlanChange(p)}
+            <button
+              key={p}
+              onClick={() => handlePlanChange(p)}
               className={`text-left p-5 rounded-xl border transition-all duration-200 ${
-                active ? "border-primary bg-primary/5 shadow-glow" : "border-border bg-surface hover:border-border-strong"
-              }`}>
+                active
+                  ? "border-primary bg-primary/5 shadow-glow"
+                  : "border-border bg-surface hover:border-border-strong"
+              }`}
+            >
               <div className="flex items-center justify-between mb-3">
-                <div className={`size-9 rounded-md flex items-center justify-center border ${active ? "bg-primary/15 border-primary/30 text-primary" : "bg-accent border-border text-muted-foreground"}`}>
-                  <Icon className="size-4" />
-                </div>
-                {active && <Pill tone="info" pulse>Current</Pill>}
+                <IconChip icon={Icon} size="md" variant={active ? "brand" : "soft"} active={active} />
+                {active && (
+                  <Pill tone="info" pulse>
+                    Current
+                  </Pill>
+                )}
               </div>
               <div className="flex items-baseline gap-2">
                 <div className="text-base font-semibold">{PLAN_LABELS[p]}</div>
@@ -102,7 +180,9 @@ function ModulesPage() {
               <p className="text-[11px] text-muted-foreground mt-1">{details.desc}</p>
               <ul className="mt-4 space-y-1.5">
                 {details.features.map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-[11px]"><Check className="size-3 text-success" /> {f}</li>
+                  <li key={f} className="flex items-center gap-2 text-[11px]">
+                    <Check className="size-3 text-success" /> {f}
+                  </li>
                 ))}
               </ul>
             </button>
@@ -112,39 +192,59 @@ function ModulesPage() {
 
       <div className="lx-kpi-grid mb-6">
         <Card className="p-5">
-          <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Enabled</div>
+          <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+            Enabled
+          </div>
           <div className="mt-2 text-2xl font-semibold">{activeCount}</div>
         </Card>
         <Card className="p-5">
-          <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Disabled</div>
+          <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+            Disabled
+          </div>
           <div className="mt-2 text-2xl font-semibold">{disabledCount}</div>
         </Card>
         <Card className="p-5">
-          <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Locked by plan</div>
+          <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+            Locked by plan
+          </div>
           <div className="mt-2 text-2xl font-semibold">{lockedCount}</div>
         </Card>
         <Card className="p-5">
-          <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Current plan</div>
+          <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+            Current plan
+          </div>
           <div className="mt-2 text-2xl font-semibold">{PLAN_LABELS[plan]}</div>
         </Card>
       </div>
 
       {groups.map((g) => (
         <Card key={g} className="mb-4">
-          <CardHeader title={g} hint={`${MODULE_CATALOG.filter((m) => m.group === g).length} modules`} />
+          <CardHeader
+            title={g}
+            hint={`${MODULE_CATALOG.filter((m) => m.group === g).length} modules`}
+          />
           <div className="px-5 pb-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {MODULE_CATALOG.filter((m) => m.group === g).map((m) => {
               const Icon = iconMap[m.id] ?? Users;
               const avail = isAvailable(m);
               const on = enabled[m.id] && avail;
               return (
-                <div key={m.id} className={`p-4 rounded-lg border transition-all ${
-                  on ? "border-primary/30 bg-primary/[0.04]" : avail ? "border-border bg-background/40" : "border-dashed border-border bg-muted/30 opacity-70"
-                }`}>
+                <div
+                  key={m.id}
+                  className={`p-4 rounded-lg border transition-all ${
+                    on
+                      ? "border-primary/30 bg-primary/[0.04]"
+                      : avail
+                        ? "border-border bg-background/40"
+                        : "border-dashed border-border bg-muted/30 opacity-70"
+                  }`}
+                >
                   <div className="flex items-center gap-3">
-                    <div className={`size-9 rounded-md flex items-center justify-center border ${on ? "bg-primary/15 border-primary/30 text-primary" : "bg-accent border-border text-muted-foreground"}`}>
-                      <Icon className="size-4" />
-                    </div>
+                    <IconChip
+                      icon={Icon}
+                      size="md"
+                      variant={!avail ? "disabled" : on ? "brand" : "soft"}
+                    />
                     <div>
                       <div className="text-xs font-semibold flex items-center gap-1.5">
                         {m.label}
@@ -155,7 +255,9 @@ function ModulesPage() {
                     </div>
                   </div>
                   <div className="mt-4 flex items-center justify-between">
-                    <span className="text-[10px] font-mono uppercase text-muted-foreground">Min · {PLAN_LABELS[m.minPlan]}</span>
+                    <span className="text-[10px] font-mono uppercase text-muted-foreground">
+                      Min · {PLAN_LABELS[m.minPlan]}
+                    </span>
                     <Toggle on={on} disabled={!avail} onChange={() => toggle(m.id)} />
                   </div>
                 </div>
@@ -168,11 +270,24 @@ function ModulesPage() {
   );
 }
 
-function Toggle({ on, disabled, onChange }: { on: boolean; disabled?: boolean; onChange: () => void }) {
+function Toggle({
+  on,
+  disabled,
+  onChange,
+}: {
+  on: boolean;
+  disabled?: boolean;
+  onChange: () => void;
+}) {
   return (
-    <button onClick={onChange} disabled={disabled}
-      className={`relative w-10 h-5 rounded-full transition-colors ${on ? "bg-primary" : "bg-muted"} ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}>
-      <span className={`absolute top-0.5 size-4 rounded-full bg-white shadow transition-all ${on ? "left-[22px]" : "left-0.5"}`} />
+    <button
+      onClick={onChange}
+      disabled={disabled}
+      className={`relative w-10 h-5 rounded-full transition-colors ${on ? "bg-primary" : "bg-muted"} ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+    >
+      <span
+        className={`absolute top-0.5 size-4 rounded-full bg-white shadow transition-all ${on ? "left-[22px]" : "left-0.5"}`}
+      />
     </button>
   );
 }

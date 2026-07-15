@@ -1,6 +1,9 @@
 import { useMemo } from "react";
-import { TrendingUp } from "lucide-react";
+import { TrendingUp, TrendingDown } from "lucide-react";
 import { useStudentPortal } from "@/context/StudentPortalContext";
+import { studentAttendanceMonthDelta } from "@/lib/student/mock-data";
+import { prefersReducedMotion } from "@/lib/prefers-reduced-motion";
+import { cn } from "@lumenx/ui";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from "recharts";
 import { SectionCard } from "@/components/app/SectionCard";
 import { PageSkeleton } from "@/student-portal/shared/ui";
@@ -25,9 +28,7 @@ export function StudentAttendancePage() {
 
   return (
     <>
-      <AttendanceOverview
-        subtitle={`${profile.name} · ${profile.class} ${profile.section}`}
-      />
+      <AttendanceOverview subtitle={`${profile.name} · ${profile.class} ${profile.section}`} />
 
       <div className="mt-5 grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
         <SectionCard title="Weekly trend">
@@ -49,12 +50,24 @@ export function StudentAttendancePage() {
                   stroke="oklch(0.55 0.22 260)"
                   strokeWidth={2}
                   fill="url(#att-g)"
+                  isAnimationActive={!prefersReducedMotion()}
                 />
               </AreaChart>
             </ResponsiveContainer>
           </div>
-          <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-success">
-            <TrendingUp className="size-3.5" /> +4% vs last month
+          <div
+            className={cn(
+              "mt-2 flex items-center gap-1.5 text-xs font-medium",
+              studentAttendanceMonthDelta >= 0 ? "text-success" : "text-destructive",
+            )}
+          >
+            {studentAttendanceMonthDelta >= 0 ? (
+              <TrendingUp className="size-3.5" />
+            ) : (
+              <TrendingDown className="size-3.5" />
+            )}
+            {studentAttendanceMonthDelta >= 0 ? "+" : ""}
+            {studentAttendanceMonthDelta}% vs last month
           </div>
         </SectionCard>
 

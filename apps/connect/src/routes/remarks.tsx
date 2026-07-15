@@ -14,6 +14,7 @@ export const Route = createFileRoute("/remarks")({
 
 function RemarksRoute() {
   const { role } = useApp();
-  if (role !== "teacher") return <div className="py-12 text-center text-muted-foreground">Teacher portal only.</div>;
+  if (role !== "teacher")
+    return <div className="py-12 text-center text-muted-foreground">Teacher portal only.</div>;
   return <TeacherRemarksPage />;
 }

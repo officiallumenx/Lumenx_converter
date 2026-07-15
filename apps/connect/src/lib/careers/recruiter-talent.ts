@@ -101,9 +101,7 @@ function profileToCard(
   const profile = getCandidateProfile(candidateId);
   const name = getUserName(candidateId) ?? "Candidate";
   const exp =
-    profile.teaching.academic?.teachingExperienceYears ??
-    profile.experience[0]?.duration ??
-    "—";
+    profile.teaching.academic?.teachingExperienceYears ?? profile.experience[0]?.duration ?? "—";
   return {
     candidateId,
     name,
@@ -121,7 +119,13 @@ function profileToCard(
 }
 
 function applicationToTalentCard(app: JobApplication): TalentCandidateCard {
-  const base = profileToCard(app.candidateId, "academic", "rejected", `Applied for ${app.jobTitle}`, app.updatedAt);
+  const base = profileToCard(
+    app.candidateId,
+    "academic",
+    "rejected",
+    `Applied for ${app.jobTitle}`,
+    app.updatedAt,
+  );
   return {
     ...base,
     name: app.personal.name,
@@ -129,7 +133,11 @@ function applicationToTalentCard(app: JobApplication): TalentCandidateCard {
     city: app.address.city || base.city,
     state: app.address.state || base.state,
     experienceYears: app.professional.experienceYears,
-    skills: app.skills.technicalSkills.split(",").map((s) => s.trim()).filter(Boolean) || base.skills,
+    skills:
+      app.skills.technicalSkills
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean) || base.skills,
   };
 }
 

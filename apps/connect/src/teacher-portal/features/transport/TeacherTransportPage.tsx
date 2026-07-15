@@ -14,15 +14,17 @@ import { useTeacherPortal } from "@/context/TeacherPortalContext";
 import { transportStore } from "@/lib/transport-store";
 import { formatEtaMinutes, unreadTransportAlertCount } from "@/lib/transport-utils";
 import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
+import { EmptyState } from "@/teacher-portal/shared/ui/EmptyState";
 
 export function TeacherTransportPage() {
   const portal = useTeacherPortal();
+  const hasTransport = portal.isTeacher && portal.profile?.hasTransport === true;
 
   useEffect(() => {
-    if (portal.isTeacher) {
-      transportStore.init();
+    if (hasTransport) {
+      transportStore.init(undefined, "teacher");
     }
-  }, [portal.isTeacher]);
+  }, [hasTransport]);
 
   const routeOverview = useSyncExternalStore(
     transportStore.subscribe,
@@ -50,14 +52,30 @@ export function TeacherTransportPage() {
     return routeStudents.filter((s) => portal.profile!.classes.includes(s.className));
   }, [portal.isTeacher, portal.profile, routeStudents]);
 
+  if (!portal.isTeacher) return <PageSkeleton rows={5} />;
+  if (portal.isLoading || !portal.profile) return <PageSkeleton rows={6} />;
+
+  if (!hasTransport) {
+    return (
+      <div className="min-w-0 max-w-full space-y-5">
+        <PageHeader
+          title="Transport"
+          subtitle="School bus routes and pickup tracking"
+        />
+        <EmptyState
+          icon={Bus}
+          title="No transport for you"
+          description="Your school has not enabled transport access on your account, or this institute does not run a bus service for staff. Contact the admin office if you believe this is a mistake."
+        />
+      </div>
+    );
+  }
+
   const displayStudents = classStudents.length > 0 ? classStudents : routeStudents;
   const onBusCount = displayStudents.filter(
     (s) => s.status === "picked_up" || s.status === "on_bus" || s.status === "dropped_school",
   ).length;
   const unreadAlerts = unreadTransportAlertCount(alerts);
-
-  if (!portal.isTeacher) return <PageSkeleton rows={5} />;
-  if (portal.isLoading || !portal.profile) return <PageSkeleton rows={6} />;
 
   const assignment = {
     bus: routeOverview.bus,

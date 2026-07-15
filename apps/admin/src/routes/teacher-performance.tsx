@@ -23,11 +23,27 @@ function TeacherPerformancePage() {
     <AppShell
       title="Teacher Performance"
       subtitle="Student feedback & trends · demo analytics"
-      actions={<Button><Download className="size-3.5" /> Export report</Button>}
+      actions={
+        <Button>
+          <Download className="size-3.5" /> Export report
+        </Button>
+      }
     >
       <div className="lx-kpi-grid">
-        <Kpi label="Institute avg" value={instituteAvg} delta="+0.08" tone="up" icon={<TrendingUp className="size-3.5" />} />
-        <Kpi label="Top rated" value={top.name.split(" ")[0]!} delta={`${top.rating}`} tone="up" icon={<Award className="size-3.5" />} />
+        <Kpi
+          label="Institute avg"
+          value={instituteAvg}
+          delta="+0.08"
+          tone="up"
+          icon={<TrendingUp className="size-3.5" />}
+        />
+        <Kpi
+          label="Top rated"
+          value={top.name.split(" ")[0]!}
+          delta={`${top.rating}`}
+          tone="up"
+          icon={<Award className="size-3.5" />}
+        />
         <Kpi label="Departments" value={String(depts.length)} />
         <Kpi label="Faculty count" value={String(TEACHER_PERFORMANCE.length)} delta="Rated" />
       </div>
@@ -62,10 +78,16 @@ function TeacherPerformancePage() {
             </table>
           </div>
           <div className="px-5 py-3 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
-            <span>Showing 1–{TEACHER_PERFORMANCE.length} of {TEACHER_PERFORMANCE.length}</span>
+            <span>
+              Showing 1–{TEACHER_PERFORMANCE.length} of {TEACHER_PERFORMANCE.length}
+            </span>
             <div className="flex gap-1">
-              <Button size="sm" disabled>Previous</Button>
-              <Button size="sm" disabled>Next</Button>
+              <Button size="sm" disabled>
+                Previous
+              </Button>
+              <Button size="sm" disabled>
+                Next
+              </Button>
             </div>
           </div>
         </Card>
@@ -96,7 +118,11 @@ function TeacherPerformancePage() {
         <CardHeader title="Performance trends" hint="Term-over-term · demo chart placeholder" />
         <div className="px-5 pb-5 h-40 flex items-end gap-2">
           {[4.2, 4.35, 4.41, 4.52, 4.58, 4.62, 4.68].map((v, i) => (
-            <div key={i} className="flex-1 bg-primary/30 rounded-t-md hover:bg-primary/50 transition-colors" style={{ height: `${(v / 5) * 100}%` }} />
+            <div
+              key={i}
+              className="flex-1 bg-primary/30 rounded-t-md hover:bg-primary/50 transition-colors"
+              style={{ height: `${(v / 5) * 100}%` }}
+            />
           ))}
         </div>
         <div className="px-5 pb-5 flex justify-between text-[10px] font-mono text-muted-foreground">

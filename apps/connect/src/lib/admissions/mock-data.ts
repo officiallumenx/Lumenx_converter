@@ -40,20 +40,41 @@ export const ACHIEVEMENTS = [
 ];
 
 export const SUCCESS_STORIES = [
-  { name: "Ananya Iyer", program: "Grade 11", quote: "The admission process was smooth on my phone — I tracked every step." },
-  { name: "Vihaan Mehta", program: "Grade 9", quote: "Document upload was easy. Got interview details instantly in notifications." },
+  {
+    name: "Ananya Iyer",
+    program: "Grade 11",
+    quote: "The admission process was smooth on my phone — I tracked every step.",
+  },
+  {
+    name: "Vihaan Mehta",
+    program: "Grade 9",
+    quote: "Document upload was easy. Got interview details instantly in notifications.",
+  },
 ];
 
 export const ADMISSION_PROCESS_STEPS = [
-  { step: 1, title: "Create account", desc: "Sign up with mobile or email — no existing school account needed." },
+  {
+    step: 1,
+    title: "Create account",
+    desc: "Sign up with mobile or email — no existing school account needed.",
+  },
   { step: 2, title: "Choose program", desc: "Browse programs and select grade for 2026–27." },
   { step: 3, title: "Submit application", desc: "Complete the 8-step form and upload documents." },
-  { step: 4, title: "Track status", desc: "Follow verification, interview, and decision updates live." },
+  {
+    step: 4,
+    title: "Track status",
+    desc: "Follow verification, interview, and decision updates live.",
+  },
 ];
 
 const defaultDocs = (): ApplicationDocument[] => [
   {
-    id: "doc-bc", type: "birth_certificate", label: "Birth Certificate", status: "verified", fileName: "birth_cert.pdf", uploadedAt: "2026-05-20",
+    id: "doc-bc",
+    type: "birth_certificate",
+    label: "Birth Certificate",
+    status: "verified",
+    fileName: "birth_cert.pdf",
+    uploadedAt: "2026-05-20",
     verificationTimeline: [
       { id: "vt1", status: "uploaded", at: "2026-05-20T09:00:00Z" },
       { id: "vt2", status: "under_review", at: "2026-05-21T10:00:00Z" },
@@ -61,16 +82,40 @@ const defaultDocs = (): ApplicationDocument[] => [
     ],
   },
   {
-    id: "doc-tc", type: "transfer_certificate", label: "Transfer Certificate", status: "under_review", fileName: "tc.pdf", uploadedAt: "2026-05-21",
+    id: "doc-tc",
+    type: "transfer_certificate",
+    label: "Transfer Certificate",
+    status: "under_review",
+    fileName: "tc.pdf",
+    uploadedAt: "2026-05-21",
     verificationTimeline: [
       { id: "vt4", status: "uploaded", at: "2026-05-21T14:00:00Z" },
       { id: "vt5", status: "under_review", at: "2026-05-22T09:00:00Z" },
     ],
   },
-  { id: "doc-mm", type: "marks_memo", label: "Previous Marks Memo", status: "verified", fileName: "marks.pdf", uploadedAt: "2026-05-20" },
-  { id: "doc-photo", type: "student_photo", label: "Student Photo", status: "verified", fileName: "photo.jpg", uploadedAt: "2026-05-19" },
   {
-    id: "doc-pid", type: "parent_id", label: "Parent ID", status: "resubmission_required", fileName: "aadhar.pdf", uploadedAt: "2026-05-21",
+    id: "doc-mm",
+    type: "marks_memo",
+    label: "Previous Marks Memo",
+    status: "verified",
+    fileName: "marks.pdf",
+    uploadedAt: "2026-05-20",
+  },
+  {
+    id: "doc-photo",
+    type: "student_photo",
+    label: "Student Photo",
+    status: "verified",
+    fileName: "photo.jpg",
+    uploadedAt: "2026-05-19",
+  },
+  {
+    id: "doc-pid",
+    type: "parent_id",
+    label: "Parent ID",
+    status: "resubmission_required",
+    fileName: "aadhar.pdf",
+    uploadedAt: "2026-05-21",
     note: "Image unclear — please re-upload.",
     adminNotes: ["Scan resolution too low", "Ensure all four corners visible"],
     verificationTimeline: [
@@ -148,9 +193,24 @@ export const DEMO_APPLICATIONS: AdmissionApplication[] = [
     documents: defaultDocs(),
     timeline: [
       { id: "t1", status: "submitted", label: "Application submitted", at: "2026-05-22T14:30:00Z" },
-      { id: "t2", status: "documents_pending", label: "Documents pending upload", at: "2026-05-23T10:00:00Z" },
-      { id: "t3", status: "documents_uploaded", label: "Documents uploaded", at: "2026-05-25T11:00:00Z" },
-      { id: "t4", status: "document_verification", label: "Documents under verification", at: "2026-05-28T09:00:00Z" },
+      {
+        id: "t2",
+        status: "documents_pending",
+        label: "Documents pending upload",
+        at: "2026-05-23T10:00:00Z",
+      },
+      {
+        id: "t3",
+        status: "documents_uploaded",
+        label: "Documents uploaded",
+        at: "2026-05-25T11:00:00Z",
+      },
+      {
+        id: "t4",
+        status: "document_verification",
+        label: "Documents under verification",
+        at: "2026-05-28T09:00:00Z",
+      },
     ],
     adminNotes: ["Strong academic record. Awaiting parent ID resubmission."],
     requiredActions: ["Re-upload Parent ID document"],
@@ -197,9 +257,24 @@ export const DEMO_APPLICATIONS: AdmissionApplication[] = [
     documents: defaultDocs().map((d) => ({ ...d, status: "verified" as const })),
     timeline: [
       { id: "t1", status: "submitted", label: "Application submitted", at: "2026-05-15T11:00:00Z" },
-      { id: "t2", status: "documents_uploaded", label: "All documents uploaded", at: "2026-05-18T09:00:00Z" },
-      { id: "t3", status: "document_verification", label: "Documents verified", at: "2026-05-22T14:00:00Z" },
-      { id: "t4", status: "interview_scheduled", label: "Interview scheduled", at: "2026-05-27T16:00:00Z" },
+      {
+        id: "t2",
+        status: "documents_uploaded",
+        label: "All documents uploaded",
+        at: "2026-05-18T09:00:00Z",
+      },
+      {
+        id: "t3",
+        status: "document_verification",
+        label: "Documents verified",
+        at: "2026-05-22T14:00:00Z",
+      },
+      {
+        id: "t4",
+        status: "interview_scheduled",
+        label: "Interview scheduled",
+        at: "2026-05-27T16:00:00Z",
+      },
     ],
     interview: {
       date: "5 Jun 2026",
@@ -253,7 +328,13 @@ export const DEMO_APPLICATIONS: AdmissionApplication[] = [
     documents: defaultDocs().map((d) => ({ ...d, status: "verified" as const })),
     timeline: [
       { id: "t1", status: "submitted", label: "Application submitted", at: "2026-04-28T09:00:00Z" },
-      { id: "t2", status: "approved", label: "Admission approved", at: "2026-05-20T12:00:00Z", note: "Welcome to LumenX Academy!" },
+      {
+        id: "t2",
+        status: "approved",
+        label: "Admission approved",
+        at: "2026-05-20T12:00:00Z",
+        note: "Welcome to LumenX Academy!",
+      },
     ],
     adminNotes: ["Provisional admission confirmed. Fee payment link sent via email."],
   },
@@ -267,7 +348,13 @@ export const DEMO_APPLICATIONS: AdmissionApplication[] = [
     grade: "Grade 6",
     academicYear: "2026–27",
     updatedAt: "2026-05-29T08:00:00Z",
-    student: { name: "Vihaan Mehta", gender: "Male", dateOfBirth: "2014-01-10", nationality: "Indian", bloodGroup: "O+" },
+    student: {
+      name: "Vihaan Mehta",
+      gender: "Male",
+      dateOfBirth: "2014-01-10",
+      nationality: "Indian",
+      bloodGroup: "O+",
+    },
     parent: {
       fatherName: "Suresh Mehta",
       motherName: "Priya Sharma",
@@ -284,26 +371,133 @@ export const DEMO_APPLICATIONS: AdmissionApplication[] = [
 ];
 
 export const DEMO_NOTIFICATIONS: AdmissionsNotification[] = [
-  { id: "n1", applicantId: "ADM-DEMO-001", applicationId: "APP-2401", title: "Document resubmission required", body: "Parent ID was unclear. Please upload a clearer scan.", type: "document", read: false, createdAt: "2026-05-28T10:00:00Z" },
-  { id: "n2", applicantId: "ADM-DEMO-001", applicationId: "APP-2398", title: "Interview scheduled", body: "Ananya's interview is on 5 Jun 2026 at 10:30 AM.", type: "interview", read: false, createdAt: "2026-05-27T16:00:00Z" },
-  { id: "n3", applicantId: "ADM-DEMO-001", applicationId: "APP-2390", title: "Admission approved!", body: "Riya Kapoor has been approved for Grade 3.", type: "approval", read: true, createdAt: "2026-05-20T12:00:00Z" },
-  { id: "n4", applicantId: "ADM-DEMO-001", title: "Applications open for 2026–27", body: "Early decision deadline is 15 Apr 2026.", type: "general", read: true, createdAt: "2026-03-01T09:00:00Z" },
-  { id: "n5", applicantId: "ADM-DEMO-001", applicationId: "APP-2401", title: "Application received", body: "APP-2401 for Arjun Sharma is under review.", type: "application", read: true, createdAt: "2026-05-22T14:35:00Z" },
+  {
+    id: "n1",
+    applicantId: "ADM-DEMO-001",
+    applicationId: "APP-2401",
+    title: "Document resubmission required",
+    body: "Parent ID was unclear. Please upload a clearer scan.",
+    type: "document",
+    read: false,
+    createdAt: "2026-05-28T10:00:00Z",
+  },
+  {
+    id: "n2",
+    applicantId: "ADM-DEMO-001",
+    applicationId: "APP-2398",
+    title: "Interview scheduled",
+    body: "Ananya's interview is on 5 Jun 2026 at 10:30 AM.",
+    type: "interview",
+    read: false,
+    createdAt: "2026-05-27T16:00:00Z",
+  },
+  {
+    id: "n3",
+    applicantId: "ADM-DEMO-001",
+    applicationId: "APP-2390",
+    title: "Admission approved!",
+    body: "Riya Kapoor has been approved for Grade 3.",
+    type: "approval",
+    read: true,
+    createdAt: "2026-05-20T12:00:00Z",
+  },
+  {
+    id: "n4",
+    applicantId: "ADM-DEMO-001",
+    title: "Applications open for 2026–27",
+    body: "Early decision deadline is 15 Apr 2026.",
+    type: "general",
+    read: true,
+    createdAt: "2026-03-01T09:00:00Z",
+  },
+  {
+    id: "n5",
+    applicantId: "ADM-DEMO-001",
+    applicationId: "APP-2401",
+    title: "Application received",
+    body: "APP-2401 for Arjun Sharma is under review.",
+    type: "application",
+    read: true,
+    createdAt: "2026-05-22T14:35:00Z",
+  },
 ];
 
 export const FAQ_ITEMS: FaqItem[] = [
-  { id: "f1", category: "admissions", question: "Do I need an existing LumenX account?", answer: "No. The Admissions Portal is public. Create a new applicant account with your mobile or email." },
-  { id: "f2", category: "admissions", question: "What is the application fee?", answer: "₹500 for most programs. Payment link is sent after document verification." },
-  { id: "f3", category: "programs", question: "Can I apply to multiple programs?", answer: "Yes. Submit separate applications for each child or program." },
-  { id: "f4", category: "programs", question: "Which grades are open for 2026–27?", answer: "All programs from Pre Primary through Degree have limited seats. Check the Programs page for availability." },
-  { id: "f5", category: "fees", question: "When are fees due after approval?", answer: "Within 7 days of approval letter. Installment plans available on request." },
-  { id: "f6", category: "fees", question: "Is the application fee refundable?", answer: "Non-refundable except if the institute cancels the program intake." },
-  { id: "f7", category: "documents", question: "What format for uploads?", answer: "PDF or JPG, max 5 MB per file. Ensure text is readable." },
-  { id: "f8", category: "documents", question: "Can I upload documents later?", answer: "Yes for drafts. Submitted applications may require resubmission via Document Center." },
-  { id: "f9", category: "interviews", question: "Is interview mandatory?", answer: "For Grades 9+ and Intermediate streams, yes. Primary admissions may waive interview." },
-  { id: "f10", category: "interviews", question: "Can interview be online?", answer: "Hyderabad-based families attend on campus. Outstation applicants may request video interview." },
-  { id: "f11", category: "process", question: "How long until a decision?", answer: "Typically 10–15 working days after complete document verification." },
-  { id: "f12", category: "process", question: "How do I track my application?", answer: "Sign in and open My Applications or Notifications for live updates." },
+  {
+    id: "f1",
+    category: "admissions",
+    question: "Do I need an existing LumenX account?",
+    answer:
+      "No. The Admissions Portal is public. Create a new applicant account with your mobile or email.",
+  },
+  {
+    id: "f2",
+    category: "admissions",
+    question: "What is the application fee?",
+    answer: "₹500 for most programs. Payment link is sent after document verification.",
+  },
+  {
+    id: "f3",
+    category: "programs",
+    question: "Can I apply to multiple programs?",
+    answer: "Yes. Submit separate applications for each child or program.",
+  },
+  {
+    id: "f4",
+    category: "programs",
+    question: "Which grades are open for 2026–27?",
+    answer:
+      "All programs from Pre Primary through Degree have limited seats. Check the Programs page for availability.",
+  },
+  {
+    id: "f5",
+    category: "fees",
+    question: "When are fees due after approval?",
+    answer: "Within 7 days of approval letter. Installment plans available on request.",
+  },
+  {
+    id: "f6",
+    category: "fees",
+    question: "Is the application fee refundable?",
+    answer: "Non-refundable except if the institute cancels the program intake.",
+  },
+  {
+    id: "f7",
+    category: "documents",
+    question: "What format for uploads?",
+    answer: "PDF or JPG, max 5 MB per file. Ensure text is readable.",
+  },
+  {
+    id: "f8",
+    category: "documents",
+    question: "Can I upload documents later?",
+    answer: "Yes for drafts. Submitted applications may require resubmission via Document Center.",
+  },
+  {
+    id: "f9",
+    category: "interviews",
+    question: "Is interview mandatory?",
+    answer: "For Grades 9+ and Intermediate streams, yes. Primary admissions may waive interview.",
+  },
+  {
+    id: "f10",
+    category: "interviews",
+    question: "Can interview be online?",
+    answer:
+      "Hyderabad-based families attend on campus. Outstation applicants may request video interview.",
+  },
+  {
+    id: "f11",
+    category: "process",
+    question: "How long until a decision?",
+    answer: "Typically 10–15 working days after complete document verification.",
+  },
+  {
+    id: "f12",
+    category: "process",
+    question: "How do I track my application?",
+    answer: "Sign in and open My Applications or Notifications for live updates.",
+  },
 ];
 
 export const WHY_CHOOSE_US = [
@@ -320,7 +514,9 @@ export function nextApplicationId(existing: AdmissionApplication[]): string {
 }
 
 export function buildTimeline(status: ApplicationStatus): TimelineEvent[] {
-  return [{ id: `t-${Date.now()}`, status, label: statusLabel(status), at: new Date().toISOString() }];
+  return [
+    { id: `t-${Date.now()}`, status, label: statusLabel(status), at: new Date().toISOString() },
+  ];
 }
 
 export { statusLabel };

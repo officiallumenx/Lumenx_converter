@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { SectionCard } from "@/components/app/SectionCard";
 import { useStudentPortal } from "@/context/StudentPortalContext";
+import { useParentPortal } from "@/context/ParentPortalContext";
 import { classAchievements } from "@/lib/mock-data";
 import {
   achievementCategoryMap,
@@ -20,13 +21,21 @@ const TONE_CLS = {
   warning: "text-warning-foreground",
 } as const;
 
-export function StudentAchievementsPage() {
+export function StudentAchievementsPage({ readOnlyParent = false }: { readOnlyParent?: boolean }) {
   const portal = useStudentPortal();
+  const parentPortal = useParentPortal();
+  const parentSnap = readOnlyParent && parentPortal.isParent ? parentPortal.snapshot : null;
   const [filter, setFilter] = useState<AchievementCategory | "all">("all");
   const [selected, setSelected] = useState<Achievement | null>(null);
 
-  const achievements = portal.isStudent && portal.snapshot ? portal.snapshot.achievements : [];
-  const studentCompetitions = portal.isStudent && portal.snapshot ? portal.snapshot.competitions : [];
+  const achievements =
+    readOnlyParent && parentSnap
+      ? parentSnap.achievements
+      : portal.isStudent && portal.snapshot
+        ? portal.snapshot.achievements
+        : [];
+  const studentCompetitions =
+    readOnlyParent || !(portal.isStudent && portal.snapshot) ? [] : portal.snapshot.competitions;
 
   const unlocked = useMemo(() => achievements.filter((a) => !a.progress), [achievements]);
   const inProgress = useMemo(() => achievements.filter((a) => a.progress), [achievements]);
@@ -46,14 +55,28 @@ export function StudentAchievementsPage() {
     return studentCompetitions.filter((c) => c.category === filter);
   }, [filter, studentCompetitions]);
 
-  if (!portal.isStudent) return null;
-  if (portal.isLoading || !portal.snapshot) return <PageSkeleton rows={6} />;
+  if (!readOnlyParent && !portal.isStudent) return null;
+  if (readOnlyParent && parentPortal.isLoading && !parentSnap) return <PageSkeleton rows={5} />;
+  if (readOnlyParent && !parentSnap) {
+    return (
+      <EmptyState
+        icon={Trophy}
+        title="Achievements unavailable"
+        description="Select a linked child to view their achievements."
+      />
+    );
+  }
+  if (!readOnlyParent && (portal.isLoading || !portal.snapshot)) return <PageSkeleton rows={6} />;
 
   return (
     <div className="min-w-0 space-y-5">
       <PageHeader
         title="Achievements"
-        subtitle="Awards, recognition, competitions, and academic excellence"
+        subtitle={
+          readOnlyParent && parentSnap
+            ? `Read-only view for ${parentSnap.child.name} · awards and recognition`
+            : "Awards, recognition, competitions, and academic excellence"
+        }
       />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -69,27 +92,29 @@ export function StudentAchievementsPage() {
             key={f}
             type="button"
             onClick={() => setFilter(f)}
-            className={cn(
-              "rounded-full px-3 py-1.5 text-xs font-medium capitalize transition-colors",
-              filter === f ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80",
-            )}
+            className={cn("student-filter-chip capitalize", filter === f && "is-active")}
           >
             {ACHIEVEMENT_FILTER_LABELS[f]}
           </button>
         ))}
       </div>
 
-      <SectionCard title={`Your achievements · ${filteredUnlocked.length + filteredProgress.length}`}>
+      <SectionCard
+        title={`Your achievements · ${filteredUnlocked.length + filteredProgress.length}`}
+      >
         {filteredUnlocked.length + filteredProgress.length ? (
           <div className="space-y-4">
             {filteredUnlocked.length > 0 && (
               <div>
-                <div className="mb-2 text-xs uppercase tracking-widest text-muted-foreground font-medium">
-                  Unlocked
-                </div>
+                <div className="mb-2 student-stat-label">Unlocked</div>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {filteredUnlocked.map((a) => (
-                    <button key={a.id} type="button" className="text-left" onClick={() => setSelected(a)}>
+                    <button
+                      key={a.id}
+                      type="button"
+                      className="text-left"
+                      onClick={() => setSelected(a)}
+                    >
                       <AchievementBadge a={a} />
                     </button>
                   ))}
@@ -98,12 +123,15 @@ export function StudentAchievementsPage() {
             )}
             {filteredProgress.length > 0 && (
               <div>
-                <div className="mb-2 text-xs uppercase tracking-widest text-muted-foreground font-medium">
-                  In progress
-                </div>
+                <div className="mb-2 student-stat-label">In progress</div>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {filteredProgress.map((a) => (
-                    <button key={a.id} type="button" className="text-left" onClick={() => setSelected(a)}>
+                    <button
+                      key={a.id}
+                      type="button"
+                      className="text-left"
+                      onClick={() => setSelected(a)}
+                    >
                       <AchievementBadge a={a} />
                     </button>
                   ))}
@@ -124,7 +152,7 @@ export function StudentAchievementsPage() {
         {filteredCompetitions.length ? (
           <div className="space-y-2">
             {filteredCompetitions.map((c) => (
-              <div key={c.id} className="rounded-xl border p-4">
+              <div key={c.id} className="student-list-row rounded-xl border p-4">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
                     <div className="font-medium">{c.title}</div>
@@ -156,9 +184,7 @@ export function StudentAchievementsPage() {
         <div className="grid gap-3 sm:grid-cols-3">
           {classAchievements.map((c) => (
             <div key={c.id} className="rounded-xl border bg-muted/30 p-4">
-              <div className="text-[11px] uppercase tracking-widest text-muted-foreground">
-                Section {c.section}
-              </div>
+              <div className="student-stat-label">Section {c.section}</div>
               <div className="mt-1 font-medium leading-snug">{c.title}</div>
               <div className={cn("mt-1 text-xs font-medium", TONE_CLS[c.tone])}>{c.value}</div>
             </div>
@@ -181,11 +207,13 @@ export function StudentAchievementsPage() {
                 </Badge>
               )}
               {selected.progress !== undefined ? (
-                <p className="text-xs text-muted-foreground">{selected.progress}% complete — keep going!</p>
+                <p className="text-xs text-muted-foreground">
+                  {selected.progress}% complete — keep going!
+                </p>
               ) : (
                 <p className="text-xs text-success font-medium">Unlocked {selected.unlockedOn}</p>
               )}
-              <Button className="w-full rounded-xl" onClick={() => setSelected(null)}>
+              <Button className="student-primary-action w-full rounded-xl" onClick={() => setSelected(null)}>
                 Close
               </Button>
             </div>
@@ -200,8 +228,8 @@ function Stat({ label, value, icon: Icon }: { label: string; value: string; icon
   return (
     <div className="rounded-2xl border bg-card p-4 shadow-soft">
       <div className="flex items-center gap-2 text-muted-foreground">
-        <Icon className="size-4" />
-        <span className="text-[10px] uppercase tracking-wide">{label}</span>
+        <Icon className="size-4 shrink-0" aria-hidden />
+        <span className="student-stat-label">{label}</span>
       </div>
       <div className="mt-1 font-display text-2xl font-semibold tabular-nums">{value}</div>
     </div>

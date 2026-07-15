@@ -68,7 +68,9 @@ export function CareersAuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <CareersAuthContext.Provider value={{ user, hydrated, signUp, signIn, resetPassword, signOut, refresh }}>
+    <CareersAuthContext.Provider
+      value={{ user, hydrated, signUp, signIn, resetPassword, signOut, refresh }}
+    >
       {children}
     </CareersAuthContext.Provider>
   );

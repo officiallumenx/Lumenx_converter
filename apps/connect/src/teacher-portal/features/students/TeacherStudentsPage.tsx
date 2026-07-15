@@ -60,8 +60,49 @@ export function TeacherStudentsPage() {
         subtitle="Filter by class and section — tap a student to expand details"
       />
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="relative sm:col-span-1">
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
+          <Select
+            value={classFilter}
+            onValueChange={(v) => {
+              setClassFilter(v);
+              setSectionFilter("all");
+              setListKey((k) => k + 1);
+            }}
+          >
+            <SelectTrigger className="h-11 rounded-xl">
+              <SelectValue placeholder="All classes" />
+            </SelectTrigger>
+            <SelectContent position="popper" className="z-[100]">
+              <SelectItem value="all">All classes</SelectItem>
+              {classNames.map((c) => (
+                <SelectItem key={c} value={c}>
+                  Class {c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={sectionFilter}
+            onValueChange={(v) => {
+              setSectionFilter(v);
+              setListKey((k) => k + 1);
+            }}
+          >
+            <SelectTrigger className="h-11 rounded-xl">
+              <SelectValue placeholder="All sections" />
+            </SelectTrigger>
+            <SelectContent position="popper" className="z-[100]">
+              <SelectItem value="all">All sections</SelectItem>
+              {sections.map((s) => (
+                <SelectItem key={s} value={s}>
+                  Section {s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={q}
@@ -70,41 +111,6 @@ export function TeacherStudentsPage() {
             className="h-11 rounded-xl pl-9"
           />
         </div>
-        <Select
-          value={classFilter}
-          onValueChange={(v) => {
-            setClassFilter(v);
-            setSectionFilter("all");
-            setListKey((k) => k + 1);
-          }}
-        >
-          <SelectTrigger className="h-11 rounded-xl">
-            <SelectValue placeholder="All classes" />
-          </SelectTrigger>
-          <SelectContent position="popper" className="z-[100]">
-            <SelectItem value="all">All classes</SelectItem>
-            {classNames.map((c) => (
-              <SelectItem key={c} value={c}>Class {c}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={sectionFilter}
-          onValueChange={(v) => {
-            setSectionFilter(v);
-            setListKey((k) => k + 1);
-          }}
-        >
-          <SelectTrigger className="h-11 rounded-xl">
-            <SelectValue placeholder="All sections" />
-          </SelectTrigger>
-          <SelectContent position="popper" className="z-[100]">
-            <SelectItem value="all">All sections</SelectItem>
-            {sections.map((s) => (
-              <SelectItem key={s} value={s}>Section {s}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
 
       <p className="text-sm text-muted-foreground">

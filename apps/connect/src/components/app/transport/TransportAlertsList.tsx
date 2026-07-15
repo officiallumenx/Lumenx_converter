@@ -26,20 +26,32 @@ export function TransportAlertsList({
       title="Transport alerts"
       action={
         unread > 0 ? (
-          <Button variant="ghost" size="sm" className="h-8 rounded-lg gap-1.5 text-xs" onClick={onMarkAllRead}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 rounded-lg gap-1.5 text-xs"
+            onClick={onMarkAllRead}
+          >
             <CheckCheck className="size-3.5" /> Mark all read
           </Button>
         ) : undefined
       }
     >
       <div className="mb-3 flex flex-wrap gap-2">
-        {(["eta_10min", "eta_5min", "arrived_stop", "picked_up", "reached_school", "dropped_school"] as const).map(
-          (type) => (
-            <Badge key={type} variant="outline" className="text-[10px] font-normal">
-              {TRANSPORT_EVENT_LABELS[type]}
-            </Badge>
-          ),
-        )}
+        {(
+          [
+            "eta_10min",
+            "eta_5min",
+            "arrived_stop",
+            "picked_up",
+            "reached_school",
+            "dropped_school",
+          ] as const
+        ).map((type) => (
+          <Badge key={type} variant="outline" className="text-[10px] font-normal">
+            {TRANSPORT_EVENT_LABELS[type]}
+          </Badge>
+        ))}
       </div>
 
       {sorted.length === 0 ? (

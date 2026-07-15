@@ -26,13 +26,7 @@ export type DocumentVerificationStatus =
 
 export type InterviewMode = "in_person" | "phone" | "video";
 
-export type InquiryCategory =
-  | "admission"
-  | "program"
-  | "fees"
-  | "transport"
-  | "hostel"
-  | "general";
+export type InquiryCategory = "admission" | "program" | "fees" | "transport" | "hostel" | "general";
 
 export type InquiryStatus = "open" | "answered" | "closed";
 

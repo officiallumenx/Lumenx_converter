@@ -4,9 +4,22 @@ import { PageHeader } from "@/components/app/PageHeader";
 import { TimetableDayPicker } from "@/components/app/timetable/TimetableDayPicker";
 import { PeriodTimeline, type PeriodRow } from "@/components/app/timetable/PeriodTimeline";
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
-import { DAYS, getTodayDayName, teacherRepository } from "@/lib/teacher/repositories";
+import {
+  DAYS,
+  getDefaultTeacherDay,
+  getTodayDayName,
+  teacherRepository,
+} from "@/lib/teacher/repositories";
 import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, cn, Badge } from "@lumenx/ui";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  cn,
+  Badge,
+} from "@lumenx/ui";
 import type { TimetableSlot } from "@/lib/teacher/types";
 
 function parseStart(time: string): number {
@@ -23,17 +36,50 @@ export function TeacherTimetablePage() {
   const portal = useTeacherPortal();
   const [mode, setMode] = useState<"my" | "class">("my");
   const [view, setView] = useState<"daily" | "weekly">("daily");
-  const [day, setDay] = useState(getTodayDayName());
-  const [classId, setClassId] = useState("");
+  const [day, setDay] = useState(getDefaultTeacherDay());
+  const initialClass = portal.classes[0];
+  const [classNameFilter, setClassNameFilter] = useState(initialClass?.className ?? "");
+  const [sectionFilter, setSectionFilter] = useState(initialClass?.section ?? "");
   const [daySlots, setDaySlots] = useState<TimetableSlot[]>([]);
   const [weekSlots, setWeekSlots] = useState<TimetableSlot[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const teacherSubjects = portal.profile?.subjects ?? ["Mathematics"];
+  const classNames = useMemo(
+    () => [...new Set(portal.classes.map((c) => c.className))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
+    [portal.classes],
+  );
+
+  const sections = useMemo(
+    () =>
+      [
+        ...new Set(
+          portal.classes.filter((c) => c.className === classNameFilter).map((c) => c.section),
+        ),
+      ].sort(),
+    [portal.classes, classNameFilter],
+  );
+
+  const classId = useMemo(() => {
+    const match = portal.classes.find(
+      (c) => c.className === classNameFilter && c.section === sectionFilter,
+    );
+    return match?.id ?? "";
+  }, [portal.classes, classNameFilter, sectionFilter]);
 
   useEffect(() => {
-    if (portal.isTeacher && portal.classes[0] && !classId) setClassId(portal.classes[0].id);
-  }, [portal, classId]);
+    if (portal.isTeacher && portal.classes[0] && !classNameFilter) {
+      setClassNameFilter(portal.classes[0].className);
+      setSectionFilter(portal.classes[0].section);
+    }
+  }, [portal, classNameFilter]);
+
+  useEffect(() => {
+    if (!sections.includes(sectionFilter) && sections[0]) {
+      setSectionFilter(sections[0]);
+    }
+  }, [sections, sectionFilter]);
+
+  const teacherSubjects = portal.profile?.subjects ?? ["Mathematics"];
 
   useEffect(() => {
     setLoading(true);
@@ -70,7 +116,8 @@ export function TeacherTimetablePage() {
   }, [weekSlots]);
 
   const withHighlight = (list: TimetableSlot[]) => {
-    if (day !== today) return list.map((s) => ({ slot: s, current: false, next: false, past: false }));
+    if (day !== today)
+      return list.map((s) => ({ slot: s, current: false, next: false, past: false }));
     const sorted = [...list].sort((a, b) => parseStart(a.time) - parseStart(b.time));
     let currentIdx = -1;
     for (let i = 0; i < sorted.length; i++) {
@@ -79,9 +126,7 @@ export function TeacherTimetablePage() {
       if (nowMins >= start && nowMins < end) currentIdx = i;
     }
     const nextIdx =
-      currentIdx >= 0
-        ? currentIdx + 1
-        : sorted.findIndex((s) => parseStart(s.time) > nowMins);
+      currentIdx >= 0 ? currentIdx + 1 : sorted.findIndex((s) => parseStart(s.time) > nowMins);
     return sorted.map((s, i) => ({
       slot: s,
       current: i === currentIdx,
@@ -128,7 +173,12 @@ export function TeacherTimetablePage() {
       />
 
       <div className="flex flex-wrap gap-2">
-        {([["my", "My timetable"], ["class", "Class timetable"]] as const).map(([m, label]) => (
+        {(
+          [
+            ["my", "My timetable"],
+            ["class", "Class timetable"],
+          ] as const
+        ).map(([m, label]) => (
           <button
             key={m}
             type="button"
@@ -144,18 +194,43 @@ export function TeacherTimetablePage() {
       </div>
 
       {mode === "class" && (
-        <Select value={classId} onValueChange={setClassId}>
-          <SelectTrigger className="max-w-xs rounded-xl">
-            <SelectValue placeholder="Select class" />
-          </SelectTrigger>
-          <SelectContent position="popper" className="z-[100]">
-            {portal.classes.map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                Class {c.className}-{c.section}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="grid grid-cols-2 gap-2 sm:max-w-md sm:gap-3">
+          <Select
+            value={classNameFilter}
+            onValueChange={(v) => {
+              setClassNameFilter(v);
+              const nextSections = portal.classes
+                .filter((c) => c.className === v)
+                .map((c) => c.section);
+              if (!nextSections.includes(sectionFilter)) {
+                setSectionFilter(nextSections[0] ?? "");
+              }
+            }}
+          >
+            <SelectTrigger className="h-11 rounded-xl">
+              <SelectValue placeholder="Class" />
+            </SelectTrigger>
+            <SelectContent position="popper" className="z-[100]">
+              {classNames.map((c) => (
+                <SelectItem key={c} value={c}>
+                  Class {c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={sectionFilter} onValueChange={setSectionFilter}>
+            <SelectTrigger className="h-11 rounded-xl">
+              <SelectValue placeholder="Section" />
+            </SelectTrigger>
+            <SelectContent position="popper" className="z-[100]">
+              {sections.map((s) => (
+                <SelectItem key={s} value={s}>
+                  Section {s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       )}
 
       <div className="flex gap-2">
@@ -166,7 +241,9 @@ export function TeacherTimetablePage() {
             onClick={() => setView(v)}
             className={cn(
               "rounded-full px-4 py-2 text-sm font-medium capitalize",
-              view === v ? "bg-primary text-primary-foreground shadow-glow" : "bg-muted text-muted-foreground",
+              view === v
+                ? "bg-primary text-primary-foreground shadow-glow"
+                : "bg-muted text-muted-foreground",
             )}
           >
             {v}
@@ -178,12 +255,8 @@ export function TeacherTimetablePage() {
         <>
           {day === today && (currentSlot || nextSlot) && (
             <div className="grid min-w-0 grid-cols-1 gap-3 lg:grid-cols-2">
-              {currentSlot && (
-                <TeacherHighlight slot={currentSlot} label="Now" showMarkLink />
-              )}
-              {nextSlot && (
-                <TeacherHighlight slot={nextSlot} label="Up next" />
-              )}
+              {currentSlot && <TeacherHighlight slot={currentSlot} label="Now" showMarkLink />}
+              {nextSlot && <TeacherHighlight slot={nextSlot} label="Up next" />}
             </div>
           )}
 

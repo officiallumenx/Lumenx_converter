@@ -1,21 +1,42 @@
 import type { FeeItem } from "@lumenx/types";
 
-export type FeeCategory = "tuition" | "exam" | "transport" | "activity" | "other";
+export type FeeCategory =
+  | "tuition"
+  | "exam"
+  | "transport"
+  | "hostel"
+  | "library"
+  | "activity"
+  | "other";
 
 export const FEE_CATEGORY_LABELS: Record<FeeCategory, string> = {
   tuition: "Tuition",
   exam: "Examination",
   transport: "Transport",
+  hostel: "Hostel",
+  library: "Library",
   activity: "Activity & lab",
   other: "Other",
 };
 
 export const FEE_CATEGORY_ORDER: FeeCategory[] = [
   "tuition",
-  "exam",
   "transport",
-  "activity",
+  "exam",
+  "hostel",
+  "library",
   "other",
+];
+
+/** Parent fee filter chips (activity rolls into Other in the UI). */
+export const PARENT_FEE_TYPE_FILTERS: { id: "all" | FeeCategory; label: string }[] = [
+  { id: "all", label: "All types" },
+  { id: "tuition", label: "Tuition" },
+  { id: "transport", label: "Transport" },
+  { id: "exam", label: "Examination" },
+  { id: "hostel", label: "Hostel" },
+  { id: "library", label: "Library" },
+  { id: "other", label: "Other" },
 ];
 
 type DueRow = {
@@ -32,6 +53,8 @@ export function inferFeeCategory(title: string, category?: FeeItem["category"]):
   const t = title.toLowerCase();
   if (t.includes("tuition")) return "tuition";
   if (t.includes("transport")) return "transport";
+  if (t.includes("hostel")) return "hostel";
+  if (t.includes("library")) return "library";
   if (
     t.includes("exam") ||
     t.includes("examination") ||
@@ -70,12 +93,37 @@ export type FeeDuesSummary = {
 };
 
 function emptyBreakdown(): FeeCategoryBreakdown {
-  return { tuition: 0, exam: 0, transport: 0, activity: 0, other: 0 };
+  return {
+    tuition: 0,
+    exam: 0,
+    transport: 0,
+    hostel: 0,
+    library: 0,
+    activity: 0,
+    other: 0,
+  };
 }
 
-function parseDueDate(due: string): number {
-  const parsed = Date.parse(due.replace(/(\d+) (\w+) (\d+)/, "$2 $1, $3"));
-  return Number.isNaN(parsed) ? Infinity : parsed;
+/**
+ * Parse a human due-date label to a timestamp. Handles ISO ("2026-06-10"), "Mon DD, YYYY",
+ * and "DD Mon YYYY" / "DD Month YYYY" across engines (Android WebView is stricter than V8).
+ * Returns Infinity for non-date labels ("Today", "Friday") so they sort last / are ignored.
+ */
+export function parseDueDate(due: string): number {
+  if (!due) return Infinity;
+  const direct = Date.parse(due);
+  if (!Number.isNaN(direct)) return direct;
+  const rearranged = Date.parse(due.replace(/(\d+)\s+(\w+)\s+(\d+)/, "$2 $1, $3"));
+  return Number.isNaN(rearranged) ? Infinity : rearranged;
+}
+
+/** True when an outstanding item's due date is strictly before today. */
+function isPastDue(due: string): boolean {
+  const ts = parseDueDate(due);
+  if (ts === Infinity) return false;
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  return ts < startOfToday.getTime();
 }
 
 export function summarizeFeeItems(items: FeeItem[]): FeeDuesSummary {
@@ -89,17 +137,19 @@ export function summarizeFeeItems(items: FeeItem[]): FeeDuesSummary {
   for (const f of items) {
     const cat = inferFeeCategory(f.title, f.category);
     const owed = outstandingAmount(f.amount, f.status);
+    // Always credit the already-paid portion (full for "paid", the paid half of a
+    // "partial"), so totalPaid + totalOutstanding always reconciles to the annual total.
+    totalPaid += f.amount - owed;
     if (owed > 0) {
       byCategory[cat] += owed;
       totalOutstanding += owed;
-      if (f.status === "overdue") overdueCount += 1;
-      if (f.status === "upcoming" || f.status === "partial") dueSoonCount += 1;
+      // An "upcoming"/"partial" instalment whose date has passed is effectively overdue.
+      if (f.status === "overdue" || isPastDue(f.due)) overdueCount += 1;
+      else if (f.status === "upcoming" || f.status === "partial") dueSoonCount += 1;
       const ts = parseDueDate(f.due);
       if (ts !== Infinity && (!nextDue || ts < nextDue.ts)) {
         nextDue = { date: f.due, ts };
       }
-    } else {
-      totalPaid += f.amount;
     }
   }
 
@@ -130,8 +180,8 @@ export function summarizeDueRows(rows: DueRow[]): FeeDuesSummary {
     const owed = outstandingAmount(r.amount, r.status);
     byCategory[cat] += owed;
     totalOutstanding += owed;
-    if (r.status === "overdue") overdueCount += 1;
-    if (r.status === "upcoming" || r.status === "partial") dueSoonCount += 1;
+    if (r.status === "overdue" || isPastDue(r.due)) overdueCount += 1;
+    else if (r.status === "upcoming" || r.status === "partial") dueSoonCount += 1;
     const ts = parseDueDate(r.due);
     if (ts !== Infinity && (!nextDue || ts < nextDue.ts)) {
       nextDue = { date: r.due, ts };

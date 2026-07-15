@@ -14,12 +14,11 @@ export const Route = createFileRoute("/academic-history")({
 
 function AcademicHistoryRoute() {
   const { role } = useApp();
-  if (role !== "student") {
-    return (
-      <div className="py-12 text-center text-sm text-muted-foreground">
-        Academic History is available in the Student portal.
-      </div>
-    );
-  }
-  return <StudentAcademicHistoryPage />;
+  if (role === "student") return <StudentAcademicHistoryPage />;
+  if (role === "parent") return <StudentAcademicHistoryPage readOnlyParent />;
+  return (
+    <div className="py-12 text-center text-sm text-muted-foreground">
+      Academic History is available in the Student or Parent portal.
+    </div>
+  );
 }

@@ -61,9 +61,7 @@ export function enumerateLeaveDates(startDate: string, endDate: string): string[
   return dates;
 }
 
-export function leaveDayCount(
-  req: Pick<LeaveRequest, "leaveStartDate" | "leaveEndDate">,
-): number {
+export function leaveDayCount(req: Pick<LeaveRequest, "leaveStartDate" | "leaveEndDate">): number {
   return enumerateLeaveDates(req.leaveStartDate, req.leaveEndDate).length;
 }
 
@@ -95,8 +93,8 @@ export function classTag(className: string, section: string): string {
   return `${className}-${section}`;
 }
 
-export function sortLeaveRequests<
-  T extends { leaveStartDate: string; appliedAt: string },
->(rows: T[]): T[] {
+export function sortLeaveRequests<T extends { leaveStartDate: string; appliedAt: string }>(
+  rows: T[],
+): T[] {
   return [...rows].sort((a, b) => b.leaveStartDate.localeCompare(a.leaveStartDate));
 }

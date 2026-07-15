@@ -1,3 +1,4 @@
+import type { DragEvent } from "react";
 import { AlertTriangle, Coffee, Plus } from "lucide-react";
 import {
   getActiveDays,
@@ -5,36 +6,12 @@ import {
   type TimetableScheduleConfig,
 } from "@/lib/timetable-schedule";
 import type { TimetableSlot } from "@/lib/timetable-data";
-
-type SubjectTheme = { border: string; bg: string; code: string };
-
-const SUBJECT_THEMES: Record<string, SubjectTheme> = {
-  MTH: { border: "border-l-blue-500", bg: "bg-blue-500/12 dark:bg-blue-400/15", code: "MTH" },
-  PHY: { border: "border-l-violet-500", bg: "bg-violet-500/12 dark:bg-violet-400/15", code: "PHY" },
-  CHM: { border: "border-l-emerald-500", bg: "bg-emerald-500/12 dark:bg-emerald-400/15", code: "CHM" },
-  ENG: { border: "border-l-amber-500", bg: "bg-amber-500/12 dark:bg-amber-400/15", code: "ENG" },
-  CS: { border: "border-l-cyan-500", bg: "bg-cyan-500/12 dark:bg-cyan-400/15", code: "CS" },
-  HIS: { border: "border-l-orange-500", bg: "bg-orange-500/12 dark:bg-orange-400/15", code: "HIS" },
-  BIO: { border: "border-l-rose-500", bg: "bg-rose-500/12 dark:bg-rose-400/15", code: "BIO" },
-};
-
-const FALLBACK_THEMES: SubjectTheme[] = [
-  { border: "border-l-blue-500", bg: "bg-blue-500/12 dark:bg-blue-400/15", code: "A" },
-  { border: "border-l-violet-500", bg: "bg-violet-500/12 dark:bg-violet-400/15", code: "B" },
-  { border: "border-l-emerald-500", bg: "bg-emerald-500/12 dark:bg-emerald-400/15", code: "C" },
-  { border: "border-l-amber-500", bg: "bg-amber-500/12 dark:bg-amber-400/15", code: "D" },
-  { border: "border-l-cyan-500", bg: "bg-cyan-500/12 dark:bg-cyan-400/15", code: "E" },
-];
-
-function subjectTheme(code: string): SubjectTheme {
-  const prefix = code.split(" ")[0]?.slice(0, 3).toUpperCase() ?? code;
-  for (const [key, theme] of Object.entries(SUBJECT_THEMES)) {
-    if (prefix.startsWith(key) || code.toUpperCase().includes(key)) return theme;
-  }
-  let h = 0;
-  for (let i = 0; i < code.length; i++) h = (h + code.charCodeAt(i)) % FALLBACK_THEMES.length;
-  return FALLBACK_THEMES[h]!;
-}
+import {
+  readTimetableDrag,
+  subjectTheme,
+  writeTimetableDrag,
+} from "@/components/timetable/timetable-theme";
+import { TimetableSubjectPalette } from "@/components/timetable/TimetableSubjectPalette";
 
 function teacherInitial(name: string) {
   const parts = name.trim().split(/\s+/);
@@ -66,24 +43,63 @@ export function TimetableWeekGrid({
   schedule,
   onEdit,
   slotHasConflict,
+  subjects,
+  onMoveSlot,
+  onAssignSubject,
+  enableDragDrop = false,
 }: {
   grid: (TimetableSlot | null)[][];
   schedule: TimetableScheduleConfig;
   onEdit: (day: number, period: number) => void;
   slotHasConflict: (day: number, period: number, slot: TimetableSlot) => boolean;
+  subjects?: { id: string; name: string; code: string }[];
+  onMoveSlot?: (from: { day: number; period: number }, to: { day: number; period: number }) => void;
+  onAssignSubject?: (
+    subjectId: string,
+    to: { day: number; period: number },
+    meta: { code: string; name: string },
+  ) => void;
+  enableDragDrop?: boolean;
 }) {
   const days = getActiveDays(schedule);
   const breakRow = schedule.periodRows.find((r) => r.isBreak);
+  const dnd = enableDragDrop && (onMoveSlot != null || onAssignSubject != null);
 
   const uniqueSubjects = Array.from(
     new Set(
-      grid.flat().filter((s): s is TimetableSlot => s != null).map((s) => s.subject),
+      grid
+        .flat()
+        .filter((s): s is TimetableSlot => s != null)
+        .map((s) => s.subject),
     ),
   ).sort();
 
+  const handleDrop = (day: number, period: number, e: DragEvent) => {
+    e.preventDefault();
+    const payload = readTimetableDrag(e.dataTransfer);
+    if (!payload) return;
+    if (payload.kind === "cell" && onMoveSlot) {
+      if (payload.day === day && payload.period === period) return;
+      onMoveSlot({ day: payload.day, period: payload.period }, { day, period });
+      return;
+    }
+    if (payload.kind === "subject" && onAssignSubject) {
+      onAssignSubject(payload.subjectId, { day, period }, {
+        code: payload.code,
+        name: payload.name,
+      });
+    }
+  };
+
   return (
     <div className="space-y-3">
+      {dnd && subjects && subjects.length > 0 && <TimetableSubjectPalette subjects={subjects} />}
       <TimetableSubjectLegend subjects={uniqueSubjects} />
+      {dnd && (
+        <p className="text-[11px] text-muted-foreground">
+          Drag a subject from above, or drag a filled period to move or swap.
+        </p>
+      )}
       <div className="lx-timetable-scroll">
         <table className="lx-timetable-grid">
           <thead>
@@ -106,7 +122,9 @@ export function TimetableWeekGrid({
                   <tr key={p.id} className="lx-timetable-grid__break-row">
                     <td colSpan={days.length + 1}>
                       <Coffee className="size-3.5 shrink-0" aria-hidden />
-                      <span>Lunch break · {breakRow?.start} – {breakRow?.end}</span>
+                      <span>
+                        Lunch break · {breakRow?.start} – {breakRow?.end}
+                      </span>
                     </td>
                   </tr>
                 );
@@ -138,10 +156,12 @@ export function TimetableWeekGrid({
                           <button
                             type="button"
                             onClick={() => onEdit(dayIdx, periodIdx)}
-                            className="lx-timetable-slot lx-timetable-slot--empty"
+                            onDragOver={dnd ? (e) => e.preventDefault() : undefined}
+                            onDrop={dnd ? (e) => handleDrop(dayIdx, periodIdx, e) : undefined}
+                            className={`lx-timetable-slot lx-timetable-slot--empty ${dnd ? "lx-timetable-slot--droptarget" : ""}`}
                           >
                             <Plus className="size-4" />
-                            <span>Assign</span>
+                            <span>{dnd ? "Drop or assign" : "Assign"}</span>
                           </button>
                         </td>
                       );
@@ -153,8 +173,21 @@ export function TimetableWeekGrid({
                       <td key={d.name} className="lx-timetable-grid__cell">
                         <button
                           type="button"
+                          draggable={dnd}
+                          onDragStart={
+                            dnd
+                              ? (e) =>
+                                  writeTimetableDrag(e.dataTransfer, {
+                                    kind: "cell",
+                                    day: dayIdx,
+                                    period: periodIdx,
+                                  })
+                              : undefined
+                          }
+                          onDragOver={dnd ? (e) => e.preventDefault() : undefined}
+                          onDrop={dnd ? (e) => handleDrop(dayIdx, periodIdx, e) : undefined}
                           onClick={() => onEdit(dayIdx, periodIdx)}
-                          className={`lx-timetable-slot lx-timetable-slot--filled ${theme.bg} ${theme.border} ${conflict ? "lx-timetable-slot--conflict" : ""}`}
+                          className={`lx-timetable-slot lx-timetable-slot--filled ${theme.bg} ${theme.border} ${conflict ? "lx-timetable-slot--conflict" : ""} ${dnd ? "lx-timetable-slot--draggable" : ""}`}
                         >
                           <div className="lx-timetable-slot__subject">{slot.subject}</div>
                           <div className="lx-timetable-slot__teacher">
@@ -164,7 +197,10 @@ export function TimetableWeekGrid({
                             <span className="truncate">{slot.teacher}</span>
                           </div>
                           {conflict && (
-                            <AlertTriangle className="lx-timetable-slot__warn" aria-label="Scheduling conflict" />
+                            <AlertTriangle
+                              className="lx-timetable-slot__warn"
+                              aria-label="Scheduling conflict"
+                            />
                           )}
                         </button>
                       </td>

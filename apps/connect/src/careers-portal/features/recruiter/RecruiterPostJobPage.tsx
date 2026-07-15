@@ -14,18 +14,19 @@ import {
 import { toast } from "sonner";
 import { useCareersAuth } from "@/careers-portal/core/CareersAuthProvider";
 import { CareersPageHeader } from "@/careers-portal/shared/ui/CareersPageHeader";
-import {
-  JOB_CATEGORY_LABEL,
-  JOB_EXPERIENCE_OPTIONS,
-  LOCATIONS,
-} from "@/lib/careers/jobs-data";
+import { JOB_CATEGORY_LABEL, JOB_EXPERIENCE_OPTIONS, LOCATIONS } from "@/lib/careers/jobs-data";
 import {
   createRecruiterJob,
   getRecruiterJobById,
   updateRecruiterJob,
   type RecruiterJobInput,
 } from "@/lib/careers/recruiter-jobs-store";
-import type { EmploymentType, JobCategory, RecruiterJobStatus, WorkMode } from "@/lib/careers/types";
+import type {
+  EmploymentType,
+  JobCategory,
+  RecruiterJobStatus,
+  WorkMode,
+} from "@/lib/careers/types";
 
 function linesToList(text: string): string[] {
   return text
@@ -38,7 +39,15 @@ function listToLines(items: string[]): string {
   return items.join("\n");
 }
 
-function FormSection({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+function FormSection({
+  title,
+  hint,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
   return (
     <section className="rounded-2xl border border-border p-4 sm:p-5 space-y-4">
       <div>
@@ -114,7 +123,14 @@ export function RecruiterPostJobPage({ editJobId }: { editJobId?: string }) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !overview.trim() || !description.trim() || !city.trim() || !state.trim() || !deadline) {
+    if (
+      !title.trim() ||
+      !overview.trim() ||
+      !description.trim() ||
+      !city.trim() ||
+      !state.trim() ||
+      !deadline
+    ) {
       toast.error("Fill in title, overview, full description, location, and deadline");
       return;
     }
@@ -144,7 +160,10 @@ export function RecruiterPostJobPage({ editJobId }: { editJobId?: string }) {
       description,
       responsibilities: linesToList(responsibilities),
       qualifications: linesToList(qualifications),
-      skills: skills.split(",").map((s) => s.trim()).filter(Boolean),
+      skills: skills
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
       benefits: linesToList(benefits),
       deadline,
       salaryDisplay: salaryDisplay || undefined,
@@ -168,7 +187,11 @@ export function RecruiterPostJobPage({ editJobId }: { editJobId?: string }) {
       user.organizationName ?? "Organization",
       input,
     );
-    toast.success(publishNow ? "Job published — you can keep editing below" : "Job saved as draft — you can keep editing below");
+    toast.success(
+      publishNow
+        ? "Job published — you can keep editing below"
+        : "Job saved as draft — you can keep editing below",
+    );
     nav({ to: "/careers/recruiter/jobs/$jobId/edit", params: { jobId: created.id } });
   };
 
@@ -185,25 +208,42 @@ export function RecruiterPostJobPage({ editJobId }: { editJobId?: string }) {
       />
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        <FormSection title="Role basics" hint="Title, department, and how candidates will find this role">
+        <FormSection
+          title="Role basics"
+          hint="Title, department, and how candidates will find this role"
+        >
           <div className="space-y-2">
             <Label>Job title *</Label>
-            <Input placeholder="e.g. Senior Product Manager" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <Input
+              placeholder="e.g. Senior Product Manager"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Department</Label>
-              <Input placeholder="Engineering, HR, Sales…" value={department} onChange={(e) => setDepartment(e.target.value)} />
+              <Input
+                placeholder="Engineering, HR, Sales…"
+                value={department}
+                onChange={(e) => setDepartment(e.target.value)}
+              />
             </div>
             <div className="space-y-2">
               <Label>Role type</Label>
               <Select value={category} onValueChange={(v) => setCategory(v as JobCategory)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
-                  {(Object.entries(JOB_CATEGORY_LABEL) as [JobCategory, string][]).map(([k, label]) => (
-                    <SelectItem key={k} value={k}>{label}</SelectItem>
-                  ))}
+                  {(Object.entries(JOB_CATEGORY_LABEL) as [JobCategory, string][]).map(
+                    ([k, label]) => (
+                      <SelectItem key={k} value={k}>
+                        {label}
+                      </SelectItem>
+                    ),
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -212,8 +252,13 @@ export function RecruiterPostJobPage({ editJobId }: { editJobId?: string }) {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Employment type</Label>
-              <Select value={employmentType} onValueChange={(v) => setEmploymentType(v as EmploymentType)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={employmentType}
+                onValueChange={(v) => setEmploymentType(v as EmploymentType)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="full_time">Full time</SelectItem>
                   <SelectItem value="part_time">Part time</SelectItem>
@@ -224,7 +269,9 @@ export function RecruiterPostJobPage({ editJobId }: { editJobId?: string }) {
             <div className="space-y-2">
               <Label>Work mode</Label>
               <Select value={workMode} onValueChange={(v) => setWorkMode(v as WorkMode)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="onsite">On-site</SelectItem>
                   <SelectItem value="remote">Remote</SelectItem>
@@ -235,11 +282,16 @@ export function RecruiterPostJobPage({ editJobId }: { editJobId?: string }) {
           </div>
         </FormSection>
 
-        <FormSection title="Experience & compensation" hint="Shown prominently on the job listing — be specific">
+        <FormSection
+          title="Experience & compensation"
+          hint="Shown prominently on the job listing — be specific"
+        >
           <div className="space-y-2">
             <Label>Experience required *</Label>
             <Select value={experienceRequired} onValueChange={setExperienceRequired}>
-              <SelectTrigger><SelectValue placeholder="Select experience level" /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue placeholder="Select experience level" />
+              </SelectTrigger>
               <SelectContent>
                 {JOB_EXPERIENCE_OPTIONS.map((opt) => (
                   <SelectItem key={opt.value} value={opt.value}>
@@ -250,7 +302,9 @@ export function RecruiterPostJobPage({ editJobId }: { editJobId?: string }) {
             </Select>
             {selectedExperience && (
               <p className="text-xs text-muted-foreground rounded-lg bg-muted/50 px-3 py-2">
-                Candidates will see: <strong className="text-foreground">{selectedExperience.value}</strong> experience required
+                Candidates will see:{" "}
+                <strong className="text-foreground">{selectedExperience.value}</strong> experience
+                required
               </p>
             )}
           </div>
@@ -258,7 +312,11 @@ export function RecruiterPostJobPage({ editJobId }: { editJobId?: string }) {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Salary / CTC (display text)</Label>
-              <Input placeholder="₹8–12 LPA · ₹50k/month" value={salaryDisplay} onChange={(e) => setSalaryDisplay(e.target.value)} />
+              <Input
+                placeholder="₹8–12 LPA · ₹50k/month"
+                value={salaryDisplay}
+                onChange={(e) => setSalaryDisplay(e.target.value)}
+              />
             </div>
             <div className="space-y-2">
               <Label>Apply by *</Label>
@@ -272,15 +330,23 @@ export function RecruiterPostJobPage({ editJobId }: { editJobId?: string }) {
             <div className="space-y-2">
               <Label>City *</Label>
               <Input list="cities" value={city} onChange={(e) => setCity(e.target.value)} />
-              <datalist id="cities">{LOCATIONS.cities.map((c) => <option key={c} value={c} />)}</datalist>
+              <datalist id="cities">
+                {LOCATIONS.cities.map((c) => (
+                  <option key={c} value={c} />
+                ))}
+              </datalist>
             </div>
             <div className="space-y-2">
               <Label>State *</Label>
               <Select value={state || "all"} onValueChange={(v) => setState(v === "all" ? "" : v)}>
-                <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select state" />
+                </SelectTrigger>
                 <SelectContent>
                   {LOCATIONS.states.map((s) => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -288,11 +354,18 @@ export function RecruiterPostJobPage({ editJobId }: { editJobId?: string }) {
           </div>
           <div className="space-y-2">
             <Label>Office / campus address (optional)</Label>
-            <Input placeholder="e.g. Green Park Campus, Block B" value={locationDetail} onChange={(e) => setLocationDetail(e.target.value)} />
+            <Input
+              placeholder="e.g. Green Park Campus, Block B"
+              value={locationDetail}
+              onChange={(e) => setLocationDetail(e.target.value)}
+            />
           </div>
         </FormSection>
 
-        <FormSection title="Overview" hint="Short summary (2–3 sentences) — shown on job cards and search results">
+        <FormSection
+          title="Overview"
+          hint="Short summary (2–3 sentences) — shown on job cards and search results"
+        >
           <div className="space-y-2">
             <Label>Role overview *</Label>
             <Textarea
@@ -301,11 +374,16 @@ export function RecruiterPostJobPage({ editJobId }: { editJobId?: string }) {
               value={overview}
               onChange={(e) => setOverview(e.target.value)}
             />
-            <p className="text-[10px] text-muted-foreground">{overview.length}/280 characters recommended</p>
+            <p className="text-[10px] text-muted-foreground">
+              {overview.length}/280 characters recommended
+            </p>
           </div>
         </FormSection>
 
-        <FormSection title="Full job description" hint="Detailed description — shown on the job detail page">
+        <FormSection
+          title="Full job description"
+          hint="Detailed description — shown on the job detail page"
+        >
           <div className="space-y-2">
             <Label>Job description *</Label>
             <Textarea
@@ -322,7 +400,9 @@ export function RecruiterPostJobPage({ editJobId }: { editJobId?: string }) {
             <Label>Key responsibilities *</Label>
             <Textarea
               rows={5}
-              placeholder={"One responsibility per line, e.g.\nPlan and deliver product roadmap\nMentor junior team members\nStakeholder reporting"}
+              placeholder={
+                "One responsibility per line, e.g.\nPlan and deliver product roadmap\nMentor junior team members\nStakeholder reporting"
+              }
               value={responsibilities}
               onChange={(e) => setResponsibilities(e.target.value)}
             />
@@ -331,23 +411,34 @@ export function RecruiterPostJobPage({ editJobId }: { editJobId?: string }) {
             <Label>Required qualifications *</Label>
             <Textarea
               rows={4}
-              placeholder={"One qualification per line, e.g.\nBachelor's in relevant field\n3+ years in similar role\nStrong communication skills"}
+              placeholder={
+                "One qualification per line, e.g.\nBachelor's in relevant field\n3+ years in similar role\nStrong communication skills"
+              }
               value={qualifications}
               onChange={(e) => setQualifications(e.target.value)}
             />
           </div>
           <div className="space-y-2">
             <Label>Skills (comma-separated)</Label>
-            <Input placeholder="React, Project management, Excel…" value={skills} onChange={(e) => setSkills(e.target.value)} />
+            <Input
+              placeholder="React, Project management, Excel…"
+              value={skills}
+              onChange={(e) => setSkills(e.target.value)}
+            />
           </div>
         </FormSection>
 
-        <FormSection title="Benefits & perks" hint="What candidates get — health, leave, bonuses, learning, etc.">
+        <FormSection
+          title="Benefits & perks"
+          hint="What candidates get — health, leave, bonuses, learning, etc."
+        >
           <div className="space-y-2">
             <Label>Benefits *</Label>
             <Textarea
               rows={4}
-              placeholder={"One benefit per line, e.g.\nHealth insurance for family\nAnnual performance bonus\nFlexible work hours\nLearning & certification budget"}
+              placeholder={
+                "One benefit per line, e.g.\nHealth insurance for family\nAnnual performance bonus\nFlexible work hours\nLearning & certification budget"
+              }
               value={benefits}
               onChange={(e) => setBenefits(e.target.value)}
             />
@@ -355,11 +446,19 @@ export function RecruiterPostJobPage({ editJobId }: { editJobId?: string }) {
         </FormSection>
 
         {isEdit ? (
-          <FormSection title="Listing status" hint="Control whether this job appears on the public board">
+          <FormSection
+            title="Listing status"
+            hint="Control whether this job appears on the public board"
+          >
             <div className="space-y-2">
               <Label>Status</Label>
-              <Select value={jobStatus} onValueChange={(v) => setJobStatus(v as RecruiterJobStatus)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={jobStatus}
+                onValueChange={(v) => setJobStatus(v as RecruiterJobStatus)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="draft">Draft — not visible on job board</SelectItem>
                   <SelectItem value="open">Open — live on job board</SelectItem>
@@ -377,15 +476,21 @@ export function RecruiterPostJobPage({ editJobId }: { editJobId?: string }) {
               onChange={(e) => setPublishNow(e.target.checked)}
               className="rounded border-border"
             />
-            <Label htmlFor="publishNow" className="font-normal cursor-pointer">Publish immediately on job board</Label>
+            <Label htmlFor="publishNow" className="font-normal cursor-pointer">
+              Publish immediately on job board
+            </Label>
           </div>
         )}
 
         <div className="flex gap-3 pt-2">
-          <Button type="submit">{isEdit ? "Save changes" : publishNow ? "Publish job" : "Save draft"}</Button>
+          <Button type="submit">
+            {isEdit ? "Save changes" : publishNow ? "Publish job" : "Save draft"}
+          </Button>
           {isEdit && (
             <Button type="button" variant="outline" asChild>
-              <Link to="/careers/jobs/$jobId" params={{ jobId: editJobId! }}>Preview listing</Link>
+              <Link to="/careers/jobs/$jobId" params={{ jobId: editJobId! }}>
+                Preview listing
+              </Link>
             </Button>
           )}
           <Button type="button" variant="outline" asChild>

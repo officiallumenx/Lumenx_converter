@@ -27,7 +27,15 @@ class QrErrorBoundary extends Component<QrErrorBoundaryProps, { failed: boolean 
   }
 }
 
-function QrPlaceholder({ size, className, label }: { size: number; className?: string; label: string }) {
+function QrPlaceholder({
+  size,
+  className,
+  label,
+}: {
+  size: number;
+  className?: string;
+  label: string;
+}) {
   return (
     <div
       className={cn(

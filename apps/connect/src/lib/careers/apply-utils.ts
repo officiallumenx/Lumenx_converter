@@ -89,8 +89,13 @@ export function validateApplicationExtras(
   if (!req) return null;
   if (req.coverLetter && !coverLetter.trim()) return "Cover letter is required for this role";
   if (req.portfolioUrl && !extras.portfolioUrl?.trim()) return "Portfolio URL is required";
-  if (req.demoVideo && !draft.documents?.demo_teaching_video) return "Demo video upload is required";
-  if (req.expectedSalary && !extras.expectedSalary?.trim() && draft.professional?.expectedSalary === "—") {
+  if (req.demoVideo && !draft.documents?.demo_teaching_video)
+    return "Demo video upload is required";
+  if (
+    req.expectedSalary &&
+    !extras.expectedSalary?.trim() &&
+    draft.professional?.expectedSalary === "—"
+  ) {
     return "Expected salary is required";
   }
   for (const q of req.customQuestions ?? []) {

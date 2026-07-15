@@ -9,18 +9,28 @@ import { useParentPortal } from "@/context/ParentPortalContext";
 import { useStudentPortal } from "@/context/StudentPortalContext";
 import { exams, fees, performance, reportCards } from "@/lib/mock-data";
 import { isPassing, passFailLabel } from "@/lib/marks-utils";
-import { Badge, Button, cn } from "@lumenx/ui";
+import { parseDueDate } from "@/lib/fees-utils";
+import { prefersReducedMotion } from "@/lib/prefers-reduced-motion";
+import { Badge, Button, cn, Skeleton } from "@lumenx/ui";
 import {
   CalendarDays,
-  Trophy,
-  Plus,
-  GraduationCap,
+  TrendingUp,
   Clock,
   AlertTriangle,
   ArrowRight,
   Wallet,
+  ClipboardList,
+  Receipt,
 } from "lucide-react";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell } from "recharts";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Cell,
+} from "recharts";
 import { toast } from "sonner";
 import type { FeeItem, ReportCard } from "@lumenx/types";
 
@@ -33,13 +43,18 @@ export const Route = createFileRoute("/exams")({
   ),
 });
 
-const FEE_STATUS: Record<
-  FeeItem["status"],
-  { label: string; cls: string; icon: typeof Clock }
-> = {
+const FEE_STATUS: Record<FeeItem["status"], { label: string; cls: string; icon: typeof Clock }> = {
   paid: { label: "Paid", cls: "bg-success/15 text-success border-success/20", icon: Wallet },
-  partial: { label: "Partial", cls: "bg-warning/15 text-warning-foreground border-warning/30", icon: Clock },
-  overdue: { label: "Overdue", cls: "bg-destructive/15 text-destructive border-destructive/30", icon: AlertTriangle },
+  partial: {
+    label: "Partial",
+    cls: "bg-warning/15 text-warning-foreground border-warning/30",
+    icon: Clock,
+  },
+  overdue: {
+    label: "Overdue",
+    cls: "bg-destructive/15 text-destructive border-destructive/30",
+    icon: AlertTriangle,
+  },
   upcoming: { label: "Due soon", cls: "bg-primary/10 text-primary border-primary/20", icon: Clock },
 };
 
@@ -54,11 +69,9 @@ function ParentStudentExamsPage() {
   const parentPortal = useParentPortal();
   const studentPortal = useStudentPortal();
   const parentSnap = role === "parent" && parentPortal.isParent ? parentPortal.snapshot : null;
-  const studentSnap =
-    role === "student" && studentPortal.isStudent ? studentPortal.snapshot : null;
+  const studentSnap = role === "student" && studentPortal.isStudent ? studentPortal.snapshot : null;
   const isLoading =
-    (role === "parent" && parentPortal.isParent && parentPortal.isLoading && !parentSnap) ||
-    (role === "student" && studentPortal.isStudent && studentPortal.isLoading && !studentSnap);
+    role === "student" && studentPortal.isStudent && studentPortal.isLoading && !studentSnap;
 
   const reportCardsData = parentSnap?.reportCards ?? studentSnap?.reportCards ?? reportCards;
   const perfFallback = parentSnap?.performance ?? studentSnap?.performance ?? performance;
@@ -87,10 +100,7 @@ function ParentStudentExamsPage() {
   }, [lastCard, perfFallback]);
 
   const examFees = useMemo(() => fees.filter((f) => f.category === "exam"), []);
-  const pendingExamFees = useMemo(
-    () => examFees.filter((f) => f.status !== "paid"),
-    [examFees],
-  );
+  const pendingExamFees = useMemo(() => examFees.filter((f) => f.status !== "paid"), [examFees]);
   const pendingTotal = pendingExamFees.reduce((s, f) => s + f.amount, 0);
 
   const subtitle = parentSnap
@@ -101,13 +111,13 @@ function ParentStudentExamsPage() {
 
   if (isLoading) {
     return (
-      <div className="min-w-0 max-w-full space-y-4 animate-pulse">
-        <div className="h-10 w-48 rounded-lg bg-muted" />
-        <div className="h-32 rounded-2xl bg-muted" />
+      <div className="min-w-0 max-w-full space-y-4">
+        <PageHeader title="Exams & Marks" subtitle="Loading exam schedule and results…" />
         <div className="grid gap-4 lg:grid-cols-3">
-          <div className="h-64 rounded-2xl bg-muted lg:col-span-2" />
-          <div className="h-64 rounded-2xl bg-muted" />
+          <Skeleton className="h-44 rounded-2xl lg:col-span-2" />
+          <Skeleton className="h-44 rounded-2xl" />
         </div>
+        <Skeleton className="h-72 w-full rounded-2xl" />
       </div>
     );
   }
@@ -121,7 +131,7 @@ function ParentStudentExamsPage() {
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
               <h2 className="font-semibold flex items-center gap-2">
-                <GraduationCap className="size-4 text-primary" />
+                <Receipt className="size-4 text-primary" />
                 Pending exam payments
               </h2>
               <p className="text-sm text-muted-foreground mt-0.5">
@@ -146,7 +156,7 @@ function ParentStudentExamsPage() {
       <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="min-w-0 overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-5 lg:col-span-2">
           <h3 className="mb-3 flex min-w-0 items-center gap-2 font-semibold">
-            <CalendarDays className="size-4 shrink-0 text-primary" />
+            <ClipboardList className="size-4 shrink-0 text-primary" />
             <span className="min-w-0 truncate">Upcoming exams</span>
           </h3>
           <div className="min-w-0 space-y-2">
@@ -155,7 +165,10 @@ function ParentStudentExamsPage() {
             ))}
           </div>
           <div className="mt-3 flex justify-end">
-            <Link to="/marks" className="text-xs text-primary inline-flex items-center gap-1 hover:underline">
+            <Link
+              to="/marks"
+              className="text-xs text-primary inline-flex items-center gap-1 hover:underline"
+            >
               View all marks <ArrowRight className="size-3" />
             </Link>
           </div>
@@ -217,7 +230,12 @@ function ExamFeeCard({ fee }: { fee: FeeItem }) {
             {dueLabel && <span> · {dueLabel}</span>}
           </div>
         </div>
-        <Button asChild size="sm" variant={fee.status === "overdue" ? "default" : "outline"} className="shrink-0 rounded-lg">
+        <Button
+          asChild
+          size="sm"
+          variant={fee.status === "overdue" ? "default" : "outline"}
+          className="shrink-0 rounded-lg"
+        >
           <Link to="/fees">Pay</Link>
         </Button>
       </div>
@@ -227,8 +245,8 @@ function ExamFeeCard({ fee }: { fee: FeeItem }) {
 
 function feeDueLabel(due: string, status: FeeItem["status"]): string | null {
   if (status === "overdue") return "Payment overdue";
-  const parsed = Date.parse(due.replace(/(\d+) (\w+) (\d+)/, "$2 $1, $3"));
-  if (Number.isNaN(parsed)) return null;
+  const parsed = parseDueDate(due);
+  if (parsed === Infinity) return null;
   const days = Math.ceil((parsed - Date.now()) / (1000 * 60 * 60 * 24));
   if (days < 0) return "Overdue";
   if (days === 0) return "Due today";
@@ -246,9 +264,11 @@ function UpcomingExamCard({ exam }: { exam: ExamRow }) {
 
   return (
     <div className="group flex min-w-0 items-center gap-3 rounded-xl border border-border p-3 transition-colors hover:border-primary/30 hover:bg-primary/[0.02] sm:gap-4">
-      <div className="grid size-14 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-primary/15 to-primary/5 text-center font-display text-sm font-semibold leading-tight text-primary">
-        {day}
-        <span className="text-[10px] font-normal uppercase tracking-wide">{month}</span>
+      <div className="grid size-14 shrink-0 place-items-center rounded-xl bg-primary/10 text-center font-display text-sm font-semibold leading-tight text-primary">
+        <CalendarDays className="size-5 mb-0.5" />
+        <span className="text-[10px] font-normal tabular-nums leading-none">
+          {day} {month}
+        </span>
       </div>
       <div className="min-w-0 flex-1">
         <div className="truncate font-medium">{exam.title}</div>
@@ -274,16 +294,17 @@ function UpcomingExamCard({ exam }: { exam: ExamRow }) {
 function LastExamSummary({ card }: { card: ReportCard | undefined }) {
   const pct = card?.percentage ?? 87;
   const passed = isPassing(pct);
-  const trendData = card?.marks.slice(0, 4).map((m) => ({
-    subject: m.subject.slice(0, 4),
-    total: m.total,
-    passed: isPassing(m.total),
-  })) ?? [];
+  const trendData =
+    card?.marks.slice(0, 4).map((m) => ({
+      subject: m.subject.slice(0, 4),
+      total: m.total,
+      passed: isPassing(m.total),
+    })) ?? [];
 
   return (
     <div className="min-w-0 rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-5">
       <h3 className="mb-3 flex items-center gap-2 font-semibold">
-        <Trophy className="size-4 text-warning-foreground" />
+        <TrendingUp className="size-4 text-primary" />
         {card ? card.term : "Last exam"}
       </h3>
       <div className="flex items-baseline gap-2">
@@ -302,10 +323,9 @@ function LastExamSummary({ card }: { card: ReportCard | undefined }) {
       </div>
 
       {trendData.length > 0 && (
-        <div className="mt-4 h-24 w-full min-w-0">
+        <div className="mt-4 h-24 w-full min-w-0 overflow-hidden rounded-xl bg-muted/10 p-1">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={trendData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="oklch(0.92 0.01 250)" />
+            <BarChart data={trendData} margin={{ top: 4, right: 0, left: -24, bottom: 0 }}>
               <XAxis dataKey="subject" tickLine={false} axisLine={false} fontSize={10} />
               <YAxis hide domain={[0, 100]} />
               <Tooltip
@@ -316,7 +336,7 @@ function LastExamSummary({ card }: { card: ReportCard | undefined }) {
                   fontSize: 12,
                 }}
               />
-              <Bar dataKey="total" radius={[4, 4, 0, 0]}>
+              <Bar dataKey="total" radius={[4, 4, 0, 0]} isAnimationActive={!prefersReducedMotion()}>
                 {trendData.map((entry, i) => (
                   <Cell
                     key={i}
@@ -330,7 +350,14 @@ function LastExamSummary({ card }: { card: ReportCard | undefined }) {
       )}
 
       <div className="mt-3 space-y-2 text-sm">
-        <SummaryRow label="Subjects passed" value={card ? `${card.marks.filter((m) => isPassing(m.total)).length}/${card.marks.length}` : "5/6"} />
+        <SummaryRow
+          label="Subjects passed"
+          value={
+            card
+              ? `${card.marks.filter((m) => isPassing(m.total)).length}/${card.marks.length}`
+              : "5/6"
+          }
+        />
         <SummaryRow label="Class average" value="72%" />
         <SummaryRow label="vs previous exam" value="+5%" tone="success" />
       </div>
@@ -344,23 +371,12 @@ function LastExamSummary({ card }: { card: ReportCard | undefined }) {
   );
 }
 
-function SummaryRow({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone?: "success";
-}) {
+function SummaryRow({ label, value, tone }: { label: string; value: string; tone?: "success" }) {
   return (
     <div className="flex min-w-0 justify-between gap-2">
       <span className="min-w-0 text-muted-foreground">{label}</span>
       <span
-        className={cn(
-          "shrink-0 font-medium tabular-nums",
-          tone === "success" && "text-success",
-        )}
+        className={cn("shrink-0 font-medium tabular-nums", tone === "success" && "text-success")}
       >
         {value}
       </span>

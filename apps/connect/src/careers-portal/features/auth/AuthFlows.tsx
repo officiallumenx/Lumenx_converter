@@ -2,14 +2,31 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Button, Input, InputOTP, InputOTPGroup, InputOTPSlot, Label } from "@lumenx/ui";
 import { cn } from "@lumenx/ui";
-import { ArrowLeft, ArrowRight, Building2, CheckCircle2, Eye, EyeOff, Mail, Phone, UserRound } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Building2,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  Mail,
+  Phone,
+  UserRound,
+} from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { DEMO_CONNECT_OTP } from "@lumenx/auth";
 import { PhoneInput, COUNTRIES, validatePhone, type Country } from "@/components/app/PhoneInput";
 import { useCareersAuth } from "@/careers-portal/core/CareersAuthProvider";
 import { SignupStepper } from "@/careers-portal/features/auth/SignupStepper";
-import { passwordSchema, signupContactSchema, signupPasswordSchema, signupProfileSchema } from "@/lib/careers/schemas";
+import { TermsAcceptCheckbox } from "@/components/legal/TermsAcceptCheckbox";
+import {
+  passwordSchema,
+  signupContactSchema,
+  signupPasswordSchema,
+  signupProfileSchema,
+  signupWithTermsSchema,
+} from "@/lib/careers/schemas";
 import { careersDefaultRoute, ORGANIZATION_TYPE_OPTIONS } from "@/lib/careers/auth-utils";
 import { createInitialCandidateProfile } from "@/lib/careers/profile-repository";
 import { getAllInstituteProfiles } from "@/lib/careers/institute-profiles";
@@ -56,7 +73,9 @@ export function SignInFlow({ redirect, job }: { redirect?: string; job?: string 
   return (
     <div className="mx-auto max-w-md animate-in fade-in duration-300">
       <h1 className="font-display text-2xl font-bold">Sign in</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Use your mobile number or email — we route you to the right workspace automatically.</p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Use your mobile number or email — we route you to the right workspace automatically.
+      </p>
 
       <div className="mt-8 space-y-4">
         {step === "identifier" ? (
@@ -87,7 +106,11 @@ export function SignInFlow({ redirect, job }: { redirect?: string; job?: string 
                 {showPwd ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
               </button>
             </div>
-            <button type="button" className="text-xs text-primary" onClick={() => setStep("identifier")}>
+            <button
+              type="button"
+              className="text-xs text-primary"
+              onClick={() => setStep("identifier")}
+            >
               Change account
             </button>
           </div>
@@ -111,7 +134,9 @@ export function SignInFlow({ redirect, job }: { redirect?: string; job?: string 
 
       <div className="mt-8 rounded-2xl border border-border p-4">
         <p className="text-sm font-medium">New to Careers?</p>
-        <p className="mt-1 text-xs text-muted-foreground">Create an account — you will choose job seeker or recruiter on the next screen.</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Create an account — you will choose job seeker or recruiter on the next screen.
+        </p>
         <Button className="w-full h-11 mt-4 justify-between" asChild>
           <Link to="/careers/signup">
             <span>Create account</span>
@@ -123,7 +148,15 @@ export function SignInFlow({ redirect, job }: { redirect?: string; job?: string 
   );
 }
 
-type SignUpStep = "accountType" | "contact" | "verifyPhone" | "verifyEmail" | "profile" | "organization" | "password" | "complete";
+type SignUpStep =
+  | "accountType"
+  | "contact"
+  | "verifyPhone"
+  | "verifyEmail"
+  | "profile"
+  | "organization"
+  | "password"
+  | "complete";
 
 function AccountTypeCard({
   selected,
@@ -147,18 +180,30 @@ function AccountTypeCard({
       onClick={onSelect}
       className={cn(
         "w-full rounded-2xl border-2 p-4 text-left transition-colors",
-        selected ? "border-primary bg-primary/5" : "border-border hover:border-primary/40 hover:bg-muted/40",
+        selected
+          ? "border-primary bg-primary/5"
+          : "border-border hover:border-primary/40 hover:bg-muted/40",
       )}
     >
       <div className="flex items-start gap-3">
-        <div className={cn("flex size-11 shrink-0 items-center justify-center rounded-xl", selected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
+        <div
+          className={cn(
+            "flex size-11 shrink-0 items-center justify-center rounded-xl",
+            selected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+          )}
+        >
           <Icon className="size-5" />
         </div>
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-sm">{title}</p>
           <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{description}</p>
         </div>
-        <div className={cn("size-5 rounded-full border-2 shrink-0 mt-0.5", selected ? "border-primary bg-primary" : "border-muted-foreground/40")} />
+        <div
+          className={cn(
+            "size-5 rounded-full border-2 shrink-0 mt-0.5",
+            selected ? "border-primary bg-primary" : "border-muted-foreground/40",
+          )}
+        />
       </div>
     </button>
   );
@@ -169,7 +214,9 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
   const nav = useNavigate();
   const employers = getAllInstituteProfiles();
 
-  const [accountType, setAccountType] = useState<CareersAccountType | null>(initialAccountType ?? null);
+  const [accountType, setAccountType] = useState<CareersAccountType | null>(
+    initialAccountType ?? null,
+  );
   const [step, setStep] = useState<SignUpStep>(initialAccountType ? "contact" : "accountType");
   const [phone, setPhone] = useState("");
   const [country, setCountry] = useState<Country>(COUNTRIES[0]);
@@ -184,13 +231,16 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
   const [showConfirmPwd, setShowConfirmPwd] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [existingOrgId, setExistingOrgId] = useState("");
   const [organizationName, setOrganizationName] = useState("");
   const [organizationCity, setOrganizationCity] = useState("");
   const [organizationState, setOrganizationState] = useState("");
   const [organizationType, setOrganizationType] = useState<OrganizationType>("education");
   const [loading, setLoading] = useState(false);
-  const [createdRoute, setCreatedRoute] = useState<"/careers/dashboard" | "/careers/recruiter" | null>(null);
+  const [createdRoute, setCreatedRoute] = useState<
+    "/careers/dashboard" | "/careers/recruiter" | null
+  >(null);
 
   const isRecruiter = accountType === "recruiter";
   const phoneFull = `${country.code} ${phone}`.trim();
@@ -233,8 +283,10 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
 
   const continueFromContact = () => {
     const emailCheck = signupContactSchema.safeParse({ email: email.trim() });
-    if (!emailCheck.success) return toast.error(emailCheck.error.errors[0]?.message ?? "Enter a valid email");
-    if (!validatePhone(phone.replace(/\D/g, ""), country)) return toast.error("Enter a valid mobile number");
+    if (!emailCheck.success)
+      return toast.error(emailCheck.error.errors[0]?.message ?? "Enter a valid email");
+    if (!validatePhone(phone.replace(/\D/g, ""), country))
+      return toast.error("Enter a valid mobile number");
     toast.message(`OTP sent to ${phoneFull} (demo: ${DEMO_CONNECT_OTP})`);
     setPhoneOtp("");
     setStep("verifyPhone");
@@ -259,15 +311,18 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
       name: name.trim(),
       city: city.trim(),
       state: state.trim(),
-      currentRole: isRecruiter ? (currentRole.trim() || "Recruiter") : currentRole.trim(),
+      currentRole: isRecruiter ? currentRole.trim() || "Recruiter" : currentRole.trim(),
     });
-    if (!parsed.success) return toast.error(parsed.error.errors[0]?.message ?? "Complete all profile fields");
+    if (!parsed.success)
+      return toast.error(parsed.error.errors[0]?.message ?? "Complete all profile fields");
     if (isRecruiter) setStep("organization");
     else setStep("password");
   };
 
   const continueFromOrganization = () => {
-    const linked = existingOrgId ? employers.find((e) => e.instituteId === existingOrgId) : undefined;
+    const linked = existingOrgId
+      ? employers.find((e) => e.instituteId === existingOrgId)
+      : undefined;
     const orgName = linked?.name ?? organizationName.trim();
     if (!orgName) return toast.error("Enter or select your organization");
     setStep("password");
@@ -275,10 +330,17 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
 
   const finish = () => {
     if (!accountType) return;
-    const pw = signupPasswordSchema.safeParse({ password, confirmPassword });
-    if (!pw.success) return toast.error(pw.error.errors[0]?.message ?? "Invalid password");
+    const validated = signupWithTermsSchema.safeParse({
+      password,
+      confirmPassword,
+      acceptedTerms,
+    });
+    if (!validated.success)
+      return toast.error(validated.error.errors[0]?.message ?? "Invalid password");
 
-    const linked = existingOrgId ? employers.find((e) => e.instituteId === existingOrgId) : undefined;
+    const linked = existingOrgId
+      ? employers.find((e) => e.instituteId === existingOrgId)
+      : undefined;
 
     setLoading(true);
     setTimeout(() => {
@@ -312,41 +374,60 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
 
   const stepTitle = (() => {
     switch (step) {
-      case "accountType": return "Choose account type";
-      case "contact": return "Contact details";
-      case "verifyPhone": return "Verify mobile number";
-      case "verifyEmail": return "Verify email address";
-      case "profile": return "Complete your profile";
-      case "organization": return "Organization details";
-      case "password": return "Set your password";
-      case "complete": return "You're all set!";
-      default: return "Create account";
+      case "accountType":
+        return "Choose account type";
+      case "contact":
+        return "Contact details";
+      case "verifyPhone":
+        return "Verify mobile number";
+      case "verifyEmail":
+        return "Verify email address";
+      case "profile":
+        return "Complete your profile";
+      case "organization":
+        return "Organization details";
+      case "password":
+        return "Set your password";
+      case "complete":
+        return "You're all set!";
+      default:
+        return "Create account";
     }
   })();
 
   const stepSubtitle = (() => {
     switch (step) {
-      case "accountType": return "Are you looking for a job or hiring talent?";
-      case "contact": return "Mobile and email are required for all accounts.";
-      case "verifyPhone": return `Enter the code sent to ${phoneFull || "your mobile"}.`;
-      case "verifyEmail": return `Enter the code sent to ${email.trim() || "your email"}.`;
-      case "profile": return "Basic details to personalize your account.";
-      case "organization": return "Tell us about your company or institute.";
-      case "password": return "Create and confirm a secure password.";
-      case "complete": return "Your account is ready. Continue to your workspace.";
-      default: return "";
+      case "accountType":
+        return "Are you looking for a job or hiring talent?";
+      case "contact":
+        return "Mobile and email are required for all accounts.";
+      case "verifyPhone":
+        return `Enter the code sent to ${phoneFull || "your mobile"}.`;
+      case "verifyEmail":
+        return `Enter the code sent to ${email.trim() || "your email"}.`;
+      case "profile":
+        return "Basic details to personalize your account.";
+      case "organization":
+        return "Tell us about your company or institute.";
+      case "password":
+        return "Create and confirm a secure password.";
+      case "complete":
+        return "Your account is ready. Continue to your workspace.";
+      default:
+        return "";
     }
   })();
 
   return (
     <div className="mx-auto max-w-md animate-in fade-in duration-300">
-      <Link to="/careers/login" className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground">
+      <Link
+        to="/careers/login"
+        className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground"
+      >
         <ArrowLeft className="size-4" /> Back to sign in
       </Link>
 
-      {step !== "complete" && (
-        <SignupStepper steps={stepLabels} currentIndex={stepIndex} />
-      )}
+      {step !== "complete" && <SignupStepper steps={stepLabels} currentIndex={stepIndex} />}
 
       <h1 className="font-display text-2xl font-bold">{stepTitle}</h1>
       <p className="mt-1 text-sm text-muted-foreground">{stepSubtitle}</p>
@@ -369,7 +450,11 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
             description="Post roles, review applicants, and manage hiring for your organization."
             icon={Building2}
           />
-          <Button className="w-full h-11 mt-4" onClick={continueFromAccountType} disabled={!accountType}>
+          <Button
+            className="w-full h-11 mt-4"
+            onClick={continueFromAccountType}
+            disabled={!accountType}
+          >
             Continue
           </Button>
         </div>
@@ -382,7 +467,12 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
               <Phone className="size-4 text-primary" />
               Mobile number <span className="text-destructive">*</span>
             </Label>
-            <PhoneInput value={phone} onChange={setPhone} country={country} onCountryChange={setCountry} />
+            <PhoneInput
+              value={phone}
+              onChange={setPhone}
+              country={country}
+              onCountryChange={setCountry}
+            />
           </div>
           <div className="space-y-2">
             <Label className="flex items-center gap-2">
@@ -397,10 +487,16 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
               autoComplete="email"
             />
           </div>
-          <p className="text-xs text-muted-foreground">You will verify both with a one-time code on the next steps.</p>
+          <p className="text-xs text-muted-foreground">
+            You will verify both with a one-time code on the next steps.
+          </p>
           <div className="flex gap-2">
-            <Button variant="outline" className="h-11" onClick={goBack}>Back</Button>
-            <Button className="flex-1 h-11" onClick={continueFromContact}>Continue</Button>
+            <Button variant="outline" className="h-11" onClick={goBack}>
+              Back
+            </Button>
+            <Button className="flex-1 h-11" onClick={continueFromContact}>
+              Continue
+            </Button>
           </div>
         </div>
       )}
@@ -412,13 +508,19 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
           </p>
           <InputOTP maxLength={6} value={phoneOtp} onChange={setPhoneOtp}>
             <InputOTPGroup className="justify-center w-full">
-              {Array.from({ length: 6 }).map((_, i) => (<InputOTPSlot key={i} index={i} />))}
+              {Array.from({ length: 6 }).map((_, i) => (
+                <InputOTPSlot key={i} index={i} />
+              ))}
             </InputOTPGroup>
           </InputOTP>
           <p className="text-xs text-center text-muted-foreground">Demo OTP: {DEMO_CONNECT_OTP}</p>
           <div className="flex gap-2">
-            <Button variant="outline" className="h-11" onClick={goBack}>Back</Button>
-            <Button className="flex-1 h-11" onClick={verifyPhoneOtp}>Verify mobile</Button>
+            <Button variant="outline" className="h-11" onClick={goBack}>
+              Back
+            </Button>
+            <Button className="flex-1 h-11" onClick={verifyPhoneOtp}>
+              Verify mobile
+            </Button>
           </div>
         </div>
       )}
@@ -433,13 +535,19 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
           </p>
           <InputOTP maxLength={6} value={emailOtp} onChange={setEmailOtp}>
             <InputOTPGroup className="justify-center w-full">
-              {Array.from({ length: 6 }).map((_, i) => (<InputOTPSlot key={i} index={i} />))}
+              {Array.from({ length: 6 }).map((_, i) => (
+                <InputOTPSlot key={i} index={i} />
+              ))}
             </InputOTPGroup>
           </InputOTP>
           <p className="text-xs text-center text-muted-foreground">Demo OTP: {DEMO_CONNECT_OTP}</p>
           <div className="flex gap-2">
-            <Button variant="outline" className="h-11" onClick={goBack}>Back</Button>
-            <Button className="flex-1 h-11" onClick={verifyEmailOtp}>Verify email</Button>
+            <Button variant="outline" className="h-11" onClick={goBack}>
+              Back
+            </Button>
+            <Button className="flex-1 h-11" onClick={verifyEmailOtp}>
+              Verify email
+            </Button>
           </div>
         </div>
       )}
@@ -448,16 +556,28 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
         <div className="mt-8 space-y-4">
           <div className="space-y-2">
             <Label>Full name</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={isRecruiter ? "Kavitha Reddy" : "Priya Nair"} />
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={isRecruiter ? "Kavitha Reddy" : "Priya Nair"}
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>City</Label>
-              <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Hyderabad" />
+              <Input
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder="Hyderabad"
+              />
             </div>
             <div className="space-y-2">
               <Label>State</Label>
-              <Input value={state} onChange={(e) => setState(e.target.value)} placeholder="Telangana" />
+              <Input
+                value={state}
+                onChange={(e) => setState(e.target.value)}
+                placeholder="Telangana"
+              />
             </div>
           </div>
           <div className="space-y-2">
@@ -469,12 +589,20 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
             />
           </div>
           <div className="rounded-xl border border-border bg-muted/30 px-3 py-2 space-y-1 text-xs text-muted-foreground">
-            <p className="flex items-center gap-2"><span className="text-primary font-medium">✓</span> Mobile verified · {phoneFull}</p>
-            <p className="flex items-center gap-2"><span className="text-primary font-medium">✓</span> Email verified · {email.trim()}</p>
+            <p className="flex items-center gap-2">
+              <span className="text-primary font-medium">✓</span> Mobile verified · {phoneFull}
+            </p>
+            <p className="flex items-center gap-2">
+              <span className="text-primary font-medium">✓</span> Email verified · {email.trim()}
+            </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" className="h-11" onClick={goBack}>Back</Button>
-            <Button className="flex-1 h-11" onClick={continueFromProfile}>Continue</Button>
+            <Button variant="outline" className="h-11" onClick={goBack}>
+              Back
+            </Button>
+            <Button className="flex-1 h-11" onClick={continueFromProfile}>
+              Continue
+            </Button>
           </div>
         </div>
       )}
@@ -498,7 +626,9 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
             >
               <option value="">Register a new organization</option>
               {employers.map((e) => (
-                <option key={e.instituteId} value={e.instituteId}>{e.name}</option>
+                <option key={e.instituteId} value={e.instituteId}>
+                  {e.name}
+                </option>
               ))}
             </select>
           </div>
@@ -506,11 +636,27 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
             <>
               <div className="space-y-2">
                 <Label>Organization name</Label>
-                <Input value={organizationName} onChange={(e) => setOrganizationName(e.target.value)} placeholder="Acme Corp" />
+                <Input
+                  value={organizationName}
+                  onChange={(e) => setOrganizationName(e.target.value)}
+                  placeholder="Acme Corp"
+                />
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2"><Label>City</Label><Input value={organizationCity} onChange={(e) => setOrganizationCity(e.target.value)} /></div>
-                <div className="space-y-2"><Label>State</Label><Input value={organizationState} onChange={(e) => setOrganizationState(e.target.value)} /></div>
+                <div className="space-y-2">
+                  <Label>City</Label>
+                  <Input
+                    value={organizationCity}
+                    onChange={(e) => setOrganizationCity(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>State</Label>
+                  <Input
+                    value={organizationState}
+                    onChange={(e) => setOrganizationState(e.target.value)}
+                  />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Industry</Label>
@@ -520,15 +666,21 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
                   className="w-full h-10 rounded-md border border-border bg-background px-3 text-sm"
                 >
                   {ORGANIZATION_TYPE_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
                   ))}
                 </select>
               </div>
             </>
           )}
           <div className="flex gap-2">
-            <Button variant="outline" className="h-11" onClick={goBack}>Back</Button>
-            <Button className="flex-1 h-11" onClick={continueFromOrganization}>Continue</Button>
+            <Button variant="outline" className="h-11" onClick={goBack}>
+              Back
+            </Button>
+            <Button className="flex-1 h-11" onClick={continueFromOrganization}>
+              Continue
+            </Button>
           </div>
         </div>
       )}
@@ -545,7 +697,11 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
                 placeholder="Min 6 characters"
                 autoComplete="new-password"
               />
-              <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" onClick={() => setShowPwd(!showPwd)}>
+              <button
+                type="button"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                onClick={() => setShowPwd(!showPwd)}
+              >
                 {showPwd ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
               </button>
             </div>
@@ -560,7 +716,11 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
                 placeholder="Re-enter password"
                 autoComplete="new-password"
               />
-              <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" onClick={() => setShowConfirmPwd(!showConfirmPwd)}>
+              <button
+                type="button"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                onClick={() => setShowConfirmPwd(!showConfirmPwd)}
+              >
                 {showConfirmPwd ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
               </button>
             </div>
@@ -568,9 +728,22 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
               <p className="text-xs text-destructive">Passwords do not match</p>
             )}
           </div>
+          <TermsAcceptCheckbox
+            checked={acceptedTerms}
+            onCheckedChange={setAcceptedTerms}
+            termsTo="/careers/terms"
+            privacyTo="/careers/privacy"
+            id="careers-accept-terms"
+          />
           <div className="flex gap-2">
-            <Button variant="outline" className="h-11" onClick={goBack}>Back</Button>
-            <Button className="flex-1 h-11" onClick={finish} disabled={loading || password !== confirmPassword}>
+            <Button variant="outline" className="h-11" onClick={goBack}>
+              Back
+            </Button>
+            <Button
+              className="flex-1 h-11"
+              onClick={finish}
+              disabled={loading || password !== confirmPassword || !acceptedTerms}
+            >
               {loading ? "Creating…" : "Create account"}
             </Button>
           </div>
@@ -588,7 +761,9 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
               : "Your job seeker profile is created. Browse roles and apply when ready."}
           </p>
           {createdRoute && (
-            <p className="text-xs text-muted-foreground capitalize">{isRecruiter ? "Recruiter" : "Job seeker"} account created</p>
+            <p className="text-xs text-muted-foreground capitalize">
+              {isRecruiter ? "Recruiter" : "Job seeker"} account created
+            </p>
           )}
           <Button
             className="w-full h-11"
@@ -602,13 +777,19 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
 
       {step !== "complete" && step !== "accountType" && (
         <p className="mt-6 text-center text-sm text-muted-foreground">
-          Already have an account? <Link to="/careers/login" className="text-primary font-medium">Sign in</Link>
+          Already have an account?{" "}
+          <Link to="/careers/login" className="text-primary font-medium">
+            Sign in
+          </Link>
         </p>
       )}
 
       {step === "accountType" && (
         <p className="mt-6 text-center text-sm text-muted-foreground">
-          Already have an account? <Link to="/careers/login" className="text-primary font-medium">Sign in</Link>
+          Already have an account?{" "}
+          <Link to="/careers/login" className="text-primary font-medium">
+            Sign in
+          </Link>
         </p>
       )}
     </div>
@@ -627,7 +808,10 @@ export function ForgotPasswordFlow() {
 
   return (
     <div className="mx-auto max-w-md animate-in fade-in duration-300">
-      <Link to="/careers/login" className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground">
+      <Link
+        to="/careers/login"
+        className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground"
+      >
         <ArrowLeft className="size-4" /> Back
       </Link>
       <h1 className="font-display text-2xl font-bold">Reset password</h1>
@@ -636,7 +820,15 @@ export function ForgotPasswordFlow() {
         <div className="mt-8 space-y-4">
           <Label>Mobile or email</Label>
           <Input value={identifier} onChange={(e) => setIdentifier(e.target.value)} />
-          <Button className="w-full h-11" onClick={() => { toast.message(`OTP: ${DEMO_CONNECT_OTP}`); setStep("otp"); }}>Send OTP</Button>
+          <Button
+            className="w-full h-11"
+            onClick={() => {
+              toast.message(`OTP: ${DEMO_CONNECT_OTP}`);
+              setStep("otp");
+            }}
+          >
+            Send OTP
+          </Button>
         </div>
       )}
 
@@ -644,10 +836,19 @@ export function ForgotPasswordFlow() {
         <div className="mt-8 space-y-4">
           <InputOTP maxLength={6} value={otp} onChange={setOtp}>
             <InputOTPGroup className="justify-center">
-              {Array.from({ length: 6 }).map((_, i) => (<InputOTPSlot key={i} index={i} />))}
+              {Array.from({ length: 6 }).map((_, i) => (
+                <InputOTPSlot key={i} index={i} />
+              ))}
             </InputOTPGroup>
           </InputOTP>
-          <Button className="w-full h-11" onClick={() => (otp === DEMO_CONNECT_OTP ? setStep("password") : toast.error("Invalid OTP"))}>Verify</Button>
+          <Button
+            className="w-full h-11"
+            onClick={() =>
+              otp === DEMO_CONNECT_OTP ? setStep("password") : toast.error("Invalid OTP")
+            }
+          >
+            Verify
+          </Button>
         </div>
       )}
 
@@ -655,11 +856,23 @@ export function ForgotPasswordFlow() {
         <div className="mt-8 space-y-4">
           <div className="space-y-2">
             <Label>New password</Label>
-            <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min 6 characters" autoComplete="new-password" />
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Min 6 characters"
+              autoComplete="new-password"
+            />
           </div>
           <div className="space-y-2">
             <Label>Confirm password</Label>
-            <Input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Re-enter password" autoComplete="new-password" />
+            <Input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Re-enter password"
+              autoComplete="new-password"
+            />
           </div>
           <Button
             className="w-full h-11"
@@ -680,7 +893,9 @@ export function ForgotPasswordFlow() {
       {step === "success" && (
         <div className="mt-8 text-center">
           <p className="text-sm text-muted-foreground">Your password has been updated.</p>
-          <Button className="mt-6 w-full h-11" asChild><Link to="/careers/login">Sign in</Link></Button>
+          <Button className="mt-6 w-full h-11" asChild>
+            <Link to="/careers/login">Sign in</Link>
+          </Button>
         </div>
       )}
     </div>

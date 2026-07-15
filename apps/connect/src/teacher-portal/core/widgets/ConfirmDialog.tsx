@@ -36,7 +36,11 @@ export function ConfirmDialog({
         <AlertDialogFooter>
           <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
           <AlertDialogAction
-            className={destructive ? "rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90" : "rounded-xl"}
+            className={
+              destructive
+                ? "rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                : "rounded-xl"
+            }
             onClick={onConfirm}
           >
             {confirmLabel}

@@ -1,6 +1,10 @@
 import { Badge, Button, cn } from "@lumenx/ui";
 import type { TeacherComplaint } from "@/lib/teacher/types";
-import { COMPLAINT_STATUS_LABEL, COMPLAINT_STATUS_STYLE, isComplaintActive } from "./complaint-status";
+import {
+  COMPLAINT_STATUS_LABEL,
+  COMPLAINT_STATUS_STYLE,
+  isComplaintActive,
+} from "./complaint-status";
 
 const PRIORITY_STYLE = {
   normal: "border-border",
@@ -8,7 +12,13 @@ const PRIORITY_STYLE = {
   critical: "border-destructive/40",
 };
 
-export function ComplaintStatusBadge({ status, className }: { status: TeacherComplaint["status"]; className?: string }) {
+export function ComplaintStatusBadge({
+  status,
+  className,
+}: {
+  status: TeacherComplaint["status"];
+  className?: string;
+}) {
   return (
     <Badge className={cn("shrink-0 border-0", COMPLAINT_STATUS_STYLE[status], className)}>
       {COMPLAINT_STATUS_LABEL[status]}
@@ -46,7 +56,12 @@ export function ComplaintCard({
   const canForward = canAct && status !== "forwarded" && !isDraft;
 
   return (
-    <article className={cn("rounded-2xl border bg-card p-4 shadow-soft sm:p-5", PRIORITY_STYLE[complaint.priority])}>
+    <article
+      className={cn(
+        "rounded-2xl border bg-card p-4 shadow-soft sm:p-5",
+        PRIORITY_STYLE[complaint.priority],
+      )}
+    >
       <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
         <h3 className="min-w-0 font-medium">{complaint.title}</h3>
         <ComplaintStatusBadge status={status} />
@@ -66,25 +81,86 @@ export function ComplaintCard({
         </div>
       ) : null}
       <div className="mt-4 flex flex-wrap gap-2">
-        <Button size="sm" variant="secondary" className="rounded-xl" onClick={() => onView?.(complaint.id)}>View</Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          className="rounded-xl"
+          onClick={() => onView?.(complaint.id)}
+        >
+          View
+        </Button>
         {isDraft && (
           <>
-            <Button size="sm" className="rounded-xl" disabled={disabled} onClick={() => onSubmitDraft?.(complaint.id)}>Submit</Button>
-            <Button size="sm" variant="outline" className="rounded-xl text-destructive" disabled={disabled} onClick={() => onDeleteDraft?.(complaint.id)}>Delete</Button>
+            <Button
+              size="sm"
+              className="rounded-xl"
+              disabled={disabled}
+              onClick={() => onSubmitDraft?.(complaint.id)}
+            >
+              Submit
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-xl text-destructive"
+              disabled={disabled}
+              onClick={() => onDeleteDraft?.(complaint.id)}
+            >
+              Delete
+            </Button>
           </>
         )}
         {canAct && !isDraft && (
           <>
-            <Button size="sm" variant="outline" className="rounded-xl" disabled={disabled} onClick={() => onRespond?.(complaint.id)}>Respond</Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-xl"
+              disabled={disabled}
+              onClick={() => onRespond?.(complaint.id)}
+            >
+              Respond
+            </Button>
             {canForward && (
-              <Button size="sm" variant="outline" className="rounded-xl" disabled={disabled} onClick={() => onForward?.(complaint.id)}>Forward</Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-xl"
+                disabled={disabled}
+                onClick={() => onForward?.(complaint.id)}
+              >
+                Forward
+              </Button>
             )}
-            <Button size="sm" variant="outline" className="rounded-xl" disabled={disabled} onClick={() => onResolve?.(complaint.id)}>Mark resolved</Button>
-            <Button size="sm" className="rounded-xl" disabled={disabled} onClick={() => onClose?.(complaint.id)}>Close</Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-xl"
+              disabled={disabled}
+              onClick={() => onResolve?.(complaint.id)}
+            >
+              Mark resolved
+            </Button>
+            <Button
+              size="sm"
+              className="rounded-xl"
+              disabled={disabled}
+              onClick={() => onClose?.(complaint.id)}
+            >
+              Close
+            </Button>
           </>
         )}
         {canArchive && (
-          <Button size="sm" variant="outline" className="rounded-xl" disabled={disabled} onClick={() => onArchive?.(complaint.id)}>Archive</Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-xl"
+            disabled={disabled}
+            onClick={() => onArchive?.(complaint.id)}
+          >
+            Archive
+          </Button>
         )}
       </div>
     </article>

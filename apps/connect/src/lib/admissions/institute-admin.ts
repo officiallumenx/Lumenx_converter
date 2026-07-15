@@ -67,7 +67,9 @@ function saveFormsStore(items: InstituteAdmissionForm[]) {
   writeJson(ADMISSIONS_STORAGE_KEYS.admissionForms, items);
 }
 
-export function getInstituteSettingsOverride(instituteId: string): InstituteSettingsOverride | null {
+export function getInstituteSettingsOverride(
+  instituteId: string,
+): InstituteSettingsOverride | null {
   return getSettingsStore().find((s) => s.instituteId === instituteId) ?? null;
 }
 
@@ -129,7 +131,11 @@ export function formFieldTypeLabel(type: AdmissionFormField["type"]): string {
   return FORM_FIELD_TYPES.find((t) => t.value === type)?.label ?? type.replace(/_/g, " ");
 }
 
-export const FORM_FIELD_TYPES: { value: AdmissionFormField["type"]; label: string; hint?: string }[] = [
+export const FORM_FIELD_TYPES: {
+  value: AdmissionFormField["type"];
+  label: string;
+  hint?: string;
+}[] = [
   { value: "text", label: "Short text", hint: "Single-line text answer" },
   { value: "textarea", label: "Long text", hint: "Multi-line paragraph" },
   { value: "number", label: "Number", hint: "Numeric values only" },
@@ -147,7 +153,13 @@ function normalizeFormField(field: AdmissionFormField): AdmissionFormField {
   if (field.type === "file" || (field.type as string) === "file") {
     const accept = field.fileAccept ?? "any";
     const mapped =
-      accept === "pdf" ? "file_pdf" : accept === "image" ? "file_image" : accept === "document" ? "file_document" : "file_any";
+      accept === "pdf"
+        ? "file_pdf"
+        : accept === "image"
+          ? "file_image"
+          : accept === "document"
+            ? "file_document"
+            : "file_any";
     return { ...field, type: mapped as AdmissionFormField["type"] };
   }
   return field;
@@ -165,7 +177,10 @@ export function getAdmissionForm(instituteId: string): InstituteAdmissionForm {
   };
 }
 
-export function saveAdmissionForm(instituteId: string, fields: AdmissionFormField[]): InstituteAdmissionForm {
+export function saveAdmissionForm(
+  instituteId: string,
+  fields: AdmissionFormField[],
+): InstituteAdmissionForm {
   const form: InstituteAdmissionForm = {
     instituteId,
     fields,
@@ -191,7 +206,9 @@ export function getApplicationsForInstitute(
 export function getInstituteApplicationStats(instituteId: string, apps: AdmissionApplication[]) {
   const list = getApplicationsForInstitute(instituteId, apps);
   const pending = list.filter((a) =>
-    ["submitted", "under_review", "document_verification", "interview_scheduled"].includes(a.status),
+    ["submitted", "under_review", "document_verification", "interview_scheduled"].includes(
+      a.status,
+    ),
   ).length;
   return {
     total: list.length,
@@ -237,4 +254,3 @@ export function updateApplicationByInstituteAdmin(
 export function newFormFieldId(): string {
   return `cf-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 }
-

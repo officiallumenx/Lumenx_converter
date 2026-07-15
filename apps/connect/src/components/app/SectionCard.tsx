@@ -42,9 +42,9 @@ export function SectionCard({
             {link && (
               <Link
                 to={link}
-                className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[11px] text-primary hover:underline sm:text-xs"
+                className="connect-section-link text-[11px] sm:text-xs"
               >
-                {linkLabel} <ArrowRight className="size-3 shrink-0" />
+                {linkLabel} <ArrowRight className="size-3 shrink-0" aria-hidden />
               </Link>
             )}
           </div>

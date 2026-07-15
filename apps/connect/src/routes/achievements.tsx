@@ -14,12 +14,11 @@ export const Route = createFileRoute("/achievements")({
 
 function AchievementsRoute() {
   const { role } = useApp();
-  if (role !== "student") {
-    return (
-      <div className="py-12 text-center text-sm text-muted-foreground">
-        Achievements is available in the Student portal.
-      </div>
-    );
-  }
-  return <StudentAchievementsPage />;
+  if (role === "student") return <StudentAchievementsPage />;
+  if (role === "parent") return <StudentAchievementsPage readOnlyParent />;
+  return (
+    <div className="py-12 text-center text-sm text-muted-foreground">
+      Achievements is available in the Student or Parent portal.
+    </div>
+  );
 }

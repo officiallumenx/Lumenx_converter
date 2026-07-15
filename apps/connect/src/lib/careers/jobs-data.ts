@@ -32,7 +32,11 @@ const RAW_JOBS: Omit<JobPosting, "facultyType" | "workMode">[] = [
     postedAt: "2026-04-01",
     deadline: "2026-06-30",
     overview: "Lead mathematics instruction for Grades 9–12 with focus on board exam excellence.",
-    responsibilities: ["Plan and deliver CBSE-aligned lessons", "Mentor junior faculty", "Conduct remedial sessions"],
+    responsibilities: [
+      "Plan and deliver CBSE-aligned lessons",
+      "Mentor junior faculty",
+      "Conduct remedial sessions",
+    ],
     qualifications: ["M.Sc Mathematics", "B.Ed required", "Teaching certification preferred"],
     skills: ["Calculus", "Statistics", "Classroom management", "Digital teaching tools"],
     benefits: ["Health insurance", "Professional development fund", "Performance bonus"],
@@ -373,14 +377,23 @@ const SALARY_MAP: Partial<Record<string, string>> = {
   "job-librarian": "₹3–4.5 LPA",
 };
 
-function enrichJob(raw: Omit<JobPosting, "facultyType" | "workMode"> & Partial<Pick<JobPosting, "facultyType" | "workMode" | "featured" | "trending" | "salaryDisplay">>): JobPosting {
+function enrichJob(
+  raw: Omit<JobPosting, "facultyType" | "workMode"> &
+    Partial<
+      Pick<JobPosting, "facultyType" | "workMode" | "featured" | "trending" | "salaryDisplay">
+    >,
+): JobPosting {
   return {
     ...raw,
     facultyType: raw.facultyType ?? CATEGORY_TO_FACULTY[raw.category],
     workMode: raw.workMode ?? ("onsite" as WorkMode),
     salaryDisplay: raw.salaryDisplay ?? SALARY_MAP[raw.id] ?? "As per company norms",
-    featured: raw.featured ?? ["job-math-teacher", "job-english-faculty", "job-sports-coach"].includes(raw.id),
-    trending: raw.trending ?? ["job-biology-teacher", "job-admissions-officer", "job-physics-lab"].includes(raw.id),
+    featured:
+      raw.featured ??
+      ["job-math-teacher", "job-english-faculty", "job-sports-coach"].includes(raw.id),
+    trending:
+      raw.trending ??
+      ["job-biology-teacher", "job-admissions-officer", "job-physics-lab"].includes(raw.id),
   };
 }
 
@@ -403,7 +416,11 @@ export const EXPERIENCE_BAND_LABEL: Record<Exclude<ExperienceBand, "all">, strin
 
 /** Options shown when recruiters post a job — value is stored as experienceRequired */
 export const JOB_EXPERIENCE_OPTIONS = [
-  { value: "Fresher (0 years)", label: "Fresher / Entry level", hint: "No prior experience required" },
+  {
+    value: "Fresher (0 years)",
+    label: "Fresher / Entry level",
+    hint: "No prior experience required",
+  },
   { value: "0–1 year", label: "0–1 year", hint: "Internship or first role" },
   { value: "1–2 years", label: "1–2 years", hint: "Junior level" },
   { value: "2–5 years", label: "2–5 years", hint: "Mid level" },
@@ -477,22 +494,24 @@ export function filterJobs(
     if (opts.state && opts.state !== "all" && j.state !== opts.state) return false;
     if (opts.city && opts.city !== "all" && j.city !== opts.city) return false;
     if (opts.category && opts.category !== "all" && j.category !== opts.category) return false;
-    if (opts.employmentType && opts.employmentType !== "all" && j.employmentType !== opts.employmentType) return false;
-    if (opts.facultyType && opts.facultyType !== "all" && j.facultyType !== opts.facultyType) return false;
+    if (
+      opts.employmentType &&
+      opts.employmentType !== "all" &&
+      j.employmentType !== opts.employmentType
+    )
+      return false;
+    if (opts.facultyType && opts.facultyType !== "all" && j.facultyType !== opts.facultyType)
+      return false;
     if (opts.workMode && opts.workMode !== "all" && j.workMode !== opts.workMode) return false;
-    if (opts.experience && opts.experience !== "all" && !matchesExperienceBand(j.experienceRequired, opts.experience)) {
+    if (
+      opts.experience &&
+      opts.experience !== "all" &&
+      !matchesExperienceBand(j.experienceRequired, opts.experience)
+    ) {
       return false;
     }
     if (opts.q) {
-      const hay = [
-        j.title,
-        j.department,
-        j.instituteName,
-        j.city,
-        j.state,
-        j.overview,
-        ...j.skills,
-      ]
+      const hay = [j.title, j.department, j.instituteName, j.city, j.state, j.overview, ...j.skills]
         .join(" ")
         .toLowerCase();
       if (!hay.includes(opts.q.toLowerCase())) return false;

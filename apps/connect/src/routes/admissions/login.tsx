@@ -19,7 +19,11 @@ function LoginRoute() {
   const search = Route.useSearch();
   return (
     <RedirectIfAuthed>
-      <SignInFlow redirect={search.redirect} program={search.program} institute={search.institute} />
+      <SignInFlow
+        redirect={search.redirect}
+        program={search.program}
+        institute={search.institute}
+      />
     </RedirectIfAuthed>
   );
 }

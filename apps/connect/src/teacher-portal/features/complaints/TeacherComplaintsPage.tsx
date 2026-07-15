@@ -58,10 +58,15 @@ export function TeacherComplaintsPage() {
 
   const load = useCallback(() => {
     setLoading(true);
-    teacherRepository.getComplaints().then((c) => { setItems(c); setLoading(false); });
+    teacherRepository.getComplaints().then((c) => {
+      setItems(c);
+      setLoading(false);
+    });
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const statusCounts = useMemo(() => {
     const counts: Record<ComplaintStatusFilter, number> = {
@@ -83,11 +88,14 @@ export function TeacherComplaintsPage() {
     [items, statusFilter],
   );
 
-  const updateStatusFn = useCallback(async (id: string, status: ComplaintStatus, resp?: string) => {
-    await teacherRepository.updateComplaintStatus(id, status, resp);
-    toast.success(`Complaint marked as ${status.replace("_", " ")}`);
-    load();
-  }, [load]);
+  const updateStatusFn = useCallback(
+    async (id: string, status: ComplaintStatus, resp?: string) => {
+      await teacherRepository.updateComplaintStatus(id, status, resp);
+      toast.success(`Complaint marked as ${status.replace("_", " ")}`);
+      load();
+    },
+    [load],
+  );
 
   const submitResponseFn = useCallback(async () => {
     if (!respondId || response.trim().length < 8) return;
@@ -96,28 +104,37 @@ export function TeacherComplaintsPage() {
     setResponse("");
   }, [respondId, response, updateStatusFn]);
 
-  const createFn = useCallback(async (data: z.infer<typeof schema>, draft = false) => {
-    await teacherRepository.createComplaint({ ...data, draft });
-    toast.success(draft ? "Draft saved" : "Complaint submitted");
-    setCreateOpen(false);
-    form.reset();
-    if (draft) setStatusFilter("draft");
-    load();
-  }, [form, load]);
+  const createFn = useCallback(
+    async (data: z.infer<typeof schema>, draft = false) => {
+      await teacherRepository.createComplaint({ ...data, draft });
+      toast.success(draft ? "Draft saved" : "Complaint submitted");
+      setCreateOpen(false);
+      form.reset();
+      if (draft) setStatusFilter("draft");
+      load();
+    },
+    [form, load],
+  );
 
-  const deleteDraftFn = useCallback(async (id: string) => {
-    await teacherRepository.deleteComplaint(id);
-    toast.success("Draft deleted");
-    load();
-  }, [load]);
+  const deleteDraftFn = useCallback(
+    async (id: string) => {
+      await teacherRepository.deleteComplaint(id);
+      toast.success("Draft deleted");
+      load();
+    },
+    [load],
+  );
 
   const { run: updateStatus, pending: updatingStatus } = useAsyncAction(updateStatusFn);
   const { run: submitResponse, pending: submittingResponse } = useAsyncAction(submitResponseFn);
   const { run: onCreate, pending: creating } = useAsyncAction(createFn);
-  const { run: onSaveDraft, pending: savingDraft } = useAsyncAction((data: z.infer<typeof schema>) => createFn(data, true));
+  const { run: onSaveDraft, pending: savingDraft } = useAsyncAction(
+    (data: z.infer<typeof schema>) => createFn(data, true),
+  );
   const { run: onDeleteDraft, pending: deletingDraft } = useAsyncAction(deleteDraftFn);
 
-  const actionPending = updatingStatus || submittingResponse || creating || savingDraft || deletingDraft;
+  const actionPending =
+    updatingStatus || submittingResponse || creating || savingDraft || deletingDraft;
   const viewed = viewId ? items.find((c) => c.id === viewId) : null;
 
   return (
@@ -125,7 +142,15 @@ export function TeacherComplaintsPage() {
       <PageHeader
         title="Complaints"
         subtitle="Create, track, respond, escalate, or close complaints"
-        action={<Button className="rounded-xl gap-2 shadow-glow" onClick={() => setCreateOpen(true)} disabled={actionPending}><Plus className="size-4" /> New complaint</Button>}
+        action={
+          <Button
+            className="rounded-xl gap-2 shadow-glow"
+            onClick={() => setCreateOpen(true)}
+            disabled={actionPending}
+          >
+            <Plus className="size-4" /> New complaint
+          </Button>
+        }
       />
 
       <div className="flex flex-wrap gap-1.5">
@@ -136,7 +161,9 @@ export function TeacherComplaintsPage() {
             onClick={() => setStatusFilter(id)}
             className={cn(
               "rounded-full px-3 py-1.5 text-xs font-medium",
-              statusFilter === id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+              statusFilter === id
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground",
             )}
           >
             {label}
@@ -145,7 +172,9 @@ export function TeacherComplaintsPage() {
         ))}
       </div>
 
-      {loading ? <PageSkeleton rows={4} /> : filteredItems.length ? (
+      {loading ? (
+        <PageSkeleton rows={4} />
+      ) : filteredItems.length ? (
         <div className="space-y-3">
           {filteredItems.map((c) => (
             <ComplaintCard
@@ -166,19 +195,51 @@ export function TeacherComplaintsPage() {
       ) : (
         <EmptyState
           icon={ShieldAlert}
-          title={statusFilter === "all" ? "No complaints" : `No ${COMPLAINT_STATUS_FILTERS.find((f) => f.id === statusFilter)?.label.toLowerCase()} complaints`}
-          description={statusFilter === "draft" ? "Save a complaint as draft while filling the form." : "Raise an issue and track it here."}
-          action={statusFilter === "all" ? <Button className="rounded-xl" onClick={() => setCreateOpen(true)}>Create complaint</Button> : undefined}
+          title={
+            statusFilter === "all"
+              ? "No complaints"
+              : `No ${COMPLAINT_STATUS_FILTERS.find((f) => f.id === statusFilter)?.label.toLowerCase()} complaints`
+          }
+          description={
+            statusFilter === "draft"
+              ? "Save a complaint as draft while filling the form."
+              : "Raise an issue and track it here."
+          }
+          action={
+            statusFilter === "all" ? (
+              <Button className="rounded-xl" onClick={() => setCreateOpen(true)}>
+                Create complaint
+              </Button>
+            ) : undefined
+          }
         />
       )}
 
       <Dialog open={!!respondId} onOpenChange={(o) => !o && setRespondId(null)}>
         <DialogContent className="rounded-2xl">
-          <DialogHeader><DialogTitle>Respond to complaint</DialogTitle></DialogHeader>
-          <Textarea value={response} onChange={(e) => setResponse(e.target.value)} placeholder="Add your response…" className="min-h-[100px] rounded-xl" />
+          <DialogHeader>
+            <DialogTitle>Respond to complaint</DialogTitle>
+          </DialogHeader>
+          <Textarea
+            value={response}
+            onChange={(e) => setResponse(e.target.value)}
+            placeholder="Add your response…"
+            className="min-h-[100px] rounded-xl"
+          />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRespondId(null)} className="rounded-xl" disabled={submittingResponse}>Cancel</Button>
-            <Button onClick={() => submitResponse()} disabled={response.trim().length < 8 || submittingResponse} className="rounded-xl">
+            <Button
+              variant="outline"
+              onClick={() => setRespondId(null)}
+              className="rounded-xl"
+              disabled={submittingResponse}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => submitResponse()}
+              disabled={response.trim().length < 8 || submittingResponse}
+              className="rounded-xl"
+            >
               {submittingResponse ? "Submitting…" : "Submit response"}
             </Button>
           </DialogFooter>
@@ -195,11 +256,22 @@ export function TeacherComplaintsPage() {
           </DialogHeader>
           {viewed && (
             <div className="space-y-2 text-sm">
-              <p><span className="text-muted-foreground">Category:</span> {viewed.category}</p>
-              <p><span className="text-muted-foreground">Priority:</span> <span className="capitalize">{viewed.priority}</span></p>
-              <p><span className="text-muted-foreground">Created:</span> {viewed.createdAt}</p>
+              <p>
+                <span className="text-muted-foreground">Category:</span> {viewed.category}
+              </p>
+              <p>
+                <span className="text-muted-foreground">Priority:</span>{" "}
+                <span className="capitalize">{viewed.priority}</span>
+              </p>
+              <p>
+                <span className="text-muted-foreground">Created:</span> {viewed.createdAt}
+              </p>
               <p className="whitespace-pre-wrap pt-1">{viewed.body}</p>
-              {viewed.response && <p className="rounded-xl bg-muted/40 p-3"><span className="font-medium">Response:</span> {viewed.response}</p>}
+              {viewed.response && (
+                <p className="rounded-xl bg-muted/40 p-3">
+                  <span className="font-medium">Response:</span> {viewed.response}
+                </p>
+              )}
             </div>
           )}
         </DialogContent>
@@ -207,39 +279,103 @@ export function TeacherComplaintsPage() {
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="rounded-2xl">
-          <DialogHeader><DialogTitle>Create complaint</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Create complaint</DialogTitle>
+          </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit((data) => onCreate(data))} className="space-y-3">
-              <FormField control={form.control} name="title" render={({ field }) => (<FormItem><FormLabel>Title</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-              <FormField control={form.control} name="category" render={({ field }) => (
-                <FormItem><FormLabel>Category</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                    <SelectContent position="popper" className="z-[100]">
-                      {["Student Issue", "Infrastructure", "Technical", "Administrative"].map((c) => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
-                    </SelectContent>
-                  </Select>
-                </FormItem>
-              )} />
-              <FormField control={form.control} name="priority" render={({ field }) => (
-                <FormItem><FormLabel>Priority</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                    <SelectContent position="popper" className="z-[100]">
-                      <SelectItem value="normal">Normal</SelectItem>
-                      <SelectItem value="urgent">Urgent</SelectItem>
-                      <SelectItem value="critical">Critical</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </FormItem>
-              )} />
-              <FormField control={form.control} name="body" render={({ field }) => (<FormItem><FormLabel>Description</FormLabel><FormControl><Textarea rows={4} {...field} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField
+                control={form.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Title</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="category"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Category</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent position="popper" className="z-[100]">
+                        {["Student Issue", "Infrastructure", "Technical", "Administrative"].map(
+                          (c) => (
+                            <SelectItem key={c} value={c}>
+                              {c}
+                            </SelectItem>
+                          ),
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="priority"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Priority</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent position="popper" className="z-[100]">
+                        <SelectItem value="normal">Normal</SelectItem>
+                        <SelectItem value="urgent">Urgent</SelectItem>
+                        <SelectItem value="critical">Critical</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="body"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea rows={4} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <DialogFooter className="gap-2 sm:gap-0">
-                <Button type="button" variant="ghost" onClick={() => setCreateOpen(false)} disabled={creating || savingDraft}>Cancel</Button>
-                <Button type="button" variant="outline" disabled={creating || savingDraft} onClick={form.handleSubmit((data) => onSaveDraft(data))}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setCreateOpen(false)}
+                  disabled={creating || savingDraft}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={creating || savingDraft}
+                  onClick={form.handleSubmit((data) => onSaveDraft(data))}
+                >
                   {savingDraft ? "Saving…" : "Save draft"}
                 </Button>
-                <Button type="submit" disabled={creating || savingDraft}>{creating ? "Submitting…" : "Submit"}</Button>
+                <Button type="submit" disabled={creating || savingDraft}>
+                  {creating ? "Submitting…" : "Submit"}
+                </Button>
               </DialogFooter>
             </form>
           </Form>

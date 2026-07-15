@@ -17,7 +17,10 @@ export function InstituteDetailPanel({ institute }: { institute: AdmissionInstit
   const applyTarget =
     user?.accountType === "parent"
       ? { to: "/admissions/apply" as const, search: applySearch }
-      : { to: "/admissions/login" as const, search: { redirect: "/admissions/apply", ...applySearch } };
+      : {
+          to: "/admissions/login" as const,
+          search: { redirect: "/admissions/apply", ...applySearch },
+        };
 
   return (
     <div className="rounded-2xl border border-border bg-card overflow-hidden animate-in fade-in duration-300">
@@ -34,7 +37,9 @@ export function InstituteDetailPanel({ institute }: { institute: AdmissionInstit
             <span className="text-muted-foreground">Est. {institute.established}</span>
           </div>
           <h2 className="mt-2 font-display text-2xl font-bold">{institute.name}</h2>
-          <p className="text-sm text-muted-foreground">{institute.code} · {institute.accreditation}</p>
+          <p className="text-sm text-muted-foreground">
+            {institute.code} · {institute.accreditation}
+          </p>
           <p className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
             <MapPin className="size-4 shrink-0" /> {institute.contact.address}
           </p>
@@ -50,7 +55,9 @@ export function InstituteDetailPanel({ institute }: { institute: AdmissionInstit
           ].map((s) => (
             <div key={s.label} className="rounded-xl bg-muted/50 p-3 text-center">
               <p className="text-lg font-bold">{s.value}</p>
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{s.label}</p>
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                {s.label}
+              </p>
             </div>
           ))}
         </div>
@@ -59,13 +66,17 @@ export function InstituteDetailPanel({ institute }: { institute: AdmissionInstit
           <h3 className="text-sm font-semibold mb-2">Highlights</h3>
           <div className="flex flex-wrap gap-2">
             {institute.highlights.map((h) => (
-              <span key={h} className="rounded-full border border-border px-3 py-1 text-xs">{h}</span>
+              <span key={h} className="rounded-full border border-border px-3 py-1 text-xs">
+                {h}
+              </span>
             ))}
           </div>
         </div>
 
         <div>
-          <h3 className="text-sm font-semibold mb-2 flex items-center gap-1"><Trophy className="size-4" /> Achievements</h3>
+          <h3 className="text-sm font-semibold mb-2 flex items-center gap-1">
+            <Trophy className="size-4" /> Achievements
+          </h3>
           <ul className="space-y-1 text-sm text-muted-foreground">
             {institute.achievements.map((a) => (
               <li key={a}>• {a}</li>
@@ -86,7 +97,9 @@ export function InstituteDetailPanel({ institute }: { institute: AdmissionInstit
         </div>
 
         <div>
-          <h3 className="text-sm font-semibold mb-2 flex items-center gap-1"><Calendar className="size-4" /> Important dates</h3>
+          <h3 className="text-sm font-semibold mb-2 flex items-center gap-1">
+            <Calendar className="size-4" /> Important dates
+          </h3>
           <ul className="space-y-2 text-sm">
             {institute.admissionDates.map((d) => (
               <li key={d.label} className="flex justify-between border-b border-border pb-2">
@@ -98,8 +111,12 @@ export function InstituteDetailPanel({ institute }: { institute: AdmissionInstit
         </div>
 
         <div className="rounded-xl bg-muted/40 p-4 text-sm space-y-1">
-          <p><strong>Phone:</strong> {institute.contact.phone}</p>
-          <p><strong>Email:</strong> {institute.contact.email}</p>
+          <p>
+            <strong>Phone:</strong> {institute.contact.phone}
+          </p>
+          <p>
+            <strong>Email:</strong> {institute.contact.email}
+          </p>
         </div>
 
         <div className="flex flex-wrap gap-3 pt-2">
@@ -126,7 +143,9 @@ export function InstituteDetailPage({ instituteId }: { instituteId: string }) {
     return (
       <div className="py-12 text-center">
         <p className="text-muted-foreground">Institute not found.</p>
-        <Button className="mt-4" asChild><Link to="/admissions/institutes">Browse institutes</Link></Button>
+        <Button className="mt-4" asChild>
+          <Link to="/admissions/institutes">Browse institutes</Link>
+        </Button>
       </div>
     );
   }
@@ -137,7 +156,11 @@ export function InstituteDetailPage({ instituteId }: { instituteId: string }) {
         <InstitutesBrowsePage selectedId={instituteId} />
       </div>
       <div className="lg:hidden">
-        <AdmissionsPageHeader title={institute.name} subtitle={`${institute.city}, ${institute.state}`} backTo="/admissions/institutes" />
+        <AdmissionsPageHeader
+          title={institute.name}
+          subtitle={`${institute.city}, ${institute.state}`}
+          backTo="/admissions/institutes"
+        />
         <InstituteDetailPanel institute={institute} />
       </div>
     </>

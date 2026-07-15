@@ -57,7 +57,9 @@ export function InstituteDirectoryPage({
 
   const citiesInState = useMemo(() => {
     if (state === "all") return LOCATIONS.cities;
-    return [...new Set(ADMISSION_INSTITUTES.filter((i) => i.state === state).map((i) => i.city))].sort();
+    return [
+      ...new Set(ADMISSION_INSTITUTES.filter((i) => i.state === state).map((i) => i.city)),
+    ].sort();
   }, [state]);
 
   const featuredList = filtered.list.filter((i) => filtered.featured.has(i.id));
@@ -93,23 +95,61 @@ export function InstituteDirectoryPage({
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, city, code…" className="pl-9" />
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search name, city, code…"
+            className="pl-9"
+          />
         </div>
-        <select value={state} onChange={(e) => { setState(e.target.value); setCity("all"); }} className="h-10 rounded-md border border-border bg-background px-3 text-sm">
+        <select
+          value={state}
+          onChange={(e) => {
+            setState(e.target.value);
+            setCity("all");
+          }}
+          aria-label="Filter by state"
+          className="h-10 rounded-md border border-border bg-background px-3 text-sm"
+        >
           <option value="all">All states</option>
-          {LOCATIONS.states.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <select value={city} onChange={(e) => setCity(e.target.value)} className="h-10 rounded-md border border-border bg-background px-3 text-sm">
-          <option value="all">All cities</option>
-          {citiesInState.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <select value={kind} onChange={(e) => setKind(e.target.value as InstituteKind | "all")} className="h-10 rounded-md border border-border bg-background px-3 text-sm">
-          <option value="all">All types</option>
-          {(Object.keys(INSTITUTE_KIND_LABEL) as InstituteKind[]).map((k) => (
-            <option key={k} value={k}>{INSTITUTE_KIND_LABEL[k]}</option>
+          {LOCATIONS.states.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
           ))}
         </select>
-        <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} className="h-10 rounded-md border border-border bg-background px-3 text-sm">
+        <select
+          value={city}
+          onChange={(e) => setCity(e.target.value)}
+          aria-label="Filter by city"
+          className="h-10 rounded-md border border-border bg-background px-3 text-sm"
+        >
+          <option value="all">All cities</option>
+          {citiesInState.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+        <select
+          value={kind}
+          onChange={(e) => setKind(e.target.value as InstituteKind | "all")}
+          aria-label="Filter by type"
+          className="h-10 rounded-md border border-border bg-background px-3 text-sm"
+        >
+          <option value="all">All types</option>
+          {(Object.keys(INSTITUTE_KIND_LABEL) as InstituteKind[]).map((k) => (
+            <option key={k} value={k}>
+              {INSTITUTE_KIND_LABEL[k]}
+            </option>
+          ))}
+        </select>
+        <select
+          value={sort}
+          onChange={(e) => setSort(e.target.value as SortKey)}
+          aria-label="Sort results"
+          className="h-10 rounded-md border border-border bg-background px-3 text-sm"
+        >
           <option value="rating">Sort: Rating</option>
           <option value="seats">Sort: Seats open</option>
           <option value="name">Sort: Name</option>
@@ -148,7 +188,9 @@ export function InstituteDirectoryPage({
 
       <SectionCard title={`All institutes (${filtered.list.length})`}>
         {filtered.list.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-6 text-center">No institutes match your filters.</p>
+          <p className="text-sm text-muted-foreground py-6 text-center">
+            No institutes match your filters.
+          </p>
         ) : (
           renderGrid(filtered.list)
         )}

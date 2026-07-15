@@ -1,203 +1,380 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
-import { Card, CardHeader, Button, Pill, Kpi } from "@lumenx/ui-admin";
-import { LEAVE_STUDENT, LEAVE_TEACHER } from "@/lib/admin-module-data";
-import { Check, X, History, Search } from "lucide-react";
+import {
+  Card,
+  CardHeader,
+  CardBody,
+  Button,
+  Pill,
+  KpiGrid,
+  Kpi,
+  PageStack,
+  SegmentedControl,
+  SearchInput,
+  DataTable,
+  Th,
+  Td,
+  Tr,
+  Modal,
+  PageToolbar,
+  ToolbarMeta,
+} from "@lumenx/ui-admin";
+import {
+  getInitialStudentLeave,
+  getInitialTeacherLeave,
+  leaveMonthlyTrends,
+  leaveSummary,
+  type LeaveKind,
+  type LeaveStatus,
+  type StudentLeave,
+  type TeacherLeave,
+} from "@/lib/leave-data";
+import {
+  Ban,
+  Check,
+  FileDown,
+  History,
+  X,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 
 export const Route = createFileRoute("/leave")({
-  head: () => ({ meta: [{ title: "Leave — LumenX Admin" }] }),
+  head: () => ({ meta: [{ title: "Leave Center — LumenX Admin" }] }),
   component: LeavePage,
 });
 
-type Kind = "student" | "teacher";
+type StatusFilter = LeaveStatus | "all";
+
+function statusPill(status: LeaveStatus) {
+  if (status === "pending") return <Pill tone="warning">Pending</Pill>;
+  if (status === "approved") return <Pill tone="success">Approved</Pill>;
+  if (status === "rejected") return <Pill tone="danger">Rejected</Pill>;
+  return <Pill tone="neutral">Cancelled</Pill>;
+}
 
 function LeavePage() {
-  const [kind, setKind] = useState<Kind>("student");
-  const [studentRows, setStudentRows] = useState(LEAVE_STUDENT);
-  const [teacherRows, setTeacherRows] = useState(LEAVE_TEACHER);
+  const [kind, setKind] = useState<LeaveKind>("student");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [studentRows, setStudentRows] = useState(getInitialStudentLeave);
+  const [teacherRows, setTeacherRows] = useState(getInitialTeacherLeave);
   const [q, setQ] = useState("");
+  const [historyOpen, setHistoryOpen] = useState(false);
 
-  const pendingStudent = studentRows.filter((r) => r.status === "pending").length;
-  const pendingTeacher = teacherRows.filter((r) => r.status === "pending").length;
-  const approvedToday = useMemo(() =>
-    studentRows.filter((r) => r.status === "approved").length + teacherRows.filter((r) => r.status === "approved").length,
-  [studentRows, teacherRows]);
+  const summary = useMemo(
+    () => leaveSummary(studentRows, teacherRows),
+    [studentRows, teacherRows],
+  );
+  const trends = useMemo(
+    () => leaveMonthlyTrends(studentRows, teacherRows),
+    [studentRows, teacherRows],
+  );
 
-  const approveStudent = (id: string) =>
-    setStudentRows((p) => p.map((r) => (r.id === id ? { ...r, status: "approved" as const } : r)));
-  const rejectStudent = (id: string) =>
-    setStudentRows((p) => p.map((r) => (r.id === id ? { ...r, status: "rejected" as const } : r)));
-  const approveTeacher = (id: string) =>
-    setTeacherRows((p) => p.map((r) => (r.id === id ? { ...r, status: "approved" as const } : r)));
-  const rejectTeacher = (id: string) =>
-    setTeacherRows((p) => p.map((r) => (r.id === id ? { ...r, status: "rejected" as const } : r)));
+  const patchStudent = (id: string, status: LeaveStatus) =>
+    setStudentRows((p) => p.map((r) => (r.id === id ? { ...r, status } : r)));
+  const patchTeacher = (id: string, status: LeaveStatus) =>
+    setTeacherRows((p) => p.map((r) => (r.id === id ? { ...r, status } : r)));
 
   const filteredStudents = useMemo(() => {
-    if (!q) return studentRows;
-    return studentRows.filter((r) => r.name.toLowerCase().includes(q.toLowerCase()));
-  }, [studentRows, q]);
+    return studentRows.filter((r) => {
+      if (statusFilter !== "all" && r.status !== statusFilter) return false;
+      if (!q) return true;
+      return `${r.name} ${r.class} ${r.reason}`.toLowerCase().includes(q.toLowerCase());
+    });
+  }, [studentRows, q, statusFilter]);
 
   const filteredTeachers = useMemo(() => {
-    if (!q) return teacherRows;
-    return teacherRows.filter((r) => r.name.toLowerCase().includes(q.toLowerCase()));
-  }, [teacherRows, q]);
+    return teacherRows.filter((r) => {
+      if (statusFilter !== "all" && r.status !== statusFilter) return false;
+      if (!q) return true;
+      return `${r.name} ${r.dept} ${r.type}`.toLowerCase().includes(q.toLowerCase());
+    });
+  }, [teacherRows, q, statusFilter]);
 
   const activeList = kind === "student" ? filteredStudents : filteredTeachers;
+  const historyRows = useMemo(
+    () =>
+      [...studentRows, ...teacherRows]
+        .filter((r) => r.status !== "pending")
+        .sort((a, b) => b.applied.localeCompare(a.applied)),
+    [studentRows, teacherRows],
+  );
 
   return (
     <AppShell
       title="Leave Center"
-      subtitle="Final approval hub · student & teacher requests from Connect"
-      actions={<Button><History className="size-3.5" /> Full history</Button>}
+      subtitle="Student & teacher leave · approvals · history · institute analytics"
+      actions={
+        <>
+          <Button size="sm" onClick={() => setHistoryOpen(true)}>
+            <History className="size-3.5" /> Leave history
+          </Button>
+          <Link to="/reports">
+            <Button variant="primary" size="sm">
+              <FileDown className="size-3.5" /> Leave reports
+            </Button>
+          </Link>
+        </>
+      }
     >
-      <div className="lx-kpi-grid">
-        <Kpi label="Student pending" value={String(pendingStudent)} tone={pendingStudent ? "down" : "neutral"} />
-        <Kpi label="Teacher pending" value={String(pendingTeacher)} tone={pendingTeacher ? "down" : "neutral"} />
-        <Kpi label="Approved" value={String(approvedToday)} tone="up" />
-        <Kpi label="Total requests" value={String(studentRows.length + teacherRows.length)} delta="All time" />
-      </div>
+      <PageStack>
+        <KpiGrid cols={5}>
+          <Kpi
+            label="Pending requests"
+            value={String(summary.pending)}
+            tone={summary.pending ? "down" : "neutral"}
+          />
+          <Kpi label="Approved" value={String(summary.approved)} tone="up" />
+          <Kpi label="Rejected" value={String(summary.rejected)} tone="down" />
+          <Kpi label="Cancelled" value={String(summary.cancelled)} />
+          <Kpi label="Approval rate" value={`${summary.approvalRate}%`} delta="All time" />
+        </KpiGrid>
 
-      <div className="flex flex-wrap items-center gap-3 mt-6 mb-4">
-        <div className="flex gap-1 p-1 w-fit bg-background rounded-md border border-border">
-          {(["student", "teacher"] as const).map((k) => (
-            <button
-              key={k}
-              onClick={() => { setKind(k); setQ(""); }}
-              className={`px-4 h-8 rounded text-[11px] font-medium capitalize transition-colors ${
-                kind === k ? "bg-surface text-foreground" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {k} leave
-            </button>
-          ))}
-        </div>
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Search ${kind} name…`}
-            className="w-full h-9 pl-9 pr-3 rounded-md bg-background border border-border text-xs focus:outline-none focus:border-primary/40" />
-        </div>
-        <div className="text-xs text-muted-foreground font-mono">{activeList.length} results</div>
-      </div>
-
-      {kind === "student" && (
         <Card>
-          <CardHeader title="Student leave requests" hint="Class teacher may approve first · admin override here" />
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
+          <PageToolbar>
+            <SegmentedControl
+              value={kind}
+              onChange={setKind}
+              options={[
+                { value: "student", label: "Student leave" },
+                { value: "teacher", label: "Teacher leave" },
+              ]}
+            />
+            <SegmentedControl
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={[
+                { value: "all", label: "All statuses" },
+                { value: "pending", label: "Pending" },
+                { value: "approved", label: "Approved" },
+                { value: "rejected", label: "Rejected" },
+                { value: "cancelled", label: "Cancelled" },
+              ]}
+            />
+            <SearchInput
+              placeholder={`Search ${kind}…`}
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              className="flex-1 min-w-[180px] max-w-sm"
+            />
+            <ToolbarMeta>{activeList.length} results</ToolbarMeta>
+          </PageToolbar>
+
+          {kind === "student" ? (
+            <DataTable>
               <thead>
-                <tr className="text-[10px] uppercase tracking-wider text-muted-foreground bg-background/40 border-b border-border">
-                  <th className="px-5 py-3 font-semibold">Student</th>
-                  <th className="px-5 py-3 font-semibold">Class</th>
-                  <th className="px-5 py-3 font-semibold">Dates</th>
-                  <th className="px-5 py-3 font-semibold">Reason</th>
-                  <th className="px-5 py-3 font-semibold">Status</th>
-                  <th className="px-5 py-3" />
+                <tr>
+                  <Th>Student</Th>
+                  <Th>Class</Th>
+                  <Th>Dates</Th>
+                  <Th>Days</Th>
+                  <Th>Reason</Th>
+                  <Th>Status</Th>
+                  <Th align="right">Actions</Th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody>
                 {filteredStudents.map((r) => (
-                  <tr key={r.id} className="hover:bg-surface-hover">
-                    <td className="px-5 py-3 text-xs font-medium">{r.name}</td>
-                    <td className="px-5 py-3 text-xs">{r.class}</td>
-                    <td className="px-5 py-3 text-xs font-mono">{r.from} → {r.to}</td>
-                    <td className="px-5 py-3 text-xs text-muted-foreground max-w-[200px] truncate">{r.reason}</td>
-                    <td className="px-5 py-3">
-                      {r.status === "pending" && <Pill tone="warning">Pending</Pill>}
-                      {r.status === "approved" && <Pill tone="success">Approved</Pill>}
-                      {r.status === "rejected" && <Pill tone="danger">Rejected</Pill>}
-                    </td>
-                    <td className="px-5 py-3">
-                      {r.status === "pending" && (
-                        <div className="flex gap-1 justify-end">
-                          <Button size="sm" variant="primary" onClick={() => approveStudent(r.id)}><Check className="size-3" /></Button>
-                          <Button size="sm" variant="danger" onClick={() => rejectStudent(r.id)}><X className="size-3" /></Button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
+                  <StudentRow key={r.id} row={r} onPatch={patchStudent} />
                 ))}
               </tbody>
-            </table>
-          </div>
-          <div className="px-5 py-3 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
-            <span>Showing 1–{filteredStudents.length} of {filteredStudents.length}</span>
-            <div className="flex gap-1">
-              <Button size="sm" disabled>Previous</Button>
-              <Button size="sm" disabled>Next</Button>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {kind === "teacher" && (
-        <Card>
-          <CardHeader title="Teacher leave requests" hint="Submitted via Connect · principal / admin approval" />
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
+            </DataTable>
+          ) : (
+            <DataTable>
               <thead>
-                <tr className="text-[10px] uppercase tracking-wider text-muted-foreground bg-background/40 border-b border-border">
-                  <th className="px-5 py-3 font-semibold">Teacher</th>
-                  <th className="px-5 py-3 font-semibold">Department</th>
-                  <th className="px-5 py-3 font-semibold">Type</th>
-                  <th className="px-5 py-3 font-semibold">Dates</th>
-                  <th className="px-5 py-3 font-semibold">To</th>
-                  <th className="px-5 py-3 font-semibold">Status</th>
-                  <th className="px-5 py-3" />
+                <tr>
+                  <Th>Teacher</Th>
+                  <Th>Department</Th>
+                  <Th>Type</Th>
+                  <Th>Dates</Th>
+                  <Th>Days</Th>
+                  <Th>Approver</Th>
+                  <Th>Status</Th>
+                  <Th align="right">Actions</Th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody>
                 {filteredTeachers.map((r) => (
-                  <tr key={r.id} className="hover:bg-surface-hover">
-                    <td className="px-5 py-3 text-xs font-medium">{r.name}</td>
-                    <td className="px-5 py-3 text-xs">{r.dept}</td>
-                    <td className="px-5 py-3 text-xs">{r.type}</td>
-                    <td className="px-5 py-3 text-xs font-mono">{r.from} → {r.to}</td>
-                    <td className="px-5 py-3 text-xs">{r.toRole}</td>
-                    <td className="px-5 py-3">
-                      {r.status === "pending" && <Pill tone="warning">Pending</Pill>}
-                      {r.status === "approved" && <Pill tone="success">Approved</Pill>}
-                      {r.status === "rejected" && <Pill tone="danger">Rejected</Pill>}
-                    </td>
-                    <td className="px-5 py-3">
-                      {r.status === "pending" && (
-                        <div className="flex gap-1 justify-end">
-                          <Button size="sm" variant="primary" onClick={() => approveTeacher(r.id)}><Check className="size-3" /></Button>
-                          <Button size="sm" variant="danger" onClick={() => rejectTeacher(r.id)}><X className="size-3" /></Button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
+                  <TeacherRow key={r.id} row={r} onPatch={patchTeacher} />
                 ))}
               </tbody>
-            </table>
-          </div>
-          <div className="px-5 py-3 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
-            <span>Showing 1–{filteredTeachers.length} of {filteredTeachers.length}</span>
-            <div className="flex gap-1">
-              <Button size="sm" disabled>Previous</Button>
-              <Button size="sm" disabled>Next</Button>
-            </div>
-          </div>
-        </Card>
-      )}
+            </DataTable>
+          )}
 
-      <Card className="mt-6">
-        <CardHeader title="Leave analytics" hint="Institute-wide · last 30 days" />
-        <div className="px-5 pb-5 grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
-          {[
-            { l: "Student requests", v: String(studentRows.length) },
-            { l: "Teacher requests", v: String(teacherRows.length) },
-            { l: "Approval rate", v: `${Math.round(((studentRows.filter((r) => r.status === "approved").length + teacherRows.filter((r) => r.status === "approved").length) / (studentRows.length + teacherRows.length)) * 100)}%` },
-            { l: "Pending", v: String(pendingStudent + pendingTeacher) },
-          ].map((s) => (
-            <div key={s.l} className="p-4 rounded-lg border border-border bg-background/40">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{s.l}</div>
-              <div className="text-xl font-semibold mt-1">{s.v}</div>
-            </div>
-          ))}
+          {activeList.length === 0 && (
+            <CardBody>
+              <p className="text-sm text-muted-foreground text-center py-8">
+                No leave requests match your filters.
+              </p>
+            </CardBody>
+          )}
+        </Card>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Card>
+            <CardHeader title="Monthly trends" hint="Student vs teacher requests · last 6 months" />
+            <CardBody>
+              <div className="h-36 flex items-end gap-2">
+                {trends.map((t) => {
+                  const max = Math.max(...trends.map((x) => x.student + x.teacher), 1);
+                  const total = t.student + t.teacher;
+                  return (
+                    <div key={t.month} className="flex-1 flex flex-col items-center gap-1">
+                      <div className="w-full flex flex-col justify-end h-28 gap-0.5">
+                        <div
+                          className="w-full bg-primary/70 rounded-t-sm"
+                          style={{ height: `${(t.teacher / max) * 100}%`, minHeight: t.teacher ? 4 : 0 }}
+                          title={`Teacher: ${t.teacher}`}
+                        />
+                        <div
+                          className="w-full bg-chart-2/80 rounded-t-sm"
+                          style={{ height: `${(t.student / max) * 100}%`, minHeight: t.student ? 4 : 0 }}
+                          title={`Student: ${t.student}`}
+                        />
+                      </div>
+                      <span className="text-[9px] font-mono text-muted-foreground">{t.month}</span>
+                      <span className="text-[9px] text-muted-foreground">{total}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex gap-4 mt-4 text-[10px] text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="size-2 rounded-sm bg-chart-2/80" /> Student
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="size-2 rounded-sm bg-primary/70" /> Teacher
+                </span>
+              </div>
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardHeader title="Leave analytics" hint="Institute-wide summary" />
+            <CardBody>
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                {[
+                  { l: "Student requests", v: studentRows.length },
+                  { l: "Teacher requests", v: teacherRows.length },
+                  { l: "Pending now", v: summary.pending },
+                  { l: "Avg days / request", v: "1.8" },
+                ].map((s) => (
+                  <div key={s.l} className="p-3 rounded-lg border border-border lx-inset-panel">
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{s.l}</div>
+                    <div className="text-xl font-semibold mt-1 font-mono">{s.v}</div>
+                  </div>
+                ))}
+              </div>
+            </CardBody>
+          </Card>
         </div>
-      </Card>
+      </PageStack>
+
+      <Modal
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        title="Leave history"
+        subtitle="Approved, rejected, and cancelled requests"
+        size="lg"
+        footer={<Button onClick={() => setHistoryOpen(false)}>Close</Button>}
+      >
+        <DataTable className="max-h-[min(420px,55vh)]">
+          <thead>
+            <tr>
+              <Th>ID</Th>
+              <Th>Applicant</Th>
+              <Th>Applied</Th>
+              <Th>Status</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {historyRows.map((r) => (
+              <Tr key={r.id}>
+                <Td mono>{r.id}</Td>
+                <Td>{"name" in r ? r.name : (r as TeacherLeave).name}</Td>
+                <Td mono>{r.applied}</Td>
+                <Td>{statusPill(r.status)}</Td>
+              </Tr>
+            ))}
+          </tbody>
+        </DataTable>
+      </Modal>
     </AppShell>
+  );
+}
+
+function StudentRow({
+  row,
+  onPatch,
+}: {
+  row: StudentLeave;
+  onPatch: (id: string, s: LeaveStatus) => void;
+}) {
+  return (
+    <Tr>
+      <Td>{row.name}</Td>
+      <Td>{row.class}</Td>
+      <Td mono>
+        {row.from} → {row.to}
+      </Td>
+      <Td mono>{row.days}</Td>
+      <Td className="max-w-[200px] truncate text-muted-foreground">{row.reason}</Td>
+      <Td>{statusPill(row.status)}</Td>
+      <Td align="right">
+        {row.status === "pending" ? (
+          <div className="lx-table-actions">
+            <Button size="sm" variant="primary" onClick={() => onPatch(row.id, "approved")} aria-label="Approve">
+              <Check className="size-3.5" />
+            </Button>
+            <Button size="sm" variant="danger" onClick={() => onPatch(row.id, "rejected")} aria-label="Reject">
+              <X className="size-3.5" />
+            </Button>
+            <Button size="sm" onClick={() => onPatch(row.id, "cancelled")} aria-label="Cancel">
+              <Ban className="size-3.5" />
+            </Button>
+          </div>
+        ) : (
+          <span className="text-muted-foreground text-[10px]">—</span>
+        )}
+      </Td>
+    </Tr>
+  );
+}
+
+function TeacherRow({
+  row,
+  onPatch,
+}: {
+  row: TeacherLeave;
+  onPatch: (id: string, s: LeaveStatus) => void;
+}) {
+  return (
+    <Tr>
+      <Td>{row.name}</Td>
+      <Td>{row.dept}</Td>
+      <Td>{row.type}</Td>
+      <Td mono>
+        {row.from} → {row.to}
+      </Td>
+      <Td mono>{row.days}</Td>
+      <Td>{row.toRole}</Td>
+      <Td>{statusPill(row.status)}</Td>
+      <Td align="right">
+        {row.status === "pending" ? (
+          <div className="lx-table-actions">
+            <Button size="sm" variant="primary" onClick={() => onPatch(row.id, "approved")} aria-label="Approve">
+              <Check className="size-3.5" />
+            </Button>
+            <Button size="sm" variant="danger" onClick={() => onPatch(row.id, "rejected")} aria-label="Reject">
+              <X className="size-3.5" />
+            </Button>
+            <Button size="sm" onClick={() => onPatch(row.id, "cancelled")} aria-label="Cancel">
+              <Ban className="size-3.5" />
+            </Button>
+          </div>
+        ) : (
+          <span className="text-muted-foreground text-[10px]">—</span>
+        )}
+      </Td>
+    </Tr>
   );
 }

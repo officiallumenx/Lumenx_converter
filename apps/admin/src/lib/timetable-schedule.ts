@@ -79,11 +79,7 @@ function formatTime(mins: number): string {
 
 export function buildScheduleConfig(input: ScheduleInput): TimetableScheduleConfig {
   const activeDays = input.days.filter((d) => d.active);
-  const maxPeriods = Math.max(
-    input.defaultPeriodsPerDay,
-    ...activeDays.map((d) => d.periods),
-    1,
-  );
+  const maxPeriods = Math.max(input.defaultPeriodsPerDay, ...activeDays.map((d) => d.periods), 1);
 
   const periodRows: TimetablePeriodDef[] = [];
   let cursor = parseTime(input.startTime);
@@ -153,7 +149,10 @@ export function emptyGridForSchedule(schedule: TimetableScheduleConfig = DEFAULT
   return active.map(() => schedule.periodRows.map(() => null));
 }
 
-export function teachingPeriodIndex(schedule: TimetableScheduleConfig, periodRowIdx: number): number {
+export function teachingPeriodIndex(
+  schedule: TimetableScheduleConfig,
+  periodRowIdx: number,
+): number {
   let n = 0;
   for (let i = 0; i <= periodRowIdx; i++) {
     if (!schedule.periodRows[i]?.isBreak) n++;
@@ -190,7 +189,9 @@ export function teachingSlotsForSchedule(schedule: TimetableScheduleConfig) {
   return slots;
 }
 
-export function countTeachingSlotsPerWeek(schedule: TimetableScheduleConfig = DEFAULT_SCHEDULE): number {
+export function countTeachingSlotsPerWeek(
+  schedule: TimetableScheduleConfig = DEFAULT_SCHEDULE,
+): number {
   return teachingSlotsForSchedule(schedule).length;
 }
 
@@ -211,6 +212,12 @@ export function countEmptySlotsForSchedule(
 export function scheduleSummary(schedule: TimetableScheduleConfig): string {
   const active = getActiveDays(schedule);
   const slots = countTeachingSlotsPerWeek(schedule);
-  const dayPart = active.map((d) => (d.periods < Math.max(...active.map((x) => x.periods)) ? `${d.name.slice(0, 3)}×${d.periods}` : d.name.slice(0, 3))).join(", ");
+  const dayPart = active
+    .map((d) =>
+      d.periods < Math.max(...active.map((x) => x.periods))
+        ? `${d.name.slice(0, 3)}×${d.periods}`
+        : d.name.slice(0, 3),
+    )
+    .join(", ");
   return `${active.length} days · ${slots} periods/week · ${schedule.periodDurationMins} min · from ${schedule.startTime} (${dayPart})`;
 }

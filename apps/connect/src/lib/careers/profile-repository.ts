@@ -123,7 +123,8 @@ export const DEMO_CANDIDATE_PROFILE: CandidateProfile = {
       organization: "City High School, Mumbai",
       from: "2020-06",
       current: true,
-      description: "Grades 9–12, CBSE curriculum. Led English department initiatives and board exam prep.",
+      description:
+        "Grades 9–12, CBSE curriculum. Led English department initiatives and board exam prep.",
       employmentType: "full_time",
       location: "Mumbai, Maharashtra",
     },
@@ -170,18 +171,40 @@ export const DEMO_CANDIDATE_PROFILE: CandidateProfile = {
     },
   ],
   certifications: [
-    { id: "c-1", name: "Google Certified Educator", issuer: "Google", year: "2023", credentialId: "GCE-2023-8842" },
+    {
+      id: "c-1",
+      name: "Google Certified Educator",
+      issuer: "Google",
+      year: "2023",
+      credentialId: "GCE-2023-8842",
+    },
     { id: "c-2", name: "CBSE Teacher Training", issuer: "CBSE", year: "2019" },
   ],
   achievements: [
-    { id: "ach-1", title: "District Debate Coach of the Year", year: "2024", description: "Led school team to state finals" },
-    { id: "ach-2", title: "92% board pass rate", year: "2025", description: "English department CBSE results" },
+    {
+      id: "ach-1",
+      title: "District Debate Coach of the Year",
+      year: "2024",
+      description: "Led school team to state finals",
+    },
+    {
+      id: "ach-2",
+      title: "92% board pass rate",
+      year: "2025",
+      description: "English department CBSE results",
+    },
   ],
   profileLinks: [
     { id: "link-1", label: "LinkedIn", url: "https://linkedin.com/in/priya-nair" },
     { id: "link-2", label: "Portfolio", url: "https://example.com/portfolio" },
   ],
-  skills: ["Classroom management", "Curriculum design", "Google Classroom", "LMS", "Lesson planning"],
+  skills: [
+    "Classroom management",
+    "Curriculum design",
+    "Google Classroom",
+    "LMS",
+    "Lesson planning",
+  ],
   softSkills: ["Communication", "Leadership", "Teamwork", "Problem solving", "Time management"],
   subjects: ["English Literature", "English Language"],
   languageSkills: [
@@ -223,7 +246,8 @@ function saveAllProfiles(profiles: Record<string, CandidateProfile>) {
 
 export function getCandidateProfile(candidateId: string): CandidateProfile {
   const all = getAllProfiles();
-  if (all[candidateId]) return normalizeProfile(all[candidateId] as unknown as Record<string, unknown>, candidateId);
+  if (all[candidateId])
+    return normalizeProfile(all[candidateId] as unknown as Record<string, unknown>, candidateId);
   if (candidateId === DEMO_CANDIDATE_PROFILE.candidateId) {
     saveAllProfiles({ ...all, [candidateId]: DEMO_CANDIDATE_PROFILE });
     return DEMO_CANDIDATE_PROFILE;
@@ -234,7 +258,10 @@ export function getCandidateProfile(candidateId: string): CandidateProfile {
 }
 
 export function saveCandidateProfile(profile: CandidateProfile): CandidateProfile {
-  const updated = normalizeProfile({ ...profile, updatedAt: new Date().toISOString() }, profile.candidateId);
+  const updated = normalizeProfile(
+    { ...profile, updatedAt: new Date().toISOString() },
+    profile.candidateId,
+  );
   const all = getAllProfiles();
   saveAllProfiles({ ...all, [profile.candidateId]: updated });
   return updated;
@@ -297,11 +324,18 @@ export function profileStrengthLabel(strength: ProfileStrength): string {
   }
 }
 
-export function profileToApplyPrefill(profile: CandidateProfile, name: string, email?: string, phone?: string) {
+export function profileToApplyPrefill(
+  profile: CandidateProfile,
+  name: string,
+  email?: string,
+  phone?: string,
+) {
   const academic = profile.teaching.academic;
   const sports = profile.teaching.sports;
   const lab = profile.teaching.lab;
-  const languagesKnown = profile.languageSkills.map((l) => `${l.language} (${l.proficiency})`).join(", ");
+  const languagesKnown = profile.languageSkills
+    .map((l) => `${l.language} (${l.proficiency})`)
+    .join(", ");
   return {
     personal: {
       name,
@@ -317,7 +351,11 @@ export function profileToApplyPrefill(profile: CandidateProfile, name: string, e
     },
     professional: {
       highestQualification: profile.qualifications[0]?.degree ?? "",
-      experienceYears: academic?.teachingExperienceYears ?? sports?.coachingExperienceYears ?? lab?.practicalExperienceYears ?? "",
+      experienceYears:
+        academic?.teachingExperienceYears ??
+        sports?.coachingExperienceYears ??
+        lab?.practicalExperienceYears ??
+        "",
       currentEmployer: profile.currentEmployer,
       currentRole: profile.experience[0]?.title ?? profile.headline,
       expectedSalary: profile.expectedSalary,

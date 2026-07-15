@@ -44,7 +44,7 @@ export function StudentNotificationsPage() {
           unread > 0 ? (
             <Button
               variant="outline"
-              className="rounded-xl gap-2"
+              className="student-primary-action rounded-xl gap-2"
               onClick={() => studentNotificationStore.markAllRead()}
             >
               <CheckCheck className="size-4" /> Mark all read
@@ -61,18 +61,14 @@ export function StudentNotificationsPage() {
           return (
             <button
               key={c.id}
+              type="button"
               onClick={() => setFilter(c.id)}
-              className={cn(
-                "h-8 inline-flex items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
-                active
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-card text-muted-foreground border-border hover:bg-muted/40",
-              )}
+              className={cn("student-filter-chip", active && "is-active")}
             >
               {c.label}
               <span
                 className={cn(
-                  "tabular-nums rounded-full px-1.5 py-px text-[10px]",
+                  "tabular-nums rounded-full px-1.5 py-0.5 text-xs",
                   active ? "bg-white/25 text-primary-foreground" : "bg-muted text-foreground/70",
                 )}
               >

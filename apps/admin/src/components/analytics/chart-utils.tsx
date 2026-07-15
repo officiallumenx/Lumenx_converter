@@ -19,7 +19,9 @@ export function AdminChartTooltip({
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-lg border border-border bg-surface px-3 py-2 shadow-pop text-xs">
-      {label != null && label !== "" && <p className="font-semibold text-foreground mb-1.5">{label}</p>}
+      {label != null && label !== "" && (
+        <p className="font-semibold text-foreground mb-1.5">{label}</p>
+      )}
       <ul className="space-y-1">
         {payload.map((entry) => {
           const name = String(entry.name ?? "");
@@ -69,7 +71,9 @@ export function ChartCard({
   className?: string;
 }) {
   return (
-    <div className={`bg-surface border border-border rounded-xl shadow-elevated overflow-hidden ${className}`}>
+    <div
+      className={`bg-surface border border-border rounded-xl shadow-elevated overflow-hidden ${className}`}
+    >
       <div className="flex items-center justify-between px-5 pt-5 pb-2">
         <div>
           <h3 className="text-sm font-semibold tracking-tight">{title}</h3>

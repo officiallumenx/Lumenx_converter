@@ -24,7 +24,10 @@ function isoDate(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
-function seedSubmittedDay(offsetDays: number, mutate?: (t: TeacherAttendanceRecord[]) => TeacherAttendanceRecord[]) {
+function seedSubmittedDay(
+  offsetDays: number,
+  mutate?: (t: TeacherAttendanceRecord[]) => TeacherAttendanceRecord[],
+) {
   const d = new Date();
   d.setDate(d.getDate() - offsetDays);
   const date = isoDate(d);

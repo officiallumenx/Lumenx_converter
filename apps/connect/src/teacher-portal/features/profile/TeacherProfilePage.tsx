@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { getInitials } from "@lumenx/utils";
 import { PageHeader } from "@/components/app/PageHeader";
 import { useApp } from "@/lib/app-state";
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
@@ -20,6 +21,7 @@ import {
   DialogTitle,
 } from "@lumenx/ui";
 import { BookOpen, Briefcase, Mail, Phone, LogOut, Bell, Shield, Camera } from "lucide-react";
+import { AppLockSettings } from "@/components/app/AppLockSettings";
 import { toast } from "sonner";
 import { useNavigate } from "@tanstack/react-router";
 import type { TeacherPreferences } from "@/lib/teacher/types";
@@ -41,11 +43,14 @@ import {
   SettingsSupportPanel,
 } from "@/components/app/settings/SettingsPrimitives";
 
-const APP_VERSION = "2.4.0";
+import { CONNECT_APP_VERSION_LABEL } from "@/lib/app-version";
+import { TeacherPortalSwitcher } from "@/components/app/TeacherPortalSwitcher";
+import { useTeacherPortalAccess } from "@/lib/teacher-session";
 
 export function TeacherProfilePage({ initialSection }: { initialSection?: "support" }) {
   const { user, signOut, toggleTheme, theme } = useApp();
   const portal = useTeacherPortal();
+  const portalAccess = useTeacherPortalAccess();
   const nav = useNavigate();
   const fileRef = useRef<HTMLInputElement>(null);
   const [prefs, setPrefs] = useState<TeacherPreferences | null>(null);
@@ -78,7 +83,7 @@ export function TeacherProfilePage({ initialSection }: { initialSection?: "suppo
   }, [portal.isTeacher]);
 
   useEffect(() => {
-    if (portal.isTeacher && portal.profile) {
+    if (portal.isTeacher && "profile" in portal && portal.profile) {
       setName(portal.profile.name);
       setPhone(portal.profile.phone);
       setEmail(portal.profile.email);
@@ -88,9 +93,11 @@ export function TeacherProfilePage({ initialSection }: { initialSection?: "suppo
       setAbout(portal.profile.bio ?? "");
       setAvatarPreview(portal.profile.avatar);
     }
-  }, [portal.isTeacher, portal.profile]);
+  }, [portal]);
 
-  if (!portal.isTeacher || !user) return null;
+  if (!portal.isTeacher || !user) {
+    return <PageSkeleton rows={4} />;
+  }
   if (portal.isLoading || !portal.profile) return <PageSkeleton rows={4} />;
 
   const profile = portal.profile;
@@ -135,19 +142,16 @@ export function TeacherProfilePage({ initialSection }: { initialSection?: "suppo
                 <AvatarImage src={avatarPreview || user.avatar} alt="" />
               ) : null}
               <AvatarFallback className="bg-gradient-to-br from-violet-600 to-indigo-700 text-2xl text-white font-display">
-                {profile.name
-                  .split(" ")
-                  .map((p) => p[0])
-                  .slice(0, 2)
-                  .join("")}
+                {getInitials(profile.name, 2)}
               </AvatarFallback>
             </Avatar>
             <button
               type="button"
+              aria-label="Change profile photo"
               onClick={() => fileRef.current?.click()}
-              className="absolute -bottom-1 -right-1 grid size-9 place-items-center rounded-full border bg-card shadow-soft touch-manipulation"
+              className="settings-avatar-action border bg-card shadow-soft"
             >
-              <Camera className="size-4" />
+              <Camera className="size-4" aria-hidden />
             </button>
             <input
               ref={fileRef}
@@ -181,7 +185,7 @@ export function TeacherProfilePage({ initialSection }: { initialSection?: "suppo
             <Button
               size="sm"
               variant="outline"
-              className="mt-3 rounded-xl"
+              className="settings-primary-action mt-3 rounded-xl"
               onClick={() => setEditOpen(true)}
             >
               Edit profile
@@ -198,14 +202,18 @@ export function TeacherProfilePage({ initialSection }: { initialSection?: "suppo
           <InfoRow icon={Briefcase} label="Joined" value={profile.joinedOn} />
         </div>
         {profile.bio && (
-          <div className="mt-4 rounded-xl border border-border bg-muted/30 p-4">
-            <p className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
-              About
-            </p>
-            <p className="text-sm leading-relaxed">{profile.bio}</p>
+          <div className="mt-4 space-y-2">
+            <p className="settings-section-label">About</p>
+            <div className="settings-readonly-value is-multiline">{profile.bio}</div>
           </div>
         )}
       </SettingsCard>
+
+      {portalAccess.assignmentType === "dual_role" ? (
+        <SettingsCard>
+          <TeacherPortalSwitcher variant="settings" />
+        </SettingsCard>
+      ) : null}
 
       <SettingsSection
         title="Notification preferences"
@@ -271,7 +279,7 @@ export function TeacherProfilePage({ initialSection }: { initialSection?: "suppo
           </>
         )}
         <div className="pt-3">
-          <Button className="rounded-xl w-full sm:w-auto" onClick={savePrefs}>
+          <Button className="settings-primary-action rounded-xl w-full sm:w-auto" onClick={savePrefs}>
             Save notification settings
           </Button>
         </div>
@@ -286,6 +294,7 @@ export function TeacherProfilePage({ initialSection }: { initialSection?: "suppo
       </SettingsSection>
 
       <SettingsSection title="Privacy & security" icon={Shield}>
+        <AppLockSettings />
         <SettingsRow
           label="Show profile to parents"
           desc="Let parents view your bio and office hours"
@@ -302,7 +311,7 @@ export function TeacherProfilePage({ initialSection }: { initialSection?: "suppo
         <div className="pt-2 pb-1">
           <Button
             variant="outline"
-            className="rounded-xl w-full sm:w-auto"
+            className="settings-primary-action rounded-xl w-full sm:w-auto"
             onClick={() => setPwdOpen(true)}
           >
             Change password
@@ -314,7 +323,7 @@ export function TeacherProfilePage({ initialSection }: { initialSection?: "suppo
         open={supportOpen}
         onToggle={() => setSupportOpen((v) => !v)}
         portalName="LumenX Connect Teacher Portal"
-        version={APP_VERSION}
+        version={CONNECT_APP_VERSION_LABEL}
         supportEmail={SUPPORT_EMAIL}
         onFaq={() => setFaqOpen(true)}
         onHelp={() => setHelpOpen(true)}
@@ -325,13 +334,13 @@ export function TeacherProfilePage({ initialSection }: { initialSection?: "suppo
 
       <Button
         variant="outline"
-        className="w-full rounded-xl gap-2 text-destructive border-destructive/30 hover:bg-destructive/5 h-11 touch-manipulation"
+        className="settings-sign-out rounded-xl gap-2 text-destructive border-destructive/30 hover:bg-destructive/5"
         onClick={() => {
           signOut();
           nav({ to: "/login" });
         }}
       >
-        <LogOut className="size-4" /> Sign out
+        <LogOut className="size-4" aria-hidden /> Sign out
       </Button>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
@@ -386,7 +395,9 @@ export function TeacherProfilePage({ initialSection }: { initialSection?: "suppo
                 placeholder="e.g. Mathematics, Physics"
                 className="rounded-xl"
               />
-              <p className="mt-1 text-[11px] text-muted-foreground">Separate multiple subjects with commas</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Separate multiple subjects with commas
+              </p>
             </SettingsField>
             <SettingsField label="Classes">
               <Input
@@ -395,7 +406,9 @@ export function TeacherProfilePage({ initialSection }: { initialSection?: "suppo
                 placeholder="e.g. 10-B, 10-A, 9-A"
                 className="rounded-xl"
               />
-              <p className="mt-1 text-[11px] text-muted-foreground">Class sections you teach — comma separated</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Class sections you teach — comma separated
+              </p>
             </SettingsField>
             <div className="sm:col-span-2">
               <SettingsField label="About">
@@ -416,7 +429,9 @@ export function TeacherProfilePage({ initialSection }: { initialSection?: "suppo
             <Button variant="ghost" onClick={() => setEditOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={saveProfile}>Save</Button>
+            <Button onClick={saveProfile} className="settings-primary-action">
+              Save
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -442,10 +457,10 @@ function InfoRow({
   value: string;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-xl bg-muted/30 p-3">
-      <Icon className="mt-0.5 size-4 shrink-0 text-primary" />
+    <div className="settings-row flex items-start gap-3 rounded-xl border border-border bg-muted/30 p-3">
+      <Icon className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
       <div className="min-w-0">
-        <div className="text-xs text-muted-foreground">{label}</div>
+        <div className="settings-field-label mb-0.5">{label}</div>
         <div className="text-sm font-medium break-words">{value}</div>
       </div>
     </div>

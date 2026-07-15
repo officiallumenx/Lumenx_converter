@@ -1,6 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
-import { Card, Button, Pill, Select, Kpi, SearchInput, SegmentedControl, PageToolbar, ToolbarGroup, ToolbarSpacer, ToolbarMeta, DataTable, EmptyState, Th } from "@lumenx/ui-admin";
+import {
+  Card,
+  Button,
+  Pill,
+  Select,
+  Kpi,
+  SearchInput,
+  SegmentedControl,
+  PageToolbar,
+  ToolbarGroup,
+  ToolbarSpacer,
+  ToolbarMeta,
+  DataTable,
+  EmptyState,
+  Th,
+} from "@lumenx/ui-admin";
 import {
   ADMIN_CLASSES,
   ADMIN_SECTIONS,
@@ -40,7 +55,8 @@ function MarksPage() {
       if (r.examId !== examId) return false;
       if (classGrade !== "all" && r.classGrade !== classGrade) return false;
       if (section !== "all" && r.section !== section) return false;
-      if (q && !r.name.toLowerCase().includes(q.toLowerCase()) && !r.rollNo.includes(q)) return false;
+      if (q && !r.name.toLowerCase().includes(q.toLowerCase()) && !r.rollNo.includes(q))
+        return false;
       const p = pct(r);
       if (passFilter === "pass" && p < 40) return false;
       if (passFilter === "fail" && p >= 40) return false;
@@ -83,33 +99,65 @@ function MarksPage() {
         <Kpi label="Students" value={String(list.length)} delta="In view" />
         <Kpi label="Avg score" value={`${avgPct}%`} delta="This exam" tone="up" />
         <Kpi label="Published" value={String(publishedCount)} delta={`of ${list.length}`} />
-        <Kpi label="Pending publish" value={String(list.filter((r) => r.teacherPublished && !r.adminPublished).length)} tone="down" />
+        <Kpi
+          label="Pending publish"
+          value={String(list.filter((r) => r.teacherPublished && !r.adminPublished).length)}
+          tone="down"
+        />
       </div>
 
       <Card className="mt-6">
         <PageToolbar>
           <ToolbarGroup>
-            <Select fieldSize="compact" value={classGrade} onChange={(e) => setClassGrade(e.target.value)} className="w-36">
+            <Select
+              fieldSize="compact"
+              value={classGrade}
+              onChange={(e) => setClassGrade(e.target.value)}
+              className="w-36"
+            >
               <option value="all">All classes</option>
               {ADMIN_CLASSES.map((c) => (
-                <option key={c} value={c}>{c}</option>
+                <option key={c} value={c}>
+                  {c}
+                </option>
               ))}
             </Select>
-            <Select fieldSize="compact" value={section} onChange={(e) => setSection(e.target.value)} className="w-28">
+            <Select
+              fieldSize="compact"
+              value={section}
+              onChange={(e) => setSection(e.target.value)}
+              className="w-28"
+            >
               <option value="all">All sections</option>
               {ADMIN_SECTIONS.map((s) => (
-                <option key={s} value={s}>Section {s}</option>
+                <option key={s} value={s}>
+                  Section {s}
+                </option>
               ))}
             </Select>
-            <Select fieldSize="compact" value={examId} onChange={(e) => setExamId(e.target.value)} className="w-48">
+            <Select
+              fieldSize="compact"
+              value={examId}
+              onChange={(e) => setExamId(e.target.value)}
+              className="w-48"
+            >
               {ADMIN_EXAMS.map((e) => (
-                <option key={e.id} value={e.id}>{e.name}</option>
+                <option key={e.id} value={e.id}>
+                  {e.name}
+                </option>
               ))}
             </Select>
-            <Select fieldSize="compact" value={subject} onChange={(e) => setSubject(e.target.value)} className="w-40">
+            <Select
+              fieldSize="compact"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              className="w-40"
+            >
               <option value="all">All columns</option>
               {ADMIN_SUBJECTS.map((s) => (
-                <option key={s} value={s}>{s}</option>
+                <option key={s} value={s}>
+                  {s}
+                </option>
               ))}
             </Select>
           </ToolbarGroup>
@@ -122,27 +170,38 @@ function MarksPage() {
               { value: "fail", label: "Fail" },
             ]}
           />
-          <SearchInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or roll no…" className="flex-1 min-w-[200px]" />
+          <SearchInput
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search name or roll no…"
+            className="flex-1 min-w-[200px]"
+          />
           <ToolbarSpacer />
           <ToolbarMeta>{list.length} results</ToolbarMeta>
         </PageToolbar>
         {list.length === 0 ? (
-          <EmptyState icon={<ClipboardList className="size-5" />} title="No marks for this filter" hint="Awaiting teacher publish from Connect, or try another exam or class." />
+          <EmptyState
+            icon={<ClipboardList className="size-5" />}
+            title="No marks for this filter"
+            hint="Awaiting teacher publish from Connect, or try another exam or class."
+          />
         ) : (
-        <DataTable>
-          <thead>
-            <tr>
-              <Th>Roll</Th>
-              <Th>Student</Th>
-              {subjects.map((s) => (
-                <Th key={s} className="px-3">{s.slice(0, 4)}</Th>
-              ))}
-              <Th>Total</Th>
-              <Th>%</Th>
-              <Th>Pass/Fail</Th>
-              <Th>Status</Th>
-            </tr>
-          </thead>
+          <DataTable>
+            <thead>
+              <tr>
+                <Th>Roll</Th>
+                <Th>Student</Th>
+                {subjects.map((s) => (
+                  <Th key={s} className="px-3">
+                    {s.slice(0, 4)}
+                  </Th>
+                ))}
+                <Th>Total</Th>
+                <Th>%</Th>
+                <Th>Pass/Fail</Th>
+                <Th>Status</Th>
+              </tr>
+            </thead>
             <tbody className="divide-y divide-border">
               {list.map((r) => {
                 const p = pct(r);
@@ -169,14 +228,20 @@ function MarksPage() {
                 );
               })}
             </tbody>
-        </DataTable>
+          </DataTable>
         )}
         {list.length > 0 && (
           <div className="px-5 py-3 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
-            <span>Showing 1–{list.length} of {list.length}</span>
+            <span>
+              Showing 1–{list.length} of {list.length}
+            </span>
             <div className="flex gap-1">
-              <Button size="sm" disabled>Previous</Button>
-              <Button size="sm" disabled>Next</Button>
+              <Button size="sm" disabled>
+                Previous
+              </Button>
+              <Button size="sm" disabled>
+                Next
+              </Button>
             </div>
           </div>
         )}

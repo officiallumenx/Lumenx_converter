@@ -1,4 +1,9 @@
-import type { AttendanceDay, AttendanceDayStatus, AttendancePeriodSummary, InstituteHoliday } from "./types";
+import type {
+  AttendanceDay,
+  AttendanceDayStatus,
+  AttendancePeriodSummary,
+  InstituteHoliday,
+} from "./types";
 
 /** Institute holidays — demo dataset spanning recent months */
 export const INSTITUTE_HOLIDAYS: InstituteHoliday[] = [
@@ -118,68 +123,72 @@ function isSunday(year: number, month: number, day: number) {
   return new Date(year, month, day).getDay() === 0;
 }
 
-/** Build attendance days for a month. Optional seed varies absent/leave pattern per child. */
-export function buildAttendanceDays(year: number, month: number, seed = 0): AttendanceDay[] {
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
+function getAttendanceDayStatus(
+  year: number,
+  month: number,
+  day: number,
+  seed = 0,
+): AttendanceDay {
+  const iso = isoFromParts(year, month, day);
   const now = new Date();
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
   const today = now.getDate();
 
+  if (isCurrentMonth && day > today) {
+    return { day, status: "future" as AttendanceDayStatus };
+  }
+
+  const listed = holidayOnDate(iso);
+  if (listed) {
+    return { day, status: "holiday", holidayTitle: listed.title };
+  }
+
+  if (isSunday(year, month, day)) {
+    return { day, status: "holiday", holidayTitle: "Weekly off" };
+  }
+
+  const absent = (day + seed) % 13 === 0;
+  const leave = !absent && (day + seed * 2) % 19 === 0;
+  if (absent) return { day, status: "absent" };
+  if (leave) return { day, status: "leave" };
+  return { day, status: "present" };
+}
+
+/** Build attendance days for a month. Optional seed varies absent/leave pattern per child. */
+export function buildAttendanceDays(year: number, month: number, seed = 0): AttendanceDay[] {
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
   return Array.from({ length: daysInMonth }, (_, i) => {
     const day = i + 1;
-    const iso = isoFromParts(year, month, day);
-
-    if (isCurrentMonth && day > today) {
-      return { day, status: "future" as AttendanceDayStatus };
-    }
-
-    const listed = holidayOnDate(iso);
-    if (listed) {
-      return { day, status: "holiday", holidayTitle: listed.title };
-    }
-
-    if (isSunday(year, month, day)) {
-      return { day, status: "holiday", holidayTitle: "Weekly off" };
-    }
-
-    const absent = (day + seed) % 13 === 0;
-    const leave = !absent && (day + seed * 2) % 19 === 0;
-    if (absent) return { day, status: "absent" };
-    if (leave) return { day, status: "leave" };
-    return { day, status: "present" };
+    return getAttendanceDayStatus(year, month, day, seed);
   });
 }
 
-export function computeAttendanceSummary(
-  days: AttendanceDay[],
-  year: number,
-  month: number,
-  range?: { startIso: string; endIso: string },
-): AttendancePeriodSummary {
-  const scoped = range
-    ? days.filter((d) => {
-        const iso = isoFromParts(year, month, d.day);
-        return iso >= range.startIso && iso <= range.endIso;
-      })
-    : days;
+/** Selectable attendance history window — last N months through today. */
+export function attendanceHistoryBounds(monthsBack = 12) {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth() - (monthsBack - 1), 1);
+  return {
+    start: isoFromParts(start.getFullYear(), start.getMonth(), 1),
+    end: isoFromParts(now.getFullYear(), now.getMonth(), now.getDate()),
+  };
+}
 
+function summarizeAttendanceDays(
+  scoped: AttendanceDay[],
+  rangeLabel?: string,
+  monthMeta?: { year: number; month: number },
+): AttendancePeriodSummary {
   const workingDays = scoped.filter((d) => d.status !== "holiday" && d.status !== "future").length;
   const present = scoped.filter((d) => d.status === "present").length;
   const absent = scoped.filter((d) => d.status === "absent").length;
   const leave = scoped.filter((d) => d.status === "leave").length;
   const holidays = scoped.filter((d) => d.status === "holiday").length;
-  const attendancePct =
-    workingDays > 0 ? Math.round((present / workingDays) * 100) : 0;
-
-  let rangeLabel: string | undefined;
-  if (range) {
-    rangeLabel = `${formatDisplayDate(range.startIso)} – ${formatDisplayDate(range.endIso)}`;
-  }
+  const attendancePct = workingDays > 0 ? Math.round((present / workingDays) * 100) : 0;
 
   return {
-    monthLabel: monthLabel(year, month),
-    year,
-    month,
+    monthLabel: monthMeta ? monthLabel(monthMeta.year, monthMeta.month) : "",
+    year: monthMeta?.year ?? 0,
+    month: monthMeta?.month ?? 0,
     workingDays,
     present,
     absent,
@@ -188,6 +197,55 @@ export function computeAttendanceSummary(
     attendancePct,
     rangeLabel,
   };
+}
+
+/** Summary for a custom ISO date range (may span multiple months). */
+export function computeAttendanceSummaryForRange(
+  startIso: string,
+  endIso: string,
+  seed = 0,
+): AttendancePeriodSummary {
+  const start = new Date(`${startIso}T12:00:00`);
+  const end = new Date(`${endIso}T12:00:00`);
+  const scoped: AttendanceDay[] = [];
+  const cursor = new Date(start);
+
+  while (cursor <= end) {
+    scoped.push(
+      getAttendanceDayStatus(cursor.getFullYear(), cursor.getMonth(), cursor.getDate(), seed),
+    );
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return summarizeAttendanceDays(
+    scoped,
+    `${formatDisplayDate(startIso)} – ${formatDisplayDate(endIso)}`,
+  );
+}
+
+export function computeAttendanceSummary(
+  days: AttendanceDay[],
+  year: number,
+  month: number,
+  range?: { startIso: string; endIso: string },
+): AttendancePeriodSummary {
+  if (range && !isoRangeIntersectsMonth(range, year, month)) {
+    return summarizeAttendanceDays([], undefined, { year, month });
+  }
+
+  const scoped = range
+    ? days.filter((d) => {
+        const iso = isoFromParts(year, month, d.day);
+        return iso >= range.startIso && iso <= range.endIso;
+      })
+    : days;
+
+  let rangeLabel: string | undefined;
+  if (range) {
+    rangeLabel = `${formatDisplayDate(range.startIso)} – ${formatDisplayDate(range.endIso)}`;
+  }
+
+  return summarizeAttendanceDays(scoped, rangeLabel, { year, month });
 }
 
 export function calendarLeadingBlanks(year: number, month: number) {
@@ -213,7 +271,11 @@ export function listSelectableMonths(count = 12) {
   const items: { year: number; month: number; label: string }[] = [];
   for (let i = 0; i < count; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    items.push({ year: d.getFullYear(), month: d.getMonth(), label: monthLabel(d.getFullYear(), d.getMonth()) });
+    items.push({
+      year: d.getFullYear(),
+      month: d.getMonth(),
+      label: monthLabel(d.getFullYear(), d.getMonth()),
+    });
   }
   return items;
 }

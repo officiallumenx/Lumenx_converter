@@ -41,10 +41,7 @@ import {
   saveInstituteSettingsOverride,
   updateApplicationByInstituteAdmin,
 } from "@/lib/admissions/institute-admin";
-import {
-  getAllApplications,
-  updateApplication,
-} from "@/lib/admissions/repositories";
+import { getAllApplications, updateApplication } from "@/lib/admissions/repositories";
 import { statusLabel } from "@/lib/admissions/mock-data";
 import { statusTone } from "@/lib/admissions/status-utils";
 import type { AdmissionFormField, ApplicationStatus } from "@/lib/admissions/types";
@@ -72,7 +69,10 @@ export function InstituteAdminDashboardPage() {
   const { user, instituteId, profile } = useInstituteContext();
   const apps = getAllApplications();
   const stats = useMemo(() => getInstituteApplicationStats(instituteId, apps), [instituteId, apps]);
-  const recent = useMemo(() => getApplicationsForInstitute(instituteId, apps).slice(0, 5), [instituteId, apps]);
+  const recent = useMemo(
+    () => getApplicationsForInstitute(instituteId, apps).slice(0, 5),
+    [instituteId, apps],
+  );
 
   return (
     <div className="animate-in fade-in duration-300 space-y-6">
@@ -84,7 +84,12 @@ export function InstituteAdminDashboardPage() {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Total applications" value={String(stats.total)} icon={Users} />
         <StatCard label="Pending review" value={String(stats.pending)} icon={Clock} />
-        <StatCard label="Approved" value={String(stats.approved)} icon={CheckCircle2} tone="success" />
+        <StatCard
+          label="Approved"
+          value={String(stats.approved)}
+          icon={CheckCircle2}
+          tone="success"
+        />
         <StatCard label="Rejected" value={String(stats.rejected)} icon={XCircle} tone="warning" />
       </div>
 
@@ -96,7 +101,10 @@ export function InstituteAdminDashboardPage() {
           {profile?.admissionDates.length ? (
             <ul className="space-y-2 text-sm">
               {profile.admissionDates.map((d) => (
-                <li key={d.label} className="flex justify-between border-b border-border pb-2 last:border-0">
+                <li
+                  key={d.label}
+                  className="flex justify-between border-b border-border pb-2 last:border-0"
+                >
                   <span className="text-muted-foreground">{d.label}</span>
                   <span className="font-medium">{d.date}</span>
                 </li>
@@ -116,7 +124,8 @@ export function InstituteAdminDashboardPage() {
           </h2>
           <p className="text-sm text-muted-foreground">
             {getAdmissionForm(instituteId).fields.length} custom field
-            {getAdmissionForm(instituteId).fields.length !== 1 ? "s" : ""} configured for applicants.
+            {getAdmissionForm(instituteId).fields.length !== 1 ? "s" : ""} configured for
+            applicants.
           </p>
           <Button variant="outline" size="sm" className="mt-4" asChild>
             <Link to="/admissions/institute/form">Manage form fields</Link>
@@ -144,7 +153,9 @@ export function InstituteAdminDashboardPage() {
               >
                 <div>
                   <p className="font-medium">{a.student.name}</p>
-                  <p className="text-xs text-muted-foreground">{a.programName} · {a.grade}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {a.programName} · {a.grade}
+                  </p>
                 </div>
                 <Badge variant={statusTone(a.status)}>{statusLabel(a.status)}</Badge>
               </Link>
@@ -168,18 +179,26 @@ export function InstituteApplicationsPage() {
 
   return (
     <div className="animate-in fade-in duration-300">
-      <AdmissionsPageHeader title="Review applications" subtitle={`${list.length} application${list.length !== 1 ? "s" : ""}`} />
+      <AdmissionsPageHeader
+        title="Review applications"
+        subtitle={`${list.length} application${list.length !== 1 ? "s" : ""}`}
+      />
 
       <div className="mb-4">
         <Label className="text-xs text-muted-foreground">Filter by status</Label>
-        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as ApplicationStatus | "all")}>
+        <Select
+          value={statusFilter}
+          onValueChange={(v) => setStatusFilter(v as ApplicationStatus | "all")}
+        >
           <SelectTrigger className="mt-1 max-w-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All statuses</SelectItem>
             {REVIEW_STATUSES.map((s) => (
-              <SelectItem key={s} value={s}>{statusLabel(s)}</SelectItem>
+              <SelectItem key={s} value={s}>
+                {statusLabel(s)}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -196,9 +215,12 @@ export function InstituteApplicationsPage() {
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <p className="font-semibold">{a.student.name}</p>
-                <p className="text-sm text-muted-foreground">{a.id} · {a.programName} · {a.grade}</p>
+                <p className="text-sm text-muted-foreground">
+                  {a.id} · {a.programName} · {a.grade}
+                </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Submitted {a.submittedAt ? new Date(a.submittedAt).toLocaleDateString("en-IN") : "—"}
+                  Submitted{" "}
+                  {a.submittedAt ? new Date(a.submittedAt).toLocaleDateString("en-IN") : "—"}
                 </p>
               </div>
               <Badge variant={statusTone(a.status)}>{statusLabel(a.status)}</Badge>
@@ -206,7 +228,9 @@ export function InstituteApplicationsPage() {
           </Link>
         ))}
         {list.length === 0 && (
-          <p className="py-12 text-center text-sm text-muted-foreground">No applications match this filter.</p>
+          <p className="py-12 text-center text-sm text-muted-foreground">
+            No applications match this filter.
+          </p>
         )}
       </div>
     </div>
@@ -276,16 +300,25 @@ export function InstituteApplicationReviewPage({ applicationId }: { applicationI
           <div className="rounded-2xl border border-border bg-card p-4">
             <h3 className="font-semibold text-sm mb-3">Update status</h3>
             <Select value={status} onValueChange={(v) => setStatus(v as ApplicationStatus)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {REVIEW_STATUSES.map((s) => (
-                  <SelectItem key={s} value={s}>{statusLabel(s)}</SelectItem>
+                  <SelectItem key={s} value={s}>
+                    {statusLabel(s)}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <div className="mt-4 space-y-2">
               <Label className="text-xs">Add admin note</Label>
-              <Textarea value={adminNote} onChange={(e) => setAdminNote(e.target.value)} placeholder="Internal note for this application…" rows={3} />
+              <Textarea
+                value={adminNote}
+                onChange={(e) => setAdminNote(e.target.value)}
+                placeholder="Internal note for this application…"
+                rows={3}
+              />
             </div>
             {savedNotes.length > 0 && (
               <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
@@ -294,12 +327,16 @@ export function InstituteApplicationReviewPage({ applicationId }: { applicationI
                 ))}
               </ul>
             )}
-            <Button className="mt-4 w-full" onClick={saveReview}>Save review</Button>
+            <Button className="mt-4 w-full" onClick={saveReview}>
+              Save review
+            </Button>
           </div>
 
           <div className="rounded-2xl border border-border bg-card p-4">
             <h3 className="font-semibold text-sm mb-3">Timeline</h3>
-            <ApplicationStatusTimeline events={app.timeline.map((e) => ({ label: e.label, at: e.at, note: e.note }))} />
+            <ApplicationStatusTimeline
+              events={app.timeline.map((e) => ({ label: e.label, at: e.at, note: e.note }))}
+            />
           </div>
         </div>
       </div>
@@ -339,7 +376,9 @@ export function InstituteSettingsPage() {
     return (
       <div className="py-12 text-center space-y-3">
         <p className="text-muted-foreground">No institute linked to this account.</p>
-        <Button asChild><Link to="/admissions/institute">Back to dashboard</Link></Button>
+        <Button asChild>
+          <Link to="/admissions/institute">Back to dashboard</Link>
+        </Button>
       </div>
     );
   }
@@ -362,7 +401,11 @@ export function InstituteSettingsPage() {
 
   return (
     <div className="animate-in fade-in duration-300 space-y-6">
-      <AdmissionsPageHeader title="Institute profile" subtitle="Edit public profile & admission dates" backTo="/admissions/institute" />
+      <AdmissionsPageHeader
+        title="Institute profile"
+        subtitle="Edit public profile & admission dates"
+        backTo="/admissions/institute"
+      />
 
       <div className="rounded-2xl border border-border bg-card p-4 sm:p-6 space-y-4">
         <div className="flex items-center gap-3 pb-2 border-b border-border">
@@ -373,13 +416,19 @@ export function InstituteSettingsPage() {
             <p className="font-bold">{display.name}</p>
             <p className="text-xs text-muted-foreground">
               {display.code}
-              {display.city || display.state ? ` · ${display.city}${display.city && display.state ? ", " : ""}${display.state}` : ""}
+              {display.city || display.state
+                ? ` · ${display.city}${display.city && display.state ? ", " : ""}${display.state}`
+                : ""}
             </p>
           </div>
         </div>
 
         <Field label="Tagline">
-          <Input value={tagline} onChange={(e) => setTagline(e.target.value)} placeholder="Short catchy line" />
+          <Input
+            value={tagline}
+            onChange={(e) => setTagline(e.target.value)}
+            placeholder="Short catchy line"
+          />
         </Field>
         <Field label="About">
           <Textarea value={about} onChange={(e) => setAbout(e.target.value)} rows={4} />
@@ -404,9 +453,25 @@ export function InstituteSettingsPage() {
           <div className="space-y-2">
             {dates.map((d, i) => (
               <div key={i} className="flex gap-2 items-start">
-                <Input className="flex-1" placeholder="Label" value={d.label} onChange={(e) => updateDate(i, "label", e.target.value)} />
-                <Input className="flex-1" placeholder="Date" value={d.date} onChange={(e) => updateDate(i, "date", e.target.value)} />
-                <Button type="button" variant="ghost" size="icon" onClick={() => removeDate(i)} aria-label="Remove">
+                <Input
+                  className="flex-1"
+                  placeholder="Label"
+                  value={d.label}
+                  onChange={(e) => updateDate(i, "label", e.target.value)}
+                />
+                <Input
+                  className="flex-1"
+                  placeholder="Date"
+                  value={d.date}
+                  onChange={(e) => updateDate(i, "date", e.target.value)}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => removeDate(i)}
+                  aria-label="Remove"
+                >
                   <Trash2 className="size-4 text-destructive" />
                 </Button>
               </div>
@@ -414,7 +479,9 @@ export function InstituteSettingsPage() {
           </div>
         </div>
 
-        <Button className="w-full sm:w-auto" onClick={save}>Save changes</Button>
+        <Button className="w-full sm:w-auto" onClick={save}>
+          Save changes
+        </Button>
       </div>
     </div>
   );
@@ -445,7 +512,12 @@ export function AdmissionFormBuilderPage() {
       required: newRequired,
       ...(newPlaceholder.trim() ? { placeholder: newPlaceholder.trim() } : {}),
       ...(newType === "select" && newOptions.trim()
-        ? { options: newOptions.split(",").map((o) => o.trim()).filter(Boolean) }
+        ? {
+            options: newOptions
+              .split(",")
+              .map((o) => o.trim())
+              .filter(Boolean),
+          }
         : {}),
     };
     setFields((f) => [...f, field]);
@@ -480,14 +552,25 @@ export function AdmissionFormBuilderPage() {
           <ClipboardList className="size-4 text-primary" /> Add new field
         </h3>
         <Field label="Field name / label">
-          <Input value={newLabel} onChange={(e) => setNewLabel(e.target.value)} placeholder="e.g. Previous school TC number" />
+          <Input
+            value={newLabel}
+            onChange={(e) => setNewLabel(e.target.value)}
+            placeholder="e.g. Previous school TC number"
+          />
         </Field>
         <Field label="Field type">
-          <Select value={newType} onValueChange={(v) => setNewType(v as AdmissionFormField["type"])}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+          <Select
+            value={newType}
+            onValueChange={(v) => setNewType(v as AdmissionFormField["type"])}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               {FORM_FIELD_TYPES.map((t) => (
-                <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                <SelectItem key={t.value} value={t.value}>
+                  {t.label}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -495,24 +578,41 @@ export function AdmissionFormBuilderPage() {
             <p className="text-xs text-muted-foreground mt-1">{selectedTypeMeta.hint}</p>
           )}
         </Field>
-        {(newType === "text" || newType === "textarea" || newType === "number" || newType === "phone" || newType === "email") && (
+        {(newType === "text" ||
+          newType === "textarea" ||
+          newType === "number" ||
+          newType === "phone" ||
+          newType === "email") && (
           <Field label="Placeholder (optional)">
             <Input
               value={newPlaceholder}
               onChange={(e) => setNewPlaceholder(e.target.value)}
               placeholder={
-                newType === "phone" ? "e.g. 9876543210" : newType === "email" ? "you@email.com" : "Hint text for applicant"
+                newType === "phone"
+                  ? "e.g. 9876543210"
+                  : newType === "email"
+                    ? "you@email.com"
+                    : "Hint text for applicant"
               }
             />
           </Field>
         )}
         {newType === "select" && (
           <Field label="Options (comma-separated)">
-            <Input value={newOptions} onChange={(e) => setNewOptions(e.target.value)} placeholder="Yes, No, Maybe" />
+            <Input
+              value={newOptions}
+              onChange={(e) => setNewOptions(e.target.value)}
+              placeholder="Yes, No, Maybe"
+            />
           </Field>
         )}
         <label className="flex items-center gap-2 text-sm cursor-pointer">
-          <input type="checkbox" checked={newRequired} onChange={(e) => setNewRequired(e.target.checked)} className="rounded border-border" />
+          <input
+            type="checkbox"
+            checked={newRequired}
+            onChange={(e) => setNewRequired(e.target.checked)}
+            className="rounded border-border"
+          />
           Mandatory field
         </label>
         <Button type="button" variant="outline" onClick={addField}>
@@ -523,33 +623,46 @@ export function AdmissionFormBuilderPage() {
       <div className="rounded-2xl border border-border bg-card p-4 sm:p-6">
         <h3 className="font-semibold text-sm mb-4">Form fields ({fields.length})</h3>
         {fields.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-6">No fields yet. Add your first field above.</p>
+          <p className="text-sm text-muted-foreground text-center py-6">
+            No fields yet. Add your first field above.
+          </p>
         ) : (
           <div className="space-y-2">
             {fields.map((f) => (
-              <div key={f.id} className="flex flex-wrap items-center gap-2 rounded-xl border border-border p-3">
+              <div
+                key={f.id}
+                className="flex flex-wrap items-center gap-2 rounded-xl border border-border p-3"
+              >
                 <div className="flex-1 min-w-[140px]">
                   <p className="font-medium text-sm">{f.label}</p>
                   <p className="text-xs text-muted-foreground">{formFieldTypeLabel(f.type)}</p>
-                  {f.placeholder && <p className="text-[10px] text-muted-foreground">Placeholder: {f.placeholder}</p>}
+                  {f.placeholder && (
+                    <p className="text-[10px] text-muted-foreground">
+                      Placeholder: {f.placeholder}
+                    </p>
+                  )}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => toggleRequired(f.id)}
-                  className="text-xs"
-                >
+                <button type="button" onClick={() => toggleRequired(f.id)} className="text-xs">
                   <Badge variant={f.required ? "default" : "secondary"}>
                     {f.required ? "Mandatory" : "Optional"}
                   </Badge>
                 </button>
-                <Button type="button" variant="ghost" size="icon" onClick={() => removeField(f.id)} aria-label="Remove field">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => removeField(f.id)}
+                  aria-label="Remove field"
+                >
                   <Trash2 className="size-4 text-destructive" />
                 </Button>
               </div>
             ))}
           </div>
         )}
-        <Button className="mt-4 w-full sm:w-auto" onClick={save}>Save form</Button>
+        <Button className="mt-4 w-full sm:w-auto" onClick={save}>
+          Save form
+        </Button>
       </div>
     </div>
   );

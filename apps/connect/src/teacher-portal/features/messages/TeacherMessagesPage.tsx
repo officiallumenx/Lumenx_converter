@@ -31,8 +31,9 @@ export function TeacherMessagesPage() {
   const [selected, setSelected] = useState<TeacherMessage | null>(null);
   const [to, setTo] = useState("Class 10-B Parents");
   const [role, setRole] = useState<TeacherMessage["recipientRole"]>("class");
-  const [classId, setClassId] = useState("");
-  const [section, setSection] = useState("all");
+  const initialClass = portal.classes[0];
+  const [classNameFilter, setClassNameFilter] = useState(initialClass?.className ?? "");
+  const [sectionFilter, setSectionFilter] = useState(initialClass?.section ?? "");
   const [targets, setTargets] = useState<TeacherMessageTarget[]>([]);
   const [targetId, setTargetId] = useState("");
   const [subject, setSubject] = useState("");
@@ -41,12 +42,13 @@ export function TeacherMessagesPage() {
   const [editDraftId, setEditDraftId] = useState<string | null>(null);
 
   const load = useCallback(
-    (filter?: Tab) => {
+    (filter?: Tab, options?: { silent?: boolean }) => {
       const f = filter ?? tab;
       if (f === "compose") return;
-      setLoading(true);
+      if (!options?.silent) setLoading(true);
       teacherRepository.getMessages(f as "inbox" | "sent" | "drafts" | "archived").then((m) => {
         setMessages(m);
+        setSelected((prev) => (prev ? (m.find((x) => x.id === prev.id) ?? prev) : null));
         setLoading(false);
       });
     },
@@ -65,18 +67,38 @@ export function TeacherMessagesPage() {
   );
   const classes = portal.classes;
 
-  useEffect(() => {
-    if (!classId && classes.length > 0) {
-      setClassId(classes[0].id);
-    }
-  }, [classId, classes]);
+  const classNames = useMemo(
+    () =>
+      [...new Set(classes.map((c) => c.className))].sort((a, b) =>
+        a.localeCompare(b, undefined, { numeric: true }),
+      ),
+    [classes],
+  );
 
-  const sectionOptions = useMemo(() => {
-    if (!classId) return ["all"];
-    const selected = classes.find((item) => item.id === classId);
-    if (!selected) return ["all"];
-    return ["all", selected.section];
-  }, [classId, classes]);
+  const sections = useMemo(
+    () =>
+      [...new Set(classes.filter((c) => c.className === classNameFilter).map((c) => c.section))].sort(),
+    [classes, classNameFilter],
+  );
+
+  const classId = useMemo(
+    () =>
+      classes.find((c) => c.className === classNameFilter && c.section === sectionFilter)?.id ?? "",
+    [classes, classNameFilter, sectionFilter],
+  );
+
+  useEffect(() => {
+    if (!classNameFilter && classes[0]) {
+      setClassNameFilter(classes[0].className);
+      setSectionFilter(classes[0].section);
+    }
+  }, [classNameFilter, classes]);
+
+  useEffect(() => {
+    if (!sections.includes(sectionFilter) && sections[0]) {
+      setSectionFilter(sections[0]);
+    }
+  }, [sections, sectionFilter]);
 
   useEffect(() => {
     if (tab !== "compose") return;
@@ -91,7 +113,7 @@ export function TeacherMessagesPage() {
       .getMessageTargets({
         role,
         classId: classId || undefined,
-        section: section === "all" ? undefined : section,
+        section: sectionFilter || undefined,
       })
       .then((items) => {
         setTargets(items);
@@ -108,7 +130,7 @@ export function TeacherMessagesPage() {
         setTargetId(items[0].id);
         setTo(items[0].label);
       });
-  }, [tab, role, classId, section, targetId]);
+  }, [tab, role, classId, sectionFilter, targetId]);
 
   const resetCompose = useCallback(() => {
     setSubject("");
@@ -116,8 +138,8 @@ export function TeacherMessagesPage() {
     setEditDraftId(null);
     setTo("Class 10-B Parents");
     setRole("class");
-    setClassId(classes[0]?.id ?? "");
-    setSection("all");
+    setClassNameFilter(classes[0]?.className ?? "");
+    setSectionFilter(classes[0]?.section ?? "");
     setTargetId("");
   }, [classes]);
 
@@ -136,6 +158,7 @@ export function TeacherMessagesPage() {
         return;
       }
       await teacherRepository.sendMessage({
+        id: editDraftId ?? undefined,
         to,
         recipientRole: role,
         subject: subject.trim(),
@@ -146,7 +169,7 @@ export function TeacherMessagesPage() {
       resetCompose();
       setTab(draft ? "drafts" : "sent");
     },
-    [to, role, subject, body, resetCompose],
+    [to, role, subject, body, editDraftId, resetCompose],
   );
 
   const { run: send, pending: sending } = useAsyncAction(sendFn);
@@ -223,39 +246,45 @@ export function TeacherMessagesPage() {
             </SelectContent>
           </Select>
           {(role === "parent" || role === "student" || role === "class") && (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-2 gap-2">
               <Select
-                value={classId}
+                value={classNameFilter}
                 onValueChange={(value) => {
-                  setClassId(value);
+                  setClassNameFilter(value);
+                  const nextSections = classes
+                    .filter((c) => c.className === value)
+                    .map((c) => c.section);
+                  if (!nextSections.includes(sectionFilter)) {
+                    setSectionFilter(nextSections[0] ?? "");
+                  }
                   setTargetId("");
                 }}
               >
-                <SelectTrigger className="rounded-xl">
-                  <SelectValue placeholder="Class / section" />
+                <SelectTrigger className="h-10 rounded-xl">
+                  <SelectValue placeholder="Class" />
                 </SelectTrigger>
                 <SelectContent position="popper" className="z-[100]">
-                  {classes.map((item) => (
-                    <SelectItem key={item.id} value={item.id}>
-                      Class {item.className}-{item.section}
+                  {classNames.map((name) => (
+                    <SelectItem key={name} value={name}>
+                      Class {name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <Select
-                value={section}
+                value={sectionFilter}
                 onValueChange={(value) => {
-                  setSection(value);
+                  setSectionFilter(value);
                   setTargetId("");
                 }}
               >
-                <SelectTrigger className="rounded-xl">
+                <SelectTrigger className="h-10 rounded-xl">
                   <SelectValue placeholder="Section" />
                 </SelectTrigger>
                 <SelectContent position="popper" className="z-[100]">
-                  {sectionOptions.map((sec) => (
+                  {sections.map((sec) => (
                     <SelectItem key={sec} value={sec}>
-                      {sec === "all" ? "All sections" : `Section ${sec}`}
+                      Section {sec}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -345,7 +374,12 @@ export function TeacherMessagesPage() {
                       type="button"
                       onClick={() => {
                         setSelected(m);
-                        if (m.unread) teacherRepository.markMessageRead(m.id).then(() => load(tab));
+                        if (m.unread) {
+                          setMessages((prev) =>
+                            prev.map((msg) => (msg.id === m.id ? { ...msg, unread: false } : msg)),
+                          );
+                          teacherRepository.markMessageRead(m.id).then(() => load(tab, { silent: true }));
+                        }
                         if (tab === "drafts") openDraft(m);
                       }}
                       className={cn(

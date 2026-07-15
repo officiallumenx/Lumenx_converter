@@ -1,6 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
-import { Card, CardHeader, Button, Pill, Field, TextInput, TextArea, Select } from "@lumenx/ui-admin";
+import { IconChip } from "@/components/IconChip";
+import {
+  Card,
+  CardHeader,
+  Button,
+  Pill,
+  Field,
+  TextInput,
+  TextArea,
+  Select,
+} from "@lumenx/ui-admin";
 import { Send, Users, GraduationCap, Heart, Bell } from "lucide-react";
 import { useState } from "react";
 import { useAdminToast } from "@/components/AdminActionToast";
@@ -19,10 +29,34 @@ type Broadcast = {
 };
 
 const INITIAL: Broadcast[] = [
-  { id: "1", title: "Exam schedule released — Term 2", audience: "All Students, All Parents", time: "2h ago", priority: "high" },
-  { id: "2", title: "PTM rescheduled to Saturday", audience: "Grade 9–10 Parents", time: "Yesterday", priority: "normal" },
-  { id: "3", title: "Sports day participation form", audience: "All Students", time: "2d ago", priority: "normal" },
-  { id: "4", title: "Emergency: School closed tomorrow", audience: "Everyone", time: "1w ago", priority: "critical" },
+  {
+    id: "1",
+    title: "Exam schedule released — Term 2",
+    audience: "All Students, All Parents",
+    time: "2h ago",
+    priority: "high",
+  },
+  {
+    id: "2",
+    title: "PTM rescheduled to Saturday",
+    audience: "Grade 9–10 Parents",
+    time: "Yesterday",
+    priority: "normal",
+  },
+  {
+    id: "3",
+    title: "Sports day participation form",
+    audience: "All Students",
+    time: "2d ago",
+    priority: "normal",
+  },
+  {
+    id: "4",
+    title: "Emergency: School closed tomorrow",
+    audience: "Everyone",
+    time: "1w ago",
+    priority: "critical",
+  },
 ];
 
 const AUDIENCES = ["Students", "Teachers", "Parents", "All"] as const;
@@ -62,10 +96,19 @@ function NotificationsPage() {
           <CardHeader title="Compose Broadcast" />
           <div className="px-5 pb-5 space-y-4">
             <Field label="Title" required>
-              <TextInput value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Mid-term exam schedule" />
+              <TextInput
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g. Mid-term exam schedule"
+              />
             </Field>
             <Field label="Message">
-              <TextArea rows={4} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Write your announcement…" />
+              <TextArea
+                rows={4}
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Write your announcement…"
+              />
             </Field>
             <Field label="Audience">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-1">
@@ -83,10 +126,13 @@ function NotificationsPage() {
                       type="button"
                       onClick={() => setAudience(a.label)}
                       className={`flex items-center justify-center gap-2 h-10 rounded-md border text-xs font-medium transition-colors ${
-                        active ? "border-primary bg-primary/10 text-primary" : "border-border bg-background hover:bg-surface-hover"
+                        active
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border bg-background hover:bg-surface-hover"
                       }`}
                     >
-                      <Icon className="size-3.5" /> {a.label}
+                      <IconChip icon={Icon} size="xs" variant="soft" active={active} />
+                      {a.label}
                     </button>
                   );
                 })}
@@ -94,14 +140,20 @@ function NotificationsPage() {
             </Field>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Priority">
-                <Select value={priority} onChange={(e) => setPriority(e.target.value as typeof priority)}>
+                <Select
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value as typeof priority)}
+                >
                   <option value="normal">Normal</option>
                   <option value="high">High</option>
                   <option value="critical">Critical (Push)</option>
                 </Select>
               </Field>
               <Field label="Schedule">
-                <Select value={schedule} onChange={(e) => setSchedule(e.target.value as typeof schedule)}>
+                <Select
+                  value={schedule}
+                  onChange={(e) => setSchedule(e.target.value as typeof schedule)}
+                >
                   <option value="now">Send now</option>
                   <option value="later">Schedule for later</option>
                 </Select>

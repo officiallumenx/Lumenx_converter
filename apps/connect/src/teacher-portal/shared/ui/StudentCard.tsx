@@ -55,7 +55,9 @@ export function StudentCard({
           {student.avgScore}%
         </Badge>
         <span className="text-[10px] text-muted-foreground">{student.attendancePct}% att.</span>
-        <span className="text-[10px] text-muted-foreground">{student.homeworkSubmissionPct}% hw</span>
+        <span className="text-[10px] text-muted-foreground">
+          {student.homeworkSubmissionPct}% hw
+        </span>
       </div>
       <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
     </Link>

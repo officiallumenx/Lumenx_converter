@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "@lumenx/ui";
+import { getInitials } from "@lumenx/utils";
 import {
   Accordion,
   AccordionContent,
@@ -38,13 +39,24 @@ export function DocumentCenterPage() {
 
   if (apps.length === 0) {
     return (
-      <EmptyState title="No documents yet" hint="Submit an application to manage documents." action={<Button asChild><Link to="/admissions/apply">Apply now</Link></Button>} />
+      <EmptyState
+        title="No documents yet"
+        hint="Submit an application to manage documents."
+        action={
+          <Button asChild>
+            <Link to="/admissions/apply">Apply now</Link>
+          </Button>
+        }
+      />
     );
   }
 
   return (
     <div className="animate-in fade-in duration-300">
-      <AdmissionsPageHeader title="Required documents" subtitle="Upload, replace, and track verification" />
+      <AdmissionsPageHeader
+        title="Required documents"
+        subtitle="Upload, replace, and track verification"
+      />
       <div className="mb-4 space-y-2">
         <Label className="text-xs">Application</Label>
         <select
@@ -53,7 +65,9 @@ export function DocumentCenterPage() {
           onChange={(e) => setSelected(e.target.value)}
         >
           {apps.map((a) => (
-            <option key={a.id} value={a.id}>{a.id} — {a.student.name}</option>
+            <option key={a.id} value={a.id}>
+              {a.id} — {a.student.name}
+            </option>
           ))}
         </select>
       </div>
@@ -95,16 +109,23 @@ export function AdmissionsNotificationsPage() {
   const [filter, setFilter] = useState<(typeof NOTIF_FILTERS)[number]["key"]>("all");
   const [tick, setTick] = useState(0);
   const items = user ? getNotifications(user.id) : [];
-  const filtered = filter === "all"
-    ? items
-    : items.filter((n) =>
-        filter === "approval"
-          ? n.type === "approval" || n.type === "rejection"
-          : n.type === filter,
-      );
+  const filtered =
+    filter === "all"
+      ? items
+      : items.filter((n) =>
+          filter === "approval"
+            ? n.type === "approval" || n.type === "rejection"
+            : n.type === filter,
+        );
 
   if (items.length === 0) {
-    return <EmptyState icon={<Bell className="size-6" />} title="No notifications" hint="Updates about your applications will appear here." />;
+    return (
+      <EmptyState
+        icon={<Bell className="size-6" />}
+        title="No notifications"
+        hint="Updates about your applications will appear here."
+      />
+    );
   }
 
   return (
@@ -141,22 +162,28 @@ export function AdmissionsNotificationsPage() {
       </div>
       <div className="space-y-2" key={tick}>
         {filtered.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-8 text-center">No notifications in this category.</p>
-        ) : filtered.map((n) => (
-          <button
-            key={n.id}
-            type="button"
-            onClick={() => {
-              markNotificationRead(n.id);
-              setTick((t) => t + 1);
-            }}
-            className={`w-full rounded-2xl border p-4 text-left transition-colors ${n.read ? "border-border bg-card" : "border-primary/20 bg-primary/5"}`}
-          >
-            <p className="font-medium text-sm">{n.title}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{n.body}</p>
-            <p className="mt-2 text-[10px] text-muted-foreground">{new Date(n.createdAt).toLocaleString("en-IN")}</p>
-          </button>
-        ))}
+          <p className="text-sm text-muted-foreground py-8 text-center">
+            No notifications in this category.
+          </p>
+        ) : (
+          filtered.map((n) => (
+            <button
+              key={n.id}
+              type="button"
+              onClick={() => {
+                markNotificationRead(n.id);
+                setTick((t) => t + 1);
+              }}
+              className={`w-full rounded-2xl border p-4 text-left transition-colors ${n.read ? "border-border bg-card" : "border-primary/20 bg-primary/5"}`}
+            >
+              <p className="font-medium text-sm">{n.title}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{n.body}</p>
+              <p className="mt-2 text-[10px] text-muted-foreground">
+                {new Date(n.createdAt).toLocaleString("en-IN")}
+              </p>
+            </button>
+          ))
+        )}
       </div>
     </div>
   );
@@ -180,12 +207,20 @@ export function FaqPage() {
         if (items.length === 0) return null;
         return (
           <div key={cat.key} className="mb-6">
-            <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">{cat.label}</h2>
-            <Accordion type="single" collapsible className="rounded-2xl border border-border bg-card px-4">
+            <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              {cat.label}
+            </h2>
+            <Accordion
+              type="single"
+              collapsible
+              className="rounded-2xl border border-border bg-card px-4"
+            >
               {items.map((f) => (
                 <AccordionItem key={f.id} value={f.id}>
                   <AccordionTrigger className="text-sm text-left">{f.question}</AccordionTrigger>
-                  <AccordionContent className="text-sm text-muted-foreground">{f.answer}</AccordionContent>
+                  <AccordionContent className="text-sm text-muted-foreground">
+                    {f.answer}
+                  </AccordionContent>
                 </AccordionItem>
               ))}
             </Accordion>
@@ -203,10 +238,18 @@ export function ContactAdmissionsPage() {
     <div className="animate-in fade-in duration-300">
       <AdmissionsPageHeader title="Contact admissions" subtitle="We're here to help" />
       <div className="mb-6 space-y-3 rounded-2xl border border-border bg-card p-4 text-sm">
-        <p><strong>Phone:</strong> {ADMISSIONS_CONTACT.phone}</p>
-        <p><strong>Email:</strong> {ADMISSIONS_CONTACT.email}</p>
-        <p><strong>Office hours:</strong> {ADMISSIONS_CONTACT.officeHours}</p>
-        <p><strong>Address:</strong> {ADMISSIONS_CONTACT.address}</p>
+        <p>
+          <strong>Phone:</strong> {ADMISSIONS_CONTACT.phone}
+        </p>
+        <p>
+          <strong>Email:</strong> {ADMISSIONS_CONTACT.email}
+        </p>
+        <p>
+          <strong>Office hours:</strong> {ADMISSIONS_CONTACT.officeHours}
+        </p>
+        <p>
+          <strong>Address:</strong> {ADMISSIONS_CONTACT.address}
+        </p>
       </div>
 
       {sent ? (
@@ -236,7 +279,9 @@ export function ContactAdmissionsPage() {
             <Label>Message</Label>
             <Textarea required placeholder="How can we help?" rows={4} />
           </div>
-          <Button type="submit" className="w-full">Send inquiry</Button>
+          <Button type="submit" className="w-full">
+            Send inquiry
+          </Button>
         </form>
       )}
     </div>
@@ -260,7 +305,11 @@ export function AdmissionsProfilePage() {
       />
       <div className="rounded-2xl border border-border bg-card p-6">
         <div className="flex size-16 items-center justify-center rounded-2xl bg-primary/10 text-2xl font-bold text-primary">
-          {isInstituteAdmin ? <Building2 className="size-8" /> : user.name.split(" ").map((p) => p[0]).slice(0, 2).join("")}
+          {isInstituteAdmin ? (
+            <Building2 className="size-8" />
+          ) : (
+            getInitials(user.name, 2)
+          )}
         </div>
         <h2 className="mt-4 text-xl font-bold">{user.name}</h2>
         {user.email && <p className="text-sm text-muted-foreground">{user.email}</p>}
@@ -268,8 +317,12 @@ export function AdmissionsProfilePage() {
 
         {isInstituteAdmin && (
           <div className="mt-6 space-y-4 rounded-xl border border-border bg-muted/30 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Institute details</p>
-            <p className="font-semibold">{user.instituteName ?? institute?.name ?? "Your institute"}</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Institute details
+            </p>
+            <p className="font-semibold">
+              {user.instituteName ?? institute?.name ?? "Your institute"}
+            </p>
             {institute && (
               <>
                 <p className="flex items-start gap-2 text-sm text-muted-foreground">
@@ -297,10 +350,15 @@ export function AdmissionsProfilePage() {
                 <span className="font-medium">{user.profileComplete}%</span>
               </div>
               <div className="h-2 rounded-full bg-muted overflow-hidden">
-                <div className="h-full bg-primary rounded-full" style={{ width: `${user.profileComplete}%` }} />
+                <div
+                  className="h-full bg-primary rounded-full"
+                  style={{ width: `${user.profileComplete}%` }}
+                />
               </div>
             </div>
-            <p className="text-sm text-muted-foreground">{apps.length} application{apps.length !== 1 ? "s" : ""}</p>
+            <p className="text-sm text-muted-foreground">
+              {apps.length} application{apps.length !== 1 ? "s" : ""}
+            </p>
           </div>
         )}
       </div>
@@ -320,20 +378,44 @@ export function AdmissionsSettingsPage() {
         <div className="rounded-2xl border border-border bg-card p-4">
           <p className="text-sm font-medium mb-3">Theme</p>
           <div className="flex gap-2">
-            <Button size="sm" variant={theme === "light" ? "default" : "outline"} onClick={() => setTheme("light")}>
+            <Button
+              size="sm"
+              variant={theme === "light" ? "default" : "outline"}
+              onClick={() => setTheme("light")}
+            >
               Light
             </Button>
-            <Button size="sm" variant={theme === "dark" ? "default" : "outline"} onClick={() => setTheme("dark")}>
+            <Button
+              size="sm"
+              variant={theme === "dark" ? "default" : "outline"}
+              onClick={() => setTheme("dark")}
+            >
               Dark
             </Button>
           </div>
-          <p className="mt-2 text-xs text-muted-foreground">Default is light mode for admissions.</p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Default is light mode for admissions.
+          </p>
         </div>
         <div className="rounded-2xl border border-border bg-card p-4 text-sm space-y-2">
           <p className="font-medium">Legal</p>
-          <p className="text-muted-foreground">Privacy Policy · Terms of Service (demo placeholders)</p>
+          <div className="flex flex-wrap gap-x-4 gap-y-2">
+            <Link to="/admissions/terms" className="text-primary font-medium hover:underline">
+              Terms & Conditions
+            </Link>
+            <Link to="/admissions/privacy" className="text-primary font-medium hover:underline">
+              Privacy Policy
+            </Link>
+          </div>
         </div>
-        <Button variant="destructive" className="w-full" onClick={() => { signOut(); nav({ to: "/admissions/login" }); }}>
+        <Button
+          variant="destructive"
+          className="w-full"
+          onClick={() => {
+            signOut();
+            nav({ to: "/admissions/login" });
+          }}
+        >
           Log out
         </Button>
       </div>

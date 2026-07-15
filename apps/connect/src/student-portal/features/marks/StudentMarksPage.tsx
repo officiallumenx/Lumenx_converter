@@ -57,7 +57,11 @@ export function StudentMarksPage() {
               value={analytics.overall}
               tone={analytics.overallPass ? "success" : "warning"}
             />
-            <AnalyticsStat label="Subjects passed" value={`${analytics.passed}/${analytics.total}`} tone="success" />
+            <AnalyticsStat
+              label="Subjects passed"
+              value={`${analytics.passed}/${analytics.total}`}
+              tone="success"
+            />
             <AnalyticsStat
               label="Subjects failed"
               value={String(analytics.failed)}
@@ -71,8 +75,8 @@ export function StudentMarksPage() {
             />
           </div>
           <div className="mt-3 flex justify-end">
-            <Link to="/academic-history" className="text-xs text-primary inline-flex items-center gap-1 hover:underline">
-              Full academic history <ArrowRight className="size-3" />
+            <Link to="/academic-history" className="student-section-link whitespace-nowrap">
+              Full academic history <ArrowRight className="size-3 shrink-0" aria-hidden />
             </Link>
           </div>
         </SectionCard>
@@ -110,9 +114,9 @@ function AnalyticsStat({
   }[tone];
   return (
     <div className={cn("rounded-xl border bg-muted/20 p-3", toneCls)}>
-      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="student-stat-label">{label}</div>
       <div className="mt-0.5 font-display text-xl font-semibold tabular-nums">{value}</div>
-      {hint && <div className="mt-0.5 truncate text-[10px] text-muted-foreground">{hint}</div>}
+      {hint && <div className="mt-0.5 truncate text-xs text-muted-foreground">{hint}</div>}
     </div>
   );
 }

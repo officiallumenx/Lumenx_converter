@@ -13,7 +13,7 @@ export function ParentTransportPage() {
 
   useEffect(() => {
     if (portal.isParent) {
-      transportStore.init(activeChildId);
+      transportStore.init(activeChildId, "parent");
     }
   }, [portal.isParent, activeChildId]);
 

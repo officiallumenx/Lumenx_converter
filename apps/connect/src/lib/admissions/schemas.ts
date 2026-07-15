@@ -43,9 +43,24 @@ export const signUpProfileSchema = z.object({
   email: z.string().email().optional().or(z.literal("")),
 });
 
-export const passwordSchema = z
-  .string()
-  .min(6, "Password must be at least 6 characters");
+export const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
+
+export const termsAcceptanceSchema = z.object({
+  acceptedTerms: z.literal(true, {
+    errorMap: () => ({
+      message: "You must accept the Terms & Conditions and Privacy Policy.",
+    }),
+  }),
+});
+
+export const signupWithTermsSchema = z.object({
+  password: passwordSchema,
+  acceptedTerms: z.literal(true, {
+    errorMap: () => ({
+      message: "You must accept the Terms & Conditions and Privacy Policy.",
+    }),
+  }),
+});
 
 export const signInSchema = z.object({
   identifier: z.string().min(3, "Enter mobile or email"),

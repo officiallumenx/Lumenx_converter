@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarFallback, Badge } from "@lumenx/ui";
 import { cn } from "@lumenx/ui";
+import { getInitials } from "@lumenx/utils";
 import type { StudentIdQrPayload } from "@/lib/student/id-card-qr-payload";
 
 type StudentVerifyViewProps = {
@@ -22,14 +23,18 @@ type StudentVerifyViewProps = {
 };
 
 export function StudentVerifyView({ profile, compact = false }: StudentVerifyViewProps) {
-  const { identity, academic, progressReports, achievements, certificates, competitions, examHistory, attendance } =
-    profile;
+  const {
+    identity,
+    academic,
+    progressReports,
+    achievements,
+    certificates,
+    competitions,
+    examHistory,
+    attendance,
+  } = profile;
 
-  const initials = identity.name
-    .split(" ")
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join("");
+  const initials = getInitials(identity.name, 2);
 
   const validDate = new Date(identity.idCardValidTill);
   const isExpired = !Number.isNaN(validDate.getTime()) && validDate < new Date();
@@ -44,9 +49,16 @@ export function StudentVerifyView({ profile, compact = false }: StudentVerifyVie
             : "border-emerald-500/30 bg-emerald-500/10",
         )}
       >
-        <ShieldCheck className={cn("size-5 shrink-0", isExpired ? "text-amber-600" : "text-emerald-600")} />
+        <ShieldCheck
+          className={cn("size-5 shrink-0", isExpired ? "text-amber-600" : "text-emerald-600")}
+        />
         <div>
-          <p className={cn("text-sm font-semibold", isExpired ? "text-amber-800" : "text-emerald-800")}>
+          <p
+            className={cn(
+              "text-sm font-semibold",
+              isExpired ? "text-amber-800" : "text-emerald-800",
+            )}
+          >
             {isExpired ? "ID expired — contact school office" : "Official school student record"}
           </p>
           <p className="text-xs text-muted-foreground">
@@ -77,9 +89,25 @@ export function StudentVerifyView({ profile, compact = false }: StudentVerifyVie
         <dl className="grid grid-cols-2 gap-px border-t border-border bg-border text-sm">
           <InfoCell icon={Building2} label="House" value={identity.house} />
           <InfoCell icon={Droplets} label="Blood group" value={identity.bloodGroup} />
-          <InfoCell icon={Users} label="Parent" value={identity.parentName} className="col-span-2" />
-          <InfoCell icon={Phone} label="Emergency" value={identity.emergencyContact} className="col-span-2" />
-          <InfoCell icon={MapPin} label="Address" value={identity.address} className="col-span-2" multiline />
+          <InfoCell
+            icon={Users}
+            label="Parent"
+            value={identity.parentName}
+            className="col-span-2"
+          />
+          <InfoCell
+            icon={Phone}
+            label="Emergency"
+            value={identity.emergencyContact}
+            className="col-span-2"
+          />
+          <InfoCell
+            icon={MapPin}
+            label="Address"
+            value={identity.address}
+            className="col-span-2"
+            multiline
+          />
         </dl>
       </section>
 
@@ -149,7 +177,10 @@ export function StudentVerifyView({ profile, compact = false }: StudentVerifyVie
         <VerifySection icon={Award} title="Certificates">
           <ul className="space-y-2">
             {certificates.map((c) => (
-              <li key={c.refNo} className="rounded-xl border border-border/80 bg-muted/20 p-3 text-sm">
+              <li
+                key={c.refNo}
+                className="rounded-xl border border-border/80 bg-muted/20 p-3 text-sm"
+              >
                 <p className="font-semibold">{c.title}</p>
                 <p className="text-xs text-muted-foreground">
                   {c.issuer} · {c.issuedOn} · {c.refNo}
@@ -178,7 +209,8 @@ export function StudentVerifyView({ profile, compact = false }: StudentVerifyVie
 
       <VerifySection icon={ClipboardCheck} title="Exams & attendance">
         <p className="mb-2 text-sm text-muted-foreground">
-          {attendance.monthLabel}: {attendance.pct}% ({attendance.present} present / {attendance.workingDays} days)
+          {attendance.monthLabel}: {attendance.pct}% ({attendance.present} present /{" "}
+          {attendance.workingDays} days)
         </p>
         {examHistory.length > 0 && (
           <ul className="space-y-1.5 text-sm">
@@ -226,7 +258,9 @@ function VerifySection({
 function StatPill({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl bg-muted/40 px-2 py-2 text-center">
-      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
       <p className="mt-0.5 text-sm font-bold">{value}</p>
     </div>
   );
@@ -249,8 +283,12 @@ function InfoCell({
     <div className={cn("flex gap-2.5 bg-card px-4 py-3", className)}>
       <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
       <div className="min-w-0">
-        <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</dt>
-        <dd className={cn("mt-0.5 text-sm font-medium", multiline && "leading-relaxed")}>{value}</dd>
+        <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {label}
+        </dt>
+        <dd className={cn("mt-0.5 text-sm font-medium", multiline && "leading-relaxed")}>
+          {value}
+        </dd>
       </div>
     </div>
   );

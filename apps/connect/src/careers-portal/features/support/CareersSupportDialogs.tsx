@@ -27,7 +27,13 @@ import {
   CAREERS_SETTINGS_FAQS,
 } from "@/careers-portal/features/support/careers-support-content";
 
-export function CareersFaqDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+export function CareersFaqDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+}) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85dvh] overflow-y-auto rounded-2xl sm:max-w-lg">
@@ -38,7 +44,9 @@ export function CareersFaqDialog({ open, onOpenChange }: { open: boolean; onOpen
           {CAREERS_SETTINGS_FAQS.map((item, i) => (
             <AccordionItem key={item.q} value={`faq-${i}`}>
               <AccordionTrigger className="text-left text-sm">{item.q}</AccordionTrigger>
-              <AccordionContent className="text-sm text-muted-foreground">{item.a}</AccordionContent>
+              <AccordionContent className="text-sm text-muted-foreground">
+                {item.a}
+              </AccordionContent>
             </AccordionItem>
           ))}
         </Accordion>
@@ -63,7 +71,9 @@ export function CareersHelpCenterDialog({
         <Accordion type="single" collapsible className="w-full">
           {CAREERS_HELP_TOPICS.map((topic, i) => (
             <AccordionItem key={topic.title} value={`help-${i}`}>
-              <AccordionTrigger className="text-left text-sm font-medium">{topic.title}</AccordionTrigger>
+              <AccordionTrigger className="text-left text-sm font-medium">
+                {topic.title}
+              </AccordionTrigger>
               <AccordionContent className="text-sm leading-relaxed text-muted-foreground">
                 {topic.body}
               </AccordionContent>
@@ -100,7 +110,8 @@ export function CareersContactSupportDialog({
           <DialogTitle>Contact support</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
-          Reach the Careers team for portal help, application questions, or account issues. We typically respond within 1–2 business days.
+          Reach the Careers team for portal help, application questions, or account issues. We
+          typically respond within 1–2 business days.
         </p>
         <div className="space-y-3">
           <div className="rounded-xl border bg-muted/30 p-4">
@@ -119,10 +130,18 @@ export function CareersContactSupportDialog({
           <p className="text-xs text-muted-foreground">{CAREERS_CONTACT.address}</p>
         </div>
         <DialogFooter className="flex-col gap-2 sm:flex-row sm:flex-wrap">
-          <Button variant="outline" className="rounded-xl gap-2" onClick={() => void copy(CAREERS_CONTACT.phone, "Phone number")}>
+          <Button
+            variant="outline"
+            className="rounded-xl gap-2"
+            onClick={() => void copy(CAREERS_CONTACT.phone, "Phone number")}
+          >
             <Copy className="size-4" /> Copy phone
           </Button>
-          <Button variant="outline" className="rounded-xl gap-2" onClick={() => void copy(CAREERS_CONTACT.email, "Email")}>
+          <Button
+            variant="outline"
+            className="rounded-xl gap-2"
+            onClick={() => void copy(CAREERS_CONTACT.email, "Email")}
+          >
             <Copy className="size-4" /> Copy email
           </Button>
           <Button asChild className="rounded-xl gap-2">
@@ -141,7 +160,13 @@ export function CareersContactSupportDialog({
   );
 }
 
-export function CareersFeedbackDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+export function CareersFeedbackDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+}) {
   const [category, setCategory] = useState("general");
   const [message, setMessage] = useState("");
 

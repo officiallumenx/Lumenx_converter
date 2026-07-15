@@ -9,7 +9,10 @@ import { useAdmissionsAuth } from "@/admissions-portal/core/AdmissionsAuthProvid
 import { getInstituteById, INSTITUTE_KIND_LABEL } from "@/lib/admissions/institutes-data";
 import { getInstituteProfileExtended } from "@/lib/admissions/institute-profiles";
 import { getProgramsForInstitute } from "@/lib/admissions/programs-data";
-import { InstituteLogoBadge, useInstituteSave } from "@/admissions-portal/shared/ui/v2/AdmissionsV2Widgets";
+import {
+  InstituteLogoBadge,
+  useInstituteSave,
+} from "@/admissions-portal/shared/ui/v2/AdmissionsV2Widgets";
 
 export function InstituteProfilePage({ instituteId }: { instituteId: string }) {
   const institute = getInstituteById(instituteId);
@@ -22,7 +25,9 @@ export function InstituteProfilePage({ instituteId }: { instituteId: string }) {
     return (
       <div className="py-12 text-center">
         <p className="text-muted-foreground">Institute not found.</p>
-        <Button className="mt-4" asChild><Link to="/admissions/institutes">Browse institutes</Link></Button>
+        <Button className="mt-4" asChild>
+          <Link to="/admissions/institutes">Browse institutes</Link>
+        </Button>
       </div>
     );
   }
@@ -31,32 +36,56 @@ export function InstituteProfilePage({ instituteId }: { instituteId: string }) {
   const applyTarget =
     user?.accountType === "parent"
       ? { to: "/admissions/apply" as const, search: applySearch }
-      : { to: "/admissions/login" as const, search: { redirect: "/admissions/apply", ...applySearch } };
+      : {
+          to: "/admissions/login" as const,
+          search: { redirect: "/admissions/apply", ...applySearch },
+        };
 
   return (
     <div className="animate-in fade-in duration-300 space-y-8 pb-8">
-      <AdmissionsPageHeader title={institute.name} subtitle={`${institute.city}, ${institute.state}`} backTo="/admissions/institutes" />
+      <AdmissionsPageHeader
+        title={institute.name}
+        subtitle={`${institute.city}, ${institute.state}`}
+        backTo="/admissions/institutes"
+      />
 
       {/* Hero */}
-      <section className={cn("relative overflow-hidden rounded-3xl bg-gradient-to-br border border-border p-6 sm:p-8", institute.imageGradient)}>
+      <section
+        className={cn(
+          "relative overflow-hidden rounded-3xl bg-gradient-to-br border border-border p-6 sm:p-8",
+          institute.imageGradient,
+        )}
+      >
         <div className="relative z-10 flex flex-col sm:flex-row gap-6 items-start">
           <InstituteLogoBadge instituteId={instituteId} size="lg" />
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap gap-2 text-xs">
               <Badge>{INSTITUTE_KIND_LABEL[institute.kind]}</Badge>
-              <span className="flex items-center gap-1 text-muted-foreground"><Star className="size-3 fill-primary text-primary" /> {institute.rating}</span>
+              <span className="flex items-center gap-1 text-muted-foreground">
+                <Star className="size-3 fill-primary text-primary" /> {institute.rating}
+              </span>
               <span className="text-muted-foreground">Est. {institute.established}</span>
             </div>
             <h2 className="mt-2 font-display text-2xl font-bold sm:text-3xl">{institute.name}</h2>
-            <p className="mt-2 text-sm text-muted-foreground max-w-2xl">{ext?.shortDescription ?? institute.tagline}</p>
-            <p className="mt-2 flex items-center gap-1 text-sm"><MapPin className="size-4" /> {institute.contact.address}</p>
+            <p className="mt-2 text-sm text-muted-foreground max-w-2xl">
+              {ext?.shortDescription ?? institute.tagline}
+            </p>
+            <p className="mt-2 flex items-center gap-1 text-sm">
+              <MapPin className="size-4" /> {institute.contact.address}
+            </p>
             <div className="mt-4 flex flex-wrap gap-2">
               {user?.accountType !== "institute_admin" && (
-                <Button asChild><Link to={applyTarget.to} search={applyTarget.search}>Apply now <ArrowRight className="size-4 ml-1" /></Link></Button>
+                <Button asChild>
+                  <Link to={applyTarget.to} search={applyTarget.search}>
+                    Apply now <ArrowRight className="size-4 ml-1" />
+                  </Link>
+                </Button>
               )}
               {canSave && (
                 <Button variant="outline" onClick={toggle}>
-                  <Heart className={cn("size-4 mr-1", saved && "fill-destructive text-destructive")} />
+                  <Heart
+                    className={cn("size-4 mr-1", saved && "fill-destructive text-destructive")}
+                  />
                   {saved ? "Saved" : "Save institute"}
                 </Button>
               )}
@@ -70,7 +99,10 @@ export function InstituteProfilePage({ instituteId }: { instituteId: string }) {
           { label: "Programs", value: String(institute.programsCount) },
           { label: "Seats open", value: String(institute.seatsOpen) },
           { label: "Rating", value: String(institute.rating) },
-          { label: "Accreditation", value: institute.accreditation.split("·")[0]?.trim() ?? institute.accreditation },
+          {
+            label: "Accreditation",
+            value: institute.accreditation.split("·")[0]?.trim() ?? institute.accreditation,
+          },
         ].map((s) => (
           <div key={s.label} className="rounded-xl border border-border bg-card p-3 text-center">
             <p className="text-lg font-bold">{s.value}</p>
@@ -83,9 +115,18 @@ export function InstituteProfilePage({ instituteId }: { instituteId: string }) {
         <p className="text-sm text-muted-foreground leading-relaxed">{institute.about}</p>
         {ext && (
           <div className="mt-4 grid gap-4 sm:grid-cols-3 text-sm">
-            <div><p className="font-semibold text-xs uppercase text-muted-foreground">Vision</p><p className="mt-1">{ext.vision}</p></div>
-            <div><p className="font-semibold text-xs uppercase text-muted-foreground">Mission</p><p className="mt-1">{ext.mission}</p></div>
-            <div><p className="font-semibold text-xs uppercase text-muted-foreground">History</p><p className="mt-1">{ext.history}</p></div>
+            <div>
+              <p className="font-semibold text-xs uppercase text-muted-foreground">Vision</p>
+              <p className="mt-1">{ext.vision}</p>
+            </div>
+            <div>
+              <p className="font-semibold text-xs uppercase text-muted-foreground">Mission</p>
+              <p className="mt-1">{ext.mission}</p>
+            </div>
+            <div>
+              <p className="font-semibold text-xs uppercase text-muted-foreground">History</p>
+              <p className="mt-1">{ext.history}</p>
+            </div>
           </div>
         )}
       </SectionCard>
@@ -102,7 +143,10 @@ export function InstituteProfilePage({ instituteId }: { instituteId: string }) {
       <SectionCard title="Achievements & awards">
         <ul className="grid gap-2 sm:grid-cols-2 text-sm">
           {[...institute.achievements, ...(ext?.awards ?? [])].map((a) => (
-            <li key={a} className="flex gap-2"><Trophy className="size-4 text-primary shrink-0" />{a}</li>
+            <li key={a} className="flex gap-2">
+              <Trophy className="size-4 text-primary shrink-0" />
+              {a}
+            </li>
           ))}
         </ul>
       </SectionCard>
@@ -110,10 +154,18 @@ export function InstituteProfilePage({ instituteId }: { instituteId: string }) {
       {ext && (
         <>
           <SectionCard title="Academic highlights">
-            <ul className="space-y-1 text-sm text-muted-foreground">{ext.academicHighlights.map((h) => <li key={h}>• {h}</li>)}</ul>
+            <ul className="space-y-1 text-sm text-muted-foreground">
+              {ext.academicHighlights.map((h) => (
+                <li key={h}>• {h}</li>
+              ))}
+            </ul>
           </SectionCard>
           <SectionCard title="Sports highlights">
-            <ul className="space-y-1 text-sm text-muted-foreground">{ext.sportsHighlights.map((h) => <li key={h}>• {h}</li>)}</ul>
+            <ul className="space-y-1 text-sm text-muted-foreground">
+              {ext.sportsHighlights.map((h) => (
+                <li key={h}>• {h}</li>
+              ))}
+            </ul>
           </SectionCard>
         </>
       )}
@@ -133,7 +185,10 @@ export function InstituteProfilePage({ instituteId }: { instituteId: string }) {
         <SectionCard title="Campus & media">
           <div className="grid gap-3 sm:grid-cols-3">
             {ext.campusPhotos.map((m) => (
-              <div key={m.id} className={cn("rounded-xl bg-gradient-to-br h-28 flex items-end p-3", m.gradient)}>
+              <div
+                key={m.id}
+                className={cn("rounded-xl bg-gradient-to-br h-28 flex items-end p-3", m.gradient)}
+              >
                 <div>
                   <p className="text-sm font-medium text-foreground">{m.title}</p>
                   {m.caption && <p className="text-[10px] text-muted-foreground">{m.caption}</p>}
@@ -141,13 +196,22 @@ export function InstituteProfilePage({ instituteId }: { instituteId: string }) {
               </div>
             ))}
             {ext.videos.map((v) => (
-              <div key={v.id} className={cn("rounded-xl bg-gradient-to-br h-28 flex items-center justify-center", v.gradient)}>
+              <div
+                key={v.id}
+                className={cn(
+                  "rounded-xl bg-gradient-to-br h-28 flex items-center justify-center",
+                  v.gradient,
+                )}
+              >
                 <Play className="size-8 text-primary/80" />
                 <span className="sr-only">{v.title}</span>
               </div>
             ))}
             {ext.eventsGallery.map((e) => (
-              <div key={e.id} className={cn("rounded-xl bg-gradient-to-br h-24 flex items-end p-2", e.gradient)}>
+              <div
+                key={e.id}
+                className={cn("rounded-xl bg-gradient-to-br h-24 flex items-end p-2", e.gradient)}
+              >
                 <p className="text-xs font-medium">{e.title}</p>
               </div>
             ))}
@@ -155,7 +219,11 @@ export function InstituteProfilePage({ instituteId }: { instituteId: string }) {
         </SectionCard>
       )}
 
-      <SectionCard title="Programs offered" link={`/admissions/institutes/${instituteId}`} linkLabel="All programs">
+      <SectionCard
+        title="Programs offered"
+        link={`/admissions/institutes/${instituteId}`}
+        linkLabel="All programs"
+      >
         <div className="grid gap-4 sm:grid-cols-2">
           {programs.slice(0, 4).map((p) => (
             <ProgramCard key={p.id} program={p} instituteId={instituteId} showInstitute={false} />
@@ -165,15 +233,26 @@ export function InstituteProfilePage({ instituteId }: { instituteId: string }) {
 
       <SectionCard title="Admission office">
         <div className="text-sm space-y-1">
-          <p><strong>Phone:</strong> {ext?.admissionOffice.phone ?? institute.contact.phone}</p>
-          <p><strong>Email:</strong> {ext?.admissionOffice.email ?? institute.contact.email}</p>
-          <p><strong>Hours:</strong> {ext?.admissionOffice.hours ?? "Mon–Sat, 9 AM – 5 PM"}</p>
-          <p><strong>Address:</strong> {ext?.admissionOffice.address ?? institute.contact.address}</p>
+          <p>
+            <strong>Phone:</strong> {ext?.admissionOffice.phone ?? institute.contact.phone}
+          </p>
+          <p>
+            <strong>Email:</strong> {ext?.admissionOffice.email ?? institute.contact.email}
+          </p>
+          <p>
+            <strong>Hours:</strong> {ext?.admissionOffice.hours ?? "Mon–Sat, 9 AM – 5 PM"}
+          </p>
+          <p>
+            <strong>Address:</strong> {ext?.admissionOffice.address ?? institute.contact.address}
+          </p>
         </div>
         <ul className="mt-4 space-y-2">
           {institute.admissionDates.map((d) => (
             <li key={d.label} className="flex justify-between text-sm border-b border-border pb-2">
-              <span className="flex items-center gap-2 text-muted-foreground"><Calendar className="size-4" />{d.label}</span>
+              <span className="flex items-center gap-2 text-muted-foreground">
+                <Calendar className="size-4" />
+                {d.label}
+              </span>
               <span className="font-medium">{d.date}</span>
             </li>
           ))}

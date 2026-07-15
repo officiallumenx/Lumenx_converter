@@ -123,7 +123,7 @@ export function TeacherRemarksPage() {
       />
 
       <div className="max-w-2xl space-y-3 rounded-2xl border bg-card p-4 shadow-soft">
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
           <div>
             <label className="text-xs font-medium text-muted-foreground">Class</label>
             <Select
@@ -134,13 +134,15 @@ export function TeacherRemarksPage() {
                 setStudentId("");
               }}
             >
-              <SelectTrigger className="mt-1 rounded-xl">
+              <SelectTrigger className="mt-1 h-10 rounded-xl">
                 <SelectValue placeholder="All classes" />
               </SelectTrigger>
               <SelectContent position="popper" className="z-[100]">
                 <SelectItem value="all">All classes</SelectItem>
                 {classNames.map((c) => (
-                  <SelectItem key={c} value={c}>Class {c}</SelectItem>
+                  <SelectItem key={c} value={c}>
+                    Class {c}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -154,28 +156,30 @@ export function TeacherRemarksPage() {
                 setStudentId("");
               }}
             >
-              <SelectTrigger className="mt-1 rounded-xl">
+              <SelectTrigger className="mt-1 h-10 rounded-xl">
                 <SelectValue placeholder="All sections" />
               </SelectTrigger>
               <SelectContent position="popper" className="z-[100]">
                 <SelectItem value="all">All sections</SelectItem>
                 {sections.map((s) => (
-                  <SelectItem key={s} value={s}>Section {s}</SelectItem>
+                  <SelectItem key={s} value={s}>
+                    Section {s}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground">Search student</label>
-            <div className="relative mt-1">
-              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Name or roll…"
-                className="rounded-xl pl-9"
-              />
-            </div>
+        </div>
+        <div>
+          <label className="text-xs font-medium text-muted-foreground">Search student</label>
+          <div className="relative mt-1">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Name or roll…"
+              className="h-10 rounded-xl pl-9"
+            />
           </div>
         </div>
 
@@ -184,7 +188,9 @@ export function TeacherRemarksPage() {
           <Select value={studentId} onValueChange={setStudentId}>
             <SelectTrigger className="mt-1 rounded-xl">
               <SelectValue
-                placeholder={studentOptions.length ? "Select student" : "No matches — refine filters"}
+                placeholder={
+                  studentOptions.length ? "Select student" : "No matches — refine filters"
+                }
               />
             </SelectTrigger>
             <SelectContent position="popper" className="z-[100]">
@@ -247,9 +253,16 @@ export function TeacherRemarksPage() {
           <DialogHeader>
             <DialogTitle>Edit remark</DialogTitle>
           </DialogHeader>
-          <Textarea value={editText} onChange={(e) => setEditText(e.target.value)} rows={4} className="rounded-xl" />
+          <Textarea
+            value={editText}
+            onChange={(e) => setEditText(e.target.value)}
+            rows={4}
+            className="rounded-xl"
+          />
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setEditRemark(null)}>Cancel</Button>
+            <Button variant="ghost" onClick={() => setEditRemark(null)}>
+              Cancel
+            </Button>
             <Button onClick={saveEdit}>Save</Button>
           </DialogFooter>
         </DialogContent>

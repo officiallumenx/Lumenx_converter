@@ -23,11 +23,13 @@ const STATUS_TONE: Record<RecruiterJobStatus, "default" | "secondary" | "outline
 export function RecruiterJobsPage() {
   const { user } = useCareersAuth();
   const [refresh, setRefresh] = useState(0);
+
+  const orgId = user?.organizationId ?? "";
+  const jobs = useMemo(() => (orgId ? getRecruiterJobsForOrg(orgId) : []), [orgId, refresh]);
+
   if (!user?.organizationId) return null;
 
-  const orgId = user.organizationId;
   const apps = getApplicationsForOrganization(orgId);
-  const jobs = useMemo(() => getRecruiterJobsForOrg(orgId), [orgId, refresh]);
 
   const setStatus = (jobId: string, status: RecruiterJobStatus) => {
     updateRecruiterJobStatus(jobId, status);
@@ -44,10 +46,14 @@ export function RecruiterJobsPage() {
 
       <div className="flex flex-wrap gap-3">
         <Button asChild>
-          <Link to="/careers/recruiter/jobs/new"><Plus className="size-4 mr-2" /> Post a job</Link>
+          <Link to="/careers/recruiter/jobs/new">
+            <Plus className="size-4 mr-2" /> Post a job
+          </Link>
         </Button>
         <Button variant="outline" asChild>
-          <Link to="/careers/jobs"><Briefcase className="size-4 mr-2" /> Browse market</Link>
+          <Link to="/careers/jobs">
+            <Briefcase className="size-4 mr-2" /> Browse market
+          </Link>
         </Button>
       </div>
 
@@ -55,7 +61,9 @@ export function RecruiterJobsPage() {
         {jobs.length === 0 ? (
           <p className="text-sm text-muted-foreground py-6 text-center">
             No jobs posted yet.{" "}
-            <Link to="/careers/recruiter/jobs/new" className="text-primary hover:underline">Create your first listing</Link>
+            <Link to="/careers/recruiter/jobs/new" className="text-primary hover:underline">
+              Create your first listing
+            </Link>
           </p>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
@@ -70,7 +78,9 @@ export function RecruiterJobsPage() {
                   footer={
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant={STATUS_TONE[status]} className="capitalize">{status}</Badge>
+                        <Badge variant={STATUS_TONE[status]} className="capitalize">
+                          {status}
+                        </Badge>
                         <span className="text-xs text-muted-foreground">
                           {applicants} applicant{applicants !== 1 ? "s" : ""}
                         </span>
@@ -82,13 +92,27 @@ export function RecruiterJobsPage() {
                           </Link>
                         </Button>
                         {status !== "open" && (
-                          <Button size="sm" variant="outline" onClick={() => setStatus(job.id, "open")}>Publish</Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setStatus(job.id, "open")}
+                          >
+                            Publish
+                          </Button>
                         )}
                         {status === "open" && (
-                          <Button size="sm" variant="outline" onClick={() => setStatus(job.id, "closed")}>Close</Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setStatus(job.id, "closed")}
+                          >
+                            Close
+                          </Button>
                         )}
                         <Button size="sm" variant="ghost" asChild>
-                          <Link to="/careers/jobs/$jobId" params={{ jobId: job.id }}>Preview</Link>
+                          <Link to="/careers/jobs/$jobId" params={{ jobId: job.id }}>
+                            Preview
+                          </Link>
                         </Button>
                       </div>
                     </div>

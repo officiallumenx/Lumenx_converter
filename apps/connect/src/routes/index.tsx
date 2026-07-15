@@ -1,7 +1,8 @@
 import { lazy, Suspense } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { AppShell } from "@/components/app/AppShell";
 import { useApp } from "@/lib/app-state";
+import { useTeacherPortalAccess } from "@/lib/teacher-session";
 
 const ParentDashboardPage = lazy(() =>
   import("@/parent-portal/features/dashboard").then((m) => ({ default: m.ParentDashboardPage })),
@@ -41,6 +42,16 @@ function Index() {
 
 function Inner() {
   const { role } = useApp();
+  const portalAccess = useTeacherPortalAccess();
+
+  if (role === "teacher" && !portalAccess.isReady) {
+    return <DashboardFallback />;
+  }
+
+  if (role === "teacher" && portalAccess.isActivityWorkspaceActive) {
+    return <Navigate to="/activity" />;
+  }
+
   return (
     <Suspense fallback={<DashboardFallback />}>
       {role === "parent" && <ParentDashboardPage />}

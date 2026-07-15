@@ -11,11 +11,13 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TransportRouteImport } from './routes/transport'
 import { Route as TimetableRouteImport } from './routes/timetable'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as TeachersRouteImport } from './routes/teachers'
 import { Route as StudentsRouteImport } from './routes/students'
 import { Route as SportsRouteImport } from './routes/sports'
 import { Route as RemarksRouteImport } from './routes/remarks'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as MarksRouteImport } from './routes/marks'
@@ -34,17 +36,21 @@ import { Route as AttendanceRouteImport } from './routes/attendance'
 import { Route as AssignmentsRouteImport } from './routes/assignments'
 import { Route as AlertsRouteImport } from './routes/alerts'
 import { Route as AdmissionsRouteImport } from './routes/admissions'
+import { Route as ActivityRouteImport } from './routes/activity'
 import { Route as AchievementsRouteImport } from './routes/achievements'
 import { Route as AcademicHistoryRouteImport } from './routes/academic-history'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CareersIndexRouteImport } from './routes/careers/index'
 import { Route as AdmissionsIndexRouteImport } from './routes/admissions/index'
+import { Route as ActivityIndexRouteImport } from './routes/activity/index'
 import { Route as VerifyStudentIdRouteImport } from './routes/verify.$studentId'
 import { Route as StudentsStudentIdRouteImport } from './routes/students.$studentId'
+import { Route as CareersTermsRouteImport } from './routes/careers/terms'
 import { Route as CareersSignupRouteImport } from './routes/careers/signup'
 import { Route as CareersSettingsRouteImport } from './routes/careers/settings'
 import { Route as CareersSavedRouteImport } from './routes/careers/saved'
 import { Route as CareersProfileRouteImport } from './routes/careers/profile'
+import { Route as CareersPrivacyRouteImport } from './routes/careers/privacy'
 import { Route as CareersNotificationsRouteImport } from './routes/careers/notifications'
 import { Route as CareersLoginRouteImport } from './routes/careers/login'
 import { Route as CareersInterviewsRouteImport } from './routes/careers/interviews'
@@ -53,10 +59,12 @@ import { Route as CareersDocumentsRouteImport } from './routes/careers/documents
 import { Route as CareersDashboardRouteImport } from './routes/careers/dashboard'
 import { Route as CareersApplyRouteImport } from './routes/careers/apply'
 import { Route as CareersApplicationsRouteImport } from './routes/careers/applications'
+import { Route as AdmissionsTermsRouteImport } from './routes/admissions/terms'
 import { Route as AdmissionsSignupRouteImport } from './routes/admissions/signup'
 import { Route as AdmissionsSettingsRouteImport } from './routes/admissions/settings'
 import { Route as AdmissionsProgramsRouteImport } from './routes/admissions/programs'
 import { Route as AdmissionsProfileRouteImport } from './routes/admissions/profile'
+import { Route as AdmissionsPrivacyRouteImport } from './routes/admissions/privacy'
 import { Route as AdmissionsNotificationsRouteImport } from './routes/admissions/notifications'
 import { Route as AdmissionsLoginRouteImport } from './routes/admissions/login'
 import { Route as AdmissionsInterviewsRouteImport } from './routes/admissions/interviews'
@@ -69,6 +77,21 @@ import { Route as AdmissionsDashboardRouteImport } from './routes/admissions/das
 import { Route as AdmissionsContactRouteImport } from './routes/admissions/contact'
 import { Route as AdmissionsApplyRouteImport } from './routes/admissions/apply'
 import { Route as AdmissionsApplicationsRouteImport } from './routes/admissions/applications'
+import { Route as ActivityWorkshopsRouteImport } from './routes/activity/workshops'
+import { Route as ActivitySportsRouteImport } from './routes/activity/sports'
+import { Route as ActivityProfileRouteImport } from './routes/activity/profile'
+import { Route as ActivityPracticeRouteImport } from './routes/activity/practice'
+import { Route as ActivityNotificationsRouteImport } from './routes/activity/notifications'
+import { Route as ActivityMessagesRouteImport } from './routes/activity/messages'
+import { Route as ActivityExtraCurricularRouteImport } from './routes/activity/extra-curricular'
+import { Route as ActivityEventsRouteImport } from './routes/activity/events'
+import { Route as ActivityCompetitionsRouteImport } from './routes/activity/competitions'
+import { Route as ActivityClubsRouteImport } from './routes/activity/clubs'
+import { Route as ActivityCertificatesRouteImport } from './routes/activity/certificates'
+import { Route as ActivityCalendarRouteImport } from './routes/activity/calendar'
+import { Route as ActivityAttendanceRouteImport } from './routes/activity/attendance'
+import { Route as ActivityAnnouncementsRouteImport } from './routes/activity/announcements'
+import { Route as ActivityAchievementsRouteImport } from './routes/activity/achievements'
 import { Route as CareersRecruiterIndexRouteImport } from './routes/careers/recruiter/index'
 import { Route as CareersJobsIndexRouteImport } from './routes/careers/jobs/index'
 import { Route as CareersInstitutesIndexRouteImport } from './routes/careers/institutes/index'
@@ -102,6 +125,11 @@ const TimetableRoute = TimetableRouteImport.update({
   path: '/timetable',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TeachersRoute = TeachersRouteImport.update({
   id: '/teachers',
   path: '/teachers',
@@ -125,6 +153,11 @@ const RemarksRoute = RemarksRouteImport.update({
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NotificationsRoute = NotificationsRouteImport.update({
@@ -217,6 +250,11 @@ const AdmissionsRoute = AdmissionsRouteImport.update({
   path: '/admissions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ActivityRoute = ActivityRouteImport.update({
+  id: '/activity',
+  path: '/activity',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AchievementsRoute = AchievementsRouteImport.update({
   id: '/achievements',
   path: '/achievements',
@@ -242,6 +280,11 @@ const AdmissionsIndexRoute = AdmissionsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdmissionsRoute,
 } as any)
+const ActivityIndexRoute = ActivityIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ActivityRoute,
+} as any)
 const VerifyStudentIdRoute = VerifyStudentIdRouteImport.update({
   id: '/verify/$studentId',
   path: '/verify/$studentId',
@@ -251,6 +294,11 @@ const StudentsStudentIdRoute = StudentsStudentIdRouteImport.update({
   id: '/$studentId',
   path: '/$studentId',
   getParentRoute: () => StudentsRoute,
+} as any)
+const CareersTermsRoute = CareersTermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => CareersRoute,
 } as any)
 const CareersSignupRoute = CareersSignupRouteImport.update({
   id: '/signup',
@@ -270,6 +318,11 @@ const CareersSavedRoute = CareersSavedRouteImport.update({
 const CareersProfileRoute = CareersProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => CareersRoute,
+} as any)
+const CareersPrivacyRoute = CareersPrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => CareersRoute,
 } as any)
 const CareersNotificationsRoute = CareersNotificationsRouteImport.update({
@@ -312,6 +365,11 @@ const CareersApplicationsRoute = CareersApplicationsRouteImport.update({
   path: '/applications',
   getParentRoute: () => CareersRoute,
 } as any)
+const AdmissionsTermsRoute = AdmissionsTermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => AdmissionsRoute,
+} as any)
 const AdmissionsSignupRoute = AdmissionsSignupRouteImport.update({
   id: '/signup',
   path: '/signup',
@@ -330,6 +388,11 @@ const AdmissionsProgramsRoute = AdmissionsProgramsRouteImport.update({
 const AdmissionsProfileRoute = AdmissionsProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => AdmissionsRoute,
+} as any)
+const AdmissionsPrivacyRoute = AdmissionsPrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => AdmissionsRoute,
 } as any)
 const AdmissionsNotificationsRoute = AdmissionsNotificationsRouteImport.update({
@@ -392,6 +455,81 @@ const AdmissionsApplicationsRoute = AdmissionsApplicationsRouteImport.update({
   id: '/applications',
   path: '/applications',
   getParentRoute: () => AdmissionsRoute,
+} as any)
+const ActivityWorkshopsRoute = ActivityWorkshopsRouteImport.update({
+  id: '/workshops',
+  path: '/workshops',
+  getParentRoute: () => ActivityRoute,
+} as any)
+const ActivitySportsRoute = ActivitySportsRouteImport.update({
+  id: '/sports',
+  path: '/sports',
+  getParentRoute: () => ActivityRoute,
+} as any)
+const ActivityProfileRoute = ActivityProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => ActivityRoute,
+} as any)
+const ActivityPracticeRoute = ActivityPracticeRouteImport.update({
+  id: '/practice',
+  path: '/practice',
+  getParentRoute: () => ActivityRoute,
+} as any)
+const ActivityNotificationsRoute = ActivityNotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => ActivityRoute,
+} as any)
+const ActivityMessagesRoute = ActivityMessagesRouteImport.update({
+  id: '/messages',
+  path: '/messages',
+  getParentRoute: () => ActivityRoute,
+} as any)
+const ActivityExtraCurricularRoute = ActivityExtraCurricularRouteImport.update({
+  id: '/extra-curricular',
+  path: '/extra-curricular',
+  getParentRoute: () => ActivityRoute,
+} as any)
+const ActivityEventsRoute = ActivityEventsRouteImport.update({
+  id: '/events',
+  path: '/events',
+  getParentRoute: () => ActivityRoute,
+} as any)
+const ActivityCompetitionsRoute = ActivityCompetitionsRouteImport.update({
+  id: '/competitions',
+  path: '/competitions',
+  getParentRoute: () => ActivityRoute,
+} as any)
+const ActivityClubsRoute = ActivityClubsRouteImport.update({
+  id: '/clubs',
+  path: '/clubs',
+  getParentRoute: () => ActivityRoute,
+} as any)
+const ActivityCertificatesRoute = ActivityCertificatesRouteImport.update({
+  id: '/certificates',
+  path: '/certificates',
+  getParentRoute: () => ActivityRoute,
+} as any)
+const ActivityCalendarRoute = ActivityCalendarRouteImport.update({
+  id: '/calendar',
+  path: '/calendar',
+  getParentRoute: () => ActivityRoute,
+} as any)
+const ActivityAttendanceRoute = ActivityAttendanceRouteImport.update({
+  id: '/attendance',
+  path: '/attendance',
+  getParentRoute: () => ActivityRoute,
+} as any)
+const ActivityAnnouncementsRoute = ActivityAnnouncementsRouteImport.update({
+  id: '/announcements',
+  path: '/announcements',
+  getParentRoute: () => ActivityRoute,
+} as any)
+const ActivityAchievementsRoute = ActivityAchievementsRouteImport.update({
+  id: '/achievements',
+  path: '/achievements',
+  getParentRoute: () => ActivityRoute,
 } as any)
 const CareersRecruiterIndexRoute = CareersRecruiterIndexRouteImport.update({
   id: '/recruiter/',
@@ -523,6 +661,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/academic-history': typeof AcademicHistoryRoute
   '/achievements': typeof AchievementsRoute
+  '/activity': typeof ActivityRouteWithChildren
   '/admissions': typeof AdmissionsRouteWithChildren
   '/alerts': typeof AlertsRoute
   '/assignments': typeof AssignmentsRoute
@@ -541,13 +680,30 @@ export interface FileRoutesByFullPath {
   '/marks': typeof MarksRoute
   '/messages': typeof MessagesRoute
   '/notifications': typeof NotificationsRoute
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/remarks': typeof RemarksRoute
   '/sports': typeof SportsRoute
   '/students': typeof StudentsRouteWithChildren
   '/teachers': typeof TeachersRoute
+  '/terms': typeof TermsRoute
   '/timetable': typeof TimetableRoute
   '/transport': typeof TransportRoute
+  '/activity/achievements': typeof ActivityAchievementsRoute
+  '/activity/announcements': typeof ActivityAnnouncementsRoute
+  '/activity/attendance': typeof ActivityAttendanceRoute
+  '/activity/calendar': typeof ActivityCalendarRoute
+  '/activity/certificates': typeof ActivityCertificatesRoute
+  '/activity/clubs': typeof ActivityClubsRoute
+  '/activity/competitions': typeof ActivityCompetitionsRoute
+  '/activity/events': typeof ActivityEventsRoute
+  '/activity/extra-curricular': typeof ActivityExtraCurricularRoute
+  '/activity/messages': typeof ActivityMessagesRoute
+  '/activity/notifications': typeof ActivityNotificationsRoute
+  '/activity/practice': typeof ActivityPracticeRoute
+  '/activity/profile': typeof ActivityProfileRoute
+  '/activity/sports': typeof ActivitySportsRoute
+  '/activity/workshops': typeof ActivityWorkshopsRoute
   '/admissions/applications': typeof AdmissionsApplicationsRouteWithChildren
   '/admissions/apply': typeof AdmissionsApplyRoute
   '/admissions/contact': typeof AdmissionsContactRoute
@@ -560,10 +716,12 @@ export interface FileRoutesByFullPath {
   '/admissions/interviews': typeof AdmissionsInterviewsRoute
   '/admissions/login': typeof AdmissionsLoginRoute
   '/admissions/notifications': typeof AdmissionsNotificationsRoute
+  '/admissions/privacy': typeof AdmissionsPrivacyRoute
   '/admissions/profile': typeof AdmissionsProfileRoute
   '/admissions/programs': typeof AdmissionsProgramsRouteWithChildren
   '/admissions/settings': typeof AdmissionsSettingsRoute
   '/admissions/signup': typeof AdmissionsSignupRoute
+  '/admissions/terms': typeof AdmissionsTermsRoute
   '/careers/applications': typeof CareersApplicationsRouteWithChildren
   '/careers/apply': typeof CareersApplyRoute
   '/careers/dashboard': typeof CareersDashboardRoute
@@ -572,12 +730,15 @@ export interface FileRoutesByFullPath {
   '/careers/interviews': typeof CareersInterviewsRoute
   '/careers/login': typeof CareersLoginRoute
   '/careers/notifications': typeof CareersNotificationsRoute
+  '/careers/privacy': typeof CareersPrivacyRoute
   '/careers/profile': typeof CareersProfileRoute
   '/careers/saved': typeof CareersSavedRoute
   '/careers/settings': typeof CareersSettingsRoute
   '/careers/signup': typeof CareersSignupRoute
+  '/careers/terms': typeof CareersTermsRoute
   '/students/$studentId': typeof StudentsStudentIdRoute
   '/verify/$studentId': typeof VerifyStudentIdRoute
+  '/activity/': typeof ActivityIndexRoute
   '/admissions/': typeof AdmissionsIndexRoute
   '/careers/': typeof CareersIndexRoute
   '/admissions/applications/$applicationId': typeof AdmissionsApplicationsApplicationIdRoute
@@ -623,13 +784,30 @@ export interface FileRoutesByTo {
   '/marks': typeof MarksRoute
   '/messages': typeof MessagesRoute
   '/notifications': typeof NotificationsRoute
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/remarks': typeof RemarksRoute
   '/sports': typeof SportsRoute
   '/students': typeof StudentsRouteWithChildren
   '/teachers': typeof TeachersRoute
+  '/terms': typeof TermsRoute
   '/timetable': typeof TimetableRoute
   '/transport': typeof TransportRoute
+  '/activity/achievements': typeof ActivityAchievementsRoute
+  '/activity/announcements': typeof ActivityAnnouncementsRoute
+  '/activity/attendance': typeof ActivityAttendanceRoute
+  '/activity/calendar': typeof ActivityCalendarRoute
+  '/activity/certificates': typeof ActivityCertificatesRoute
+  '/activity/clubs': typeof ActivityClubsRoute
+  '/activity/competitions': typeof ActivityCompetitionsRoute
+  '/activity/events': typeof ActivityEventsRoute
+  '/activity/extra-curricular': typeof ActivityExtraCurricularRoute
+  '/activity/messages': typeof ActivityMessagesRoute
+  '/activity/notifications': typeof ActivityNotificationsRoute
+  '/activity/practice': typeof ActivityPracticeRoute
+  '/activity/profile': typeof ActivityProfileRoute
+  '/activity/sports': typeof ActivitySportsRoute
+  '/activity/workshops': typeof ActivityWorkshopsRoute
   '/admissions/applications': typeof AdmissionsApplicationsRouteWithChildren
   '/admissions/apply': typeof AdmissionsApplyRoute
   '/admissions/contact': typeof AdmissionsContactRoute
@@ -641,10 +819,12 @@ export interface FileRoutesByTo {
   '/admissions/interviews': typeof AdmissionsInterviewsRoute
   '/admissions/login': typeof AdmissionsLoginRoute
   '/admissions/notifications': typeof AdmissionsNotificationsRoute
+  '/admissions/privacy': typeof AdmissionsPrivacyRoute
   '/admissions/profile': typeof AdmissionsProfileRoute
   '/admissions/programs': typeof AdmissionsProgramsRouteWithChildren
   '/admissions/settings': typeof AdmissionsSettingsRoute
   '/admissions/signup': typeof AdmissionsSignupRoute
+  '/admissions/terms': typeof AdmissionsTermsRoute
   '/careers/applications': typeof CareersApplicationsRouteWithChildren
   '/careers/apply': typeof CareersApplyRoute
   '/careers/dashboard': typeof CareersDashboardRoute
@@ -653,12 +833,15 @@ export interface FileRoutesByTo {
   '/careers/interviews': typeof CareersInterviewsRoute
   '/careers/login': typeof CareersLoginRoute
   '/careers/notifications': typeof CareersNotificationsRoute
+  '/careers/privacy': typeof CareersPrivacyRoute
   '/careers/profile': typeof CareersProfileRoute
   '/careers/saved': typeof CareersSavedRoute
   '/careers/settings': typeof CareersSettingsRoute
   '/careers/signup': typeof CareersSignupRoute
+  '/careers/terms': typeof CareersTermsRoute
   '/students/$studentId': typeof StudentsStudentIdRoute
   '/verify/$studentId': typeof VerifyStudentIdRoute
+  '/activity': typeof ActivityIndexRoute
   '/admissions': typeof AdmissionsIndexRoute
   '/careers': typeof CareersIndexRoute
   '/admissions/applications/$applicationId': typeof AdmissionsApplicationsApplicationIdRoute
@@ -688,6 +871,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/academic-history': typeof AcademicHistoryRoute
   '/achievements': typeof AchievementsRoute
+  '/activity': typeof ActivityRouteWithChildren
   '/admissions': typeof AdmissionsRouteWithChildren
   '/alerts': typeof AlertsRoute
   '/assignments': typeof AssignmentsRoute
@@ -706,13 +890,30 @@ export interface FileRoutesById {
   '/marks': typeof MarksRoute
   '/messages': typeof MessagesRoute
   '/notifications': typeof NotificationsRoute
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/remarks': typeof RemarksRoute
   '/sports': typeof SportsRoute
   '/students': typeof StudentsRouteWithChildren
   '/teachers': typeof TeachersRoute
+  '/terms': typeof TermsRoute
   '/timetable': typeof TimetableRoute
   '/transport': typeof TransportRoute
+  '/activity/achievements': typeof ActivityAchievementsRoute
+  '/activity/announcements': typeof ActivityAnnouncementsRoute
+  '/activity/attendance': typeof ActivityAttendanceRoute
+  '/activity/calendar': typeof ActivityCalendarRoute
+  '/activity/certificates': typeof ActivityCertificatesRoute
+  '/activity/clubs': typeof ActivityClubsRoute
+  '/activity/competitions': typeof ActivityCompetitionsRoute
+  '/activity/events': typeof ActivityEventsRoute
+  '/activity/extra-curricular': typeof ActivityExtraCurricularRoute
+  '/activity/messages': typeof ActivityMessagesRoute
+  '/activity/notifications': typeof ActivityNotificationsRoute
+  '/activity/practice': typeof ActivityPracticeRoute
+  '/activity/profile': typeof ActivityProfileRoute
+  '/activity/sports': typeof ActivitySportsRoute
+  '/activity/workshops': typeof ActivityWorkshopsRoute
   '/admissions/applications': typeof AdmissionsApplicationsRouteWithChildren
   '/admissions/apply': typeof AdmissionsApplyRoute
   '/admissions/contact': typeof AdmissionsContactRoute
@@ -725,10 +926,12 @@ export interface FileRoutesById {
   '/admissions/interviews': typeof AdmissionsInterviewsRoute
   '/admissions/login': typeof AdmissionsLoginRoute
   '/admissions/notifications': typeof AdmissionsNotificationsRoute
+  '/admissions/privacy': typeof AdmissionsPrivacyRoute
   '/admissions/profile': typeof AdmissionsProfileRoute
   '/admissions/programs': typeof AdmissionsProgramsRouteWithChildren
   '/admissions/settings': typeof AdmissionsSettingsRoute
   '/admissions/signup': typeof AdmissionsSignupRoute
+  '/admissions/terms': typeof AdmissionsTermsRoute
   '/careers/applications': typeof CareersApplicationsRouteWithChildren
   '/careers/apply': typeof CareersApplyRoute
   '/careers/dashboard': typeof CareersDashboardRoute
@@ -737,12 +940,15 @@ export interface FileRoutesById {
   '/careers/interviews': typeof CareersInterviewsRoute
   '/careers/login': typeof CareersLoginRoute
   '/careers/notifications': typeof CareersNotificationsRoute
+  '/careers/privacy': typeof CareersPrivacyRoute
   '/careers/profile': typeof CareersProfileRoute
   '/careers/saved': typeof CareersSavedRoute
   '/careers/settings': typeof CareersSettingsRoute
   '/careers/signup': typeof CareersSignupRoute
+  '/careers/terms': typeof CareersTermsRoute
   '/students/$studentId': typeof StudentsStudentIdRoute
   '/verify/$studentId': typeof VerifyStudentIdRoute
+  '/activity/': typeof ActivityIndexRoute
   '/admissions/': typeof AdmissionsIndexRoute
   '/careers/': typeof CareersIndexRoute
   '/admissions/applications/$applicationId': typeof AdmissionsApplicationsApplicationIdRoute
@@ -774,6 +980,7 @@ export interface FileRouteTypes {
     | '/'
     | '/academic-history'
     | '/achievements'
+    | '/activity'
     | '/admissions'
     | '/alerts'
     | '/assignments'
@@ -792,13 +999,30 @@ export interface FileRouteTypes {
     | '/marks'
     | '/messages'
     | '/notifications'
+    | '/privacy'
     | '/profile'
     | '/remarks'
     | '/sports'
     | '/students'
     | '/teachers'
+    | '/terms'
     | '/timetable'
     | '/transport'
+    | '/activity/achievements'
+    | '/activity/announcements'
+    | '/activity/attendance'
+    | '/activity/calendar'
+    | '/activity/certificates'
+    | '/activity/clubs'
+    | '/activity/competitions'
+    | '/activity/events'
+    | '/activity/extra-curricular'
+    | '/activity/messages'
+    | '/activity/notifications'
+    | '/activity/practice'
+    | '/activity/profile'
+    | '/activity/sports'
+    | '/activity/workshops'
     | '/admissions/applications'
     | '/admissions/apply'
     | '/admissions/contact'
@@ -811,10 +1035,12 @@ export interface FileRouteTypes {
     | '/admissions/interviews'
     | '/admissions/login'
     | '/admissions/notifications'
+    | '/admissions/privacy'
     | '/admissions/profile'
     | '/admissions/programs'
     | '/admissions/settings'
     | '/admissions/signup'
+    | '/admissions/terms'
     | '/careers/applications'
     | '/careers/apply'
     | '/careers/dashboard'
@@ -823,12 +1049,15 @@ export interface FileRouteTypes {
     | '/careers/interviews'
     | '/careers/login'
     | '/careers/notifications'
+    | '/careers/privacy'
     | '/careers/profile'
     | '/careers/saved'
     | '/careers/settings'
     | '/careers/signup'
+    | '/careers/terms'
     | '/students/$studentId'
     | '/verify/$studentId'
+    | '/activity/'
     | '/admissions/'
     | '/careers/'
     | '/admissions/applications/$applicationId'
@@ -874,13 +1103,30 @@ export interface FileRouteTypes {
     | '/marks'
     | '/messages'
     | '/notifications'
+    | '/privacy'
     | '/profile'
     | '/remarks'
     | '/sports'
     | '/students'
     | '/teachers'
+    | '/terms'
     | '/timetable'
     | '/transport'
+    | '/activity/achievements'
+    | '/activity/announcements'
+    | '/activity/attendance'
+    | '/activity/calendar'
+    | '/activity/certificates'
+    | '/activity/clubs'
+    | '/activity/competitions'
+    | '/activity/events'
+    | '/activity/extra-curricular'
+    | '/activity/messages'
+    | '/activity/notifications'
+    | '/activity/practice'
+    | '/activity/profile'
+    | '/activity/sports'
+    | '/activity/workshops'
     | '/admissions/applications'
     | '/admissions/apply'
     | '/admissions/contact'
@@ -892,10 +1138,12 @@ export interface FileRouteTypes {
     | '/admissions/interviews'
     | '/admissions/login'
     | '/admissions/notifications'
+    | '/admissions/privacy'
     | '/admissions/profile'
     | '/admissions/programs'
     | '/admissions/settings'
     | '/admissions/signup'
+    | '/admissions/terms'
     | '/careers/applications'
     | '/careers/apply'
     | '/careers/dashboard'
@@ -904,12 +1152,15 @@ export interface FileRouteTypes {
     | '/careers/interviews'
     | '/careers/login'
     | '/careers/notifications'
+    | '/careers/privacy'
     | '/careers/profile'
     | '/careers/saved'
     | '/careers/settings'
     | '/careers/signup'
+    | '/careers/terms'
     | '/students/$studentId'
     | '/verify/$studentId'
+    | '/activity'
     | '/admissions'
     | '/careers'
     | '/admissions/applications/$applicationId'
@@ -938,6 +1189,7 @@ export interface FileRouteTypes {
     | '/'
     | '/academic-history'
     | '/achievements'
+    | '/activity'
     | '/admissions'
     | '/alerts'
     | '/assignments'
@@ -956,13 +1208,30 @@ export interface FileRouteTypes {
     | '/marks'
     | '/messages'
     | '/notifications'
+    | '/privacy'
     | '/profile'
     | '/remarks'
     | '/sports'
     | '/students'
     | '/teachers'
+    | '/terms'
     | '/timetable'
     | '/transport'
+    | '/activity/achievements'
+    | '/activity/announcements'
+    | '/activity/attendance'
+    | '/activity/calendar'
+    | '/activity/certificates'
+    | '/activity/clubs'
+    | '/activity/competitions'
+    | '/activity/events'
+    | '/activity/extra-curricular'
+    | '/activity/messages'
+    | '/activity/notifications'
+    | '/activity/practice'
+    | '/activity/profile'
+    | '/activity/sports'
+    | '/activity/workshops'
     | '/admissions/applications'
     | '/admissions/apply'
     | '/admissions/contact'
@@ -975,10 +1244,12 @@ export interface FileRouteTypes {
     | '/admissions/interviews'
     | '/admissions/login'
     | '/admissions/notifications'
+    | '/admissions/privacy'
     | '/admissions/profile'
     | '/admissions/programs'
     | '/admissions/settings'
     | '/admissions/signup'
+    | '/admissions/terms'
     | '/careers/applications'
     | '/careers/apply'
     | '/careers/dashboard'
@@ -987,12 +1258,15 @@ export interface FileRouteTypes {
     | '/careers/interviews'
     | '/careers/login'
     | '/careers/notifications'
+    | '/careers/privacy'
     | '/careers/profile'
     | '/careers/saved'
     | '/careers/settings'
     | '/careers/signup'
+    | '/careers/terms'
     | '/students/$studentId'
     | '/verify/$studentId'
+    | '/activity/'
     | '/admissions/'
     | '/careers/'
     | '/admissions/applications/$applicationId'
@@ -1023,6 +1297,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AcademicHistoryRoute: typeof AcademicHistoryRoute
   AchievementsRoute: typeof AchievementsRoute
+  ActivityRoute: typeof ActivityRouteWithChildren
   AdmissionsRoute: typeof AdmissionsRouteWithChildren
   AlertsRoute: typeof AlertsRoute
   AssignmentsRoute: typeof AssignmentsRoute
@@ -1041,11 +1316,13 @@ export interface RootRouteChildren {
   MarksRoute: typeof MarksRoute
   MessagesRoute: typeof MessagesRoute
   NotificationsRoute: typeof NotificationsRoute
+  PrivacyRoute: typeof PrivacyRoute
   ProfileRoute: typeof ProfileRoute
   RemarksRoute: typeof RemarksRoute
   SportsRoute: typeof SportsRoute
   StudentsRoute: typeof StudentsRouteWithChildren
   TeachersRoute: typeof TeachersRoute
+  TermsRoute: typeof TermsRoute
   TimetableRoute: typeof TimetableRoute
   TransportRoute: typeof TransportRoute
   VerifyStudentIdRoute: typeof VerifyStudentIdRoute
@@ -1065,6 +1342,13 @@ declare module '@tanstack/react-router' {
       path: '/timetable'
       fullPath: '/timetable'
       preLoaderRoute: typeof TimetableRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/teachers': {
@@ -1100,6 +1384,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/notifications': {
@@ -1228,6 +1519,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdmissionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/activity': {
+      id: '/activity'
+      path: '/activity'
+      fullPath: '/activity'
+      preLoaderRoute: typeof ActivityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/achievements': {
       id: '/achievements'
       path: '/achievements'
@@ -1263,6 +1561,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdmissionsIndexRouteImport
       parentRoute: typeof AdmissionsRoute
     }
+    '/activity/': {
+      id: '/activity/'
+      path: '/'
+      fullPath: '/activity/'
+      preLoaderRoute: typeof ActivityIndexRouteImport
+      parentRoute: typeof ActivityRoute
+    }
     '/verify/$studentId': {
       id: '/verify/$studentId'
       path: '/verify/$studentId'
@@ -1276,6 +1581,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/students/$studentId'
       preLoaderRoute: typeof StudentsStudentIdRouteImport
       parentRoute: typeof StudentsRoute
+    }
+    '/careers/terms': {
+      id: '/careers/terms'
+      path: '/terms'
+      fullPath: '/careers/terms'
+      preLoaderRoute: typeof CareersTermsRouteImport
+      parentRoute: typeof CareersRoute
     }
     '/careers/signup': {
       id: '/careers/signup'
@@ -1303,6 +1615,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/careers/profile'
       preLoaderRoute: typeof CareersProfileRouteImport
+      parentRoute: typeof CareersRoute
+    }
+    '/careers/privacy': {
+      id: '/careers/privacy'
+      path: '/privacy'
+      fullPath: '/careers/privacy'
+      preLoaderRoute: typeof CareersPrivacyRouteImport
       parentRoute: typeof CareersRoute
     }
     '/careers/notifications': {
@@ -1361,6 +1680,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CareersApplicationsRouteImport
       parentRoute: typeof CareersRoute
     }
+    '/admissions/terms': {
+      id: '/admissions/terms'
+      path: '/terms'
+      fullPath: '/admissions/terms'
+      preLoaderRoute: typeof AdmissionsTermsRouteImport
+      parentRoute: typeof AdmissionsRoute
+    }
     '/admissions/signup': {
       id: '/admissions/signup'
       path: '/signup'
@@ -1387,6 +1713,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/admissions/profile'
       preLoaderRoute: typeof AdmissionsProfileRouteImport
+      parentRoute: typeof AdmissionsRoute
+    }
+    '/admissions/privacy': {
+      id: '/admissions/privacy'
+      path: '/privacy'
+      fullPath: '/admissions/privacy'
+      preLoaderRoute: typeof AdmissionsPrivacyRouteImport
       parentRoute: typeof AdmissionsRoute
     }
     '/admissions/notifications': {
@@ -1472,6 +1805,111 @@ declare module '@tanstack/react-router' {
       fullPath: '/admissions/applications'
       preLoaderRoute: typeof AdmissionsApplicationsRouteImport
       parentRoute: typeof AdmissionsRoute
+    }
+    '/activity/workshops': {
+      id: '/activity/workshops'
+      path: '/workshops'
+      fullPath: '/activity/workshops'
+      preLoaderRoute: typeof ActivityWorkshopsRouteImport
+      parentRoute: typeof ActivityRoute
+    }
+    '/activity/sports': {
+      id: '/activity/sports'
+      path: '/sports'
+      fullPath: '/activity/sports'
+      preLoaderRoute: typeof ActivitySportsRouteImport
+      parentRoute: typeof ActivityRoute
+    }
+    '/activity/profile': {
+      id: '/activity/profile'
+      path: '/profile'
+      fullPath: '/activity/profile'
+      preLoaderRoute: typeof ActivityProfileRouteImport
+      parentRoute: typeof ActivityRoute
+    }
+    '/activity/practice': {
+      id: '/activity/practice'
+      path: '/practice'
+      fullPath: '/activity/practice'
+      preLoaderRoute: typeof ActivityPracticeRouteImport
+      parentRoute: typeof ActivityRoute
+    }
+    '/activity/notifications': {
+      id: '/activity/notifications'
+      path: '/notifications'
+      fullPath: '/activity/notifications'
+      preLoaderRoute: typeof ActivityNotificationsRouteImport
+      parentRoute: typeof ActivityRoute
+    }
+    '/activity/messages': {
+      id: '/activity/messages'
+      path: '/messages'
+      fullPath: '/activity/messages'
+      preLoaderRoute: typeof ActivityMessagesRouteImport
+      parentRoute: typeof ActivityRoute
+    }
+    '/activity/extra-curricular': {
+      id: '/activity/extra-curricular'
+      path: '/extra-curricular'
+      fullPath: '/activity/extra-curricular'
+      preLoaderRoute: typeof ActivityExtraCurricularRouteImport
+      parentRoute: typeof ActivityRoute
+    }
+    '/activity/events': {
+      id: '/activity/events'
+      path: '/events'
+      fullPath: '/activity/events'
+      preLoaderRoute: typeof ActivityEventsRouteImport
+      parentRoute: typeof ActivityRoute
+    }
+    '/activity/competitions': {
+      id: '/activity/competitions'
+      path: '/competitions'
+      fullPath: '/activity/competitions'
+      preLoaderRoute: typeof ActivityCompetitionsRouteImport
+      parentRoute: typeof ActivityRoute
+    }
+    '/activity/clubs': {
+      id: '/activity/clubs'
+      path: '/clubs'
+      fullPath: '/activity/clubs'
+      preLoaderRoute: typeof ActivityClubsRouteImport
+      parentRoute: typeof ActivityRoute
+    }
+    '/activity/certificates': {
+      id: '/activity/certificates'
+      path: '/certificates'
+      fullPath: '/activity/certificates'
+      preLoaderRoute: typeof ActivityCertificatesRouteImport
+      parentRoute: typeof ActivityRoute
+    }
+    '/activity/calendar': {
+      id: '/activity/calendar'
+      path: '/calendar'
+      fullPath: '/activity/calendar'
+      preLoaderRoute: typeof ActivityCalendarRouteImport
+      parentRoute: typeof ActivityRoute
+    }
+    '/activity/attendance': {
+      id: '/activity/attendance'
+      path: '/attendance'
+      fullPath: '/activity/attendance'
+      preLoaderRoute: typeof ActivityAttendanceRouteImport
+      parentRoute: typeof ActivityRoute
+    }
+    '/activity/announcements': {
+      id: '/activity/announcements'
+      path: '/announcements'
+      fullPath: '/activity/announcements'
+      preLoaderRoute: typeof ActivityAnnouncementsRouteImport
+      parentRoute: typeof ActivityRoute
+    }
+    '/activity/achievements': {
+      id: '/activity/achievements'
+      path: '/achievements'
+      fullPath: '/activity/achievements'
+      preLoaderRoute: typeof ActivityAchievementsRouteImport
+      parentRoute: typeof ActivityRoute
     }
     '/careers/recruiter/': {
       id: '/careers/recruiter/'
@@ -1630,6 +2068,48 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface ActivityRouteChildren {
+  ActivityAchievementsRoute: typeof ActivityAchievementsRoute
+  ActivityAnnouncementsRoute: typeof ActivityAnnouncementsRoute
+  ActivityAttendanceRoute: typeof ActivityAttendanceRoute
+  ActivityCalendarRoute: typeof ActivityCalendarRoute
+  ActivityCertificatesRoute: typeof ActivityCertificatesRoute
+  ActivityClubsRoute: typeof ActivityClubsRoute
+  ActivityCompetitionsRoute: typeof ActivityCompetitionsRoute
+  ActivityEventsRoute: typeof ActivityEventsRoute
+  ActivityExtraCurricularRoute: typeof ActivityExtraCurricularRoute
+  ActivityMessagesRoute: typeof ActivityMessagesRoute
+  ActivityNotificationsRoute: typeof ActivityNotificationsRoute
+  ActivityPracticeRoute: typeof ActivityPracticeRoute
+  ActivityProfileRoute: typeof ActivityProfileRoute
+  ActivitySportsRoute: typeof ActivitySportsRoute
+  ActivityWorkshopsRoute: typeof ActivityWorkshopsRoute
+  ActivityIndexRoute: typeof ActivityIndexRoute
+}
+
+const ActivityRouteChildren: ActivityRouteChildren = {
+  ActivityAchievementsRoute: ActivityAchievementsRoute,
+  ActivityAnnouncementsRoute: ActivityAnnouncementsRoute,
+  ActivityAttendanceRoute: ActivityAttendanceRoute,
+  ActivityCalendarRoute: ActivityCalendarRoute,
+  ActivityCertificatesRoute: ActivityCertificatesRoute,
+  ActivityClubsRoute: ActivityClubsRoute,
+  ActivityCompetitionsRoute: ActivityCompetitionsRoute,
+  ActivityEventsRoute: ActivityEventsRoute,
+  ActivityExtraCurricularRoute: ActivityExtraCurricularRoute,
+  ActivityMessagesRoute: ActivityMessagesRoute,
+  ActivityNotificationsRoute: ActivityNotificationsRoute,
+  ActivityPracticeRoute: ActivityPracticeRoute,
+  ActivityProfileRoute: ActivityProfileRoute,
+  ActivitySportsRoute: ActivitySportsRoute,
+  ActivityWorkshopsRoute: ActivityWorkshopsRoute,
+  ActivityIndexRoute: ActivityIndexRoute,
+}
+
+const ActivityRouteWithChildren = ActivityRoute._addFileChildren(
+  ActivityRouteChildren,
+)
+
 interface AdmissionsApplicationsRouteChildren {
   AdmissionsApplicationsApplicationIdRoute: typeof AdmissionsApplicationsApplicationIdRoute
 }
@@ -1707,10 +2187,12 @@ interface AdmissionsRouteChildren {
   AdmissionsInterviewsRoute: typeof AdmissionsInterviewsRoute
   AdmissionsLoginRoute: typeof AdmissionsLoginRoute
   AdmissionsNotificationsRoute: typeof AdmissionsNotificationsRoute
+  AdmissionsPrivacyRoute: typeof AdmissionsPrivacyRoute
   AdmissionsProfileRoute: typeof AdmissionsProfileRoute
   AdmissionsProgramsRoute: typeof AdmissionsProgramsRouteWithChildren
   AdmissionsSettingsRoute: typeof AdmissionsSettingsRoute
   AdmissionsSignupRoute: typeof AdmissionsSignupRoute
+  AdmissionsTermsRoute: typeof AdmissionsTermsRoute
   AdmissionsIndexRoute: typeof AdmissionsIndexRoute
   AdmissionsInstitutesInstituteIdRoute: typeof AdmissionsInstitutesInstituteIdRoute
   AdmissionsInstitutesIndexRoute: typeof AdmissionsInstitutesIndexRoute
@@ -1729,10 +2211,12 @@ const AdmissionsRouteChildren: AdmissionsRouteChildren = {
   AdmissionsInterviewsRoute: AdmissionsInterviewsRoute,
   AdmissionsLoginRoute: AdmissionsLoginRoute,
   AdmissionsNotificationsRoute: AdmissionsNotificationsRoute,
+  AdmissionsPrivacyRoute: AdmissionsPrivacyRoute,
   AdmissionsProfileRoute: AdmissionsProfileRoute,
   AdmissionsProgramsRoute: AdmissionsProgramsRouteWithChildren,
   AdmissionsSettingsRoute: AdmissionsSettingsRoute,
   AdmissionsSignupRoute: AdmissionsSignupRoute,
+  AdmissionsTermsRoute: AdmissionsTermsRoute,
   AdmissionsIndexRoute: AdmissionsIndexRoute,
   AdmissionsInstitutesInstituteIdRoute: AdmissionsInstitutesInstituteIdRoute,
   AdmissionsInstitutesIndexRoute: AdmissionsInstitutesIndexRoute,
@@ -1762,10 +2246,12 @@ interface CareersRouteChildren {
   CareersInterviewsRoute: typeof CareersInterviewsRoute
   CareersLoginRoute: typeof CareersLoginRoute
   CareersNotificationsRoute: typeof CareersNotificationsRoute
+  CareersPrivacyRoute: typeof CareersPrivacyRoute
   CareersProfileRoute: typeof CareersProfileRoute
   CareersSavedRoute: typeof CareersSavedRoute
   CareersSettingsRoute: typeof CareersSettingsRoute
   CareersSignupRoute: typeof CareersSignupRoute
+  CareersTermsRoute: typeof CareersTermsRoute
   CareersIndexRoute: typeof CareersIndexRoute
   CareersInstitutesInstituteIdRoute: typeof CareersInstitutesInstituteIdRoute
   CareersJobsJobIdRoute: typeof CareersJobsJobIdRoute
@@ -1788,10 +2274,12 @@ const CareersRouteChildren: CareersRouteChildren = {
   CareersInterviewsRoute: CareersInterviewsRoute,
   CareersLoginRoute: CareersLoginRoute,
   CareersNotificationsRoute: CareersNotificationsRoute,
+  CareersPrivacyRoute: CareersPrivacyRoute,
   CareersProfileRoute: CareersProfileRoute,
   CareersSavedRoute: CareersSavedRoute,
   CareersSettingsRoute: CareersSettingsRoute,
   CareersSignupRoute: CareersSignupRoute,
+  CareersTermsRoute: CareersTermsRoute,
   CareersIndexRoute: CareersIndexRoute,
   CareersInstitutesInstituteIdRoute: CareersInstitutesInstituteIdRoute,
   CareersJobsJobIdRoute: CareersJobsJobIdRoute,
@@ -1824,6 +2312,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AcademicHistoryRoute: AcademicHistoryRoute,
   AchievementsRoute: AchievementsRoute,
+  ActivityRoute: ActivityRouteWithChildren,
   AdmissionsRoute: AdmissionsRouteWithChildren,
   AlertsRoute: AlertsRoute,
   AssignmentsRoute: AssignmentsRoute,
@@ -1842,11 +2331,13 @@ const rootRouteChildren: RootRouteChildren = {
   MarksRoute: MarksRoute,
   MessagesRoute: MessagesRoute,
   NotificationsRoute: NotificationsRoute,
+  PrivacyRoute: PrivacyRoute,
   ProfileRoute: ProfileRoute,
   RemarksRoute: RemarksRoute,
   SportsRoute: SportsRoute,
   StudentsRoute: StudentsRouteWithChildren,
   TeachersRoute: TeachersRoute,
+  TermsRoute: TermsRoute,
   TimetableRoute: TimetableRoute,
   TransportRoute: TransportRoute,
   VerifyStudentIdRoute: VerifyStudentIdRoute,

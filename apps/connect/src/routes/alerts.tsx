@@ -1,10 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo } from "react";
 import { AppShell } from "@/components/app/AppShell";
-import {
-  AlertsCenterView,
-  useAlertStoreInit,
-} from "@/components/app/alerts/AlertsCenterView";
+import { AlertsCenterView, useAlertStoreInit } from "@/components/app/alerts/AlertsCenterView";
 import { useApp } from "@/lib/app-state";
 import { schoolAlerts } from "@/lib/mock-data";
 import { useParentPortal } from "@/context/ParentPortalContext";
@@ -41,15 +38,14 @@ function AlertsRoutePage() {
   }
 
   if (role === "parent") {
-    const childName =
-      portal.isParent && portal.snapshot ? portal.snapshot.shortName : undefined;
+    const childName = portal.isParent && portal.snapshot ? portal.snapshot.shortName : undefined;
     return (
       <AlertsCenterView
         showChildSwitcher
         childId={activeChildId}
         subtitle={
           childName
-            ? `For ${childName} · Emergency = act now · Mandatory = acknowledge within 24h`
+            ? `For ${childName} · Emergency = act now · Mandatory = respond within 24h`
             : undefined
         }
       />

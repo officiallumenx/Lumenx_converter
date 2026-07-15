@@ -48,6 +48,12 @@ export const teacherLeaveStore = {
     notify();
   },
 
+  reset() {
+    requests = teacherLeaveRequestsSeed.map((r) => ({ ...r }));
+    initialized = false;
+    notify();
+  },
+
   getAll(): TeacherLeaveRequest[] {
     return requests;
   },

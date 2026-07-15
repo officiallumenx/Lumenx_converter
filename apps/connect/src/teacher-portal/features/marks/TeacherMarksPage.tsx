@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useSearch } from "@tanstack/react-router";
 import { PageHeader } from "@/components/app/PageHeader";
 import { SectionCard } from "@/components/app/SectionCard";
@@ -8,7 +8,15 @@ import { useAsyncAction } from "@/teacher-portal/core/hooks/useAsyncAction";
 import { MarksAnalytics, MarksTable } from "./MarksTable";
 import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
 import { ConfirmDialog } from "@/teacher-portal/core/widgets/ConfirmDialog";
-import { Button, Badge, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@lumenx/ui";
+import {
+  Button,
+  Badge,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@lumenx/ui";
 import { Save, Send } from "lucide-react";
 import { toast } from "sonner";
 import type { MarkEntry, TeacherExam } from "@/lib/teacher/types";
@@ -18,9 +26,39 @@ export function TeacherMarksPage() {
   const search = useSearch({ strict: false }) as { examId?: string; classId?: string };
   const [exams, setExams] = useState<TeacherExam[]>([]);
   const [examId, setExamId] = useState(search.examId ?? "");
-  const [classId, setClassId] = useState(search.classId ?? portal.isTeacher ? portal.classes[0]?.id ?? "" : "");
+  const initialClass = portal.classes[0];
+  const [classNameFilter, setClassNameFilter] = useState(initialClass?.className ?? "");
+  const [sectionFilter, setSectionFilter] = useState(initialClass?.section ?? "");
   const [rows, setRows] = useState<MarkEntry[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const classNames = useMemo(
+    () => [...new Set(portal.classes.map((c) => c.className))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
+    [portal.classes],
+  );
+
+  const sections = useMemo(
+    () =>
+      [
+        ...new Set(
+          portal.classes.filter((c) => c.className === classNameFilter).map((c) => c.section),
+        ),
+      ].sort(),
+    [portal.classes, classNameFilter],
+  );
+
+  const classId = useMemo(() => {
+    const matches = portal.classes.filter(
+      (c) => c.className === classNameFilter && c.section === sectionFilter,
+    );
+    return (matches.find((c) => c.isClassTeacher) ?? matches[0])?.id ?? "";
+  }, [portal.classes, classNameFilter, sectionFilter]);
+
+  useEffect(() => {
+    if (!sections.includes(sectionFilter) && sections[0]) {
+      setSectionFilter(sections[0]);
+    }
+  }, [sections, sectionFilter]);
 
   useEffect(() => {
     if (!portal.isTeacher || !classId) return;
@@ -32,8 +70,14 @@ export function TeacherMarksPage() {
 
   useEffect(() => {
     if (search.examId) setExamId(search.examId);
-    if (search.classId) setClassId(search.classId);
-  }, [search.examId, search.classId]);
+    if (search.classId) {
+      const cls = portal.classes.find((c) => c.id === search.classId);
+      if (cls) {
+        setClassNameFilter(cls.className);
+        setSectionFilter(cls.section);
+      }
+    }
+  }, [search.examId, search.classId, portal.classes]);
 
   useEffect(() => {
     if (!examId || !portal.isTeacher) return;
@@ -80,10 +124,19 @@ export function TeacherMarksPage() {
         subtitle="View, enter, edit, and publish results for your classes"
         action={
           <div className="flex gap-2">
-            <Button variant="outline" className="rounded-xl gap-2" onClick={() => saveDraft()} disabled={saving || isPublished}>
+            <Button
+              variant="outline"
+              className="rounded-xl gap-2"
+              onClick={() => saveDraft()}
+              disabled={saving || isPublished}
+            >
               <Save className="size-4" /> Save draft
             </Button>
-            <Button className="rounded-xl gap-2 shadow-glow" onClick={() => setConfirmPublish(true)} disabled={saving || isPublished || enteredCount === 0}>
+            <Button
+              className="rounded-xl gap-2 shadow-glow"
+              onClick={() => setConfirmPublish(true)}
+              disabled={saving || isPublished || enteredCount === 0}
+            >
               <Send className="size-4" /> Publish results
             </Button>
           </div>
@@ -95,36 +148,80 @@ export function TeacherMarksPage() {
         title="Publish results?"
         description={`Marks for ${exam?.name ?? "this exam"} · Class ${cls?.className ?? ""}-${cls?.section ?? ""} will be visible to students, parents, and admin. This action cannot be undone.`}
         confirmLabel="Publish"
-        onConfirm={() => { setConfirmPublish(false); publish(); }}
+        onConfirm={() => {
+          setConfirmPublish(false);
+          publish();
+        }}
       />
 
-      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="mb-4 space-y-3">
+        <div className="grid grid-cols-2 gap-2 sm:max-w-md sm:gap-3">
+          <Field label="Class">
+            <Select
+              value={classNameFilter}
+              onValueChange={(v) => {
+                setClassNameFilter(v);
+                const nextSections = portal.classes
+                  .filter((c) => c.className === v)
+                  .map((c) => c.section);
+                if (!nextSections.includes(sectionFilter)) {
+                  setSectionFilter(nextSections[0] ?? "");
+                }
+              }}
+            >
+              <SelectTrigger className="h-11 rounded-xl">
+                <SelectValue placeholder="Class" />
+              </SelectTrigger>
+              <SelectContent position="popper" className="z-[100]">
+                {classNames.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    Class {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Section">
+            <Select value={sectionFilter} onValueChange={setSectionFilter}>
+              <SelectTrigger className="h-11 rounded-xl">
+                <SelectValue placeholder="Section" />
+              </SelectTrigger>
+              <SelectContent position="popper" className="z-[100]">
+                {sections.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    Section {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
         <Field label="Exam">
           <Select value={examId} onValueChange={setExamId}>
-            <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Select exam" /></SelectTrigger>
+            <SelectTrigger className="h-11 rounded-xl">
+              <SelectValue placeholder="Select exam" />
+            </SelectTrigger>
             <SelectContent position="popper" className="z-[100]">
               {exams.map((e) => (
-                <SelectItem key={e.id} value={e.id}>{e.name} ({e.marksStatus})</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label="Class">
-          <Select value={classId} onValueChange={setClassId}>
-            <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
-            <SelectContent position="popper" className="z-[100]">
-              {portal.classes.map((c) => (
-                <SelectItem key={c.id} value={c.id}>Class {c.className}-{c.section} · {c.subject}</SelectItem>
+                <SelectItem key={e.id} value={e.id}>
+                  {e.name} ({e.marksStatus})
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </Field>
       </div>
 
-      {loading ? <PageSkeleton rows={5} /> : (
+      {loading ? (
+        <PageSkeleton rows={5} />
+      ) : (
         <SectionCard
           title={`${exam?.name ?? "Exam"} · Class ${cls?.className}-${cls?.section} · ${exam?.subject ?? cls?.subject ?? ""}`}
-          action={<Badge variant="outline" className="rounded-md capitalize">{isPublished ? "Published" : "Draft"}</Badge>}
+          action={
+            <Badge variant="outline" className="rounded-md capitalize">
+              {isPublished ? "Published" : "Draft"}
+            </Badge>
+          }
         >
           <MarksAnalytics rows={rows} />
           <MarksTable rows={rows} onUpdate={update} readOnly={isPublished} />

@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { Search, X, BarChart3 } from "lucide-react";
 
 const inputBase =
-  "w-full px-3 rounded-md bg-background border border-border text-sm placeholder:text-muted-foreground/70 focus:outline-none focus:border-primary/60 focus:ring-2 focus:ring-ring/30 hover:border-border-strong transition-colors";
+  "w-full px-3 rounded-md bg-background text-foreground border border-border text-sm placeholder:text-muted-foreground/70 focus:outline-none focus:border-primary/60 focus:ring-2 focus:ring-ring/30 hover:border-border-strong transition-colors appearance-none";
 const inputSizes = { md: "h-10", compact: "h-9 text-xs" } as const;
 type FieldSize = keyof typeof inputSizes;
 
@@ -20,12 +20,12 @@ export function Card({ children, className = "", interactive = false, ...props }
 
 export function CardHeader({ title, action, hint }: { title: string; action?: ReactNode; hint?: string }) {
   return (
-    <div className="lx-card-header flex flex-wrap items-start justify-between gap-3 px-4 sm:px-5 pt-4 sm:pt-5 pb-3 border-b border-border/60">
+    <div className="lx-card-header flex flex-wrap items-start justify-between gap-3 border-b border-border/60">
       <div className="min-w-0 flex-1">
-        <h3 className="text-sm font-semibold tracking-tight text-foreground">{title}</h3>
-        {hint && <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{hint}</p>}
+        <h3 className="text-sm font-semibold tracking-tight text-foreground leading-snug">{title}</h3>
+        {hint && <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">{hint}</p>}
       </div>
-      {action && <div className="shrink-0 max-w-full">{action}</div>}
+      {action && <div className="shrink-0 max-w-full lx-btn-group">{action}</div>}
     </div>
   );
 }
@@ -89,7 +89,7 @@ export function Pill({ children, tone = "neutral", pulse = false }: { children: 
   } as const;
   const dotMap = { success: "bg-success", warning: "bg-warning", danger: "bg-destructive", info: "bg-primary", neutral: "bg-muted-foreground" } as const;
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide border ${map[tone]}`}>
+    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide border leading-none ${map[tone]}`}>
       {pulse && <span className={`size-1.5 rounded-full ${dotMap[tone]} pulse-ring`} />}
       {children}
     </span>
@@ -110,10 +110,11 @@ export function Button({ children, variant = "default", size = "md", loading = f
     outline: "bg-transparent border border-border hover:bg-surface text-foreground",
   } as const;
   const sizes = {
-    sm: "h-8 min-h-8 px-2.5 text-[11px] gap-1",
-    md: "h-9 min-h-9 px-3.5 text-xs gap-1.5",
-    lg: "h-10 min-h-10 px-4 text-sm gap-2",
+    sm: "h-8 min-h-8 px-2.5 text-[11px] [&_svg]:size-3.5",
+    md: "h-9 min-h-9 px-3.5 text-xs [&_svg]:size-3.5",
+    lg: "h-10 min-h-10 px-4 text-sm [&_svg]:size-4",
   } as const;
+  const gapSizes = { sm: "gap-1", md: "gap-1.5", lg: "gap-2" } as const;
   return (
     <button
       {...rest}
@@ -121,8 +122,8 @@ export function Button({ children, variant = "default", size = "md", loading = f
       aria-busy={loading || undefined}
       className={`inline-flex items-center justify-center rounded-md font-medium transition-all duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] ${map[variant]} ${sizes[size]} ${className}`}
     >
-      {loading && <span className="lx-spinner shrink-0 mr-0.5" aria-hidden />}
-      <span className={`inline-flex items-center gap-inherit transition-opacity duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] ${loading ? "opacity-75" : "opacity-100"}`}>
+      {loading && <span className="lx-spinner shrink-0" aria-hidden />}
+      <span className={`inline-flex items-center ${gapSizes[size]} transition-opacity duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] ${loading ? "opacity-75" : "opacity-100"}`}>
         {children}
       </span>
     </button>
@@ -134,7 +135,7 @@ export function IconButton({ label, children, size = "md", className = "", ...re
   children: ReactNode;
   size?: "sm" | "md";
 } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  const sizes = { sm: "size-8 min-w-8", md: "size-9 min-w-9" } as const;
+  const sizes = { sm: "size-8 min-w-8 min-h-8", md: "size-9 min-w-9 min-h-9" } as const;
   return (
     <button
       type="button"
@@ -150,17 +151,29 @@ export function IconButton({ label, children, size = "md", className = "", ...re
 
 /* ---------- Form primitives ---------- */
 
-export function Field({ label, hint, children, required }: { label: string; hint?: string; children: ReactNode; required?: boolean }) {
+export function Field({ label, hint, children, required, className = "" }: { label: string; hint?: string; children: ReactNode; required?: boolean; className?: string }) {
   return (
-    <label className="block">
-      <div className="flex items-center justify-between mb-1.5">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-          {label}{required && <span className="text-destructive ml-0.5">*</span>}
+    <label className={`block ${className}`.trim()}>
+      <div className="flex items-baseline justify-between gap-2 mb-2">
+        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground leading-none">
+          {label}{required && <span className="text-destructive ml-0.5" aria-hidden>*</span>}
         </span>
-        {hint && <span className="text-[10px] text-muted-foreground">{hint}</span>}
+        {hint && <span className="text-[10px] text-muted-foreground text-right leading-snug">{hint}</span>}
       </div>
       {children}
     </label>
+  );
+}
+
+export function FormStack({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <div className={`lx-form-stack ${className}`.trim()}>{children}</div>;
+}
+
+export function FormGrid({ children, cols = 2, className = "" }: { children: ReactNode; cols?: 1 | 2; className?: string }) {
+  return (
+    <div className={`lx-form-grid ${cols === 2 ? "lx-form-grid--2" : ""} ${className}`.trim()}>
+      {children}
+    </div>
   );
 }
 
@@ -247,7 +260,7 @@ export function SegmentedControl<T extends string>({
 
 export function PageToolbar({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`p-4 sm:p-5 border-b border-border flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end bg-background/30 ${className}`}>
+    <div className={`px-4 sm:px-5 py-4 border-b border-border flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end bg-background/30 ${className}`}>
       {children}
     </div>
   );
@@ -272,16 +285,27 @@ export function Modal({ open, onClose, title, subtitle, children, footer, size =
   size?: "sm" | "md" | "lg" | "xl";
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const h = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCloseRef.current();
+    };
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     window.addEventListener("keydown", h);
+    return () => {
+      window.removeEventListener("keydown", h);
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
     dialogRef.current?.focus();
-    return () => { window.removeEventListener("keydown", h); document.body.style.overflow = prev; };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open || typeof document === "undefined") return null;
 
@@ -321,14 +345,14 @@ export function Modal({ open, onClose, title, subtitle, children, footer, size =
         </div>
 
         <div
-          className="lx-modal-body px-4 py-4 sm:px-5 sm:py-4"
+          className="lx-modal-body lx-form-stack px-4 py-4 sm:px-5 sm:py-5"
           style={{ maxHeight: bodyMaxHeight }}
         >
           {children}
         </div>
 
         {footer && (
-          <div className="px-4 sm:px-5 py-3 border-t border-border bg-elevated rounded-b-xl flex flex-wrap items-center justify-end gap-2 shrink-0">
+          <div className="px-4 sm:px-5 py-3 border-t border-border bg-elevated rounded-b-xl flex flex-wrap items-center justify-end gap-2 shrink-0 lx-btn-group">
             {footer}
           </div>
         )}
@@ -341,15 +365,15 @@ export function Modal({ open, onClose, title, subtitle, children, footer, size =
 /* ---------- Empty / loading ---------- */
 export function EmptyState({ icon, title, hint, action }: { icon?: ReactNode; title: string; hint?: string; action?: ReactNode }) {
   return (
-    <div className="flex flex-col items-center justify-center text-center py-12 sm:py-16 px-6 animate-entrance">
+    <div className="lx-empty-state flex flex-col items-center justify-center text-center animate-entrance">
       {icon && (
-        <div className="size-12 rounded-xl bg-accent border border-border/60 flex items-center justify-center mb-4 text-muted-foreground shadow-xs">
+        <div className="size-12 rounded-xl bg-accent border border-border/60 flex items-center justify-center mb-4 text-muted-foreground shadow-xs" aria-hidden>
           {icon}
         </div>
       )}
-      <div className="text-sm font-medium text-foreground">{title}</div>
-      {hint && <p className="text-xs text-muted-foreground mt-1.5 max-w-sm leading-relaxed">{hint}</p>}
-      {action && <div className="mt-4 flex flex-wrap justify-center gap-2">{action}</div>}
+      <div className="text-sm font-semibold text-foreground tracking-tight">{title}</div>
+      {hint && <p className="text-xs text-muted-foreground mt-2 max-w-md leading-relaxed">{hint}</p>}
+      {action && <div className="mt-5 lx-btn-group justify-center">{action}</div>}
     </div>
   );
 }
@@ -385,29 +409,31 @@ export function PageLoadingSkeleton() {
 export function DataTable({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
     <div className={`lx-table-wrap overflow-auto max-h-[min(640px,70vh)] rounded-b-xl -mx-px ${className}`}>
-      <table className="w-full min-w-[min(100%,520px)] sm:min-w-[640px] text-left border-separate border-spacing-0">
+      <table className="w-full min-w-[min(100%,520px)] sm:min-w-[640px] text-left border-collapse border-separate border-spacing-0">
         {children}
       </table>
     </div>
   );
 }
 
-export function Th({ children, className = "" }: { children: ReactNode; className?: string }) {
+export function Th({ children, className = "", align = "left" }: { children: ReactNode; className?: string; align?: "left" | "right" | "center" }) {
+  const alignCls = align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left";
   return (
-    <th className={`lx-table-th sticky top-0 z-10 px-4 sm:px-5 py-3 font-semibold text-[10px] uppercase tracking-wider text-muted-foreground bg-background/95 backdrop-blur-sm border-b border-border ${className}`}>
+    <th className={`lx-table-th sticky top-0 z-10 px-4 sm:px-5 py-3 font-semibold text-[10px] uppercase tracking-wider text-muted-foreground bg-background/95 backdrop-blur-sm border-b border-border ${alignCls} ${className}`}>
       {children}
     </th>
   );
 }
 
-export function Td({ children, className = "", mono }: { children: ReactNode; className?: string; mono?: boolean }) {
+export function Td({ children, className = "", mono, align = "left" }: { children: ReactNode; className?: string; mono?: boolean; align?: "left" | "right" | "center" }) {
+  const alignCls = align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left";
   return (
-    <td className={`px-4 sm:px-5 py-3 text-xs sm:text-sm text-foreground ${mono ? "font-mono tabular-nums" : ""} ${className}`}>
+    <td className={`px-4 sm:px-5 py-3.5 text-xs sm:text-sm text-foreground ${alignCls} ${mono ? "font-mono tabular-nums" : ""} ${className}`}>
       {children}
     </td>
   );
 }
 
 export function Tr({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <tr className={`transition-colors ${className}`}>{children}</tr>;
+  return <tr className={`lx-table-tr transition-colors duration-150 ${className}`}>{children}</tr>;
 }

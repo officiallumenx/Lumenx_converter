@@ -27,6 +27,7 @@ import {
   dashboardAnnouncements,
   teacherClassFees,
 } from "./mock-data";
+import { filterSubjectPortalNotifications } from "./portal-scope";
 import type {
   AssignmentSubmission,
   AttendanceRecord,
@@ -73,11 +74,18 @@ let preferencesStore: TeacherPreferences = {
 };
 let remarksStore: StudentRemark[] = [];
 let notificationsStore = [...teacherNotifications];
+const notificationListeners = new Set<Listener>();
+
+function notifyNotifications() {
+  notificationListeners.forEach((l) => l());
+}
+
 let complaintsStore = [...teacherComplaints];
 let examsStore = [...teacherExams];
 let eventsStore = [...teacherEvents];
 let messagesStore = [...teacherMessages];
 let assignmentsStore = teacherAssignments.map((a) => ({ ...a }));
+let submissionsStore = teacherAssignmentSubmissions.map((s) => ({ ...s }));
 const markEntriesCache: Record<string, MarkEntry[]> = {};
 let attendanceRecords: AttendanceRecord[] = [];
 const attendanceMarkedClasses = new Set<string>();
@@ -85,6 +93,20 @@ const teacherSelfAttendanceStore: TeacherSelfAttendanceRecord[] = [...teacherSel
 
 function markKey(examId: string, classId: string) {
   return `${examId}:${classId}`;
+}
+
+/** Keep an assignment's submittedCount/submissionRate in sync with its actual submissions. */
+function recomputeAssignmentProgress(assignmentId: string) {
+  const idx = assignmentsStore.findIndex((a) => a.id === assignmentId);
+  if (idx < 0) return;
+  const subs = submissionsStore.filter((s) => s.assignmentId === assignmentId);
+  const total = assignmentsStore[idx].totalStudents || subs.length || 1;
+  const submitted = subs.filter((s) => s.submittedAt != null).length;
+  assignmentsStore[idx] = {
+    ...assignmentsStore[idx],
+    submittedCount: submitted,
+    submissionRate: Math.round((submitted / total) * 100),
+  };
 }
 
 function todayKey() {
@@ -139,7 +161,7 @@ export const teacherRepository = {
 
   async getClasses(): Promise<TeacherClass[]> {
     await delay();
-    return teacherClasses;
+    return teacherClasses.map((c) => ({ ...c }));
   },
 
   async getClass(id: string): Promise<TeacherClass | null> {
@@ -160,7 +182,9 @@ export const teacherRepository = {
       })),
       upcomingExams: examsStore.filter((e) => e.status === "upcoming").slice(0, 4),
       upcomingEvents: eventsStore.slice(0, 4),
-      unreadMessages: messagesStore.filter((m) => m.unread && !m.archived && !m.draft).length,
+      unreadMessages: messagesStore.filter(
+        (m) => m.unread && !m.archived && !m.draft && m.portalScope !== "activity",
+      ).length,
       recentComplaints: complaintsStore.filter((c) => c.status !== "closed").slice(0, 3),
       classPerformance: teacherClasses.map((c) => ({
         classId: c.id,
@@ -343,6 +367,8 @@ export const teacherRepository = {
   },
 
   async sendMessage(data: {
+    /** When set (editing a draft), the existing message is updated in place instead of duplicated. */
+    id?: string;
     to: string;
     recipientRole: TeacherMessage["recipientRole"];
     subject: string;
@@ -350,9 +376,10 @@ export const teacherRepository = {
     draft?: boolean;
   }): Promise<TeacherMessage> {
     await delay(400);
+    const existing = data.id ? messagesStore.find((m) => m.id === data.id) : undefined;
     const msg: TeacherMessage = {
-      id: `msg-${Date.now()}`,
-      threadId: `thread-${Date.now()}`,
+      id: existing?.id ?? `msg-${Date.now()}`,
+      threadId: existing?.threadId ?? `thread-${Date.now()}`,
       from: profileStore.name,
       to: data.to,
       recipientRole: data.recipientRole,
@@ -363,7 +390,9 @@ export const teacherRepository = {
       archived: false,
       draft: data.draft ?? false,
     };
-    messagesStore = [msg, ...messagesStore];
+    messagesStore = existing
+      ? messagesStore.map((m) => (m.id === existing.id ? msg : m))
+      : [msg, ...messagesStore];
     return msg;
   },
 
@@ -423,17 +452,34 @@ export const teacherRepository = {
 
   async getNotifications(): Promise<TeacherNotification[]> {
     await delay();
-    return notificationsStore.map((n) => ({ ...n }));
+    return filterSubjectPortalNotifications(notificationsStore).map((n) => ({ ...n }));
+  },
+
+  getNotificationUnreadCount: (): number =>
+    filterSubjectPortalNotifications(notificationsStore).filter((n) => n.unread).length,
+
+  getSubjectNotificationUnreadCount: (): number =>
+    filterSubjectPortalNotifications(notificationsStore).filter((n) => n.unread).length,
+
+  /** Stable snapshot (same reference until a mutation) for useSyncExternalStore consumers. */
+  getNotificationsSnapshot: (): TeacherNotification[] =>
+    filterSubjectPortalNotifications(notificationsStore),
+
+  subscribeNotifications: (listener: Listener) => {
+    notificationListeners.add(listener);
+    return () => notificationListeners.delete(listener);
   },
 
   async markNotificationRead(id: string): Promise<void> {
     await delay(150);
     notificationsStore = notificationsStore.map((n) => (n.id === id ? { ...n, unread: false } : n));
+    notifyNotifications();
   },
 
   async markAllNotificationsRead(): Promise<void> {
     await delay(200);
     notificationsStore = notificationsStore.map((n) => ({ ...n, unread: false }));
+    notifyNotifications();
   },
 
   async createAnnouncement(title: string, body: string): Promise<void> {
@@ -449,6 +495,7 @@ export const teacherRepository = {
       },
       ...notificationsStore,
     ];
+    notifyNotifications();
   },
 
   async getComplaints(): Promise<TeacherComplaint[]> {
@@ -501,7 +548,10 @@ export const teacherRepository = {
     const d = date ?? todayKey();
     const key = `${classId}:${d}`;
     const existing = attendanceRecords.find((r) => r.classId === classId && r.date === d);
-    const preservedLeave = leaveIds ?? existing?.leaveIds ?? [];
+    // Union stored + submitted leave so approved leave (added asynchronously via
+    // applyApprovedLeave) is never wiped by a stale/empty leave set from the page.
+    // The attendance UI can only add absences, never edit leave, so a union is lossless.
+    const preservedLeave = [...new Set([...(existing?.leaveIds ?? []), ...(leaveIds ?? [])])];
     const filteredAbsent = absentIds.filter((id) => !preservedLeave.includes(id));
 
     attendanceRecords = attendanceRecords.filter((r) => !(r.classId === classId && r.date === d));
@@ -608,9 +658,25 @@ export const teacherRepository = {
 
   async getAssignmentSubmissions(assignmentId: string): Promise<AssignmentSubmission[]> {
     await delay();
-    return teacherAssignmentSubmissions
+    return submissionsStore
       .filter((s) => s.assignmentId === assignmentId)
       .map((s) => ({ ...s }));
+  },
+
+  async updateSubmissionMarks(
+    submissionId: string,
+    marks: number | null,
+  ): Promise<AssignmentSubmission | null> {
+    await delay(200);
+    const idx = submissionsStore.findIndex((s) => s.id === submissionId);
+    if (idx < 0) return null;
+    submissionsStore[idx] = {
+      ...submissionsStore[idx],
+      marks,
+      graded: marks != null,
+    };
+    recomputeAssignmentProgress(submissionsStore[idx].assignmentId);
+    return { ...submissionsStore[idx] };
   },
 
   async createAssignment(data: {
@@ -772,5 +838,5 @@ export const teacherRepository = {
   },
 };
 
-export { DAYS, getTodayDayName } from "./mock-data";
+export { DAYS, getTodayDayName, getDefaultTeacherDay } from "./mock-data";
 export type { TeacherFeeRecord } from "./mock-data";

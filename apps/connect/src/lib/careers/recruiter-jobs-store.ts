@@ -119,7 +119,8 @@ export function createRecruiterJob(
     responsibilities: input.responsibilities.filter(Boolean),
     qualifications: input.qualifications.filter(Boolean),
     skills: input.skills.filter(Boolean),
-    benefits: input.benefits.length > 0 ? input.benefits.filter(Boolean) : ["As per company policy"],
+    benefits:
+      input.benefits.length > 0 ? input.benefits.filter(Boolean) : ["As per company policy"],
     location: input.location?.trim() || `${input.city}, ${input.state}`,
     imageGradient: "from-primary/15 to-muted",
     salaryDisplay: input.salaryDisplay?.trim() || "Competitive",
@@ -158,7 +159,8 @@ export function updateRecruiterJob(
     responsibilities: input.responsibilities.filter(Boolean),
     qualifications: input.qualifications.filter(Boolean),
     skills: input.skills.filter(Boolean),
-    benefits: input.benefits.length > 0 ? input.benefits.filter(Boolean) : ["As per company policy"],
+    benefits:
+      input.benefits.length > 0 ? input.benefits.filter(Boolean) : ["As per company policy"],
     location: input.location?.trim() || `${input.city}, ${input.state}`,
     salaryDisplay: input.salaryDisplay?.trim() || "Competitive",
     recruiterJobStatus: input.jobStatus ?? existing.recruiterJobStatus ?? "draft",
@@ -176,7 +178,10 @@ export function canRecruiterEditJob(jobId: string, organizationId: string): bool
   return !!job && job.instituteId === organizationId && !!job.postedByRecruiterId;
 }
 
-export function updateRecruiterJobStatus(jobId: string, status: RecruiterJobStatus): JobPosting | undefined {
+export function updateRecruiterJobStatus(
+  jobId: string,
+  status: RecruiterJobStatus,
+): JobPosting | undefined {
   const jobs = readStore();
   const idx = jobs.findIndex((j) => j.id === jobId);
   if (idx < 0) return undefined;

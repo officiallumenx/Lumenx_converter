@@ -50,7 +50,7 @@ export function StatCard({
         </div>
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-0.5 sm:gap-1">
-          <p className="text-[10px] font-medium uppercase leading-snug tracking-wide text-muted-foreground line-clamp-2 break-words sm:text-[11px]">
+          <p className="connect-stat-label line-clamp-2 break-words sm:text-[11px]">
             {label}
           </p>
           <p className="font-display text-base font-semibold leading-none tracking-tight tabular-nums break-words [overflow-wrap:anywhere] sm:text-lg md:text-xl lg:text-2xl">

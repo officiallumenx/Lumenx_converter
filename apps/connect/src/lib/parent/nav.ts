@@ -17,6 +17,8 @@ import {
   FileText,
   CalendarOff,
   Bus,
+  History,
+  Award,
 } from "lucide-react";
 
 const SETTINGS = { to: "/profile", label: "Settings", icon: UserIcon } as const;
@@ -31,12 +33,16 @@ export const PARENT_NAV = [
   { to: "/attendance", label: "Attendance", icon: ClipboardCheck },
   { to: "/transport", label: "Transport", icon: Bus },
   { to: "/leave", label: "Leave", icon: CalendarOff },
-  { to: "/assignments", label: "Assignments", icon: BookOpen },
+  { to: "/assignments", label: "Homework", icon: BookOpen },
   { to: "/marks", label: "Marks", icon: GraduationCap },
+  { to: "/academic-history", label: "Academic History", icon: History },
+  { to: "/achievements", label: "Achievements", icon: Award },
+  { to: "/certificates", label: "Certificates", icon: FileText },
   { to: "/exams", label: "Exams", icon: GraduationCap },
   { to: "/fees", label: "Fees", icon: Wallet },
   { to: "/messages", label: "Messages", icon: MessageSquare },
   { to: "/timetable", label: "Timetable", icon: Calendar },
+  { to: "/id-card", label: "ID Card", icon: FileText },
   { to: "/notifications", label: "Notifications", icon: Bell },
 ] as const;
 
@@ -49,10 +55,7 @@ export const PARENT_MORE_NAV = [
 ] as const;
 
 /** On-behalf student modules — before Settings when enabled. */
-export const PARENT_DELEGATED_NAV = [
-  { to: "/growth", label: "Growth", icon: Sparkles },
-  { to: "/id-card", label: "ID Card", icon: FileText },
-] as const;
+export const PARENT_DELEGATED_NAV = [{ to: "/growth", label: "Growth", icon: Sparkles }] as const;
 
 export function getParentNav(studentIncludedMode: boolean) {
   const items = [

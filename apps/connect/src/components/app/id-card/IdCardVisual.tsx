@@ -54,8 +54,7 @@ export function IdCardVisual({
             aria-hidden
             className="pointer-events-none absolute inset-0 opacity-[0.07]"
             style={{
-              backgroundImage:
-                "radial-gradient(circle at 1px 1px, white 1px, transparent 0)",
+              backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)",
               backgroundSize: "18px 18px",
             }}
           />
@@ -180,7 +179,9 @@ export function IdCardVisual({
 function InfoPill({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex min-w-0 flex-col items-center rounded-xl border border-slate-200/80 bg-white px-2 py-2.5 text-center shadow-sm">
-      <span className="text-[9px] font-semibold uppercase tracking-wide text-slate-400">{label}</span>
+      <span className="text-[9px] font-semibold uppercase tracking-wide text-slate-400">
+        {label}
+      </span>
       <span className="mt-0.5 w-full truncate text-sm font-bold text-slate-800">{value}</span>
     </div>
   );

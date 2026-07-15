@@ -10,12 +10,21 @@ export const INSTITUTE_PROFILES: InstituteProfileExtended[] = [
     principalName: "Dr. Alistair Vance",
     principalMessage:
       "At LumenX Academy we nurture curiosity, character, and competence. Our admissions team partners with every family through a transparent, mobile-first journey.",
-    history: "Founded in 1998, LumenX Academy has grown from 120 students to 2,800+ across Green Park Campus.",
+    history:
+      "Founded in 1998, LumenX Academy has grown from 120 students to 2,800+ across Green Park Campus.",
     vision: "Every learner discovers their potential through excellence, empathy, and innovation.",
     mission: "Deliver holistic education with strong academics, sports, and digital fluency.",
     awards: ["NAAC A+", "Green Campus Award 2025", "National Science Olympiad Hub"],
-    academicHighlights: ["98.2% board pass rate", "Integrated STEM from Grade 6", "University counselling cell"],
-    sportsHighlights: ["State cricket champions", "Olympic-size pool", "Inter-school athletics record"],
+    academicHighlights: [
+      "98.2% board pass rate",
+      "Integrated STEM from Grade 6",
+      "University counselling cell",
+    ],
+    sportsHighlights: [
+      "State cricket champions",
+      "Olympic-size pool",
+      "Inter-school athletics record",
+    ],
     admissionOffice: {
       phone: "+91 40 4455 8800",
       email: "admissions@lumenx.edu",
@@ -23,16 +32,50 @@ export const INSTITUTE_PROFILES: InstituteProfileExtended[] = [
       address: "Admissions Block, Green Park Campus, Hyderabad 500032",
     },
     campusPhotos: [
-      { id: "lx-p1", type: "photo", title: "Main Campus", caption: "Green Park entrance", gradient: "from-primary/30 to-emerald-500/20" },
-      { id: "lx-p2", type: "photo", title: "STEM Labs", caption: "Robotics & coding", gradient: "from-blue-500/25 to-cyan-500/15" },
-      { id: "lx-p3", type: "photo", title: "Sports Complex", caption: "Pool & courts", gradient: "from-amber-500/20 to-orange-500/15" },
+      {
+        id: "lx-p1",
+        type: "photo",
+        title: "Main Campus",
+        caption: "Green Park entrance",
+        gradient: "from-primary/30 to-emerald-500/20",
+      },
+      {
+        id: "lx-p2",
+        type: "photo",
+        title: "STEM Labs",
+        caption: "Robotics & coding",
+        gradient: "from-blue-500/25 to-cyan-500/15",
+      },
+      {
+        id: "lx-p3",
+        type: "photo",
+        title: "Sports Complex",
+        caption: "Pool & courts",
+        gradient: "from-amber-500/20 to-orange-500/15",
+      },
     ],
     videos: [
-      { id: "lx-v1", type: "video", title: "Campus tour", caption: "5-min walkthrough", gradient: "from-violet-500/25 to-primary/20" },
+      {
+        id: "lx-v1",
+        type: "video",
+        title: "Campus tour",
+        caption: "5-min walkthrough",
+        gradient: "from-violet-500/25 to-primary/20",
+      },
     ],
     eventsGallery: [
-      { id: "lx-e1", type: "photo", title: "Annual Day 2025", gradient: "from-rose-500/20 to-pink-500/15" },
-      { id: "lx-e2", type: "photo", title: "Science Fair", gradient: "from-emerald-500/20 to-teal-500/15" },
+      {
+        id: "lx-e1",
+        type: "photo",
+        title: "Annual Day 2025",
+        gradient: "from-rose-500/20 to-pink-500/15",
+      },
+      {
+        id: "lx-e2",
+        type: "photo",
+        title: "Science Fair",
+        gradient: "from-emerald-500/20 to-teal-500/15",
+      },
     ],
     featured: true,
     popular: true,
@@ -44,7 +87,8 @@ export const INSTITUTE_PROFILES: InstituteProfileExtended[] = [
     logoGradient: "from-blue-500/70 to-cyan-500/50",
     shortDescription: "CBSE school with IB pathway and arts academy in New Delhi.",
     principalName: "Mrs. Kavita Menon",
-    principalMessage: "DPS Riverside welcomes families who value creativity alongside academic rigour.",
+    principalMessage:
+      "DPS Riverside welcomes families who value creativity alongside academic rigour.",
     history: "Established 2005 on the Yamuna riverside, serving 1,400 students.",
     vision: "Learning without boundaries — local roots, global outlook.",
     mission: "Inspire lifelong learners through inclusive, innovative education.",
@@ -58,11 +102,35 @@ export const INSTITUTE_PROFILES: InstituteProfileExtended[] = [
       address: "Riverside Enclave, New Delhi 110021",
     },
     campusPhotos: [
-      { id: "dp-p1", type: "photo", title: "Riverside Campus", gradient: "from-blue-500/25 to-sky-500/15" },
-      { id: "dp-p2", type: "photo", title: "Arts Academy", gradient: "from-purple-500/20 to-violet-500/15" },
+      {
+        id: "dp-p1",
+        type: "photo",
+        title: "Riverside Campus",
+        gradient: "from-blue-500/25 to-sky-500/15",
+      },
+      {
+        id: "dp-p2",
+        type: "photo",
+        title: "Arts Academy",
+        gradient: "from-purple-500/20 to-violet-500/15",
+      },
     ],
-    videos: [{ id: "dp-v1", type: "video", title: "Student life", gradient: "from-blue-500/20 to-indigo-500/15" }],
-    eventsGallery: [{ id: "dp-e1", type: "photo", title: "Cultural fest", gradient: "from-amber-500/20 to-yellow-500/15" }],
+    videos: [
+      {
+        id: "dp-v1",
+        type: "video",
+        title: "Student life",
+        gradient: "from-blue-500/20 to-indigo-500/15",
+      },
+    ],
+    eventsGallery: [
+      {
+        id: "dp-e1",
+        type: "photo",
+        title: "Cultural fest",
+        gradient: "from-amber-500/20 to-yellow-500/15",
+      },
+    ],
     featured: true,
     popular: true,
     addedAt: "2025-11-01",
@@ -87,10 +155,22 @@ export const INSTITUTE_PROFILES: InstituteProfileExtended[] = [
       address: "Fort, Mumbai 400001",
     },
     campusPhotos: [
-      { id: "sx-p1", type: "photo", title: "Science block", gradient: "from-amber-500/25 to-orange-500/15" },
+      {
+        id: "sx-p1",
+        type: "photo",
+        title: "Science block",
+        gradient: "from-amber-500/25 to-orange-500/15",
+      },
     ],
     videos: [],
-    eventsGallery: [{ id: "sx-e1", type: "photo", title: "Merit day", gradient: "from-emerald-500/20 to-green-500/15" }],
+    eventsGallery: [
+      {
+        id: "sx-e1",
+        type: "photo",
+        title: "Merit day",
+        gradient: "from-emerald-500/20 to-green-500/15",
+      },
+    ],
     featured: false,
     popular: true,
     addedAt: "2026-01-10",
@@ -101,7 +181,8 @@ export const INSTITUTE_PROFILES: InstituteProfileExtended[] = [
     logoGradient: "from-emerald-500/70 to-teal-500/50",
     shortDescription: "Autonomous degree college on FC Road, Pune — heritage meets innovation.",
     principalName: "Dr. Suresh Patil",
-    principalMessage: "Fergusson offers undergraduate excellence with research opportunities for motivated learners.",
+    principalMessage:
+      "Fergusson offers undergraduate excellence with research opportunities for motivated learners.",
     history: "Founded 1885 — one of Pune's oldest colleges, autonomous since 2016.",
     vision: "Heritage meets innovation in undergraduate education.",
     mission: "Balance tradition, research, and employability.",
@@ -114,8 +195,22 @@ export const INSTITUTE_PROFILES: InstituteProfileExtended[] = [
       hours: "Mon–Fri, 10:00 AM – 5:00 PM",
       address: "FC Road, Pune 411004",
     },
-    campusPhotos: [{ id: "fc-p1", type: "photo", title: "Heritage building", gradient: "from-emerald-500/25 to-teal-500/15" }],
-    videos: [{ id: "fc-v1", type: "video", title: "Campus heritage", gradient: "from-teal-500/20 to-cyan-500/15" }],
+    campusPhotos: [
+      {
+        id: "fc-p1",
+        type: "photo",
+        title: "Heritage building",
+        gradient: "from-emerald-500/25 to-teal-500/15",
+      },
+    ],
+    videos: [
+      {
+        id: "fc-v1",
+        type: "video",
+        title: "Campus heritage",
+        gradient: "from-teal-500/20 to-cyan-500/15",
+      },
+    ],
     eventsGallery: [],
     featured: false,
     popular: false,
@@ -140,9 +235,23 @@ export const INSTITUTE_PROFILES: InstituteProfileExtended[] = [
       hours: "Mon–Fri, 9:00 AM – 5:00 PM",
       address: "South Ambazari Road, Nagpur 440010",
     },
-    campusPhotos: [{ id: "vn-p1", type: "photo", title: "Main gate", gradient: "from-violet-500/25 to-purple-500/15" }],
+    campusPhotos: [
+      {
+        id: "vn-p1",
+        type: "photo",
+        title: "Main gate",
+        gradient: "from-violet-500/25 to-purple-500/15",
+      },
+    ],
     videos: [],
-    eventsGallery: [{ id: "vn-e1", type: "photo", title: "Convocation", gradient: "from-indigo-500/20 to-violet-500/15" }],
+    eventsGallery: [
+      {
+        id: "vn-e1",
+        type: "photo",
+        title: "Convocation",
+        gradient: "from-indigo-500/20 to-violet-500/15",
+      },
+    ],
     featured: true,
     popular: false,
     addedAt: "2026-03-01",
@@ -153,7 +262,8 @@ export const INSTITUTE_PROFILES: InstituteProfileExtended[] = [
     logoGradient: "from-rose-500/70 to-pink-500/50",
     shortDescription: "Central university in Varanasi — multi-faculty residential campus.",
     principalName: "Prof. Sudhir Jain",
-    principalMessage: "BHU welcomes scholars seeking diverse programs on a historic residential campus.",
+    principalMessage:
+      "BHU welcomes scholars seeking diverse programs on a historic residential campus.",
     history: "Founded 1916 by Pandit Madan Mohan Malaviya.",
     vision: "Knowledge for nation building.",
     mission: "Multi-disciplinary education with research and cultural heritage.",
@@ -167,11 +277,35 @@ export const INSTITUTE_PROFILES: InstituteProfileExtended[] = [
       address: "Varanasi 221005",
     },
     campusPhotos: [
-      { id: "bhu-p1", type: "photo", title: "Main campus", gradient: "from-rose-500/25 to-orange-500/15" },
-      { id: "bhu-p2", type: "photo", title: "Hostels", gradient: "from-amber-500/20 to-rose-500/15" },
+      {
+        id: "bhu-p1",
+        type: "photo",
+        title: "Main campus",
+        gradient: "from-rose-500/25 to-orange-500/15",
+      },
+      {
+        id: "bhu-p2",
+        type: "photo",
+        title: "Hostels",
+        gradient: "from-amber-500/20 to-rose-500/15",
+      },
     ],
-    videos: [{ id: "bhu-v1", type: "video", title: "University overview", gradient: "from-rose-500/20 to-pink-500/15" }],
-    eventsGallery: [{ id: "bhu-e1", type: "photo", title: "Convocation", gradient: "from-yellow-500/20 to-amber-500/15" }],
+    videos: [
+      {
+        id: "bhu-v1",
+        type: "video",
+        title: "University overview",
+        gradient: "from-rose-500/20 to-pink-500/15",
+      },
+    ],
+    eventsGallery: [
+      {
+        id: "bhu-e1",
+        type: "photo",
+        title: "Convocation",
+        gradient: "from-yellow-500/20 to-amber-500/15",
+      },
+    ],
     featured: false,
     popular: true,
     addedAt: "2026-03-20",

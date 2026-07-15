@@ -3,6 +3,7 @@ import type { SchoolAlert } from "@lumenx/types";
 type Listener = () => void;
 
 let items: SchoolAlert[] = [];
+let initialized = false;
 const listeners = new Set<Listener>();
 
 function notify() {
@@ -10,8 +11,26 @@ function notify() {
 }
 
 export const alertStore = {
-  init(seed: SchoolAlert[]) {
-    items = seed.map((a) => ({ ...a }));
+  /**
+   * Seed the store once per session. Merges (by id) so runtime alerts added before the
+   * first alerts screen mounts (e.g. leave alerts) are never wiped, and repeated mounts /
+   * navigation don't reset dynamic alerts. Use reset() on sign-out to allow re-seeding.
+   */
+  initOnce(seed: SchoolAlert[]) {
+    if (initialized) return;
+    initialized = true;
+    const existingIds = new Set(items.map((a) => a.id));
+    const seedToAdd = seed.filter((a) => !existingIds.has(a.id)).map((a) => ({ ...a }));
+    if (seedToAdd.length === 0) {
+      notify();
+      return;
+    }
+    items = [...items, ...seedToAdd];
+    notify();
+  },
+  reset() {
+    items = [];
+    initialized = false;
     notify();
   },
   getItems: (): SchoolAlert[] => items,
@@ -19,14 +38,24 @@ export const alertStore = {
   getEmergencyCount: (): number =>
     items.filter((a) => a.severity === "emergency" && !a.acknowledged).length,
   acknowledge: (id: string) => {
-    items = items.map((a) =>
-      a.id === id ? { ...a, acknowledged: true, unread: false } : a,
-    );
+    items = items.map((a) => (a.id === id ? { ...a, acknowledged: true, unread: false } : a));
     notify();
   },
   acknowledgeAll: () => {
     items = items.map((a) => ({ ...a, acknowledged: true, unread: false }));
     notify();
+  },
+  /** Resolve any still-actionable alerts tied to a leave request (after approve/reject/dismiss). */
+  resolveByLeaveId: (leaveId: string) => {
+    let changed = false;
+    items = items.map((a) => {
+      if (a.relatedLeaveId === leaveId && a.actionRequired) {
+        changed = true;
+        return { ...a, actionRequired: false, acknowledged: true, unread: false };
+      }
+      return a;
+    });
+    if (changed) notify();
   },
   addAlert: (alert: SchoolAlert) => {
     items = [alert, ...items];

@@ -1,5 +1,12 @@
 import type { Child } from "@lumenx/types";
-import { children as allChildren, achievements, performance, reportCards, studentProfile, trend } from "@/lib/mock-data";
+import {
+  children as allChildren,
+  achievements,
+  performance,
+  reportCards,
+  studentProfile,
+  trend,
+} from "@/lib/mock-data";
 import {
   academicTermSummaries,
   examHistory,
@@ -175,7 +182,8 @@ function buildPayloadObject(
         latestTerm?.avgScore ??
         (snapshot.performance.length > 0
           ? Math.round(
-              snapshot.performance.reduce((sum, p) => sum + p.score, 0) / snapshot.performance.length,
+              snapshot.performance.reduce((sum, p) => sum + p.score, 0) /
+                snapshot.performance.length,
             )
           : 0),
       rank: latestTerm?.rank ?? 0,

@@ -433,7 +433,14 @@ export interface CareersNotification {
 
 export interface FaqItem {
   id: string;
-  category: "jobs" | "applications" | "interviews" | "documents" | "process" | "benefits" | "employment";
+  category:
+    | "jobs"
+    | "applications"
+    | "interviews"
+    | "documents"
+    | "process"
+    | "benefits"
+    | "employment";
   question: string;
   answer: string;
 }

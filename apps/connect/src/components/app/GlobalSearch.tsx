@@ -54,9 +54,15 @@ export function GlobalSearch() {
   const [teacherQuery, setTeacherQuery] = useState("");
   const [studentQuery, setStudentQuery] = useState("");
   const [parentQuery, setParentQuery] = useState("");
-  const [teacherResults, setTeacherResults] = useState<Awaited<ReturnType<typeof teacherRepository.search>> | null>(null);
-  const [studentResults, setStudentResults] = useState<Awaited<ReturnType<typeof studentRepository.search>> | null>(null);
-  const [parentResults, setParentResults] = useState<Awaited<ReturnType<typeof parentRepository.search>> | null>(null);
+  const [teacherResults, setTeacherResults] = useState<Awaited<
+    ReturnType<typeof teacherRepository.search>
+  > | null>(null);
+  const [studentResults, setStudentResults] = useState<Awaited<
+    ReturnType<typeof studentRepository.search>
+  > | null>(null);
+  const [parentResults, setParentResults] = useState<Awaited<
+    ReturnType<typeof parentRepository.search>
+  > | null>(null);
   const nav = useNavigate();
   const { role, studentIncludedMode, activeChildId, activeInstituteId } = useApp();
   const portal = useParentPortal();
@@ -80,27 +86,55 @@ export function GlobalSearch() {
       setParentResults(null);
       return;
     }
+    // Guard against out-of-order async results: a slow earlier search must not overwrite
+    // the results of a newer query after the inputs changed.
+    let cancelled = false;
     if (isTeacher) {
       const t = setTimeout(() => {
-        teacherRepository.search(teacherQuery).then(setTeacherResults);
+        teacherRepository.search(teacherQuery).then((r) => {
+          if (!cancelled) setTeacherResults(r);
+        });
       }, 200);
-      return () => clearTimeout(t);
+      return () => {
+        cancelled = true;
+        clearTimeout(t);
+      };
     }
     if (role === "student") {
       const t = setTimeout(() => {
-        studentRepository.search(studentQuery).then(setStudentResults);
+        studentRepository.search(studentQuery).then((r) => {
+          if (!cancelled) setStudentResults(r);
+        });
       }, 200);
-      return () => clearTimeout(t);
+      return () => {
+        cancelled = true;
+        clearTimeout(t);
+      };
     }
     if (role === "parent") {
       const t = setTimeout(() => {
         parentRepository
           .search(activeInstituteId, activeChildId, studentIncludedMode, parentQuery)
-          .then(setParentResults);
+          .then((r) => {
+            if (!cancelled) setParentResults(r);
+          });
       }, 200);
-      return () => clearTimeout(t);
+      return () => {
+        cancelled = true;
+        clearTimeout(t);
+      };
     }
-  }, [open, isTeacher, role, teacherQuery, studentQuery, parentQuery, activeChildId, activeInstituteId, studentIncludedMode]);
+  }, [
+    open,
+    isTeacher,
+    role,
+    teacherQuery,
+    studentQuery,
+    parentQuery,
+    activeChildId,
+    activeInstituteId,
+    studentIncludedMode,
+  ]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -132,7 +166,7 @@ export function GlobalSearch() {
         variant="outline"
         size="sm"
         onClick={() => setOpen(true)}
-        className="hidden md:inline-flex h-9 rounded-xl gap-2 text-muted-foreground font-normal pr-2"
+        className="connect-search-trigger hidden md:inline-flex h-9 rounded-xl gap-2 text-muted-foreground font-normal pr-2"
       >
         <Search className="size-4" />
         <span>Search…</span>
@@ -145,7 +179,7 @@ export function GlobalSearch() {
         size="icon"
         onClick={() => setOpen(true)}
         aria-label="Search"
-        className="md:hidden"
+        className="connect-icon-btn md:hidden"
       >
         <Search className="size-5" />
       </Button>
@@ -174,12 +208,12 @@ export function GlobalSearch() {
             isTeacher
               ? "Search students, classes, assignments, exams, events, messages…"
               : role === "student"
-              ? "Search attendance, marks, certificates, timetable…"
-              : role === "parent"
-                ? snap
-                  ? `Search modules for ${snap.shortName} (class ${snap.classTag})…`
-                  : "Search modules for your selected learner…"
-                : "Search students, teachers, assignments, events…"
+                ? "Search attendance, marks, certificates, timetable…"
+                : role === "parent"
+                  ? snap
+                    ? `Search modules for ${snap.shortName} (class ${snap.classTag})…`
+                    : "Search modules for your selected learner…"
+                  : "Search students, teachers, assignments, events…"
           }
         />
         <CommandList className="max-h-[min(420px,70vh)] overflow-y-auto overflow-x-hidden">
@@ -318,6 +352,18 @@ export function GlobalSearch() {
                   <GraduationCap className="size-4 mr-2" />
                   Marks & Report cards
                 </CommandItem>
+                <CommandItem onSelect={() => go("/academic-history", "Academic history")}>
+                  <History className="size-4 mr-2" />
+                  Academic History
+                </CommandItem>
+                <CommandItem onSelect={() => go("/achievements", "Achievements")}>
+                  <Trophy className="size-4 mr-2" />
+                  Achievements
+                </CommandItem>
+                <CommandItem onSelect={() => go("/certificates", "Certificates")}>
+                  <FileText className="size-4 mr-2" />
+                  Certificates
+                </CommandItem>
                 <CommandItem onSelect={() => go("/fees", "Fees")}>
                   <Wallet className="size-4 mr-2" />
                   Fees
@@ -346,17 +392,15 @@ export function GlobalSearch() {
                   <ShieldAlert className="size-4 mr-2" />
                   Complaints
                 </CommandItem>
+                <CommandItem onSelect={() => go("/id-card", "Digital ID card")}>
+                  <FileText className="size-4 mr-2" />
+                  Digital ID Card
+                </CommandItem>
                 {studentIncludedMode && (
-                  <>
-                    <CommandItem onSelect={() => go("/growth", "Growth")}>
-                      <Sparkles className="size-4 mr-2" />
-                      Growth
-                    </CommandItem>
-                    <CommandItem onSelect={() => go("/id-card", "Digital ID card")}>
-                      <FileText className="size-4 mr-2" />
-                      Digital ID Card
-                    </CommandItem>
-                  </>
+                  <CommandItem onSelect={() => go("/growth", "Growth")}>
+                    <Sparkles className="size-4 mr-2" />
+                    Growth
+                  </CommandItem>
                 )}
                 <CommandItem onSelect={() => go("/notifications", "Notifications")}>
                   <Bell className="size-4 mr-2" />
@@ -416,9 +460,7 @@ export function GlobalSearch() {
                     >
                       <GraduationCap className="size-4 mr-2 text-muted-foreground" />
                       {r.term}
-                      <span className="ml-auto text-xs text-muted-foreground">
-                        {r.percentage}%
-                      </span>
+                      <span className="ml-auto text-xs text-muted-foreground">{r.percentage}%</span>
                     </CommandItem>
                   ))}
                 </CommandGroup>
@@ -501,7 +543,7 @@ export function GlobalSearch() {
                 </CommandGroup>
               )}
               {parentResults.assignments.length > 0 && (
-                <CommandGroup heading="Assignments">
+                <CommandGroup heading="Homework">
                   {parentResults.assignments.map((a) => (
                     <CommandItem
                       key={a.id}
@@ -568,7 +610,11 @@ export function GlobalSearch() {
               {teacherResults.assignments.length > 0 && (
                 <CommandGroup heading="Assignments">
                   {teacherResults.assignments.map((a) => (
-                    <CommandItem key={a.id} value={`assignment ${a.title}`} onSelect={() => go("/assignments", a.title)}>
+                    <CommandItem
+                      key={a.id}
+                      value={`assignment ${a.title}`}
+                      onSelect={() => go("/assignments", a.title)}
+                    >
                       <BookOpen className="size-4 mr-2 text-muted-foreground" />
                       <span className="truncate">{a.title}</span>
                     </CommandItem>
@@ -578,7 +624,11 @@ export function GlobalSearch() {
               {teacherResults.exams.length > 0 && (
                 <CommandGroup heading="Exams">
                   {teacherResults.exams.map((e) => (
-                    <CommandItem key={e.id} value={`exam ${e.name}`} onSelect={() => go("/exams", e.name)}>
+                    <CommandItem
+                      key={e.id}
+                      value={`exam ${e.name}`}
+                      onSelect={() => go("/exams", e.name)}
+                    >
                       <FileText className="size-4 mr-2 text-muted-foreground" />
                       <span className="truncate">{e.name}</span>
                     </CommandItem>
@@ -588,7 +638,11 @@ export function GlobalSearch() {
               {teacherResults.events.length > 0 && (
                 <CommandGroup heading="Events">
                   {teacherResults.events.map((e) => (
-                    <CommandItem key={e.id} value={`event ${e.title}`} onSelect={() => go("/events", e.title)}>
+                    <CommandItem
+                      key={e.id}
+                      value={`event ${e.title}`}
+                      onSelect={() => go("/events", e.title)}
+                    >
                       <CalendarDays className="size-4 mr-2 text-muted-foreground" />
                       <span className="truncate">{e.title}</span>
                     </CommandItem>
@@ -598,7 +652,11 @@ export function GlobalSearch() {
               {teacherResults.messages.length > 0 && (
                 <CommandGroup heading="Messages">
                   {teacherResults.messages.map((m) => (
-                    <CommandItem key={m.id} value={`message ${m.subject}`} onSelect={() => go("/messages", m.subject)}>
+                    <CommandItem
+                      key={m.id}
+                      value={`message ${m.subject}`}
+                      onSelect={() => go("/messages", m.subject)}
+                    >
                       <MessageSquare className="size-4 mr-2 text-muted-foreground" />
                       <span className="truncate">{m.subject}</span>
                     </CommandItem>
@@ -635,10 +693,7 @@ export function GlobalSearch() {
                     key={s.id}
                     value={`student ${s.name} ${s.roll}`}
                     onSelect={() =>
-                      go(
-                        isTeacher ? `/students/${s.id}` : "/attendance",
-                        `Student ${s.name}`,
-                      )
+                      go(isTeacher ? `/students/${s.id}` : "/attendance", `Student ${s.name}`)
                     }
                   >
                     <Users className="size-4 mr-2 text-muted-foreground" />
@@ -655,7 +710,9 @@ export function GlobalSearch() {
                       <CommandItem
                         key={c.id}
                         value={`class ${c.className} ${c.section} ${c.subject}`}
-                        onSelect={() => go(`/classes?id=${c.id}`, `Class ${c.className}-${c.section}`)}
+                        onSelect={() =>
+                          go(`/classes?id=${c.id}`, `Class ${c.className}-${c.section}`)
+                        }
                       >
                         <LayoutGrid className="size-4 mr-2 text-muted-foreground" />
                         <span>
@@ -737,7 +794,9 @@ export function GlobalSearch() {
                   >
                     <Calendar className="size-4 mr-2 text-muted-foreground" />
                     <span className="truncate">{e.title}</span>
-                    <span className="ml-auto text-xs text-muted-foreground capitalize">{e.kind}</span>
+                    <span className="ml-auto text-xs text-muted-foreground capitalize">
+                      {e.kind}
+                    </span>
                   </CommandItem>
                 ))}
               </CommandGroup>
@@ -774,7 +833,9 @@ export function GlobalSearch() {
 
               {role !== "student" && <CommandSeparator />}
               <CommandGroup
-                heading={role === "parent" && snap ? `Assignments · ${snap.shortName}` : "Assignments"}
+                heading={
+                  role === "parent" && snap ? `Homework · ${snap.shortName}` : "Assignments"
+                }
               >
                 {assignmentSearch.map((a) => (
                   <CommandItem
@@ -827,7 +888,9 @@ export function GlobalSearch() {
                   >
                     <Calendar className="size-4 mr-2 text-muted-foreground" />
                     <span className="truncate">{e.title}</span>
-                    <span className="ml-auto text-xs text-muted-foreground capitalize">{e.kind}</span>
+                    <span className="ml-auto text-xs text-muted-foreground capitalize">
+                      {e.kind}
+                    </span>
                   </CommandItem>
                 ))}
               </CommandGroup>

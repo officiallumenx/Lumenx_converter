@@ -7,7 +7,15 @@ export function TransportBusCard({
   assignment,
   className,
 }: {
-  assignment: StudentTransportAssignment | { bus: BusDetails; pickupStop: { name: string; scheduledTime: string }; dropStop: { name: string; scheduledTime: string }; morningPickupTime: string; afternoonDropTime: string };
+  assignment:
+    | StudentTransportAssignment
+    | {
+        bus: BusDetails;
+        pickupStop: { name: string; scheduledTime: string };
+        dropStop: { name: string; scheduledTime: string };
+        morningPickupTime: string;
+        afternoonDropTime: string;
+      };
   className?: string;
 }) {
   const { bus } = assignment;
@@ -31,8 +39,14 @@ export function TransportBusCard({
       </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <Detail label="Morning pickup" value={`${assignment.pickupStop.name} · ${assignment.morningPickupTime}`} />
-        <Detail label="Afternoon drop" value={`${assignment.dropStop.name} · ${assignment.afternoonDropTime}`} />
+        <Detail
+          label="Morning pickup"
+          value={`${assignment.pickupStop.name} · ${assignment.morningPickupTime}`}
+        />
+        <Detail
+          label="Afternoon drop"
+          value={`${assignment.dropStop.name} · ${assignment.afternoonDropTime}`}
+        />
         <Detail label="Driver" value={bus.driverName} icon={User} />
         <Detail label="Capacity" value={`${bus.capacity} seats`} />
       </div>

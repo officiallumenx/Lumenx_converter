@@ -1,28 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useMemo } from "react";
 import { AppShell } from "@/components/app/AppShell";
 import { PageHeader } from "@/components/app/PageHeader";
 import { SectionCard } from "@/components/app/SectionCard";
 import { LearnerSportsView } from "@/components/app/sports/LearnerSportsView";
 import { useApp } from "@/lib/app-state";
-import { useParentPortal } from "@/context/ParentPortalContext";
 import { useStudentPortal } from "@/context/StudentPortalContext";
-import { studentProfile } from "@/lib/mock-data";
 import {
-  sportsEvents,
-  sportsTeams,
-  sportsTeamRoster,
   achievements,
+  children as allChildren,
+  getConnectStudentProfile,
+  sportsEvents,
+  sportsTeamRoster,
+  sportsTeams,
 } from "@/lib/mock-data";
-import { Badge } from "@lumenx/ui";
+import { Badge, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@lumenx/ui";
 import { Trophy, Calendar as CalIcon, MapPin, UserCheck, UserX } from "lucide-react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@lumenx/ui";
 
 export const Route = createFileRoute("/sports")({
   head: () => ({ meta: [{ title: "Sports — LumenX Connect" }] }),
@@ -40,48 +33,45 @@ const STATUS_TONE = {
 } as const;
 
 function SportsPage() {
-  const { role } = useApp();
-  if (role === "teacher") return <TeacherSportsContent />;
-
-  const parentPortal = useParentPortal();
+  const { role, activeChildId } = useApp();
   const studentPortal = useStudentPortal();
 
-  const parentSnap = role === "parent" && parentPortal.isParent ? parentPortal.snapshot : null;
-  const studentSnap =
-    role === "student" && studentPortal.isStudent ? studentPortal.snapshot : null;
+  const parentChild =
+    role === "parent" ? (allChildren.find((c) => c.id === activeChildId) ?? allChildren[0]) : null;
 
-  const learner = parentSnap
-    ? {
-        name: parentSnap.child.name,
-        rollNo: parentSnap.child.rollNo,
-        childId: parentSnap.child.id,
-      }
-    : studentSnap
-      ? {
-          name: studentSnap.profile.name,
-          rollNo: studentSnap.profile.rollNo,
-          childId: "C1",
-        }
-      : {
-          name: studentProfile.name,
-          rollNo: studentProfile.rollNo,
-          childId: "C1",
-        };
+  const learner = useMemo(() => {
+    if (parentChild) {
+      return {
+        name: parentChild.name,
+        rollNo: parentChild.rollNo,
+        childId: parentChild.id,
+      };
+    }
+    if (role === "student" && studentPortal.isStudent && studentPortal.snapshot) {
+      const p = studentPortal.snapshot.profile;
+      return { name: p.name, rollNo: p.rollNo, childId: "C1" };
+    }
+    const p = getConnectStudentProfile();
+    return { name: p.name, rollNo: p.rollNo, childId: "C1" };
+  }, [parentChild, role, studentPortal.isStudent, studentPortal.snapshot]);
 
-  const subtitle = parentSnap
-    ? `Showing squads and events for ${parentSnap.child.name}. Switch learners in the header for another child.`
-    : `${learner.name} · ${studentSnap?.profile.class ?? studentProfile.class} ${studentSnap?.profile.section ?? studentProfile.section}`;
+  const subtitle = parentChild
+    ? `${parentChild.name} · ${parentChild.className} ${parentChild.section} · squads, events, and results update when you switch children`
+    : `${learner.name} · Class view`;
+
+  if (role === "teacher") return <TeacherSportsContent />;
 
   return (
     <div className="min-w-0 max-w-full space-y-4">
       <PageHeader
         title="Sports & Cultural"
-        subtitle="Your squads, upcoming events, and sports or cultural achievements only"
+        subtitle="Live squads, schedules, and results for the selected learner"
       />
       <LearnerSportsView
+        key={parentChild?.id ?? learner.childId}
         learner={learner}
         subtitle={subtitle}
-        showAllChildrenStrip={role === "parent"}
+        showChildSwitcher={role === "parent"}
       />
     </div>
   );

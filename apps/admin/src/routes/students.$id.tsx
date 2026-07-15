@@ -11,28 +11,51 @@ export const Route = createFileRoute("/students/$id")({
 function StudentProfile() {
   const { id } = Route.useParams();
   return (
-    <AppShell title="Student Profile" subtitle={`Record · ${id}`}
-      actions={<>
-        <Link to="/students" className="inline-flex items-center gap-1.5 px-3.5 h-9 rounded-md text-xs font-medium bg-surface border border-border hover:bg-surface-hover"><ArrowLeft className="size-3.5" /> Back</Link>
-        <Button><Edit3 className="size-3.5" /> Edit</Button>
-        <Button variant="danger"><Power className="size-3.5" /> Suspend</Button>
-      </>}
+    <AppShell
+      title="Student Profile"
+      subtitle={`Record · ${id}`}
+      actions={
+        <>
+          <Link
+            to="/students"
+            className="inline-flex items-center gap-1.5 px-3.5 h-9 rounded-md text-xs font-medium bg-surface border border-border hover:bg-surface-hover"
+          >
+            <ArrowLeft className="size-3.5" /> Back
+          </Link>
+          <Button>
+            <Edit3 className="size-3.5" /> Edit
+          </Button>
+          <Button variant="danger">
+            <Power className="size-3.5" /> Suspend
+          </Button>
+        </>
+      }
     >
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="p-6 lg:col-span-1">
           <div className="flex flex-col items-center text-center">
-            <div className="size-20 rounded-full bg-gradient-to-br from-primary/30 to-chart-5/30 ring-4 ring-border flex items-center justify-center text-lg font-semibold">AS</div>
+            <div className="size-20 rounded-full bg-gradient-to-br from-primary/30 to-chart-5/30 ring-4 ring-border flex items-center justify-center text-lg font-semibold">
+              AS
+            </div>
             <h2 className="mt-4 text-base font-semibold">Aanya Sharma</h2>
             <div className="text-[11px] text-muted-foreground font-mono">{id} · Grade 10-A</div>
             <Pill tone="success">Active</Pill>
           </div>
           <div className="mt-6 space-y-3 text-xs">
-            <div className="flex items-center gap-2 text-muted-foreground"><Mail className="size-3.5" /> aanya@LUMENX ADMIN.edu</div>
-            <div className="flex items-center gap-2 text-muted-foreground"><Phone className="size-3.5" /> +91 98765 11020</div>
-            <div className="flex items-center gap-2 text-muted-foreground"><Users className="size-3.5" /> Guardian: Rohan Sharma</div>
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Mail className="size-3.5" /> aanya@LUMENX ADMIN.edu
+            </div>
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Phone className="size-3.5" /> +91 98765 11020
+            </div>
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Users className="size-3.5" /> Guardian: Rohan Sharma
+            </div>
           </div>
           <div className="mt-6 grid grid-cols-2 gap-2">
-            <Button><KeyRound className="size-3.5" /> Reset</Button>
+            <Button>
+              <KeyRound className="size-3.5" /> Reset
+            </Button>
             <Button>Message</Button>
           </div>
         </Card>
@@ -46,18 +69,35 @@ function StudentProfile() {
               { l: "Complaints", v: "0" },
             ].map((s) => (
               <Card key={s.l} className="p-4">
-                <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">{s.l}</div>
+                <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+                  {s.l}
+                </div>
                 <div className="mt-1 text-xl font-semibold">{s.v}</div>
               </Card>
             ))}
           </div>
 
           <Card>
-            <CardHeader title="Enrolled subjects" hint="Term 2 · 2026" action={<Button>Manage</Button>} />
+            <CardHeader
+              title="Enrolled subjects"
+              hint="Term 2 · 2026"
+              action={<Button>Manage</Button>}
+            />
             <div className="px-5 pb-5 grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {["Mathematics · S. Jenkins", "Physics · D. Koal", "Biology · P. Iyer", "English · M. Whitfield", "Chemistry · H. Suzuki", "History · O. Faris"].map((s) => (
-                <div key={s} className="flex items-center gap-2 px-3 h-10 rounded-md bg-background/40 border border-border text-xs">
-                  <BookOpen className="size-3.5 text-primary" />{s}
+              {[
+                "Mathematics · S. Jenkins",
+                "Physics · D. Koal",
+                "Biology · P. Iyer",
+                "English · M. Whitfield",
+                "Chemistry · H. Suzuki",
+                "History · O. Faris",
+              ].map((s) => (
+                <div
+                  key={s}
+                  className="flex items-center gap-2 px-3 h-10 rounded-md bg-background/40 border border-border text-xs"
+                >
+                  <BookOpen className="size-3.5 text-primary" />
+                  {s}
                 </div>
               ))}
             </div>

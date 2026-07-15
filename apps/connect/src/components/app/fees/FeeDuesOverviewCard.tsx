@@ -23,6 +23,8 @@ const CATEGORY_ICON: Record<FeeCategory, typeof Wallet> = {
   tuition: Wallet,
   exam: GraduationCap,
   transport: Bus,
+  hostel: Clock,
+  library: Clock,
   activity: FlaskConical,
   other: Clock,
 };
@@ -31,6 +33,8 @@ const CATEGORY_CLS: Record<FeeCategory, string> = {
   tuition: "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20",
   exam: "bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/20",
   transport: "bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-500/20",
+  hostel: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/20",
+  library: "bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-500/20",
   activity: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20",
   other: "bg-muted text-muted-foreground border-border",
 };
@@ -41,18 +45,20 @@ export function FeeDuesOverviewCard({
   summary,
   perChild,
   showProgress,
+  selectedChildId = "all",
+  onChildSelect,
 }: {
   title: string;
   subtitle?: string;
   summary: FeeDuesSummary;
   perChild?: ChildFeeSummary[];
   showProgress?: boolean;
+  selectedChildId?: string;
+  onChildSelect?: (childId: string) => void;
 }) {
   const categories = FEE_CATEGORY_ORDER.filter((c) => summary.byCategory[c] > 0);
   const paidPct =
-    summary.totalAnnual > 0
-      ? Math.round((summary.totalPaid / summary.totalAnnual) * 100)
-      : 0;
+    summary.totalAnnual > 0 ? Math.round((summary.totalPaid / summary.totalAnnual) * 100) : 0;
   const allClear = summary.totalOutstanding === 0;
 
   return (
@@ -71,9 +77,7 @@ export function FeeDuesOverviewCard({
               <Wallet className="size-3.5 shrink-0" />
               {title}
             </div>
-            {subtitle && (
-              <p className="mt-0.5 text-sm text-muted-foreground">{subtitle}</p>
-            )}
+            {subtitle && <p className="mt-0.5 text-sm text-muted-foreground">{subtitle}</p>}
           </div>
           <div className="flex flex-wrap gap-2">
             {summary.overdueCount > 0 && (
@@ -139,29 +143,45 @@ export function FeeDuesOverviewCard({
             <div className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
               <Users className="size-3.5" />
               By child
+              {onChildSelect && (
+                <span className="normal-case font-normal text-[10px]">· tap to filter below</span>
+              )}
             </div>
             <ul className="space-y-2">
-              {perChild.map((c) => (
-                <li
-                  key={c.childId}
-                  className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-muted/20 px-3 py-2 text-sm"
-                >
-                  <div className="min-w-0">
-                    <span className="font-medium">{c.childName}</span>
-                    <span className="ml-1.5 text-xs text-muted-foreground">{c.classLabel}</span>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    {c.overdueCount > 0 && (
-                      <span className="text-[10px] font-medium text-destructive">
-                        {c.overdueCount} overdue
-                      </span>
-                    )}
-                    <span className="font-semibold tabular-nums">
-                      {formatInr(c.totalOutstanding)}
-                    </span>
-                  </div>
-                </li>
-              ))}
+              {perChild.map((c) => {
+                const selected = selectedChildId === c.childId;
+                const Wrapper = onChildSelect ? "button" : "div";
+                return (
+                  <li key={c.childId}>
+                    <Wrapper
+                      type={onChildSelect ? "button" : undefined}
+                      onClick={onChildSelect ? () => onChildSelect(c.childId) : undefined}
+                      className={cn(
+                        "flex min-w-0 w-full flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm text-left transition-colors",
+                        onChildSelect && "cursor-pointer hover:border-primary/40 hover:bg-primary/[0.03]",
+                        selected
+                          ? "border-primary/50 bg-primary/5 ring-1 ring-primary/30"
+                          : "border-border bg-muted/20",
+                      )}
+                    >
+                      <div className="min-w-0">
+                        <span className="font-medium">{c.childName}</span>
+                        <span className="ml-1.5 text-xs text-muted-foreground">{c.classLabel}</span>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {c.overdueCount > 0 && (
+                          <span className="text-[10px] font-medium text-destructive">
+                            {c.overdueCount} overdue
+                          </span>
+                        )}
+                        <span className="font-semibold tabular-nums">
+                          {formatInr(c.totalOutstanding)}
+                        </span>
+                      </div>
+                    </Wrapper>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         )}

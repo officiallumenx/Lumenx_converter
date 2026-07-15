@@ -4,27 +4,22 @@ import { PageHeader } from "@/components/app/PageHeader";
 import { SectionCard } from "@/components/app/SectionCard";
 import { AttendanceSummaryMetrics } from "@/components/app/attendance/AttendanceSummaryMetrics";
 import {
-  AttendanceDatePicker,
+  DateRangePickerRow,
   syncCalendarMonthFromIso,
 } from "@/components/app/attendance/AttendanceDatePicker";
 import { Button, cn, Badge } from "@lumenx/ui";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@lumenx/ui";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@lumenx/ui";
 import {
   buildAttendanceDays,
   computeAttendanceSummary,
+  computeAttendanceSummaryForRange,
+  attendanceHistoryBounds,
   calendarLeadingBlanks,
   formatDisplayDate,
   holidaysInMonth,
   holidaysInRange,
   isoFromParts,
   listSelectableMonths,
-  monthBounds,
   monthLabel,
   normalizeIsoRange,
   shiftMonth,
@@ -50,7 +45,7 @@ export function AttendanceOverview({
   const [rangeStart, setRangeStart] = useState("");
   const [rangeEnd, setRangeEnd] = useState("");
 
-  const bounds = useMemo(() => monthBounds(year, month), [year, month]);
+  const historyBounds = useMemo(() => attendanceHistoryBounds(12), []);
   const days = useMemo(() => buildAttendanceDays(year, month, seed), [year, month, seed]);
   const leadingBlanks = calendarLeadingBlanks(year, month);
   const selectableMonths = useMemo(() => listSelectableMonths(12), []);
@@ -60,10 +55,12 @@ export function AttendanceOverview({
     return normalizeIsoRange(rangeStart, rangeEnd);
   }, [rangeStart, rangeEnd]);
 
-  const summary = useMemo(
-    () => computeAttendanceSummary(days, year, month, dayRange),
-    [days, year, month, dayRange],
-  );
+  const summary = useMemo(() => {
+    if (dayRange) {
+      return computeAttendanceSummaryForRange(dayRange.startIso, dayRange.endIso, seed);
+    }
+    return computeAttendanceSummary(days, year, month);
+  }, [dayRange, days, year, month, seed]);
 
   const monthHolidays = useMemo(() => {
     if (dayRange) {
@@ -138,106 +135,59 @@ export function AttendanceOverview({
     <>
       <PageHeader title={title} subtitle={subtitle} />
 
-      <div className="mb-4 flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-        <div className="flex min-w-0 items-center gap-1">
-          <Button type="button" variant="outline" size="icon" className="rounded-xl shrink-0" onClick={goPrev}>
-            <ChevronLeft className="size-4" />
-          </Button>
-          <Select value={`${year}-${month}`} onValueChange={onMonthSelect}>
-            <SelectTrigger className="h-10 min-w-[10rem] rounded-xl">
-              <SelectValue>{monthLabel(year, month)}</SelectValue>
-            </SelectTrigger>
-            <SelectContent position="popper" className="z-[100] max-h-64">
-              {selectableMonths.map((m) => (
-                <SelectItem key={`${m.year}-${m.month}`} value={`${m.year}-${m.month}`}>
-                  {m.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="rounded-xl shrink-0"
-            onClick={goNext}
-            disabled={!canGoNext}
-          >
-            <ChevronRight className="size-4" />
-          </Button>
-        </div>
-
-        <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-end">
-          <AttendanceDatePicker
-            label="From date"
-            value={rangeStart}
-            onChange={setFromDate}
-            min={bounds.start}
-            max={rangeEnd || bounds.end}
-            placeholder="Start date"
-          />
-          <AttendanceDatePicker
-            label="To date"
-            value={rangeEnd}
-            onChange={setToDate}
-            min={rangeStart || bounds.start}
-            max={bounds.end}
-            placeholder="End date"
-          />
-          {(rangeStart || rangeEnd) && (
-            <Button type="button" variant="ghost" className="rounded-xl shrink-0 h-10" onClick={clearRange}>
-              Full month
-            </Button>
-          )}
-        </div>
+      {/* Month navigation — calendar comes first */}
+      <div className="mb-3 flex min-w-0 items-center gap-1">
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="rounded-xl shrink-0"
+          onClick={goPrev}
+          aria-label="Previous month"
+        >
+          <ChevronLeft className="size-4" />
+        </Button>
+        <Select value={`${year}-${month}`} onValueChange={onMonthSelect}>
+          <SelectTrigger className="h-10 min-w-[10rem] rounded-xl">
+            <SelectValue>{monthLabel(year, month)}</SelectValue>
+          </SelectTrigger>
+          <SelectContent position="popper" className="z-[100] max-h-64">
+            {selectableMonths.map((m) => (
+              <SelectItem key={`${m.year}-${m.month}`} value={`${m.year}-${m.month}`}>
+                {m.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="rounded-xl shrink-0"
+          onClick={goNext}
+          disabled={!canGoNext}
+          aria-label="Next month"
+        >
+          <ChevronRight className="size-4" />
+        </Button>
       </div>
 
-      {summary.rangeLabel ? (
-        <p className="mb-3 text-xs text-muted-foreground">
-          Showing <span className="font-medium text-foreground">{summary.rangeLabel}</span>
-          {!rangeEnd && rangeStart ? (
-            <span> · tap an end date on the calendar or pick &quot;To date&quot;</span>
-          ) : null}
-        </p>
-      ) : (
-        <p className="mb-3 text-xs text-muted-foreground">
-          Tip: click two days on the calendar below to select a custom range.
-        </p>
-      )}
-
-      <AttendanceSummaryMetrics summary={summary} />
-
-      {monthHolidays.length > 0 ? (
-        <SectionCard title="Holidays" className="mb-5">
-          <div className="space-y-2">
-            {monthHolidays.map((h) => (
-              <div
-                key={h.id}
-                className="flex min-w-0 flex-col gap-1 rounded-xl border border-border bg-muted/20 px-3 py-2.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3"
-              >
-                <div className="min-w-0">
-                  <div className="font-medium text-sm">{h.title}</div>
-                  <div className="mt-0.5 text-xs text-muted-foreground leading-relaxed">{h.purpose}</div>
-                </div>
-                <div className="shrink-0 text-xs font-medium text-primary whitespace-nowrap">
-                  {formatDisplayDate(h.date)}
-                </div>
-              </div>
-            ))}
-          </div>
-        </SectionCard>
-      ) : null}
-
-      <div className="min-w-0 rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-5">
-        <div className="mb-4 flex min-w-0 flex-wrap items-center justify-between gap-2">
+      <div className="min-w-0 rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-5 mb-4">
+          <div className="mb-4 flex min-w-0 flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <CalendarDays className="size-4 shrink-0" />
+            <CalendarDays className="size-4 shrink-0 text-primary" />
             <span>{summary.rangeLabel ?? summary.monthLabel}</span>
           </div>
           <div className="flex flex-wrap gap-2 text-[10px]">
             <LegendDot label="Present" cls="bg-success/15 text-success border-success/20" />
-            <LegendDot label="Absent" cls="bg-destructive/10 text-destructive border-destructive/20" />
-            <LegendDot label="Leave" cls="bg-warning/15 text-warning-foreground border-warning/30" />
+            <LegendDot
+              label="Absent"
+              cls="bg-destructive/10 text-destructive border-destructive/20"
+            />
+            <LegendDot
+              label="Leave"
+              cls="bg-warning/15 text-warning-foreground border-warning/30"
+            />
             <LegendDot label="Holiday" cls="bg-muted text-muted-foreground border-border" />
             {(dayRange || rangeStart) && (
               <LegendDot label="In range" cls="bg-primary/10 text-primary border-primary/30" />
@@ -281,6 +231,77 @@ export function AttendanceOverview({
           })}
         </div>
       </div>
+
+      <SectionCard title="Holidays" className="mb-5">
+        {monthHolidays.length > 0 ? (
+          <div className="space-y-2">
+            {monthHolidays.map((h) => (
+              <div
+                key={h.id}
+                className="flex min-w-0 flex-col gap-1 rounded-xl border border-border bg-muted/20 px-3 py-2.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3"
+              >
+                <div className="min-w-0">
+                  <div className="font-medium text-sm">{h.title}</div>
+                  <div className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
+                    {h.purpose}
+                  </div>
+                </div>
+                <div className="shrink-0 text-xs font-medium text-primary whitespace-nowrap">
+                  {formatDisplayDate(h.date)}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">No institute holidays this month.</p>
+        )}
+      </SectionCard>
+
+      <div className="mb-4 min-w-0">
+        <DateRangePickerRow
+          startLabel="From date"
+          endLabel="To date"
+          startValue={rangeStart}
+          endValue={rangeEnd}
+          onStartChange={setFromDate}
+          onEndChange={setToDate}
+          startMin={historyBounds.start}
+          startMax={rangeEnd || historyBounds.end}
+          endMin={rangeStart || historyBounds.start}
+          endMax={historyBounds.end}
+          startPlaceholder="Start date"
+          endPlaceholder="End date"
+          viewYear={year}
+          viewMonth={month}
+          trailing={
+            rangeStart || rangeEnd ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-10 shrink-0 rounded-xl px-2 text-xs sm:px-3 sm:text-sm"
+                onClick={clearRange}
+              >
+                Full month
+              </Button>
+            ) : undefined
+          }
+        />
+      </div>
+
+      {summary.rangeLabel ? (
+        <p className="mb-3 text-xs text-muted-foreground">
+          Showing <span className="font-medium text-foreground">{summary.rangeLabel}</span>
+          {!rangeEnd && rangeStart ? (
+            <span> · tap an end date on the calendar or pick &quot;To date&quot;</span>
+          ) : null}
+        </p>
+      ) : (
+        <p className="mb-3 text-xs text-muted-foreground">
+          Tip: tap two days on the calendar above to filter by a custom date range.
+        </p>
+      )}
+
+      <AttendanceSummaryMetrics summary={summary} />
     </>
   );
 }
@@ -339,7 +360,9 @@ function DayCell({
 
 function LegendDot({ label, cls }: { label: string; cls: string }) {
   return (
-    <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 capitalize", cls)}>
+    <span
+      className={cn("inline-flex items-center rounded-full border px-2 py-0.5 capitalize", cls)}
+    >
       {label}
     </span>
   );
