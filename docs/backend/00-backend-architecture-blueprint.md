@@ -1,11 +1,13 @@
 # LumenX — Backend Architecture & Database Blueprint (Phase 0)
 
 **Mode:** READ-ONLY / NO IMPLEMENTATION
-**Status:** Draft for architecture review — must be approved before Phase 1
+**Status:** FINALIZED after Phase 0.5 deep review (APPROVED WITH CHANGES applied) — architecture frozen, awaiting Phase 1 approval
 **Frontend baseline:** commit `edc8ac869d1aed7c34234e061e8d6ac1092d9352` · tag `frontend-v1.0.0` · branch `main`
 **Target stack:** Frontend → HTTPS → Hono (TypeScript) API → domain services → Supabase (Auth/Postgres/Storage/RLS/Realtime) + Firebase (FCM/Analytics/Crashlytics)
 
 > Architectural rule enforced throughout: **frontend never holds service-role/Admin SDK/DB business logic/server secrets**. All privileged operations pass through the Hono API. Nexus is the **platform control plane**, logically separated from institute/school operational data.
+
+> **Phase 0.5 review outcome:** the ~92-table figure was directionally correct but (a) under-counted Activity/Sports, (b) omitted `staff_attendance`/`stored_asset`, and (c) over-counted several derived/config items. The finalized model is **~95–105 tables as the complete long-term product schema**, split across **V1 (~34) / V1.5 (~30) / V2 (~35)**. Only **~34 tables are required to launch.** See the new sections **"Architecture Decisions Frozen Before SQL"**, **"V1 Database Scope"**, **"V1.5 Database Scope"**, and **"V2 Database Scope"** below.
 
 ---
 
@@ -85,20 +87,21 @@ Auth/session, tenant resolution middleware, RBAC, config/feature flags, logging/
 | Module entitlements (per institute) | **PERSISTENT** |
 | Licenses | **PERSISTENT** |
 | Subscriptions | **PERSISTENT** |
-| Quotes | **PERSISTENT** (or derived+snapshotted) |
+| Quotes | **DERIVED** (computed rate × students × duration; accepted snapshot already lives on `subscription_period`) |
 | Trials | **PERSISTENT** (fields on subscription) |
 | Renewals | **PERSISTENT** (immutable history) |
 | Adjustments | **PERSISTENT** |
-| Payments | **PERSISTENT** |
+| Payments | **PERSISTENT** (provider-agnostic `payment` record) |
 | Support threads/messages | **PERSISTENT** |
 | Platform audit | **PERSISTENT** (append-only) |
 | Policies / alert rules | **PERSISTENT** (config-like) |
-| Alerts (fired) | **PERSISTENT** or DERIVED |
+| Renewal reminders / fired alerts | **DERIVED** from subscription dates + policy rules — persist ONLY if acknowledgement/dismissal state is required |
 | Storage quotas | **CONFIGURATION** |
 | Platform notifications | shared **Notifications** model |
-| Certificate/templates (platform-owned) | **PERSISTENT** (catalog) |
+| Certificate/templates | **PERSISTENT** (one polymorphic `template` table with `owner_scope ∈ {platform, institute}` + `type`) |
 | Platform analytics | **DERIVED** (views) |
 | Platform health/risk | **DERIVED** (views) |
+| Platform read-only / write-gate state | **DERIVED** from subscription lifecycle + academic-year lock — NOT a table |
 
 ---
 
@@ -119,21 +122,23 @@ Role-specific extensions hang off membership/profile:
 - **Parent**–**Student** links = relationship rows (belong to **membership/relationship layer**, not profile)
 - **Staff/Admin/Principal/VP/Coordinator/Accountant** = membership role variants
 - **Driver** = membership role (transport scope); must gain an `institute_id` (currently missing on session)
-- **Applicant / Job seeker / Recruiter / Institute-admin (admissions)** = separate portal accounts today; unify under `User` with membership/role of type `applicant|candidate|recruiter`
+- **Applicant / Job seeker / Recruiter / Institute-admin (admissions/careers)** = **FROZEN:** use the central `User`/`Profile` identity; represent applicant/candidate/recruiter/institute-admin **capabilities through role/membership**, NOT independent auth systems. The current 5+ parallel auth stores (`admin/auth-store`, `connect/portal-auth-store`, `student-auth-store`, `parent-auth-store`, `teacher-session`, careers/admissions bespoke accounts) collapse onto this one model.
 - **Nexus operator** = **separate principal class** (platform role), NOT an institute membership
 
-Decisions:
+**FROZEN identity decisions:**
+- **Canonical chain:** `Supabase Auth User → Profile → Membership → Institute → Role`. Roles/permissions attach to membership.
 - **One user → multiple roles:** YES (dual-role teacher; admin who is also parent). Model as role-set on a membership + multiple memberships.
 - **One user → multiple institutes:** YES (multi-campus staff, parent with children in different institutes). Model as multiple memberships.
 - **Parent/student relationship:** relationship table keyed by institute (guardianship), not profile fields.
 - **Dual-role teacher:** single teacher record + `teacher_assignment` rows typed `subject|activity|both`; portal mode from `@lumenx/teacher-session`.
+- **Institute-scoped drivers:** driver is a membership role and **carries `institute_id`** (currently missing on session — must be added).
 - **Nexus operators:** distinct table + platform RBAC; never resolved through institute membership.
 
 ---
 
 ## PART 6 — Multi-tenancy architecture
 
-**Canonical tenant = `institute`.** `branch` is **OPTIONAL** (`TenantScoped.branchId` exists but is unused in features) → keep column, defer branch tables. **UNKNOWN — REQUIRES DESIGN DECISION** whether multi-branch ships in v1 (recommend: no).
+**Canonical tenant = `institute`, keyed by server-generated `institute_id` (UUID).** `branch` is **FROZEN as: no separate branch model in V1.** `TenantScoped.branchId` exists but is unused in features → keep the column/architecture extensible for a future branch model, but ship no branch tables in V1/V1.5. Legacy IDs (`LX-INST-*`, `ins-*`, demo scopes) are **migration/seed mappings only**, never runtime FKs.
 
 **Observed ID formats (inconsistent):** `LX-INST-001` (Admin demo), `ins-*` (Connect/admissions catalog), Nexus-created ids, `lumenx_demo_profile` scopes (`multi_institute|single_institute|inter_college`), bound-institute key. Ad-hoc mappers exist (`admissionsInstituteIdForAdminInstitute`).
 
@@ -183,50 +188,58 @@ Cross-institute access = multiple memberships only. Nexus→institute is a platf
 
 ---
 
-## PART 9 — Production table estimate (derived)
+## PART 9 — Production table estimate (finalized after Phase 0.5 review)
 
-| Domain | Tables | Candidate tables | Notes |
-|--------|-------:|------------------|-------|
-| Identity | 4 | user_profile, membership, role, role_permission | User = Supabase Auth |
-| Tenancy | 2 | institute, institute_settings | branch deferred |
-| People | 5 | student, parent, guardian_link, teacher, staff_account | teacher_assignment under Academics |
-| Academics | 6 | academic_year, class, section, subject, enrollment, teacher_assignment | |
-| Timetable | 2 | timetable_slot, timetable_publication | |
-| Attendance | 4 | attendance_config_version, attendance_register, attendance_mark, attendance_pending | |
-| Exams | 2 | exam, exam_subject_schedule | |
-| Marks | 2 | mark_entry, mark_publication | |
-| Homework/Diary | 2 | homework, diary_submission | |
-| Fees | 6 | fee_plan, fee_component, student_fee, fee_payment, receipt, concession | |
-| Transport | 8 | vehicle, driver, route, stop, transport_enrollment, trip, boarding_event, emergency | driver gains institute_id |
-| Leave | 2 | leave_request, leave_decision | |
-| Events | 1 | event | calendar = view over event |
-| Announcements | 1 | announcement | |
-| Messages | 2 | message_thread, message | |
-| Notifications | 5 | notification_template, notification, notification_recipient, delivery_attempt, device_token | shared across all categories |
-| Admissions | 5 | admission_program, admission_opening, admission_application, admission_document, admission_inquiry | |
-| Careers | 3 | career_job, career_application, candidate_profile | |
-| Documents | 2 | document_template, generated_document | |
-| Certificates | 2 | certificate_template, issued_certificate | template may be platform-owned |
-| ID Cards | 1 | id_card | |
-| Activity/Sports/ECA | 5 | activity_section, activity_team, activity_membership, achievement, practice_session | satellite sports = later/JSONB |
-| Governance (soft-delete/read-only) | 2 | recycle_item, platform_readonly_state | |
-| Audit | 1 | audit_event | shared institute+platform w/ scope column |
-| Nexus core | 2 | platform_operator, platform_role | |
-| Registration | 1 | institute_registration | |
-| Licensing | 2 | license, module_entitlement | |
-| Subscriptions | 3 | subscription, subscription_period, renewal_reminder | |
-| Billing | 4 | renewal_record, billing_adjustment, payment_record, quote | |
-| Support | 2 | support_thread, support_message | |
-| Policies/Alerts | 2 | policy_rule, platform_alert | |
-| Storage quotas | 1 | storage_quota | |
+> This is the **complete long-term product schema (~95–105 tables)**, NOT the launch requirement. The launch requirement is **V1 ≈ 34 tables** (see "V1 Database Scope"). Phase column: which phase the table lands in.
 
-**TOTAL PRODUCTION TABLES ≈ 92** (core, normalized; excludes deferred branch/satellite-sports).
+| Domain | Tables | Candidate tables | Phase | Notes |
+|--------|-------:|------------------|-------|-------|
+| Identity | 3 (+1 later) | user_profile, membership, role | V1 | `role_permission` promoted only when custom roles ship (V1.5); role = enum+config in V1 |
+| Tenancy | 2 | institute, institute_settings | V1 | branch column kept, no branch tables |
+| People | 5 | student, parent, guardian_link, teacher, staff_account | V1 | |
+| Academics | 6 | academic_year, class, section, subject, enrollment, teacher_assignment | V1 | |
+| Timetable | 2 | timetable_slot, timetable_publication | V1/V1.5 | publication = V1.5 |
+| Attendance | 3 | attendance_config_version, attendance_register, attendance_mark | V1 | `attendance_pending` is a **VIEW**, not a table |
+| Staff attendance | 1 | staff_attendance | V1.5 | **ADDED** (teacher/staff attendance distinct from student) |
+| Exams | 2 | exam, exam_subject_schedule | V1.5 | |
+| Marks | 3 | mark_entry, mark_publication, grade_scheme | V1.5 | grade_scheme = config table |
+| Homework/Diary | 2 | homework, diary_submission | V1.5 | |
+| Fees | 5 | fee_plan, fee_component, student_fee, fee_payment, concession | V1.5 | `receipt` = generated document (storage + view), not a base table |
+| Transport | 9 | vehicle, driver, route, stop, transport_enrollment, trip, boarding_event, emergency, transport_settings | V1.5 | **driver carries institute_id** |
+| Leave | 2 | leave_request, leave_decision | V1.5 | |
+| Events | 1 | event | V1.5 | calendar = view over event |
+| Announcements | 1 | announcement | V1.5 | |
+| Messages | 2 | message_thread, message | V2 | **NOT V1** — deferred; notifications cover V1 comms |
+| Notifications | 5 | notification_template, notification, notification_recipient, notification_delivery_attempt, device_token | V1 | ONE shared model; read/unread per recipient; category = column |
+| Admissions | 5 | admission_program, admission_opening, admission_application, admission_document, admission_inquiry | V2 | `saved` = UI-only, not a table |
+| Careers | 6 | career_job, career_application, candidate_profile, career_inquiry, talent_pool_entry, user_saved_item | V2 | personalization (follow/save) folded into one `user_saved_item` |
+| Documents + Certificates + ID cards | 3 | template, generated_document, issued_certificate | V1.5/V2 | **MERGED:** one polymorphic `template` (owner_scope+type); `id_card` collapsed into `generated_document` |
+| Activity/Sports/ECA | 14–20 | activity_section, activity_team, activity_membership, achievement, practice_session, match_result, tournament, coach_note, sports_attendance, team_selection, equipment, venue, medical_fitness, activity_calendar_event (+satellites) | V2 | **BUDGET 14–20** — deep model deferred to V2; do NOT build now |
+| Assets | 1 | stored_asset | V1.5 | **ADDED** — generic storage-object metadata (replaces IndexedDB blob-asset store) |
+| Governance | 1 | recycle_item | V1.5 | `platform_readonly_state` is **DERIVED**, not a table |
+| Audit | 1 | audit_event | V1 | shared institute+platform w/ scope column |
+| Nexus core | 2 | platform_operator, platform_role | V1 | |
+| Registration | 1 | institute_registration | V1 | |
+| Licensing | 2 | license, module_entitlement | V1 | |
+| Subscriptions | 2 | subscription, subscription_period | V1 | `renewal_reminder` = DERIVED unless ack-state needed |
+| Billing | 3 | renewal_record, billing_adjustment, payment | V1.5 | provider-agnostic `payment`; `quote` = DERIVED |
+| Support | 2 | support_thread, support_message | V1.5 | |
+| Policies/Alerts | 1 | policy_rule | V1.5 | fired `platform_alert` = DERIVED unless ack-state needed |
+| Storage quotas | 1 | storage_quota | V1.5 | config-like |
+
+**TOTAL LONG-TERM PRODUCTION TABLES ≈ 95–105** (complete product, all phases; range driven mainly by the Activity/Sports 14–20 budget and whether messaging/ack-state tables are built).
+
+**Phase split (see dedicated scope sections):** **V1 ≈ 34 · V1.5 ≈ 30 · V2 ≈ 35.**
+
+**Removed / merged vs the original ~92 (net −7):** `platform_readonly_state`→derived; `attendance_pending`→view; `quote`→derived; `renewal_reminder`/`platform_alert`→derived (unless ack-state); `document_template`+`certificate_template`→one `template`; `id_card`→`generated_document`; `role_permission`→deferred to V1.5.
+
+**Added vs the original (net +new):** `staff_attendance`, `stored_asset`, `grade_scheme`, `transport_settings`, `career_inquiry`/`talent_pool_entry`/`user_saved_item`, and the expanded Activity/Sports budget (+~10–15).
 
 Secondary estimates:
-- **Views:** ~18 (analytics, attendance reports/dashboards/trends, fee dues, platform-users, health-risk, network analytics, calendar).
+- **Views:** ~20 (analytics, attendance reports/dashboards/trends, **attendance_pending**, fee dues, **quote**, **platform_readonly_state**, platform-users, health-risk, network analytics, calendar, receipt).
 - **Materialized views:** ~4 (attendance monthly rollup, fee collection rollup, platform network metrics, institute KPI snapshot).
-- **Enums:** ~22 (statuses, priorities, notification_category, role_kind, lifecycle, payment_status, application_status, attendance_status, etc.).
-- **Functions / RPCs:** ~18 (submit_attendance, approve/reject/return/publish marks, approve_registration, publish_fees, record_offline_payment→verify, issue_certificate, convert_admission_to_student, convert_career_to_teacher, lock_transport_route, soft_delete/restore, export_report, emit_notification/flush_outbox).
+- **Enums:** ~22 (statuses, priorities, notification_category, role_kind, lifecycle, payment_status/method, application_status, attendance_status, template_type, owner_scope, etc.).
+- **Functions / RPCs:** ~18 (submit_attendance, approve/reject/return/publish marks, approve_registration, publish_fees, record_offline_payment→verify, issue_certificate/generate_document, convert_admission_to_student, convert_career_to_teacher, lock_transport_route, soft_delete/restore, export_report, emit_notification/flush_outbox).
 - **Storage buckets:** ~6 (institute-branding, student-media/id, certificates, admission-docs, career-docs, generated-documents).
 - **Storage object categories:** logos, avatars, ID-card images, certificate PDFs, admission attachments, resumes, generated docs.
 
@@ -277,7 +290,9 @@ Corrections vs template: Attendance keys off **section+config version** (not stu
 - `notification_delivery_attempt` (notification_id, channel, device_token_id, status, error, attempted_at) — outbox/audit.
 - `device_token` (profile_id, app, platform, token, valid, last_seen).
 
-**Flow:** domain action → Hono orchestration service → render from `notification_template` → persist `notification` + `recipient` rows → enqueue outbox → **Firebase FCM** send → record `delivery_attempt`. In-app inbox = query recipients. Realtime (optional) for live inbox. Preserve existing template IDs + `notify*` names as the API contract.
+**Flow:** domain action → Hono orchestration service → render from `notification_template` → persist `notification` + `recipient` rows → enqueue outbox → **Firebase FCM** send → record `delivery_attempt`. In-app inbox = query recipients. Realtime (V1 scope) for live inbox. Preserve existing template IDs + `notify*` names as the API contract.
+
+> **FROZEN:** exactly ONE shared notification model across all 17 categories — `notification_template`, `notification`, `notification_recipient`, `notification_delivery_attempt`, `device_token`. **Read/unread is persisted per recipient.** **No domain-specific notification tables** (no attendance_notification / fee_notification / etc.). The multiple current inbox stores (`admin/notification-center`, `connect/student|parent/notification-store`, `connect/alert-store`, per-sport notification modules) all collapse into this recipient-based inbox.
 
 ---
 
@@ -356,15 +371,18 @@ Current client-side guards (`roles-access`, `canAdminMutate`, portal guards, Nex
 | Fees | **TRANSFORM** | `lumenx.fees.v1` → fee_plan/component/student_fee/payment/receipt |
 | Transport | **TRANSFORM** | utils ops bridges (SoT) → vehicle/route/stop/enrollment/trip/boarding/emergency; add institute_id to driver |
 | Exams/Marks | **TRANSFORM** | marks-entries key → mark_entry + publication |
-| Notifications | **DERIVED/DISCARD** | LS inboxes not migrated; regenerate from events; keep template registry as seed |
-| Admissions/Careers | **TRANSFORM** | `ues_*` → applications/documents/jobs/candidates; unify identity |
+| Admissions/Careers | **TRANSFORM** | `ues_*` → applications/documents/jobs/candidates; **central User/Profile identity** (no separate auth) |
 | Nexus (institutes/subs/licenses/registrations) | **TRANSFORM** | platform LS → platform tables; map legacy institute IDs → UUID |
-| Analytics arrays | **DISCARD** | replaced by views |
+| Notification templates | **SEED** | template registry (17 categories) seeded as reference |
+| Plans, module definitions, reference/config | **SEED** | config tables |
+| Local notification inboxes | **DISCARD** | regenerate from recipient rows |
+| OTP/PIN demo sessions, temporary auth state | **DISCARD** | replaced by Supabase Auth |
+| Static analytics arrays | **DISCARD** | replaced by views |
+| Analytics, attendance pending, platform read-only state | **DERIVE** | computed as views, not stored |
+| Quotes (unless historical snapshot) | **DERIVE** | accepted snapshot lives on `subscription_period` |
 | Deep sports satellites, announcements seed | **UI ONLY / DISCARD** | not primary |
-| Demo credentials/OTP/PIN | **DISCARD** | replaced by Supabase Auth |
-| Template categories/visual themes, plans, module ids | **KEEP AS SEED** (reference/config) | |
 
-**Rule:** never copy LS blob shapes verbatim; normalize first.
+**Rule:** never copy LS blob shapes verbatim; normalize first. localStorage keys are NOT tables.
 
 ---
 
@@ -472,8 +490,11 @@ Separation:
 
 ## PART 24 — Final numbers
 
-- **PostgreSQL tables:** **≈ 92** (normalized core; excludes deferred branch + satellite sports)
-- **Views:** ≈ 18
+- **PostgreSQL tables (complete long-term product):** **≈ 95–105** — NOT the launch requirement
+  - **V1 (launch):** ≈ 34
+  - **V1.5 (soon after):** ≈ 30 additional
+  - **V2 (later):** ≈ 35 additional (incl. Activity/Sports 14–20)
+- **Views:** ≈ 20
 - **Materialized views:** ≈ 4
 - **Enums:** ≈ 22
 - **Functions / RPCs:** ≈ 18
@@ -483,8 +504,8 @@ Separation:
 - **Firebase services:** 3 (FCM, Analytics, Crashlytics)
 - **Nexus platform domains:** 13
 - **Institute domains:** 17
-- **Multi-branch tables:** UNKNOWN — REQUIRES DESIGN DECISION
-- **Real payment-gateway tables:** UNKNOWN — REQUIRES DESIGN DECISION (offline-only today)
+- **Multi-branch tables:** 0 in V1 (architecture kept extensible; FROZEN — no branch model until a later phase)
+- **Payment tables:** provider-agnostic `payment` (offline/manual first; no provider lock-in)
 
 ---
 
@@ -505,11 +526,76 @@ Separation:
 
 ---
 
-## Appendix — Assumptions & open decisions
+## Appendix — Assumptions & resolved decisions
 
-- **UNKNOWN — REQUIRES DESIGN DECISION:** multi-branch support; real payment gateway; Realtime scope; whether certificate templates are platform-owned or institute-owned; whether website needs any authenticated API.
-- **FOUND BUT UNUSED:** `TenantScoped.branchId`; offline `enqueueOfflineOp` (no call sites); deep sports satellite repos.
+- **RESOLVED (see "Architecture Decisions Frozen Before SQL"):** multi-branch, payments, certificate template ownership, threaded messaging, realtime scope, admissions/careers identity — all previously open items are now frozen.
+- **FOUND BUT UNUSED:** `TenantScoped.branchId` (kept for future extensibility); offline `enqueueOfflineOp` (no call sites); deep sports satellite repos (V2).
 - **MOCK/DEMO ONLY:** analytics series, demo credentials/OTP/PIN, announcements seed.
 - **PLANNED / DOCUMENTATION ONLY:** Supabase & Firebase (no code/deps present).
+- Remaining note: whether the public `website` needs any authenticated API is still open but out of scope for the DB schema.
 
-**END OF PHASE 0 BLUEPRINT — STOP. Await approval before Phase 1.**
+---
+
+## ARCHITECTURE DECISIONS FROZEN BEFORE SQL
+
+These are locked. SQL/migrations in Phase 1 must conform to them.
+
+1. **Canonical tenancy:** server-generated **UUID `institute_id`**. Legacy `LX-INST-*` / `ins-*` / demo scopes are **migration/seed mappings only**, never runtime FKs. Every tenant table carries `institute_id UUID NOT NULL`.
+2. **Identity chain:** **Supabase Auth User → Profile → Membership → Institute → Role.** Supports multiple memberships, multiple roles per membership, dual-role teachers (`teacher_assignment` typed `subject|activity|both`), and **institute-scoped drivers (driver carries `institute_id`)**. One unified identity replaces the 5+ parallel auth stores.
+3. **Nexus operators = platform principals**, never institute memberships. Platform-owned data (operators, registrations, subscriptions, licenses, module entitlements, billing, support, policies, quotas, platform audit) is **API-gated**; institute apps reach it only through the API, never directly.
+4. **Notifications:** exactly ONE shared model (`notification_template`, `notification`, `notification_recipient`, `notification_delivery_attempt`, `device_token`). Read/unread persisted per recipient. Category is a column. **No domain-specific notification tables.**
+5. **Templates:** one polymorphic `template` model with **`type`** and **`owner_scope ∈ {platform, institute}`** — merges `document_template` + `certificate_template` and supports both platform-catalog and institute-owned templates.
+6. **`id_card`** collapses into **`generated_document`** where appropriate.
+7. **Derived, NOT tables:** `platform_readonly_state`, `attendance_pending`, `quote` (accepted snapshot lives on `subscription_period`). `renewal_reminder` / fired `platform_alert` are **derived unless acknowledgement/dismissal state must be persisted**.
+8. **Added tables:** `staff_attendance`, `stored_asset` (generic storage-object metadata), plus `grade_scheme`, `transport_settings`, and careers personalization consolidated to `user_saved_item`.
+9. **Branch / multi-campus:** **no separate branch model in V1**; keep architecture extensible for a future branch model.
+10. **Payments:** manual/offline first; **provider-agnostic payment abstraction** — schema not locked to Razorpay or any provider.
+11. **Certificate template ownership:** support **both** platform catalog and institute-owned via `owner_scope`.
+12. **Threaded messaging:** **not a V1 requirement** — V1 uses notifications/announcements; messaging can be added later without breaking the notification model.
+13. **Realtime scope (V1):** notification inbox where useful + transport live operational events where required; everything else is normal request/response initially.
+14. **Admissions/Careers identity:** central User/Profile; applicant/candidate/recruiter/institute-admin expressed via role/membership, **not** independent auth systems.
+
+---
+
+## V1 DATABASE SCOPE (≈ 34 tables — required to launch)
+
+**Identity & tenancy (5):** institute, institute_settings, user_profile, membership, role*(enum/config).
+**People (5):** student, parent, guardian_link, teacher, staff_account.
+**Academics & timetable (7):** academic_year, class, section, subject, enrollment, teacher_assignment, timetable_slot.
+**Attendance (3):** attendance_config_version, attendance_register, attendance_mark. *(attendance_pending = view.)*
+**Notifications (5):** notification_template, notification, notification_recipient, notification_delivery_attempt, device_token.
+**Cross-cutting (1):** audit_event.
+**Nexus security & commercial core (8):** platform_operator, platform_role, institute_registration, license, module_entitlement, subscription, subscription_period. *(role catalog config counted under identity.)*
+
+**≈ 34 tables.** This is the launch surface: identity, tenancy, people, academics, attendance vertical, notifications/FCM, audit, and the Nexus security + subscription core needed to gate access.
+
+---
+
+## V1.5 DATABASE SCOPE (≈ 30 additional tables — required soon after launch)
+
+**Fees (5):** fee_plan, fee_component, student_fee, fee_payment, concession. *(receipt = generated doc/view.)*
+**Transport (9):** vehicle, driver (institute-scoped), route, stop, transport_enrollment, trip, boarding_event, emergency, transport_settings.
+**Exams & marks (5):** exam, exam_subject_schedule, mark_entry, mark_publication, grade_scheme.
+**Homework/diary (2):** homework, diary_submission.
+**Leave (2):** leave_request, leave_decision.
+**Communications (2):** event, announcement.
+**Staff & assets & governance (4):** staff_attendance, stored_asset, recycle_item, timetable_publication.
+**Nexus commercial + support (5):** renewal_record, billing_adjustment, payment (provider-agnostic), support_thread, support_message, policy_rule, storage_quota, role_permission — *phased in as needed*.
+
+**≈ 30 additional tables.**
+
+---
+
+## V2 DATABASE SCOPE (≈ 35 additional tables — later)
+
+**Admissions (5):** admission_program, admission_opening, admission_application, admission_document, admission_inquiry.
+**Careers (6):** career_job, career_application, candidate_profile, career_inquiry, talent_pool_entry, user_saved_item.
+**Documents/certificates (3):** template (polymorphic), generated_document (incl. id_card), issued_certificate.
+**Messaging (2):** message_thread, message.
+**Activity / Sports / ECA (14–20):** activity_section, activity_team, activity_membership, achievement, practice_session, match_result, tournament, coach_note, sports_attendance, team_selection, equipment, venue, medical_fitness, activity_calendar_event, + remaining satellites. **Budget 14–20; do not build now.**
+
+**≈ 35 additional tables** (range driven by the Activity/Sports budget).
+
+---
+
+**END OF PHASE 0 BLUEPRINT (finalized) — STOP. Await approval before Phase 1.**
