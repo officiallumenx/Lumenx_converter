@@ -13,14 +13,19 @@ import { STUDENT_ALL_NAV } from "@/lib/student/nav";
 import { studentNotificationStore } from "@/lib/student/notification-store";
 import {
   academicTermSummaries,
-  buildStudentAttendanceDays,
   examHistory,
-  studentAttendanceLog,
-  studentAttendanceSummary,
-  studentAttendanceTrend,
   studentCertificateRecords,
   studentCompetitions,
 } from "@/lib/student/mock-data";
+import { mergeIssuedCertificates } from "@/lib/student/admin-issued-certificates-bridge";
+import {
+  buildLearnerAttendanceDays,
+  buildLearnerAttendanceLog,
+  buildLearnerAttendanceTrend,
+  computeAttendanceSummary,
+  computeLearnerMonthAttendanceDelta,
+} from "@/lib/attendance/calendar";
+import { attendanceSectionKey, toAttendanceStudentId } from "@/lib/attendance/section-key";
 import type { StudentSearchResults, StudentSnapshot } from "./types";
 
 const delay = (ms = 280) => new Promise((r) => setTimeout(r, ms));
@@ -28,24 +33,68 @@ const delay = (ms = 280) => new Promise((r) => setTimeout(r, ms));
 export const studentRepository = {
   async getSnapshot(): Promise<StudentSnapshot> {
     await delay();
+    const profile = getConnectStudentProfile();
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const studentId = toAttendanceStudentId({
+      id: profile.id,
+      classLabel: profile.class,
+      section: profile.section,
+      rollNo: profile.rollNo,
+    });
+    const sectionKey = attendanceSectionKey(profile.class, profile.section);
+    const attendanceDays = buildLearnerAttendanceDays({
+      year,
+      month,
+      studentId,
+      sectionKey,
+    });
+    const computed = computeAttendanceSummary(attendanceDays, year, month);
+    const attendanceTrend = buildLearnerAttendanceTrend({
+      year,
+      month,
+      studentId,
+      sectionKey,
+    });
+    const attendanceLog = buildLearnerAttendanceLog({
+      year,
+      month,
+      studentId,
+      sectionKey,
+    });
+    const monthDelta = computeLearnerMonthAttendanceDelta({
+      year,
+      month,
+      studentId,
+      sectionKey,
+    });
     return {
-      profile: { ...getConnectStudentProfile() },
+      profile: { ...profile },
       reportCards: [...reportCards],
       performance: [...performance],
       trend: [...trend],
       timetable: { ...studentTimetable },
       achievements: [...achievements],
-      certificates: [...studentCertificateRecords],
+      certificates: mergeIssuedCertificates(profile.id, studentCertificateRecords),
       competitions: [...studentCompetitions],
       examHistory: [...examHistory],
       academicTerms: [...academicTermSummaries],
-      attendanceSummary: { ...studentAttendanceSummary },
-      attendanceDays: buildStudentAttendanceDays(
-        studentAttendanceSummary.year,
-        studentAttendanceSummary.month,
-      ),
-      attendanceTrend: [...studentAttendanceTrend],
-      attendanceLog: [...studentAttendanceLog],
+      attendanceSummary: {
+        monthLabel: computed.monthLabel,
+        year,
+        month,
+        attendancePct: computed.attendancePct,
+        classAvgPct: 0,
+        present: computed.present,
+        absent: computed.absent,
+        leave: computed.leave,
+        workingDays: computed.workingDays,
+        monthDelta,
+      },
+      attendanceDays,
+      attendanceTrend,
+      attendanceLog,
       notifications: studentNotificationStore.getItems(),
       exams: [...exams],
       schoolEvents: schoolEvents.map((e) => ({
@@ -58,8 +107,23 @@ export const studentRepository = {
     };
   },
 
-  async search(query: string): Promise<StudentSearchResults> {
+  async search(
+    query: string,
+    opts?: { instituteId?: string | null },
+  ): Promise<StudentSearchResults> {
     await delay(120);
+    if (!opts?.instituteId) {
+      return {
+        modules: [],
+        subjects: [],
+        certificates: [],
+        notifications: [],
+        reportCards: [],
+        teachers: [],
+        achievements: [],
+        competitions: [],
+      };
+    }
     const q = query.trim().toLowerCase();
     if (!q) {
       return {
@@ -96,7 +160,7 @@ export const studentRepository = {
     return {
       modules: modules.slice(0, 6),
       subjects: subjects.slice(0, 8),
-      certificates: studentCertificateRecords
+      certificates: mergeIssuedCertificates(profile.id, studentCertificateRecords)
         .filter(
           (c) =>
             c.title.toLowerCase().includes(q) ||

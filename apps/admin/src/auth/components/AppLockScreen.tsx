@@ -140,7 +140,7 @@ export function AppLockScreen({ onUnlocked }: AppLockScreenProps) {
       setVerifying(true);
       setError(null);
       try {
-        const ok = await mockVerifyAppPin(user.id, value);
+        const ok = await mockVerifyAppPin(user.id, value, user.email);
         if (ok) {
           setAppUnlocked(true);
           onUnlocked();
@@ -216,13 +216,13 @@ export function AppLockScreen({ onUnlocked }: AppLockScreenProps) {
   }, [lockedOut, verifying, appendDigit, deleteDigit]);
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-b from-background via-background to-muted/30 text-foreground">
+    <div className="min-h-screen-dvh flex flex-col bg-gradient-to-b from-background via-background to-muted/30 text-foreground">
       {/* Ambient */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-primary/[0.04] rounded-full blur-3xl" />
       </div>
 
-      <header className="relative z-10 flex items-center justify-center px-6 py-5 border-b border-border/40">
+      <header className="lx-auth-top-bar relative z-10 flex items-center justify-center border-b border-border/40">
         <div className="flex items-center gap-2 text-muted-foreground">
           <IconChip icon={Sparkles} size="xs" />
           <span className="text-xs font-semibold tracking-widest uppercase">LumenX Admin</span>
@@ -262,7 +262,7 @@ export function AppLockScreen({ onUnlocked }: AppLockScreenProps) {
               <h2 className="text-sm font-semibold">Enter 6-Digit Security PIN</h2>
             </div>
             <p className="text-[11px] text-muted-foreground text-center mb-6">
-              Required every time you open the app
+              Use the 6-digit Security PIN from signup (not your login password)
             </p>
 
             <div className="mb-6 min-h-[20px] flex justify-center">
@@ -288,7 +288,13 @@ export function AppLockScreen({ onUnlocked }: AppLockScreenProps) {
               </p>
             )}
 
-            {!showTouchKeypad && (
+            {lockedOut && (
+              <p className="text-center text-[11px] text-muted-foreground mb-4 px-1">
+                Keypad is locked. Reset your PIN below, then try again.
+              </p>
+            )}
+
+            {!showTouchKeypad && !lockedOut && (
               <p className="text-center text-[11px] text-muted-foreground mb-4">
                 Type your PIN on the keyboard · Backspace to delete
               </p>
@@ -321,18 +327,18 @@ export function AppLockScreen({ onUnlocked }: AppLockScreenProps) {
             )}
           </div>
 
-          <div className="mt-6 text-center">
+          <div className="mt-6 text-center space-y-2">
             <Link
               to="/forgot-pin"
               className="text-xs font-medium text-primary hover:underline"
             >
-              Forgot PIN?
+              {lockedOut ? "Reset PIN to continue" : "Forgot PIN?"}
             </Link>
+            <p className="text-[10px] text-muted-foreground px-4">
+              Demo accounts use PIN 123456. Registered institutes use the PIN
+              chosen during signup.
+            </p>
           </div>
-
-          <p className="mt-8 text-center text-[10px] text-muted-foreground/60 leading-relaxed">
-            Demo PIN for all accounts: <span className="font-mono font-semibold">123456</span>
-          </p>
         </div>
       </main>
     </div>

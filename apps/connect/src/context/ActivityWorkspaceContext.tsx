@@ -34,8 +34,8 @@ export function ActivityWorkspaceRegistry({ children }: { children: ReactNode })
   useEffect(() => {
     if (!isActive) {
       loadedRef.current = false;
-      setDashboard(null);
-      setIsLoading(false);
+      setDashboard((d) => (d === null ? d : null));
+      setIsLoading((loading) => (loading ? false : loading));
       return;
     }
 

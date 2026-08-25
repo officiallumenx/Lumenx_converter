@@ -1,10 +1,11 @@
-import type {
-  DemoInstituteCustomSection,
-  DemoInstituteProfile,
-  DemoInstituteSectionEntry,
-  DemoInstituteSectionField,
-  DemoProfileId,
-} from "@lumenx/types";
+import type { DemoInstituteProfile, DemoProfileId } from "@lumenx/types";
+import {
+  admissionsInstituteIdForDemoProfile,
+  normalizeInstituteProfile,
+  publishSharedInstituteProfile,
+  saveSharedInstituteProfile,
+} from "@lumenx/utils";
+import { getAdmissionsPortalWindow } from "@/lib/admissions-portal-window";
 
 const STORAGE_KEY = "lumenx_institute_profile_overrides";
 
@@ -21,75 +22,14 @@ function readOverrides(): ProfileOverrides {
 }
 
 function writeOverrides(overrides: ProfileOverrides) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(overrides));
-}
-
-function newEntryId() {
-  return `entry-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-}
-
-function normalizeSectionField(raw: unknown): DemoInstituteSectionField {
-  const field = raw as DemoInstituteSectionField & { label?: string; value?: string };
-  return {
-    id: field.id ?? `field-${Date.now().toString(36)}`,
-    label: (field.label ?? "").trim(),
-    value: (field.value ?? "").trim(),
-  };
-}
-
-function normalizeSectionEntry(raw: unknown): DemoInstituteSectionEntry {
-  const entry = raw as DemoInstituteSectionEntry & {
-    heading?: string;
-    subheading?: string;
-    fields?: unknown[];
-  };
-  return {
-    id: entry.id ?? newEntryId(),
-    heading: (entry.heading ?? "").trim(),
-    subheading: (entry.subheading ?? "").trim(),
-    fields: Array.isArray(entry.fields) ? entry.fields.map(normalizeSectionField) : [],
-  };
-}
-
-function normalizeCustomSection(raw: unknown): DemoInstituteCustomSection {
-  const section = raw as DemoInstituteCustomSection & {
-    title?: string;
-    label?: string;
-    description?: string;
-    value?: string;
-    entries?: unknown[];
-  };
-
-  if (Array.isArray(section.entries)) {
-    return {
-      id: section.id,
-      title: (section.title ?? section.label ?? "").trim(),
-      entries: section.entries.map(normalizeSectionEntry),
-    };
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(overrides));
+  } catch {
+    // Ignore quota / private mode.
   }
-
-  const title = (section.title ?? section.label ?? "").trim();
-  const legacyText = (section.description ?? section.value ?? "").trim();
-  const entries: DemoInstituteSectionEntry[] = legacyText
-    ? [
-        {
-          id: newEntryId(),
-          heading: "",
-          subheading: legacyText,
-          fields: [],
-        },
-      ]
-    : [];
-
-  return { id: section.id, title, entries };
 }
 
-export function normalizeInstituteProfile(
-  profile: DemoInstituteProfile,
-): DemoInstituteProfile {
-  const customFields = (profile.customFields ?? []).map(normalizeCustomSection);
-  return { ...profile, customFields, profilePhoto: profile.profilePhoto ?? "" };
-}
+export { normalizeInstituteProfile };
 
 export function readStoredInstituteProfile(
   profileId: DemoProfileId,
@@ -99,8 +39,33 @@ export function readStoredInstituteProfile(
   return normalizeInstituteProfile(stored ?? seed);
 }
 
-export function saveInstituteProfile(profileId: DemoProfileId, profile: DemoInstituteProfile) {
+/** Write Admin overrides only (used when applying inbound Admissions sync). */
+export function writeInstituteProfileOverride(
+  profileId: DemoProfileId,
+  profile: DemoInstituteProfile,
+) {
   const overrides = readOverrides();
   overrides[profileId] = normalizeInstituteProfile(profile);
   writeOverrides(overrides);
+}
+
+export function saveInstituteProfile(profileId: DemoProfileId, profile: DemoInstituteProfile) {
+  const normalized = normalizeInstituteProfile(profile);
+  writeInstituteProfileOverride(profileId, normalized);
+
+  const admissionsId = admissionsInstituteIdForDemoProfile(profileId);
+  publishSharedInstituteProfile(admissionsId, normalized, [
+    getAdmissionsPortalWindow(),
+    typeof window !== "undefined" ? window.opener : null,
+  ]);
+}
+
+/** Publish current Admin profile into the shared bag without rewriting Admin overrides. */
+export function syncInstituteProfileToAdmissions(
+  profileId: DemoProfileId,
+  profile: DemoInstituteProfile,
+) {
+  const admissionsId = admissionsInstituteIdForDemoProfile(profileId);
+  saveSharedInstituteProfile(admissionsId, profile);
+  return admissionsId;
 }

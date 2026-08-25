@@ -705,7 +705,37 @@ function SignUpPage() {
         securityPin:     s3.pin,
         instituteName:   s1.instituteName,
       });
-      navigate({ to: "/", replace: true });
+      const { saveOtpPending } = await import("@/auth/otp-service");
+      const { saveSetupDraft, createEmptySetupForm } = await import("@/auth/institute-setup-store");
+      saveOtpPending({
+        email: s2.email.trim().toLowerCase(),
+        mobile: s2.mobile.trim(),
+        emailVerified: false,
+        mobileVerified: false,
+      });
+      const draftForm = createEmptySetupForm();
+      saveSetupDraft({
+        form: {
+          ...draftForm,
+          instituteName: s1.instituteName,
+          instituteType: s1.instituteType || draftForm.instituteType,
+          educationBoard: s1.educationBoard || draftForm.educationBoard,
+          logoPreview: s1.logoPreview || "",
+          country: s2.country || "India",
+          state: s2.state || "",
+          district: s2.district || "",
+          city: s2.city || "",
+          address: s2.address || "",
+          pincode: s2.pincode || "",
+          website: s2.website || "",
+          principalName: s2.principalName,
+          principalEmail: s2.email.trim().toLowerCase(),
+          principalMobile: s2.mobile.trim(),
+        },
+        currentStep: 1,
+        lastSavedAt: null,
+      });
+      navigate({ to: "/verify-email-otp", replace: true });
     } catch {
       // authError set by context
     } finally {
@@ -715,7 +745,7 @@ function SignUpPage() {
 
   /* ── RENDER ──────────────────────────────────────────────── */
   return (
-    <div className="min-h-screen flex bg-background text-foreground">
+    <div className="min-h-screen-dvh flex bg-background text-foreground">
       {/* ── Left brand panel ───────────────────────────── */}
       <aside className="hidden xl:flex xl:w-[36%] flex-col justify-between p-10 bg-gradient-to-br from-primary/[0.07] via-background to-chart-5/[0.05] border-r border-border relative overflow-hidden shrink-0">
         {/* Grid texture */}
@@ -782,7 +812,7 @@ function SignUpPage() {
       {/* ── Right: form ────────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-h-0 min-w-0">
         {/* Top bar */}
-        <div className="flex items-center justify-between px-6 sm:px-8 py-4 border-b border-border/50 shrink-0">
+        <div className="lx-auth-top-bar flex items-center justify-between border-b border-border/50 shrink-0">
           <div className="flex items-center gap-3">
             {/* Mobile logo */}
             <div className="flex items-center gap-2 xl:hidden">
@@ -806,7 +836,7 @@ function SignUpPage() {
               Step {step} of {STEP_META.length}
             </span>
             <Link to="/login" className="text-[11px] text-primary hover:underline">
-              Sign in instead
+              Login instead
             </Link>
           </div>
         </div>
@@ -883,11 +913,11 @@ function SignUpPage() {
               )}
             </div>
 
-            {/* Sign in link */}
+            {/* Login link */}
             <p className="mt-5 text-center text-xs text-muted-foreground">
               Already have an account?{" "}
               <Link to="/login" className="text-primary hover:underline font-medium">
-                Sign in
+                Login
               </Link>
             </p>
           </div>
@@ -895,7 +925,7 @@ function SignUpPage() {
 
         {/* Footer */}
         <div className="px-6 py-3 text-center text-[10px] text-muted-foreground/40 shrink-0 border-t border-border/30">
-          {theme} mode · Demo environment · No real registration performed
+          {theme} mode
         </div>
       </div>
     </div>

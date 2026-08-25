@@ -97,10 +97,10 @@ function normalizeProfile(raw: Record<string, unknown>, candidateId: string): Ca
   if (typeof merged.postalCode !== "string") merged.postalCode = "";
 
   merged.qualifications = (merged.qualifications ?? []).map((q) => ({
+    ...q,
     educationLevel: q.educationLevel ?? "bachelors",
     field: q.field ?? "",
     pursuing: q.pursuing ?? false,
-    ...q,
   })) as QualificationEntry[];
 
   merged.experience = (merged.experience ?? []) as ExperienceEntry[];

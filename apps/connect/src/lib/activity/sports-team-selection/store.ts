@@ -103,7 +103,7 @@ function rankCandidatesForTrial(trialId: string): void {
     .filter((c) => c.trialId === trialId && c.evaluation)
     .sort((a, b) => (b.evaluation!.totalScore - a.evaluation!.totalScore));
 
-  let rank = 1;
+  const rank = 1;
   candidatesStore = candidatesStore.map((c) => {
     if (c.trialId !== trialId || !c.evaluation) return c;
     const idx = evaluated.findIndex((e) => e.id === c.id);

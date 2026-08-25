@@ -2,8 +2,9 @@
  * Activity Hub — certificate references shared across modules.
  */
 import type { ActivityCategoryId } from "../categories";
+import type { CertificateLifecycleStatus } from "@lumenx/types";
 
-export type ActivityCertificateStatus = "draft" | "issued" | "revoked";
+export type ActivityCertificateStatus = CertificateLifecycleStatus;
 
 export interface ActivityCertificateRef {
   id: string;

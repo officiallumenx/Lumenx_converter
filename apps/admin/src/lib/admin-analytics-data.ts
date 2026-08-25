@@ -1,41 +1,5 @@
 /** Mock analytics series for dashboard and analytics pages. */
 
-export type Branch = {
-  id: string;
-  name: string;
-  students: number;
-  attendance: number;
-  growth: number;
-  performance: "high" | "medium" | "low";
-};
-
-export const BRANCHES: Branch[] = [
-  {
-    id: "alpha",
-    name: "Branch Alpha",
-    students: 2842,
-    attendance: 94.2,
-    growth: 8.4,
-    performance: "high",
-  },
-  {
-    id: "beta",
-    name: "Branch Beta",
-    students: 1920,
-    attendance: 88.1,
-    growth: 2.1,
-    performance: "medium",
-  },
-  {
-    id: "gamma",
-    name: "Branch Gamma",
-    students: 1104,
-    attendance: 79.6,
-    growth: -1.8,
-    performance: "low",
-  },
-];
-
 export const ENROLLMENT_MONTHLY = [
   { m: "Apr", v: 2680, new: 42 },
   { m: "May", v: 2710, new: 38 },
@@ -172,13 +136,6 @@ export const AT_RISK_PIE = [
   { name: "Critical", value: 96, fill: "var(--chart-4)" },
 ];
 
-export const BRANCH_COMPARE_CHART = BRANCHES.map((b) => ({
-  name: b.name.replace("Branch ", ""),
-  attendance: b.attendance,
-  students: b.students / 30,
-  growth: b.growth + 50,
-}));
-
 export const CRITICAL_CLASSES = [
   { name: "Grade 11-C", rate: 76, students: 42 },
   { name: "Grade 9-B", rate: 79, students: 38 },
@@ -206,8 +163,8 @@ export const ANALYTICS_INSIGHTS = [
     tone: "info" as const,
   },
   {
-    title: "Branch Gamma needs focus",
-    body: "Attendance 79.6% and negative growth. Grade 11-C and 9-B drive most at-risk flags for this branch.",
+    title: "Two classes need focus",
+    body: "Grade 11-C and 9-B drive most at-risk flags and need an attendance follow-up.",
     tone: "warning" as const,
   },
 ];

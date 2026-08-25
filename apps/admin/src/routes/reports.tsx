@@ -12,11 +12,12 @@ import {
   type RecentExport,
   type ReportId,
 } from "@/lib/report-exports";
+import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-labels";
 import { Download, FileText, Info } from "lucide-react";
 import { useCallback, useState } from "react";
 
 export const Route = createFileRoute("/reports")({
-  head: () => ({ meta: [{ title: "Reporting Center — LumenX Admin" }] }),
+  head: () => ({ meta: [{ title: adminPageTitle("/reports") }] }),
   component: ReportsPage,
 });
 
@@ -44,10 +45,12 @@ function ReportsPage() {
           rowCount,
         });
         setRecent(next);
-        if (format === "csv") {
-          notify(`Downloaded ${filename} · ${rowCount} rows (demo data)`);
+        if (format === "pdf") {
+          notify(`Saved to Downloads · ${filename} · open in browser, then Print → Save as PDF`);
         } else {
-          notify(`Downloaded ${filename} · open in browser, then Print → Save as PDF`);
+          notify(
+            `Saved to Downloads · ${filename} · ${rowCount} rows · open in Excel or any spreadsheet`,
+          );
         }
       } finally {
         setDownloading(null);
@@ -58,19 +61,20 @@ function ReportsPage() {
 
   return (
     <AppShell
-      title="Reporting Center"
-      subtitle="Download demo CSV/HTML files built from institute mock data"
+      title={M.reports}
+      subtitle="Download & export only · Excel, PDF, CSV · no charts or live dashboards"
     >
       <PageStack>
         <Card className="p-4 border-primary/20 bg-primary/5">
           <div className="flex gap-3">
             <Info className="size-4 text-primary shrink-0 mt-0.5" />
             <div className="text-xs text-muted-foreground leading-relaxed">
-              <span className="text-foreground font-medium">CSV</span> = spreadsheet you can open in
-              Excel.
-              <span className="text-foreground font-medium"> PDF </span>
-              downloads a formatted HTML report — open it and use your browser&apos;s Print → Save
-              as PDF. Data is sample rows from the same mock sources as Students, Fees, Marks, etc.
+              Reports are for export only.{" "}
+              <span className="text-foreground font-medium">Excel</span> and{" "}
+              <span className="text-foreground font-medium">CSV</span> download spreadsheet files
+              (open in Excel). <span className="text-foreground font-medium">PDF</span> downloads a
+              formatted HTML report — open it and use Print → Save as PDF. For live dashboards and
+              charts, use Analytics — not this page.
             </div>
           </div>
         </Card>
@@ -108,8 +112,9 @@ function ReportsPage() {
           </div>
           <div className="px-5 pb-5 divide-y divide-border">
             {list.map((r) => {
-              const csvKey = `${r.id}-csv`;
+              const excelKey = `${r.id}-excel`;
               const pdfKey = `${r.id}-pdf`;
+              const csvKey = `${r.id}-csv`;
               return (
                 <div
                   key={r.id}
@@ -125,10 +130,10 @@ function ReportsPage() {
                   </div>
                   <div className="flex flex-wrap gap-2 w-full sm:w-auto">
                     <Button
-                      loading={downloading === csvKey}
-                      onClick={() => handleExport(r.id, r.name, "csv")}
+                      loading={downloading === excelKey}
+                      onClick={() => handleExport(r.id, r.name, "excel")}
                     >
-                      <Download className="size-3.5" /> CSV
+                      <Download className="size-3.5" /> Excel
                     </Button>
                     <Button
                       variant="outline"
@@ -136,6 +141,13 @@ function ReportsPage() {
                       onClick={() => handleExport(r.id, r.name, "pdf")}
                     >
                       <Download className="size-3.5" /> PDF
+                    </Button>
+                    <Button
+                      variant="outline"
+                      loading={downloading === csvKey}
+                      onClick={() => handleExport(r.id, r.name, "csv")}
+                    >
+                      <Download className="size-3.5" /> CSV
                     </Button>
                   </div>
                 </div>

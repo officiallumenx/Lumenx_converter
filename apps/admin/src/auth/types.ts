@@ -31,6 +31,8 @@ export interface AuthUser {
   mfaEnabled: boolean;
   createdAt: string;
   lastLoginAt?: string;
+  /** Present for Admin-created users managed through Roles & Access. */
+  accessRoleId?: string;
 }
 
 // ── Domain: Session ───────────────────────────────────────────
@@ -38,12 +40,16 @@ export interface AuthUser {
 export interface AuthSession {
   userId: string;
   email: string;
+  phone?: string;
   name: string;
   initials: string;
   role: AdminRole;
   title: string;
+  accessRoleId?: string;
   instituteId: string;
   instituteName: string;
+  /** Persisted so reload cannot skip OTP / Nexus approval. */
+  isVerified: boolean;
   token: string;           // mock JWT placeholder (real in production)
   expiresAt: number;       // Unix ms timestamp
   issuedAt: number;
@@ -164,6 +170,9 @@ export interface AuthContextValue {
   isLoading: boolean;
   error: string | null;
   signIn(identifier: string, password: string, remember?: boolean): Promise<void>;
+  completeSignIn(user: AuthUser, remember?: boolean): void;
+  /** Update session user without clearing app lock (e.g. Nexus approval). */
+  patchAuthenticatedUser(user: AuthUser): void;
   signUp(data: SignUpFormData): Promise<void>;
   signOut(): void;
   forgotPassword(email: string): Promise<void>;

@@ -1,4 +1,4 @@
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { useStudentPortal } from "@/context/StudentPortalContext";
 import { Button, cn } from "@lumenx/ui";
@@ -10,9 +10,49 @@ import {
   type StudentNotificationFilterId,
 } from "@/lib/student/notification-store";
 import { NotificationList, PageSkeleton } from "@/student-portal/shared/ui";
+import { listAttendanceNotificationInbox } from "@lumenx/module-attendance";
+import {
+  mergePortalNotificationsWithAttendanceInbox,
+  resolveStudentProfileAttendanceStudentId,
+  subscribeAttendanceInbox,
+} from "@/lib/attendance/notification-bridge";
+import { listPhase7Inbox, listPhase8Inbox, dedupeNotificationsById } from "@lumenx/module-notifications";
+
+function studentInboxEpoch(): string {
+  const items = listAttendanceNotificationInbox("student");
+  const p7 = listPhase7Inbox("student");
+  const p8 = listPhase8Inbox("student");
+  return `${items.length}:${items[0]?.id ?? ""}:${p7.length}:${p7[0]?.id ?? ""}:${p8.length}:${p8[0]?.id ?? ""}`;
+}
 
 export function StudentNotificationsPage() {
   const portal = useStudentPortal();
+
+  const inboxEpoch = useSyncExternalStore(
+    subscribeAttendanceInbox,
+    studentInboxEpoch,
+    () => "0",
+  );
+
+  useEffect(() => {
+    if (!portal.isStudent || !portal.snapshot) return;
+    const attendanceStudentId = resolveStudentProfileAttendanceStudentId(
+      portal.snapshot.profile,
+    );
+    const merged = mergePortalNotificationsWithAttendanceInbox({
+      recipient: "student",
+      portalNotifications: portal.snapshot.notifications,
+      attendanceStudentId,
+    });
+    studentNotificationStore.syncFromSource(
+      dedupeNotificationsById([
+        ...listPhase7Inbox("student"),
+        ...listPhase8Inbox("student"),
+        ...merged,
+      ]),
+    );
+  }, [portal.isStudent, portal.snapshot, inboxEpoch]);
+
   const all = useSyncExternalStore(
     studentNotificationStore.subscribe,
     studentNotificationStore.getItems,

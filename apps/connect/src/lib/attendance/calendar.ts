@@ -2,72 +2,13 @@ import type {
   AttendanceDay,
   AttendanceDayStatus,
   AttendancePeriodSummary,
-  InstituteHoliday,
 } from "./types";
+import { computeAttendancePct, resolveStudentStatusFromRegisters } from "@lumenx/module-attendance";
+import { formatDisplayDate as formatDisplayDateShared } from "@lumenx/utils";
+import { INSTITUTE_HOLIDAYS } from "./holidays-demo";
 
 /** Institute holidays — demo dataset spanning recent months */
-export const INSTITUTE_HOLIDAYS: InstituteHoliday[] = [
-  {
-    id: "h-2026-05-01",
-    date: "2026-05-01",
-    title: "Labour Day",
-    purpose: "National holiday — institute closed",
-  },
-  {
-    id: "h-2026-05-12",
-    date: "2026-05-12",
-    title: "Buddha Purnima",
-    purpose: "Gazetted holiday — no classes",
-  },
-  {
-    id: "h-2026-06-07",
-    date: "2026-06-07",
-    title: "Weekly off",
-    purpose: "Sunday — institute weekly holiday",
-  },
-  {
-    id: "h-2026-06-14",
-    date: "2026-06-14",
-    title: "Weekly off",
-    purpose: "Sunday — institute weekly holiday",
-  },
-  {
-    id: "h-2026-06-21",
-    date: "2026-06-21",
-    title: "Weekly off",
-    purpose: "Sunday — institute weekly holiday",
-  },
-  {
-    id: "h-2026-06-28",
-    date: "2026-06-28",
-    title: "Weekly off",
-    purpose: "Sunday — institute weekly holiday",
-  },
-  {
-    id: "h-2026-06-15",
-    date: "2026-06-15",
-    title: "Staff development day",
-    purpose: "Teacher training — students stay home",
-  },
-  {
-    id: "h-2026-04-14",
-    date: "2026-04-14",
-    title: "Ambedkar Jayanti",
-    purpose: "Gazetted holiday — institute closed",
-  },
-  {
-    id: "h-2026-04-18",
-    date: "2026-04-18",
-    title: "Good Friday",
-    purpose: "Religious holiday — no classes",
-  },
-  {
-    id: "h-2026-03-25",
-    date: "2026-03-25",
-    title: "Holi",
-    purpose: "Festival holiday — institute closed",
-  },
-];
+export { INSTITUTE_HOLIDAYS };
 
 const MONTH_NAMES = [
   "January",
@@ -89,13 +30,7 @@ export function monthLabel(year: number, month: number) {
 }
 
 export function formatDisplayDate(iso: string) {
-  const d = new Date(`${iso}T12:00:00`);
-  return d.toLocaleDateString("en-IN", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  return formatDisplayDateShared(iso);
 }
 
 export function isoFromParts(year: number, month: number, day: number) {
@@ -127,7 +62,6 @@ function getAttendanceDayStatus(
   year: number,
   month: number,
   day: number,
-  seed = 0,
 ): AttendanceDay {
   const iso = isoFromParts(year, month, day);
   const now = new Date();
@@ -147,19 +81,19 @@ function getAttendanceDayStatus(
     return { day, status: "holiday", holidayTitle: "Weekly off" };
   }
 
-  const absent = (day + seed) % 13 === 0;
-  const leave = !absent && (day + seed * 2) % 19 === 0;
-  if (absent) return { day, status: "absent" };
-  if (leave) return { day, status: "leave" };
-  return { day, status: "present" };
+  // No calendar seed — unmarked working days stay unknown until registers exist.
+  return { day, status: "unknown" };
 }
 
-/** Build attendance days for a month. Optional seed varies absent/leave pattern per child. */
-export function buildAttendanceDays(year: number, month: number, seed = 0): AttendanceDay[] {
+/**
+ * Build calendar skeleton for a month (holidays / future / unknown).
+ * Does not invent present/absent/leave — use `overlayRegisterAttendanceDays`.
+ */
+export function buildAttendanceDays(year: number, month: number): AttendanceDay[] {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   return Array.from({ length: daysInMonth }, (_, i) => {
     const day = i + 1;
-    return getAttendanceDayStatus(year, month, day, seed);
+    return getAttendanceDayStatus(year, month, day);
   });
 }
 
@@ -178,12 +112,18 @@ function summarizeAttendanceDays(
   rangeLabel?: string,
   monthMeta?: { year: number; month: number },
 ): AttendancePeriodSummary {
-  const workingDays = scoped.filter((d) => d.status !== "holiday" && d.status !== "future").length;
+  const workingDays = scoped.filter(
+    (d) =>
+      d.status !== "holiday" &&
+      d.status !== "future" &&
+      d.status !== "unknown",
+  ).length;
   const present = scoped.filter((d) => d.status === "present").length;
   const absent = scoped.filter((d) => d.status === "absent").length;
   const leave = scoped.filter((d) => d.status === "leave").length;
   const holidays = scoped.filter((d) => d.status === "holiday").length;
-  const attendancePct = workingDays > 0 ? Math.round((present / workingDays) * 100) : 0;
+  const expected = present + absent + leave;
+  const attendancePct = computeAttendancePct(present, expected, leave);
 
   return {
     monthLabel: monthMeta ? monthLabel(monthMeta.year, monthMeta.month) : "",
@@ -203,7 +143,6 @@ function summarizeAttendanceDays(
 export function computeAttendanceSummaryForRange(
   startIso: string,
   endIso: string,
-  seed = 0,
 ): AttendancePeriodSummary {
   const start = new Date(`${startIso}T12:00:00`);
   const end = new Date(`${endIso}T12:00:00`);
@@ -212,7 +151,7 @@ export function computeAttendanceSummaryForRange(
 
   while (cursor <= end) {
     scoped.push(
-      getAttendanceDayStatus(cursor.getFullYear(), cursor.getMonth(), cursor.getDate(), seed),
+      getAttendanceDayStatus(cursor.getFullYear(), cursor.getMonth(), cursor.getDate()),
     );
     cursor.setDate(cursor.getDate() + 1);
   }
@@ -316,4 +255,149 @@ export function seedFromString(id: string) {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
   return h % 97;
+}
+
+/**
+ * Overlay Attendance Registers onto a month skeleton.
+ * Sole learner history SoT — no calendar seed absences.
+ */
+export function overlayRegisterAttendanceDays(
+  days: AttendanceDay[],
+  input: {
+    year: number;
+    month: number;
+    studentId: string;
+    sectionKey: string;
+  },
+): AttendanceDay[] {
+  return days.map((d) => {
+    if (d.status === "holiday" || d.status === "future") return d;
+    const iso = isoFromParts(input.year, input.month, d.day);
+    const status = resolveStudentStatusFromRegisters({
+      studentId: input.studentId,
+      sectionKey: input.sectionKey,
+      date: iso,
+    });
+    return { day: d.day, status };
+  });
+}
+
+/** Month days for a learner from Registers only. */
+export function buildLearnerAttendanceDays(input: {
+  year: number;
+  month: number;
+  studentId: string;
+  sectionKey: string;
+}): AttendanceDay[] {
+  return overlayRegisterAttendanceDays(buildAttendanceDays(input.year, input.month), input);
+}
+
+export type LearnerAttendanceTrendPoint = { week: string; pct: number };
+
+export type LearnerAttendanceLogEntry = {
+  date: string;
+  status: "present" | "absent" | "leave";
+  note: string;
+};
+
+function noteForDayStatus(status: "present" | "absent" | "leave"): string {
+  if (status === "leave") return "Marked leave on register";
+  if (status === "absent") return "Marked absent on register";
+  return "Marked present on register";
+}
+
+/** Weekly attendance % points for a month — Registers only. */
+export function buildLearnerAttendanceTrend(input: {
+  year: number;
+  month: number;
+  studentId: string;
+  sectionKey: string;
+}): LearnerAttendanceTrendPoint[] {
+  const days = buildLearnerAttendanceDays(input);
+  const today = new Date();
+  const isCurrent =
+    input.year === today.getFullYear() && input.month === today.getMonth();
+  const maxDay = isCurrent ? today.getDate() : days.length;
+
+  const buckets = new Map<number, AttendanceDay[]>();
+  for (const d of days) {
+    if (d.day > maxDay) continue;
+    if (d.status === "holiday" || d.status === "future" || d.status === "unknown") continue;
+    const weekIndex = Math.floor((d.day - 1) / 7);
+    const list = buckets.get(weekIndex) ?? [];
+    list.push(d);
+    buckets.set(weekIndex, list);
+  }
+
+  return [...buckets.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([weekIndex, scoped]) => {
+      const summary = summarizeAttendanceDays(scoped);
+      return {
+        week: `Week ${weekIndex + 1}`,
+        pct: summary.attendancePct,
+      };
+    });
+}
+
+/** Recent marked days from Registers (present / absent / leave). */
+export function buildLearnerAttendanceLog(input: {
+  year: number;
+  month: number;
+  studentId: string;
+  sectionKey: string;
+  limit?: number;
+}): LearnerAttendanceLogEntry[] {
+  const days = buildLearnerAttendanceDays(input);
+  const limit = input.limit ?? 8;
+  return days
+    .filter(
+      (d): d is AttendanceDay & { status: "present" | "absent" | "leave" } =>
+        d.status === "present" || d.status === "absent" || d.status === "leave",
+    )
+    .sort((a, b) => b.day - a.day)
+    .slice(0, limit)
+    .map((d) => ({
+      date: formatDisplayDate(isoFromParts(input.year, input.month, d.day)),
+      status: d.status,
+      note: noteForDayStatus(d.status),
+    }));
+}
+
+/** Current month % minus previous month % — Registers only. */
+export function computeLearnerMonthAttendanceDelta(input: {
+  year: number;
+  month: number;
+  studentId: string;
+  sectionKey: string;
+}): number {
+  const currentDays = buildLearnerAttendanceDays(input);
+  const current = computeAttendanceSummary(currentDays, input.year, input.month);
+  const prev = shiftMonth(input.year, input.month, -1);
+  const prevDays = buildLearnerAttendanceDays({
+    ...input,
+    year: prev.year,
+    month: prev.month,
+  });
+  const previous = computeAttendanceSummary(prevDays, prev.year, prev.month);
+  return Math.round((current.attendancePct - previous.attendancePct) * 10) / 10;
+}
+
+/** Month summary for a learner from Registers (current calendar month by default). */
+export function buildLearnerMonthAttendanceSummary(input: {
+  studentId: string;
+  sectionKey: string;
+  year?: number;
+  month?: number;
+}): AttendancePeriodSummary {
+  const now = new Date();
+  const year = input.year ?? now.getFullYear();
+  const month = input.month ?? now.getMonth();
+  const days = buildLearnerAttendanceDays({
+    year,
+    month,
+    studentId: input.studentId,
+    sectionKey: input.sectionKey,
+  });
+  return computeAttendanceSummary(days, year, month);
 }

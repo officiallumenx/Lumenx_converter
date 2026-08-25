@@ -13,6 +13,7 @@ import {
   getDefaultTimetableDay,
   getTodayDayName,
   splitPeriodTime,
+  subjectStyle,
 } from "@/lib/student/timetable-utils";
 import { TeacherTimetablePage } from "@/teacher-portal";
 import { Badge, cn } from "@lumenx/ui";
@@ -131,31 +132,51 @@ function NowNextHighlight({
 }) {
   const { start, end } = splitPeriodTime(period.time);
   const isNow = variant === "now";
+  const style = subjectStyle(period.subject);
 
   return (
     <div
-      className={cn(
-        "relative min-w-0 overflow-hidden rounded-2xl border p-4 shadow-soft sm:p-5",
-        isNow ? "border-primary/40 bg-primary/[0.06]" : "border-primary/20 bg-white dark:bg-card",
-      )}
+      className="relative min-w-0 overflow-hidden rounded-2xl border p-4 text-foreground shadow-soft sm:p-5"
+      style={{
+        backgroundColor: style.surface,
+        borderColor: isNow ? style.primary : style.border,
+        boxShadow: isNow ? `0 8px 20px -10px ${style.primary}55` : undefined,
+      }}
     >
-      <div className="absolute inset-y-0 left-0 w-1 bg-primary" aria-hidden />
+      <div
+        className="absolute inset-y-0 left-0 w-1"
+        style={{ backgroundColor: style.primary }}
+        aria-hidden
+      />
       <div className="pl-3">
         <Badge
-          className={cn(
-            "mb-3",
-            isNow ? "border-0 bg-primary text-white" : "border-primary/30 text-primary bg-primary/5",
-          )}
+          className={cn("mb-3", isNow ? "border-0 text-white" : "")}
           variant={isNow ? "default" : "outline"}
+          style={
+            isNow
+              ? { backgroundColor: style.primary }
+              : {
+                  color: style.primary,
+                  borderColor: `${style.primary}55`,
+                  backgroundColor: style.chipBg,
+                }
+          }
         >
           {isNow ? "Now" : "Up next"}
         </Badge>
-        <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary border border-primary/20">
+        <div
+          className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold"
+          style={{
+            color: style.primary,
+            backgroundColor: style.chipBg,
+            borderColor: `${style.primary}33`,
+          }}
+        >
           {period.subject}
         </div>
         <div className="mt-2 flex flex-col gap-1.5 text-sm text-muted-foreground">
           <span className="inline-flex items-center gap-1.5 tabular-nums text-foreground">
-            <Clock className="size-3.5 shrink-0 text-primary" />
+            <Clock className="size-3.5 shrink-0" style={{ color: style.primary }} />
             <span className="sm:hidden">
               {start}
               {end ? ` – ${end}` : ""}
@@ -164,7 +185,7 @@ function NowNextHighlight({
           </span>
           {period.teacher !== "—" && (
             <span className="inline-flex items-center gap-1.5">
-              <User className="size-3.5 shrink-0 text-primary" />
+              <User className="size-3.5 shrink-0" style={{ color: style.primary }} />
               {period.teacher}
             </span>
           )}

@@ -7,6 +7,7 @@
 import { useRef, useState, useCallback, useEffect, type KeyboardEvent, type ClipboardEvent } from "react";
 import { Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { usePrefersTouchKeypad } from "@/auth/hooks/usePrefersTouchKeypad";
+import { PIN_LENGTH } from "@/auth/app-lock-store";
 
 interface PinInputProps {
   label: string;
@@ -32,7 +33,6 @@ export function PinInput({
   const [show,     setShow]     = useState(false);
   const [focused,  setFocused]  = useState<number | null>(null);
   const prefersTouchKeypad = usePrefersTouchKeypad();
-  const PIN_LENGTH = 6;
 
   const refs = useRef<(HTMLInputElement | null)[]>([]);
   const digits = Array.from({ length: PIN_LENGTH }, (_, i) => value[i] ?? "");

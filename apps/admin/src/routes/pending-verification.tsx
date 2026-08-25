@@ -5,7 +5,7 @@
 
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { IconChip } from "@/components/IconChip";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   Sparkles,
   LogOut,
@@ -29,13 +29,23 @@ import { AuthButton } from "@/auth/components/AuthButton";
 import { useAuth } from "@/auth/AuthContext";
 import { useSignOut } from "@/auth/hooks/useSignOut";
 import {
+  applyApprovedRegistrationToUser,
+  saveSession,
+} from "@/auth/auth-store";
+import { setAppUnlocked } from "@/auth/app-lock-store";
+import { bindRegisteredAdminTenant } from "@/lib/admin-tenant";
+import {
   type DemoApplicationStatus,
-  getDemoApplicationStatus,
-  refreshDemoApplicationStatus,
+  getApplicationStatusForEmail,
+  refreshApplicationStatus,
   formatDisplayDate,
   formatTimelineTime,
   SUPPORT_CONTACT,
 } from "@/auth/pending-verification-data";
+import {
+  subscribeInstituteRegistrations,
+} from "@lumenx/utils";
+import { setAdminBoundNexusInstituteId } from "@lumenx/config";
 
 export const Route = createFileRoute("/pending-verification")({
   head: () => ({ meta: [{ title: "Application Under Review — LumenX Admin" }] }),
@@ -268,35 +278,101 @@ function MetaField({
 
 function PendingVerificationPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, patchAuthenticatedUser } = useAuth();
   const signOut = useSignOut();
-  const [status, setStatus] = useState<DemoApplicationStatus>(() => getDemoApplicationStatus());
+  const [status, setStatus] = useState<DemoApplicationStatus>(() =>
+    getApplicationStatusForEmail(user?.email),
+  );
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
   const [supportOpen, setSupportOpen] = useState(false);
 
   const name = user?.name?.split(" ")[0] ?? "there";
 
+  const unlockIfApproved = useCallback(
+    (next: DemoApplicationStatus) => {
+      if (next.overallStatus !== "approved" || !user) return;
+      const instituteId =
+        next.approvedInstituteId ||
+        next.application?.approvedInstituteId ||
+        user.instituteId;
+      const unlocked = applyApprovedRegistrationToUser(user, {
+        instituteId,
+        instituteName: next.instituteName,
+      });
+      saveSession(unlocked, false);
+      patchAuthenticatedUser(unlocked);
+      if (instituteId) {
+        setAdminBoundNexusInstituteId(instituteId);
+        bindRegisteredAdminTenant({
+          instituteId,
+          instituteName: next.instituteName,
+          payload: next.application?.payload,
+          principalName: user.name,
+          principalEmail: user.email,
+          principalMobile: user.phone,
+        });
+      }
+    },
+    [user, patchAuthenticatedUser],
+  );
+
+  useEffect(() => {
+    const sync = () => {
+      const next = getApplicationStatusForEmail(user?.email);
+      setStatus(next);
+      unlockIfApproved(next);
+    };
+    sync();
+    return subscribeInstituteRegistrations(sync);
+  }, [user?.email, unlockIfApproved]);
+
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     setRefreshMsg(null);
     try {
-      const next = await refreshDemoApplicationStatus(status);
+      const next = await refreshApplicationStatus(user?.email);
       setStatus(next);
-      setRefreshMsg("Status unchanged — your application is still under review.");
+      unlockIfApproved(next);
+      if (next.overallStatus === "approved") {
+        setRefreshMsg("Approved — you can enter the Admin dashboard.");
+      } else if (next.overallStatus === "rejected") {
+        setRefreshMsg(next.rejectionReason || "Application was declined.");
+      } else {
+        setRefreshMsg("Still under review in Nexus — dashboard stays locked.");
+      }
     } finally {
       setRefreshing(false);
     }
-  }, [status]);
+  }, [user?.email, unlockIfApproved]);
+
+  const handleEnterDashboard = () => {
+    const next = getApplicationStatusForEmail(user?.email);
+    if (next.overallStatus !== "approved" && status.overallStatus !== "approved") {
+      return;
+    }
+    // Ensure session is marked verified + tenant bound before leaving pending
+    // (avoids PIN unlock bouncing back when the shared store briefly lags).
+    unlockIfApproved(
+      next.overallStatus === "approved" ? next : status,
+    );
+    // Enter dashboard should open the app — unlock this tab so PIN is not
+    // required again on the same continuous approval → dashboard flow.
+    setAppUnlocked(true);
+    navigate({ to: "/", replace: true });
+  };
+
+  const approved = status.overallStatus === "approved";
+  const rejected = status.overallStatus === "rejected";
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
+    <div className="min-h-screen-dvh bg-background text-foreground flex flex-col">
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/[0.05] rounded-full blur-3xl" />
         <div className="absolute bottom-0 right-1/4 w-72 h-72 bg-amber-500/[0.04] rounded-full blur-3xl" />
       </div>
 
-      <header className="relative z-10 flex items-center justify-between px-6 py-4 border-b border-border/50">
+      <header className="lx-auth-top-bar relative z-10 flex items-center justify-between border-b border-border/50">
         <div className="flex items-center gap-2.5">
           <div className="size-8 rounded-lg bg-primary flex items-center justify-center">
             <Sparkles className="size-4 text-primary-foreground" />
@@ -314,40 +390,76 @@ function PendingVerificationPage() {
 
       <main className="relative z-10 flex-1 px-4 sm:px-6 py-8 lg:py-12">
         <div className="max-w-5xl mx-auto">
-          {/* Demo bypass — no real admin review in demo environment */}
-          <div className="mb-6 rounded-xl border border-dashed border-primary/30 bg-primary/[0.04] px-4 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold text-primary">Demo environment</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
-                Admin verification is simulated only. You can enter the dashboard without waiting for approval.
+          {approved && (
+            <div className="mb-6 rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+                  Registration approved
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Nexus unlocked your institute. You can open the Admin dashboard.
+                </p>
+              </div>
+              <AuthButton
+                type="button"
+                variant="primary"
+                fullWidth={false}
+                onClick={handleEnterDashboard}
+              >
+                Enter dashboard
+              </AuthButton>
+            </div>
+          )}
+
+          {rejected && (
+            <div className="mb-6 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-4">
+              <p className="text-xs font-semibold text-destructive">Application declined</p>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                {status.rejectionReason ||
+                  "Nexus declined this registration. Contact support for next steps."}
               </p>
             </div>
-            <AuthButton
-              type="button"
-              variant="primary"
-              fullWidth={false}
-              onClick={() => navigate({ to: "/", replace: true })}
-            >
-              Enter dashboard
-            </AuthButton>
-          </div>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-start">
 
             {/* ── Left column ─────────────────────────────── */}
             <div className="text-center lg:text-left">
-              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 mb-4">
-                <CheckCircle2 className="size-3.5" />
-                Application Submitted
+              <div
+                className={[
+                  "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold mb-4",
+                  approved
+                    ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                    : rejected
+                      ? "border-destructive/25 bg-destructive/10 text-destructive"
+                      : "border-amber-500/25 bg-amber-500/10 text-amber-800 dark:text-amber-300",
+                ].join(" ")}
+              >
+                {approved ? (
+                  <CheckCircle2 className="size-3.5" />
+                ) : rejected ? (
+                  <X className="size-3.5" />
+                ) : (
+                  <Clock className="size-3.5" />
+                )}
+                {status.overallLabel}
               </div>
 
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight leading-tight">
-                Institute Under Review
+                {approved
+                  ? "You're ready to go"
+                  : rejected
+                    ? "Registration not approved"
+                    : "Institute Under Review"}
               </h1>
               <p className="mt-3 text-sm text-muted-foreground leading-relaxed max-w-md mx-auto lg:mx-0">
                 Hi {name}, your application for{" "}
-                <strong className="text-foreground">{status.instituteName}</strong> is being
-                reviewed by our onboarding team. We'll notify you once verification is complete.
+                <strong className="text-foreground">{status.instituteName}</strong>
+                {approved
+                  ? " was approved by Nexus."
+                  : rejected
+                    ? " was declined. Dashboard access remains locked."
+                    : " is waiting for Nexus platform approval. You cannot open the dashboard until it is approved."}
               </p>
 
               <div className="mt-8 mb-8 lg:mb-0">
@@ -367,12 +479,14 @@ function PendingVerificationPage() {
                 />
               </div>
 
-              <div className="mt-4 rounded-xl border border-amber-200/60 bg-amber-50/50 dark:border-amber-800/40 dark:bg-amber-950/20 px-4 py-3 text-left">
-                <div className="flex items-center gap-2 text-xs font-medium text-amber-800 dark:text-amber-300">
-                  <Clock className="size-3.5 shrink-0" />
-                  Estimated review time: {status.estimatedReviewDays}
+              {!approved && !rejected && (
+                <div className="mt-4 rounded-xl border border-amber-200/60 bg-amber-50/50 dark:border-amber-800/40 dark:bg-amber-950/20 px-4 py-3 text-left">
+                  <div className="flex items-center gap-2 text-xs font-medium text-amber-800 dark:text-amber-300">
+                    <Clock className="size-3.5 shrink-0" />
+                    Estimated review time: {status.estimatedReviewDays}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* ── Right column: timeline + actions ────────── */}
@@ -416,15 +530,26 @@ function PendingVerificationPage() {
                   )}
                   Refresh status
                 </AuthButton>
-                <AuthButton
-                  type="button"
-                  variant="primary"
-                  fullWidth
-                  onClick={() => setSupportOpen(true)}
-                >
-                  <Headphones className="size-3.5" />
-                  Contact support
-                </AuthButton>
+                {approved ? (
+                  <AuthButton
+                    type="button"
+                    variant="primary"
+                    fullWidth
+                    onClick={handleEnterDashboard}
+                  >
+                    Enter dashboard
+                  </AuthButton>
+                ) : (
+                  <AuthButton
+                    type="button"
+                    variant="primary"
+                    fullWidth
+                    onClick={() => setSupportOpen(true)}
+                  >
+                    <Headphones className="size-3.5" />
+                    Contact support
+                  </AuthButton>
+                )}
               </div>
             </div>
           </div>
@@ -432,7 +557,7 @@ function PendingVerificationPage() {
       </main>
 
       <footer className="relative z-10 py-4 text-center text-[10px] text-muted-foreground/40">
-        &copy; {new Date().getFullYear()} LumenX Technologies · Demo environment
+        &copy; {new Date().getFullYear()} LumenX Technologies
       </footer>
 
       <SupportModal open={supportOpen} onClose={() => setSupportOpen(false)} />

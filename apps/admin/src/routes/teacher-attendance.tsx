@@ -10,38 +10,48 @@ import {
   Pill,
   SearchInput,
   SegmentedControl,
-  Select,
   PageStack,
+  CascadingFiltersMenu,
+  type CascadingFilterGroup,
 } from "@lumenx/ui-admin";
 import {
   DEPARTMENTS,
   defaultCheckIn,
   statusMeta,
+  TEACHER_MARK_OPTIONS,
   type TeacherAttStatus,
   type TeacherAttendanceRecord,
 } from "@/lib/teacher-attendance-data";
 import {
+  buildTeacherAttendanceOverview,
+  canEditSubmittedRegister,
+  editWindowRemainingMs,
   loadOrCreateRegister,
   listSubmittedTeacherRegisters,
   registerSummary,
   reopenTeacherRegisterAsDraft,
   saveTeacherRegisterDraft,
   submitTeacherRegister,
+  TEACHER_ATTENDANCE_EDIT_WINDOW_HOURS,
   type RegisterStatus,
   type TeacherDayRegister,
+  type TeacherExceptionDay,
+  type TeacherOverviewRow,
 } from "@/lib/teacher-attendance-store";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
+  ChevronRight,
   Clock,
   ClipboardCheck,
   History,
   Lock,
-  RotateCcw,
+  Pencil,
   Save,
   Send,
   UserCheck,
   UserX,
+  X,
 } from "lucide-react";
 
 export const Route = createFileRoute("/teacher-attendance")({
@@ -49,20 +59,7 @@ export const Route = createFileRoute("/teacher-attendance")({
   component: TeacherAttendancePage,
 });
 
-type PageTab = "mark" | "history";
-
-const QUICK_STATUS: {
-  value: TeacherAttStatus;
-  abbr: string;
-  label: string;
-  active: string;
-}[] = [
-  { value: "present", abbr: "P", label: "Present", active: "bg-success/20 text-success" },
-  { value: "late", abbr: "Lt", label: "Late", active: "bg-warning/20 text-warning" },
-  { value: "half-day", abbr: "½", label: "Half day", active: "bg-warning/15 text-warning" },
-  { value: "leave", abbr: "Lv", label: "On leave", active: "bg-primary/15 text-primary" },
-  { value: "absent", abbr: "Ab", label: "Absent", active: "bg-destructive/20 text-destructive" },
-];
+type PageTab = "overview" | "mark" | "history";
 
 function TeacherAttendancePage() {
   const notify = useAdminToast();
@@ -77,8 +74,13 @@ function TeacherAttendancePage() {
   });
   const [deptFilter, setDeptFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [overviewSearch, setOverviewSearch] = useState("");
+  const [overviewDept, setOverviewDept] = useState("all");
   const [submitOpen, setSubmitOpen] = useState(false);
   const [history, setHistory] = useState<TeacherDayRegister[]>([]);
+  const [historyDay, setHistoryDay] = useState<TeacherDayRegister | null>(null);
+  const [overview, setOverview] = useState<TeacherOverviewRow[]>([]);
+  const [selectedTeacher, setSelectedTeacher] = useState<TeacherOverviewRow | null>(null);
 
   const loadDay = useCallback((day: string) => {
     const reg = loadOrCreateRegister(day);
@@ -91,17 +93,21 @@ function TeacherAttendancePage() {
     });
   }, []);
 
+  const refreshLists = useCallback(() => {
+    setHistory(listSubmittedTeacherRegisters());
+    setOverview(buildTeacherAttendanceOverview());
+  }, []);
+
   useEffect(() => {
     loadDay(date);
   }, [date, loadDay]);
 
   useEffect(() => {
-    setHistory(listSubmittedTeacherRegisters());
-  }, [registerStatus, date, tab]);
+    refreshLists();
+  }, [registerStatus, date, tab, refreshLists]);
 
   const isSubmitted = registerStatus === "submitted";
   const isDraft = !isSubmitted;
-
   const stats = useMemo(() => registerSummary(rows), [rows]);
 
   const list = useMemo(() => {
@@ -112,6 +118,28 @@ function TeacherAttendancePage() {
       return true;
     });
   }, [rows, deptFilter, search]);
+
+  const overviewList = useMemo(() => {
+    const q = overviewSearch.trim().toLowerCase();
+    return overview.filter((r) => {
+      if (overviewDept !== "all" && r.dept !== overviewDept) return false;
+      if (q && !r.name.toLowerCase().includes(q) && !r.id.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [overview, overviewDept, overviewSearch]);
+
+  const overviewKpis = useMemo(() => {
+    if (!overview.length) return { avgPct: 0, leaves: 0, absents: 0, lates: 0 };
+    const avgPct = Math.round(
+      overview.reduce((sum, r) => sum + r.attendancePct, 0) / overview.length,
+    );
+    return {
+      avgPct,
+      leaves: overview.reduce((sum, r) => sum + r.leave, 0),
+      absents: overview.reduce((sum, r) => sum + r.absent, 0),
+      lates: overview.reduce((sum, r) => sum + r.late + r.half, 0),
+    };
+  }, [overview]);
 
   const setStatus = (id: string, status: TeacherAttStatus) => {
     if (isSubmitted) return;
@@ -141,13 +169,14 @@ function TeacherAttendancePage() {
         r.status === "leave" ? r : { ...r, status: "present" as const, checkIn: "08:20" },
       ),
     );
+    notify("Marked everyone present (leave unchanged)");
   };
 
   const saveDraft = () => {
     if (isSubmitted) return;
     const reg = saveTeacherRegisterDraft(date, rows);
     setMeta({ updatedAt: reg.updatedAt });
-    notify("Draft saved — you can submit when ready");
+    notify("Draft saved");
   };
 
   const confirmSubmit = () => {
@@ -159,71 +188,153 @@ function TeacherAttendancePage() {
       submittedBy: reg.submittedBy,
     });
     setSubmitOpen(false);
-    setHistory(listSubmittedTeacherRegisters());
+    refreshLists();
     notify("Attendance submitted for " + formatDisplayDate(date));
   };
 
   const reopenDraft = () => {
+    if (!canEditSubmittedRegister(meta.submittedAt)) {
+      notify(`Edit window closed — changes allowed only within ${TEACHER_ATTENDANCE_EDIT_WINDOW_HOURS} hours of submit`);
+      return;
+    }
     const reg = reopenTeacherRegisterAsDraft(date);
     if (!reg) return;
     setRegisterStatus("draft");
     setMeta({ updatedAt: reg.updatedAt });
-    notify("Reopened as draft — edit and submit again");
+    notify("Reopened as draft — you can edit and submit again");
   };
 
   const openHistoryDay = (day: string) => {
-    setDate(day);
-    setTab("mark");
-    loadDay(day);
+    const reg = history.find((h) => h.date === day) ?? listSubmittedTeacherRegisters().find((h) => h.date === day);
+    if (reg) setHistoryDay(reg);
   };
+
+  const editFromHistory = (day: string) => {
+    const existing =
+      history.find((h) => h.date === day) ??
+      listSubmittedTeacherRegisters().find((h) => h.date === day);
+    if (!canEditSubmittedRegister(existing?.submittedAt)) {
+      notify(`Edit window closed — changes allowed only within ${TEACHER_ATTENDANCE_EDIT_WINDOW_HOURS} hours of submit`);
+      return;
+    }
+    const reg = reopenTeacherRegisterAsDraft(day);
+    if (!reg) {
+      notify("Could not open this day for editing");
+      return;
+    }
+    setDate(day);
+    setRows(reg.teachers);
+    setRegisterStatus("draft");
+    setMeta({ updatedAt: reg.updatedAt });
+    setHistoryDay(null);
+    setTab("mark");
+    refreshLists();
+    notify("Opened " + formatDisplayDate(day) + " for editing");
+  };
+
+  const canEditCurrent =
+    isSubmitted && canEditSubmittedRegister(meta.submittedAt);
+
+  const subtitle =
+    tab === "overview"
+      ? "Attendance % and exception counts per teacher"
+      : tab === "history"
+        ? `Submitted days — edit within ${TEACHER_ATTENDANCE_EDIT_WINDOW_HOURS} hours of submit`
+        : "Tap a status for each teacher — one tap to mark";
 
   return (
     <AppShell
       title="Teacher Attendance"
-      subtitle="Mark the day, save draft, then submit — same flow as class attendance"
+      subtitle={subtitle}
       actions={
-        isDraft ? (
+        tab === "mark" && isDraft ? (
           <Button variant="outline" onClick={markAllPresent}>
-            <UserCheck className="size-3.5" /> All present
+            <UserCheck className="size-3.5" /> Mark all present
           </Button>
         ) : null
       }
     >
       <PageStack>
-        <div className="lx-kpi-grid">
-          <Kpi
-            label="Present"
-            value={String(stats.present)}
-            delta={`of ${stats.total}`}
-            tone="up"
-            icon={<CheckCircle2 className="size-3.5" />}
-          />
-          <Kpi
-            label="Late / half"
-            value={String(stats.late + stats.half)}
-            delta="Today"
-            icon={<Clock className="size-3.5" />}
-          />
-          <Kpi
-            label="Absent"
-            value={String(stats.absent)}
-            tone="down"
-            icon={<UserX className="size-3.5" />}
-          />
-          <Kpi label="On leave" value={String(stats.onLeave)} />
-        </div>
+        {tab === "overview" ? (
+          <div className="lx-kpi-grid">
+            <Kpi
+              label="Avg attendance"
+              value={`${overviewKpis.avgPct}%`}
+              delta="Submitted days"
+              tone="up"
+              icon={<CheckCircle2 className="size-3.5" />}
+            />
+            <Kpi
+              label="Late / half"
+              value={String(overviewKpis.lates)}
+              delta="All teachers"
+              icon={<Clock className="size-3.5" />}
+            />
+            <Kpi
+              label="Absents"
+              value={String(overviewKpis.absents)}
+              tone="down"
+              icon={<UserX className="size-3.5" />}
+            />
+            <Kpi label="Leaves" value={String(overviewKpis.leaves)} />
+          </div>
+        ) : tab === "mark" ? (
+          <div className="lx-kpi-grid">
+            <Kpi
+              label="Present"
+              value={String(stats.present)}
+              delta={`of ${stats.total}`}
+              tone="up"
+              icon={<CheckCircle2 className="size-3.5" />}
+            />
+            <Kpi
+              label="Late / half"
+              value={String(stats.late + stats.half)}
+              delta="Today"
+              icon={<Clock className="size-3.5" />}
+            />
+            <Kpi
+              label="Absent"
+              value={String(stats.absent)}
+              tone="down"
+              icon={<UserX className="size-3.5" />}
+            />
+            <Kpi label="On leave" value={String(stats.onLeave)} />
+          </div>
+        ) : null}
 
         <SegmentedControl<PageTab>
           value={tab}
-          onChange={setTab}
+          onChange={(next) => {
+            setTab(next);
+            if (next !== "history") setHistoryDay(null);
+          }}
           options={[
-            { value: "mark", label: "Take attendance" },
-            { value: "history", label: "Submitted days" },
+            { value: "mark", label: "Mark attendance" },
+            { value: "history", label: "History" },
+            { value: "overview", label: "Overview" },
           ]}
         />
 
-        {tab === "history" ? (
-          <HistoryPanel history={history} onOpen={openHistoryDay} />
+        {tab === "overview" ? (
+          <OverviewPanel
+            list={overviewList}
+            search={overviewSearch}
+            onSearch={setOverviewSearch}
+            dept={overviewDept}
+            onDept={setOverviewDept}
+            onSelectTeacher={setSelectedTeacher}
+          />
+        ) : tab === "history" ? (
+          historyDay ? (
+            <HistoryDayDetail
+              register={historyDay}
+              onBack={() => setHistoryDay(null)}
+              onEdit={() => editFromHistory(historyDay.date)}
+            />
+          ) : (
+            <HistoryPanel history={history} onOpen={openHistoryDay} />
+          )
         ) : (
           <Card>
             <CardHeader
@@ -231,7 +342,7 @@ function TeacherAttendancePage() {
               hint={
                 isSubmitted
                   ? `Submitted ${formatDateTime(meta.submittedAt)} · ${meta.submittedBy ?? "Admin"}`
-                  : `Draft · last updated ${formatDateTime(meta.updatedAt)}`
+                  : `Draft · last saved ${formatDateTime(meta.updatedAt)}`
               }
               action={
                 <Pill tone={isSubmitted ? "success" : "warning"} pulse={isDraft}>
@@ -240,58 +351,72 @@ function TeacherAttendancePage() {
               }
             />
 
-            <div className="px-5 pb-4 grid grid-cols-1 sm:grid-cols-3 gap-3 items-end border-b border-border">
-              <label className="block">
-                <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
-                  Date
-                </span>
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="mt-1.5 w-full h-9 px-3 rounded-md bg-background border border-border text-xs"
-                />
-              </label>
-              {!isSubmitted && (
-                <>
-                  <label className="block">
-                    <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
-                      Department
-                    </span>
-                    <Select
-                      value={deptFilter}
-                      onChange={(e) => setDeptFilter(e.target.value)}
-                      className="mt-1.5 w-full h-9 text-xs"
-                    >
-                      <option value="all">All</option>
-                      {DEPARTMENTS.map((d) => (
-                        <option key={d} value={d}>
-                          {d}
-                        </option>
-                      ))}
-                    </Select>
-                  </label>
-                  <label className="block">
-                    <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
-                      Search
-                    </span>
-                    <SearchInput
-                      className="mt-1.5"
-                      placeholder="Name or ID"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                    />
-                  </label>
-                </>
-              )}
+            <div className="flex flex-wrap items-end gap-2 border-b border-border px-4 pb-3 sm:px-5">
+              <CascadingFiltersMenu
+                groups={
+                  [
+                    {
+                      id: "date",
+                      label: "Date",
+                      kind: "date",
+                      value: date,
+                      clearValues: [date],
+                      onChange: setDate,
+                    },
+                    ...(!isSubmitted
+                      ? [
+                          {
+                            id: "department",
+                            label: "Department",
+                            value: deptFilter,
+                            onChange: setDeptFilter,
+                            options: [
+                              { value: "all", label: "All" },
+                              ...DEPARTMENTS.map((d) => ({ value: d, label: d })),
+                            ],
+                          },
+                        ]
+                      : []),
+                  ] as CascadingFilterGroup[]
+                }
+              />
+              {!isSubmitted ? (
+                <div className="min-w-[12rem] flex-1 sm:max-w-xs">
+                  <SearchInput
+                    placeholder="Search name or ID…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="max-w-full"
+                    fieldSize="compact"
+                  />
+                </div>
+              ) : null}
             </div>
 
             {isSubmitted ? (
-              <SubmittedView rows={rows} onReopen={reopenDraft} />
+              <SubmittedView
+                rows={rows}
+                submittedAt={meta.submittedAt}
+                canEdit={canEditCurrent}
+                onEdit={reopenDraft}
+              />
             ) : (
               <>
-                <RegisterTable list={list} editable onStatus={setStatus} />
-                <ActionBar onSaveDraft={saveDraft} onSubmit={() => setSubmitOpen(true)} />
+                <div className="border-b border-border bg-muted/30 px-4 py-2 text-[11px] text-muted-foreground sm:px-5">
+                  Tap one status for each teacher · {list.length} shown
+                </div>
+                <TeacherMarkList list={list} onStatus={setStatus} />
+                <div className="sticky bottom-0 z-10 flex flex-col gap-2 border-t border-border bg-surface px-4 py-3 sm:flex-row sm:items-center sm:px-5">
+                  <Button variant="outline" className="sm:mr-auto" onClick={markAllPresent}>
+                    <UserCheck className="size-3.5" /> All present
+                  </Button>
+                  <Button variant="outline" onClick={saveDraft}>
+                    <Save className="size-3.5" /> Save draft
+                  </Button>
+                  <Button variant="primary" onClick={() => setSubmitOpen(true)}>
+                    <ClipboardCheck className="size-3.5" /> Submit day
+                  </Button>
+                </div>
               </>
             )}
           </Card>
@@ -301,8 +426,8 @@ function TeacherAttendancePage() {
       <Modal
         open={submitOpen}
         onClose={() => setSubmitOpen(false)}
-        title="Submit teacher attendance?"
-        subtitle={`${formatDisplayDate(date)} · ${stats.present} present · ${stats.absent} absent · ${stats.onLeave} on leave`}
+        title="Submit this day’s attendance?"
+        subtitle={`${formatDisplayDate(date)} · ${stats.present} present · ${stats.absent} absent · ${stats.onLeave} leave`}
         footer={
           <>
             <Button onClick={() => setSubmitOpen(false)}>Cancel</Button>
@@ -313,154 +438,329 @@ function TeacherAttendancePage() {
         }
       >
         <p className="text-sm text-muted-foreground">
-          After submit, this day is locked and shown as a read-only record. You can reopen it as a
-          draft from the submitted view if you need to correct it.
+          After submit you can edit for {TEACHER_ATTENDANCE_EDIT_WINDOW_HOURS} hours. After that the
+          day is locked permanently.
         </p>
+      </Modal>
+
+      <Modal
+        open={!!selectedTeacher}
+        onClose={() => setSelectedTeacher(null)}
+        title={selectedTeacher?.name ?? "Teacher"}
+        subtitle={
+          selectedTeacher
+            ? `${selectedTeacher.dept} · ${selectedTeacher.attendancePct}% attendance · ${selectedTeacher.days} days`
+            : undefined
+        }
+        footer={
+          <Button onClick={() => setSelectedTeacher(null)}>
+            <X className="size-3.5" /> Close
+          </Button>
+        }
+      >
+        {selectedTeacher ? <TeacherExceptionDetail teacher={selectedTeacher} /> : null}
       </Modal>
     </AppShell>
   );
 }
 
-function SubmittedView({
-  rows,
-  onReopen,
+function OverviewPanel({
+  list,
+  search,
+  onSearch,
+  dept,
+  onDept,
+  onSelectTeacher,
 }: {
-  rows: TeacherAttendanceRecord[];
-  onReopen: () => void;
+  list: TeacherOverviewRow[];
+  search: string;
+  onSearch: (v: string) => void;
+  dept: string;
+  onDept: (v: string) => void;
+  onSelectTeacher: (row: TeacherOverviewRow) => void;
 }) {
-  const stats = registerSummary(rows);
+  return (
+    <Card>
+      <CardHeader
+        title="Teacher overview"
+        hint="One row per teacher — tap a row for leave, absent, late & half-day dates"
+      />
+      <div className="flex flex-wrap items-end gap-2 border-b border-border px-4 pb-3 sm:px-5">
+        <CascadingFiltersMenu
+          groups={[
+            {
+              id: "department",
+              label: "Department",
+              value: dept,
+              onChange: onDept,
+              options: [
+                { value: "all", label: "All" },
+                ...DEPARTMENTS.map((d) => ({ value: d, label: d })),
+              ],
+            },
+          ]}
+        />
+        <div className="min-w-[12rem] flex-1 sm:max-w-xs">
+          <SearchInput
+            placeholder="Search name or ID…"
+            value={search}
+            onChange={(e) => onSearch(e.target.value)}
+            className="max-w-full"
+            fieldSize="compact"
+          />
+        </div>
+      </div>
+
+      {list.length === 0 ? (
+        <div className="px-5 py-12 text-center text-sm text-muted-foreground">
+          No teachers match. Submit daily attendance to build the overview.
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[40rem] text-left">
+            <thead>
+              <tr className="border-b border-border bg-background/50 text-[10px] uppercase tracking-wider text-muted-foreground">
+                <th className="px-4 py-3 font-semibold sm:px-5">Teacher</th>
+                <th className="px-3 py-3 text-right font-semibold">%</th>
+                <th className="px-3 py-3 text-right font-semibold">Late</th>
+                <th className="px-3 py-3 text-right font-semibold">Half</th>
+                <th className="px-3 py-3 text-right font-semibold">Leave</th>
+                <th className="px-3 py-3 text-right font-semibold">Absent</th>
+                <th className="w-8 px-3 py-3" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {list.map((row) => (
+                <tr key={row.id} className="hover:bg-surface-hover/60">
+                  <td className="px-4 py-2.5 sm:px-5">
+                    <button
+                      type="button"
+                      onClick={() => onSelectTeacher(row)}
+                      className="block w-full min-w-0 text-left"
+                    >
+                      <div className="truncate text-sm font-medium text-foreground">{row.name}</div>
+                      <div className="text-[11px] text-muted-foreground">{row.dept}</div>
+                    </button>
+                  </td>
+                  <td className="px-3 py-2.5 text-right">
+                    <button
+                      type="button"
+                      onClick={() => onSelectTeacher(row)}
+                      className={`font-mono text-sm font-semibold tabular-nums ${
+                        row.attendancePct >= 90
+                          ? "text-success"
+                          : row.attendancePct >= 80
+                            ? "text-warning"
+                            : "text-destructive"
+                      }`}
+                    >
+                      {row.attendancePct}%
+                    </button>
+                  </td>
+                  <td className="px-3 py-2.5 text-right font-mono text-sm tabular-nums text-muted-foreground">
+                    {row.late}
+                  </td>
+                  <td className="px-3 py-2.5 text-right font-mono text-sm tabular-nums text-muted-foreground">
+                    {row.half}
+                  </td>
+                  <td className="px-3 py-2.5 text-right font-mono text-sm tabular-nums text-muted-foreground">
+                    {row.leave}
+                  </td>
+                  <td className="px-3 py-2.5 text-right font-mono text-sm tabular-nums text-muted-foreground">
+                    {row.absent}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <button
+                      type="button"
+                      onClick={() => onSelectTeacher(row)}
+                      className="rounded-md p-1 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+                      aria-label={`Open ${row.name} exceptions`}
+                    >
+                      <ChevronRight className="size-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function TeacherExceptionDetail({ teacher }: { teacher: TeacherOverviewRow }) {
+  const groups: { key: TeacherExceptionDay["status"]; label: string; items: TeacherExceptionDay[] }[] =
+    [
+      { key: "leave", label: "Leave", items: teacher.exceptions.filter((e) => e.status === "leave") },
+      {
+        key: "absent",
+        label: "Absent",
+        items: teacher.exceptions.filter((e) => e.status === "absent"),
+      },
+      { key: "late", label: "Late", items: teacher.exceptions.filter((e) => e.status === "late") },
+      {
+        key: "half-day",
+        label: "Half day",
+        items: teacher.exceptions.filter((e) => e.status === "half-day"),
+      },
+    ];
+
+  if (teacher.exceptions.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        No leaves, absents, lates, or half days on submitted days.
+      </p>
+    );
+  }
 
   return (
-    <div>
-      <div className="mx-5 mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-success/30 bg-success/5 px-4 py-3">
-        <CheckCircle2 className="size-5 text-success shrink-0" />
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-foreground">Attendance submitted for this day</p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {stats.present} present · {stats.late} late · {stats.half} half day · {stats.onLeave}{" "}
-            leave · {stats.absent} absent
-          </p>
-        </div>
-        <Button size="sm" variant="outline" onClick={onReopen}>
-          <RotateCcw className="size-3.5" /> Reopen draft
-        </Button>
-      </div>
-      <RegisterTable list={rows} editable={false} />
+    <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">
+        Showing exception dates only (presents are hidden) · {teacher.exceptions.length} days
+      </p>
+      {groups.map((g) =>
+        g.items.length === 0 ? null : (
+          <div key={g.key}>
+            <div className="mb-2 flex items-center gap-2">
+              <Pill tone={statusMeta(g.key).tone}>
+                {g.label} · {g.items.length}
+              </Pill>
+            </div>
+            <ul className="space-y-1.5">
+              {g.items.map((item) => (
+                <li
+                  key={`${item.date}-${item.status}`}
+                  className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2"
+                >
+                  <span className="text-sm font-medium">{formatDisplayDate(item.date)}</span>
+                  {item.note ? (
+                    <span className="truncate text-[11px] text-muted-foreground">{item.note}</span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ),
+      )}
     </div>
   );
 }
 
-function RegisterTable({
+function TeacherMarkList({
   list,
-  editable,
   onStatus,
 }: {
   list: TeacherAttendanceRecord[];
-  editable: boolean;
-  onStatus?: (id: string, status: TeacherAttStatus) => void;
+  onStatus: (id: string, status: TeacherAttStatus) => void;
 }) {
+  if (list.length === 0) {
+    return (
+      <div className="px-5 py-12 text-center text-sm text-muted-foreground">
+        No teachers match your filters.
+      </div>
+    );
+  }
+
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full table-fixed text-left">
-        <colgroup>
-          <col className="w-[34%]" />
-          <col className="w-[20%]" />
-          <col className={editable ? "w-[36%]" : "w-[28%]"} />
-          <col className="w-[10%]" />
-        </colgroup>
-        <thead>
-          <tr className="text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border bg-background/50">
-            <th className="px-5 py-3 font-semibold">Teacher</th>
-            <th className="px-5 py-3 font-semibold">Department</th>
-            <th className="px-5 py-3 font-semibold">{editable ? "Mark" : "Status"}</th>
-            <th className="px-5 py-3 font-semibold text-right">In</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border">
-          {list.length === 0 ? (
-            <tr>
-              <td colSpan={4} className="px-5 py-10 text-center text-sm text-muted-foreground">
-                No teachers match.
-              </td>
-            </tr>
-          ) : (
-            list.map((row) => (
-              <tr key={row.id} className="hover:bg-surface-hover/60">
-                <td className="px-5 py-2.5">
-                  <div className="text-sm font-medium truncate">{row.name}</div>
-                  <div className="text-[11px] font-mono text-muted-foreground">{row.id}</div>
-                </td>
-                <td className="px-5 py-2.5 text-sm text-muted-foreground truncate">{row.dept}</td>
-                <td className="px-5 py-2.5">
-                  {editable && onStatus ? (
-                    <QuickStatusButtons
-                      value={row.status}
-                      name={row.name}
-                      onChange={(s) => onStatus(row.id, s)}
-                    />
-                  ) : (
-                    <Pill tone={statusMeta(row.status).tone}>{statusMeta(row.status).label}</Pill>
-                  )}
-                </td>
-                <td className="px-5 py-2.5 text-right text-xs font-mono text-muted-foreground tabular-nums">
-                  {row.checkIn ?? "—"}
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-    </div>
+    <ul className="divide-y divide-border">
+      {list.map((row) => (
+        <li key={row.id} className="px-4 py-3 sm:px-5">
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold">{row.name}</div>
+              <div className="mt-0.5 text-[11px] text-muted-foreground">
+                {row.dept}
+                {row.checkIn ? ` · in ${row.checkIn}` : ""}
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label={`Mark ${row.name}`}>
+              {TEACHER_MARK_OPTIONS.map((opt) => {
+                const active = row.status === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => onStatus(row.id, opt.value)}
+                    className={`min-w-[4.5rem] rounded-lg border px-2.5 py-2 text-xs font-semibold transition-colors ${
+                      active
+                        ? opt.activeClass
+                        : "border-border bg-background text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }
 
-function QuickStatusButtons({
-  value,
-  name,
-  onChange,
+function SubmittedView({
+  rows,
+  submittedAt,
+  canEdit,
+  onEdit,
 }: {
-  value: TeacherAttStatus;
-  name: string;
-  onChange: (s: TeacherAttStatus) => void;
+  rows: TeacherAttendanceRecord[];
+  submittedAt?: string;
+  canEdit: boolean;
+  onEdit: () => void;
 }) {
-  return (
-    <div
-      className="inline-flex rounded-md border border-border overflow-hidden bg-background"
-      role="group"
-      aria-label={`Mark ${name}`}
-    >
-      {QUICK_STATUS.map((opt, i) => {
-        const active = value === opt.value;
-        return (
-          <button
-            key={opt.value}
-            type="button"
-            title={opt.label}
-            aria-pressed={active}
-            onClick={() => onChange(opt.value)}
-            className={`w-9 h-8 text-[10px] font-semibold transition-colors ${i > 0 ? "border-l border-border" : ""} ${
-              active
-                ? opt.active
-                : "text-muted-foreground hover:bg-surface-hover hover:text-foreground"
-            }`}
-          >
-            {opt.abbr}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
+  const stats = registerSummary(rows);
+  const remaining = formatEditRemaining(editWindowRemainingMs(submittedAt));
 
-function ActionBar({ onSaveDraft, onSubmit }: { onSaveDraft: () => void; onSubmit: () => void }) {
   return (
-    <div className="sticky bottom-0 border-t border-border bg-surface px-5 py-3 flex flex-col sm:flex-row gap-2">
-      <Button variant="outline" className="sm:flex-1 justify-center" onClick={onSaveDraft}>
-        <Save className="size-3.5" /> Save draft
-      </Button>
-      <Button variant="primary" className="sm:flex-1 justify-center" onClick={onSubmit}>
-        <ClipboardCheck className="size-3.5" /> Submit attendance
-      </Button>
+    <div>
+      <div
+        className={`mx-4 mt-4 flex flex-wrap items-center gap-3 rounded-lg border px-4 py-3 sm:mx-5 ${
+          canEdit
+            ? "border-success/30 bg-success/5"
+            : "border-border bg-muted/20"
+        }`}
+      >
+        {canEdit ? (
+          <CheckCircle2 className="size-5 shrink-0 text-success" />
+        ) : (
+          <Lock className="size-5 shrink-0 text-muted-foreground" />
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium">
+            {canEdit ? "Attendance submitted" : "Attendance locked"}
+          </p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {stats.present} present · {stats.late} late · {stats.half} half day · {stats.onLeave}{" "}
+            leave · {stats.absent} absent
+            {canEdit
+              ? ` · edit for ${remaining}`
+              : ` · edit closed after ${TEACHER_ATTENDANCE_EDIT_WINDOW_HOURS} hours`}
+          </p>
+        </div>
+        {canEdit ? (
+          <Button size="sm" variant="outline" onClick={onEdit}>
+            <Pencil className="size-3.5" /> Edit attendance
+          </Button>
+        ) : null}
+      </div>
+      <ul className="mt-2 divide-y divide-border">
+        {rows.map((row) => (
+          <li
+            key={row.id}
+            className="flex items-center justify-between gap-3 px-4 py-2.5 sm:px-5"
+          >
+            <div className="min-w-0">
+              <div className="truncate text-sm font-medium">{row.name}</div>
+              <div className="text-[11px] text-muted-foreground">{row.dept}</div>
+            </div>
+            <Pill tone={statusMeta(row.status).tone}>{statusMeta(row.status).label}</Pill>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -475,9 +775,9 @@ function HistoryPanel({
   if (!history.length) {
     return (
       <Card className="p-8 text-center">
-        <History className="size-8 mx-auto text-muted-foreground opacity-50" />
+        <History className="mx-auto size-8 text-muted-foreground opacity-50" />
         <p className="mt-3 text-sm font-medium">No submitted days yet</p>
-        <p className="text-xs text-muted-foreground mt-1">
+        <p className="mt-1 text-xs text-muted-foreground">
           Mark attendance and submit to see records here.
         </p>
       </Card>
@@ -486,7 +786,10 @@ function HistoryPanel({
 
   return (
     <Card>
-      <CardHeader title="Submitted registers" hint="Tap a day to view the locked record" />
+      <CardHeader
+        title="Submitted days"
+        hint={`Edit available for ${TEACHER_ATTENDANCE_EDIT_WINDOW_HOURS} hours after submit`}
+      />
       <ul className="divide-y divide-border">
         {history.map((reg) => {
           const s = registerSummary(reg.teachers);
@@ -495,22 +798,86 @@ function HistoryPanel({
               <button
                 type="button"
                 onClick={() => onOpen(reg.date)}
-                className="w-full px-5 py-4 flex flex-wrap items-center justify-between gap-3 text-left hover:bg-surface-hover transition-colors"
+                className="flex w-full flex-wrap items-center justify-between gap-3 px-5 py-3.5 text-left transition-colors hover:bg-surface-hover"
               >
                 <div>
                   <p className="text-sm font-medium">{formatDisplayDate(reg.date)}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
+                  <p className="mt-0.5 text-xs text-muted-foreground">
                     {s.present} present · {s.absent} absent · {s.onLeave} leave
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Pill tone="success">Submitted</Pill>
                   <Lock className="size-3.5 text-muted-foreground" />
+                  <ChevronRight className="size-4 text-muted-foreground" />
                 </div>
               </button>
             </li>
           );
         })}
+      </ul>
+    </Card>
+  );
+}
+
+function HistoryDayDetail({
+  register,
+  onBack,
+  onEdit,
+}: {
+  register: TeacherDayRegister;
+  onBack: () => void;
+  onEdit: () => void;
+}) {
+  const stats = registerSummary(register.teachers);
+  const canEdit = canEditSubmittedRegister(register.submittedAt);
+  const remaining = formatEditRemaining(editWindowRemainingMs(register.submittedAt));
+
+  return (
+    <Card>
+      <CardHeader
+        title={formatDisplayDate(register.date)}
+        hint={
+          register.submittedAt
+            ? `Submitted ${formatDateTime(register.submittedAt)} · ${register.submittedBy ?? "Admin"}`
+            : "Submitted register"
+        }
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <Pill tone={canEdit ? "success" : "neutral"}>
+              {canEdit ? "Editable" : "Locked"}
+            </Pill>
+            <Button size="sm" variant="outline" onClick={onBack}>
+              Back
+            </Button>
+            {canEdit ? (
+              <Button size="sm" variant="primary" onClick={onEdit}>
+                <Pencil className="size-3.5" /> Edit attendance
+              </Button>
+            ) : null}
+          </div>
+        }
+      />
+      <div className="border-b border-border bg-muted/30 px-4 py-2 text-[11px] text-muted-foreground sm:px-5">
+        {stats.present} present · {stats.late} late · {stats.half} half day · {stats.onLeave} leave ·{" "}
+        {stats.absent} absent
+        {canEdit
+          ? ` · edit for ${remaining}`
+          : ` · edit closed after ${TEACHER_ATTENDANCE_EDIT_WINDOW_HOURS} hours`}
+      </div>
+      <ul className="divide-y divide-border">
+        {register.teachers.map((row) => (
+          <li
+            key={row.id}
+            className="flex items-center justify-between gap-3 px-4 py-2.5 sm:px-5"
+          >
+            <div className="min-w-0">
+              <div className="truncate text-sm font-medium">{row.name}</div>
+              <div className="text-[11px] text-muted-foreground">{row.dept}</div>
+            </div>
+            <Pill tone={statusMeta(row.status).tone}>{statusMeta(row.status).label}</Pill>
+          </li>
+        ))}
       </ul>
     </Card>
   );
@@ -541,4 +908,14 @@ function formatDateTime(iso?: string) {
   } catch {
     return iso;
   }
+}
+
+function formatEditRemaining(ms: number) {
+  if (ms <= 0) return "0h";
+  const totalMinutes = Math.ceil(ms / 60_000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours <= 0) return `${minutes}m`;
+  if (minutes === 0) return `${hours}h`;
+  return `${hours}h ${minutes}m`;
 }

@@ -6,16 +6,28 @@
     "dev:admin": "npm run dev --workspace=@lumenx/app-admin",
     "dev:nexus": "npm run dev --workspace=@lumenx/app-nexus",
     "dev:transport": "npm run dev --workspace=@lumenx/app-transport",
+    "dev:website": "npm run dev --workspace=@lumenx/app-website",
     "build": "npm run build --workspaces --if-present",
     "build:connect": "npm run build --workspace=@lumenx/app-connect",
     "build:connect:capacitor": "npm run build:capacitor --workspace=@lumenx/app-connect",
     "build:admin": "npm run build --workspace=@lumenx/app-admin",
     "build:nexus": "npm run build --workspace=@lumenx/app-nexus",
     "build:transport": "npm run build --workspace=@lumenx/app-transport",
-    "lint": "npm run lint --workspaces --if-present"
+    "build:website": "npm run build --workspace=@lumenx/app-website",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck:connect": "npm run typecheck --workspace=@lumenx/app-connect",
+    "typecheck:admin": "npm run typecheck --workspace=@lumenx/app-admin",
+    "typecheck:website": "npm run typecheck --workspace=@lumenx/app-website",
+    "test:connect": "npm run test --workspace=@lumenx/app-connect",
+    "madge:circular": "npx madge --circular --extensions ts,tsx packages apps/admin/src apps/connect/src"
   },
   "workspaces": [
     "apps/*",
     "packages/*"
-  ]
+  ],
+  "overrides": {
+    "react": "19.2.7",
+    "react-dom": "19.2.7"
+  }
 }

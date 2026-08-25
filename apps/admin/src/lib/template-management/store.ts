@@ -11,8 +11,17 @@ import type {
   WorkflowState,
 } from "./types";
 import { SEED_ACTIVITY, SEED_GENERATED, SYSTEM_TEMPLATES } from "./seed-data";
+import { readDemoProfileId } from "@lumenx/types";
+import { COLLEGE_MOCK_STUDENTS } from "@/lib/academic-data";
+import { MOCK_ADMIN_STUDENTS } from "@lumenx/module-students";
+import {
+  notifyDocumentGenerated,
+  notifyDocumentReady,
+  notifyDocumentRequestRejected,
+  notifyCertificatePublished,
+} from "@lumenx/module-notifications";
 
-const STORAGE_KEY = "lumenx_template_management";
+const STORAGE_KEY = "lumenx_template_management_v2";
 
 type StoreSnapshot = {
   customTemplates: TemplateRecord[];
@@ -22,18 +31,37 @@ type StoreSnapshot = {
   favorites: string[];
 };
 
+function cloneSnapshot(snapshot: StoreSnapshot): StoreSnapshot {
+  return {
+    customTemplates: snapshot.customTemplates.map((template) => ({ ...template })),
+    generated: snapshot.generated.map((document) => ({ ...document })),
+    activity: snapshot.activity.map((activity) => ({ ...activity })),
+    imports: snapshot.imports.map((job) => ({ ...job })),
+    favorites: [...snapshot.favorites],
+  };
+}
+
+let cachedRawStore: string | null = null;
+let cachedStoreSnapshot: StoreSnapshot | null = null;
+
 function readStore(): StoreSnapshot {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (raw != null && raw === cachedRawStore && cachedStoreSnapshot) {
+    return cloneSnapshot(cachedStoreSnapshot);
+  }
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return emptyStore();
     const parsed = JSON.parse(raw) as StoreSnapshot;
-    return {
+    const normalized = {
       customTemplates: parsed.customTemplates ?? [],
       generated: parsed.generated ?? [...SEED_GENERATED],
       activity: parsed.activity ?? [...SEED_ACTIVITY],
       imports: parsed.imports ?? [],
       favorites: parsed.favorites ?? [],
     };
+    cachedRawStore = raw;
+    cachedStoreSnapshot = normalized;
+    return cloneSnapshot(normalized);
   } catch {
     return emptyStore();
   }
@@ -50,7 +78,10 @@ function emptyStore(): StoreSnapshot {
 }
 
 function writeStore(snapshot: StoreSnapshot) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+  const serialized = JSON.stringify(snapshot);
+  localStorage.setItem(STORAGE_KEY, serialized);
+  cachedRawStore = serialized;
+  cachedStoreSnapshot = cloneSnapshot(snapshot);
 }
 
 let revision = 0;
@@ -88,7 +119,25 @@ export function getTemplateById(id: string): TemplateRecord | undefined {
 }
 
 export function getGeneratedDocuments(): GeneratedDocument[] {
-  return readStore().generated;
+  const docs = readStore().generated;
+  if (readDemoProfileId() !== "inter_college") return docs;
+
+  // Remap school demo recipients onto college directory so Student records are not empty.
+  const school = MOCK_ADMIN_STUDENTS;
+  const college = COLLEGE_MOCK_STUDENTS;
+  const byRef = new Map(
+    school.map((s, i) => [s.id, college[i] ?? college[i % college.length]]),
+  );
+
+  return docs.map((doc) => {
+    const target = byRef.get(doc.recipientRef);
+    if (!target) return doc;
+    return {
+      ...doc,
+      recipientRef: target.id,
+      recipientName: target.name,
+    };
+  });
 }
 
 export function getTemplateActivity(): TemplateActivity[] {
@@ -152,6 +201,54 @@ export function archiveTemplate(id: string) {
     id: `act-${Date.now()}`,
     action: "archived",
     templateName: tpl?.name ?? id,
+    at: new Date().toISOString(),
+    actor: "Admin User",
+  };
+  writeStore({
+    ...store,
+    customTemplates,
+    activity: [activity, ...store.activity].slice(0, 50),
+  });
+  notify();
+}
+
+/** Make a draft (or restored) template issuable. */
+export function activateTemplate(id: string) {
+  const store = readStore();
+  const customTemplates = store.customTemplates.map((t) =>
+    t.id === id ? { ...t, status: "active" as const, updatedAt: new Date().toISOString().slice(0, 10) } : t,
+  );
+  const tpl = customTemplates.find((t) => t.id === id);
+  if (!tpl) return;
+  const activity: TemplateActivity = {
+    id: `act-${Date.now()}`,
+    action: "activated",
+    templateName: tpl.name,
+    detail: "Ready to issue to students",
+    at: new Date().toISOString(),
+    actor: "Admin User",
+  };
+  writeStore({
+    ...store,
+    customTemplates,
+    activity: [activity, ...store.activity].slice(0, 50),
+  });
+  notify();
+}
+
+/** Bring an archived custom template back as draft. */
+export function restoreTemplate(id: string) {
+  const store = readStore();
+  const customTemplates = store.customTemplates.map((t) =>
+    t.id === id ? { ...t, status: "draft" as const, updatedAt: new Date().toISOString().slice(0, 10) } : t,
+  );
+  const tpl = customTemplates.find((t) => t.id === id);
+  if (!tpl) return;
+  const activity: TemplateActivity = {
+    id: `act-${Date.now()}`,
+    action: "restored",
+    templateName: tpl.name,
+    detail: "Restored as draft — activate to issue",
     at: new Date().toISOString(),
     actor: "Admin User",
   };
@@ -279,6 +376,28 @@ export function advanceWorkflowState(id: string, actor: string, comment?: string
   };
   writeStore({ ...store, generated, activity: [activity, ...store.activity].slice(0, 50) });
   notify();
+  if (isPublishing) {
+    notifyDocumentReady({
+      requestId: updated.id,
+      documentId: updated.id,
+      documentLabel: updated.templateName,
+      studentName: updated.recipientName,
+    });
+    if (updated.kind === "certificate") {
+      notifyCertificatePublished({
+        certificateId: updated.id,
+        certificateName: updated.templateName,
+        studentName: updated.recipientName,
+      });
+    }
+  } else {
+    notifyDocumentGenerated({
+      requestId: updated.id,
+      documentId: updated.id,
+      documentLabel: updated.templateName,
+      studentName: updated.recipientName,
+    });
+  }
   return updated;
 }
 
@@ -308,6 +427,12 @@ export function rejectWorkflowDocument(id: string, actor: string, reason: string
   generated[idx] = updated;
   writeStore({ ...store, generated });
   notify();
+  notifyDocumentRequestRejected({
+    requestId: updated.id,
+    documentLabel: updated.templateName,
+    studentName: updated.recipientName,
+    reason,
+  });
   return updated;
 }
 
@@ -537,6 +662,14 @@ export function generateDocumentBatch(params: GenerateBatchParams): { batchId: s
     activity: [activity, ...store.activity].slice(0, 50),
   });
   notify();
+  for (const doc of docs) {
+    notifyDocumentGenerated({
+      requestId: doc.id,
+      documentId: doc.id,
+      documentLabel: doc.templateName,
+      studentName: doc.recipientName,
+    });
+  }
   return { batchId, count: params.recipients.length };
 }
 

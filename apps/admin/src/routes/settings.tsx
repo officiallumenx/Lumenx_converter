@@ -1,19 +1,30 @@
-import { createFileRoute, useSearch } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { IconChip } from "@/components/IconChip";
-import { Card, CardHeader, Button, PageStack, Pill } from "@lumenx/ui-admin";
-import { AuditActivityPanel } from "@/components/AuditActivityPanel";
+import { Card, CardHeader, Button, PageStack, Pill, Select } from "@lumenx/ui-admin";
 import { useTheme } from "@/components/theme-provider";
 import { useState, useRef } from "react";
 import {
-  User, Palette, Building2, ShieldCheck, Bell, HelpCircle,
-  MessageSquarePlus, Phone, LogOut, Camera, Check, ChevronDown,
-  ChevronRight, Star, Mail, Globe, MapPin, Clock, Sun, Moon,
-  Monitor, Laptop, Smartphone, KeyRound, Lock, Eye, EyeOff,
-  BellRing, BellOff, Megaphone, AlertTriangle, Send, ExternalLink,
-  BookOpen, Layers, FileText, Linkedin, Twitter, Youtube,
+  User, Palette, HelpCircle, MessageSquarePlus, Phone, Camera, Check, ChevronDown,
+  ChevronRight, Mail, Globe, MapPin, Clock, Sun, Moon,
+  Monitor, Laptop, Smartphone, Send, ExternalLink, BookOpen, Linkedin, Twitter, Youtube,
+  LifeBuoy, FileText, GraduationCap, Layers, School,
 } from "lucide-react";
-import { useSignOut } from "@/auth/hooks/useSignOut";
+import { useAuth } from "@/auth/AuthContext";
+import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
+import { useAdminToast } from "@/components/AdminActionToast";
+import { AuditActivityPanel } from "@/components/AuditActivityPanel";
+import { OfflineSyncStatusBar } from "@/components/OfflineSyncStatusBar";
+import { AttendanceConfigurationPanel } from "@/components/academic-management/views/AttendanceConfigurationPanel";
+import { AttendanceNotificationConfigPanel } from "@/components/academic-management/views/AttendanceNotificationConfigPanel";
+import { PlatformReadOnlyBanner, TextSizeControl, LumenXFeedbackForm } from "@lumenx/ui";
+import {
+  RECYCLE_BIN_RETENTION_DAYS,
+  isPlatformReadOnly,
+  loadPlatformReadOnlyState,
+  notificationRetentionSummary,
+  savePlatformReadOnlyState,
+} from "@lumenx/utils";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "Settings — LumenX Admin" }] }),
@@ -23,24 +34,24 @@ export const Route = createFileRoute("/settings")({
 type SettingsTab =
   | "profile"
   | "appearance"
-  | "institute"
-  | "security"
-  | "notifications"
-  | "faqs"
-  | "feedback"
+  | "academic"
+  | "platform"
+  | "audit"
   | "contact"
-  | "audit";
+  | "feedback"
+  | "help"
+  | "faqs";
 
 const TABS: { id: SettingsTab; label: string; icon: typeof User }[] = [
-  { id: "profile",       label: "My Profile",      icon: User            },
-  { id: "appearance",    label: "Appearance",       icon: Palette         },
-  { id: "institute",     label: "Institute",        icon: Building2       },
-  { id: "security",      label: "Security",         icon: ShieldCheck     },
-  { id: "notifications", label: "Notifications",    icon: Bell            },
-  { id: "faqs",          label: "FAQs",             icon: HelpCircle      },
-  { id: "feedback",      label: "Feedback",         icon: MessageSquarePlus },
-  { id: "contact",       label: "Contact & Support",icon: Phone           },
-  { id: "audit",         label: "Audit Log",        icon: Layers          },
+  { id: "profile",    label: "My Profile",         icon: User             },
+  { id: "appearance", label: "Appearance",         icon: Palette          },
+  { id: "academic",   label: "Academic Settings",  icon: School           },
+  { id: "platform",   label: "Platform",           icon: Layers           },
+  { id: "audit",      label: "Audit Log",          icon: FileText         },
+  { id: "contact",    label: "Contact & Support",  icon: Phone            },
+  { id: "feedback",   label: "LumenX Feedback",    icon: MessageSquarePlus },
+  { id: "help",       label: "Help Center",        icon: LifeBuoy         },
+  { id: "faqs",       label: "FAQs",               icon: HelpCircle       },
 ];
 
 /* ─── Reusable row ─────────────────────────────────────────────── */
@@ -67,11 +78,15 @@ function Row({
 /* ─── Input helper ─────────────────────────────────────────────── */
 function Inp({
   defaultValue,
+  value,
+  onChange,
   type = "text",
   placeholder,
   className = "",
 }: {
   defaultValue?: string;
+  value?: string;
+  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   type?: string;
   placeholder?: string;
   className?: string;
@@ -79,7 +94,9 @@ function Inp({
   return (
     <input
       type={type}
-      defaultValue={defaultValue}
+      defaultValue={value === undefined ? defaultValue : undefined}
+      value={value}
+      onChange={onChange}
       placeholder={placeholder}
       className={`h-9 px-3 rounded-md bg-background border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-colors ${className}`}
     />
@@ -97,41 +114,13 @@ function Sel({
   className?: string;
 }) {
   return (
-    <select
-      defaultValue={defaultValue}
-      className={`h-9 px-3 rounded-md bg-background border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/40 ${className}`}
-    >
+    <Select fieldSize="md" defaultValue={defaultValue} className={className}>
       {options.map((o) => (
-        <option key={o}>{o}</option>
+        <option key={o} value={o}>
+          {o}
+        </option>
       ))}
-    </select>
-  );
-}
-
-/* ─── Toggle switch ────────────────────────────────────────────── */
-function Toggle({
-  checked,
-  onChange,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 transition-colors duration-200 ${
-        checked ? "border-primary bg-primary" : "border-border bg-muted"
-      }`}
-    >
-      <span
-        className={`pointer-events-none block size-3.5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-          checked ? "translate-x-3.5" : "translate-x-0"
-        }`}
-      />
-    </button>
+    </Select>
   );
 }
 
@@ -157,45 +146,67 @@ function FaqItem({ q, a }: { q: string; a: string }) {
   );
 }
 
-/* ─── Star rating ──────────────────────────────────────────────── */
-function StarRating({
-  value,
-  onChange,
-}: {
-  value: number;
-  onChange: (v: number) => void;
-}) {
-  const [hovered, setHovered] = useState(0);
-  return (
-    <div className="flex gap-1">
-      {[1, 2, 3, 4, 5].map((n) => (
-        <button
-          key={n}
-          type="button"
-          onMouseEnter={() => setHovered(n)}
-          onMouseLeave={() => setHovered(0)}
-          onClick={() => onChange(n)}
-        >
-          <Star
-            className={`size-6 transition-colors ${
-              n <= (hovered || value) ? "text-warning fill-warning" : "text-border"
-            }`}
-          />
-        </button>
-      ))}
-    </div>
-  );
-}
-
 /* ══════════════════════════════════════════════════════════════════
    TAB PANELS
 ═══════════════════════════════════════════════════════════════════ */
 
+function AcademicSettingsTab() {
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader
+          title="Academic Settings"
+          hint="Institute academic policies — Attendance Configuration, notifications, promotion, and more"
+          action={
+            <Link
+              to="/academic-management"
+              search={{ view: "settings" }}
+              className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+            >
+              Open {M.academics}
+              <ExternalLink className="size-3 opacity-70" />
+            </Link>
+          }
+        />
+      </Card>
+      <AttendanceConfigurationPanel />
+      <AttendanceNotificationConfigPanel />
+    </div>
+  );
+}
+
+const SETTINGS_PROFILE_KEY = "lumenx.admin.settings-profile.v1";
+
+function loadSettingsProfile() {
+  try {
+    const raw = localStorage.getItem(SETTINGS_PROFILE_KEY);
+    if (raw) return JSON.parse(raw) as { name?: string; title?: string; email?: string; phone?: string };
+  } catch {
+    /* ignore */
+  }
+  return {};
+}
+
 function ProfileTab() {
+  const { user } = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
   const [saved, setSaved] = useState(false);
+  const overlay = loadSettingsProfile();
+
+  const [name, setName] = useState(overlay.name ?? user?.name ?? "Admin User");
+  const [title, setTitle] = useState(overlay.title ?? user?.title ?? "Administrator");
+  const [email, setEmail] = useState(overlay.email ?? user?.email ?? "");
+  const [phone, setPhone] = useState(overlay.phone ?? user?.phone ?? "");
+  const initials = user?.initials ?? name.slice(0, 2).toUpperCase();
+  const institute = user?.instituteName ?? "—";
+  const roleLabel = user?.role?.replace(/_/g, " ") ?? "admin";
 
   const handleSave = () => {
+    try {
+      localStorage.setItem(SETTINGS_PROFILE_KEY, JSON.stringify({ name, title, email, phone }));
+    } catch {
+      /* ignore */
+    }
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   };
@@ -203,18 +214,17 @@ function ProfileTab() {
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader title="Personal Information" hint="Your identity across LumenX Admin" />
+        <CardHeader title="Logged-in profile" hint="Your identity for this Admin session" />
         <div className="px-5 pb-5">
-          {/* Avatar upload */}
           <div className="flex items-center gap-5 py-4 border-b border-border mb-1">
             <div className="relative group">
               <div className="size-16 rounded-full bg-gradient-to-br from-primary to-chart-5 flex items-center justify-center text-xl font-bold text-primary-foreground select-none">
-                AV
+                {initials}
               </div>
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity"
                 aria-label="Upload photo"
               >
                 <Camera className="size-4 text-white" />
@@ -222,8 +232,10 @@ function ProfileTab() {
               <input ref={fileRef} type="file" accept="image/*" className="sr-only" />
             </div>
             <div>
-              <div className="text-sm font-semibold">Dr. Ananya Verma</div>
-              <div className="text-[11px] text-muted-foreground">Principal · LumenX International School</div>
+              <div className="text-sm font-semibold">{name}</div>
+              <div className="text-[11px] text-muted-foreground">
+                {title} · {institute}
+              </div>
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
@@ -234,28 +246,31 @@ function ProfileTab() {
             </div>
           </div>
 
-          <Row label="Full name" hint="Shown across all admin views">
-            <Inp defaultValue="Dr. Ananya Verma" className="w-52" />
+          <Row label="Full name" hint="Shown across Admin">
+            <Inp value={name} onChange={(e) => setName(e.target.value)} className="w-52" />
           </Row>
-          <Row label="Title / Designation" hint="Principal, VP, Coordinator…">
-            <Inp defaultValue="Principal" className="w-44" />
+          <Row label="Title / Designation">
+            <Inp value={title} onChange={(e) => setTitle(e.target.value)} className="w-44" />
           </Row>
-          <Row label="Email address" hint="Used for login and alerts">
-            <Inp type="email" defaultValue="ananya.verma@lumenx.edu" className="w-56" />
+          <Row label="Email address" hint="Login identity">
+            <Inp type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-56" />
           </Row>
-          <Row label="Phone number" hint="For OTP and emergency contact">
-            <Inp type="tel" defaultValue="+91 98765 43210" className="w-44" />
+          <Row label="Phone number">
+            <Inp type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-44" />
           </Row>
-          <Row label="Department / Role" hint="Organizational classification">
-            <Sel options={["Administration", "Academics", "Finance", "HR"]} defaultValue="Administration" />
-          </Row>
-          <Row label="Language" hint="Interface language">
-            <Sel options={["English (India)", "Hindi", "Tamil", "Telugu", "Kannada"]} />
+          <Row label="Role">
+            <Pill tone="info">{roleLabel.replace(/\b\w/g, (c) => c.toUpperCase())}</Pill>
           </Row>
 
           <div className="pt-4 flex gap-2">
             <Button variant="primary" onClick={handleSave}>
-              {saved ? <><Check className="size-3.5" /> Saved</> : "Save changes"}
+              {saved ? (
+                <>
+                  <Check className="size-3.5" /> Saved
+                </>
+              ) : (
+                "Save changes"
+              )}
             </Button>
             <Button>Cancel</Button>
           </div>
@@ -263,19 +278,20 @@ function ProfileTab() {
       </Card>
 
       <Card>
-        <CardHeader title="Account" hint="Login credentials and linked accounts" />
+        <CardHeader title="Account" hint="Session details for the signed-in user" />
         <div className="px-5 pb-5">
-          <Row label="Account ID" hint="Read-only unique identifier">
-            <span className="text-xs font-mono text-muted-foreground">LX-ADMIN-00142</span>
+          <Row label="Account ID" hint="Read-only">
+            <span className="text-xs font-mono text-muted-foreground">{user?.id ?? "—"}</span>
           </Row>
-          <Row label="Account type" hint="Your current access level">
-            <Pill tone="info">Super Admin</Pill>
+          <Row label="Institute">
+            <span className="text-xs text-muted-foreground">{institute}</span>
           </Row>
-          <Row label="Last login" hint="Most recent session">
-            <span className="text-xs text-muted-foreground">Today, 5:42 PM · Chrome · Windows</span>
-          </Row>
-          <Row label="Active sessions" hint="Devices currently signed in">
-            <Button size="sm">View all sessions</Button>
+          <Row label="Last login">
+            <span className="text-xs text-muted-foreground">
+              {user?.lastLoginAt
+                ? new Date(user.lastLoginAt).toLocaleString("en-IN")
+                : "This session"}
+            </span>
           </Row>
         </div>
       </Card>
@@ -286,14 +302,12 @@ function ProfileTab() {
 function AppearanceTab() {
   const { theme, set } = useTheme();
   const [density, setDensity] = useState<"compact" | "default" | "comfortable">("default");
-  const [fontSize, setFontSize] = useState<"sm" | "md" | "lg">("md");
   const [colorScheme, setColorScheme] = useState("indigo");
 
   const themes = [
-    { id: "light",  label: "Light",  icon: Sun     },
-    { id: "dark",   label: "Dark",   icon: Moon    },
-    { id: "system", label: "System", icon: Monitor },
-  ] as const;
+    { id: "light" as const, label: "Light", icon: Sun },
+    { id: "dark" as const, label: "Dark", icon: Moon },
+  ];
 
   const colors = [
     { id: "indigo",  hex: "#6366f1", label: "Indigo"  },
@@ -307,27 +321,28 @@ function AppearanceTab() {
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader title="Theme" hint="Choose how LumenX Admin looks" />
+        <CardHeader
+          title="Theme"
+          hint="Light or Dark · default Light · does not follow system"
+        />
         <div className="px-5 pb-5">
-          <div className="grid grid-cols-3 gap-3 pt-2">
+          <div className="grid grid-cols-2 gap-3 pt-2 max-w-sm">
             {themes.map(({ id, label, icon: Icon }) => {
-              const active = theme === id || (id === "system" && false);
+              const active = theme === id;
               return (
                 <button
                   key={id}
                   type="button"
-                  onClick={() => id !== "system" && set(id)}
+                  onClick={() => set(id)}
                   className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
-                    theme === id
+                    active
                       ? "border-primary bg-primary/8"
                       : "border-border hover:border-border-strong bg-surface"
                   }`}
                 >
-                  <IconChip icon={Icon} size="sm" variant="brand" active={theme === id} />
+                  <IconChip icon={Icon} size="sm" variant="brand" active={active} />
                   <span className="text-xs font-medium">{label}</span>
-                  {theme === id && (
-                    <span className="size-1.5 rounded-full bg-primary" />
-                  )}
+                  {active && <span className="size-1.5 rounded-full bg-primary" />}
                 </button>
               );
             })}
@@ -379,21 +394,8 @@ function AppearanceTab() {
               ))}
             </div>
           </Row>
-          <Row label="Font size" hint="Base size for body text">
-            <div className="flex rounded-lg border border-border overflow-hidden text-xs">
-              {(["sm", "md", "lg"] as const).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setFontSize(s)}
-                  className={`px-4 py-1.5 uppercase transition-colors ${
-                    fontSize === s ? "bg-primary text-primary-foreground" : "hover:bg-surface-hover"
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
+          <Row label="Text Size" hint="Small, Default, Large, or Extra Large. Default is Default.">
+            <TextSizeControl size="compact" className="min-w-[16rem]" />
           </Row>
           <Row label="Sidebar" hint="Show or collapse the navigation sidebar">
             <Sel options={["Always visible", "Auto-collapse", "Icon only"]} />
@@ -425,282 +427,40 @@ function AppearanceTab() {
   );
 }
 
-function InstituteTab() {
+
+function HelpCenterTab({ onOpenFaqs, onOpenContact }: { onOpenFaqs: () => void; onOpenContact: () => void }) {
+  const guides = [
+    { icon: GraduationCap, title: "Students and admissions", body: "Add students, bulk import, and manage profiles from Students in the sidebar." },
+    { icon: Layers, title: "Modules and Plan", body: "See your institute plan, pay securely, and turn optional modules on or off." },
+    { icon: FileText, title: "Documents and certificates", body: "Generate TCs and certificates from Documents and Records Studio." },
+    { icon: BookOpen, title: "Getting started", body: `Use Home for KPIs, then configure ${M.institute} for public branding.` },
+  ];
+
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader title="Institute Details" hint="Core identity of your institute" />
-        <div className="px-5 pb-5">
-          <Row label="Institute name" hint="Displayed across all portals and documents">
-            <Inp defaultValue="LumenX International School" className="w-64" />
-          </Row>
-          <Row label="Tagline / Motto" hint="Shown on certificates and correspondence">
-            <Inp defaultValue="Excellence Through Knowledge" className="w-64" />
-          </Row>
-          <Row label="Type" hint="School, College, University…">
-            <Sel options={["School (K-12)", "Junior College", "Degree College", "University"]} defaultValue="School (K-12)" />
-          </Row>
-          <Row label="Affiliation board" hint="Governing educational board">
-            <Sel options={["CBSE", "ICSE", "State Board", "IB", "Cambridge"]} defaultValue="CBSE" />
-          </Row>
-          <Row label="Established year" hint="Year of establishment">
-            <Inp defaultValue="1998" className="w-28" />
-          </Row>
-          <Row label="UDISE code" hint="Unique identifier issued by MoE">
-            <Inp defaultValue="09140104601" className="w-40" />
-          </Row>
-          <div className="pt-4">
-            <Button variant="primary">Save details</Button>
-          </div>
-        </div>
-      </Card>
-
-      <Card>
-        <CardHeader title="Academic Configuration" hint="Session, calendar, and operational days" />
-        <div className="px-5 pb-5">
-          <Row label="Academic session" hint="Current academic year">
-            <Sel options={["2025 — 2026", "2024 — 2025", "2026 — 2027"]} defaultValue="2025 — 2026" />
-          </Row>
-          <Row label="Term structure" hint="Semester or term-based curriculum">
-            <Sel options={["2 Terms", "3 Terms", "Semester system", "Annual"]} defaultValue="2 Terms" />
-          </Row>
-          <Row label="Working days" hint="Mon – Sat by default">
-            <Button size="sm">Configure</Button>
-          </Row>
-          <Row label="Class periods per day" hint="Number of instructional periods">
-            <Inp defaultValue="8" className="w-20" />
-          </Row>
-          <Row label="Period duration" hint="Minutes per class period">
-            <Sel options={["40 min", "45 min", "50 min", "60 min"]} defaultValue="45 min" />
-          </Row>
-        </div>
-      </Card>
-
-      <Card>
-        <CardHeader title="Location & Contact" hint="Address and communication details" />
-        <div className="px-5 pb-5">
-          <Row label="Address" hint="Registered institute address">
-            <Inp defaultValue="12 Education Ave, Hyderabad, TG 500032" className="w-72" />
-          </Row>
-          <Row label="City / District" hint="">
-            <Inp defaultValue="Hyderabad" className="w-40" />
-          </Row>
-          <Row label="State" hint="">
-            <Sel options={["Telangana", "Andhra Pradesh", "Karnataka", "Maharashtra", "Tamil Nadu"]} />
-          </Row>
-          <Row label="Official phone" hint="Main reception number">
-            <Inp defaultValue="+91 40 2345 6789" className="w-44" />
-          </Row>
-          <Row label="Official email" hint="Correspondence email">
-            <Inp type="email" defaultValue="info@lumenx.edu" className="w-52" />
-          </Row>
-          <Row label="Website" hint="Institute website URL">
-            <Inp defaultValue="www.lumenx.edu" className="w-52" />
-          </Row>
-          <div className="pt-4">
-            <Button variant="primary">Save contact</Button>
-          </div>
-        </div>
-      </Card>
-
-      <Card>
-        <CardHeader title="Branches" hint="Multi-branch management" action={
-          <Button variant="primary" size="sm">Add branch</Button>
-        } />
-        <div className="px-5 pb-5 space-y-2 pt-1">
-          {[
-            { name: "Branch Alpha · Headquarters", city: "Hyderabad",  students: 1240, status: "Active"   },
-            { name: "Branch Beta · Downtown",       city: "Secunderabad", students: 860, status: "Active" },
-            { name: "Branch Gamma · North Campus",  city: "Kompally",   students: 640, status: "Active"   },
-          ].map((b) => (
-            <div key={b.name} className="flex items-center justify-between px-4 py-3 rounded-lg border border-border bg-background/40 gap-3">
-              <div>
-                <div className="text-xs font-medium">{b.name}</div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">{b.city} · {b.students.toLocaleString()} students</div>
+        <CardHeader title="Help Center" hint="Guides and shortcuts for LumenX Admin" />
+        <div className="px-5 pb-5 grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+          {guides.map(({ icon: Icon, title, body }) => (
+            <div key={title} className="rounded-lg border border-border bg-muted/20 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <IconChip icon={Icon} size="sm" variant="soft" />
+                <div className="text-xs font-semibold">{title}</div>
               </div>
-              <div className="flex items-center gap-2">
-                <Pill tone="success">{b.status}</Pill>
-                <Button size="sm">Manage</Button>
-              </div>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">{body}</p>
             </div>
           ))}
         </div>
       </Card>
-    </div>
-  );
-}
-
-function SecurityTab() {
-  const [showPwd, setShowPwd] = useState(false);
-  const [twoFa, setTwoFa] = useState(true);
-  const [loginAlerts, setLoginAlerts] = useState(true);
-  const signOut = useSignOut();
-
-  return (
-    <div className="space-y-4">
       <Card>
-        <CardHeader title="Change Password" hint="Keep your account secure with a strong password" />
-        <div className="px-5 pb-5 space-y-3 pt-2">
-          <div>
-            <label className="block text-xs font-medium mb-1.5">Current password</label>
-            <div className="relative w-full max-w-xs">
-              <input
-                type={showPwd ? "text" : "password"}
-                placeholder="••••••••"
-                className="w-full h-9 px-3 pr-10 rounded-md bg-background border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/40"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPwd((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-              >
-                {showPwd ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-              </button>
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-medium mb-1.5">New password</label>
-            <Inp type="password" placeholder="Min 8 characters" className="w-full max-w-xs" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium mb-1.5">Confirm new password</label>
-            <Inp type="password" placeholder="Re-enter new password" className="w-full max-w-xs" />
-          </div>
-          <div className="pt-2">
-            <Button variant="primary">Update password</Button>
-          </div>
-        </div>
-      </Card>
-
-      <Card>
-        <CardHeader title="Two-Factor Authentication" hint="Add an extra layer of security to your account" />
-        <div className="px-5 pb-5">
-          <Row label="SMS OTP" hint="Receive a one-time code via SMS on login">
-            <Toggle checked={twoFa} onChange={setTwoFa} />
-          </Row>
-          <Row label="Authenticator app" hint="Google Authenticator, Authy, etc.">
-            <Button size="sm">Configure</Button>
-          </Row>
-          <Row label="Backup codes" hint="Download one-time backup codes">
-            <Button size="sm">Generate</Button>
-          </Row>
-        </div>
-      </Card>
-
-      <Card>
-        <CardHeader title="Sessions & Access" hint="Manage active sessions and access rules" />
-        <div className="px-5 pb-5">
-          <Row label="Session timeout" hint="Auto-logout after inactivity">
-            <Sel options={["15 min", "30 min", "1 hour", "4 hours", "Never"]} defaultValue="30 min" />
-          </Row>
-          <Row label="Login alerts" hint="Email notification on new sign-in">
-            <Toggle checked={loginAlerts} onChange={setLoginAlerts} />
-          </Row>
-          <Row label="Audit log retention" hint="How long admin activity is stored">
-            <Sel options={["30 days", "90 days", "1 year", "Forever"]} defaultValue="90 days" />
-          </Row>
-          <Row label="Active sessions" hint="2 devices currently signed in">
-            <Button size="sm">Manage sessions</Button>
-          </Row>
-          <Row label="IP allowlist" hint="Restrict access to specific IP ranges">
-            <Button size="sm">Configure</Button>
-          </Row>
-        </div>
-      </Card>
-
-      <Card className="border-destructive/30">
-        <CardHeader title="Danger Zone" hint="Irreversible account actions" />
-        <div className="px-5 pb-5 space-y-3">
-          <div className="flex items-center justify-between p-4 rounded-lg border border-destructive/20 bg-destructive/[0.04]">
-            <div>
-              <div className="text-xs font-semibold text-destructive">Sign out all devices</div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">End all active sessions immediately</div>
-            </div>
-            <Button size="sm" onClick={signOut}>Sign out all</Button>
-          </div>
-          <div className="flex items-center justify-between p-4 rounded-lg border border-destructive/20 bg-destructive/[0.04]">
-            <div>
-              <div className="text-xs font-semibold text-destructive">Sign out</div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">End your current session</div>
-            </div>
-            <Button size="sm" onClick={signOut}>
-              <LogOut className="size-3.5" /> Sign out
-            </Button>
-          </div>
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-function NotificationsTab() {
-  const [prefs, setPrefs] = useState({
-    emailAlerts: true,
-    smsAlerts: false,
-    pushAlerts: true,
-    attendanceDigest: true,
-    examReminders: true,
-    feeAlerts: true,
-    complaintUpdates: true,
-    announcementCopies: false,
-    systemUpdates: true,
-    weeklyReport: true,
-  });
-  const set = (k: keyof typeof prefs) => setPrefs((p) => ({ ...p, [k]: !p[k] }));
-
-  return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader title="Delivery Channels" hint="How you receive notifications" />
-        <div className="px-5 pb-5">
-          <Row label="Email notifications" hint="Sent to your registered email address">
-            <Toggle checked={prefs.emailAlerts} onChange={() => set("emailAlerts")} />
-          </Row>
-          <Row label="SMS alerts" hint="Critical alerts via text message">
-            <Toggle checked={prefs.smsAlerts} onChange={() => set("smsAlerts")} />
-          </Row>
-          <Row label="Push notifications" hint="In-browser desktop push alerts">
-            <Toggle checked={prefs.pushAlerts} onChange={() => set("pushAlerts")} />
-          </Row>
-          <Row label="Quiet hours" hint="Pause notifications during specific hours">
-            <Button size="sm">Configure</Button>
-          </Row>
-        </div>
-      </Card>
-
-      <Card>
-        <CardHeader title="Academic Alerts" hint="Module-specific notification preferences" />
-        <div className="px-5 pb-5">
-          <Row label="Attendance digest" hint="Daily summary of attendance across all classes">
-            <Toggle checked={prefs.attendanceDigest} onChange={() => set("attendanceDigest")} />
-          </Row>
-          <Row label="Exam reminders" hint="Alerts before scheduled examinations">
-            <Toggle checked={prefs.examReminders} onChange={() => set("examReminders")} />
-          </Row>
-          <Row label="Fee payment alerts" hint="Due date reminders and payment confirmations">
-            <Toggle checked={prefs.feeAlerts} onChange={() => set("feeAlerts")} />
-          </Row>
-          <Row label="Complaint updates" hint="Status changes on open complaints">
-            <Toggle checked={prefs.complaintUpdates} onChange={() => set("complaintUpdates")} />
-          </Row>
-          <Row label="Announcement copies" hint="Copy of all outgoing announcements">
-            <Toggle checked={prefs.announcementCopies} onChange={() => set("announcementCopies")} />
-          </Row>
-        </div>
-      </Card>
-
-      <Card>
-        <CardHeader title="System & Reports" hint="Platform-level notification preferences" />
-        <div className="px-5 pb-5">
-          <Row label="System updates" hint="Product updates, maintenance windows, new features">
-            <Toggle checked={prefs.systemUpdates} onChange={() => set("systemUpdates")} />
-          </Row>
-          <Row label="Weekly performance report" hint="Automated weekly summary delivered on Monday">
-            <Toggle checked={prefs.weeklyReport} onChange={() => set("weeklyReport")} />
-          </Row>
-          <Row label="Report frequency" hint="How often you receive automated reports">
-            <Sel options={["Daily", "Weekly", "Bi-weekly", "Monthly"]} defaultValue="Weekly" />
-          </Row>
+        <CardHeader title="Need more help?" />
+        <div className="px-5 pb-5 flex flex-wrap gap-2">
+          <Button variant="primary" onClick={onOpenFaqs}>
+            <HelpCircle className="size-3.5" /> Browse FAQs
+          </Button>
+          <Button onClick={onOpenContact}>
+            <Phone className="size-3.5" /> Contact support
+          </Button>
         </div>
       </Card>
     </div>
@@ -715,7 +475,7 @@ function FaqsTab() {
     },
     {
       q: "How do I generate a Transfer Certificate (TC)?",
-      a: "Navigate to Documents & Records Studio → Generate. Select the student(s), choose the 'Transfer Certificate' template, preview the generated document, and proceed to publish it. The student and parent portals will automatically reflect it once published.",
+      a: "Certificates is under development. You can open Certificates from the sidebar to see upcoming certificate types. Generation and issue are not available yet.",
     },
     {
       q: "How do I set up or change the timetable?",
@@ -723,31 +483,27 @@ function FaqsTab() {
     },
     {
       q: "How do I approve a leave request?",
-      a: "Navigate to Leave Center. Open the pending request, review the details, then click 'Approve' or 'Reject'. An automatic notification will be sent to the requesting teacher or student.",
+      a: `Navigate to ${M.leave}. Open the pending request, review the details, then click 'Approve' or 'Reject'. An automatic notification will be sent to the requesting teacher or student.`,
     },
     {
       q: "How do I export attendance or marks reports?",
-      a: "From the Reporting Center (sidebar → Reports), select the report type, apply date and class filters, then click 'Export' to download as PDF or Excel. You can also schedule automated report emails.",
+      a: `Use ${M.reports} (sidebar → ${M.reports}). Pick a report, then download Excel, PDF, or CSV. Analytics is for live dashboards and charts only — it has no export. Module screens may offer one-off CSV helpers; institute-wide exports belong in ${M.reports}.`,
     },
     {
       q: "How do I manage admin roles and permissions?",
-      a: "Go to Permissions in the sidebar. Create or edit roles, assign modules each role can access, and specify read/write/delete permissions per module. Assign these roles to individual accounts from the Accounts & Access page.",
+      a: "Go to Roles & Access in the sidebar. Create a role, select the modules it can handle, then assign a user with an email or mobile number and an Admin-controlled password.",
     },
     {
       q: "What are the different subscription plans?",
-      a: "LumenX Admin offers Core (up to 500 students), Plus (up to 5,000 students / 3 branches), Max (up to 20,000 students / 10 branches), and Custom (unlimited scale). You can compare and switch plans from Modules & Plan.",
+      a: `Nexus assigns each institute a monthly or yearly cost (based on students). In Admin, open ${M.modules} to see amount, renewal date, and pay. All modules are on by default; turn any off to restrict.`,
     },
     {
-      q: "How do I configure branch settings?",
-      a: "Under Settings → Institute, scroll to the Branches section. Click 'Add branch' to create a new branch or 'Manage' to edit an existing one. Each branch has its own data, timetables, and staff configurations.",
-    },
-    {
-      q: "Can I connect LumenX Admin to the parent and student portals?",
-      a: "Yes. LumenX Admin is the backend platform for the Connect portals. Data published in Admin (attendance, marks, documents, announcements) automatically syncs to the student, parent, and teacher views in Connect.",
+      q: "How do I update institute branding?",
+      a: `Open ${M.institute} from the sidebar. Edit name, logo, contact, history, and awards. That content is used on Connect and certificates.`,
     },
     {
       q: "How do I contact support?",
-      a: "Click the 'Contact & Support' tab in Settings, or write to support@lumenx.app. For urgent issues, use the live chat or call the support hotline during business hours.",
+      a: "Open Settings → Contact & Support, or write to support@lumenx.app. For common how-tos, use Help Center or FAQs in Settings.",
     },
   ];
 
@@ -767,129 +523,15 @@ function FaqsTab() {
 }
 
 function FeedbackTab() {
-  const [rating, setRating] = useState(0);
-  const [category, setCategory] = useState("General");
-  const [text, setText] = useState("");
-  const [submitted, setSubmitted] = useState(false);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitted(true);
-  };
-
-  if (submitted) {
-    return (
-      <Card>
-        <div className="px-6 py-16 text-center">
-          <div className="size-14 mx-auto rounded-full bg-success/15 border border-success/25 flex items-center justify-center mb-4">
-            <Check className="size-6 text-success" />
-          </div>
-          <h3 className="text-base font-semibold">Thank you for your feedback!</h3>
-          <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
-            Your input helps us improve LumenX Admin for every institute. We read every submission.
-          </p>
-          <Button className="mt-6" onClick={() => { setSubmitted(false); setRating(0); setText(""); }}>
-            Submit another
-          </Button>
-        </div>
-      </Card>
-    );
-  }
-
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader title="Share Your Feedback" hint="Help us improve LumenX Admin" />
-        <form onSubmit={handleSubmit} className="px-5 pb-5 space-y-5 pt-2">
-          {/* Rating */}
-          <div>
-            <label className="block text-xs font-medium mb-2">How would you rate your experience?</label>
-            <StarRating value={rating} onChange={setRating} />
-            <div className="text-[11px] text-muted-foreground mt-1.5">
-              {rating === 0 ? "Tap to rate" : ["", "Poor", "Fair", "Good", "Very good", "Excellent!"][rating]}
-            </div>
-          </div>
-
-          {/* Category */}
-          <div>
-            <label className="block text-xs font-medium mb-1.5">Category</label>
-            <div className="flex flex-wrap gap-2">
-              {["General", "Bug report", "Feature request", "UI/UX", "Performance", "Documentation"].map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setCategory(c)}
-                  className={`px-3 py-1.5 rounded-lg border text-xs transition-all ${
-                    category === c
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border bg-surface hover:bg-surface-hover"
-                  }`}
-                >
-                  {c}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Text */}
-          <div>
-            <label className="block text-xs font-medium mb-1.5">Your message</label>
-            <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="Describe your experience, suggest improvements, or report an issue…"
-              rows={5}
-              className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-xs resize-none focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-colors"
-            />
-            <div className="text-[10px] text-muted-foreground mt-1 text-right">{text.length} / 1000</div>
-          </div>
-
-          {/* Attach screenshot */}
-          <div>
-            <label className="block text-xs font-medium mb-1.5">Attach screenshot (optional)</label>
-            <div className="flex items-center gap-2">
-              <label className="cursor-pointer">
-                <div className="h-9 px-4 rounded-lg border border-dashed border-border bg-surface hover:bg-surface-hover text-xs flex items-center gap-1.5 transition-colors">
-                  <Camera className="size-3.5 text-muted-foreground" /> Choose file
-                </div>
-                <input type="file" accept="image/*" className="sr-only" />
-              </label>
-              <span className="text-[11px] text-muted-foreground">PNG, JPG up to 5 MB</span>
-            </div>
-          </div>
-
-          <Button variant="primary" type="submit" disabled={rating === 0}>
-            <Send className="size-3.5" /> Submit feedback
-          </Button>
-        </form>
-      </Card>
-
-      <Card>
-        <CardHeader title="Feature Requests" hint="Vote on upcoming improvements" />
-        <div className="px-5 pb-5 space-y-2 pt-1">
-          {[
-            { title: "Bulk student document generation",     votes: 128, status: "In progress" },
-            { title: "Parent attendance view in Connect",    votes: 94,  status: "Planned"     },
-            { title: "AI-powered analytics insights",        votes: 87,  status: "Exploring"   },
-            { title: "WhatsApp notification integration",    votes: 76,  status: "Planned"     },
-            { title: "Dark mode for Connect portals",        votes: 64,  status: "In progress" },
-          ].map((f) => (
-            <div key={f.title} className="flex items-center gap-3 px-4 py-3 rounded-lg border border-border bg-background/40">
-              <button
-                type="button"
-                className="flex flex-col items-center min-w-[3rem] py-1 px-2 rounded-lg border border-border hover:border-primary/40 hover:bg-primary/8 transition-all group"
-              >
-                <ChevronDown className="size-3.5 rotate-180 text-muted-foreground group-hover:text-primary transition-colors" />
-                <span className="text-xs font-mono font-semibold mt-0.5">{f.votes}</span>
-              </button>
-              <div className="flex-1 min-w-0">
-                <div className="text-xs font-medium">{f.title}</div>
-              </div>
-              <Pill tone={f.status === "In progress" ? "info" : f.status === "Planned" ? "neutral" : "warning"}>
-                {f.status}
-              </Pill>
-            </div>
-          ))}
+        <CardHeader
+          title="LumenX Feedback"
+          hint="Goes to LumenX — not your school"
+        />
+        <div className="px-5 pb-5 pt-1">
+          <LumenXFeedbackForm source="admin" />
         </div>
       </Card>
     </div>
@@ -897,6 +539,12 @@ function FeedbackTab() {
 }
 
 function ContactTab() {
+  const notify = useAdminToast();
+  const [supportName, setSupportName] = useState("Dr. Ananya Verma");
+  const [supportEmail, setSupportEmail] = useState("ananya.verma@lumenx.edu");
+  const [supportSubject, setSupportSubject] = useState("");
+  const [supportMessage, setSupportMessage] = useState("");
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -970,26 +618,42 @@ function ContactTab() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
             <div>
               <label className="block text-xs font-medium mb-1.5">Your name</label>
-              <Inp defaultValue="Dr. Ananya Verma" className="w-full" />
+              <Inp value={supportName} onChange={(e) => setSupportName(e.target.value)} className="w-full" />
             </div>
             <div>
               <label className="block text-xs font-medium mb-1.5">Email</label>
-              <Inp type="email" defaultValue="ananya.verma@lumenx.edu" className="w-full" />
+              <Inp type="email" value={supportEmail} onChange={(e) => setSupportEmail(e.target.value)} className="w-full" />
             </div>
           </div>
           <div className="mb-3">
             <label className="block text-xs font-medium mb-1.5">Subject</label>
-            <Inp placeholder="What is your message about?" className="w-full" />
+            <Inp
+              placeholder="What is your message about?"
+              className="w-full"
+              value={supportSubject}
+              onChange={(e) => setSupportSubject(e.target.value)}
+            />
           </div>
           <div className="mb-4">
             <label className="block text-xs font-medium mb-1.5">Message</label>
             <textarea
               rows={4}
+              value={supportMessage}
+              onChange={(e) => setSupportMessage(e.target.value)}
               placeholder="Describe your query or issue in detail…"
               className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-xs resize-none focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-colors"
             />
           </div>
-          <Button variant="primary">
+          <Button
+            variant="primary"
+            onClick={() => {
+              if (!supportName.trim() || !supportEmail.trim() || !supportSubject.trim() || supportMessage.trim().length < 10) {
+                notify("Fill name, email, subject, and a message of at least 10 characters.");
+                return;
+              }
+              notify("Support is not connected yet. Your message was validated and not sent.");
+            }}
+          >
             <Send className="size-3.5" /> Send message
           </Button>
         </div>
@@ -999,14 +663,16 @@ function ContactTab() {
         <CardHeader title="Follow Us" hint="Stay updated with LumenX news and releases" />
         <div className="px-5 pb-5 flex flex-wrap gap-3 pt-2">
           {[
-            { icon: Linkedin, label: "LinkedIn",  handle: "@lumenxapp"       },
-            { icon: Twitter,  label: "X (Twitter)", handle: "@lumenxhq"   },
-            { icon: Youtube,  label: "YouTube",    handle: "LumenX Academy"     },
-            { icon: BookOpen, label: "Blog",       handle: "blog.lumenx.app" },
-          ].map(({ icon: Icon, label, handle }) => (
+            { icon: Linkedin, label: "LinkedIn", handle: "@lumenxapp", href: "https://www.linkedin.com/company/lumenx" },
+            { icon: Twitter, label: "X (Twitter)", handle: "@lumenxhq", href: "https://x.com/lumenxhq" },
+            { icon: Youtube, label: "YouTube", handle: "LumenX Academy", href: "https://www.youtube.com/@lumenx" },
+            { icon: BookOpen, label: "Blog", handle: "blog.lumenx.app", href: "https://lumenx.app" },
+          ].map(({ icon: Icon, label, handle, href }) => (
             <a
               key={label}
-              href="#"
+              href={href}
+              target="_blank"
+              rel="noreferrer"
               className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl border border-border hover:border-border-strong bg-surface hover:bg-surface-hover transition-all`}
             >
               <IconChip icon={Icon} size="sm" variant="soft" />
@@ -1023,6 +689,89 @@ function ContactTab() {
 }
 
 /* ══════════════════════════════════════════════════════════════════
+   PLATFORM TAB
+═══════════════════════════════════════════════════════════════════ */
+
+function PlatformTab() {
+  const retention = notificationRetentionSummary();
+  const [ro, setRo] = useState(() => loadPlatformReadOnlyState());
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader
+          title="Offline queue & sync"
+          hint="Automatic sync when online · last synced · pending count"
+        />
+        <div className="px-5 pb-5">
+          <OfflineSyncStatusBar />
+        </div>
+      </Card>
+
+      <Card>
+        <CardHeader title="Retention policy" hint="Soft delete and notification lifecycle" />
+        <div className="px-5 pb-5 space-y-0 text-sm">
+          <Row label="Recycle Bin" hint="Soft-deleted records">
+            <Pill tone="info">{RECYCLE_BIN_RETENTION_DAYS} days</Pill>
+          </Row>
+          <Row label="Notifications" hint="Auto-delete non-starred">
+            <Pill tone="info">{retention.activeRetentionDays} days</Pill>
+          </Row>
+          <Row label="Notification recycle bin" hint="After soft-delete">
+            <Pill tone="warning">{retention.recycleBinDays} days</Pill>
+          </Row>
+          <Row label="Starred notifications" hint="Never auto-delete">
+            <Pill tone="success">Keep forever</Pill>
+          </Row>
+        </div>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Read only locks"
+          hint="Subscription expired · Academic year locked"
+        />
+        <div className="px-5 pb-5 space-y-3">
+          <PlatformReadOnlyBanner state={ro} />
+          {!isPlatformReadOnly(ro) ? (
+            <p className="text-xs text-muted-foreground">
+              Platform is writable. Locks activate when subscription is unpaid or no academic year
+              is active.
+            </p>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const next = savePlatformReadOnlyState({
+                  subscriptionExpired: !ro.subscriptionExpired,
+                });
+                setRo(next);
+              }}
+            >
+              Toggle subscription expired
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const next = savePlatformReadOnlyState({
+                  academicYearLocked: !ro.academicYearLocked,
+                });
+                setRo(next);
+              }}
+            >
+              Toggle academic year locked
+            </Button>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════
    MAIN PAGE
 ═══════════════════════════════════════════════════════════════════ */
 
@@ -1030,9 +779,8 @@ function SettingsPage() {
   const [tab, setTab] = useState<SettingsTab>("profile");
 
   return (
-    <AppShell title="Settings" subtitle="Profile, appearance, institute configuration, and support">
+    <AppShell title="Settings" subtitle="Your profile, appearance, platform, and support">
       <PageStack>
-        {/* Tab navigation */}
         <div className="flex gap-1 overflow-x-auto pb-1 -mb-1 lx-sidebar-scroll">
           {TABS.map(({ id, label, icon: Icon }) => (
             <button
@@ -1051,17 +799,21 @@ function SettingsPage() {
           ))}
         </div>
 
-        {/* Tab content */}
         <div>
-          {tab === "profile"       && <ProfileTab />}
-          {tab === "appearance"    && <AppearanceTab />}
-          {tab === "institute"     && <InstituteTab />}
-          {tab === "security"      && <SecurityTab />}
-          {tab === "notifications" && <NotificationsTab />}
-          {tab === "faqs"          && <FaqsTab />}
-          {tab === "feedback"      && <FeedbackTab />}
-          {tab === "contact"       && <ContactTab />}
-          {tab === "audit"         && <AuditActivityPanel id="audit" />}
+          {tab === "profile" && <ProfileTab />}
+          {tab === "appearance" && <AppearanceTab />}
+          {tab === "academic" && <AcademicSettingsTab />}
+          {tab === "platform" && <PlatformTab />}
+          {tab === "audit" && <AuditActivityPanel />}
+          {tab === "contact" && <ContactTab />}
+          {tab === "feedback" && <FeedbackTab />}
+          {tab === "help" && (
+            <HelpCenterTab
+              onOpenFaqs={() => setTab("faqs")}
+              onOpenContact={() => setTab("contact")}
+            />
+          )}
+          {tab === "faqs" && <FaqsTab />}
         </div>
       </PageStack>
     </AppShell>

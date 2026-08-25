@@ -1,143 +1,185 @@
-import { useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
-import {
-  Button,
-  Input,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Textarea,
-} from "@lumenx/ui";
+import { Button, Input, Textarea } from "@lumenx/ui";
 import { PageHeader } from "@/components/app/PageHeader";
-import { WorkspaceCommunicationPage } from "../communication";
+import { HierarchyDomainSelect } from "@/activity-workspace/shared/components/HierarchyDomainSelect";
+import { HierarchyUnitSingleSelect } from "@/activity-workspace/shared/components/HierarchyUnitSelect";
+import { useHierarchyUnits } from "@/activity-workspace/shared/hooks/useHierarchyUnits";
+import { ActivityEmptyState } from "@/activity-workspace/shared/ui/ActivityEmptyState";
+import { ActivityPageShell } from "@/activity-workspace/shared/ui/ActivityPageShell";
+import {
+  formatUnitLabel,
+  unitKindLabel,
+  type ActivityDomain,
+} from "@/lib/activity/hierarchy";
 import { workspaceCommunicationRepository } from "@/lib/activity/workspace-communication";
 
-const DEMO_TEAMS = {
-  sports: ["Cricket Team 1", "Cricket Team 2", "Kabaddi Team 1", "Group 2"],
-  eca: ["Dance Team", "Music Group", "Drama Club"],
-};
-
+/**
+ * Messages — send only.
+ * Sports or ECA → Team / Group (hierarchy) → Compose → Send.
+ * No chat, replies, or conversations. No separate student picker.
+ */
 export function ActivityMessagesPage() {
-  const [activityType, setActivityType] = useState<"sports" | "eca">("sports");
-  const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
+  const [domain, setDomain] = useState<ActivityDomain>("sports");
+  const [unitId, setUnitId] = useState("");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [sending, setSending] = useState(false);
+  const { units, loading } = useHierarchyUnits(domain);
 
-  const teams = DEMO_TEAMS[activityType];
+  const allItems = useSyncExternalStore(
+    workspaceCommunicationRepository.subscribe,
+    workspaceCommunicationRepository.getSnapshot,
+    workspaceCommunicationRepository.getSnapshot,
+  );
 
-  const toggleTeam = (team: string) => {
-    setSelectedTeams((prev) =>
-      prev.includes(team) ? prev.filter((t) => t !== team) : [...prev, team],
-    );
-  };
+  const selected = useMemo(
+    () => units.find((u) => u.id === unitId) ?? null,
+    [units, unitId],
+  );
+
+  const unitWord = selected
+    ? unitKindLabel(selected.kind)
+    : units[0]
+      ? unitKindLabel(units[0].kind)
+      : "Team";
+
+  const recentlySent = useMemo(
+    () => allItems.filter((i) => i.kind === "message").slice(0, 5),
+    [allItems],
+  );
+
+  const canSend = Boolean(selected && title.trim() && body.trim() && !sending);
 
   const send = async () => {
-    if (!title.trim() || !body.trim() || selectedTeams.length === 0) return;
-    await workspaceCommunicationRepository.sendMessage({
-      title: title.trim(),
-      body: body.trim(),
-      activityType,
-      teamLabels: selectedTeams,
-    });
-    toast.success("Message sent to selected teams");
-    setTitle("");
-    setBody("");
-    setSelectedTeams([]);
-    setRefreshKey((k) => k + 1);
+    if (!selected || !title.trim() || !body.trim()) return;
+    setSending(true);
+    try {
+      const label = formatUnitLabel(selected);
+      await workspaceCommunicationRepository.sendMessage({
+        title: title.trim(),
+        body: body.trim(),
+        activityType: domain,
+        unitLabels: [label],
+      });
+      toast.success("Message sent", {
+        description: `${label} · also noted in Notifications`,
+      });
+      setTitle("");
+      setBody("");
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
-    <div className="min-w-0 space-y-6">
+    <ActivityPageShell>
       <PageHeader
         title="Messages"
-        subtitle="Send messages team-wise — select Sports or ECA, then one or more teams."
+        subtitle="Send a message to one Sports team or ECA group."
       />
 
-      <section className="activity-panel space-y-4">
-        <h2 className="font-semibold text-sm">Send to teams</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
+      <section className="activity-panel space-y-5">
+        <div>
+          <p className="activity-stat-label mb-2">1 · Sports or ECA</p>
+          <HierarchyDomainSelect
+            value={domain}
+            hideLabel
+            onChange={(d) => {
+              setDomain(d);
+              setUnitId("");
+            }}
+          />
+        </div>
+
+        <div>
+          <p className="activity-stat-label mb-2">
+            2 · Select {unitWord.toLowerCase()}
+          </p>
+          <HierarchyUnitSingleSelect
+            units={units}
+            selectedId={unitId}
+            hideLabel
+            onChange={setUnitId}
+            loading={loading}
+          />
+          {selected ? (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Goes to {selected.students.length} student
+              {selected.students.length === 1 ? "" : "s"} on this {unitWord.toLowerCase()}{" "}
+              roster — no extra student pick needed.
+            </p>
+          ) : null}
+        </div>
+
+        <div className="space-y-3">
+          <p className="activity-stat-label">3 · Compose message</p>
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Type</label>
-            <Select
-              value={activityType}
-              onValueChange={(v) => {
-                setActivityType(v as "sports" | "eca");
-                setSelectedTeams([]);
-              }}
-            >
-              <SelectTrigger className="rounded-xl">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="sports">Sports</SelectItem>
-                <SelectItem value="eca">Extra-Curricular (ECA)</SelectItem>
-              </SelectContent>
-            </Select>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+              Subject
+            </label>
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. Practice cancelled"
+              className="min-h-11 rounded-xl"
+              disabled={!selected}
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+              Message
+            </label>
+            <Textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder="Write your message…"
+              className="min-h-[120px] rounded-xl"
+              disabled={!selected}
+            />
           </div>
         </div>
 
-        <div>
-          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-            Select team(s)
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {teams.map((team) => {
-              const active = selectedTeams.includes(team);
-              return (
-                <button
-                  key={team}
-                  type="button"
-                  onClick={() => toggleTeam(team)}
-                  className={
-                    active
-                      ? "activity-filter-chip is-active"
-                      : "activity-filter-chip"
-                  }
-                >
-                  {team}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div>
-          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Subject</label>
-          <Input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Message subject"
-            className="rounded-xl"
-          />
-        </div>
-        <div>
-          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Message</label>
-          <Textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            placeholder="Write your message to related students…"
-            className="min-h-[100px] rounded-xl"
-          />
-        </div>
         <Button
-          className="rounded-xl"
-          disabled={!title.trim() || !body.trim() || selectedTeams.length === 0}
+          className="activity-primary-action w-full rounded-xl sm:w-auto"
+          disabled={!canSend}
           onClick={() => void send()}
         >
-          Send to selected teams
+          {sending ? "Sending…" : `Send to ${unitWord.toLowerCase()}`}
         </Button>
       </section>
 
-      <WorkspaceCommunicationPage
-        key={refreshKey}
-        embedded
-        kind="message"
-        title="Inbox"
-        subtitle="Activity workspace messages only — not subject-teacher class messages."
-      />
-    </div>
+      <section>
+        <h2 className="activity-stat-label mb-3">Recently sent</h2>
+        {recentlySent.length === 0 ? (
+          <ActivityEmptyState
+            title="No messages sent yet"
+            description="Messages you send to a team or group will show here."
+            className="py-6"
+          />
+        ) : (
+          <ul className="space-y-2">
+            {recentlySent.map((item) => (
+              <li
+                key={item.id}
+                className="rounded-2xl border border-border bg-card p-3.5 text-sm shadow-soft"
+              >
+                <p className="font-medium">{item.title}</p>
+                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{item.body}</p>
+                <p className="mt-2 text-[10px] text-muted-foreground">
+                  {item.audienceLabel} ·{" "}
+                  {new Date(item.sentAt).toLocaleString("en-IN", {
+                    day: "numeric",
+                    month: "short",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </ActivityPageShell>
   );
 }

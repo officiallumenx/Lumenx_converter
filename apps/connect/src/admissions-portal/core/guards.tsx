@@ -71,7 +71,8 @@ export function isAuthRoute(pathname: string) {
   return (
     pathname === "/admissions/login" ||
     pathname === "/admissions/signup" ||
-    pathname === "/admissions/forgot-password"
+    pathname === "/admissions/forgot-password" ||
+    pathname === "/admissions/setup-from-admin"
   );
 }
 

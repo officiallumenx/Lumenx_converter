@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import {
   Card,
@@ -11,141 +11,274 @@ import {
   TextArea,
   Select,
 } from "@lumenx/ui-admin";
+import { DateTimePicker12h, parseDateTimeLocal, toDateTimeLocal } from "@/components/DateTimePicker12h";
+import { ClassSectionAudienceField } from "@/components/ClassSectionMultiPicker";
 import { Plus, CalendarDays, Users, MapPin, Clock } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useAdminToast } from "@/components/AdminActionToast";
+import { examClassDisplayLabel } from "@/lib/exam-timetable-data";
+import {
+  createCalendarEventId,
+  cancelCalendarEvent,
+  deleteCalendarEvent,
+  filterInstituteEventItems,
+  formatEventWhen,
+  getCalendarEventById,
+  publishCalendarEvent,
+  upsertCalendarEvent,
+  useCalendarEvents,
+  type InstituteCalendarItem,
+} from "@/lib/calendar-events-store";
+import {
+  notifyEventPublished,
+  notifyEventChanged,
+  notifyEventCancelled,
+} from "@lumenx/module-notifications";
+import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-labels";
 
 export const Route = createFileRoute("/events")({
-  head: () => ({ meta: [{ title: "Events — LumenX Admin" }] }),
+  head: () => ({ meta: [{ title: adminPageTitle("/events") }] }),
   component: EventsPage,
 });
 
+type EventPresetType = "holiday" | "meeting" | "exam" | "function";
 type EventItem = {
   id: string;
   title: string;
   date: string;
-  type: "holiday" | "meeting" | "exam" | "function";
+  /** Preset or custom label */
+  type: string;
   audience: string;
   location: string;
+  description?: string;
+  reminder?: string;
+  bannerDataUrl?: string;
   rsvp?: number;
   published: boolean;
 };
 
-const INITIAL: EventItem[] = [
-  {
-    id: "1",
-    title: "Annual Science Symposium",
-    date: "May 22 · 09:00",
-    type: "function",
-    audience: "All grades",
-    location: "Main Auditorium",
-    rsvp: 412,
-    published: true,
-  },
-  {
-    id: "2",
-    title: "Parent–Teacher Conference",
-    date: "May 24 · 14:00",
-    type: "meeting",
-    audience: "Parents · Grade 10–12",
-    location: "Block B Halls",
-    rsvp: 198,
-    published: true,
-  },
-  {
-    id: "3",
-    title: "Mid-Term Exams Begin",
-    date: "May 27 · 08:30",
-    type: "exam",
-    audience: "Grade 9–12",
-    location: "Allocated halls",
-    published: true,
-  },
-  {
-    id: "4",
-    title: "Founders' Day Holiday",
-    date: "Jun 02 · All day",
-    type: "holiday",
-    audience: "Institute-wide",
-    location: "—",
-    published: true,
-  },
-  {
-    id: "5",
-    title: "Inter-house Sports Meet",
-    date: "Jun 06 · 07:30",
-    type: "function",
-    audience: "All grades",
-    location: "Athletics Field",
-    rsvp: 1240,
-    published: false,
-  },
-  {
-    id: "6",
-    title: "Senior Leadership Sync",
-    date: "Jun 10 · 16:00",
-    type: "meeting",
-    audience: "Heads of Department",
-    location: "Boardroom A",
-    published: true,
-  },
+const EVENT_TYPE_PRESETS: { value: EventPresetType; label: string }[] = [
+  { value: "function", label: "Function" },
+  { value: "meeting", label: "Meeting" },
+  { value: "exam", label: "Exam" },
+  { value: "holiday", label: "Holiday" },
 ];
 
-const toneOf = (t: EventItem["type"]) =>
-  t === "exam" ? "warning" : t === "holiday" ? "info" : t === "meeting" ? "neutral" : "success";
+function toEventItem(item: InstituteCalendarItem): EventItem {
+  return {
+    id: item.id,
+    title: item.title,
+    date: formatEventWhen(item),
+    type: item.kind,
+    audience: item.audience ?? "All",
+    location: item.location ?? "TBD",
+    description: item.description,
+    reminder: item.reminder,
+    bannerDataUrl: item.bannerDataUrl,
+    rsvp: item.rsvp,
+    published: item.published,
+  };
+}
+
+const toneOf = (t: string) =>
+  t === "exam"
+    ? "warning"
+    : t === "holiday"
+      ? "info"
+      : t === "meeting"
+        ? "neutral"
+        : "success";
+
+const AUDIENCE_OPTIONS = ["All", "Students", "Parents", "Teachers", "Classes"] as const;
+type AudienceOption = (typeof AUDIENCE_OPTIONS)[number];
+
+function formatEventTypeLabel(type: string): string {
+  if (!type) return type;
+  return type.charAt(0).toUpperCase() + type.slice(1);
+}
 
 function EventsPage() {
   const notify = useAdminToast();
-  const [events, setEvents] = useState(INITIAL);
+  const navigate = useNavigate();
+  const allCalendarItems = useCalendarEvents();
+  const calendarItems = useMemo(
+    () => filterInstituteEventItems(allCalendarItems),
+    [allCalendarItems],
+  );
+  const events = useMemo(() => calendarItems.map(toEventItem), [calendarItems]);
   const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState("");
-  const [newType, setNewType] = useState<EventItem["type"]>("function");
+  /** "" | preset | "custom" */
+  const [newTypeChoice, setNewTypeChoice] = useState("");
+  const [customType, setCustomType] = useState("");
   const [newStart, setNewStart] = useState("");
-  const [newAudience, setNewAudience] = useState("All students");
+  const [newEnd, setNewEnd] = useState("");
+  const [audience, setAudience] = useState<AudienceOption>("All");
+  const [classScope, setClassScope] = useState<"all" | "selected">("selected");
+  const [classSectionKeys, setClassSectionKeys] = useState<string[]>([]);
   const [newLocation, setNewLocation] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [newReminder, setNewReminder] = useState("1 day before");
+  const [bannerMode, setBannerMode] = useState("Auto-generate");
+  const [bannerDataUrl, setBannerDataUrl] = useState("");
+
+  const resolvedType =
+    newTypeChoice === "custom"
+      ? customType.trim()
+      : newTypeChoice.trim();
+  const classesValid =
+    audience !== "Classes" || classScope === "all" || classSectionKeys.length > 0;
+  const canSchedule = Boolean(newTitle.trim() && resolvedType && newStart && classesValid);
+
+  const audienceLabel = () => {
+    if (audience !== "Classes") return audience;
+    if (classScope === "all") return "Classes · All";
+    return `Classes · ${examClassDisplayLabel("selected", classSectionKeys)}`;
+  };
+
+  const resetForm = () => {
+    setNewTitle("");
+    setNewTypeChoice("");
+    setCustomType("");
+    setNewLocation("");
+    setNewDescription("");
+    setNewReminder("1 day before");
+    setBannerMode("Auto-generate");
+    setBannerDataUrl("");
+    setNewStart("");
+    setNewEnd("");
+    setAudience("All");
+    setClassScope("selected");
+    setClassSectionKeys([]);
+    setEditingId(null);
+  };
+
+  const openEdit = (id: string) => {
+    const item = getCalendarEventById(id);
+    if (!item) return;
+    setEditingId(item.id);
+    setNewTitle(item.title);
+    const preset = EVENT_TYPE_PRESETS.some((opt) => opt.value === item.kind);
+    if (preset) {
+      setNewTypeChoice(item.kind);
+      setCustomType("");
+    } else {
+      setNewTypeChoice("custom");
+      setCustomType(item.kind);
+    }
+    setNewStart(toDateTimeLocal(item.date, item.time || "09:00"));
+    setNewEnd(item.endDate ? toDateTimeLocal(item.endDate, "17:00") : "");
+    setNewLocation(item.location && item.location !== "—" ? item.location : "");
+    setNewDescription(item.description ?? "");
+    setNewReminder(item.reminder ?? "1 day before");
+    setBannerDataUrl(item.bannerDataUrl ?? "");
+    setAudience("All");
+    setOpen(true);
+  };
 
   const schedule = () => {
-    if (!newTitle.trim()) return;
-    const dateStr = newStart
-      ? new Date(newStart).toLocaleString(undefined, {
-          month: "short",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        })
-      : "TBD";
-    setEvents((prev) => [
-      {
-        id: String(Date.now()),
-        title: newTitle.trim(),
-        date: dateStr,
-        type: newType,
-        audience: newAudience,
-        location: newLocation.trim() || "TBD",
-        published: false,
-      },
-      ...prev,
-    ]);
-    setNewTitle("");
-    setNewLocation("");
-    setNewStart("");
+    if (!canSchedule) return;
+    const { date, time } = parseDateTimeLocal(newStart);
+    if (!date) return;
+    const endParsed = newEnd.trim() ? parseDateTimeLocal(newEnd) : null;
+    const endDate = endParsed?.date && endParsed.date !== date ? endParsed.date : undefined;
+    const existing = editingId ? getCalendarEventById(editingId) : undefined;
+    const nextItem: InstituteCalendarItem = {
+      id: editingId ?? createCalendarEventId("evt"),
+      title: newTitle.trim(),
+      date,
+      endDate,
+      time: time || undefined,
+      kind: resolvedType,
+      audience: audienceLabel(),
+      location: newLocation.trim() || "TBD",
+      description: newDescription.trim() || undefined,
+      reminder: newReminder,
+      bannerDataUrl: bannerDataUrl || undefined,
+      rsvp: existing?.rsvp,
+      published: existing?.published ?? false,
+      source: existing?.source ?? "events",
+      attachmentName: existing?.attachmentName,
+      attachmentDataUrl: existing?.attachmentDataUrl,
+      registrationRequired: existing?.registrationRequired,
+      recurrence: existing?.recurrence,
+      cancelled: false,
+      cancellationReason: undefined,
+    };
+    upsertCalendarEvent(nextItem);
+    const title = newTitle.trim();
+    const wasEdit = Boolean(editingId);
+    if (wasEdit && existing?.published) {
+      const changes: string[] = [];
+      if (existing.date !== nextItem.date || existing.time !== nextItem.time) changes.push("schedule");
+      if (existing.location !== nextItem.location) changes.push("venue");
+      if (existing.title !== nextItem.title) changes.push("title");
+      if (existing.description !== nextItem.description) changes.push("details");
+      notifyEventChanged({
+        eventId: nextItem.id,
+        title,
+        when: formatEventWhen(nextItem),
+        venue: nextItem.location,
+        changeSummary: changes.length ? changes.join(", ") + " updated" : "Event details updated",
+        audienceLabel: nextItem.audience,
+      });
+    }
+    resetForm();
     setOpen(false);
-    notify(`Event "${newTitle.trim()}" scheduled`);
+    notify(wasEdit ? `Event "${title}" updated` : `Event "${title}" scheduled`);
   };
 
   const publish = (id: string) => {
-    setEvents((prev) => prev.map((e) => (e.id === id ? { ...e, published: true } : e)));
+    publishCalendarEvent(id);
+    const item = getCalendarEventById(id);
+    if (item) {
+      notifyEventPublished({
+        eventId: item.id,
+        title: item.title,
+        when: formatEventWhen(item),
+        venue: item.location,
+        description: item.description,
+        category: item.kind,
+        audienceLabel: item.audience,
+      });
+    }
     notify("Event published to all portals");
+  };
+
+  const removeEvent = (id: string) => {
+    const item = getCalendarEventById(id);
+    if (item?.published) {
+      const reason = window.prompt("Cancellation reason (shown to recipients):", "") ?? "";
+      cancelCalendarEvent(id, reason);
+      notifyEventCancelled({
+        eventId: item.id,
+        title: item.title,
+        cancellationReason: reason,
+        audienceLabel: item.audience,
+      });
+      notify("Event cancelled — recipients notified");
+    } else {
+      deleteCalendarEvent(id);
+      notify("Event removed");
+    }
+    if (editingId === id) {
+      resetForm();
+      setOpen(false);
+    }
   };
 
   return (
     <AppShell
-      title="Institute Events"
-      subtitle="Calendar, holidays & academic functions"
+      title={M.events}
+      subtitle="Institute events owned by Admin · Activity events stay with Activity Teacher"
       actions={
         <>
-          <Button onClick={() => notify("Calendar view — full month grid")}>Calendar view</Button>
-          <Button variant="primary" onClick={() => setOpen(true)}>
+          <Button onClick={() => void navigate({ to: "/calendar" })}>Calendar view</Button>
+          <Button variant="primary" onClick={() => {
+            resetForm();
+            setOpen(true);
+          }}>
             <Plus className="size-3.5" /> New Event
           </Button>
         </>
@@ -163,7 +296,7 @@ function EventsPage() {
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-sm font-semibold tracking-tight">{e.title}</h3>
-                      <Pill tone={toneOf(e.type)}>{e.type}</Pill>
+                      <Pill tone={toneOf(e.type)}>{formatEventTypeLabel(e.type)}</Pill>
                       {!e.published && <Pill tone="warning">Draft</Pill>}
                     </div>
                     <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
@@ -188,7 +321,8 @@ function EventsPage() {
                       {e.rsvp.toLocaleString()} RSVPs
                     </div>
                   )}
-                  <Button onClick={() => notify(`Editing ${e.title}`)}>Edit</Button>
+                  <Button onClick={() => openEdit(e.id)}>Edit</Button>
+                  <Button onClick={() => removeEvent(e.id)}>Delete</Button>
                   <Button variant="primary" disabled={e.published} onClick={() => publish(e.id)}>
                     Publish
                   </Button>
@@ -223,6 +357,13 @@ function EventsPage() {
                   n: events.filter((e) => e.type === "function").length,
                   tone: "success" as const,
                 },
+                {
+                  l: "Custom",
+                  n: events.filter(
+                    (e) => !["holiday", "meeting", "exam", "function"].includes(e.type),
+                  ).length,
+                  tone: "neutral" as const,
+                },
               ].map((r) => (
                 <div key={r.l} className="flex items-center justify-between text-xs">
                   <Pill tone={r.tone}>{r.l}</Pill>
@@ -251,15 +392,25 @@ function EventsPage() {
 
       <Modal
         open={open}
-        onClose={() => setOpen(false)}
-        title="Create event"
+        onClose={() => {
+          resetForm();
+          setOpen(false);
+        }}
+        title={editingId ? "Edit event" : "Create event"}
         subtitle="Configure schedule, audience and reminders"
         size="lg"
         footer={
           <>
-            <Button onClick={() => setOpen(false)}>Cancel</Button>
-            <Button variant="primary" onClick={schedule} disabled={!newTitle.trim()}>
-              Schedule
+            <Button
+              onClick={() => {
+                resetForm();
+                setOpen(false);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={schedule} disabled={!canSchedule}>
+              {editingId ? "Save" : "Schedule"}
             </Button>
           </>
         }
@@ -274,34 +425,78 @@ function EventsPage() {
           </Field>
           <Field label="Event type" required>
             <Select
-              value={newType}
-              onChange={(e) => setNewType(e.target.value as EventItem["type"])}
+              value={newTypeChoice}
+              onChange={(e) => {
+                setNewTypeChoice(e.target.value);
+                if (e.target.value !== "custom") setCustomType("");
+              }}
             >
-              <option value="function">Function</option>
-              <option value="meeting">Meeting</option>
-              <option value="exam">Exam</option>
-              <option value="holiday">Holiday</option>
+              <option value="" disabled>
+                Select event type
+              </option>
+              {EVENT_TYPE_PRESETS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+              <option value="custom">Custom</option>
             </Select>
           </Field>
-          <Field label="Starts" required>
-            <TextInput
-              type="datetime-local"
-              value={newStart}
-              onChange={(e) => setNewStart(e.target.value)}
+          {newTypeChoice === "custom" ? (
+            <div className="sm:col-span-2">
+              <Field label="Custom event type" required hint="e.g. Workshop, Field trip, Orientation">
+                <TextInput
+                  value={customType}
+                  onChange={(e) => setCustomType(e.target.value)}
+                  placeholder="Enter custom event type"
+                  autoFocus
+                />
+              </Field>
+            </div>
+          ) : null}
+          <Field label="Start date and time" required hint="12-hour clock with AM / PM">
+            <DateTimePicker12h value={newStart} onChange={setNewStart} />
+          </Field>
+          <Field label="End date and time" hint="12-hour clock with AM / PM">
+            <DateTimePicker12h
+              value={newEnd}
+              onChange={setNewEnd}
+              min={newStart || undefined}
             />
           </Field>
-          <Field label="Ends">
-            <TextInput type="datetime-local" />
-          </Field>
-          <Field label="Audience" required>
-            <Select value={newAudience} onChange={(e) => setNewAudience(e.target.value)}>
-              <option>All students</option>
-              <option>Specific grades</option>
-              <option>Parents</option>
-              <option>Teachers</option>
-              <option>Institute-wide</option>
-            </Select>
-          </Field>
+          <div className="sm:col-span-2">
+            <Field label="Audience" required>
+              <Select
+                value={audience}
+                onChange={(e) => {
+                  const next = e.target.value as AudienceOption;
+                  setAudience(next);
+                  if (next !== "Classes") {
+                    setClassSectionKeys([]);
+                    setClassScope("selected");
+                  }
+                }}
+              >
+                {AUDIENCE_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+          {audience === "Classes" ? (
+            <div className="sm:col-span-2">
+              <ClassSectionAudienceField
+                scope={classScope}
+                selectedKeys={classSectionKeys}
+                onScopeChange={setClassScope}
+                onSelectedKeysChange={setClassSectionKeys}
+                required
+                hint="Select one or more classes and sections"
+              />
+            </div>
+          ) : null}
           <Field label="Location">
             <TextInput
               value={newLocation}
@@ -311,11 +506,15 @@ function EventsPage() {
           </Field>
           <div className="sm:col-span-2">
             <Field label="Description">
-              <TextArea placeholder="Details, agenda, attire…" />
+              <TextArea
+                placeholder="Details, agenda, attire…"
+                value={newDescription}
+                onChange={(e) => setNewDescription(e.target.value)}
+              />
             </Field>
           </div>
           <Field label="Reminder">
-            <Select defaultValue="1 day before">
+            <Select value={newReminder} onChange={(e) => setNewReminder(e.target.value)}>
               <option>1 day before</option>
               <option>1 hour before</option>
               <option>1 week + 1 day</option>
@@ -323,11 +522,31 @@ function EventsPage() {
             </Select>
           </Field>
           <Field label="Banner">
-            <Select defaultValue="Auto-generate">
+            <Select
+              value={bannerMode}
+              onChange={(e) => {
+                setBannerMode(e.target.value);
+                if (e.target.value !== "Upload custom") setBannerDataUrl("");
+              }}
+            >
               <option>Auto-generate</option>
               <option>Upload custom</option>
               <option>No banner</option>
             </Select>
+            {bannerMode === "Upload custom" ? (
+              <input
+                type="file"
+                accept="image/*"
+                className="mt-2 text-xs"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = () => setBannerDataUrl(String(reader.result ?? ""));
+                  reader.readAsDataURL(file);
+                }}
+              />
+            ) : null}
           </Field>
         </div>
       </Modal>

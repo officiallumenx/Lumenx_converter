@@ -7,7 +7,7 @@ export const PARENT_FAQS = [
   },
   {
     q: "Where can I see assignments and homework?",
-    a: "Open Assignments to switch between assignments and homework. Green means submitted, yellow is due, and red is overdue.",
+    a: "Open Homework to switch between assignments and homework. Each item shows its due date — there is no online submission; hand work in at school.",
   },
   {
     q: "How do I pay school fees?",

@@ -11,7 +11,14 @@ import { exams, fees, performance, reportCards } from "@/lib/mock-data";
 import { isPassing, passFailLabel } from "@/lib/marks-utils";
 import { parseDueDate } from "@/lib/fees-utils";
 import { prefersReducedMotion } from "@/lib/prefers-reduced-motion";
-import { Badge, Button, cn, Skeleton } from "@lumenx/ui";
+import {
+  examVisibleToClass,
+  formatExamClassAudience,
+  formatExamTimeRange,
+  loadLearnerExamSchedules,
+  type LearnerExamSchedule,
+} from "@lumenx/module-exams";
+import { Badge, Button, cn, Skeleton, useLocalStorageExternalStore } from "@lumenx/ui";
 import {
   CalendarDays,
   TrendingUp,
@@ -64,6 +71,8 @@ function ExamsPage() {
   return <ParentStudentExamsPage />;
 }
 
+const LEARNER_EXAM_SCHEDULES_KEY = "lumenx.learner-exam-schedules";
+
 function ParentStudentExamsPage() {
   const { role } = useApp();
   const parentPortal = useParentPortal();
@@ -103,6 +112,25 @@ function ParentStudentExamsPage() {
   const pendingExamFees = useMemo(() => examFees.filter((f) => f.status !== "paid"), [examFees]);
   const pendingTotal = pendingExamFees.reduce((s, f) => s + f.amount, 0);
 
+  const learnerClass = parentSnap
+    ? parentSnap.child.className || parentSnap.classTag
+    : studentSnap
+      ? studentSnap.profile.class
+      : "Grade 10";
+
+  const schedulesTick = useLocalStorageExternalStore(LEARNER_EXAM_SCHEDULES_KEY, {
+    alsoOnFocus: true,
+  });
+
+  const classSchedules = useMemo(() => {
+    void schedulesTick;
+    const stored = loadLearnerExamSchedules().filter((s) =>
+      examVisibleToClass(s, learnerClass),
+    );
+    if (stored.length > 0) return stored;
+    return getFallbackLearnerSchedules().filter((s) => examVisibleToClass(s, learnerClass));
+  }, [learnerClass, schedulesTick]);
+
   const subtitle = parentSnap
     ? `Schedule and trends for ${parentSnap.child.name} (${parentSnap.classTag})`
     : studentSnap
@@ -141,7 +169,7 @@ function ParentStudentExamsPage() {
             </div>
             <Button asChild variant="outline" size="sm" className="rounded-xl gap-1.5">
               <Link to="/fees">
-                Pay on fees page <ArrowRight className="size-3.5" />
+                View fees <ArrowRight className="size-3.5" />
               </Link>
             </Button>
           </div>
@@ -153,11 +181,34 @@ function ParentStudentExamsPage() {
         </section>
       )}
 
+      <section className="min-w-0 overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-5">
+        <div className="mb-3">
+          <h2 className="flex items-center gap-2 font-semibold">
+            <CalendarDays className="size-4 text-primary" />
+            Exam dates & timetable
+          </h2>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Exams assigned to your class by admin
+          </p>
+        </div>
+        {classSchedules.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            No exams assigned to this class yet.
+          </p>
+        ) : (
+          <div className="space-y-4">
+            {classSchedules.map((schedule) => (
+              <LearnerExamScheduleCard key={schedule.examId} schedule={schedule} />
+            ))}
+          </div>
+        )}
+      </section>
+
       <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="min-w-0 overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-5 lg:col-span-2">
           <h3 className="mb-3 flex min-w-0 items-center gap-2 font-semibold">
             <ClipboardList className="size-4 shrink-0 text-primary" />
-            <span className="min-w-0 truncate">Upcoming exams</span>
+            <span className="min-w-0 truncate">Upcoming papers</span>
           </h3>
           <div className="min-w-0 space-y-2">
             {exams.slice(0, 4).map((e) => (
@@ -188,6 +239,161 @@ function ParentStudentExamsPage() {
       </div>
     </div>
   );
+}
+
+function LearnerExamScheduleCard({ schedule }: { schedule: LearnerExamSchedule }) {
+  const range =
+    schedule.startDate === schedule.endDate
+      ? formatLearnerDate(schedule.startDate)
+      : `${formatLearnerDate(schedule.startDate)} – ${formatLearnerDate(schedule.endDate)}`;
+  const slots = [...schedule.slots].sort((a, b) => a.date.localeCompare(b.date));
+
+  return (
+    <div className="rounded-xl border border-border bg-background/60 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-semibold leading-snug">{schedule.examName}</div>
+          <div className="mt-0.5 text-xs text-muted-foreground">
+            {schedule.term} · {formatExamClassAudience(schedule)}
+          </div>
+          <div className="mt-1 text-xs font-medium text-foreground">{range}</div>
+          <div className="mt-0.5 text-xs text-muted-foreground">
+            Exam time:{" "}
+            <span className="font-mono font-medium text-foreground">
+              {formatExamTimeRange(schedule.startTime, schedule.endTime)}
+            </span>
+          </div>
+        </div>
+        <Badge variant="outline" className="rounded-md text-[10px] capitalize">
+          {schedule.timetableStatus === "published"
+            ? "Published"
+            : schedule.timetableStatus === "draft"
+              ? "Awaiting publish"
+              : "Dates only"}
+        </Badge>
+      </div>
+      {slots.length > 0 ? (
+        <ul className="mt-3 divide-y divide-border rounded-lg border border-border">
+          {slots.map((slot) => (
+            <li
+              key={`${slot.date}-${slot.subject}-${slot.dayNumber}`}
+              className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"
+            >
+              <div className="min-w-0">
+                <div className="font-medium">{slot.subject}</div>
+                <div className="text-xs text-muted-foreground">
+                  Day {slot.dayNumber} · {formatLearnerDate(slot.date)}
+                </div>
+              </div>
+              <div className="text-xs tabular-nums text-muted-foreground">
+                {slot.startTime} – {slot.endTime}
+                {slot.room ? ` · ${slot.room}` : ""}
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Exam window set — detailed paper timetable will appear when published by admin.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function formatLearnerDate(iso: string) {
+  try {
+    return new Date(iso + "T12:00:00").toLocaleDateString(undefined, {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+function getFallbackLearnerSchedules(): LearnerExamSchedule[] {
+  return [
+    {
+      examId: "EX-MID",
+      examName: "Mid-term Examination",
+      header: "Mid-Term Examination · Term 2",
+      term: "Term 2 · 2025–26",
+      classScope: "all",
+      grades: [],
+      startDate: "2026-03-10",
+      endDate: "2026-03-14",
+      startTime: "09:00",
+      endTime: "12:00",
+      timetableStatus: "published",
+      slots: [
+        {
+          date: "2026-03-10",
+          dayNumber: 1,
+          subject: "Mathematics",
+          startTime: "09:00",
+          endTime: "12:00",
+          room: "Hall A",
+        },
+        {
+          date: "2026-03-11",
+          dayNumber: 2,
+          subject: "Physics",
+          startTime: "09:00",
+          endTime: "12:00",
+          room: "Hall A",
+        },
+        {
+          date: "2026-03-12",
+          dayNumber: 3,
+          subject: "Chemistry",
+          startTime: "09:00",
+          endTime: "12:00",
+          room: "Hall B",
+        },
+        {
+          date: "2026-03-13",
+          dayNumber: 4,
+          subject: "English",
+          startTime: "09:00",
+          endTime: "11:30",
+          room: "Hall A",
+        },
+      ],
+      updatedAt: new Date().toISOString().slice(0, 10),
+    },
+    {
+      examId: "EX-UT3",
+      examName: "Unit Test 3",
+      header: "Unit Test 3 · Term 2",
+      term: "Term 2 · 2025–26",
+      classScope: "selected",
+      grades: ["Grade 10", "Grade 11", "Grade 12", "Class 10", "10"],
+      startDate: "2026-06-15",
+      endDate: "2026-06-17",
+      startTime: "09:00",
+      endTime: "12:00",
+      timetableStatus: "draft",
+      slots: [
+        {
+          date: "2026-06-15",
+          dayNumber: 1,
+          subject: "Mathematics",
+          startTime: "09:00",
+          endTime: "12:00",
+        },
+        {
+          date: "2026-06-16",
+          dayNumber: 2,
+          subject: "Physics",
+          startTime: "09:00",
+          endTime: "12:00",
+        },
+      ],
+      updatedAt: new Date().toISOString().slice(0, 10),
+    },
+  ];
 }
 
 function ExamFeeCard({ fee }: { fee: FeeItem }) {
@@ -236,7 +442,7 @@ function ExamFeeCard({ fee }: { fee: FeeItem }) {
           variant={fee.status === "overdue" ? "default" : "outline"}
           className="shrink-0 rounded-lg"
         >
-          <Link to="/fees">Pay</Link>
+          <Link to="/fees">View fees</Link>
         </Button>
       </div>
     </div>

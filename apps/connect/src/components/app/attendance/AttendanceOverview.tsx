@@ -11,6 +11,7 @@ import { Button, cn, Badge } from "@lumenx/ui";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@lumenx/ui";
 import {
   buildAttendanceDays,
+  buildLearnerAttendanceDays,
   computeAttendanceSummary,
   computeAttendanceSummaryForRange,
   attendanceHistoryBounds,
@@ -24,12 +25,18 @@ import {
   normalizeIsoRange,
   shiftMonth,
 } from "@/lib/attendance/calendar";
-import type { AttendanceDayStatus } from "@/lib/attendance/types";
+import type { AttendanceDay, AttendanceDayStatus } from "@/lib/attendance/types";
 
 type AttendanceOverviewProps = {
   title?: string;
   subtitle: string;
+  /** @deprecated Ignored — Registers are the only attendance SoT. */
   seed?: number;
+  studentId?: string;
+  sectionKey?: string;
+  /** Open calendar on this year (0-based month via initialMonth). Defaults to current month. */
+  initialYear?: number;
+  initialMonth?: number;
   maxYear?: number;
   maxMonth?: number;
 };
@@ -37,16 +44,29 @@ type AttendanceOverviewProps = {
 export function AttendanceOverview({
   title = "Attendance",
   subtitle,
-  seed = 0,
+  studentId,
+  sectionKey,
+  initialYear,
+  initialMonth,
 }: AttendanceOverviewProps) {
   const now = new Date();
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth());
+  const [year, setYear] = useState(initialYear ?? now.getFullYear());
+  const [month, setMonth] = useState(initialMonth ?? now.getMonth());
   const [rangeStart, setRangeStart] = useState("");
   const [rangeEnd, setRangeEnd] = useState("");
 
   const historyBounds = useMemo(() => attendanceHistoryBounds(12), []);
-  const days = useMemo(() => buildAttendanceDays(year, month, seed), [year, month, seed]);
+  const days = useMemo(() => {
+    if (studentId && sectionKey) {
+      return buildLearnerAttendanceDays({
+        year,
+        month,
+        studentId,
+        sectionKey,
+      });
+    }
+    return buildAttendanceDays(year, month);
+  }, [year, month, studentId, sectionKey]);
   const leadingBlanks = calendarLeadingBlanks(year, month);
   const selectableMonths = useMemo(() => listSelectableMonths(12), []);
 
@@ -57,10 +77,31 @@ export function AttendanceOverview({
 
   const summary = useMemo(() => {
     if (dayRange) {
-      return computeAttendanceSummaryForRange(dayRange.startIso, dayRange.endIso, seed);
+      if (studentId && sectionKey) {
+        const start = new Date(`${dayRange.startIso}T12:00:00`);
+        const end = new Date(`${dayRange.endIso}T12:00:00`);
+        const scoped: AttendanceDay[] = [];
+        const cursor = new Date(start);
+        while (cursor <= end) {
+          const y = cursor.getFullYear();
+          const m = cursor.getMonth();
+          const day = cursor.getDate();
+          const monthDays = buildLearnerAttendanceDays({
+            year: y,
+            month: m,
+            studentId,
+            sectionKey,
+          });
+          const hit = monthDays.find((d) => d.day === day);
+          if (hit) scoped.push(hit);
+          cursor.setDate(cursor.getDate() + 1);
+        }
+        return computeAttendanceSummary(scoped, year, month, dayRange);
+      }
+      return computeAttendanceSummaryForRange(dayRange.startIso, dayRange.endIso);
     }
     return computeAttendanceSummary(days, year, month);
-  }, [dayRange, days, year, month, seed]);
+  }, [dayRange, days, year, month, studentId, sectionKey]);
 
   const monthHolidays = useMemo(() => {
     if (dayRange) {
@@ -135,35 +176,82 @@ export function AttendanceOverview({
     <>
       <PageHeader title={title} subtitle={subtitle} />
 
-      {/* Month navigation — calendar comes first */}
-      <div className="mb-3 flex min-w-0 items-center gap-1">
+      <div className="mb-3 min-w-0">
+        <DateRangePickerRow
+          startLabel="From date"
+          endLabel="To date"
+          startValue={rangeStart}
+          endValue={rangeEnd}
+          onStartChange={setFromDate}
+          onEndChange={setToDate}
+          startMin={historyBounds.start}
+          startMax={rangeEnd || historyBounds.end}
+          endMin={rangeStart || historyBounds.start}
+          endMax={historyBounds.end}
+          startPlaceholder="Start date"
+          endPlaceholder="End date"
+          viewYear={year}
+          viewMonth={month}
+          trailing={
+            rangeStart || rangeEnd ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-10 shrink-0 rounded-xl px-2 text-xs sm:px-3 sm:text-sm"
+                onClick={clearRange}
+              >
+                Full month
+              </Button>
+            ) : undefined
+          }
+        />
+      </div>
+
+      {rangeStart ? (
+        <p className="mb-3 text-xs text-muted-foreground">
+          {summary.rangeLabel ? (
+            <>
+              Showing <span className="font-medium text-foreground">{summary.rangeLabel}</span>
+            </>
+          ) : (
+            <span>Choose a To date to calculate attendance for the selected period.</span>
+          )}
+        </p>
+      ) : null}
+
+      <AttendanceSummaryMetrics summary={summary} />
+
+      {/* Month navigation — arrows stay outside the month select so they never overlap */}
+      <div className="mb-3 mt-4 flex min-w-0 items-center gap-2">
         <Button
           type="button"
           variant="outline"
           size="icon"
-          className="rounded-xl shrink-0"
+          className="size-10 shrink-0 rounded-xl"
           onClick={goPrev}
           aria-label="Previous month"
         >
           <ChevronLeft className="size-4" />
         </Button>
-        <Select value={`${year}-${month}`} onValueChange={onMonthSelect}>
-          <SelectTrigger className="h-10 min-w-[10rem] rounded-xl">
-            <SelectValue>{monthLabel(year, month)}</SelectValue>
-          </SelectTrigger>
-          <SelectContent position="popper" className="z-[100] max-h-64">
-            {selectableMonths.map((m) => (
-              <SelectItem key={`${m.year}-${m.month}`} value={`${m.year}-${m.month}`}>
-                {m.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="min-w-0 flex-1">
+          <Select value={`${year}-${month}`} onValueChange={onMonthSelect}>
+            <SelectTrigger className="h-10 w-full rounded-xl">
+              <SelectValue>{monthLabel(year, month)}</SelectValue>
+            </SelectTrigger>
+            <SelectContent position="popper" className="z-[100] max-h-64">
+              {selectableMonths.map((m) => (
+                <SelectItem key={`${m.year}-${m.month}`} value={`${m.year}-${m.month}`}>
+                  {m.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <Button
           type="button"
           variant="outline"
           size="icon"
-          className="rounded-xl shrink-0"
+          className="size-10 shrink-0 rounded-xl"
           onClick={goNext}
           disabled={!canGoNext}
           aria-label="Next month"
@@ -194,14 +282,16 @@ export function AttendanceOverview({
             )}
           </div>
         </div>
-        <div className="mb-2 grid grid-cols-7 gap-1 text-center text-[10px] font-medium text-muted-foreground">
+        <div className="mb-2 grid grid-cols-7 gap-1.5 text-center text-[10px] font-medium text-muted-foreground sm:gap-2">
           {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
-            <div key={d}>{d}</div>
+            <div key={d} className="min-w-0">
+              {d}
+            </div>
           ))}
         </div>
         <div className="grid min-w-0 grid-cols-7 gap-1.5 sm:gap-2">
           {Array.from({ length: leadingBlanks }).map((_, i) => (
-            <div key={`pad-${i}`} className="aspect-square" aria-hidden />
+            <div key={`pad-${i}`} className="aspect-square min-w-0" aria-hidden />
           ))}
           {days.map((d) => {
             const iso = isoFromParts(year, month, d.day);
@@ -257,51 +347,11 @@ export function AttendanceOverview({
         )}
       </SectionCard>
 
-      <div className="mb-4 min-w-0">
-        <DateRangePickerRow
-          startLabel="From date"
-          endLabel="To date"
-          startValue={rangeStart}
-          endValue={rangeEnd}
-          onStartChange={setFromDate}
-          onEndChange={setToDate}
-          startMin={historyBounds.start}
-          startMax={rangeEnd || historyBounds.end}
-          endMin={rangeStart || historyBounds.start}
-          endMax={historyBounds.end}
-          startPlaceholder="Start date"
-          endPlaceholder="End date"
-          viewYear={year}
-          viewMonth={month}
-          trailing={
-            rangeStart || rangeEnd ? (
-              <Button
-                type="button"
-                variant="ghost"
-                className="h-10 shrink-0 rounded-xl px-2 text-xs sm:px-3 sm:text-sm"
-                onClick={clearRange}
-              >
-                Full month
-              </Button>
-            ) : undefined
-          }
-        />
-      </div>
-
-      {summary.rangeLabel ? (
-        <p className="mb-3 text-xs text-muted-foreground">
-          Showing <span className="font-medium text-foreground">{summary.rangeLabel}</span>
-          {!rangeEnd && rangeStart ? (
-            <span> · tap an end date on the calendar or pick &quot;To date&quot;</span>
-          ) : null}
-        </p>
-      ) : (
+      {!rangeStart ? (
         <p className="mb-3 text-xs text-muted-foreground">
           Tip: tap two days on the calendar above to filter by a custom date range.
         </p>
-      )}
-
-      <AttendanceSummaryMetrics summary={summary} />
+      ) : null}
     </>
   );
 }
@@ -338,7 +388,7 @@ function DayCell({
       disabled={!selectable}
       onClick={onClick}
       className={cn(
-        "aspect-square rounded-xl grid place-items-center text-sm font-medium border relative transition-all",
+        "aspect-square min-w-0 rounded-xl grid place-items-center text-sm font-medium border relative transition-all",
         selectable && "cursor-pointer hover:ring-2 hover:ring-primary/30",
         !selectable && "cursor-default",
         dimmed && "opacity-30",
@@ -347,6 +397,7 @@ function DayCell({
         status === "leave" && "bg-warning/15 text-warning-foreground border-warning/30",
         status === "holiday" && "bg-muted/50 text-muted-foreground border-border",
         status === "future" && "bg-muted/20 text-muted-foreground/50 border-dashed border-border",
+        status === "unknown" && "bg-muted/30 text-muted-foreground border-border/60",
         inRange && "ring-2 ring-primary/40 ring-offset-1 ring-offset-card",
         isRangeMiddle && "bg-primary/10 border-primary/25",
         (isRangeStart || isRangeEnd) && "bg-primary/15 border-primary/40 font-semibold",

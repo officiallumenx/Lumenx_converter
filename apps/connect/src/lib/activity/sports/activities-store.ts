@@ -28,7 +28,7 @@ function applyActivityFilters(
     result = result.filter((a) => a.sportType === f.sportType);
   }
   if (f.teamId && f.teamId !== "all") {
-    result = result.filter((a) => a.linkedTeamIds.includes(f.teamId));
+    result = result.filter((a) => a.linkedTeamIds.includes(f.teamId as string));
   }
   if (f.date && f.date !== "all") {
     result = result.filter((a) => a.date === f.date);

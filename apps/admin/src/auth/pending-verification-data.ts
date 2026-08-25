@@ -1,9 +1,11 @@
 /** ─────────────────────────────────────────────────────────────
- *  LumenX Admin — Pending Verification (demo status layer)
- *  Mock application status for the review screen.
- *  Replace with API integration in production.
+ *  LumenX Admin — Pending Verification status (shared registration store)
  * ───────────────────────────────────────────────────────────── */
 
+import {
+  findInstituteRegistrationByEmail,
+  type InstituteRegistrationApplication,
+} from "@lumenx/utils";
 import { loadSubmittedRegistration } from "./institute-setup-store";
 
 export type TimelineStatus = "completed" | "current" | "upcoming";
@@ -16,15 +18,23 @@ export interface ApplicationTimelineStep {
   timestamp?: string;
 }
 
+export type OverallApplicationStatus =
+  | "under_review"
+  | "approved"
+  | "rejected";
+
 export interface DemoApplicationStatus {
   applicationId: string;
   instituteName: string;
   registrationDate: string;
-  overallStatus: "under_review";
+  overallStatus: OverallApplicationStatus;
   overallLabel: string;
   estimatedReviewDays: string;
   timeline: ApplicationTimelineStep[];
   lastCheckedAt: string | null;
+  rejectionReason?: string;
+  approvedInstituteId?: string;
+  application: InstituteRegistrationApplication | null;
 }
 
 function formatDisplayDate(iso: string): string {
@@ -39,13 +49,65 @@ function formatDisplayDate(iso: string): string {
   }
 }
 
-function addHours(iso: string, hours: number): string {
-  const d = new Date(iso);
-  d.setHours(d.getHours() + hours);
-  return d.toISOString();
-}
+function buildTimeline(
+  application: InstituteRegistrationApplication | null,
+  submittedAt: string,
+): ApplicationTimelineStep[] {
+  const status = application?.status ?? "pending";
 
-function buildTimeline(submittedAt: string): ApplicationTimelineStep[] {
+  if (status === "approved") {
+    return [
+      {
+        id: "submitted",
+        label: "Application Submitted",
+        description: "Your institute registration was received successfully.",
+        status: "completed",
+        timestamp: submittedAt,
+      },
+      {
+        id: "review",
+        label: "Platform Review",
+        description: "Nexus reviewed your institute profile and contacts.",
+        status: "completed",
+        timestamp: application?.reviewedAt,
+      },
+      {
+        id: "activation",
+        label: "Account Activated",
+        description: "Dashboard access is unlocked. You can enter Admin now.",
+        status: "completed",
+        timestamp: application?.reviewedAt,
+      },
+    ];
+  }
+
+  if (status === "rejected") {
+    return [
+      {
+        id: "submitted",
+        label: "Application Submitted",
+        description: "Your institute registration was received successfully.",
+        status: "completed",
+        timestamp: submittedAt,
+      },
+      {
+        id: "review",
+        label: "Platform Review",
+        description:
+          application?.rejectionReason?.trim() ||
+          "Your application was declined by the Nexus onboarding team.",
+        status: "completed",
+        timestamp: application?.reviewedAt,
+      },
+      {
+        id: "activation",
+        label: "Account Activation",
+        description: "Dashboard access was not granted for this application.",
+        status: "upcoming",
+      },
+    ];
+  }
+
   return [
     {
       id: "submitted",
@@ -55,59 +117,97 @@ function buildTimeline(submittedAt: string): ApplicationTimelineStep[] {
       timestamp: submittedAt,
     },
     {
-      id: "profile",
-      label: "Profile Validated",
-      description: "Institute details, location, and principal information verified.",
+      id: "otp",
+      label: "Email & Mobile Verified",
+      description: "Contact OTPs were completed before submission.",
       status: "completed",
-      timestamp: addHours(submittedAt, 2),
+      timestamp: submittedAt,
     },
     {
       id: "review",
       label: "Institute Under Review",
-      description: "Our onboarding team is reviewing your application and documents.",
+      description: "Nexus is reviewing your application. Dashboard stays locked until approval.",
       status: "current",
-      timestamp: addHours(submittedAt, 4),
-    },
-    {
-      id: "compliance",
-      label: "Compliance Check",
-      description: "Education board affiliation and institute credentials validation.",
-      status: "upcoming",
+      timestamp: submittedAt,
     },
     {
       id: "activation",
       label: "Account Activation",
-      description: "Dashboard access enabled and welcome email sent.",
+      description: "Dashboard access enabled after Nexus Approve.",
       status: "upcoming",
     },
   ];
 }
 
-export function getDemoApplicationStatus(): DemoApplicationStatus {
+export function getApplicationStatusForEmail(
+  email: string | undefined | null,
+): DemoApplicationStatus {
+  const application = email ? findInstituteRegistrationByEmail(email) : null;
   const submission = loadSubmittedRegistration();
-  const submittedAt = submission?.submittedAt ?? new Date().toISOString();
+  const submittedAt =
+    application?.submittedAt ??
+    submission?.submittedAt ??
+    new Date().toISOString();
   const instituteName =
-    submission?.form.instituteName?.trim() || "Your Institute";
+    application?.payload.instituteName?.trim() ||
+    submission?.form.instituteName?.trim() ||
+    "Your Institute";
+  const applicationId =
+    application?.referenceId ??
+    submission?.referenceId ??
+    `LX-APP-${Date.now().toString(36).toUpperCase().slice(-8)}`;
+
+  if (application?.status === "approved") {
+    return {
+      applicationId,
+      instituteName,
+      registrationDate: submittedAt,
+      overallStatus: "approved",
+      overallLabel: "Approved — Admin unlocked",
+      estimatedReviewDays: "Complete",
+      timeline: buildTimeline(application, submittedAt),
+      lastCheckedAt: null,
+      approvedInstituteId: application.approvedInstituteId,
+      application,
+    };
+  }
+
+  if (application?.status === "rejected") {
+    return {
+      applicationId,
+      instituteName,
+      registrationDate: submittedAt,
+      overallStatus: "rejected",
+      overallLabel: "Application declined",
+      estimatedReviewDays: "—",
+      timeline: buildTimeline(application, submittedAt),
+      lastCheckedAt: null,
+      rejectionReason: application.rejectionReason,
+      application,
+    };
+  }
 
   return {
-    applicationId: submission?.referenceId ?? `LX-APP-${Date.now().toString(36).toUpperCase().slice(-8)}`,
+    applicationId,
     instituteName,
     registrationDate: submittedAt,
     overallStatus: "under_review",
     overallLabel: "Institute Under Review",
-    estimatedReviewDays: "2–3 business days",
-    timeline: buildTimeline(submittedAt),
+    estimatedReviewDays: "1–2 business days",
+    timeline: buildTimeline(application, submittedAt),
     lastCheckedAt: null,
+    application,
   };
 }
 
-/** Simulated status refresh — no polling, returns updated check time only. */
-export async function refreshDemoApplicationStatus(
-  current: DemoApplicationStatus,
+/** Refresh from shared store (Admin ↔ Nexus same-origin localStorage). */
+export async function refreshApplicationStatus(
+  email: string | undefined | null,
 ): Promise<DemoApplicationStatus> {
-  await new Promise((r) => setTimeout(r, 850));
+  await new Promise((r) => setTimeout(r, 400));
+  const next = getApplicationStatusForEmail(email);
   return {
-    ...current,
+    ...next,
     lastCheckedAt: new Date().toISOString(),
   };
 }

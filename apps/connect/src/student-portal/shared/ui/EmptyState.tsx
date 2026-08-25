@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@lumenx/ui";
+import { studentModuleIconStyle, type StudentModuleColor } from "@/lib/student/nav";
 
 export function EmptyState({
   icon: Icon,
@@ -7,13 +8,16 @@ export function EmptyState({
   description,
   action,
   className,
+  moduleColor,
 }: {
   icon: LucideIcon;
   title: string;
   description?: string;
   action?: React.ReactNode;
   className?: string;
+  moduleColor?: StudentModuleColor;
 }) {
+  const iconStyle = moduleColor ? studentModuleIconStyle(moduleColor) : undefined;
   return (
     <div
       className={cn(
@@ -21,7 +25,10 @@ export function EmptyState({
         className,
       )}
     >
-      <div className="mb-4 grid size-14 place-items-center rounded-2xl bg-primary/10 text-primary">
+      <div
+        className={cn("mb-4 grid size-14 place-items-center rounded-2xl", !iconStyle && "bg-primary/10 text-primary")}
+        style={iconStyle}
+      >
         <Icon className="size-7" />
       </div>
       <h3 className="font-display text-lg font-semibold">{title}</h3>

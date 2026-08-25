@@ -17,7 +17,10 @@ export const JOB_CATEGORY_LABEL: Record<JobCategory, string> = {
   healthcare: "Healthcare",
 };
 
-const RAW_JOBS: Omit<JobPosting, "facultyType" | "workMode">[] = [
+type RawJob = Omit<JobPosting, "facultyType" | "workMode"> &
+  Partial<Pick<JobPosting, "facultyType" | "workMode">>;
+
+const RAW_JOBS: RawJob[] = [
   {
     id: "job-math-teacher",
     instituteId: "ins-lumenx-academy",
@@ -377,12 +380,7 @@ const SALARY_MAP: Partial<Record<string, string>> = {
   "job-librarian": "₹3–4.5 LPA",
 };
 
-function enrichJob(
-  raw: Omit<JobPosting, "facultyType" | "workMode"> &
-    Partial<
-      Pick<JobPosting, "facultyType" | "workMode" | "featured" | "trending" | "salaryDisplay">
-    >,
-): JobPosting {
+function enrichJob(raw: RawJob): JobPosting {
   return {
     ...raw,
     facultyType: raw.facultyType ?? CATEGORY_TO_FACULTY[raw.category],

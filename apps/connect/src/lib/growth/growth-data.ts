@@ -242,7 +242,7 @@ export function studentGrowthGoals(snap: StudentSnapshot): Goal[] {
     snap.academicTerms[0]?.avgScore ??
     Math.round(snap.performance.reduce((s, p) => s + p.score, 0) / Math.max(snap.performance.length, 1));
   return [
-    ...goalsFromProfile(snap.profile.attendance, avg),
+    ...goalsFromProfile(snap.attendanceSummary.attendancePct, avg),
     ...filterGrowthGoals(instituteAssignedGoals),
   ];
 }

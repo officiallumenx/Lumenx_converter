@@ -37,13 +37,13 @@ import {
   assignments,
   exams,
   schoolEvents,
-  fees,
   reportCards,
   categorizedNotifications,
 } from "@/lib/mock-data";
 import { useApp } from "@/lib/app-state";
 import { useParentPortal } from "@/context/ParentPortalContext";
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
+import { useTeacherPortalAccess } from "@/lib/teacher-session";
 import { teacherRepository } from "@/lib/teacher/repositories";
 import { studentRepository } from "@/lib/student/repositories";
 import { parentRepository } from "@/lib/parent/repositories";
@@ -64,14 +64,28 @@ export function GlobalSearch() {
     ReturnType<typeof parentRepository.search>
   > | null>(null);
   const nav = useNavigate();
-  const { role, studentIncludedMode, activeChildId, activeInstituteId } = useApp();
+  const { role, studentIncludedMode, activeChildId, activeInstituteId, institute } = useApp();
   const portal = useParentPortal();
   const teacherPortal = useTeacherPortal();
+  const teacherAccess = useTeacherPortalAccess();
   const snap = role === "parent" && portal.isParent ? portal.snapshot : null;
   const isTeacher = role === "teacher";
-  const showClassRoster = isTeacher;
+  const isActivityWorkspace =
+    teacherAccess.isReady && teacherAccess.isActivityWorkspaceActive;
+  /** Teacher classroom portal only — not activity workspace and not other portals. */
+  const showClassRoster = isTeacher && !isActivityWorkspace;
   const teacherStudents = teacherPortal.isTeacher ? teacherPortal.students : [];
   const teacherClasses = teacherPortal.isTeacher ? teacherPortal.classes : [];
+  const activityNotifPath =
+    isActivityWorkspace
+      ? "/activity/notifications"
+      : "/notifications";
+
+  const searchScope = useMemo(() => {
+    if (!activeInstituteId || !role) return null;
+    const portalKey = isActivityWorkspace ? "activity" : role;
+    return { instituteId: activeInstituteId, portal: portalKey };
+  }, [activeInstituteId, role, isActivityWorkspace]);
 
   const assignmentSearch = snap?.assignments ?? assignments;
   const reportSearch = snap?.reportCards ?? reportCards;
@@ -90,8 +104,9 @@ export function GlobalSearch() {
     // the results of a newer query after the inputs changed.
     let cancelled = false;
     if (isTeacher) {
+      if (isActivityWorkspace) return;
       const t = setTimeout(() => {
-        teacherRepository.search(teacherQuery).then((r) => {
+        teacherRepository.search(teacherQuery, { instituteId: activeInstituteId }).then((r) => {
           if (!cancelled) setTeacherResults(r);
         });
       }, 200);
@@ -102,7 +117,7 @@ export function GlobalSearch() {
     }
     if (role === "student") {
       const t = setTimeout(() => {
-        studentRepository.search(studentQuery).then((r) => {
+        studentRepository.search(studentQuery, { instituteId: activeInstituteId }).then((r) => {
           if (!cancelled) setStudentResults(r);
         });
       }, 200);
@@ -127,6 +142,7 @@ export function GlobalSearch() {
   }, [
     open,
     isTeacher,
+    isActivityWorkspace,
     role,
     teacherQuery,
     studentQuery,
@@ -152,13 +168,28 @@ export function GlobalSearch() {
     return categorizedNotifications[role ?? "student"] ?? [];
   }, [role, snap]);
 
-  const recent = useMemo(() => (open ? getRecentSearches() : []), [open]);
+  const recent = useMemo(
+    () => (open && searchScope ? getRecentSearches(searchScope) : []),
+    [open, searchScope],
+  );
 
   const go = (to: string, label?: string) => {
     setOpen(false);
-    if (label) pushRecentSearch({ label, path: to });
+    if (label && searchScope) pushRecentSearch(searchScope, { label, path: to });
     nav({ to });
   };
+
+  const portalLabel = isActivityWorkspace
+    ? "Activity workspace"
+    : role === "parent"
+      ? "Parent portal"
+      : role === "student"
+        ? "Student portal"
+        : role === "teacher"
+          ? "Teacher portal"
+          : "Portal";
+  const instituteLabel = institute?.name ?? "Current institute";
+  const scopeHint = `${instituteLabel} · ${portalLabel}`;
 
   return (
     <>
@@ -205,22 +236,59 @@ export function GlobalSearch() {
                   : undefined
           }
           placeholder={
-            isTeacher
-              ? "Search students, classes, assignments, exams, events, messages…"
-              : role === "student"
-                ? "Search attendance, marks, certificates, timetable…"
-                : role === "parent"
-                  ? snap
-                    ? `Search modules for ${snap.shortName} (class ${snap.classTag})…`
-                    : "Search modules for your selected learner…"
-                  : "Search students, teachers, assignments, events…"
+            !searchScope
+              ? "Select an institute and portal to search…"
+              : isTeacher && isActivityWorkspace
+                ? `Search ${scopeHint}…`
+                : isTeacher
+                  ? `Search ${scopeHint} — students, classes, homework…`
+                  : role === "student"
+                    ? `Search ${scopeHint} — attendance, marks, timetable…`
+                    : role === "parent"
+                      ? snap
+                        ? `Search ${scopeHint} for ${snap.shortName}…`
+                        : `Search ${scopeHint} for your selected learner…`
+                      : `Search ${scopeHint}…`
           }
         />
         <CommandList className="max-h-[min(420px,70vh)] overflow-y-auto overflow-x-hidden">
-          <CommandEmpty>No results found.</CommandEmpty>
+          <CommandEmpty>
+            {!searchScope
+              ? "Sign in to a portal at your institute to search."
+              : "No results in this institute portal."}
+          </CommandEmpty>
 
-          <CommandGroup heading="Quick links">
-            {isTeacher ? (
+          {searchScope ? (
+          <>
+          <CommandGroup heading={`Quick links · ${portalLabel}`}>
+            {isTeacher && isActivityWorkspace ? (
+              <>
+                <CommandItem onSelect={() => go("/activity/sports", "Sports")}>
+                  <Trophy className="size-4 mr-2" />
+                  Sports
+                </CommandItem>
+                <CommandItem onSelect={() => go("/activity/extra-curricular", "Extra-Curricular")}>
+                  <Sparkles className="size-4 mr-2" />
+                  Extra-Curricular
+                </CommandItem>
+                <CommandItem onSelect={() => go("/activity/attendance", "Team attendance")}>
+                  <ClipboardCheck className="size-4 mr-2" />
+                  Team attendance
+                </CommandItem>
+                <CommandItem onSelect={() => go("/activity/achievements", "Achievements")}>
+                  <GraduationCap className="size-4 mr-2" />
+                  Achievements
+                </CommandItem>
+                <CommandItem onSelect={() => go("/activity/calendar", "Activity calendar")}>
+                  <Calendar className="size-4 mr-2" />
+                  Activity calendar
+                </CommandItem>
+                <CommandItem onSelect={() => go(activityNotifPath, "Notifications")}>
+                  <Bell className="size-4 mr-2" />
+                  Notifications
+                </CommandItem>
+              </>
+            ) : isTeacher ? (
               <>
                 <CommandItem onSelect={() => go("/classes", "My Classes")}>
                   <LayoutGrid className="size-4 mr-2" />
@@ -234,9 +302,9 @@ export function GlobalSearch() {
                   <PenLine className="size-4 mr-2" />
                   Remarks
                 </CommandItem>
-                <CommandItem onSelect={() => go("/assignments", "Assignments")}>
+                <CommandItem onSelect={() => go("/assignments", "Homework")}>
                   <BookOpen className="size-4 mr-2" />
-                  Assignments & Homework
+                  Homework
                 </CommandItem>
                 <CommandItem onSelect={() => go("/leave", "Leave management")}>
                   <CalendarOff className="size-4 mr-2" />
@@ -249,6 +317,10 @@ export function GlobalSearch() {
                 <CommandItem onSelect={() => go("/timetable", "Timetable")}>
                   <Calendar className="size-4 mr-2" />
                   Timetable
+                </CommandItem>
+                <CommandItem onSelect={() => go(activityNotifPath, "Notifications")}>
+                  <Bell className="size-4 mr-2" />
+                  Notifications
                 </CommandItem>
               </>
             ) : role === "student" ? (
@@ -604,11 +676,11 @@ export function GlobalSearch() {
             </>
           )}
 
-          {isTeacher && teacherResults && teacherQuery.trim() && (
+          {isTeacher && !isActivityWorkspace && teacherResults && teacherQuery.trim() && (
             <>
               <CommandSeparator />
               {teacherResults.assignments.length > 0 && (
-                <CommandGroup heading="Assignments">
+                <CommandGroup heading="Homework">
                   {teacherResults.assignments.map((a) => (
                     <CommandItem
                       key={a.id}
@@ -810,13 +882,14 @@ export function GlobalSearch() {
             </>
           )}
 
-          {!isTeacher && role !== "student" && (
+          {role === "parent" && (
             <>
               <CommandSeparator />
-              {role !== "student" && (
-                <CommandGroup
-                  heading={role === "parent" && snap ? `Teachers · ${snap.classTag}` : "Teachers"}
-                >
+              <CommandGroup
+                heading={
+                  snap ? `Teachers · ${snap.classTag} · ${instituteLabel}` : `Teachers · ${instituteLabel}`
+                }
+              >
                   {teachers.map((t) => (
                     <CommandItem
                       key={t.id}
@@ -828,13 +901,12 @@ export function GlobalSearch() {
                       <span className="ml-auto text-xs text-muted-foreground">{t.subject}</span>
                     </CommandItem>
                   ))}
-                </CommandGroup>
-              )}
+              </CommandGroup>
 
-              {role !== "student" && <CommandSeparator />}
+              <CommandSeparator />
               <CommandGroup
                 heading={
-                  role === "parent" && snap ? `Homework · ${snap.shortName}` : "Assignments"
+                  snap ? `Homework · ${snap.shortName}` : "Assignments"
                 }
               >
                 {assignmentSearch.map((a) => (
@@ -930,7 +1002,7 @@ export function GlobalSearch() {
             ))}
           </CommandGroup>
 
-          {!isTeacher && role !== "student" && (
+          {role === "parent" && (
             <>
               <CommandSeparator />
               <CommandGroup heading="Sports">
@@ -941,6 +1013,8 @@ export function GlobalSearch() {
               </CommandGroup>
             </>
           )}
+          </>
+          ) : null}
         </CommandList>
       </CommandDialog>
     </>

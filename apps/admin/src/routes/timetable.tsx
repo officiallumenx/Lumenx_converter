@@ -17,33 +17,26 @@ import {
   ArrowLeft,
   CalendarDays,
   CheckCircle2,
+  Clock,
+  Lock,
   Plus,
+  Search,
+  Undo2,
   Wand2,
-  Zap,
 } from "lucide-react";
+import { TimetableConflictBanner } from "@/components/timetable/TimetableConflictBanner";
 import { useCallback, useMemo, useState, useEffect } from "react";
 import {
   getGrades,
-  getInitialTimetables,
   getSubjectsByGrade,
   getInstituteTeachers,
-  autoGenerateTimetable,
-  autoSuggestSubjectTeachers,
-  inferSubjectTeachersFromTimetables,
-  assignSubjectTeachersByExperience,
   buildDefaultSubjectPeriods,
-  buildDefaultSubjectSlotSelections,
-  inferSubjectPeriodsFromGrid,
-  inferSubjectSlotsFromGrid,
-  mergeSubjectTeachersForGrade,
-  rankTeachersByExperience,
+  getClassSubjectTeacherAssignments,
   detectConflicts,
-  resolveConflictsForTimetable,
-  conflictCountByTimetable,
   emptyGrid,
-  fillEmptySlots,
   countEmptySlots,
   countTeachingSlotsPerWeek,
+  validateSubjectPeriodBudget,
   getRecordSchedule,
   getRecordDays,
   hasTimetable,
@@ -51,27 +44,60 @@ import {
   slotVenue,
   classKey,
   classLocationLabel,
+  capSubjectPeriodsToOnePerDay,
   type TimetableRecord,
   type TimetableSlot,
-  type TeacherAssignMode,
   type TimetableCellRef,
+  type PlacementPreference,
 } from "@/lib/timetable-data";
+import { teacherById } from "@/lib/subjects-data";
 import {
   buildScheduleConfig,
   defaultScheduleInput,
+  isSlotApplicable,
+  scheduleInputFromConfig,
   scheduleSummary,
+  validateBellItems,
   type ScheduleInput,
 } from "@/lib/timetable-schedule";
+import {
+  loadInstituteScheduleDefault,
+  loadTimetableDirectory,
+  replaceTimetableDirectory,
+  saveInstituteScheduleDefault,
+} from "@/lib/timetable-directory-store";
+import {
+  notifyTimetablePublished,
+  notifyTimetableChanged,
+} from "@lumenx/module-notifications";
 import { TimetableWeekGrid } from "@/components/timetable/TimetableViews";
 import { ScheduleConfigForm } from "@/components/timetable/ScheduleConfigForm";
 import { TeacherAssignPanel } from "@/components/timetable/TeacherAssignPanel";
 import { TimetableCards } from "@/components/timetable/TimetableCards";
 import { useDemoProfile } from "@/lib/demo-profile-context";
 import { getAcademicSections, getInstituteClasses, isCollegeMode } from "@/lib/academic-data";
+import { loadClassDirectory } from "@/lib/class-directory-store";
+import {
+  evaluatePublishReadiness,
+  getTimetableReadiness,
+  buildTimetableReadinessById,
+  readinessLabel,
+  readinessTone,
+  sanitizeSubjectSlotSelections,
+  summarizeReadiness,
+  toggleLockedCell,
+  validateCellPlacement,
+  validatePreferenceCapacity,
+  type TimetableReadiness,
+} from "@/lib/timetable-manager";
+import { useAdminWriteAccess } from "@/components/admin-write/AdminWriteAccessContext";
 
 export const Route = createFileRoute("/timetable")({
   validateSearch: (s: Record<string, unknown>) => ({
     id: (s.id as string) || undefined,
+    createGrade: (s.createGrade as string) || undefined,
+    createSection: (s.createSection as string) || undefined,
+    openCreate: s.openCreate === true || s.openCreate === "true" || undefined,
   }),
   head: () => ({ meta: [{ title: "Timetable — LumenX Admin" }] }),
   component: TimetablePage,
@@ -82,8 +108,11 @@ function countFilled(grid: TimetableRecord["grid"], schedule: ReturnType<typeof 
 }
 
 function TimetablePage() {
-  const { id: selectedId } = useSearch({ from: "/timetable" });
-  const navigate = useNavigate({ from: "/timetable" });
+  const search = useSearch({ from: "/timetable" });
+  const { id: selectedId, createGrade: prefillGrade, createSection: prefillSection, openCreate } =
+    search;
+  const navigate = useNavigate();
+  const { guardWriteAction, writesAllowed, reason } = useAdminWriteAccess();
   const { profileId, profile } = useDemoProfile();
   const college = isCollegeMode();
   const grades = useMemo(() => {
@@ -95,44 +124,84 @@ function TimetablePage() {
   const sections = useMemo(() => getAcademicSections(), [profileId]);
   const defaultGrade = grades[0] ?? "Grade 10";
 
-  const [timetables, setTimetables] = useState<TimetableRecord[]>(() => getInitialTimetables());
+  const [timetables, setTimetablesState] = useState<TimetableRecord[]>(() =>
+    loadTimetableDirectory(),
+  );
+
+  const setTimetables = useCallback(
+    (updater: TimetableRecord[] | ((prev: TimetableRecord[]) => TimetableRecord[])) => {
+      setTimetablesState((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        replaceTimetableDirectory(next);
+        return next;
+      });
+    },
+    [],
+  );
 
   const [editOpen, setEditOpen] = useState(false);
   const [editCell, setEditCell] = useState<{ day: number; period: number } | null>(null);
   const [editSubject, setEditSubject] = useState("");
   const [editTeacherId, setEditTeacherId] = useState("");
+  const [editError, setEditError] = useState<string | null>(null);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createGrade, setCreateGrade] = useState(defaultGrade);
   const [createSection, setCreateSection] = useState(sections[0] ?? "A");
   const [createTerm, setCreateTerm] = useState("2025–26 · Term 2");
-  const [createTeacherMode, setCreateTeacherMode] = useState<TeacherAssignMode>("manual");
-  const [createSubjectTeachers, setCreateSubjectTeachers] = useState<Record<string, string>>({});
-  const [createSubjectPeriods, setCreateSubjectPeriods] = useState<Record<string, number>>({});
-  const [createSubjectSlotSelections, setCreateSubjectSlotSelections] = useState<
-    Record<string, TimetableCellRef[]>
-  >({});
+  const [createUseInstituteSchedule, setCreateUseInstituteSchedule] = useState(true);
   const [createScheduleInput, setCreateScheduleInput] = useState<ScheduleInput>(() =>
-    defaultScheduleInput(),
+    loadInstituteScheduleDefault(),
   );
 
-  const [staffPanelOpen, setStaffPanelOpen] = useState(false);
-  const [staffTeacherMode, setStaffTeacherMode] = useState<TeacherAssignMode>("manual");
+  const [subjectPlanOpen, setSubjectPlanOpen] = useState(false);
   const [staffSubjectTeachers, setStaffSubjectTeachers] = useState<Record<string, string>>({});
   const [staffSubjectPeriods, setStaffSubjectPeriods] = useState<Record<string, number>>({});
   const [staffSubjectSlotSelections, setStaffSubjectSlotSelections] = useState<
     Record<string, TimetableCellRef[]>
   >({});
+  const [staffSubjectPreferences, setStaffSubjectPreferences] = useState<
+    Record<string, PlacementPreference>
+  >({});
+  const [planCapacityError, setPlanCapacityError] = useState<string | null>(null);
+
+  const [scheduleEditOpen, setScheduleEditOpen] = useState(false);
+  const [scheduleEditInput, setScheduleEditInput] = useState<ScheduleInput>(() =>
+    defaultScheduleInput(),
+  );
+  const [scheduleSaveAsInstitute, setScheduleSaveAsInstitute] = useState(false);
+
+  const [reviewOpen, setReviewOpen] = useState(false);
+
+  const [filterGrade, setFilterGrade] = useState<string>("all");
+  const [filterReadiness, setFilterReadiness] = useState<"all" | TimetableReadiness>("all");
+  const [filterQuery, setFilterQuery] = useState("");
 
   const openDetail = useCallback(
     (id: string) => {
-      void navigate({ search: { id } });
+      void navigate({
+        to: "/timetable",
+        search: {
+          id,
+          createGrade: undefined,
+          createSection: undefined,
+          openCreate: undefined,
+        },
+      });
     },
     [navigate],
   );
 
   const backToList = useCallback(() => {
-    void navigate({ search: { id: undefined } });
+    void navigate({
+      to: "/timetable",
+      search: {
+        id: undefined,
+        createGrade: undefined,
+        createSection: undefined,
+        openCreate: undefined,
+      },
+    });
   }, [navigate]);
 
   const current = useMemo(
@@ -145,140 +214,244 @@ function TimetablePage() {
   const grid = current?.grid ?? emptyGrid(currentSchedule);
   const grade = current?.grade ?? "";
   const section = current?.section ?? "";
-  const ck = current ? classKey(grade, section) : "";
+  const currentClassKey = current ? classKey(grade, section) : "";
 
-  const conflictCounts = useMemo(() => conflictCountByTimetable(timetables), [timetables]);
   const allConflicts = useMemo(() => detectConflicts(timetables), [timetables]);
+  const conflictCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const timetable of timetables) {
+      const classLabel = classKey(timetable.grade, timetable.section);
+      counts[timetable.id] = allConflicts.filter((c) => c.classes.includes(classLabel)).length;
+    }
+    return counts;
+  }, [timetables, allConflicts]);
   const classConflicts = useMemo(
-    () => (current ? detectConflicts(timetables, current.id) : []),
-    [timetables, current],
+    () =>
+      current
+        ? allConflicts.filter((c) => c.classes.includes(classKey(current.grade, current.section)))
+        : [],
+    [allConflicts, current],
+  );
+  const publishReport = useMemo(
+    () => (current ? evaluatePublishReadiness(current, timetables, classConflicts) : null),
+    [current, timetables, classConflicts],
+  );
+  const readinessById = useMemo(
+    () => buildTimetableReadinessById(timetables, allConflicts),
+    [timetables, allConflicts],
+  );
+  const readinessTotals = useMemo(
+    () => summarizeReadiness(timetables, readinessById),
+    [timetables, readinessById],
   );
 
   const subjectsByGrade = useMemo(() => getSubjectsByGrade(), [profileId]);
   const teachers = useMemo(() => getInstituteTeachers(), []);
 
   useEffect(() => {
-    setTimetables(getInitialTimetables());
-    setCreateGrade(defaultGrade);
-    setCreateSection(sections[0] ?? "A");
-    navigate({ search: { id: undefined }, replace: true });
+    setTimetablesState(loadTimetableDirectory());
+    setCreateGrade(prefillGrade ?? defaultGrade);
+    setCreateSection(prefillSection ?? sections[0] ?? "A");
+    setCreateScheduleInput(loadInstituteScheduleDefault());
+    if (openCreate || prefillGrade) {
+      setCreateOpen(true);
+    }
   }, [profileId]);
+
+  useEffect(() => {
+    if (openCreate || prefillGrade) {
+      setCreateGrade(prefillGrade ?? defaultGrade);
+      setCreateSection(prefillSection ?? sections[0] ?? "A");
+      setCreateOpen(true);
+      void navigate({
+        to: "/timetable",
+        search: {
+          id: selectedId,
+          createGrade: undefined,
+          createSection: undefined,
+          openCreate: undefined,
+        },
+        replace: true,
+      });
+    }
+  }, [openCreate, prefillGrade, prefillSection, defaultGrade, sections, navigate, selectedId]);
 
   const subjectsForGrade = current
     ? (subjectsByGrade[grade] ?? subjectsByGrade[defaultGrade] ?? [])
     : [];
-  const createSubjects = subjectsByGrade[createGrade] ?? [];
   const createSchedulePreview = useMemo(
     () => buildScheduleConfig(createScheduleInput),
     [createScheduleInput],
   );
-  const createMaxPeriods = countTeachingSlotsPerWeek(createSchedulePreview);
+  const createScheduleIssues = validateBellItems(createScheduleInput.bellItems ?? []);
+  const createHasScheduleErrors = createScheduleIssues.some((i) => i.severity === "error");
 
   const teachingSlotsPerWeek = current ? countTeachingSlotsPerWeek(currentSchedule) : 0;
   const filledCount = current ? countFilled(grid, currentSchedule) : 0;
   const emptyCount = current ? countEmptySlots(grid, currentSchedule) : 0;
+  const staffBudget = validateSubjectPeriodBudget(staffSubjectPeriods, currentSchedule);
 
-  const qualifiedTeachers = useMemo(
-    () => (editSubject ? teachersForSubject(editSubject) : teachers),
-    [editSubject, teachers],
-  );
+  const subjectPeriodStats = useMemo(() => {
+    if (!current) return [];
+    const targets =
+      current.subjectPeriodsPerWeek ??
+      Object.fromEntries(subjectsForGrade.map((s) => [s.id, s.periodsPerWeek]));
+    return subjectsForGrade.map((subject) => {
+      const target = targets[subject.id] ?? subject.periodsPerWeek;
+      let filled = 0;
+      for (const dayCol of grid) {
+        for (const slot of dayCol) {
+          if (slot && (slot.subjectId === subject.id || slot.subject === subject.code)) {
+            filled += 1;
+          }
+        }
+      }
+      return {
+        id: subject.id,
+        name: subject.name,
+        code: subject.code,
+        target,
+        filled,
+        remaining: Math.max(0, target - filled),
+      };
+    });
+  }, [current, subjectsForGrade, grid]);
 
-  const updateCurrentGrid = (updater: (prev: typeof grid) => typeof grid) => {
+  const plannedPeriodTotal = subjectPeriodStats.reduce((sum, row) => sum + row.target, 0);
+  const plannedFilledTotal = subjectPeriodStats.reduce((sum, row) => sum + row.filled, 0);
+  const plannedRemainingTotal = subjectPeriodStats.reduce((sum, row) => sum + row.remaining, 0);
+
+  const classOptions = useMemo(() => {
+    try {
+      return loadClassDirectory();
+    } catch {
+      return [];
+    }
+  }, [profileId]);
+
+  const gradeSectionOptions = useMemo(() => {
+    if (classOptions.length > 0) {
+      const gradesFromClasses = [...new Set(classOptions.map((c) => c.timetableGrade))];
+      return { grades: gradesFromClasses.length ? gradesFromClasses : grades, sections };
+    }
+    return { grades, sections };
+  }, [classOptions, grades, sections]);
+
+  const sameGradePeers = useMemo(() => {
+    if (!current) return [];
+    return timetables
+      .filter((t) => t.grade === current.grade)
+      .sort((a, b) => a.section.localeCompare(b.section));
+  }, [timetables, current]);
+
+  const filteredTimetables = useMemo(() => {
+    const normalizedQuery = filterQuery.trim().toLowerCase();
+    return timetables.filter((timetable) => {
+      if (filterGrade !== "all" && timetable.grade !== filterGrade) return false;
+      const readiness = readinessById[timetable.id] ?? getTimetableReadiness(timetable, timetables);
+      if (filterReadiness !== "all" && readiness !== filterReadiness) return false;
+      if (!normalizedQuery) return true;
+      const label = classKey(timetable.grade, timetable.section).toLowerCase();
+      return (
+        label.includes(normalizedQuery) ||
+        timetable.term.toLowerCase().includes(normalizedQuery) ||
+        timetable.id.toLowerCase().includes(normalizedQuery)
+      );
+    });
+  }, [timetables, filterGrade, filterReadiness, filterQuery, readinessById]);
+
+  const qualifiedTeachers = useMemo(() => {
+    if (!editSubject) return [] as typeof teachers;
+    const subject = subjectsForGrade.find((s) => s.code === editSubject);
+    return teachersForSubject(editSubject, subject?.name);
+  }, [editSubject, teachers, subjectsForGrade]);
+
+  const editTeacherOptions = useMemo(() => {
+    const subject = subjectsForGrade.find((s) => s.code === editSubject);
+    const plannedId = subject ? current?.subjectTeachers?.[subject.id] : undefined;
+    const seen = new Set<string>();
+    const planned: typeof teachers = [];
+    const qualified: typeof teachers = [];
+    const rest: typeof teachers = [];
+
+    const pushUnique = (list: typeof teachers, teacher: (typeof teachers)[number]) => {
+      if (seen.has(teacher.id)) return;
+      seen.add(teacher.id);
+      list.push(teacher);
+    };
+
+    if (plannedId) {
+      const plannedTeacher = teacherById(plannedId) ?? teachers.find((t) => t.id === plannedId);
+      if (plannedTeacher) pushUnique(planned, plannedTeacher);
+    }
+    for (const t of qualifiedTeachers) pushUnique(qualified, t);
+    for (const t of teachers) {
+      if (seen.has(t.id)) continue;
+      rest.push(t);
+    }
+    return { planned, qualified, rest, plannedId };
+  }, [editSubject, subjectsForGrade, current?.subjectTeachers, qualifiedTeachers, teachers]);
+
+  const updateCurrent = (patch: Partial<TimetableRecord>) => {
     if (!current) return;
     setTimetables((prev) =>
       prev.map((t) =>
         t.id === current.id
           ? {
               ...t,
-              grid: updater(t.grid),
+              ...patch,
               updatedAt: new Date().toISOString().slice(0, 10),
-              status: "draft" as const,
+              status: patch.status ?? ("draft" as const),
             }
           : t,
       ),
     );
   };
 
-  const initSubjectPlanning = useCallback(
-    (grade: string, schedule: ReturnType<typeof buildScheduleConfig>) => {
-      const subs = subjectsByGrade[grade] ?? [];
-      const periods = buildDefaultSubjectPeriods(subs);
-      const slots = buildDefaultSubjectSlotSelections(subs, schedule, periods);
-      return { periods, slots };
-    },
-    [subjectsByGrade],
-  );
+  const updateCurrentGrid = (updater: (prev: typeof grid) => typeof grid) => {
+    if (!current) return;
+    // Always read the latest grid from state updater to avoid stale closures.
+    setTimetables((prev) => {
+      const focus = prev.find((t) => t.id === current.id);
+      if (!focus) return prev;
+      const nextGrid = updater(focus.grid);
+      const next = prev.map((t) =>
+        t.id === current.id
+          ? {
+              ...t,
+              grid: nextGrid,
+              status: "draft" as const,
+              updatedAt: new Date().toISOString().slice(0, 10),
+            }
+          : t,
+      );
+      replaceTimetableDirectory(next);
+      return next;
+    });
+  };
 
   const openCreateModal = () => {
-    const scheduleInput = defaultScheduleInput();
-    const schedule = buildScheduleConfig(scheduleInput);
-    const { periods, slots } = initSubjectPlanning(createGrade, schedule);
-    const suggested = inferSubjectTeachersFromTimetables(createGrade, createSection, timetables);
-    const fromExisting = Object.keys(suggested).length > 0;
-    setCreateTeacherMode(fromExisting ? "manual" : "auto");
-    setCreateSubjectTeachers(
-      mergeSubjectTeachersForGrade(
-        createGrade,
-        createSection,
-        fromExisting
-          ? suggested
-          : assignSubjectTeachersByExperience([
-              { id: "x", grade: createGrade, section: createSection },
-            ])[classKey(createGrade, createSection)] ??
-              autoSuggestSubjectTeachers(createGrade, createSection, timetables),
-      ),
-    );
-    setCreateSubjectPeriods(periods);
-    setCreateSubjectSlotSelections(slots);
-    setCreateScheduleInput(scheduleInput);
+    setCreateGrade(defaultGrade);
+    setCreateSection(sections[0] ?? "A");
+    setCreateUseInstituteSchedule(true);
+    setCreateScheduleInput(loadInstituteScheduleDefault());
     setCreateOpen(true);
-  };
-
-  const onCreateGradeChange = (g: string) => {
-    setCreateGrade(g);
-    const schedule = buildScheduleConfig(createScheduleInput);
-    const { periods, slots } = initSubjectPlanning(g, schedule);
-    setCreateSubjectPeriods(periods);
-    setCreateSubjectSlotSelections(slots);
-    const suggested = inferSubjectTeachersFromTimetables(g, createSection, timetables);
-    setCreateSubjectTeachers(
-      mergeSubjectTeachersForGrade(
-        g,
-        createSection,
-        Object.keys(suggested).length > 0
-          ? suggested
-          : autoSuggestSubjectTeachers(g, createSection, timetables),
-      ),
-    );
-  };
-
-  const onCreateScheduleChange = (input: ScheduleInput) => {
-    setCreateScheduleInput(input);
-    const schedule = buildScheduleConfig(input);
-    const subs = subjectsByGrade[createGrade] ?? [];
-    setCreateSubjectSlotSelections(
-      buildDefaultSubjectSlotSelections(subs, schedule, createSubjectPeriods),
-    );
   };
 
   const createTimetable = () => {
     if (hasTimetable(createGrade, createSection, timetables)) return;
-    const schedule = buildScheduleConfig(createScheduleInput);
-    const subjectTeachers =
-      createTeacherMode === "auto"
-        ? autoSuggestSubjectTeachers(createGrade, createSection, timetables)
-        : mergeSubjectTeachersForGrade(createGrade, createSection, createSubjectTeachers);
+    if (createHasScheduleErrors) return;
+    const schedule = createUseInstituteSchedule
+      ? buildScheduleConfig(loadInstituteScheduleDefault())
+      : buildScheduleConfig(createScheduleInput);
 
-    const newGrid = autoGenerateTimetable(createGrade, createSection, {
-      teacherMode: createTeacherMode,
-      grade: createGrade,
-      section: createSection,
-      schedule,
-      subjectTeachers,
-      subjectPeriodsPerWeek: createSubjectPeriods,
-      subjectSlotSelections: createSubjectSlotSelections,
-      existingTimetables: timetables,
-    });
+    const subjects = subjectsByGrade[createGrade] ?? [];
+    const periods = capSubjectPeriodsToOnePerDay(buildDefaultSubjectPeriods(subjects), schedule);
+    const preferences = Object.fromEntries(
+      subjects.map((s) => [s.id, "any" as PlacementPreference]),
+    );
+    // Only use teachers already assigned on the class page — never auto-suggest.
+    const subjectTeachers = getClassSubjectTeacherAssignments(createGrade, createSection);
 
     const idSuffix = college
       ? (() => {
@@ -289,6 +462,7 @@ function TimetablePage() {
           return `${dept}-${level?.shortLabel ?? "FY"}${createSection}`;
         })()
       : `${createGrade.replace("Grade ", "")}${createSection}`;
+
     const id = `TT-${idSuffix}`;
     const record: TimetableRecord = {
       id,
@@ -296,10 +470,14 @@ function TimetablePage() {
       section: createSection,
       term: createTerm,
       status: "draft",
-      grid: newGrid,
+      grid: emptyGrid(schedule),
       schedule,
-      subjectPeriodsPerWeek: { ...createSubjectPeriods },
-      subjectSlotSelections: JSON.parse(JSON.stringify(createSubjectSlotSelections)),
+      subjectPeriodsPerWeek: { ...periods },
+      subjectSlotSelections: {},
+      subjectTeachers: { ...subjectTeachers },
+      subjectPlacementPreferences: preferences,
+      relaxedPreferenceNotices: [],
+      lockedCells: [],
       updatedAt: new Date().toISOString().slice(0, 10),
     };
 
@@ -312,36 +490,115 @@ function TimetablePage() {
     if (!current || currentSchedule.periodRows[period]?.isBreak) return;
     const slot = grid[day]?.[period];
     setEditCell({ day, period });
-    setEditSubject(slot?.subject ?? subjectsForGrade[0]?.code ?? "MTH 101");
-    setEditTeacherId(
-      slot?.teacherId ?? teachersForSubject(slot?.subject ?? "MTH 101")[0]?.id ?? teachers[0]?.id ?? "",
-    );
+    if (slot) {
+      setEditSubject(slot.subject);
+      setEditTeacherId(slot.teacherId);
+    } else {
+      setEditSubject("");
+      setEditTeacherId("");
+    }
+    setEditError(null);
     setEditOpen(true);
+  };
+
+  const onEditSubjectChange = (code: string) => {
+    setEditSubject(code);
+    setEditError(null);
+    const subject = subjectsForGrade.find((s) => s.code === code);
+    if (!subject) {
+      setEditTeacherId("");
+      return;
+    }
+    // Prefer the teacher already chosen in Subject plan for this class.
+    const plannedId = current?.subjectTeachers?.[subject.id];
+    if (plannedId && (teacherById(plannedId) || teachers.some((t) => t.id === plannedId))) {
+      setEditTeacherId(plannedId);
+      return;
+    }
+    setEditTeacherId("");
   };
 
   const saveSlot = () => {
     if (!editCell || !current) return;
     const { day, period } = editCell;
-    const teacher = teachers.find((t) => t.id === editTeacherId);
+    if (!editSubject) {
+      setEditError("Select a subject.");
+      return;
+    }
+    if (!editTeacherId) {
+      setEditError("Select a teacher.");
+      return;
+    }
+    const teacher = teacherById(editTeacherId) ?? teachers.find((t) => t.id === editTeacherId);
     const subject = subjectsForGrade.find((s) => s.code === editSubject);
+    if (!teacher || !subject) {
+      setEditError("Select both a subject and a teacher.");
+      return;
+    }
+    const room = slotVenue(grade, section);
+    const preference = current.subjectPlacementPreferences?.[subject.id] ?? "any";
+
+    // Temporarily clear target so self-conflict checks ignore the cell being edited.
+    const gridForValidation = current.grid.map((col, d) =>
+      col.map((slot, p) => (d === day && p === period ? null : slot)),
+    );
+    const validation = validateCellPlacement({
+      grid: gridForValidation,
+      schedule: currentSchedule,
+      day,
+      period,
+      subjectId: subject.id,
+      subjectCode: subject.code,
+      teacherId: teacher.id,
+      room,
+      preference,
+      existingTimetables: timetables,
+      excludeTimetableId: current.id,
+    });
+    if (!validation.ok) {
+      setEditError(validation.reason ?? "Cannot place subject here.");
+      return;
+    }
+
     const slot: TimetableSlot = {
-      subjectId: subject?.id ?? editSubject,
+      subjectId: subject.id,
       subject: editSubject,
-      teacherId: editTeacherId,
-      teacher: teacher?.name ?? editTeacherId,
-      room: slotVenue(grade, section),
+      teacherId: teacher.id,
+      teacher: teacher.name,
+      room,
     };
-    updateCurrentGrid((prev) => {
-      const next = prev.map((col) => [...col]);
-      next[day]![period] = slot;
+    setTimetables((prev) => {
+      const focus = prev.find((t) => t.id === current.id);
+      if (!focus) return prev;
+      const nextGrid = focus.grid.map((col) => [...col]);
+      nextGrid[day]![period] = slot;
+      const next = prev.map((t) =>
+        t.id === current.id
+          ? {
+              ...t,
+              grid: nextGrid,
+              subjectTeachers: {
+                ...(t.subjectTeachers ?? {}),
+                [subject.id]: teacher.id,
+              },
+              status: "draft" as const,
+              updatedAt: new Date().toISOString().slice(0, 10),
+            }
+          : t,
+      );
+      replaceTimetableDirectory(next);
       return next;
     });
     setEditOpen(false);
   };
 
   const clearSlot = () => {
-    if (!editCell) return;
+    if (!editCell || !current) return;
     const { day, period } = editCell;
+    if ((current.lockedCells ?? []).some((c) => c.day === day && c.period === period)) {
+      setEditError("Unlock this period before clearing it.");
+      return;
+    }
     updateCurrentGrid((prev) => {
       const next = prev.map((col) => [...col]);
       next[day]![period] = null;
@@ -350,83 +607,122 @@ function TimetablePage() {
     setEditOpen(false);
   };
 
-  const fillEmptyPeriods = () => {
+  const handleToggleLock = (day: number, period: number) => {
     if (!current) return;
-    const subjectTeachers = inferSubjectTeachersFromTimetables(grade, section, timetables);
-    const subjectPeriods =
-      current.subjectPeriodsPerWeek ?? inferSubjectPeriodsFromGrid(current.grid, subjectsForGrade);
-    const slotSelections =
-      current.subjectSlotSelections ??
-      inferSubjectSlotsFromGrid(current.grid, subjectsForGrade, currentSchedule);
-    const { grid: nextGrid, filled } = fillEmptySlots(grade, section, current.grid, {
-      teacherMode: "auto",
-      grade,
-      section,
-      schedule: currentSchedule,
-      subjectTeachers,
-      subjectPeriodsPerWeek: subjectPeriods,
-      subjectSlotSelections: slotSelections,
-      existingTimetables: timetables,
-      excludeTimetableId: current.id,
+    if (!current.grid[day]?.[period]) return;
+    updateCurrent({
+      lockedCells: toggleLockedCell(current.lockedCells, day, period),
+      status: current.status,
     });
-    if (filled === 0) return;
-    setTimetables((prev) =>
-      prev.map((t) =>
-        t.id === current.id
-          ? { ...t, grid: nextGrid, status: "draft", updatedAt: new Date().toISOString().slice(0, 10) }
-          : t,
+  };
+
+  const openSubjectPlan = () => {
+    if (!current) return;
+    const classTeachers = getClassSubjectTeacherAssignments(grade, section);
+    const saved = current.subjectTeachers ?? {};
+    setStaffSubjectTeachers({ ...classTeachers, ...saved });
+    setStaffSubjectPeriods(
+      current.subjectPeriodsPerWeek ??
+        Object.fromEntries(subjectsForGrade.map((s) => [s.id, s.periodsPerWeek])),
+    );
+    setStaffSubjectSlotSelections(
+      sanitizeSubjectSlotSelections(
+        current.subjectSlotSelections ?? {},
+        currentSchedule,
+        current.subjectPlacementPreferences,
       ),
     );
+    setStaffSubjectPreferences(
+      current.subjectPlacementPreferences ??
+        Object.fromEntries(subjectsForGrade.map((s) => [s.id, "any" as PlacementPreference])),
+    );
+    setPlanCapacityError(null);
+    setSubjectPlanOpen(true);
   };
 
-  const fixConflicts = () => {
+  const saveSubjectPlanOnly = () => {
     if (!current) return;
-    const { timetables: next, fixed } = resolveConflictsForTimetable(timetables, current.id);
-    setTimetables(next);
-    if (fixed > 0) return;
-  };
+    if (!staffBudget.ok) return;
+    const capacity = validatePreferenceCapacity(
+      staffSubjectPeriods,
+      staffSubjectPreferences,
+      currentSchedule,
+    );
+    if (!capacity.ok) {
+      setPlanCapacityError(capacity.message ?? "Preference capacity exceeded.");
+      return;
+    }
+    const cappedPeriods = capSubjectPeriodsToOnePerDay(staffSubjectPeriods, currentSchedule);
+    const slots = sanitizeSubjectSlotSelections(
+      staffSubjectSlotSelections,
+      currentSchedule,
+      staffSubjectPreferences,
+    );
 
-  const regenerateCurrent = () => {
-    if (!current) return;
-    const subjectTeachers =
-      staffTeacherMode === "auto"
-        ? autoSuggestSubjectTeachers(grade, section, timetables.filter((t) => t.id !== current.id))
-        : mergeSubjectTeachersForGrade(grade, section, staffSubjectTeachers);
+    // Apply planned teachers onto any periods already placed for that subject.
+    const nextGrid = current.grid.map((col) =>
+      col.map((cell) => {
+        if (!cell) return null;
+        const teacherId = staffSubjectTeachers[cell.subjectId];
+        if (!teacherId) return cell;
+        const teacher = teacherById(teacherId) ?? teachers.find((t) => t.id === teacherId);
+        if (!teacher) return cell;
+        return {
+          ...cell,
+          teacherId: teacher.id,
+          teacher: teacher.name,
+        };
+      }),
+    );
 
-    const newGrid = autoGenerateTimetable(grade, section, {
-      teacherMode: staffTeacherMode,
-      grade,
-      section,
-      schedule: currentSchedule,
-      subjectTeachers,
-      subjectPeriodsPerWeek: staffSubjectPeriods,
-      subjectSlotSelections: staffSubjectSlotSelections,
-      existingTimetables: timetables,
-      excludeTimetableId: current.id,
-    });
-
-    setTimetables((prev) =>
-      prev.map((t) =>
+    setTimetables((prev) => {
+      const next = prev.map((t) =>
         t.id === current.id
           ? {
               ...t,
-              grid: newGrid,
-              subjectPeriodsPerWeek: { ...staffSubjectPeriods },
-              subjectSlotSelections: JSON.parse(JSON.stringify(staffSubjectSlotSelections)),
-              status: "draft",
+              grid: nextGrid,
+              subjectPeriodsPerWeek: { ...cappedPeriods },
+              subjectSlotSelections: slots,
+              subjectTeachers: { ...staffSubjectTeachers },
+              subjectPlacementPreferences: { ...staffSubjectPreferences },
+              status: "draft" as const,
               updatedAt: new Date().toISOString().slice(0, 10),
             }
           : t,
-      ),
-    );
-    setStaffPanelOpen(false);
+      );
+      replaceTimetableDirectory(next);
+      return next;
+    });
+    setStaffSubjectPeriods(cappedPeriods);
+    setStaffSubjectSlotSelections(slots);
+    setSubjectPlanOpen(false);
   };
 
   const publishTimetable = () => {
-    if (!current || classConflicts.length > 0 || emptyCount > 0) return;
-    setTimetables((prev) =>
-      prev.map((t) => (t.id === current.id ? { ...t, status: "published" as const } : t)),
-    );
+    if (!current || !publishReport?.canPublish) return;
+    const wasPublished = current.status === "published";
+    updateCurrent({ status: "published" });
+    const label = classKey(current.grade, current.section);
+    if (wasPublished) {
+      notifyTimetableChanged({
+        timetableId: current.id,
+        classLabel: label,
+        changeSummary: "Timetable republished with updates",
+        important: true,
+      });
+    } else {
+      notifyTimetablePublished({
+        timetableId: current.id,
+        classLabel: label,
+        termLabel: current.term,
+      });
+    }
+    setReviewOpen(false);
+  };
+
+  const unpublishTimetable = () => {
+    if (!current) return;
+    updateCurrent({ status: "draft" });
   };
 
   const slotHasConflict = (day: number, period: number, slot: TimetableSlot) => {
@@ -435,37 +731,101 @@ function TimetablePage() {
     return classConflicts.some(
       (c) =>
         c.day === dayLabel &&
-        c.period === periodLabel &&
-        (c.resource === slot.teacher || c.resource === slot.teacherId),
+        (c.period.includes(periodLabel) || c.period === periodLabel) &&
+        (c.resource === slot.teacher ||
+          c.resource === slot.teacherId ||
+          c.resource === slot.room),
     );
   };
 
-  const openStaffPanel = () => {
+  const openScheduleEditor = () => {
     if (!current) return;
-    const inferred = inferSubjectTeachersFromTimetables(grade, section, timetables);
-    setStaffSubjectTeachers(mergeSubjectTeachersForGrade(grade, section, inferred));
-    setStaffSubjectPeriods(
-      current.subjectPeriodsPerWeek ?? inferSubjectPeriodsFromGrid(current.grid, subjectsForGrade),
-    );
-    setStaffSubjectSlotSelections(
-      current.subjectSlotSelections ??
-        inferSubjectSlotsFromGrid(current.grid, subjectsForGrade, currentSchedule),
-    );
-    setStaffTeacherMode("manual");
-    setStaffPanelOpen(true);
+    setScheduleEditInput(scheduleInputFromConfig(currentSchedule));
+    setScheduleSaveAsInstitute(false);
+    setScheduleEditOpen(true);
   };
 
-  const moveSlot = (
-    from: TimetableCellRef,
-    to: TimetableCellRef,
-  ) => {
+  const saveScheduleEdit = () => {
     if (!current) return;
+    const issues = validateBellItems(scheduleEditInput.bellItems ?? []);
+    if (issues.some((i) => i.severity === "error")) return;
+    const schedule = buildScheduleConfig(scheduleEditInput);
+    if (scheduleSaveAsInstitute) {
+      saveInstituteScheduleDefault(scheduleEditInput);
+    }
+    const preferences =
+      current.subjectPlacementPreferences ??
+      Object.fromEntries(subjectsForGrade.map((s) => [s.id, "any" as PlacementPreference]));
+    const slots = sanitizeSubjectSlotSelections(
+      current.subjectSlotSelections ?? {},
+      schedule,
+      preferences,
+    );
+    // Keep existing manual placements where the period still exists; clear inapplicable cells.
+    const nextGrid = emptyGrid(schedule).map((col, dayIdx) =>
+      col.map((_, periodIdx) => {
+        if (!isSlotApplicable(schedule, dayIdx, periodIdx)) return null;
+        const prev = current.grid[dayIdx]?.[periodIdx] ?? null;
+        return prev;
+      }),
+    );
+    // Trim rows/cols if schedule shrank: emptyGrid already sized; copy only overlapping cells above.
+    updateCurrent({
+      schedule,
+      grid: nextGrid,
+      subjectSlotSelections: slots,
+      subjectPlacementPreferences: preferences,
+      status: "draft",
+    });
+    setScheduleEditOpen(false);
+  };
+
+  const moveSlot = (from: TimetableCellRef, to: TimetableCellRef) => {
+    if (!current) return;
+    const source = current.grid[from.day]?.[from.period];
+    if (!source) return;
+    const gridWithoutFrom = current.grid.map((col, d) =>
+      col.map((slot, p) => (d === from.day && p === from.period ? null : slot)),
+    );
+    const target = gridWithoutFrom[to.day]?.[to.period] ?? null;
+
+    const validateMove = (slot: TimetableSlot, day: number, period: number, baseGrid: typeof grid) =>
+      validateCellPlacement({
+        grid: baseGrid,
+        schedule: currentSchedule,
+        day,
+        period,
+        subjectId: slot.subjectId,
+        subjectCode: slot.subject,
+        teacherId: slot.teacherId,
+        room: slot.room,
+        preference: current.subjectPlacementPreferences?.[slot.subjectId] ?? "any",
+        existingTimetables: timetables,
+        excludeTimetableId: current.id,
+      });
+
+    const sourceCheck = validateMove(source, to.day, to.period, gridWithoutFrom);
+    if (!sourceCheck.ok) {
+      setEditError(sourceCheck.reason ?? "Cannot move here.");
+      return;
+    }
+    if (target) {
+      const gridWithoutBoth = gridWithoutFrom.map((col, d) =>
+        col.map((slot, p) => (d === to.day && p === to.period ? null : slot)),
+      );
+      const targetCheck = validateMove(target, from.day, from.period, gridWithoutBoth);
+      if (!targetCheck.ok) {
+        setEditError(targetCheck.reason ?? "Cannot swap with that period.");
+        return;
+      }
+    }
+
     updateCurrentGrid((prev) => {
       const next = prev.map((col) => [...col]);
-      const source = next[from.day]?.[from.period] ?? null;
-      const target = next[to.day]?.[to.period] ?? null;
-      next[from.day]![from.period] = target;
-      next[to.day]![to.period] = source;
+      const src = next[from.day]?.[from.period] ?? null;
+      const tgt = next[to.day]?.[to.period] ?? null;
+      next[from.day]![from.period] = tgt;
+      next[to.day]![to.period] = src;
       return next;
     });
   };
@@ -476,114 +836,321 @@ function TimetablePage() {
     meta: { code: string; name: string },
   ) => {
     if (!current) return;
-    const sub = subjectsForGrade.find((s) => s.id === subjectId);
-    const teacher =
-      rankTeachersByExperience(sub ?? { id: subjectId, name: meta.name, code: meta.code, periodsPerWeek: 1 })[0] ??
-      teachers[0];
-    if (!teacher) return;
+    const teacherId = current.subjectTeachers?.[subjectId];
+    const teacher = teacherId ? teacherById(teacherId) : null;
+    if (!teacher) {
+      setEditCell(to);
+      setEditSubject(meta.code);
+      setEditTeacherId("");
+      setEditError("Select a teacher for this subject (Subject plan or here).");
+      setEditOpen(true);
+      return;
+    }
+    const room = slotVenue(grade, section);
+    const preference = current.subjectPlacementPreferences?.[subjectId] ?? "any";
+    const validation = validateCellPlacement({
+      grid: current.grid,
+      schedule: currentSchedule,
+      day: to.day,
+      period: to.period,
+      subjectId,
+      subjectCode: meta.code,
+      teacherId: teacher.id,
+      room,
+      preference,
+      existingTimetables: timetables,
+      excludeTimetableId: current.id,
+    });
+    if (!validation.ok) {
+      setEditError(validation.reason ?? "Cannot assign subject here.");
+      return;
+    }
     const slot: TimetableSlot = {
       subjectId,
       subject: meta.code,
       teacherId: teacher.id,
       teacher: teacher.name,
-      room: slotVenue(grade, section),
+      room,
     };
-    updateCurrentGrid((prev) => {
-      const next = prev.map((col) => [...col]);
-      next[to.day]![to.period] = slot;
+    setTimetables((prev) => {
+      const focus = prev.find((t) => t.id === current.id);
+      if (!focus) return prev;
+      const nextGrid = focus.grid.map((col) => [...col]);
+      nextGrid[to.day]![to.period] = slot;
+      const next = prev.map((t) =>
+        t.id === current.id
+          ? {
+              ...t,
+              grid: nextGrid,
+              subjectTeachers: {
+                ...(t.subjectTeachers ?? {}),
+                [subjectId]: teacher.id,
+              },
+              status: "draft" as const,
+              updatedAt: new Date().toISOString().slice(0, 10),
+            }
+          : t,
+      );
+      replaceTimetableDirectory(next);
       return next;
     });
   };
 
-  const createAutoFilled = Object.keys(
-    inferSubjectTeachersFromTimetables(createGrade, createSection, timetables),
-  ).length > 0;
+  const publishAllReady = () => {
+    setTimetables((prev) => {
+      const next = prev.map((timetable) => {
+        const report = evaluatePublishReadiness(timetable, prev);
+        if (timetable.status === "published" || !report.canPublish) return timetable;
+        notifyTimetablePublished({
+          timetableId: timetable.id,
+          classLabel: classKey(timetable.grade, timetable.section),
+          termLabel: timetable.term,
+        });
+        return {
+          ...timetable,
+          status: "published" as const,
+          updatedAt: new Date().toISOString().slice(0, 10),
+        };
+      });
+      replaceTimetableDirectory(next);
+      return next;
+    });
+  };
+
+  const lockedCount = current?.lockedCells?.length ?? 0;
+  const currentReadiness = current
+    ? (readinessById[current.id] ?? getTimetableReadiness(current, timetables, classConflicts))
+    : ("incomplete" as TimetableReadiness);
 
   /* ── List view ── */
   if (!selectedId || !current) {
     return (
       <AppShell
         title="Timetables"
-        subtitle={`${timetables.length} class schedules · click a card to open`}
+        subtitle="Overview → create draft → assign manually → review → publish"
         actions={
-          <Button variant="primary" onClick={openCreateModal}>
-            <Plus className="size-3.5" /> New timetable
+          <Button
+            variant="primary"
+            data-admin-write
+            disabled={!writesAllowed}
+            title={!writesAllowed ? reason ?? undefined : undefined}
+            onClick={() => guardWriteAction(openCreateModal)}
+          >
+            <Plus className="size-3.5" /> New draft
           </Button>
         }
       >
         <PageStack>
-          {allConflicts.length > 0 && (
-            <div className="lx-timetable-conflict-banner" role="status">
-              <AlertTriangle className="size-4 text-warning shrink-0 mt-0.5" />
-              <div>
-                <strong>
-                  {allConflicts.length} teacher conflict{allConflicts.length !== 1 ? "s" : ""}
-                </strong>
-                {" across timetables — open a timetable and use "}
-                <span className="font-medium">Fix conflicts</span> to resolve.
-              </div>
+          <div className="flex flex-wrap gap-2">
+            {(Object.keys(readinessTotals) as TimetableReadiness[]).map((key) => (
+              <Pill key={key} tone={readinessTone(key)}>
+                {readinessLabel(key)} · {readinessTotals[key]}
+              </Pill>
+            ))}
+          </div>
+
+          <div className="lx-timetable-filter-row">
+            <div className="lx-timetable-filter-field min-w-[160px]">
+              <Field label="Grade">
+                <Select value={filterGrade} onChange={(e) => setFilterGrade(e.target.value)}>
+                  <option value="all">All grades</option>
+                  {gradeSectionOptions.grades.map((g) => (
+                    <option key={g} value={g}>
+                      {g}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
             </div>
+            <div className="lx-timetable-filter-field min-w-[160px]">
+              <Field label="Status">
+                <Select
+                  value={filterReadiness}
+                  onChange={(e) =>
+                    setFilterReadiness(e.target.value as "all" | TimetableReadiness)
+                  }
+                >
+                  <option value="all">All statuses</option>
+                  <option value="incomplete">Incomplete</option>
+                  <option value="conflicts">Conflicts</option>
+                  <option value="ready">Ready</option>
+                  <option value="published">Published</option>
+                </Select>
+              </Field>
+            </div>
+            <div className="lx-timetable-filter-field flex-1 min-w-[200px]">
+              <Field label="Search class">
+                <div className="relative">
+                  <Search className="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <TextInput
+                    className="pl-8"
+                    value={filterQuery}
+                    onChange={(e) => setFilterQuery(e.target.value)}
+                    placeholder="e.g. Grade 10-A"
+                  />
+                </div>
+              </Field>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              data-admin-write
+              onClick={() => guardWriteAction(publishAllReady)}
+              disabled={readinessTotals.ready === 0}
+            >
+              <CheckCircle2 className="size-3.5" /> Publish all ready ({readinessTotals.ready})
+            </Button>
+          </div>
+
+          {allConflicts.length > 0 && (
+            <TimetableConflictBanner>
+              <strong>
+                {allConflicts.length} conflict{allConflicts.length !== 1 ? "s" : ""}
+              </strong>
+              {" across timetables — open a class and use Review & publish to fix."}
+            </TimetableConflictBanner>
           )}
 
-          {timetables.length === 0 ? (
+          {filteredTimetables.length === 0 ? (
             <EmptyState
               icon={<CalendarDays className="size-6 text-primary" />}
-              title="No timetables yet"
-              hint="Create your first class timetable — assign subjects, staff, and period timings."
+              title={timetables.length === 0 ? "No timetables yet" : "No matches"}
+              hint={
+                timetables.length === 0
+                  ? "Create a draft, assign subjects and teachers yourself, then publish."
+                  : "Try another grade, status, or search."
+              }
               action={
-                <Button variant="primary" onClick={openCreateModal}>
-                  <Plus className="size-3.5" /> Create timetable
-                </Button>
+                timetables.length === 0 ? (
+                  <Button
+                    variant="primary"
+                    data-admin-write
+                    disabled={!writesAllowed}
+                    title={!writesAllowed ? reason ?? undefined : undefined}
+                    onClick={() => guardWriteAction(openCreateModal)}
+                  >
+                    <Plus className="size-3.5" /> Create draft
+                  </Button>
+                ) : undefined
               }
             />
           ) : (
             <TimetableCards
-              timetables={timetables}
+              timetables={filteredTimetables}
               conflictCounts={conflictCounts}
+              readinessById={readinessById}
               onOpen={openDetail}
             />
           )}
         </PageStack>
 
-        <CreateTimetableModal
+        <Modal
           open={createOpen}
           onClose={() => setCreateOpen(false)}
-          createGrade={createGrade}
-          createSection={createSection}
-          createTerm={createTerm}
-          createSubjects={createSubjects}
-          createTeacherMode={createTeacherMode}
-          createSubjectTeachers={createSubjectTeachers}
-          createSubjectPeriods={createSubjectPeriods}
-          createSubjectSlotSelections={createSubjectSlotSelections}
-          createScheduleInput={createScheduleInput}
-          createMaxPeriods={createMaxPeriods}
-          autoFilledFromExisting={createAutoFilled}
-          timetables={timetables}
-          onGradeChange={onCreateGradeChange}
-          onSectionChange={setCreateSection}
-          onTermChange={setCreateTerm}
-          onTeacherModeChange={(mode) => {
-            setCreateTeacherMode(mode);
-            if (mode === "auto") {
-              setCreateSubjectTeachers(
-                autoSuggestSubjectTeachers(createGrade, createSection, timetables),
-              );
-            }
-          }}
-          onSubjectTeacherChange={(subjectId, teacherId) =>
-            setCreateSubjectTeachers((prev) => ({ ...prev, [subjectId]: teacherId }))
+          title="Create timetable draft"
+          subtitle="Pick class, term, and bell schedule — assign periods manually on the detail page"
+          size="md"
+          footer={
+            <>
+              <Button onClick={() => setCreateOpen(false)}>Cancel</Button>
+              <Button
+                variant="primary"
+                data-admin-write
+                onClick={() => guardWriteAction(createTimetable)}
+                disabled={
+                  hasTimetable(createGrade, createSection, timetables) || createHasScheduleErrors
+                }
+              >
+                <Plus className="size-3.5" /> Create empty draft
+              </Button>
+            </>
           }
-          onSubjectPeriodChange={(subjectId, periods) =>
-            setCreateSubjectPeriods((prev) => ({ ...prev, [subjectId]: periods }))
-          }
-          onSlotSelectionsChange={setCreateSubjectSlotSelections}
-          onScheduleChange={onCreateScheduleChange}
-          onCreate={createTimetable}
-          gradeOptions={grades}
-          sectionOptions={sections}
-          levelLabel={profile.academic.levelLabel}
-        />
+        >
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Field label={profile.academic.levelLabel} required>
+                <Select value={createGrade} onChange={(e) => setCreateGrade(e.target.value)}>
+                  {gradeSectionOptions.grades.map((g) => (
+                    <option key={g} value={g}>
+                      {g}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Section" required>
+                <Select value={createSection} onChange={(e) => setCreateSection(e.target.value)}>
+                  {gradeSectionOptions.sections.map((s) => (
+                    <option key={s} value={s}>
+                      Section {s}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Term">
+                <TextInput value={createTerm} onChange={(e) => setCreateTerm(e.target.value)} />
+              </Field>
+            </div>
+
+            {hasTimetable(createGrade, createSection, timetables) && (
+              <p className="text-[11px] text-warning">
+                A timetable already exists for {classKey(createGrade, createSection)}.
+              </p>
+            )}
+
+            <Field label="Bell schedule source">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+                <label
+                  className={`lx-teacher-mode-card ${createUseInstituteSchedule ? "lx-teacher-mode-card--active" : ""}`}
+                >
+                  <input
+                    type="radio"
+                    checked={createUseInstituteSchedule}
+                    onChange={() => {
+                      setCreateUseInstituteSchedule(true);
+                      setCreateScheduleInput(loadInstituteScheduleDefault());
+                    }}
+                  />
+                  <div>
+                    <div className="text-sm font-medium">Institute default</div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">
+                      {scheduleSummary(buildScheduleConfig(loadInstituteScheduleDefault()))}
+                    </div>
+                  </div>
+                </label>
+                <label
+                  className={`lx-teacher-mode-card ${!createUseInstituteSchedule ? "lx-teacher-mode-card--active" : ""}`}
+                >
+                  <input
+                    type="radio"
+                    checked={!createUseInstituteSchedule}
+                    onChange={() => setCreateUseInstituteSchedule(false)}
+                  />
+                  <div>
+                    <div className="text-sm font-medium">Custom for this class</div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">
+                      Override days and period times
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </Field>
+
+            {!createUseInstituteSchedule && (
+              <ScheduleConfigForm
+                value={createScheduleInput}
+                onChange={setCreateScheduleInput}
+                mode="class-override"
+              />
+            )}
+
+            <p className="text-[11px] text-muted-foreground">
+              Creates an empty grid. Assign subjects and teachers yourself on the next screen.
+              Capacity: {countTeachingSlotsPerWeek(createSchedulePreview)} teaching slots / week
+            </p>
+          </div>
+        </Modal>
       </AppShell>
     );
   }
@@ -591,25 +1158,25 @@ function TimetablePage() {
   /* ── Detail view ── */
   return (
     <AppShell
-      title={ck}
+      title={currentClassKey}
       subtitle={`${current.term} · ${scheduleSummary(currentSchedule)}`}
       actions={
         <>
-          {classConflicts.length > 0 && (
-            <Button variant="outline" onClick={fixConflicts}>
-              <Wand2 className="size-3.5" /> Fix conflicts ({classConflicts.length})
+          {current.status === "published" ? (
+            <Button variant="outline" data-admin-write onClick={() => guardWriteAction(unpublishTimetable)}>
+              <Undo2 className="size-3.5" /> Unpublish
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              data-admin-write
+              onClick={() => guardWriteAction(() => setReviewOpen(true))}
+              disabled={!publishReport?.canPublish}
+            >
+              <CheckCircle2 className="size-3.5" />
+              Publish
             </Button>
           )}
-          <Button
-            variant="primary"
-            onClick={publishTimetable}
-            disabled={
-              classConflicts.length > 0 || current.status === "published" || emptyCount > 0
-            }
-          >
-            <CheckCircle2 className="size-3.5" />
-            Publish
-          </Button>
         </>
       }
     >
@@ -618,12 +1185,15 @@ function TimetablePage() {
           <Button variant="outline" onClick={backToList}>
             <ArrowLeft className="size-3.5" /> All timetables
           </Button>
-          <Pill tone={current.status === "published" ? "success" : "warning"}>
-            {current.status === "published" ? "Published" : "Draft"}
-          </Pill>
+          <Pill tone={readinessTone(currentReadiness)}>{readinessLabel(currentReadiness)}</Pill>
           <Pill tone="neutral">
-            {filledCount}/{teachingSlotsPerWeek} periods
+            Slots {filledCount}/{teachingSlotsPerWeek}
           </Pill>
+          {lockedCount > 0 && (
+            <Pill tone="info">
+              <Lock className="size-3" /> {lockedCount} locked
+            </Pill>
+          )}
           {classConflicts.length > 0 && (
             <Pill tone="danger">
               <AlertTriangle className="size-3" />
@@ -632,38 +1202,108 @@ function TimetablePage() {
           )}
         </div>
 
-        {classConflicts.length > 0 && (
-          <div className="lx-timetable-conflict-banner" role="status">
-            <AlertTriangle className="size-4 text-warning shrink-0 mt-0.5" />
-            <div>
-              <strong>Teacher double-booked</strong>
-              {" — "}
-              {classConflicts.slice(0, 2).map((c, i) => (
-                <span key={i}>
-                  {i > 0 && "; "}
-                  {c.resource} on {c.day} · {c.period} ({c.classes.join(" vs ")})
-                </span>
+        {sameGradePeers.length > 1 && (
+          <div className="lx-timetable-class-jump">
+            <span className="lx-timetable-class-jump__label">{current.grade} sections</span>
+            <div className="lx-timetable-class-jump__chips">
+              {sameGradePeers.map((peer) => (
+                <button
+                  key={peer.id}
+                  type="button"
+                  className={`lx-timetable-filter-current ${peer.id === current.id ? "ring-1 ring-primary" : ""}`}
+                  onClick={() => openDetail(peer.id)}
+                >
+                  Sec {peer.section}
+                </button>
               ))}
-              {classConflicts.length > 2 && ` +${classConflicts.length - 2} more`}
             </div>
           </div>
         )}
 
+        <div className="lx-period-summary">
+          <div className="lx-period-summary__totals">
+            <div>
+              <span className="lx-period-summary__label">Teaching slots</span>
+              <strong>{teachingSlotsPerWeek}</strong>
+            </div>
+            <div>
+              <span className="lx-period-summary__label">Filled</span>
+              <strong>{filledCount}</strong>
+            </div>
+            <div>
+              <span className="lx-period-summary__label">Remaining empty</span>
+              <strong className={emptyCount > 0 ? "text-warning" : ""}>{emptyCount}</strong>
+            </div>
+            <div>
+              <span className="lx-period-summary__label">Subject plan</span>
+              <strong>
+                {plannedFilledTotal}/{plannedPeriodTotal}
+                {plannedRemainingTotal > 0 ? ` · ${plannedRemainingTotal} left` : ""}
+              </strong>
+            </div>
+          </div>
+          <div className="lx-period-summary__subjects">
+            {subjectPeriodStats.map((row) => (
+              <div
+                key={row.id}
+                className={`lx-period-summary__chip ${row.remaining > 0 ? "lx-period-summary__chip--open" : "lx-period-summary__chip--done"}`}
+                title={`${row.name}: ${row.filled} filled, ${row.remaining} remaining of ${row.target}/wk`}
+              >
+                <span className="font-medium truncate">{row.name}</span>
+                <span className="font-mono">
+                  {row.filled}/{row.target}
+                  {row.remaining > 0 ? ` · ${row.remaining} left` : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {editError && (
+          <TimetableConflictBanner role="alert">
+            <strong>Edit blocked</strong>
+            {" — "}
+            {editError}
+            <button
+              type="button"
+              className="ml-2 text-primary underline text-[11px]"
+              onClick={() => setEditError(null)}
+            >
+              Dismiss
+            </button>
+          </TimetableConflictBanner>
+        )}
+
+        {classConflicts.length > 0 && (
+          <TimetableConflictBanner>
+            <strong>Conflicts detected</strong>
+            {" — "}
+            {classConflicts.slice(0, 2).map((c, i) => (
+              <span key={i}>
+                {i > 0 && "; "}
+                {c.kind} · {c.resource} on {c.day} · {c.period} ({c.classes.join(" vs ")})
+              </span>
+            ))}
+            {classConflicts.length > 2 && ` +${classConflicts.length - 2} more`}
+          </TimetableConflictBanner>
+        )}
+
         <div className="lx-timetable-actions">
-          {emptyCount > 0 && (
-            <Button variant="outline" onClick={fillEmptyPeriods}>
-              <Zap className="size-3.5" /> Fill empty ({emptyCount})
-            </Button>
-          )}
-          <Button variant="outline" onClick={openStaffPanel}>
-            <Wand2 className="size-3.5" /> Staff & regenerate
+          <Button variant="outline" data-admin-write onClick={() => guardWriteAction(openSubjectPlan)}>
+            <Wand2 className="size-3.5" /> Subject plan
+          </Button>
+          <Button variant="outline" data-admin-write onClick={() => guardWriteAction(openScheduleEditor)}>
+            <Clock className="size-3.5" /> Bell & days
+          </Button>
+          <Button variant="outline" data-admin-write onClick={() => guardWriteAction(() => setReviewOpen(true))}>
+            <CheckCircle2 className="size-3.5" /> Review & publish
           </Button>
         </div>
 
         <Card>
           <CardHeader
             title="Weekly schedule"
-            hint="Drag subjects onto periods, drag periods to move, or click to edit"
+            hint="Click a cell to assign subject and teacher, or drag to move. Nothing is auto-filled."
           />
           <div className="px-4 sm:px-5 pb-5">
             <TimetableWeekGrid
@@ -675,6 +1315,8 @@ function TimetablePage() {
               enableDragDrop
               onMoveSlot={moveSlot}
               onAssignSubject={assignSubjectToCell}
+              lockedCells={current.lockedCells}
+              onToggleLock={handleToggleLock}
             />
           </div>
         </Card>
@@ -698,27 +1340,25 @@ function TimetablePage() {
         footer={
           <>
             {editCell && grid[editCell.day]?.[editCell.period] && (
-              <Button variant="danger" onClick={clearSlot} className="mr-auto">
+              <Button variant="danger" data-admin-write onClick={() => guardWriteAction(clearSlot)} className="mr-auto">
                 Clear
               </Button>
             )}
             <Button onClick={() => setEditOpen(false)}>Cancel</Button>
-            <Button variant="primary" onClick={saveSlot}>
+            <Button variant="primary" data-admin-write onClick={() => guardWriteAction(saveSlot)}>
               Save
             </Button>
           </>
         }
       >
         <div className="space-y-4">
+          {editError && <p className="text-[11px] text-destructive">{editError}</p>}
           <Field label="Subject">
             <Select
               value={editSubject}
-              onChange={(e) => {
-                setEditSubject(e.target.value);
-                const q = teachersForSubject(e.target.value);
-                setEditTeacherId(q[0]?.id ?? teachers[0]?.id ?? "");
-              }}
+              onChange={(e) => onEditSubjectChange(e.target.value)}
             >
+              <option value="">Select subject…</option>
               {subjectsForGrade.map((s) => (
                 <option key={s.id} value={s.code}>
                   {s.name} ({s.code})
@@ -726,13 +1366,57 @@ function TimetablePage() {
               ))}
             </Select>
           </Field>
-          <Field label="Teacher" hint="Qualified staff for this subject">
-            <Select value={editTeacherId} onChange={(e) => setEditTeacherId(e.target.value)}>
-              {qualifiedTeachers.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name} · {t.experienceYears}y
-                </option>
-              ))}
+          <Field
+            label="Teacher"
+            hint={
+              editSubject
+                ? "Planned / recommended teachers first — every staff member is listed"
+                : "Pick a subject first, then choose a teacher"
+            }
+          >
+            <Select
+              value={editTeacherId}
+              onChange={(e) => {
+                setEditTeacherId(e.target.value);
+                setEditError(null);
+              }}
+              disabled={!editSubject}
+              className="h-10"
+            >
+              <option value="">Select teacher…</option>
+              {editTeacherOptions.planned.length > 0 && (
+                <optgroup label="From subject plan">
+                  {editTeacherOptions.planned.map((t) => (
+                    <option key={`planned-${t.id}`} value={t.id}>
+                      {t.name} · {t.department}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {editTeacherOptions.qualified.length > 0 && (
+                <optgroup label="Recommended for subject">
+                  {editTeacherOptions.qualified.map((t) => (
+                    <option key={`qual-${t.id}`} value={t.id}>
+                      {t.name} · {t.experienceYears}y · {t.department}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              <optgroup label="All teachers">
+                {editTeacherOptions.rest.map((t) => (
+                  <option key={`all-${t.id}`} value={t.id}>
+                    {t.name} · {t.department}
+                  </option>
+                ))}
+                {editTeacherOptions.rest.length === 0 &&
+                  editTeacherOptions.planned.length === 0 &&
+                  editTeacherOptions.qualified.length === 0 &&
+                  teachers.map((t) => (
+                    <option key={`fallback-${t.id}`} value={t.id}>
+                      {t.name} · {t.department}
+                    </option>
+                  ))}
+              </optgroup>
             </Select>
           </Field>
           <Field label="Class">
@@ -742,40 +1426,31 @@ function TimetablePage() {
       </Modal>
 
       <Modal
-        open={staffPanelOpen}
-        onClose={() => setStaffPanelOpen(false)}
-        title="Staff assignment & regenerate"
-        subtitle="Pick day/period slots per subject, assign teachers, then rebuild"
+        open={subjectPlanOpen}
+        onClose={() => setSubjectPlanOpen(false)}
+        title="Subject plan"
+        subtitle="Set periods, teachers, and timing — place periods on the grid yourself"
         size="xl"
         footer={
           <>
-            <Button onClick={() => setStaffPanelOpen(false)} className="mr-auto">
+            <Button onClick={() => setSubjectPlanOpen(false)} className="mr-auto">
               Cancel
             </Button>
-            <Button variant="primary" onClick={regenerateCurrent}>
-              <Wand2 className="size-3.5" /> Regenerate timetable
+            <Button variant="primary" data-admin-write onClick={() => guardWriteAction(saveSubjectPlanOnly)} disabled={!staffBudget.ok}>
+              Save subject plan
             </Button>
           </>
         }
       >
+        {planCapacityError && (
+          <p className="text-[11px] text-destructive mb-3">{planCapacityError}</p>
+        )}
         <TeacherAssignPanel
-          mode={staffTeacherMode}
-          onModeChange={(mode) => {
-            setStaffTeacherMode(mode);
-            if (mode === "auto") {
-              setStaffSubjectTeachers(
-                autoSuggestSubjectTeachers(
-                  grade,
-                  section,
-                  timetables.filter((t) => t.id !== current.id),
-                ),
-              );
-            }
-          }}
           subjects={subjectsForGrade}
           subjectTeachers={staffSubjectTeachers}
           subjectPeriods={staffSubjectPeriods}
           subjectSlotSelections={staffSubjectSlotSelections}
+          subjectPlacementPreferences={staffSubjectPreferences}
           schedule={currentSchedule}
           maxPeriodsPerWeek={teachingSlotsPerWeek}
           onSubjectTeacherChange={(subjectId, teacherId) =>
@@ -784,136 +1459,120 @@ function TimetablePage() {
           onSubjectPeriodChange={(subjectId, periods) =>
             setStaffSubjectPeriods((prev) => ({ ...prev, [subjectId]: periods }))
           }
-          onSlotSelectionsChange={setStaffSubjectSlotSelections}
-          autoFilledFromExisting={Object.keys(staffSubjectTeachers).length > 0}
+          onSlotSelectionsChange={(next) => {
+            setStaffSubjectSlotSelections(
+              sanitizeSubjectSlotSelections(next, currentSchedule, staffSubjectPreferences),
+            );
+          }}
+          onPlacementPreferenceChange={(subjectId, preference) => {
+            setStaffSubjectPreferences((prev) => {
+              const nextPrefs = { ...prev, [subjectId]: preference };
+              setStaffSubjectSlotSelections((slots) =>
+                sanitizeSubjectSlotSelections(slots, currentSchedule, nextPrefs),
+              );
+              return nextPrefs;
+            });
+          }}
         />
       </Modal>
-    </AppShell>
-  );
-}
 
-function CreateTimetableModal({
-  open,
-  onClose,
-  createGrade,
-  createSection,
-  createTerm,
-  createSubjects,
-  createTeacherMode,
-  createSubjectTeachers,
-  createSubjectPeriods,
-  createSubjectSlotSelections,
-  createScheduleInput,
-  createMaxPeriods,
-  autoFilledFromExisting,
-  timetables,
-  onGradeChange,
-  onSectionChange,
-  onTermChange,
-  onTeacherModeChange,
-  onSubjectTeacherChange,
-  onSubjectPeriodChange,
-  onSlotSelectionsChange,
-  onScheduleChange,
-  onCreate,
-  gradeOptions,
-  sectionOptions,
-  levelLabel,
-}: {
-  open: boolean;
-  onClose: () => void;
-  createGrade: string;
-  createSection: string;
-  createTerm: string;
-  createSubjects: { id: string; name: string; code: string; periodsPerWeek: number }[];
-  createTeacherMode: TeacherAssignMode;
-  createSubjectTeachers: Record<string, string>;
-  createSubjectPeriods: Record<string, number>;
-  createSubjectSlotSelections: Record<string, TimetableCellRef[]>;
-  createScheduleInput: ScheduleInput;
-  createMaxPeriods: number;
-  autoFilledFromExisting: boolean;
-  timetables: TimetableRecord[];
-  onGradeChange: (g: string) => void;
-  onSectionChange: (s: string) => void;
-  onTermChange: (t: string) => void;
-  onTeacherModeChange: (mode: TeacherAssignMode) => void;
-  onSubjectTeacherChange: (subjectId: string, teacherId: string) => void;
-  onSubjectPeriodChange: (subjectId: string, periods: number) => void;
-  onSlotSelectionsChange: (next: Record<string, TimetableCellRef[]>) => void;
-  onScheduleChange: (input: ScheduleInput) => void;
-  onCreate: () => void;
-  gradeOptions: string[];
-  sectionOptions: string[];
-  levelLabel: string;
-}) {
-  const exists = hasTimetable(createGrade, createSection, timetables);
-  const createSchedule = buildScheduleConfig(createScheduleInput);
-
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title="Create timetable"
-      subtitle="Select class, set period timings, assign staff, then generate"
-      size="lg"
-      footer={
-        <>
-          <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" onClick={onCreate} disabled={exists}>
-            <Plus className="size-3.5" /> Create & open
-          </Button>
-        </>
-      }
-    >
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Field label={levelLabel} required>
-            <Select value={createGrade} onChange={(e) => onGradeChange(e.target.value)}>
-              {gradeOptions.map((g) => (
-                <option key={g} value={g}>
-                  {g}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Section" required>
-            <Select value={createSection} onChange={(e) => onSectionChange(e.target.value)}>
-              {sectionOptions.map((s) => (
-                <option key={s} value={s}>
-                  Section {s}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Term">
-            <TextInput value={createTerm} onChange={(e) => onTermChange(e.target.value)} />
-          </Field>
+      <Modal
+        open={scheduleEditOpen}
+        onClose={() => setScheduleEditOpen(false)}
+        title="Bell & days"
+        subtitle="Edit this class schedule — does not auto-fill the grid"
+        size="lg"
+        footer={
+          <>
+            <Button onClick={() => setScheduleEditOpen(false)} className="mr-auto">
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              data-admin-write
+              onClick={() => guardWriteAction(saveScheduleEdit)}
+              disabled={validateBellItems(scheduleEditInput.bellItems ?? []).some(
+                (i) => i.severity === "error",
+              )}
+            >
+              Save schedule
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={scheduleSaveAsInstitute}
+              onChange={(e) => setScheduleSaveAsInstitute(e.target.checked)}
+            />
+            <span>
+              Also save as institute default for new drafts
+              <span className="block text-[11px] text-muted-foreground mt-0.5">
+                Existing class timetables keep their own schedules unless you edit them.
+              </span>
+            </span>
+          </label>
+          <ScheduleConfigForm
+            value={scheduleEditInput}
+            onChange={setScheduleEditInput}
+            mode={scheduleSaveAsInstitute ? "institute-default" : "class-override"}
+          />
         </div>
+      </Modal>
 
-        {exists && (
-          <p className="text-[11px] text-warning">
-            A timetable already exists for {classKey(createGrade, createSection)}.
-          </p>
-        )}
-
-        <ScheduleConfigForm value={createScheduleInput} onChange={onScheduleChange} />
-
-        <TeacherAssignPanel
-          mode={createTeacherMode}
-          onModeChange={onTeacherModeChange}
-          subjects={createSubjects}
-          subjectTeachers={createSubjectTeachers}
-          subjectPeriods={createSubjectPeriods}
-          subjectSlotSelections={createSubjectSlotSelections}
-          schedule={createSchedule}
-          maxPeriodsPerWeek={createMaxPeriods}
-          onSubjectTeacherChange={onSubjectTeacherChange}
-          onSubjectPeriodChange={onSubjectPeriodChange}
-          onSlotSelectionsChange={onSlotSelectionsChange}
-          autoFilledFromExisting={autoFilledFromExisting}
-        />
-      </div>
-    </Modal>
+      <Modal
+        open={reviewOpen}
+        onClose={() => setReviewOpen(false)}
+        title="Review & publish"
+        subtitle="Publish only when the readiness checklist passes"
+        footer={
+          <>
+            <Button onClick={() => setReviewOpen(false)} className="mr-auto">
+              Close
+            </Button>
+            {current.status === "published" ? (
+              <Button variant="outline" data-admin-write onClick={() => guardWriteAction(unpublishTimetable)}>
+                Unpublish
+              </Button>
+            ) : (
+              <Button
+                variant="primary"
+                data-admin-write
+                onClick={() => guardWriteAction(publishTimetable)}
+                disabled={!publishReport?.canPublish}
+              >
+                <CheckCircle2 className="size-3.5" /> Publish timetable
+              </Button>
+            )}
+          </>
+        }
+      >
+        <div className="space-y-3">
+          {(publishReport?.checklist ?? []).map((item) => (
+            <div
+              key={item.id}
+              className="flex items-start justify-between gap-3 rounded-lg border border-border px-3 py-2"
+            >
+              <div>
+                <div className="text-sm font-medium">{item.label}</div>
+                {item.detail && (
+                  <div className="text-[11px] text-muted-foreground mt-0.5">{item.detail}</div>
+                )}
+              </div>
+              <Pill tone={item.ok ? "success" : "danger"}>{item.ok ? "OK" : "Fix"}</Pill>
+            </div>
+          ))}
+          {!publishReport?.canPublish && (
+            <p className="text-[11px] text-warning">
+              Resolve checklist items before publishing. Use Subject plan and assign periods on the
+              grid yourself.
+            </p>
+          )}
+        </div>
+      </Modal>
+    </AppShell>
   );
 }

@@ -1,7 +1,5 @@
-import {
-  getInitialStudentLeave,
-  getInitialTeacherLeave,
-} from "@/lib/leave-data";
+import { getInitialStudentLeave, getInitialTeacherLeave } from "@/lib/leave-data";
+import { loadTeacherLeaveSnapshot } from "@lumenx/utils";
 import { getDocuments } from "@/lib/documents-data";
 import { getAuditLog } from "@/lib/audit-activity-data";
 import {
@@ -13,9 +11,20 @@ import {
   TRANSPORT_ROUTES,
 } from "@/lib/admin-module-data";
 import type { REPORT_CATALOG } from "@/lib/admin-module-data";
+import {
+  attendanceReportRangeDefaults,
+  listAttendanceReportSections,
+} from "@/lib/attendance-report-demo";
+import {
+  attendanceWeekBounds,
+  buildAttendanceHistoryReport,
+  buildAttendanceReportByKind,
+} from "@lumenx/module-attendance";
+import { downloadTextToDevice } from "@lumenx/utils";
 
 export type ReportId = (typeof REPORT_CATALOG)[number]["id"];
-export type ExportFormat = "csv" | "pdf";
+/** Reports-only formats. Analytics must never call these. */
+export type ExportFormat = "csv" | "excel" | "pdf";
 
 export type RecentExport = {
   id: string;
@@ -136,56 +145,30 @@ const TEACHER_ROSTER = [
   },
 ];
 
-const ATTENDANCE_MONTHLY = [
-  {
-    month: "May 2026",
-    classSection: "Grade 10-A",
-    schoolDays: 22,
-    present: 836,
-    absent: 44,
-    ratePct: 95,
-  },
-  {
-    month: "May 2026",
-    classSection: "Grade 10-B",
-    schoolDays: 22,
-    present: 798,
-    absent: 70,
-    ratePct: 92,
-  },
-  {
-    month: "May 2026",
-    classSection: "Grade 11-A",
-    schoolDays: 22,
-    present: 820,
-    absent: 62,
-    ratePct: 93,
-  },
-  {
-    month: "May 2026",
-    classSection: "Grade 11-C",
-    schoolDays: 22,
-    present: 712,
-    absent: 80,
-    ratePct: 90,
-  },
-  {
-    month: "May 2026",
-    classSection: "Grade 9-A",
-    schoolDays: 22,
-    present: 690,
-    absent: 98,
-    ratePct: 88,
-  },
-  {
-    month: "May 2026",
-    classSection: "Grade 9-B",
-    schoolDays: 22,
-    present: 705,
-    absent: 85,
-    ratePct: 89,
-  },
-];
+function buildAttendanceMonthlyExportRows() {
+  const range = attendanceReportRangeDefaults();
+  const monthLabel = new Date(`${range.monthStart}T12:00:00`).toLocaleDateString("en-IN", {
+    month: "short",
+    year: "numeric",
+  });
+  return listAttendanceReportSections().map((s) => {
+    const report = buildAttendanceHistoryReport({
+      from: range.monthStart,
+      to: range.to,
+      sectionKey: s.sectionKey,
+      classLabel: s.classLabel,
+      studentIds: s.studentIds,
+    });
+    return {
+      month: monthLabel,
+      classSection: s.displayLabel ?? `${s.classLabel}-${s.section}`,
+      schoolDays: report.workingDays,
+      present: report.presentSlots,
+      absent: report.absentSlots,
+      ratePct: report.attendancePct,
+    };
+  });
+}
 
 const COMPLAINTS_EXPORT = [
   {
@@ -370,15 +353,80 @@ function getDataset(reportId: ReportId): ReportDataset {
         headers: ["employeeId", "name", "department", "email", "sections", "status"],
         rows: TEACHER_ROSTER,
       };
-    case "attendance":
+    case "attendance": {
+      const rows = buildAttendanceMonthlyExportRows();
       return {
         title: "Monthly attendance register",
         institute,
         generatedAt,
-        summary: "May 2026 · class-level aggregates",
+        summary: `${rows.length} sections · Registers month-to-date`,
         headers: ["month", "classSection", "schoolDays", "present", "absent", "ratePct"],
-        rows: ATTENDANCE_MONTHLY,
+        rows: rows.length ? rows : [{ month: "—", classSection: "—", schoolDays: 0, present: 0, absent: 0, ratePct: 0 }],
       };
+    }
+    case "attendance-daily":
+    case "attendance-weekly":
+    case "attendance-student":
+    case "attendance-teacher":
+    case "attendance-class":
+    case "attendance-section": {
+      const range = attendanceReportRangeDefaults();
+      const sections = listAttendanceReportSections();
+      const kind =
+        reportId === "attendance-daily"
+          ? ("daily" as const)
+          : reportId === "attendance-weekly"
+            ? ("weekly" as const)
+            : reportId === "attendance-student"
+              ? ("student" as const)
+              : reportId === "attendance-teacher"
+                ? ("teacher" as const)
+                : reportId === "attendance-class"
+                  ? ("class" as const)
+                  : ("section" as const);
+      const week =
+        kind === "weekly" ? attendanceWeekBounds(range.to) : null;
+      const bundle = buildAttendanceReportByKind(kind, {
+        sections,
+        from:
+          kind === "daily"
+            ? range.to
+            : kind === "weekly"
+              ? week!.from
+              : range.monthStart,
+        to: kind === "weekly" ? week!.to : range.to,
+        date: range.to,
+      });
+      const titles: Record<typeof kind, string> = {
+        daily: "Daily attendance by section",
+        weekly: "Weekly attendance by section",
+        student: "Student attendance detail",
+        teacher: "Teacher submission log",
+        class: "Class attendance rollup",
+        section: "Section attendance history",
+      };
+      const rows = (bundle.rows as unknown as Record<string, string | number | boolean>[]).map(
+        (row) => {
+          const out: Record<string, string | number> = {};
+          for (const [k, v] of Object.entries(row)) {
+            out[k] = typeof v === "boolean" ? (v ? "yes" : "no") : v;
+          }
+          return out;
+        },
+      );
+      const headers =
+        rows.length > 0
+          ? Object.keys(rows[0]!)
+          : ["empty"];
+      return {
+        title: titles[kind],
+        institute,
+        generatedAt,
+        summary: `${rows.length} rows · export from Attendance Reports engine`,
+        headers,
+        rows: rows.length ? rows : [{ empty: "No data" }],
+      };
+    }
     case "marks": {
       const headers = [
         "rollNo",
@@ -462,13 +510,13 @@ function getDataset(reportId: ReportId): ReportDataset {
         institute,
         generatedAt,
         summary: `${CAREER_JOBS.length} open roles · ${CAREER_CANDIDATES.length} candidates`,
-        headers: ["candidateId", "name", "job", "stage", "score"],
+        headers: ["candidateId", "name", "job", "stage", "docs"],
         rows: CAREER_CANDIDATES.map((c) => ({
           candidateId: c.id,
           name: c.name,
-          job: c.job,
+          job: c.role,
           stage: c.stage,
-          score: c.score,
+          docs: c.docs,
         })),
       };
     case "complaints":
@@ -505,7 +553,7 @@ function getDataset(reportId: ReportId): ReportDataset {
       };
     case "leave": {
       const students = getInitialStudentLeave();
-      const teachers = getInitialTeacherLeave();
+      const teachers = loadTeacherLeaveSnapshot(getInitialTeacherLeave());
       return {
         title: "Leave register & approvals",
         institute,
@@ -583,13 +631,7 @@ function getDataset(reportId: ReportId): ReportDataset {
 }
 
 function triggerDownload(filename: string, content: string, mime: string) {
-  const blob = new Blob([content], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+  downloadTextToDevice(filename, content, mime);
 }
 
 export function downloadReport(
@@ -601,7 +643,8 @@ export function downloadReport(
   const datePart = new Date().toISOString().slice(0, 10);
   const base = `lumenx-${slug(reportName)}-${datePart}`;
 
-  if (format === "csv") {
+  if (format === "csv" || format === "excel") {
+    // Excel opens CSV natively; labeled separately for the Reporting Center UX.
     const filename = `${base}.csv`;
     triggerDownload(filename, datasetToCsv(data), "text/csv;charset=utf-8");
     return { filename, rowCount: data.rows.length };

@@ -9,8 +9,16 @@ import { Button } from "@lumenx/ui";
 import { children as allChildren } from "@/lib/mock-data";
 import { useApp } from "@/lib/app-state";
 import { StudentIdCardPage } from "@/student-portal";
+import {
+  findIdCardSyncRow,
+  idCardViewFromSyncRow,
+  useStudentIdCardSync,
+  type ConnectIdCardViewModel,
+} from "@/lib/student/admin-id-card-bridge";
+import { CONNECT_LEARNER_TO_STUDENT_ID, getInitials } from "@lumenx/utils";
 import { Printer, Download, QrCode } from "lucide-react";
 import { toast } from "sonner";
+import { downloadStudentIdCardToDevice } from "@/lib/device-file-downloads";
 
 export const Route = createFileRoute("/id-card")({
   head: () => ({
@@ -43,34 +51,46 @@ const CHILD_ADDRESSES: Record<string, string> = {
 
 function ParentIdCardPage() {
   const { activeChildId } = useApp();
+  const sync = useStudentIdCardSync();
   const [qrOpen, setQrOpen] = useState(false);
   const child = allChildren.find((c) => c.id === activeChildId) ?? allChildren[0];
 
-  const studentId = `S-${2040 + allChildren.indexOf(child)}`;
-  const verifyUrl = useStudentQrUrl(studentId);
+  const mappedStu =
+    CONNECT_LEARNER_TO_STUDENT_ID[child.id] ??
+    CONNECT_LEARNER_TO_STUDENT_ID[`S-${2040 + allChildren.indexOf(child)}`];
+  const legacyId = `S-${2040 + allChildren.indexOf(child)}`;
+  const syncRow =
+    (mappedStu ? findIdCardSyncRow(mappedStu, sync) : null) ??
+    findIdCardSyncRow(child.id, sync) ??
+    findIdCardSyncRow(legacyId, sync);
 
-  const profile = {
-    name: child.name,
-    initials: child.initials,
-    className: child.className,
-    section: child.section,
-    rollNo: child.rollNo,
-    id: studentId,
-    bloodGroup: "O+",
-    emergencyContact: "+91 98•••••12",
-    parentName: "Rajesh Sharma",
-    house: "Sapphire",
-    issuedOn: "01 Apr 2024",
-    validTill: "31 Mar 2025",
-    institute: "LumenX Academy",
-    address: CHILD_ADDRESSES[child.id] ?? "12 Green Park Road, Sector 4, Hyderabad — 500032",
-  };
+  const card: ConnectIdCardViewModel = syncRow
+    ? idCardViewFromSyncRow(syncRow)
+    : {
+        name: child.name,
+        initials: child.initials || getInitials(child.name, 2),
+        className: child.className,
+        section: child.section,
+        rollNo: child.rollNo,
+        id: mappedStu ?? legacyId,
+        bloodGroup: "—",
+        emergencyContact: "—",
+        parentName: "—",
+        house: "—",
+        issuedOn: "—",
+        validTill: "—",
+        institute: "LumenX Academy",
+        address: CHILD_ADDRESSES[child.id] ?? "—",
+        fromAdmin: false,
+      };
+
+  const verifyUrl = useStudentQrUrl(card.id);
 
   return (
     <div className="min-w-0 max-w-full" key={activeChildId}>
       <PageHeader
         title="Digital ID Card"
-        subtitle="Scan the QR from any phone to open the full student profile — no login needed."
+        subtitle="Scan the QR from any phone to open the school identity page — no login needed."
         action={
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" className="gap-2 rounded-xl" onClick={() => setQrOpen(true)}>
@@ -81,7 +101,10 @@ function ParentIdCardPage() {
             </Button>
             <Button
               className="gap-2 rounded-xl shadow-glow"
-              onClick={() => toast.success("Saved to device wallet (demo)")}
+              onClick={() => {
+                const { filename } = downloadStudentIdCardToDevice(card);
+                toast.success("Saved to Downloads", { description: filename });
+              }}
             >
               <Download className="size-4" /> Save
             </Button>
@@ -98,30 +121,31 @@ function ParentIdCardPage() {
       <div className="grid min-w-0 grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,360px)_1fr] lg:gap-8">
         <div className="flex min-w-0 justify-center lg:sticky lg:top-6">
           <IdCardVisual
-            instituteName={profile.institute}
-            name={profile.name}
-            initials={profile.initials}
-            className={profile.className}
-            section={profile.section}
-            rollNo={profile.rollNo}
-            sid={profile.id}
-            address={profile.address}
-            validTill={profile.validTill}
+            instituteName={card.institute}
+            name={card.name}
+            initials={card.initials}
+            className={card.className}
+            section={card.section}
+            rollNo={card.rollNo}
+            sid={card.id}
+            address={card.address}
+            validTill={card.validTill}
             qrPayload={verifyUrl}
             onQrClick={() => setQrOpen(true)}
+            photoUrl={card.photoDataUrl}
           />
         </div>
 
-        <IdCardDetailsPanel details={profile} />
+        <IdCardDetailsPanel details={card} />
       </div>
 
       <IdCardQrDialog
         open={qrOpen}
         onOpenChange={setQrOpen}
         verifyUrl={verifyUrl}
-        studentId={profile.id}
-        name={profile.name}
-        rollNo={profile.rollNo}
+        studentId={card.id}
+        name={card.name}
+        rollNo={card.rollNo}
       />
     </div>
   );

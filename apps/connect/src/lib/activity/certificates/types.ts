@@ -1,6 +1,7 @@
 import type { AchievementSourceModule } from "../achievements/types";
+import type { CertificateLifecycleStatus } from "@lumenx/types";
 
-export type CertificateStatus = "draft" | "issued" | "revoked";
+export type CertificateStatus = CertificateLifecycleStatus;
 
 export type CertificateCategory =
   | "sports"

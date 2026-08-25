@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { PageHeader } from "@/components/app/PageHeader";
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
 import { teacherRepository } from "@/lib/teacher/repositories";
+import { isTeacherAccessDenied } from "@/lib/teacher/portal-access-guard";
 import { useAsyncAction } from "@/teacher-portal/core/hooks/useAsyncAction";
 import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
 import { EmptyState } from "@/teacher-portal/shared/ui/EmptyState";
@@ -17,15 +17,20 @@ import {
   Badge,
   cn,
 } from "@lumenx/ui";
-import { MessageSquare, Send, Inbox, Archive, FileEdit, Mail } from "lucide-react";
+import { MessageSquare, Send, Inbox, Archive, FileEdit, Mail, PenLine } from "lucide-react";
 import { toast } from "sonner";
 import type { TeacherMessage, TeacherMessageTarget } from "@/lib/teacher/types";
 
-type Tab = "inbox" | "sent" | "drafts" | "archived" | "compose";
+type Folder = "inbox" | "sent" | "drafts" | "archived";
+type View = Folder | "compose";
 
+/**
+ * Inbox folders are for reading notices/threads.
+ * Compose is a separate write-and-send flow.
+ */
 export function TeacherMessagesPage() {
   const portal = useTeacherPortal();
-  const [tab, setTab] = useState<Tab>("inbox");
+  const [view, setView] = useState<View>("inbox");
   const [messages, setMessages] = useState<TeacherMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<TeacherMessage | null>(null);
@@ -41,23 +46,24 @@ export function TeacherMessagesPage() {
   const [q, setQ] = useState("");
   const [editDraftId, setEditDraftId] = useState<string | null>(null);
 
+  const folder: Folder = view === "compose" ? "inbox" : view;
+
   const load = useCallback(
-    (filter?: Tab, options?: { silent?: boolean }) => {
-      const f = filter ?? tab;
-      if (f === "compose") return;
+    (filter?: Folder, options?: { silent?: boolean }) => {
+      const f = filter ?? (view === "compose" ? "inbox" : view);
       if (!options?.silent) setLoading(true);
-      teacherRepository.getMessages(f as "inbox" | "sent" | "drafts" | "archived").then((m) => {
+      teacherRepository.getMessages(f).then((m) => {
         setMessages(m);
         setSelected((prev) => (prev ? (m.find((x) => x.id === prev.id) ?? prev) : null));
         setLoading(false);
       });
     },
-    [tab],
+    [view],
   );
 
   useEffect(() => {
-    if (portal.isTeacher && tab !== "compose") load(tab);
-  }, [portal.isTeacher, tab, load]);
+    if (portal.isTeacher && view !== "compose") load(view);
+  }, [portal.isTeacher, view, load]);
 
   const filtered = messages.filter(
     (m) =>
@@ -101,7 +107,7 @@ export function TeacherMessagesPage() {
   }, [sections, sectionFilter]);
 
   useEffect(() => {
-    if (tab !== "compose") return;
+    if (view !== "compose") return;
     if (role === "principal") {
       setTargets([{ id: "principal", label: "Principal / Admin Office", role: "principal" }]);
       setTargetId("principal");
@@ -123,14 +129,14 @@ export function TeacherMessagesPage() {
           return;
         }
         if (targetId && items.some((item) => item.id === targetId)) {
-          const selected = items.find((item) => item.id === targetId);
-          if (selected) setTo(selected.label);
+          const selectedTarget = items.find((item) => item.id === targetId);
+          if (selectedTarget) setTo(selectedTarget.label);
           return;
         }
         setTargetId(items[0].id);
         setTo(items[0].label);
       });
-  }, [tab, role, classId, sectionFilter, targetId]);
+  }, [view, role, classId, sectionFilter, targetId]);
 
   const resetCompose = useCallback(() => {
     setSubject("");
@@ -142,6 +148,12 @@ export function TeacherMessagesPage() {
     setSectionFilter(classes[0]?.section ?? "");
     setTargetId("");
   }, [classes]);
+
+  const openCompose = useCallback(() => {
+    resetCompose();
+    setSelected(null);
+    setView("compose");
+  }, [resetCompose]);
 
   const sendFn = useCallback(
     async (draft = false) => {
@@ -167,7 +179,7 @@ export function TeacherMessagesPage() {
       });
       toast.success(draft ? "Draft saved" : "Message sent");
       resetCompose();
-      setTab(draft ? "drafts" : "sent");
+      setView(draft ? "drafts" : "sent");
     },
     [to, role, subject, body, editDraftId, resetCompose],
   );
@@ -181,7 +193,7 @@ export function TeacherMessagesPage() {
     setTargetId("");
     setSubject(m.subject);
     setBody(m.body);
-    setTab("compose");
+    setView("compose");
   };
 
   const openReply = (m: TeacherMessage) => {
@@ -189,151 +201,208 @@ export function TeacherMessagesPage() {
     setSubject(m.subject.startsWith("Re:") ? m.subject : `Re: ${m.subject}`);
     setTo(m.from);
     setRole("parent");
-    setTab("compose");
+    setView("compose");
   };
 
   if (!portal.isTeacher) return null;
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Messages" subtitle="Inbox, sent, drafts, and archived conversations" />
-      <div className="flex flex-wrap gap-2">
-        {(
-          [
-            ["inbox", Inbox],
-            ["sent", Mail],
-            ["compose", Send],
-            ["drafts", FileEdit],
-            ["archived", Archive],
-          ] as const
-        ).map(([t, Icon]) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => {
-              if (t === "compose") resetCompose();
-              setTab(t);
-              setSelected(null);
-            }}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium capitalize",
-              tab === t ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
-            )}
-          >
-            <Icon className="size-4" /> {t}
-          </button>
-        ))}
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="font-display text-xl font-semibold tracking-tight sm:text-2xl">
+            Messages
+          </h1>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            Read inbox notices in the folders. Use Compose to write and send a message.
+          </p>
+        </div>
+        {view !== "compose" ? (
+          <Button className="shrink-0 gap-2 rounded-xl shadow-glow" onClick={openCompose}>
+            <PenLine className="size-4" />
+            Compose
+          </Button>
+        ) : null}
       </div>
 
-      {tab === "compose" ? (
-        <div className="rounded-2xl border bg-card p-5 shadow-soft space-y-4 max-w-xl">
-          <Select
-            value={role}
-            onValueChange={(v) => {
-              setRole(v as TeacherMessage["recipientRole"]);
-              setTargetId("");
-            }}
-          >
-            <SelectTrigger className="rounded-xl">
-              <SelectValue placeholder="Recipient type" />
-            </SelectTrigger>
-            <SelectContent position="popper" className="z-[100]">
-              <SelectItem value="parent">Parent</SelectItem>
-              <SelectItem value="student">Student</SelectItem>
-              <SelectItem value="teacher">Teacher (colleague)</SelectItem>
-              <SelectItem value="principal">Principal / Admin</SelectItem>
-              <SelectItem value="class">Entire class</SelectItem>
-            </SelectContent>
-          </Select>
+      {view !== "compose" ? (
+        <div className="flex flex-wrap gap-2">
+          {(
+            [
+              ["inbox", Inbox, "Inbox"],
+              ["sent", Mail, "Sent"],
+              ["drafts", FileEdit, "Drafts"],
+              ["archived", Archive, "Archived"],
+            ] as const
+          ).map(([t, Icon, label]) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => {
+                setView(t);
+                setSelected(null);
+              }}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium",
+                view === t ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+              )}
+            >
+              <Icon className="size-4" /> {label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {view === "compose" ? (
+        <div className="max-w-xl space-y-4 rounded-2xl border border-primary/25 bg-card p-5 shadow-soft">
+          <div>
+            <h2 className="font-semibold">Write & send message</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Compose is only for writing and sending. Notices and replies you receive stay in
+              Inbox.
+            </p>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-muted-foreground">Send to</label>
+            <Select
+              value={role}
+              onValueChange={(v) => {
+                setRole(v as TeacherMessage["recipientRole"]);
+                setTargetId("");
+              }}
+            >
+              <SelectTrigger className="rounded-xl">
+                <SelectValue placeholder="Recipient type" />
+              </SelectTrigger>
+              <SelectContent position="popper" className="z-[100]">
+                <SelectItem value="parent">Parent</SelectItem>
+                <SelectItem value="student">Student</SelectItem>
+                <SelectItem value="teacher">Teacher (colleague)</SelectItem>
+                <SelectItem value="principal">Principal / Admin</SelectItem>
+                <SelectItem value="class">Entire class</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {(role === "parent" || role === "student" || role === "class") && (
             <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-muted-foreground">
+                  Class
+                </label>
+                <Select
+                  value={classNameFilter}
+                  onValueChange={(value) => {
+                    setClassNameFilter(value);
+                    const nextSections = classes
+                      .filter((c) => c.className === value)
+                      .map((c) => c.section);
+                    if (!nextSections.includes(sectionFilter)) {
+                      setSectionFilter(nextSections[0] ?? "");
+                    }
+                    setTargetId("");
+                  }}
+                >
+                  <SelectTrigger className="h-10 rounded-xl">
+                    <SelectValue placeholder="Class" />
+                  </SelectTrigger>
+                  <SelectContent position="popper" className="z-[100]">
+                    {classNames.map((name) => (
+                      <SelectItem key={name} value={name}>
+                        Class {name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-muted-foreground">
+                  Section
+                </label>
+                <Select
+                  value={sectionFilter}
+                  onValueChange={(value) => {
+                    setSectionFilter(value);
+                    setTargetId("");
+                  }}
+                >
+                  <SelectTrigger className="h-10 rounded-xl">
+                    <SelectValue placeholder="Section" />
+                  </SelectTrigger>
+                  <SelectContent position="popper" className="z-[100]">
+                    {sections.map((sec) => (
+                      <SelectItem key={sec} value={sec}>
+                        Section {sec}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          {role !== "principal" ? (
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-muted-foreground">
+                Recipient
+              </label>
               <Select
-                value={classNameFilter}
+                value={targetId}
                 onValueChange={(value) => {
-                  setClassNameFilter(value);
-                  const nextSections = classes
-                    .filter((c) => c.className === value)
-                    .map((c) => c.section);
-                  if (!nextSections.includes(sectionFilter)) {
-                    setSectionFilter(nextSections[0] ?? "");
-                  }
-                  setTargetId("");
+                  setTargetId(value);
+                  const target = targets.find((item) => item.id === value);
+                  if (target) setTo(target.label);
                 }}
               >
-                <SelectTrigger className="h-10 rounded-xl">
-                  <SelectValue placeholder="Class" />
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue placeholder="Select recipient *" />
                 </SelectTrigger>
                 <SelectContent position="popper" className="z-[100]">
-                  {classNames.map((name) => (
-                    <SelectItem key={name} value={name}>
-                      Class {name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={sectionFilter}
-                onValueChange={(value) => {
-                  setSectionFilter(value);
-                  setTargetId("");
-                }}
-              >
-                <SelectTrigger className="h-10 rounded-xl">
-                  <SelectValue placeholder="Section" />
-                </SelectTrigger>
-                <SelectContent position="popper" className="z-[100]">
-                  {sections.map((sec) => (
-                    <SelectItem key={sec} value={sec}>
-                      Section {sec}
+                  {targets.map((target) => (
+                    <SelectItem key={target.id} value={target.id}>
+                      {target.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-          )}
-          {role !== "principal" ? (
-            <Select
-              value={targetId}
-              onValueChange={(value) => {
-                setTargetId(value);
-                const target = targets.find((item) => item.id === value);
-                if (target) setTo(target.label);
-              }}
-            >
-              <SelectTrigger className="rounded-xl">
-                <SelectValue placeholder="Select recipient *" />
-              </SelectTrigger>
-              <SelectContent position="popper" className="z-[100]">
-                {targets.map((target) => (
-                  <SelectItem key={target.id} value={target.id}>
-                    {target.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           ) : (
             <Input value={to} readOnly className="rounded-xl bg-muted/40" />
           )}
-          <Input
-            value={subject}
-            onChange={(e) => setSubject(e.target.value)}
-            placeholder="Subject * (min 3 chars)"
-            className="rounded-xl"
-          />
-          <Textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            placeholder="Message * (min 8 chars)"
-            rows={5}
-            className="rounded-xl resize-none"
-          />
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-muted-foreground">
+              Subject
+            </label>
+            <Input
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder="Subject * (min 3 chars)"
+              className="rounded-xl"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-muted-foreground">
+              Message
+            </label>
+            <Textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder="Write your message… *"
+              rows={5}
+              className="resize-none rounded-xl"
+            />
+          </div>
+
           <div className="flex flex-wrap gap-2">
             <Button
-              className="rounded-xl gap-2 shadow-glow"
+              className="gap-2 rounded-xl shadow-glow"
               disabled={sending}
               onClick={() => send(false)}
             >
-              <Send className="size-4" /> Send
+              <Send className="size-4" /> Send message
             </Button>
             <Button
               variant="outline"
@@ -348,7 +417,7 @@ export function TeacherMessagesPage() {
               className="rounded-xl"
               onClick={() => {
                 resetCompose();
-                setTab("inbox");
+                setView("inbox");
               }}
             >
               Cancel
@@ -378,9 +447,11 @@ export function TeacherMessagesPage() {
                           setMessages((prev) =>
                             prev.map((msg) => (msg.id === m.id ? { ...msg, unread: false } : msg)),
                           );
-                          teacherRepository.markMessageRead(m.id).then(() => load(tab, { silent: true }));
+                          teacherRepository
+                            .markMessageRead(m.id)
+                            .then(() => load(folder, { silent: true }));
                         }
-                        if (tab === "drafts") openDraft(m);
+                        if (view === "drafts") openDraft(m);
                       }}
                       className={cn(
                         "w-full rounded-xl border p-3 text-left transition-colors",
@@ -391,26 +462,26 @@ export function TeacherMessagesPage() {
                       )}
                     >
                       <div className="flex justify-between gap-2">
-                        <span className="font-medium text-sm truncate">{m.subject}</span>
+                        <span className="truncate text-sm font-medium">{m.subject}</span>
                         {m.unread && <Badge className="shrink-0">New</Badge>}
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {tab === "sent" ? `To ${m.to}` : `From ${m.from}`} · {m.time}
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {view === "sent" ? `To ${m.to}` : `From ${m.from}`} · {m.time}
                       </p>
                     </button>
                   </li>
                 ))}
               </ul>
-              <div className="rounded-2xl border bg-card p-5 shadow-soft min-h-[200px]">
-                {selected && tab !== "drafts" ? (
+              <div className="min-h-[200px] rounded-2xl border bg-card p-5 shadow-soft">
+                {selected && view !== "drafts" ? (
                   <>
                     <h3 className="font-semibold">{selected.subject}</h3>
-                    <p className="text-xs text-muted-foreground mt-1">
+                    <p className="mt-1 text-xs text-muted-foreground">
                       From {selected.from} · To {selected.to}
                     </p>
-                    <p className="mt-4 text-sm whitespace-pre-wrap">{selected.body}</p>
+                    <p className="mt-4 whitespace-pre-wrap text-sm">{selected.body}</p>
                     <div className="mt-4 flex gap-2">
-                      {tab === "inbox" && (
+                      {view === "inbox" && (
                         <Button
                           size="sm"
                           className="rounded-xl"
@@ -424,9 +495,14 @@ export function TeacherMessagesPage() {
                         variant="outline"
                         className="rounded-xl"
                         onClick={async () => {
-                          await teacherRepository.archiveMessage(selected.id);
+                          try {
+                            await teacherRepository.archiveMessage(selected.id);
+                          } catch (error) {
+                            if (isTeacherAccessDenied(error)) return;
+                            throw error;
+                          }
                           toast.success("Archived");
-                          load(tab);
+                          load(folder);
                           setSelected(null);
                         }}
                       >
@@ -434,13 +510,13 @@ export function TeacherMessagesPage() {
                       </Button>
                     </div>
                   </>
-                ) : tab === "drafts" && selected ? (
+                ) : view === "drafts" && selected ? (
                   <div className="space-y-3">
                     <p className="text-sm text-muted-foreground">
-                      Draft selected — open in compose to edit and send.
+                      Draft selected — open Compose to edit and send.
                     </p>
-                    <Button className="rounded-xl" onClick={() => openDraft(selected)}>
-                      Edit draft
+                    <Button className="rounded-xl gap-2" onClick={() => openDraft(selected)}>
+                      <PenLine className="size-4" /> Edit in Compose
                     </Button>
                   </div>
                 ) : (
@@ -454,8 +530,8 @@ export function TeacherMessagesPage() {
               title="No messages"
               description="Nothing in this folder yet."
               action={
-                <Button className="rounded-xl" onClick={() => setTab("compose")}>
-                  Compose message
+                <Button className="rounded-xl gap-2" onClick={openCompose}>
+                  <PenLine className="size-4" /> Compose message
                 </Button>
               }
             />

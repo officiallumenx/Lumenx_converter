@@ -10,6 +10,7 @@ LumenX is a modular education platform for institutes — connecting administrat
 | **LumenX Admin** | `apps/admin/` | ✅ Runnable | Institute administration console |
 | **LumenX Connect** | `apps/connect/` | ✅ Runnable | Parent, teacher, and student portal |
 | **LumenX Transport** | `apps/transport/` | ✅ Runnable | Fleet and route management |
+| **LumenX Website** | `apps/website/` | ✅ Runnable | Public marketing site |
 
 ## Tech Stack
 
@@ -34,6 +35,7 @@ npm run dev:connect   # LumenX Connect
 npm run dev:admin     # LumenX Admin
 npm run dev:nexus     # LumenX Nexus
 npm run dev:transport # LumenX Transport
+npm run dev:website   # Public website
 ```
 
 Or run from an app directory:
@@ -53,11 +55,13 @@ Demo login password: see `apps/connect/src/routes/login.tsx` (demo/prototype onl
 | `npm run dev:admin` | Start Admin dev server |
 | `npm run dev:nexus` | Start Nexus dev server |
 | `npm run dev:transport` | Start Transport dev server |
+| `npm run dev:website` | Start public website |
 | `npm run build` | Build all apps |
 | `npm run build:connect` | Build Connect only |
 | `npm run build:admin` | Build Admin only |
 | `npm run build:nexus` | Build Nexus only |
 | `npm run build:transport` | Build Transport only |
+| `npm run build:website` | Build website only |
 | `npm run lint` | Lint all apps |
 
 ## Project Structure
@@ -68,7 +72,8 @@ lumenx/
 │   ├── connect/       # LumenX Connect
 │   ├── admin/         # LumenX Admin
 │   ├── nexus/         # LumenX Nexus
-│   └── transport/     # LumenX Transport
+│   ├── transport/     # LumenX Transport
+│   └── website/       # Public marketing site
 ├── packages/          # Shared packages
 │   ├── ui/            # @lumenx/ui — shadcn components
 │   ├── ui-admin/      # @lumenx/ui-admin — admin shell components
@@ -79,6 +84,7 @@ lumenx/
 │   ├── config/        # @lumenx/config — tsconfig, ESLint, module registry
 │   └── module-*/      # Domain modules (students, transport, …)
 ├── docs/
+│   ├── website/       # Public site spec (00–13)
 │   ├── LUMENX_MASTER.md
 │   └── migration/
 ├── package.json       # npm workspaces root

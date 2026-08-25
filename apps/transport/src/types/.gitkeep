@@ -1,0 +1,2 @@
+/** Types local to the Transport app. Prefer `@lumenx/types` for shared contracts. */
+export {};

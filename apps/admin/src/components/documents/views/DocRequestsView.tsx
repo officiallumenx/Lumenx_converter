@@ -31,6 +31,12 @@ import {
   type StudioRequestType,
 } from "@/lib/doc-requests-data";
 import {
+  notifyDocumentRequestApproved,
+  notifyDocumentRequestRejected,
+  notifyDocumentGenerated,
+  notifyDocumentReady,
+} from "@lumenx/module-notifications";
+import {
   AlertTriangle,
   ArrowLeft,
   CheckCircle2,
@@ -292,7 +298,7 @@ function RequestDetail({
 }: {
   request: StudioRequest;
   onBack: () => void;
-  onPatch: (id: string, status: StudioRequestStatus) => void;
+  onPatch: (id: string, status: StudioRequestStatus, reason?: string) => void;
 }) {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
@@ -491,7 +497,7 @@ function RequestDetail({
             <Button
               variant="danger"
               onClick={() => {
-                onPatch(request.id, "rejected");
+                onPatch(request.id, "rejected", rejectReason);
                 setRejectOpen(false);
               }}
             >
@@ -557,7 +563,8 @@ export function DocRequestsView() {
     });
   }, [rows, statusFilter, typeFilter, urgencyFilter, q]);
 
-  const patch = (id: string, status: StudioRequestStatus) => {
+  const patch = (id: string, status: StudioRequestStatus, reason?: string) => {
+    const current = rows.find((r) => r.id === id);
     setRows((prev) =>
       prev.map((r) => {
         if (r.id !== id) return r;
@@ -577,11 +584,49 @@ export function DocRequestsView() {
           publishedOn: status === "published" ? now : r.publishedOn,
           timeline: [
             ...r.timeline,
-            { date: now, time: timeNow, action: actionMap[status] ?? `Status → ${status}`, by: "Admin", note: "" },
+            {
+              date: now,
+              time: timeNow,
+              action: actionMap[status] ?? `Status → ${status}`,
+              by: "Admin",
+              note: status === "rejected" ? reason?.trim() || "" : "",
+            },
           ],
         };
-      })
+      }),
     );
+    if (current) {
+      const documentLabel =
+        current.packageName ||
+        current.documents.map((d) => d.categoryLabel).join(", ") ||
+        "Document";
+      if (status === "approved") {
+        notifyDocumentRequestApproved({
+          requestId: current.id,
+          documentLabel,
+          studentName: current.studentName,
+        });
+      } else if (status === "rejected") {
+        notifyDocumentRequestRejected({
+          requestId: current.id,
+          documentLabel,
+          studentName: current.studentName,
+          reason: reason?.trim() || "No reason provided",
+        });
+      } else if (status === "draft_generated") {
+        notifyDocumentGenerated({
+          requestId: current.id,
+          documentLabel,
+          studentName: current.studentName,
+        });
+      } else if (status === "published") {
+        notifyDocumentReady({
+          requestId: current.id,
+          documentLabel,
+          studentName: current.studentName,
+        });
+      }
+    }
     if (selected?.id === id) {
       setSelected((prev) => (prev ? rows.find((r) => r.id === id) ?? prev : null));
     }
@@ -733,7 +778,7 @@ export function DocRequestsView() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity"
                     onClick={(e) => { e.stopPropagation(); setSelected(req); }}
                   >
                     <ChevronRight className="size-3.5" />

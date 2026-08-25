@@ -1,610 +1,393 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
-import { Card, CardHeader, Kpi, KpiGrid, Pill, Button, PageStack } from "@lumenx/ui-admin";
-import {
-  CRITICAL_CLASSES,
-  EXAM_PIPELINE,
-  ATTENDANCE_MONTHLY,
-} from "@/lib/admin-analytics-data";
-import { DemoProfileBanner } from "@/components/DemoProfileSwitcher";
+import { Card, CardHeader, Pill, Button, PageStack } from "@lumenx/ui-admin";
 import { IconChip } from "@/components/IconChip";
+import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
+import { HomeBirthdaysCard } from "@/components/HomeBirthdaysCard";
+import { HomeDiaryCard } from "@/components/HomeDiaryCard";
+import { HomeQuickActionsCard } from "@/components/HomeQuickActionsCard";
 import { useDemoProfile } from "@/lib/demo-profile-context";
 import {
+  loadAttendancePending,
+  loadDiarySubmissionLogs,
+  teachersWithPendingMarks,
+} from "./home-data";
+import { getMarkEntriesSnapshot, subscribeMarkEntries } from "@/lib/marks-entry-store";
+import { loadPendingReviews, subscribePendingReviews } from "@/lib/pending-reviews";
+import { buildAdminAttendanceDashboard } from "@lumenx/module-attendance";
+import { listAttendanceReportSections } from "@/lib/attendance-report-demo";
+import type { LucideIcon } from "lucide-react";
+import {
   Users,
-  GraduationCap,
   ClipboardCheck,
-  AlertTriangle,
-  TrendingUp,
-  FileDown,
-  Send,
-  ArrowUpRight,
-  UserPlus,
   CalendarRange,
-  Megaphone,
   CalendarDays,
   MessageSquareWarning,
-  FileText,
-  HardDrive,
-  Building2,
   BookOpen,
-  Heart,
-  Sparkles,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
-  ShieldCheck,
-  CalendarOff,
-  IndianRupee,
   UserCheck,
+  Briefcase,
+  BookMarked,
+  Siren,
+  ArrowUpRight,
+  ClipboardList,
+  LayoutTemplate,
   Bus,
+  Settings,
+  Bell,
+  Clock,
+  BarChart3,
 } from "lucide-react";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useSyncExternalStore } from "react";
+import {
+  DashboardCustomizeActions,
+  DashboardLayoutProvider,
+  DashboardWidgets,
+  type DashboardWidgetDef,
+} from "@lumenx/ui";
+import {
+  getActiveTransportEmergencyCount,
+  subscribeTransportEmergencies,
+} from "@lumenx/utils";
 
 export const Route = createFileRoute("/")({
-  head: () => ({ meta: [{ title: "Command Center — LumenX Admin" }] }),
-  component: Dashboard,
+  head: () => ({ meta: [{ title: "Home — LumenX Admin" }] }),
+  component: HomePage,
 });
 
-const weakStudents = [
-  { name: "Julian Draxler", id: "JD", grade: "11-C", subject: "Physics", score: 42, delta: -12 },
-  { name: "Alina Moreno", id: "AM", grade: "9-A", subject: "Mathematics", score: 38, delta: -8 },
-  { name: "Ethan Wright", id: "EW", grade: "10-B", subject: "Chemistry", score: 51, delta: -4 },
-  { name: "Sana Khan", id: "SK", grade: "12-A", subject: "Biology", score: 56, delta: -2 },
-];
+type AttentionItem = {
+  id: string;
+  label: string;
+  detail: string;
+  count: number;
+  to: string;
+  search?: Record<string, string>;
+  tone: "danger" | "warning" | "info" | "neutral";
+  icon: LucideIcon;
+};
 
-const activity = [
-  {
-    who: "Sarah Jenkins",
-    what: "uploaded marks for",
-    target: "MTH-101 · Mid-term",
-    time: "2m ago",
-    icon: FileText,
-    tone: "primary",
-  },
-  {
-    who: "Marcus Whitfield",
-    what: "submitted attendance for",
-    target: "Grade 10-B",
-    time: "8m ago",
-    icon: ClipboardCheck,
-    tone: "success",
-  },
-  {
-    who: "Front Office",
-    what: "resolved complaint",
-    target: "#CMP-2104 (Lab safety)",
-    time: "14m ago",
-    icon: CheckCircle2,
-    tone: "success",
-  },
-  {
-    who: "Admin R. Chen",
-    what: "updated timetable for",
-    target: "Grade 11 · Term 2",
-    time: "21m ago",
-    icon: CalendarRange,
-    tone: "primary",
-  },
-  {
-    who: "System",
-    what: "auto-enrolled",
-    target: "12 new admissions to Grade 9",
-    time: "37m ago",
-    icon: UserPlus,
-    tone: "muted",
-  },
-  {
-    who: "Liang Ortega",
-    what: "assigned Hana Suzuki to",
-    target: "CHEM-220 · Tue P5",
-    time: "1h ago",
-    icon: GraduationCap,
-    tone: "primary",
-  },
-  {
-    who: "Dept Head · Science",
-    what: "approved 14 student credentials in",
-    target: "Science Department",
-    time: "1h ago",
-    icon: ShieldCheck,
-    tone: "success",
-  },
-  {
-    who: "Sub-Admin",
-    what: "flagged complaint as urgent in",
-    target: "Parent Portal",
-    time: "2h ago",
-    icon: AlertCircle,
-    tone: "danger",
-  },
-];
-
-const quickActions = [
-  { label: "Add Student", to: "/students", icon: UserPlus, tone: "primary" },
-  { label: "Add Teacher", to: "/teachers", icon: GraduationCap, tone: "info" },
-  { label: "Create Timetable", to: "/timetable", icon: CalendarRange, tone: "info" },
-  { label: "Send Announcement", to: "/announcements", icon: Megaphone, tone: "warning" },
-  { label: "Create Event", to: "/events", icon: CalendarDays, tone: "success" },
-  { label: "Open Complaints", to: "/complaints", icon: MessageSquareWarning, tone: "danger" },
-  { label: "Upload Marks", to: "/marks", icon: FileText, tone: "primary" },
-  { label: "Schedule Exam", to: "/exams", icon: FileText, tone: "info" },
+const SHORTCUTS = [
+  { label: "Attendance", to: "/attendance", icon: ClipboardCheck },
+  { label: M.homework, to: "/homework", icon: BookOpen },
+  { label: M.diary, to: "/diary", icon: BookMarked },
+  { label: "Timetable", to: "/timetable", icon: CalendarRange },
+  { label: "Certificates", to: "/templates", icon: LayoutTemplate },
+  { label: "Admissions", to: "/admissions", icon: UserCheck },
+  { label: "Careers", to: "/careers", icon: Briefcase },
+  { label: "Transport", to: "/transport", icon: Bus },
+  { label: "Events", to: "/events", icon: CalendarDays },
+  { label: "Alerts", to: "/alerts", icon: Bell },
+  { label: "Accounts", to: "/accounts", icon: Users },
+  { label: "Settings", to: "/settings", icon: Settings },
 ] as const;
 
-const perfTone = { high: "success", medium: "warning", low: "danger" } as const;
+const ADMIN_HOME_WIDGETS: DashboardWidgetDef[] = [
+  { id: "birthdays", label: "Today's Birthdays" },
+  { id: "diary", label: M.diary },
+  { id: "attention", label: "Needs Attention" },
+  { id: "attendance", label: M.attendanceReports },
+  { id: "quick-actions", label: "Quick Actions" },
+  { id: "pending-reviews", label: "Reviews" },
+  { id: "shortcuts", label: "Shortcuts" },
+];
 
-function Dashboard() {
-  const { branches, profileId, profile } = useDemoProfile();
-  const [branchId, setBranchId] = useState(branches[0]?.id ?? "main");
-  const branch = useMemo(
-    () => branches.find((b) => b.id === branchId) ?? branches[0]!,
-    [branches, branchId],
+function todayLabel(): string {
+  return new Date().toLocaleDateString(undefined, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+}
+
+function HomePage() {
+  const { instituteSummary } = useDemoProfile();
+
+  const attendancePending = useMemo(() => loadAttendancePending(), []);
+  const attendanceDash = useMemo(
+    () =>
+      buildAdminAttendanceDashboard({
+        notSubmittedCount: attendancePending.length,
+        sections: listAttendanceReportSections(),
+      }),
+    [attendancePending.length],
+  );
+  const marksEntries = useSyncExternalStore(
+    subscribeMarkEntries,
+    getMarkEntriesSnapshot,
+    getMarkEntriesSnapshot,
+  );
+  const pendingMarksTeachers = useMemo(
+    () => teachersWithPendingMarks(marksEntries),
+    [marksEntries],
+  );
+  const diaryMissing = useMemo(() => {
+    const logs = loadDiarySubmissionLogs();
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const key = yesterday.toISOString().slice(0, 10);
+    const hasYesterday = logs.some((l) => l.date === key);
+    return hasYesterday ? 0 : logs.length > 0 ? 1 : 0;
+  }, []);
+
+  const pendingReviews = useSyncExternalStore(
+    subscribePendingReviews,
+    loadPendingReviews,
+    () => [],
+  );
+  const transportSosCount = useSyncExternalStore(
+    subscribeTransportEmergencies,
+    getActiveTransportEmergencyCount,
+    getActiveTransportEmergencyCount,
   );
 
-  useEffect(() => {
-    setBranchId(branches[0]?.id ?? "main");
-  }, [profileId, branches]);
-  const attTrend = ATTENDANCE_MONTHLY.slice(-6);
+  const attentionItems = useMemo((): AttentionItem[] => {
+    const items: AttentionItem[] = [];
 
-  return (
-    <AppShell
-      title="Institute Intelligence"
-      subtitle={`${branch.name} · Session 2025–26 · Growth & operational overview`}
-      actions={
-        <>
-          <Link to="/reports">
-            <Button>
-              <FileDown className="size-3.5" /> Export Report
-            </Button>
-          </Link>
-          <Link to="/notifications">
-            <Button variant="primary">
-              <Send className="size-3.5" /> Compose Alert
-            </Button>
-          </Link>
-        </>
-      }
-    >
-      <PageStack>
-        <DemoProfileBanner />
-        {profile.admin.showBranchSwitcher && branches.length > 1 && (
-        <div className="lx-branch-grid">
-          {branches.map((b) => {
-            const active = b.id === branchId;
-            const dot = perfTone[b.performance];
-            return (
-              <button
-                key={b.id}
-                onClick={() => setBranchId(b.id)}
-                className={`lx-branch-tile rounded-xl border transition-all ${active ? "border-primary/40 bg-primary/5" : "border-border bg-surface hover:bg-surface-hover"}`}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span
-                      className={`size-2.5 shrink-0 rounded-full ${dot === "success" ? "bg-success" : dot === "warning" ? "bg-warning" : "bg-destructive"}`}
-                    />
-                    <span className="text-sm font-semibold truncate">{b.name}</span>
-                  </div>
-                  {active && <Pill tone="info">Selected</Pill>}
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-[10px] font-mono text-muted-foreground">
-                  <span className="truncate">{b.students.toLocaleString()} students</span>
-                  <span className="truncate">{b.attendance}% att.</span>
-                  <span
-                    className={`truncate ${b.growth >= 0 ? "text-success" : "text-destructive"}`}
-                  >
-                    {b.growth >= 0 ? "+" : ""}
-                    {b.growth}% growth
-                  </span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-        )}
+    if (attendancePending.length > 0) {
+      items.push({
+        id: "att",
+        label: "Attendance Not Submitted",
+        detail: `${attendancePending.length} class${attendancePending.length === 1 ? "" : "es"} waiting today`,
+        count: attendancePending.length,
+        to: "/attendance",
+        tone: "warning",
+        icon: Siren,
+      });
+    }
 
-        <KpiGrid cols={6}>
-          <Kpi
-            label="Students"
-            value={branch.students.toLocaleString()}
-            delta="+124 YTD"
-            tone="up"
-            icon={<Users />}
-          />
-          <Kpi label="Teachers" value="186" delta="+4 staff" tone="up" icon={<GraduationCap />} />
-          <Kpi label="Classes" value="42" delta="126 sections" icon={<Building2 />} />
-          <Kpi
-            label="Attendance"
-            value={`${branch.attendance}%`}
-            delta="−2.1%"
-            tone="down"
-            icon={<ClipboardCheck />}
-          />
-          <Kpi
-            label="Exams"
-            value={String(EXAM_PIPELINE.upcoming)}
-            delta={`In ${EXAM_PIPELINE.nextExamDays}d`}
-            icon={<FileText />}
-          />
-          <Kpi
-            label="Complaints"
-            value="11"
-            delta="3 urgent"
-            tone="down"
-            icon={<MessageSquareWarning />}
-          />
-        </KpiGrid>
+    if (diaryMissing > 0) {
+      items.push({
+        id: "diary",
+        label: "Diary Missing",
+        detail: "Yesterday’s teacher diary not submitted",
+        count: diaryMissing,
+        to: "/diary",
+        tone: "warning",
+        icon: BookMarked,
+      });
+    }
 
-        <KpiGrid cols={6}>
-          <Kpi label="Admissions" value="48" delta="12 in review" tone="up" icon={<UserCheck />} />
-          <Kpi label="Leave pending" value="3" delta="2 student · 1 teacher" tone="down" icon={<CalendarOff />} />
-          <Kpi label="Fees collected" value="₹2.4Cr" delta="87% this term" tone="up" icon={<IndianRupee />} />
-          <Kpi label="Transport alerts" value="2" delta="1 route delay" tone="down" icon={<Bus />} />
-          <Kpi label="Upcoming events" value="6" delta="Next 14 days" icon={<CalendarDays />} />
-          <Kpi label="Announcements" value="4" delta="2 scheduled" icon={<Megaphone />} />
-        </KpiGrid>
+    const pendingMarkCount = pendingMarksTeachers.reduce((a, t) => a + t.pendingCount, 0);
+    if (pendingMarkCount > 0) {
+      items.push({
+        id: "marks-pending",
+        label: "Pending Marks",
+        detail: `${pendingMarksTeachers.length} teacher${pendingMarksTeachers.length === 1 ? "" : "s"} still entering`,
+        count: pendingMarkCount,
+        to: "/marks",
+        tone: "warning",
+        icon: ClipboardList,
+      });
+    }
 
-        <Card>
-          <CardHeader
-            title="Quick Actions"
-            hint="Operational shortcuts"
-            action={
-              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-mono uppercase tracking-wider">
-                <Sparkles className="size-3" /> ⌘K Command palette
-              </div>
-            }
-          />
-          <div className="px-4 sm:px-5 pb-5 lx-quick-action-grid">
-            {quickActions.map((q) => {
-              const Icon = q.icon;
-              return (
-                <Link
-                  key={q.label}
-                  to={q.to}
-                  className={`lx-quick-action-tile group rounded-xl border border-border bg-background/50 hover:bg-surface-hover hover:border-border-strong hover:-translate-y-0.5 transition-all`}
-                >
-                  <IconChip icon={Icon} size="sm" variant={q.tone === "danger" ? "danger" : "brand"} />
-                  <div className="text-[10px] sm:text-[11px] font-medium leading-snug line-clamp-2 w-full px-0.5">
-                    {q.label}
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </Card>
+    if (transportSosCount > 0) {
+      items.push({
+        id: "transport-sos",
+        label: "Transport Emergencies",
+        detail: "Driver SOS active · open Transport hub to resolve",
+        count: transportSosCount,
+        to: "/transport",
+        search: { view: "emergencies" },
+        tone: "danger",
+        icon: Bus,
+      });
+    }
 
-        <div className="lx-dashboard-grid grid grid-cols-12">
-          <Card className="col-span-12 lg:col-span-5">
+    return items;
+  }, [attendancePending.length, diaryMissing, pendingMarksTeachers, transportSosCount]);
+
+  const attentionTotal = attentionItems.reduce((a, i) => a + i.count, 0);
+
+  const widgetBody = (id: string) => {
+    switch (id) {
+      case "birthdays":
+        return <HomeBirthdaysCard />;
+      case "diary":
+        return <HomeDiaryCard />;
+      case "attention":
+        return (
+          <Card className="border-amber-500/25">
             <CardHeader
-              title="Attendance Intelligence"
-              hint={`${branch.name} · last 6 months`}
+              title="Needs Attention"
+              hint="Act on these first"
+              action={<Pill tone="warning">{attentionTotal} open</Pill>}
+            />
+            <div className="px-3 pb-3">
+              {attentionItems.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nothing needs attention right now.</p>
+              ) : (
+              <ul className="space-y-1.5">
+                {attentionItems.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <li key={item.id}>
+                      <Link
+                        to={item.to}
+                        search={item.search}
+                        className="flex items-center gap-2.5 rounded-lg border border-border bg-background/40 px-2.5 py-2 transition-colors hover:border-border-strong hover:bg-surface-hover"
+                      >
+                        <IconChip
+                          icon={Icon}
+                          size="sm"
+                          variant={item.tone === "danger" ? "danger" : "brand"}
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-medium">{item.label}</span>
+                          <span className="block text-[11px] text-muted-foreground">
+                            {item.detail}
+                          </span>
+                        </span>
+                        <Pill tone={item.tone}>{item.count}</Pill>
+                        <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground" />
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+              )}
+            </div>
+          </Card>
+        );
+      case "attendance":
+        return (
+          <Card>
+            <CardHeader
+              title={M.attendanceReports}
+              hint="Pending · late · coordinator summary"
               action={
                 <Link to="/attendance">
-                  <Button size="sm">Full view</Button>
-                </Link>
-              }
-            />
-            <div className="px-5 pb-4">
-              <div className="text-3xl font-semibold font-mono">{branch.attendance}%</div>
-              <div className="text-[10px] text-muted-foreground mt-1">
-                Institute rate · 3 classes below 80%
-              </div>
-              <div className="h-32 flex items-end gap-2 mt-4">
-                {attTrend.map((d) => (
-                  <div key={d.m} className="flex-1 flex flex-col items-center gap-1">
-                    <div
-                      className="w-full bg-primary/30 hover:bg-primary/50 rounded-t-md transition-colors"
-                      style={{ height: `${d.v}%` }}
-                    />
-                    <span className="text-[9px] font-mono text-muted-foreground">{d.m}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="px-5 pb-5 border-t border-border pt-4 space-y-2">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
-                Critical classes
-              </div>
-              {CRITICAL_CLASSES.map((c) => (
-                <div key={c.name} className="flex items-center justify-between text-xs">
-                  <span>{c.name}</span>
-                  <Pill tone={c.rate < 80 ? "danger" : "warning"}>{c.rate}%</Pill>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <Card className="col-span-12 lg:col-span-3">
-            <CardHeader
-              title="Exams Pipeline"
-              hint="Active examination cycle"
-              action={
-                <Link to="/exams">
-                  <Button size="sm">Manage</Button>
-                </Link>
-              }
-            />
-            <div className="px-5 pb-5 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 rounded-lg border border-border lx-inset-panel">
-                  <div className="text-[10px] text-muted-foreground uppercase">Upcoming</div>
-                  <div className="text-xl font-semibold mt-1">{EXAM_PIPELINE.upcoming}</div>
-                </div>
-                <div className="p-3 rounded-lg border border-border lx-inset-panel">
-                  <div className="text-[10px] text-muted-foreground uppercase">Grading</div>
-                  <div className="text-xl font-semibold mt-1">{EXAM_PIPELINE.grading}</div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-muted-foreground">Grading progress</span>
-                  <span className="font-mono">{EXAM_PIPELINE.gradingPct}%</span>
-                </div>
-                <div className="h-1.5 rounded bg-muted overflow-hidden">
-                  <div
-                    className="h-full bg-primary"
-                    style={{ width: `${EXAM_PIPELINE.gradingPct}%` }}
-                  />
-                </div>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Avg score</span>
-                <span className="font-mono">{EXAM_PIPELINE.avgScore}%</span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Published</span>
-                <span className="font-mono">{EXAM_PIPELINE.published} exams</span>
-              </div>
-              <Link to="/marks">
-                <Button className="w-full justify-center">
-                  Publish marks <ArrowUpRight className="size-3" />
-                </Button>
-              </Link>
-            </div>
-          </Card>
-
-          <div className="col-span-12 lg:col-span-4 space-y-4">
-            <Card>
-              <CardHeader
-                title="Critical Interventions"
-                action={
-                  <Pill tone="danger" pulse>
-                    4 high risk
-                  </Pill>
-                }
-              />
-              <div className="px-5 pb-5 space-y-3">
-                {weakStudents.slice(0, 4).map((s) => (
-                  <div key={s.id} className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="size-9 rounded-md bg-accent border border-border flex items-center justify-center text-[10px] font-mono">
-                        {s.id}
-                      </div>
-                      <div>
-                        <div className="text-xs font-medium">{s.name}</div>
-                        <div className="text-[10px] text-muted-foreground">
-                          Grade {s.grade} · {s.subject}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs font-mono text-destructive">{s.score}%</div>
-                      <div className="text-[10px] text-muted-foreground">{s.delta} pts</div>
-                    </div>
-                  </div>
-                ))}
-                <Link to="/analytics" className="block">
-                  <Button className="w-full justify-center mt-2">
-                    Open analytics <ArrowUpRight className="size-3" />
+                  <Button size="sm" variant="outline" className="gap-1.5">
+                    Open
+                    <ArrowUpRight className="size-3.5" />
                   </Button>
                 </Link>
-              </div>
-            </Card>
-
-            <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5">
-              <div className="flex gap-3">
-                <AlertTriangle className="size-4 text-destructive shrink-0 mt-0.5" />
-                <div>
-                  <div className="flex items-center gap-2">
-                    <div className="text-xs font-semibold text-destructive">Urgent Complaint</div>
-                    <Pill tone="danger" pulse>
-                      P0
-                    </Pill>
+              }
+            />
+            <div className="px-3 pb-3">
+              <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+                <Link
+                  to="/attendance"
+                  className="rounded-lg border border-border bg-background/40 px-2.5 py-2 transition-colors hover:border-border-strong hover:bg-surface-hover"
+                >
+                  <div className="flex items-center gap-2 lx-stat-tile__label">
+                    <Siren className="size-3.5 shrink-0" />
+                    Attendance Pending
                   </div>
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    Grade 12 Faculty — facility maintenance during examination period.
+                  <div className="lx-stat-tile__value">
+                    {attendanceDash.notSubmittedCount}
+                  </div>
+                  <p className="lx-stat-tile__hint">Classes waiting today</p>
+                </Link>
+                <Link
+                  to="/attendance"
+                  className="rounded-lg border border-border bg-background/40 px-2.5 py-2 transition-colors hover:border-border-strong hover:bg-surface-hover"
+                >
+                  <div className="flex items-center gap-2 lx-stat-tile__label">
+                    <Clock className="size-3.5 shrink-0" />
+                    Late Submission
+                  </div>
+                  <div className="lx-stat-tile__value">
+                    {attendanceDash.lateSubmissionCount}
+                  </div>
+                  <p className="lx-stat-tile__hint">After 10:00 cutoff</p>
+                </Link>
+                <Link
+                  to="/student-attendance"
+                  className="rounded-lg border border-border bg-background/40 px-2.5 py-2 transition-colors hover:border-border-strong hover:bg-surface-hover"
+                >
+                  <div className="flex items-center gap-2 lx-stat-tile__label">
+                    <BarChart3 className="size-3.5 shrink-0" />
+                    Coordinator Summary
+                  </div>
+                  <div className="lx-stat-tile__value">
+                    {attendanceDash.coordinatorSummary.monthAttendancePct}%
+                  </div>
+                  <p className="lx-stat-tile__hint">
+                    {attendanceDash.coordinatorSummary.completedToday} submitted today ·{" "}
+                    {attendanceDash.coordinatorSummary.pendingToday} pending ·{" "}
+                    {attendanceDash.coordinatorSummary.alertsQueued} alerts queued
                   </p>
-                  <Link to="/complaints">
-                    <Button className="mt-3 h-7 text-[11px]">Open case</Button>
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <Card className="col-span-12 lg:col-span-7">
-            <CardHeader
-              title="Live Activity"
-              hint="Real-time across branches"
-              action={
-                <Link to="/settings" hash="audit">
-                  <Button size="sm">View audit log</Button>
                 </Link>
-              }
-            />
-            <div className="px-5 pb-5 space-y-1">
-              {activity.slice(0, 6).map((a, i) => {
-                const Icon = a.icon;
-                return (
-                  <div
-                    key={i}
-                    className="flex items-start gap-3 py-2 border-b border-border last:border-0"
-                  >
-                    <IconChip
-                      icon={Icon}
-                      size="sm"
-                      variant={a.tone === "danger" ? "danger" : "brand"}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs">
-                        <span className="font-medium">{a.who}</span>{" "}
-                        <span className="text-muted-foreground">{a.what}</span>{" "}
-                        <span className="text-primary">{a.target}</span>
-                      </p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5 font-mono flex items-center gap-1">
-                        <Clock className="size-2.5" /> {a.time}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
-
-          <Card className="col-span-12 lg:col-span-5">
-            <CardHeader
-              title="Class Performance"
-              hint="Average GPA by grade"
-              action={
-                <div className="flex items-center gap-1.5 text-[10px] text-success">
-                  <TrendingUp className="size-3" /> +0.18 vs last term
-                </div>
-              }
-            />
-            <div className="px-5 pb-5 space-y-3">
-              {[
-                { grade: "Grade 12-A", gpa: 3.84, pct: 95, tone: "bg-success" },
-                { grade: "Grade 11-B", gpa: 3.62, pct: 88, tone: "bg-primary" },
-                { grade: "Grade 10-A", gpa: 3.41, pct: 82, tone: "bg-primary" },
-                { grade: "Grade 9-C", gpa: 2.98, pct: 71, tone: "bg-warning" },
-                { grade: "Grade 11-C", gpa: 2.64, pct: 62, tone: "bg-destructive" },
-              ].map((c) => (
-                <div key={c.grade}>
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <span>{c.grade}</span>
-                    <span className="font-mono text-muted-foreground">{c.gpa.toFixed(2)}</span>
-                  </div>
-                  <div className="h-1.5 rounded bg-muted overflow-hidden">
-                    <div className={`h-full ${c.tone}`} style={{ width: `${c.pct}%` }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <Card className="col-span-12 md:col-span-6 lg:col-span-4">
-            <CardHeader title="Parent Engagement" hint="30-day average" />
-            <div className="px-5 pb-5 space-y-3">
-              {[
-                { l: "Portal logins", v: "78%", pct: 78, tone: "bg-success" },
-                { l: "Message reads", v: "64%", pct: 64, tone: "bg-primary" },
-                { l: "Event RSVPs", v: "41%", pct: 41, tone: "bg-warning" },
-              ].map((m) => (
-                <div key={m.l}>
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="text-muted-foreground">{m.l}</span>
-                    <span className="font-mono">{m.v}</span>
-                  </div>
-                  <div className="h-1.5 rounded bg-muted overflow-hidden">
-                    <div className={`h-full ${m.tone}`} style={{ width: `${m.pct}%` }} />
-                  </div>
-                </div>
-              ))}
-              <Link to="/parents">
-                <Button className="w-full justify-center mt-2">
-                  Manage parents <ArrowUpRight className="size-3" />
-                </Button>
-              </Link>
-            </div>
-          </Card>
-
-          <Card className="col-span-12 md:col-span-6 lg:col-span-4">
-            <CardHeader title="Upcoming" hint="Next 7 days" />
-            <div className="px-5 pb-5 space-y-2.5">
-              {[
-                {
-                  d: "Mon",
-                  t: "10:00",
-                  e: "Grade 10 — Mid-term Maths",
-                  icon: FileText,
-                  tone: "primary",
-                },
-                {
-                  d: "Tue",
-                  t: "14:30",
-                  e: "Parent–Teacher Meet · 11",
-                  icon: Heart,
-                  tone: "success",
-                },
-                {
-                  d: "Wed",
-                  t: "09:00",
-                  e: "Inter-school Debate",
-                  icon: CalendarDays,
-                  tone: "warning",
-                },
-                {
-                  d: "Fri",
-                  t: "16:00",
-                  e: "Annual Sports Day Rehearsal",
-                  icon: BookOpen,
-                  tone: "info",
-                },
-              ].map((u) => {
-                const Icon = u.icon;
-                return (
-                  <div key={u.e} className="flex items-center gap-3 py-1.5">
-                    <IconChip icon={Icon} size="sm" />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs font-medium truncate">{u.e}</div>
-                      <div className="text-[10px] text-muted-foreground font-mono">
-                        {u.d} · {u.t}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
-
-          <Card className="col-span-12 md:col-span-6 lg:col-span-4">
-            <CardHeader
-              title="Storage Overview"
-              hint="2 TB allocated"
-              action={
-                <Link to="/storage">
-                  <Button size="sm">Manage</Button>
-                </Link>
-              }
-            />
-            <div className="px-5 pb-5">
-              <div className="flex h-2.5 rounded-full overflow-hidden bg-muted">
-                <div className="bg-primary" style={{ width: "34%" }} />
-                <div className="bg-chart-5" style={{ width: "24%" }} />
-                <div className="bg-success" style={{ width: "15%" }} />
-                <div className="bg-warning" style={{ width: "12%" }} />
-              </div>
-              <div className="grid grid-cols-2 gap-3 mt-4 text-[11px]">
-                <div>
-                  <span className="size-2 inline-block rounded-sm bg-primary mr-1.5" /> Students ·
-                  312 GB
-                </div>
-                <div>
-                  <span className="size-2 inline-block rounded-sm bg-chart-5 mr-1.5" /> Media · 286
-                  GB
-                </div>
-                <div>
-                  <span className="size-2 inline-block rounded-sm bg-success mr-1.5" /> Exams · 184
-                  GB
-                </div>
-                <div>
-                  <span className="size-2 inline-block rounded-sm bg-warning mr-1.5" /> Temp · 142
-                  GB
-                </div>
               </div>
             </div>
           </Card>
-        </div>
-      </PageStack>
-    </AppShell>
+        );
+      case "quick-actions":
+        return <HomeQuickActionsCard />;
+      case "pending-reviews":
+        return (
+          <Card>
+            <CardHeader
+              title="Reviews"
+              hint="Decisions waiting on Admin"
+              action={
+                <Pill tone="info">
+                  {pendingReviews.reduce((a, r) => a + r.count, 0)} items
+                </Pill>
+              }
+            />
+            <div className="px-3 pb-3">
+              {pendingReviews.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No pending reviews.</p>
+              ) : (
+              <ul className="space-y-1.5">
+                {pendingReviews.map((row) => (
+                  <li key={row.id}>
+                    <Link
+                      to={row.to}
+                      search={row.search}
+                      className="flex items-center gap-2.5 rounded-lg border border-border px-2.5 py-2 transition-colors hover:bg-surface-hover"
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-medium">{row.label}</span>
+                        <span className="block text-[11px] text-muted-foreground">{row.detail}</span>
+                      </span>
+                      <Pill tone="warning">{row.count}</Pill>
+                      <ArrowUpRight className="size-3.5 text-muted-foreground" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              )}
+            </div>
+          </Card>
+        );
+      case "shortcuts":
+        return (
+          <Card>
+            <CardHeader title="Shortcuts" hint="Jump to modules" />
+            <div className="px-3 pb-3">
+              <div className="flex flex-wrap gap-1.5">
+                {SHORTCUTS.map((s) => {
+                  const Icon = s.icon;
+                  return (
+                    <Link key={s.label} to={s.to}>
+                      <Button size="sm" variant="outline" className="gap-1.5">
+                        <Icon className="size-3.5" />
+                        {s.label}
+                      </Button>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          </Card>
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <DashboardLayoutProvider storageKey="admin.home" widgets={ADMIN_HOME_WIDGETS}>
+      <AppShell
+        title="Home"
+        subtitle={`What should I do today? · ${instituteSummary.name} · ${todayLabel()}`}
+        titleActions={<DashboardCustomizeActions />}
+      >
+        <PageStack>
+          <DashboardWidgets render={widgetBody} />
+        </PageStack>
+      </AppShell>
+    </DashboardLayoutProvider>
   );
 }

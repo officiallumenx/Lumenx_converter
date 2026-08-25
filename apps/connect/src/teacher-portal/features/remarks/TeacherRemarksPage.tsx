@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
 import { teacherRepository } from "@/lib/teacher/repositories";
+import { isTeacherAccessDenied } from "@/lib/teacher/portal-access-guard";
 import { RemarkForm } from "@/teacher-portal/shared/ui/RemarkForm";
 import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
 import { EmptyState } from "@/teacher-portal/shared/ui/EmptyState";
@@ -100,14 +101,24 @@ export function TeacherRemarksPage() {
       toast.error("Select a student first");
       return;
     }
-    await teacherRepository.addRemark(studentId, { type, text });
+    try {
+      await teacherRepository.addRemark(studentId, { type, text });
+    } catch (error) {
+      if (isTeacherAccessDenied(error)) return;
+      throw error;
+    }
     toast.success("Remark added");
     load();
   };
 
   const saveEdit = async () => {
     if (!editRemark || editText.trim().length < 8) return;
-    await teacherRepository.updateRemark(editRemark.id, editText.trim());
+    try {
+      await teacherRepository.updateRemark(editRemark.id, editText.trim());
+    } catch (error) {
+      if (isTeacherAccessDenied(error)) return;
+      throw error;
+    }
     toast.success("Remark updated");
     setEditRemark(null);
     load();

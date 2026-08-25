@@ -19,7 +19,6 @@ export function RecoveryOtpStep(props: RecoveryOtpStepProps) {
       {...props}
       variant="embedded"
       persist={false}
-      demoCompact
     />
   );
 }

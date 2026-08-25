@@ -23,7 +23,6 @@ import {
   Image as ImageIcon,
   X,
   Save,
-  Wand2,
   Pencil,
   CheckCircle2,
   ClipboardList,
@@ -48,7 +47,6 @@ import {
   COUNTRIES,
   INDIA_STATES,
   PRINCIPAL_DESIGNATIONS,
-  MOCK_SETUP_PRESET,
   createEmptySetupForm,
   loadSetupDraft,
   saveSetupDraft,
@@ -61,7 +59,9 @@ import {
   formatSetupAddress,
   REVIEW_STEP,
 } from "@/auth/institute-setup-store";
-import { saveOtpPending } from "@/auth/otp-service";
+import { saveOtpPending, loadOtpPending } from "@/auth/otp-service";
+import { submitInstituteRegistration, compressInstituteLogoDataUrl } from "@lumenx/utils";
+import { resolveRegistrationGate } from "@/auth/registration-gate";
 
 export const Route = createFileRoute("/institute-setup")({
   head: () => ({ meta: [{ title: "Institute Profile Setup — LumenX Admin" }] }),
@@ -559,7 +559,7 @@ function RegistrationSuccessScreen({
         <h1 className="text-2xl font-bold tracking-tight">Registration complete</h1>
         <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
           <strong className="text-foreground">{instituteName}</strong> is registered.
-          In this demo environment your account is auto-approved — no admin review needed.
+          Continue to the dashboard to start managing your institute.
         </p>
 
         <div className="mt-6 rounded-xl border border-border bg-card p-4 text-left space-y-2">
@@ -577,12 +577,12 @@ function RegistrationSuccessScreen({
         </div>
 
         <p className="mt-5 text-xs text-muted-foreground">
-          Redirecting to dashboard…
+          Waiting for platform approval in Nexus…
         </p>
 
         <div className="mt-6">
           <AuthButton variant="primary" fullWidth onClick={onContinue}>
-            Enter dashboard
+            View application status
             <ArrowRight className="size-3.5" />
           </AuthButton>
         </div>
@@ -605,7 +605,7 @@ const STEP_HINTS = [
 function InstituteSetupPage() {
   const navigate = useNavigate();
   const notify   = useAdminToast();
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const { instituteProfile, saveInstituteProfile } = useDemoProfile();
 
   const draftOnMount = loadSetupDraft();
@@ -628,14 +628,23 @@ function InstituteSetupPage() {
       navigate({ to: "/login", replace: true });
       return;
     }
-    if (isRegistrationSubmitted()) {
-      navigate({ to: "/", replace: true });
+    const gate = resolveRegistrationGate(user);
+    if (gate.kind === "verify_email") {
+      navigate({ to: "/verify-email-otp", replace: true });
       return;
     }
-    if (isSetupComplete()) {
+    if (gate.kind === "verify_mobile") {
+      navigate({ to: "/verify-mobile-otp", replace: true });
+      return;
+    }
+    if (gate.kind === "pending" || gate.kind === "rejected") {
+      navigate({ to: "/pending-verification", replace: true });
+      return;
+    }
+    if (gate.kind === "allow") {
       navigate({ to: "/", replace: true });
     }
-  }, [isAuthenticated, isLoading, navigate]);
+  }, [isAuthenticated, isLoading, navigate, user]);
 
   const change = (field: keyof InstituteSetupForm, value: string) => {
     setForm((p) => ({ ...p, [field]: value }));
@@ -652,12 +661,6 @@ function InstituteSetupPage() {
 
   const handleSaveDraft = () => {
     persistDraft(step);
-  };
-
-  const handleLoadDemo = () => {
-    setForm({ ...MOCK_SETUP_PRESET });
-    setErrors({});
-    notify("Sample data loaded — review and edit before saving");
   };
 
   const handleNext = () => {
@@ -707,18 +710,55 @@ function InstituteSetupPage() {
     setErrors({});
     setLoading(true);
     try {
-      await new Promise((r) => setTimeout(r, 900));
+      const otp = loadOtpPending();
+      if (!otp?.emailVerified || !otp.mobileVerified) {
+        setConfirmError("Verify email and mobile OTP before submitting.");
+        setLoading(false);
+        if (!otp?.emailVerified) navigate({ to: "/verify-email-otp", replace: true });
+        else navigate({ to: "/verify-mobile-otp", replace: true });
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 600));
       const profile = buildInstituteProfileFromSetup(form, instituteProfile);
       saveInstituteProfile(profile);
       const submission = markRegistrationSubmitted(form);
+      const logoThumb = form.logoPreview
+        ? await compressInstituteLogoDataUrl(form.logoPreview, {
+            maxEdge: 96,
+            quality: 0.62,
+            maxDataUrlChars: 5500,
+          })
+        : null;
+      const application = submitInstituteRegistration({
+        payload: {
+          instituteName: form.instituteName,
+          logoPreview: logoThumb || undefined,
+          instituteType: form.instituteType,
+          educationBoard: form.educationBoard,
+          country: form.country,
+          state: form.state,
+          district: form.district,
+          city: form.city,
+          address: form.address,
+          pincode: form.pincode,
+          website: form.website,
+          principalName: form.principalName,
+          principalEmail: form.principalEmail,
+          principalMobile: form.principalMobile,
+          principalDesignation: form.principalDesignation,
+          employeeId: form.employeeId,
+        },
+        emailVerified: true,
+        mobileVerified: true,
+      });
       saveOtpPending({
         email: form.principalEmail,
         mobile: form.principalMobile,
-        emailVerified: false,
-        mobileVerified: false,
+        emailVerified: true,
+        mobileVerified: true,
       });
       setSuccessData({
-        referenceId: submission.referenceId,
+        referenceId: application.referenceId || submission.referenceId,
         instituteName: form.instituteName.trim() || "Your institute",
       });
     } finally {
@@ -727,7 +767,7 @@ function InstituteSetupPage() {
   };
 
   const handleSuccessContinue = () => {
-    navigate({ to: "/", replace: true });
+    navigate({ to: "/pending-verification", replace: true });
   };
 
   const stepTitle = step === REVIEW_STEP
@@ -753,7 +793,7 @@ function InstituteSetupPage() {
   }
 
   return (
-    <div className="min-h-screen flex bg-background text-foreground">
+    <div className="min-h-screen-dvh flex bg-background text-foreground">
       {/* ── Left brand panel ───────────────────────────── */}
       <aside className="hidden xl:flex xl:w-[36%] flex-col justify-between p-10 bg-gradient-to-br from-primary/[0.07] via-background to-chart-5/[0.05] border-r border-border relative overflow-hidden shrink-0">
         <div
@@ -838,7 +878,7 @@ function InstituteSetupPage() {
 
       {/* ── Right: wizard ──────────────────────────────── */}
       <div className="flex-1 flex flex-col min-h-0 min-w-0">
-        <div className="flex items-center justify-between px-6 sm:px-8 py-4 border-b border-border/50 shrink-0">
+        <div className="lx-auth-top-bar flex items-center justify-between border-b border-border/50 shrink-0">
           <div className="flex items-center gap-2 xl:hidden">
             <div className="size-7 rounded-lg bg-primary flex items-center justify-center">
               <Sparkles className="size-3.5 text-primary-foreground" />
@@ -846,14 +886,6 @@ function InstituteSetupPage() {
             <span className="font-bold text-xs tracking-tight">LUMENX ADMIN</span>
           </div>
           <div className="flex items-center gap-3 ml-auto">
-            <button
-              type="button"
-              onClick={handleLoadDemo}
-              className="hidden sm:flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-primary transition-colors"
-            >
-              <Wand2 className="size-3.5" />
-              Load sample data
-            </button>
             <span className="text-[11px] text-muted-foreground">
               Step {step} of {TOTAL_SETUP_STEPS}
             </span>
@@ -938,14 +970,6 @@ function InstituteSetupPage() {
                 </AuthButton>
               )}
             </div>
-
-            <button
-              type="button"
-              onClick={handleLoadDemo}
-              className="sm:hidden mt-4 w-full text-center text-[11px] text-muted-foreground hover:text-primary transition-colors"
-            >
-              Load sample data for demo
-            </button>
           </div>
         </div>
       </div>

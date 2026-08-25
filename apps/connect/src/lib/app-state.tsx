@@ -10,10 +10,13 @@ import {
 import { Capacitor } from "@capacitor/core";
 import type { Institute, Role, User } from "@lumenx/types";
 import { CONNECT_STORAGE_KEYS } from "@lumenx/auth";
+import { applyTextScale, loadTextScale } from "@lumenx/ui";
+import { recordLocalChangeForSync } from "@lumenx/utils";
 import { registeredInstitutes, children as linkedChildren } from "./mock-data";
 import { LINKED_CHILD_IDS, resolveLinkedChildId } from "./parent-portal-data";
 import { appLockStore } from "./app-lock-store";
-import { resetAllConnectStores } from "./reset-stores";
+import { awaitConnectStoreReset, resetAllConnectStores } from "./reset-stores";
+import { isRole, isThemeMode, parsePersistedUser } from "./session-validation";
 
 function resolveInstitute(id: string | null): Institute | null {
   if (!id) return null;
@@ -49,6 +52,12 @@ const DEMO_USER: Omit<User, "phone"> = {
   roles: ["parent", "teacher", "student"],
 };
 
+function clearAuthStorage() {
+  localStorage.removeItem(CONNECT_STORAGE_KEYS.user);
+  localStorage.removeItem(CONNECT_STORAGE_KEYS.role);
+  localStorage.removeItem(CONNECT_STORAGE_KEYS.institute);
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRoleState] = useState<Role | null>(null);
@@ -60,21 +69,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     try {
-      const u = localStorage.getItem(CONNECT_STORAGE_KEYS.user);
-      const r = localStorage.getItem(CONNECT_STORAGE_KEYS.role) as Role | null;
-      const t = localStorage.getItem(CONNECT_STORAGE_KEYS.theme) as "light" | "dark" | null;
+      const persistedUser = parsePersistedUser(localStorage.getItem(CONNECT_STORAGE_KEYS.user));
+      const persistedRole = localStorage.getItem(CONNECT_STORAGE_KEYS.role);
+      const persistedTheme = localStorage.getItem(CONNECT_STORAGE_KEYS.theme);
       const c = localStorage.getItem(CONNECT_STORAGE_KEYS.child);
       const ins = localStorage.getItem(CONNECT_STORAGE_KEYS.institute);
       const sim = localStorage.getItem(CONNECT_STORAGE_KEYS.studentIncluded);
-      if (u) setUser(JSON.parse(u));
-      if (r) setRoleState(r);
-      if (t) setTheme(t);
+
+      const roleOk = isRole(persistedRole);
+      if (persistedUser && roleOk) {
+        setUser(persistedUser);
+        setRoleState(persistedRole);
+        if (ins) setActiveInstituteIdState(ins);
+        else if (registeredInstitutes[0]) setActiveInstituteIdState(registeredInstitutes[0].id);
+      } else if (persistedUser || persistedRole) {
+        // Corrupted / hand-edited session — stay signed out.
+        clearAuthStorage();
+      }
+
+      if (isThemeMode(persistedTheme)) setTheme(persistedTheme);
       if (c) setActiveChildIdState(resolveLinkedChildId(c));
-      if (ins) setActiveInstituteIdState(ins);
-      else if (u && r && registeredInstitutes[0]) setActiveInstituteIdState(registeredInstitutes[0].id);
       if (sim === "1") setStudentIncludedModeState(true);
     } catch {
-      void 0;
+      clearAuthStorage();
     }
     setHydrated(true);
   }, []);
@@ -96,31 +113,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [theme, hydrated]);
 
+  useEffect(() => {
+    /* Shared typography: apply in-app text size (do not follow device font scale). */
+    applyTextScale(loadTextScale());
+  }, []);
+
   const institute = useMemo(() => resolveInstitute(activeInstituteId), [activeInstituteId]);
 
   const signIn = useCallback((phone: string, r: Role, instituteId: string, opts?: { displayName?: string }) => {
-    const u: User = { ...DEMO_USER, phone, name: opts?.displayName ?? DEMO_USER.name };
-    setUser(u);
-    setRoleState(r);
-    setActiveInstituteIdState(instituteId);
-    localStorage.setItem(CONNECT_STORAGE_KEYS.user, JSON.stringify(u));
-    localStorage.setItem(CONNECT_STORAGE_KEYS.role, r);
-    localStorage.setItem(CONNECT_STORAGE_KEYS.institute, instituteId);
+    const apply = () => {
+      const u: User = { ...DEMO_USER, phone, name: opts?.displayName ?? DEMO_USER.name };
+      setUser(u);
+      setRoleState(r);
+      setActiveInstituteIdState(instituteId);
+      localStorage.setItem(CONNECT_STORAGE_KEYS.user, JSON.stringify(u));
+      localStorage.setItem(CONNECT_STORAGE_KEYS.role, r);
+      localStorage.setItem(CONNECT_STORAGE_KEYS.institute, instituteId);
+    };
+    // If sign-out store teardown is still running, wait so the new session
+    // never gets wiped by a late satellite reset.
+    void awaitConnectStoreReset().then(apply);
   }, []);
 
   const signOut = useCallback(() => {
     appLockStore.lockSession();
-    resetAllConnectStores();
     setUser(null);
     setRoleState(null);
     setActiveInstituteIdState(null);
     setActiveChildIdState(linkedChildren[0]?.id ?? "C1");
     setStudentIncludedModeState(false);
-    localStorage.removeItem(CONNECT_STORAGE_KEYS.user);
-    localStorage.removeItem(CONNECT_STORAGE_KEYS.role);
-    localStorage.removeItem(CONNECT_STORAGE_KEYS.institute);
+    clearAuthStorage();
     localStorage.removeItem(CONNECT_STORAGE_KEYS.child);
     localStorage.removeItem(CONNECT_STORAGE_KEYS.studentIncluded);
+    try {
+      sessionStorage.removeItem("lumenx_activity_workspace_banner_dismissed");
+    } catch {
+      /* ignore */
+    }
+    void resetAllConnectStores();
   }, []);
 
   const setActiveChildId = useCallback((id: string) => {
@@ -140,6 +170,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (!prev) return prev;
         const next = { ...prev, ...patch };
         localStorage.setItem(CONNECT_STORAGE_KEYS.user, JSON.stringify(next));
+        recordLocalChangeForSync({
+          app: "connect",
+          module: "Profile",
+          label: "Update profile",
+          op: "update",
+        });
         return next;
       });
     },

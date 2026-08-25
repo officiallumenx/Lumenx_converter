@@ -9,7 +9,7 @@ export function CareersPageHeader({
   action,
   className,
 }: {
-  title: string;
+  title?: string;
   subtitle?: string;
   backTo?: string;
   action?: React.ReactNode;
@@ -25,13 +25,17 @@ export function CareersPageHeader({
           <ArrowLeft className="size-4" /> Back
         </Link>
       )}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">{title}</h1>
-          {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
+      {(title || subtitle || action) && (
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            {title ? (
+              <h1 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">{title}</h1>
+            ) : null}
+            {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
+          </div>
+          {action}
         </div>
-        {action}
-      </div>
+      )}
     </div>
   );
 }

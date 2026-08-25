@@ -17,6 +17,7 @@ import {
   Switch,
   Textarea,
 } from "@lumenx/ui";
+import { ConnectDatePicker } from "@/components/app/attendance/AttendanceDatePicker";
 import { isoDate } from "@/activity-workspace/hub/calendar";
 import { PARTICIPANT_STUDENT_OPTIONS } from "@/activity-workspace/shared/lib/participant-mock-data";
 import type {
@@ -265,11 +266,12 @@ export function AchievementFormDialog({
               </Field>
             </div>
             <Field label="Date" required>
-              <Input
-                type="date"
+              <ConnectDatePicker
+                label="Date"
+                hideLabel
                 value={form.date}
-                onChange={(e) => set("date", e.target.value)}
-                className="rounded-xl"
+                onChange={(v) => set("date", v)}
+                placeholder="Select date"
               />
             </Field>
             <Field label="Description">

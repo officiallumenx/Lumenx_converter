@@ -11,53 +11,125 @@ import {
   Select,
   Modal,
 } from "@lumenx/ui-admin";
-import { ACADEMIC_YEAR, CALENDAR_HOLIDAYS, CALENDAR_EXAMS } from "@/lib/admin-module-data";
+import { DateTimePicker12h, parseDateTimeLocal, toDateTimeLocal } from "@/components/DateTimePicker12h";
+import { ACADEMIC_YEAR } from "@/lib/admin-module-data";
 import { workingDaysInYear } from "@/lib/admin-analytics-data";
+import {
+  createCalendarEventId,
+  deleteCalendarEvent,
+  filterAcademicCalendarItems,
+  getCalendarEventById,
+  upsertCalendarEvent,
+  useCalendarEvents,
+} from "@/lib/calendar-events-store";
+import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-labels";
 import { Plus, CalendarDays } from "lucide-react";
 import { useMemo, useState } from "react";
 
 export const Route = createFileRoute("/calendar")({
-  head: () => ({ meta: [{ title: "Academic Calendar — LumenX Admin" }] }),
+  head: () => ({ meta: [{ title: adminPageTitle("/calendar") }] }),
   component: CalendarPage,
 });
 
 const MONTHS = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"];
 
-type CalEntry = { date: string; title: string; type: "holiday" | "exam" | "event" };
+type CalKind = "holiday" | "exam" | "meeting" | "function";
+
+const CAL_KINDS: CalKind[] = ["holiday", "exam", "meeting", "function"];
+
+function toCalKind(kind: string): CalKind {
+  return CAL_KINDS.includes(kind as CalKind) ? (kind as CalKind) : "function";
+}
 
 function monthShort(iso: string) {
   return new Date(iso).toLocaleString("en", { month: "short" });
+}
+
+function formatCalTime(time24?: string): string {
+  if (!time24) return "";
+  const m = /^(\d{1,2}):(\d{2})$/.exec(time24);
+  if (!m) return time24;
+  let h = Number(m[1]);
+  const min = m[2];
+  const period = h >= 12 ? "PM" : "AM";
+  h = h % 12;
+  if (h === 0) h = 12;
+  return `${h}:${min} ${period}`;
 }
 
 function CalendarPage() {
   const [view, setView] = useState<"month" | "year">("year");
   const [selectedMonth, setSelectedMonth] = useState<string>(MONTHS[2]!);
   const [open, setOpen] = useState(false);
-  const [dates, setDates] = useState<CalEntry[]>([...CALENDAR_HOLIDAYS, ...CALENDAR_EXAMS]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const allItems = useCalendarEvents();
+  const items = useMemo(() => filterAcademicCalendarItems(allItems), [allItems]);
   const [newTitle, setNewTitle] = useState("");
-  const [newDate, setNewDate] = useState("");
-  const [newType, setNewType] = useState<"holiday" | "exam" | "event">("holiday");
+  const [newDateTime, setNewDateTime] = useState("");
+  const [newType, setNewType] = useState<CalKind>("holiday");
 
-  const allDates = useMemo(() => [...dates].sort((a, b) => a.date.localeCompare(b.date)), [dates]);
+  const resetForm = () => {
+    setNewTitle("");
+    setNewDateTime("");
+    setNewType("holiday");
+    setEditingId(null);
+  };
+
+  const openEdit = (id: string) => {
+    const item = getCalendarEventById(id);
+    if (!item) return;
+    setEditingId(item.id);
+    setNewTitle(item.title);
+    setNewType(toCalKind(item.kind));
+    setNewDateTime(toDateTimeLocal(item.date, item.time || "09:00"));
+    setOpen(true);
+  };
+
+  const removeDate = (id: string) => {
+    deleteCalendarEvent(id);
+    if (editingId === id) resetForm();
+  };
+
+  const allDates = useMemo(
+    () => [...items].sort((a, b) => a.date.localeCompare(b.date)),
+    [items],
+  );
   const monthDates = useMemo(
     () => allDates.filter((d) => monthShort(d.date) === selectedMonth),
     [allDates, selectedMonth],
   );
 
-  const addDate = () => {
-    if (!newTitle.trim() || !newDate) return;
-    setDates((p) => [...p, { date: newDate, title: newTitle.trim(), type: newType }]);
-    setNewTitle("");
-    setNewDate("");
+  const saveDate = () => {
+    if (!newTitle.trim() || !newDateTime) return;
+    const { date, time } = parseDateTimeLocal(newDateTime);
+    if (!date) return;
+    const existing = editingId ? getCalendarEventById(editingId) : undefined;
+    upsertCalendarEvent({
+      id: editingId ?? createCalendarEventId("cal"),
+      date,
+      title: newTitle.trim(),
+      kind: newType,
+      time: newType === "holiday" ? undefined : time || undefined,
+      endDate: existing?.endDate,
+      audience: existing?.audience,
+      location: existing?.location,
+      description: existing?.description,
+      reminder: existing?.reminder,
+      bannerDataUrl: existing?.bannerDataUrl,
+      rsvp: existing?.rsvp,
+      published: existing?.published ?? true,
+      source: existing?.source ?? "calendar",
+    });
+    resetForm();
     setOpen(false);
   };
 
   return (
     <AppShell
-      title="Academic Calendar"
+      title={M.calendar}
       subtitle={`Session ${ACADEMIC_YEAR.label} · drives attendance holidays & exam windows`}
       actions={
-        <Button variant="primary" onClick={() => setOpen(true)}>
+        <Button variant="primary" onClick={() => { resetForm(); setOpen(true); }}>
           <Plus className="size-3.5" /> Add date
         </Button>
       }
@@ -68,11 +140,11 @@ function CalendarPage() {
           value={ACADEMIC_YEAR.label}
           icon={<CalendarDays className="size-3.5" />}
         />
-        <Kpi label="Holidays" value={String(dates.filter((d) => d.type === "holiday").length)} />
-        <Kpi label="Exam windows" value={String(dates.filter((d) => d.type === "exam").length)} />
-        <Kpi
-          label="Working days"
-          value={String(workingDaysInYear(dates.filter((d) => d.type === "holiday").length))}
+          <Kpi label="Holidays" value={String(items.filter((d) => d.kind === "holiday").length)} />
+          <Kpi label="Exam windows" value={String(items.filter((d) => d.kind === "exam").length)} />
+          <Kpi
+            label="Working days"
+            value={String(workingDaysInYear(items.filter((d) => d.kind === "holiday").length))}
           delta="Est. year"
         />
       </div>
@@ -149,27 +221,40 @@ function CalendarPage() {
                 <thead>
                   <tr className="text-[10px] uppercase tracking-wider text-muted-foreground bg-background/40 border-b border-border">
                     <th className="px-5 py-3 font-semibold">Date</th>
+                    <th className="px-5 py-3 font-semibold">Time</th>
                     <th className="px-5 py-3 font-semibold">Title</th>
                     <th className="px-5 py-3 font-semibold">Type</th>
+                    <th className="px-5 py-3 font-semibold">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {monthDates.map((d) => (
-                    <tr key={d.date + d.title} className="hover:bg-surface-hover">
+                    <tr key={d.id} className="hover:bg-surface-hover">
                       <td className="px-5 py-3 text-xs font-mono">{d.date}</td>
+                      <td className="px-5 py-3 text-xs font-mono text-muted-foreground">
+                        {formatCalTime(d.time) || "—"}
+                      </td>
                       <td className="px-5 py-3 text-xs font-medium">{d.title}</td>
                       <td className="px-5 py-3">
                         <Pill
                           tone={
-                            d.type === "holiday"
+                            d.kind === "holiday"
                               ? "warning"
-                              : d.type === "exam"
+                              : d.kind === "exam"
                                 ? "info"
-                                : "success"
+                                : d.kind === "meeting"
+                                  ? "neutral"
+                                  : "success"
                           }
                         >
-                          {d.type}
+                          {d.kind}
                         </Pill>
+                      </td>
+                      <td className="px-5 py-3">
+                        <div className="flex gap-2">
+                          <Button onClick={() => openEdit(d.id)}>Edit</Button>
+                          <Button onClick={() => removeDate(d.id)}>Delete</Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -188,23 +273,34 @@ function CalendarPage() {
               <thead>
                 <tr className="text-[10px] uppercase tracking-wider text-muted-foreground bg-background/40 border-b border-border">
                   <th className="px-5 py-3 font-semibold">Date</th>
+                  <th className="px-5 py-3 font-semibold">Time</th>
                   <th className="px-5 py-3 font-semibold">Title</th>
                   <th className="px-5 py-3 font-semibold">Type</th>
+                  <th className="px-5 py-3 font-semibold">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {allDates.map((d) => (
-                  <tr key={d.date + d.title} className="hover:bg-surface-hover">
+                  <tr key={d.id} className="hover:bg-surface-hover">
                     <td className="px-5 py-3 text-xs font-mono">{d.date}</td>
+                    <td className="px-5 py-3 text-xs font-mono text-muted-foreground">
+                      {formatCalTime(d.time) || "—"}
+                    </td>
                     <td className="px-5 py-3 text-xs font-medium">{d.title}</td>
                     <td className="px-5 py-3">
                       <Pill
                         tone={
-                          d.type === "holiday" ? "warning" : d.type === "exam" ? "info" : "success"
+                          d.kind === "holiday" ? "warning" : d.kind === "exam" ? "info" : "success"
                         }
                       >
-                        {d.type}
+                        {d.kind}
                       </Pill>
+                    </td>
+                    <td className="px-5 py-3">
+                      <div className="flex gap-2">
+                        <Button onClick={() => openEdit(d.id)}>Edit</Button>
+                        <Button onClick={() => removeDate(d.id)}>Delete</Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -216,12 +312,22 @@ function CalendarPage() {
 
       <Modal
         open={open}
-        onClose={() => setOpen(false)}
-        title="Add important date"
+        onClose={() => {
+          resetForm();
+          setOpen(false);
+        }}
+        title={editingId ? "Edit important date" : "Add important date"}
         footer={
           <>
-            <Button onClick={() => setOpen(false)}>Cancel</Button>
-            <Button variant="primary" onClick={addDate}>
+            <Button
+              onClick={() => {
+                resetForm();
+                setOpen(false);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={saveDate}>
               Save
             </Button>
           </>
@@ -235,17 +341,18 @@ function CalendarPage() {
               onChange={(e) => setNewTitle(e.target.value)}
             />
           </Field>
-          <Field label="Date" required>
-            <TextInput type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} />
+          <Field label="Date & time" required hint="12-hour clock with AM / PM">
+            <DateTimePicker12h value={newDateTime} onChange={setNewDateTime} />
           </Field>
           <Field label="Type">
             <Select
               value={newType}
-              onChange={(e) => setNewType(e.target.value as "holiday" | "exam" | "event")}
+              onChange={(e) => setNewType(e.target.value as CalKind)}
             >
               <option value="holiday">Holiday</option>
               <option value="exam">Exam</option>
-              <option value="event">Event</option>
+              <option value="meeting">Meeting</option>
+              <option value="function">Function</option>
             </Select>
           </Field>
         </div>

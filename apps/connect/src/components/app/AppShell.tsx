@@ -1,9 +1,20 @@
 import { Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { getInitials } from "@lumenx/utils";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+  type CSSProperties,
+} from "react";
 import { AppLockScreen } from "@/components/app/AppLockScreen";
+import { RouteOutletErrorBoundary } from "@/components/app/RouteOutletErrorBoundary";
 import { appLockStore } from "@/lib/app-lock-store";
 import { useIsConnectSettingsRoute } from "@/lib/connect-settings-route";
+import { readMainScroll, saveMainScroll } from "@/lib/main-scroll-memory";
 import {
   Home,
   ClipboardCheck,
@@ -25,14 +36,24 @@ import {
   FileText,
   CalendarDays,
   HelpCircle,
-  Settings,
-  Info,
   Siren,
   CalendarOff,
+  MessageSquarePlus,
+  Flag,
 } from "lucide-react";
 import { useApp } from "@/lib/app-state";
+import { useKeyboardViewport } from "@/lib/use-keyboard-viewport-offset";
 import type { Role } from "@lumenx/types";
-import { Button, Switch } from "@lumenx/ui";
+import {
+  Button,
+  Switch,
+  useIsMobile,
+  useSwipeNavigation,
+  toSwipeNavItems,
+  ModuleTransitionRoot,
+  navigateWithModuleTransition,
+  getModuleNavDirection,
+} from "@lumenx/ui";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,6 +64,7 @@ import {
 } from "@lumenx/ui";
 import { Avatar, AvatarFallback } from "@lumenx/ui";
 import { Sheet, SheetTrigger } from "@lumenx/ui";
+import { PendingSyncBadge } from "@lumenx/ui";
 import { MobileMoreSheetContent } from "@/components/app/MobileMoreSheetContent";
 import {
   AlertDialog,
@@ -59,9 +81,14 @@ import { GlobalSearch } from "./GlobalSearch";
 import { ParentContextBar } from "./ParentContextBar";
 import { ActivityWorkspaceContextBar } from "./ActivityWorkspaceContextBar";
 import { isConnectSettingsPath } from "@/lib/connect-settings-route";
-import { TEACHER_MOBILE_PRIMARY, getTeacherNavItems } from "@/lib/teacher/nav";
+import {
+  TEACHER_MOBILE_PRIMARY,
+  TEACHER_MOBILE_SHORT_LABELS,
+  getTeacherNavItems,
+} from "@/lib/teacher/nav";
 import {
   ACTIVITY_MOBILE_PRIMARY,
+  ACTIVITY_MOBILE_SHORT_LABELS,
   ACTIVITY_WORKSPACE_BASE,
   getActivityNavItems,
   isActivityWorkspacePath,
@@ -72,11 +99,19 @@ import {
   isActivityWorkspaceActive,
   isSubjectWorkspaceActive,
 } from "@lumenx/teacher-session";
-import { STUDENT_ALL_NAV, STUDENT_MOBILE_PRIMARY } from "@/lib/student/nav";
+import {
+  STUDENT_ALL_NAV,
+  STUDENT_MOBILE_PRIMARY,
+  STUDENT_MOBILE_SHORT_LABELS,
+  studentMobileNavIconStyle,
+  studentMoreTileStyle,
+  type StudentModuleColor,
+} from "@/lib/student/nav";
 import {
   getParentNav,
   PARENT_MOBILE_PRIMARY,
   PARENT_MOBILE_PRIMARY_DELEGATED,
+  PARENT_MOBILE_SHORT_LABELS,
 } from "@/lib/parent/nav";
 import { PORTAL_LABEL, PortalMark } from "@/components/app/PortalMark";
 import { useParentPortal } from "@/context/ParentPortalContext";
@@ -117,7 +152,7 @@ const NAV: { to: string; label: string; icon: typeof Home; roles: Role[] }[] = [
   },
   { to: "/events", label: "Events", icon: CalendarDays, roles: ["parent", "teacher", "student"] },
   { to: "/teachers", label: "Teachers", icon: Users, roles: ["parent", "student"] },
-  { to: "/sports", label: "Sports", icon: Trophy, roles: ["parent", "teacher", "student"] },
+  { to: "/sports", label: "Sports", icon: Trophy, roles: ["parent", "student"] },
   { to: "/growth", label: "Growth", icon: Sparkles, roles: ["parent", "student"] },
   { to: "/id-card", label: "ID Card", icon: FileText, roles: ["parent", "student"] },
   {
@@ -135,7 +170,12 @@ const ROLE_LABEL: Record<Role, string> = {
   student: "Student",
 };
 
-type NavItem = { to: string; label: string; icon: typeof Home };
+type NavItem = {
+  to: string;
+  label: string;
+  icon: typeof Home;
+  moduleColor?: StudentModuleColor;
+};
 
 function isNavActive(pathname: string, to: string) {
   if (to === "/") return pathname === "/";
@@ -152,6 +192,9 @@ export function AppShell({ children }: { children?: ReactNode }) {
   const nav = useNavigate();
   const loc = useLocation();
   const mainRef = useRef<HTMLElement>(null);
+  const prevPathRef = useRef(loc.pathname);
+  const ignoreScrollSaveRef = useRef(false);
+  const scrollTopUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const [logoutConfirm, setLogoutConfirm] = useState(false);
   const logoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -165,17 +208,41 @@ export function AppShell({ children }: { children?: ReactNode }) {
   useEffect(() => {
     return () => {
       if (logoutTimerRef.current) clearTimeout(logoutTimerRef.current);
+      if (scrollTopUnlockTimerRef.current) clearTimeout(scrollTopUnlockTimerRef.current);
     };
   }, []);
 
   const scrollMainToTop = () => {
+    // Ignore intermediate smooth-scroll events so memory stays at 0.
+    ignoreScrollSaveRef.current = true;
+    saveMainScroll(loc.pathname, 0);
     mainRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    if (scrollTopUnlockTimerRef.current) clearTimeout(scrollTopUnlockTimerRef.current);
+    scrollTopUnlockTimerRef.current = setTimeout(() => {
+      ignoreScrollSaveRef.current = false;
+      saveMainScroll(loc.pathname, 0);
+      scrollTopUnlockTimerRef.current = null;
+    }, 450);
   };
+
+  // Keep scroll memory updated while the user scrolls the custom <main> container.
+  useEffect(() => {
+    const el = mainRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      if (ignoreScrollSaveRef.current) return;
+      saveMainScroll(loc.pathname, el.scrollTop);
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [loc.pathname]);
 
   useEffect(() => {
     if (!hydrated) return;
-    if (!user || !role) nav({ to: "/login" });
-  }, [user, role, nav, hydrated]);
+    if ((!user || !role) && loc.pathname !== "/login") {
+      void nav({ to: "/login" });
+    }
+  }, [user, role, nav, hydrated, loc.pathname]);
 
   const isTeacher = role === "teacher";
   const teacherPortal = useTeacherPortal();
@@ -199,6 +266,11 @@ export function AppShell({ children }: { children?: ReactNode }) {
     const onSettings = isConnectSettingsPath(path);
 
     if (activityActive && !onActivity && !onSettings) {
+      // Subject /notifications must land on Activity inbox — not Activity home.
+      if (path === "/notifications" || path.startsWith("/notifications/")) {
+        nav({ to: `${ACTIVITY_WORKSPACE_BASE}/notifications` });
+        return;
+      }
       nav({ to: ACTIVITY_WORKSPACE_BASE });
       return;
     }
@@ -215,7 +287,11 @@ export function AppShell({ children }: { children?: ReactNode }) {
 
   const teacherHasTransport =
     teacherPortal.isTeacher && teacherPortal.profile?.hasTransport === true;
-  const portalSubtitle = useActivityNav ? "Activity" : PORTAL_LABEL[role];
+  const portalSubtitle = useActivityNav
+    ? "Activity"
+    : role
+      ? PORTAL_LABEL[role]
+      : "";
 
   const items: NavItem[] = useMemo(() => {
     if (isTeacher && useActivityNav) {
@@ -223,6 +299,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
         to: n.to,
         label: n.label,
         icon: n.icon,
+        moduleColor: n.moduleColor,
       }));
     }
     if (isTeacher) {
@@ -230,16 +307,23 @@ export function AppShell({ children }: { children?: ReactNode }) {
         to: n.to,
         label: n.label,
         icon: n.icon,
+        moduleColor: n.moduleColor,
       }));
     }
     if (role === "student") {
-      return STUDENT_ALL_NAV.map((n) => ({ to: n.to, label: n.label, icon: n.icon }));
+      return STUDENT_ALL_NAV.map((n) => ({
+        to: n.to,
+        label: n.label,
+        icon: n.icon,
+        moduleColor: n.moduleColor,
+      }));
     }
     if (role === "parent") {
       return getParentNav(studentIncludedMode).map((n) => ({
         to: n.to,
         label: n.label,
         icon: n.icon,
+        moduleColor: n.moduleColor,
       }));
     }
     return NAV.filter((n) => role && n.roles.includes(role));
@@ -274,6 +358,39 @@ export function AppShell({ children }: { children?: ReactNode }) {
     [mobileSecondary, loc.pathname],
   );
 
+  const swipePrimaryPaths = useMemo(
+    () => toSwipeNavItems(mobilePrimary.map((n) => n.to)),
+    [mobilePrimary],
+  );
+  const swipeMorePaths = useMemo(
+    () => toSwipeNavItems(mobileSecondary.map((n) => n.to)),
+    [mobileSecondary],
+  );
+  const isMobileSwipe = useIsMobile();
+  const { open: keyboardOpen } = useKeyboardViewport();
+  const settingsPath = items.find((n) => n.label === "Settings")?.to;
+
+  useSwipeNavigation({
+    containerRef: mainRef,
+    pathname: loc.pathname,
+    primaryPaths: swipePrimaryPaths,
+    morePaths: swipeMorePaths,
+    enabled: isMobileSwipe && !logoutConfirm,
+    isActive: isNavActive,
+    settingsPath,
+    homePath: swipePrimaryPaths[0]?.path,
+    onNavigate: (to) => {
+      setMoreOpen(false);
+      const direction = getModuleNavDirection(loc.pathname, to, swipePrimaryPaths, swipeMorePaths, {
+        isActive: isNavActive,
+        settingsPath,
+      });
+      navigateWithModuleTransition(() => {
+        void nav({ to });
+      }, direction);
+    },
+  });
+
   const handleMoreNavClick = (to: string, e: React.MouseEvent) => {
     setMoreOpen(false);
     if (isNavActive(loc.pathname, to)) {
@@ -282,11 +399,23 @@ export function AppShell({ children }: { children?: ReactNode }) {
     }
   };
 
-  useEffect(() => {
+  // Custom <main> isn't covered by the router's window scroll restoration — remember
+  // position per path so returning to Home/Dashboard (and other pages) stays where you left.
+  useLayoutEffect(() => {
     setMoreOpen(false);
-    // Custom scroll container (<main>) isn't covered by the router's window-based
-    // scroll restoration, so reset it to the top when the route changes.
-    mainRef.current?.scrollTo({ top: 0 });
+    const el = mainRef.current;
+    if (!el) return;
+    const prev = prevPathRef.current;
+    if (prev !== loc.pathname) {
+      saveMainScroll(prev, el.scrollTop);
+      prevPathRef.current = loc.pathname;
+    }
+    const top = readMainScroll(loc.pathname);
+    el.scrollTo({ top, behavior: "auto" });
+    // Content height can settle after paint (async lists); re-apply once.
+    requestAnimationFrame(() => {
+      if (mainRef.current) mainRef.current.scrollTo({ top, behavior: "auto" });
+    });
   }, [loc.pathname]);
 
   const portal = useParentPortal();
@@ -314,14 +443,64 @@ export function AppShell({ children }: { children?: ReactNode }) {
 
   if (!user || !role) return null;
 
+  const useModuleColors =
+    role === "student" || role === "parent" || role === "teacher";
+
   const navLink = (n: NavItem, compact?: "sidebar" | "rail" | "mobile") => {
     const active = isNavActive(loc.pathname, n.to);
+    const moduleColor = useModuleColors ? n.moduleColor : undefined;
+    const isColoredMobile = useModuleColors && compact === "mobile" && moduleColor;
+
+    if (isColoredMobile) {
+      const shortLabel =
+        (role === "parent"
+          ? PARENT_MOBILE_SHORT_LABELS
+          : role === "teacher" && useActivityNav
+            ? ACTIVITY_MOBILE_SHORT_LABELS
+            : role === "teacher"
+              ? TEACHER_MOBILE_SHORT_LABELS
+              : STUDENT_MOBILE_SHORT_LABELS)[n.to] ?? n.label;
+      return (
+        <Link
+          key={n.to}
+          to={n.to}
+          preload="intent"
+          className={cn(
+            "connect-nav-item student-mobile-nav-item",
+            active && "student-mobile-nav-item--active",
+          )}
+          style={
+            active
+              ? ({ ["--nav-accent" as string]: moduleColor.primary } as CSSProperties)
+              : undefined
+          }
+          title={n.label}
+          aria-current={active ? "page" : undefined}
+          aria-label={n.label}
+          onClick={(e) => {
+            if (active) {
+              e.preventDefault();
+              scrollMainToTop();
+            }
+          }}
+        >
+          <span
+            className="student-mobile-nav-icon"
+            style={studentMobileNavIconStyle(moduleColor, active)}
+          >
+            <n.icon className={cn("size-[1.125rem]", active && "stroke-[2.5]")} />
+          </span>
+            <span className="student-mobile-nav-label">{shortLabel}</span>
+        </Link>
+      );
+    }
+
     const base =
       compact === "rail"
-        ? "flex flex-col items-center justify-center gap-1 rounded-xl px-2 py-3 text-[10px] transition-colors touch-manipulation"
+        ? "flex flex-col items-center justify-center gap-1 rounded-xl px-2 py-3 transition-colors touch-manipulation"
         : compact === "mobile"
-          ? "flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-xl text-[clamp(8.5px,1.6vw+7px,11px)] motion-fast transition-colors select-none touch-manipulation"
-          : "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm motion-fast transition-colors";
+          ? "flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-xl motion-fast transition-colors select-none touch-manipulation"
+          : "flex items-center gap-3 px-3 py-2.5 rounded-xl motion-fast transition-colors";
 
     const activeCls =
       compact === "mobile"
@@ -334,12 +513,26 @@ export function AppShell({ children }: { children?: ReactNode }) {
             ? "text-sidebar-foreground hover:bg-sidebar-accent"
             : "text-sidebar-foreground hover:bg-sidebar-accent";
 
+    const coloredSidebarActive =
+      useModuleColors && compact !== "mobile" && compact !== "rail" && active && moduleColor;
+
     return (
       <Link
         key={n.to}
         to={n.to}
         preload="intent"
-        className={cn("connect-nav-item", base, activeCls)}
+        className={cn(
+          "connect-nav-item",
+          base,
+          activeCls,
+          coloredSidebarActive &&
+            "bg-white dark:bg-card shadow-sm ring-1 ring-border font-medium",
+        )}
+        style={
+          coloredSidebarActive
+            ? { boxShadow: `inset 3px 0 0 ${moduleColor.primary}` }
+            : undefined
+        }
         title={n.label}
         aria-current={active ? "page" : undefined}
         onClick={(e) => {
@@ -363,12 +556,30 @@ export function AppShell({ children }: { children?: ReactNode }) {
           </>
         ) : compact === "rail" ? (
           <>
-            <n.icon className={cn("size-5 shrink-0", active && "stroke-[2.5]")} />
-            <span className="max-w-full truncate text-center leading-none">{n.label.split(" ")[0]}</span>
+            <n.icon
+              className={cn("size-5 shrink-0", active && "stroke-[2.5]")}
+              style={
+                moduleColor ? { color: active ? "#FFFFFF" : moduleColor.primary } : undefined
+              }
+            />
+            <span
+              className={cn(
+                "max-w-full truncate text-center leading-none",
+                useModuleColors ? "student-module-name" : "text-[10px]",
+              )}
+            >
+              {n.label.split(" ")[0]}
+            </span>
           </>
         ) : (
           <>
-            <n.icon className="size-4 shrink-0" /> {n.label}
+            <n.icon
+              className="size-4 shrink-0"
+              style={moduleColor ? { color: moduleColor.primary } : undefined}
+            />
+            <span className={useModuleColors ? "student-module-name" : "text-sm"}>
+              {n.label}
+            </span>
           </>
         )}
       </Link>
@@ -376,13 +587,13 @@ export function AppShell({ children }: { children?: ReactNode }) {
   };
 
   return (
-    <div className="relative flex h-screen-dvh flex-col overflow-hidden bg-background text-foreground">
+    <div className="relative flex h-screen-svh max-h-screen-svh flex-col overflow-hidden bg-background text-foreground">
       {showAppLock && (
         <div className="absolute inset-0 z-[300]">
           <AppLockScreen onUnlocked={() => appLockStore.setUnlocked(true)} />
         </div>
       )}
-      <header className="z-40 shrink-0 safe-area-pt safe-area-px app-top-bar border-b border-border">
+      <header className="z-40 shrink-0 safe-area-pt safe-area-px app-top-bar sticky top-0 border-b border-border">
         <div className="flex items-center gap-2 md:gap-3 px-3 md:px-8 h-14 md:h-16 min-h-14 touch-manipulation">
           <div className="flex items-center gap-2 md:gap-3 min-w-0">
             <PortalMark role={role} size="sm" />
@@ -398,11 +609,32 @@ export function AppShell({ children }: { children?: ReactNode }) {
           </div>
 
           <div className="ml-auto flex items-center gap-1 md:gap-2 min-w-0">
+            {role === "student" && loc.pathname !== "/" && (
+              <Link to="/" preload="intent" aria-label="Home">
+                <Button variant="ghost" size="icon" className="connect-icon-btn shrink-0">
+                  <Home className="size-5" />
+                </Button>
+              </Link>
+            )}
+            {isTeacher &&
+              (useActivityNav
+                ? !(
+                    loc.pathname === ACTIVITY_WORKSPACE_BASE ||
+                    loc.pathname === `${ACTIVITY_WORKSPACE_BASE}/`
+                  )
+                : loc.pathname !== "/") && (
+                <Link
+                  to={useActivityNav ? ACTIVITY_WORKSPACE_BASE : "/"}
+                  preload="intent"
+                  aria-label="Home"
+                >
+                  <Button variant="ghost" size="icon" className="connect-icon-btn shrink-0">
+                    <Home className="size-5" />
+                  </Button>
+                </Link>
+              )}
             <GlobalSearch />
-            <div className="connect-role-badge hidden sm:inline-flex">
-              <span className="size-1.5 rounded-full bg-success" aria-hidden />
-              {ROLE_LABEL[role]}
-            </div>
+            <PendingSyncBadge className="hidden sm:inline-flex" />
             <Button
               variant="ghost"
               size="icon"
@@ -412,7 +644,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
             >
               {theme === "dark" ? <Sun className="size-5" /> : <Moon className="size-5" />}
             </Button>
-            <Link to="/notifications">
+            <Link to={useActivityNav ? `${ACTIVITY_WORKSPACE_BASE}/notifications` : "/notifications"}>
               <Button
                 variant="ghost"
                 size="icon"
@@ -511,19 +743,36 @@ export function AppShell({ children }: { children?: ReactNode }) {
 
         <main
           ref={mainRef}
-          className="flex-1 min-w-0 overflow-y-auto overscroll-contain safe-area-px pb-[calc(5rem+var(--safe-area-bottom))] lg:pb-8"
+          className={cn(
+            "flex-1 min-w-0 overflow-y-auto overscroll-contain safe-area-px lg:pb-8",
+            keyboardOpen
+              ? "pb-4"
+              : "pb-[calc(5.25rem+var(--safe-area-bottom))]",
+          )}
         >
-          <div className="mx-auto w-full min-w-0 max-w-6xl px-4 py-4 md:px-8 md:py-5">
-            <div
-              key={
-                role === "parent" && loc.pathname !== "/profile"
-                  ? `${loc.pathname}:${activeChildId}`
-                  : loc.pathname
-              }
-              className="min-w-0 max-lg:connect-page-enter lg:animate-in-up"
+          <div className="lx-module-swipe-stage mx-auto w-full min-w-0 max-w-6xl px-4 py-4 md:px-8 md:py-5">
+            <ModuleTransitionRoot
+              pathname={loc.pathname}
+              primaryPaths={swipePrimaryPaths}
+              morePaths={swipeMorePaths}
+              settingsPath={settingsPath}
+              isActive={isNavActive}
+              enabled={isMobileSwipe}
+              className={cn("min-w-0", !isMobileSwipe && "lg:animate-in-up")}
             >
-              {children ?? <Outlet />}
-            </div>
+              <div
+                key={
+                  role === "parent" && loc.pathname !== "/profile" ? activeChildId : undefined
+                }
+                className="min-w-0"
+              >
+                {children ?? (
+                  <RouteOutletErrorBoundary>
+                    <Outlet />
+                  </RouteOutletErrorBoundary>
+                )}
+              </div>
+            </ModuleTransitionRoot>
           </div>
         </main>
       </div>
@@ -532,38 +781,45 @@ export function AppShell({ children }: { children?: ReactNode }) {
       <nav
         aria-label="Primary"
         className={cn(
-          "md:hidden fixed bottom-0 inset-x-0 z-40 mobile-nav-bar border-t border-border safe-area-px",
+          "md:hidden fixed bottom-0 inset-x-0 z-40 mobile-nav-bar border-t border-border safe-area-px transition-transform duration-200",
           logoutConfirm && "pointer-events-none",
+          keyboardOpen && "translate-y-full pointer-events-none",
         )}
       >
-        <div className="mx-auto max-w-2xl flex items-stretch justify-around px-1 pt-1 pb-[max(0.4rem,var(--safe-area-bottom))]">
+        <div className="student-mobile-nav-bar mx-auto grid w-full grid-cols-5 gap-1 px-1.5 pt-1.5 pb-[max(0.45rem,var(--safe-area-bottom))] sm:gap-1.5 sm:px-3">
           {mobilePrimary.map((n) => navLink(n, "mobile"))}
           <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
             <SheetTrigger asChild>
               <button
                 type="button"
                 className={cn(
-                  "connect-nav-item flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-xl text-[clamp(8.5px,1.6vw+7px,11px)] motion-fast transition-colors select-none touch-manipulation",
-                  moreMenuHasActive
-                    ? "bg-primary text-primary-foreground shadow-soft"
-                    : "bg-white dark:bg-card text-primary",
+                  "connect-nav-item student-mobile-nav-item min-w-0",
+                  moreMenuHasActive && "student-mobile-nav-item--active",
                 )}
+                aria-label="More modules"
               >
-                <div
-                  className={cn(
-                    "p-1.5 rounded-lg",
-                    moreMenuHasActive ? "text-primary-foreground" : "text-primary",
-                  )}
+                <span
+                  className="student-mobile-nav-icon"
+                  style={
+                    useModuleColors
+                      ? moreMenuHasActive
+                        ? { color: "#FFFFFF", backgroundColor: "var(--primary)" }
+                        : { color: "var(--primary)", backgroundColor: "color-mix(in srgb, var(--primary) 14%, white)" }
+                      : moreMenuHasActive
+                        ? { color: "var(--primary-foreground)", backgroundColor: "var(--primary)" }
+                        : { color: "var(--primary)", backgroundColor: "color-mix(in srgb, var(--primary) 14%, white)" }
+                  }
                 >
-                  <MoreHorizontal className="size-[1.15rem]" />
-                </div>
-                <span className="leading-none">More</span>
+                  <MoreHorizontal className="size-[1.125rem]" />
+                </span>
+                <span className="student-mobile-nav-label">More</span>
               </button>
             </SheetTrigger>
             <MobileMoreSheetContent title={`More in ${ROLE_LABEL[role]}`}>
                 <div className="grid grid-cols-3 gap-2">
                   {mobileSecondary.map((n) => {
                     const active = isNavActive(loc.pathname, n.to);
+                    const moduleColor = useModuleColors ? n.moduleColor : undefined;
                     return (
                     <Link
                       key={n.to}
@@ -573,20 +829,41 @@ export function AppShell({ children }: { children?: ReactNode }) {
                       onClick={(e) => handleMoreNavClick(n.to, e)}
                       className={cn(
                         "connect-more-tile motion-fast transition-colors",
-                        active
-                          ? "border-primary bg-primary text-primary-foreground shadow-soft"
-                          : "border-border bg-white dark:bg-card text-primary hover:bg-primary/[0.04]",
+                        useModuleColors
+                          ? "student-more-tile"
+                          : active
+                            ? "border-primary bg-primary text-primary-foreground shadow-soft"
+                            : "border-border bg-white dark:bg-card text-primary hover:bg-primary/[0.04]",
                       )}
+                      style={
+                        moduleColor && useModuleColors
+                          ? studentMoreTileStyle(moduleColor, active)
+                          : undefined
+                      }
                     >
                       <div
-                        className={cn(
-                          "size-10 rounded-xl grid place-items-center",
-                          active ? "text-primary-foreground" : "text-primary",
-                        )}
+                        className="student-mobile-nav-icon size-10"
+                        style={
+                          moduleColor && useModuleColors
+                            ? studentMobileNavIconStyle(moduleColor, active)
+                            : undefined
+                        }
                       >
                         <n.icon className="size-5" />
                       </div>
-                      <span className="text-[11px] font-medium text-center leading-tight">{n.label}</span>
+                      <span
+                        className={cn(
+                          "student-module-name text-center text-foreground line-clamp-2",
+                          active && moduleColor && "font-semibold",
+                        )}
+                        style={
+                          active && moduleColor
+                            ? { color: moduleColor.primary }
+                            : undefined
+                        }
+                      >
+                        {n.label}
+                      </span>
                     </Link>
                     );
                   })}
@@ -597,23 +874,29 @@ export function AppShell({ children }: { children?: ReactNode }) {
                       type="button"
                       onClick={() => {
                         setMoreOpen(false);
-                        nav({ to: "/profile" });
-                      }}
-                      className="connect-more-footer-btn"
-                    >
-                      <Settings className="size-4 text-primary shrink-0" />
-                      Settings
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMoreOpen(false);
-                        nav({ to: "/profile", search: { section: "support" } });
+                        nav({
+                          to: useActivityNav ? "/activity/profile" : "/profile",
+                          search: { section: "help" },
+                        });
                       }}
                       className="connect-more-footer-btn"
                     >
                       <HelpCircle className="size-4 text-primary shrink-0" />
                       Help
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMoreOpen(false);
+                        nav({
+                          to: useActivityNav ? "/activity/profile" : "/profile",
+                          search: { section: "report" },
+                        });
+                      }}
+                      className="connect-more-footer-btn"
+                    >
+                      <Flag className="size-4 text-primary shrink-0" />
+                      Report issue
                     </button>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
@@ -621,12 +904,15 @@ export function AppShell({ children }: { children?: ReactNode }) {
                       type="button"
                       onClick={() => {
                         setMoreOpen(false);
-                        nav({ to: "/profile" });
+                        nav({
+                          to: useActivityNav ? "/activity/profile" : "/profile",
+                          search: { section: "feedback" },
+                        });
                       }}
                       className="connect-more-footer-btn"
                     >
-                      <Info className="size-4 text-primary shrink-0" />
-                      About
+                      <MessageSquarePlus className="size-4 text-primary shrink-0" />
+                      Feedback
                     </button>
                     <button
                       type="button"

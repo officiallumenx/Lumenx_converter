@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { PageHeader } from "@/components/app/PageHeader";
 import { teacherRepository } from "@/lib/teacher/repositories";
+import { isTeacherAccessDenied } from "@/lib/teacher/portal-access-guard";
+import { useAsyncLoad } from "@/lib/hooks/useAsyncLoad";
 import { StudentDetailPanel } from "./StudentDetailPanel";
 import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
 import { EmptyState } from "@/teacher-portal/shared/ui/EmptyState";
@@ -18,25 +19,21 @@ export function TeacherStudentDetailPage({
   studentId: string;
   returnTo?: StudentReturnContext;
 }) {
-  const [detail, setDetail] = useState<StudentDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const load = () => {
-    setLoading(true);
-    teacherRepository.getStudent(studentId).then((d) => {
-      setDetail(d);
-      setLoading(false);
-    });
-  };
-
-  useEffect(() => {
-    load();
-  }, [studentId]);
+  const { data: detail, loading, reload } = useAsyncLoad(
+    () => teacherRepository.getStudent(studentId),
+    [studentId],
+    { initial: null as StudentDetail | null },
+  );
 
   const addRemark = async (type: RemarkType, text: string) => {
-    await teacherRepository.addRemark(studentId, { type, text });
+    try {
+      await teacherRepository.addRemark(studentId, { type, text });
+    } catch (error) {
+      if (isTeacherAccessDenied(error)) return;
+      throw error;
+    }
     toast.success("Remark added");
-    load();
+    reload();
   };
 
   const backTo =

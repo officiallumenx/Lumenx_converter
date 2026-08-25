@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Card, CardHeader, CardBody, Button, PageStack } from "@lumenx/ui-admin";
+import { Card, CardHeader, CardBody, Button, PageStack, Select } from "@lumenx/ui-admin";
 
 function SettingRow({
   label,
@@ -34,10 +34,10 @@ export function TemplateSettingsView() {
             />
           </SettingRow>
           <SettingRow label="Default academic year" hint="Used in variable substitution">
-            <select className="h-9 w-40 px-3 rounded-md bg-background border border-border text-xs">
-              <option>2025–2026</option>
-              <option>2024–2025</option>
-            </select>
+            <Select className="w-40" defaultValue="2025–2026" fieldSize="md">
+              <option value="2025–2026">2025–2026</option>
+              <option value="2024–2025">2024–2025</option>
+            </Select>
           </SettingRow>
           <SettingRow label="Auto-archive generated PDFs" hint="Move to Storage after 90 days">
             <Button size="sm">Enabled</Button>
@@ -49,11 +49,11 @@ export function TemplateSettingsView() {
         <CardHeader title="Bulk generation limits" />
         <CardBody>
           <SettingRow label="Max batch size" hint="Per generation job">
-            <select className="h-9 w-32 px-3 rounded-md bg-background border border-border text-xs">
-              <option>500</option>
-              <option>1000</option>
-              <option>Unlimited (Max plan)</option>
-            </select>
+            <Select className="w-32" defaultValue="500" fieldSize="md">
+              <option value="500">500</option>
+              <option value="1000">1000</option>
+              <option value="unlimited">Unlimited (Max plan)</option>
+            </Select>
           </SettingRow>
           <SettingRow label="Watermark on drafts" hint="Draft templates only">
             <Button size="sm">On</Button>

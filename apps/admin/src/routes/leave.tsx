@@ -18,6 +18,8 @@ import {
   Modal,
   PageToolbar,
   ToolbarMeta,
+  Field,
+  TextArea,
 } from "@lumenx/ui-admin";
 import {
   getInitialStudentLeave,
@@ -29,17 +31,15 @@ import {
   type StudentLeave,
   type TeacherLeave,
 } from "@/lib/leave-data";
-import {
-  Ban,
-  Check,
-  FileDown,
-  History,
-  X,
-} from "lucide-react";
+import { useAdminToast } from "@/components/AdminActionToast";
+import { loadTeacherLeaveSnapshot, saveLeaveDecision, saveTeacherLeaveSnapshot } from "@lumenx/utils";
+import { notifyTeacherLeaveDecision } from "@lumenx/notifications";
+import { Ban, Check, FileDown, History, Info, X } from "lucide-react";
+import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-labels";
 import { useMemo, useState } from "react";
 
 export const Route = createFileRoute("/leave")({
-  head: () => ({ meta: [{ title: "Leave Center — LumenX Admin" }] }),
+  head: () => ({ meta: [{ title: adminPageTitle("/leave") }] }),
   component: LeavePage,
 });
 
@@ -47,18 +47,29 @@ type StatusFilter = LeaveStatus | "all";
 
 function statusPill(status: LeaveStatus) {
   if (status === "pending") return <Pill tone="warning">Pending</Pill>;
-  if (status === "approved") return <Pill tone="success">Approved</Pill>;
+  if (status === "approved") return <Pill tone="success">Accepted</Pill>;
   if (status === "rejected") return <Pill tone="danger">Rejected</Pill>;
+  if (status === "ignored") return <Pill tone="neutral">Ignored</Pill>;
   return <Pill tone="neutral">Cancelled</Pill>;
 }
 
+type DecisionAction = "approved" | "ignored" | "rejected";
+
 function LeavePage() {
-  const [kind, setKind] = useState<LeaveKind>("student");
+  const notify = useAdminToast();
+  const [kind, setKind] = useState<LeaveKind>("teacher");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [studentRows, setStudentRows] = useState(getInitialStudentLeave);
-  const [teacherRows, setTeacherRows] = useState(getInitialTeacherLeave);
+  const [studentRows] = useState(getInitialStudentLeave);
+  const [teacherRows, setTeacherRows] = useState(() =>
+    loadTeacherLeaveSnapshot(getInitialTeacherLeave()),
+  );
   const [q, setQ] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [decision, setDecision] = useState<{
+    row: TeacherLeave;
+    action: DecisionAction;
+  } | null>(null);
+  const [note, setNote] = useState("");
 
   const summary = useMemo(
     () => leaveSummary(studentRows, teacherRows),
@@ -68,11 +79,6 @@ function LeavePage() {
     () => leaveMonthlyTrends(studentRows, teacherRows),
     [studentRows, teacherRows],
   );
-
-  const patchStudent = (id: string, status: LeaveStatus) =>
-    setStudentRows((p) => p.map((r) => (r.id === id ? { ...r, status } : r)));
-  const patchTeacher = (id: string, status: LeaveStatus) =>
-    setTeacherRows((p) => p.map((r) => (r.id === id ? { ...r, status } : r)));
 
   const filteredStudents = useMemo(() => {
     return studentRows.filter((r) => {
@@ -86,23 +92,102 @@ function LeavePage() {
     return teacherRows.filter((r) => {
       if (statusFilter !== "all" && r.status !== statusFilter) return false;
       if (!q) return true;
-      return `${r.name} ${r.dept} ${r.type}`.toLowerCase().includes(q.toLowerCase());
+      return `${r.name} ${r.dept} ${r.type} ${r.reason ?? ""} ${r.adminNote ?? ""}`
+        .toLowerCase()
+        .includes(q.toLowerCase());
     });
   }, [teacherRows, q, statusFilter]);
 
   const activeList = kind === "student" ? filteredStudents : filteredTeachers;
   const historyRows = useMemo(
     () =>
-      [...studentRows, ...teacherRows]
+      teacherRows
         .filter((r) => r.status !== "pending")
         .sort((a, b) => b.applied.localeCompare(a.applied)),
-    [studentRows, teacherRows],
+    [teacherRows],
   );
+
+  const openDecision = (row: TeacherLeave, action: DecisionAction) => {
+    if (action === "approved") {
+      // Accept immediately — no note required
+      const decidedAt = new Date().toISOString().slice(0, 10);
+      setTeacherRows((prev) => {
+        const next = prev.map((r) =>
+          r.id === row.id
+            ? { ...r, status: "approved" as const, adminNote: "Accepted.", decidedAt }
+            : r,
+        );
+        saveTeacherLeaveSnapshot(next);
+        return next;
+      });
+      saveLeaveDecision(row.id, { status: "approved", note: "Accepted.", decidedAt });
+      try {
+        notifyTeacherLeaveDecision({
+          leaveId: row.id,
+          dateRange: row.from !== row.to ? `${row.from} – ${row.to}` : row.from,
+          decision: "approved",
+          reason: "Accepted.",
+        });
+      } catch {
+        /* best-effort */
+      }
+      notify("Leave accepted");
+      return;
+    }
+    setDecision({ row, action });
+    setNote("");
+  };
+
+  const confirmDecision = () => {
+    if (!decision || decision.action === "approved") return;
+    const decidedAt = new Date().toISOString().slice(0, 10);
+    const trimmed = note.trim();
+    const status = decision.action === "rejected" ? "rejected" : "ignored";
+    setTeacherRows((prev) => {
+      const next = prev.map((r) =>
+        r.id === decision.row.id
+          ? {
+              ...r,
+              status,
+              adminNote: trimmed || undefined,
+              decidedAt,
+            }
+          : r,
+      );
+      saveTeacherLeaveSnapshot(next);
+      return next;
+    });
+    saveLeaveDecision(decision.row.id, {
+      status,
+      note: trimmed || undefined,
+      decidedAt,
+    });
+    try {
+      notifyTeacherLeaveDecision({
+        leaveId: decision.row.id,
+        dateRange:
+          decision.row.from !== decision.row.to
+            ? `${decision.row.from} – ${decision.row.to}`
+            : decision.row.from,
+        decision: status,
+        reason: trimmed,
+      });
+    } catch {
+      /* best-effort */
+    }
+    if (status === "rejected") {
+      notify(trimmed ? "Leave rejected with note" : "Leave rejected");
+    } else {
+      notify(trimmed ? "Leave ignored with note" : "Leave ignored");
+    }
+    setDecision(null);
+    setNote("");
+  };
 
   return (
     <AppShell
-      title="Leave Center"
-      subtitle="Student & teacher leave · approvals · history · institute analytics"
+      title={M.leave}
+      subtitle="Student leave: Parent apply → Class Teacher approve · Teacher leave: Teacher apply → Admin Approve / Reject / Ignore"
       actions={
         <>
           <Button size="sm" onClick={() => setHistoryOpen(true)}>
@@ -117,37 +202,46 @@ function LeavePage() {
       }
     >
       <PageStack>
-        <KpiGrid cols={5}>
+        <KpiGrid cols={4}>
           <Kpi
-            label="Pending requests"
+            label="Teacher pending"
             value={String(summary.pending)}
             tone={summary.pending ? "down" : "neutral"}
           />
-          <Kpi label="Approved" value={String(summary.approved)} tone="up" />
-          <Kpi label="Rejected" value={String(summary.rejected)} tone="down" />
-          <Kpi label="Cancelled" value={String(summary.cancelled)} />
-          <Kpi label="Approval rate" value={`${summary.approvalRate}%`} delta="All time" />
+          <Kpi label="Accepted" value={String(summary.approved)} tone="up" />
+          <Kpi label="Ignored" value={String(summary.ignored)} />
+          <Kpi label="Accept rate" value={`${summary.approvalRate}%`} delta="Teacher leave" />
         </KpiGrid>
 
         <Card>
+          <div className="mx-5 mt-4 mb-1 flex items-start gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground">
+            <Info className="size-3.5 mt-0.5 shrink-0 text-primary" />
+            <p>
+              <span className="font-medium text-foreground">Student leave</span> is accepted or
+              ignored by class teachers in <span className="font-medium text-foreground">Connect</span>
+              . Admin only manages <span className="font-medium text-foreground">teacher leave</span>{" "}
+              here — Accept or Ignore.
+            </p>
+          </div>
+
           <PageToolbar>
             <SegmentedControl
               value={kind}
               onChange={setKind}
               options={[
-                { value: "student", label: "Student leave" },
                 { value: "teacher", label: "Teacher leave" },
+                { value: "student", label: "Student leave (view)" },
               ]}
             />
             <SegmentedControl
               value={statusFilter}
               onChange={setStatusFilter}
               options={[
-                { value: "all", label: "All statuses" },
+                { value: "all", label: "All" },
                 { value: "pending", label: "Pending" },
-                { value: "approved", label: "Approved" },
+                { value: "approved", label: "Accepted" },
                 { value: "rejected", label: "Rejected" },
-                { value: "cancelled", label: "Cancelled" },
+                { value: "ignored", label: "Ignored" },
               ]}
             />
             <SearchInput
@@ -169,12 +263,12 @@ function LeavePage() {
                   <Th>Days</Th>
                   <Th>Reason</Th>
                   <Th>Status</Th>
-                  <Th align="right">Actions</Th>
+                  <Th>Teacher note</Th>
                 </tr>
               </thead>
               <tbody>
                 {filteredStudents.map((r) => (
-                  <StudentRow key={r.id} row={r} onPatch={patchStudent} />
+                  <StudentRow key={r.id} row={r} />
                 ))}
               </tbody>
             </DataTable>
@@ -187,14 +281,13 @@ function LeavePage() {
                   <Th>Type</Th>
                   <Th>Dates</Th>
                   <Th>Days</Th>
-                  <Th>Approver</Th>
                   <Th>Status</Th>
                   <Th align="right">Actions</Th>
                 </tr>
               </thead>
               <tbody>
                 {filteredTeachers.map((r) => (
-                  <TeacherRow key={r.id} row={r} onPatch={patchTeacher} />
+                  <TeacherRow key={r.id} row={r} onDecide={openDecision} />
                 ))}
               </tbody>
             </DataTable>
@@ -211,7 +304,7 @@ function LeavePage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <Card>
-            <CardHeader title="Monthly trends" hint="Student vs teacher requests · last 6 months" />
+            <CardHeader title="Monthly trends" hint="Student (Connect) vs teacher (Admin)" />
             <CardBody>
               <div className="h-36 flex items-end gap-2">
                 {trends.map((t) => {
@@ -222,12 +315,18 @@ function LeavePage() {
                       <div className="w-full flex flex-col justify-end h-28 gap-0.5">
                         <div
                           className="w-full bg-primary/70 rounded-t-sm"
-                          style={{ height: `${(t.teacher / max) * 100}%`, minHeight: t.teacher ? 4 : 0 }}
+                          style={{
+                            height: `${(t.teacher / max) * 100}%`,
+                            minHeight: t.teacher ? 4 : 0,
+                          }}
                           title={`Teacher: ${t.teacher}`}
                         />
                         <div
                           className="w-full bg-chart-2/80 rounded-t-sm"
-                          style={{ height: `${(t.student / max) * 100}%`, minHeight: t.student ? 4 : 0 }}
+                          style={{
+                            height: `${(t.student / max) * 100}%`,
+                            minHeight: t.student ? 4 : 0,
+                          }}
                           title={`Student: ${t.student}`}
                         />
                       </div>
@@ -239,27 +338,32 @@ function LeavePage() {
               </div>
               <div className="flex gap-4 mt-4 text-[10px] text-muted-foreground">
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="size-2 rounded-sm bg-chart-2/80" /> Student
+                  <span className="size-2 rounded-sm bg-chart-2/80" /> Student (Connect)
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="size-2 rounded-sm bg-primary/70" /> Teacher
+                  <span className="size-2 rounded-sm bg-primary/70" /> Teacher (Admin)
                 </span>
               </div>
             </CardBody>
           </Card>
 
           <Card>
-            <CardHeader title="Leave analytics" hint="Institute-wide summary" />
+            <CardHeader title="Leave analytics" hint="Teacher leave queue" />
             <CardBody>
               <div className="grid grid-cols-2 gap-3 text-xs">
                 {[
-                  { l: "Student requests", v: studentRows.length },
                   { l: "Teacher requests", v: teacherRows.length },
                   { l: "Pending now", v: summary.pending },
-                  { l: "Avg days / request", v: "1.8" },
+                  {
+                    l: "Student pending (Connect)",
+                    v: summary.studentPendingInConnect,
+                  },
+                  { l: "Ignored", v: summary.ignored },
                 ].map((s) => (
                   <div key={s.l} className="p-3 rounded-lg border border-border lx-inset-panel">
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{s.l}</div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      {s.l}
+                    </div>
                     <div className="text-xl font-semibold mt-1 font-mono">{s.v}</div>
                   </div>
                 ))}
@@ -270,10 +374,72 @@ function LeavePage() {
       </PageStack>
 
       <Modal
+        open={Boolean(decision)}
+        onClose={() => {
+          setDecision(null);
+          setNote("");
+        }}
+        title={decision?.action === "rejected" ? "Reject leave" : "Ignore leave"}
+        subtitle={
+          decision
+            ? `${decision.row.name} · ${decision.row.from} → ${decision.row.to}`
+            : undefined
+        }
+        size="md"
+        footer={
+          <>
+            <Button
+              onClick={() => {
+                setDecision(null);
+                setNote("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant={decision?.action === "rejected" ? "primary" : undefined}
+              className={
+                decision?.action === "rejected"
+                  ? "!bg-destructive !text-destructive-foreground !border-destructive/40"
+                  : undefined
+              }
+              onClick={confirmDecision}
+            >
+              {decision?.action === "rejected"
+                ? `Reject${note.trim() ? " with note" : ""}`
+                : `Ignore${note.trim() ? " with note" : ""}`}
+            </Button>
+          </>
+        }
+      >
+        {decision ? (
+          <div className="space-y-3">
+            {decision.row.reason ? (
+              <p className="text-xs text-muted-foreground rounded-lg bg-muted/40 px-3 py-2">
+                Reason: {decision.row.reason}
+              </p>
+            ) : null}
+            <Field
+              label="Description"
+              hint="Optional — you can decide without a message, or type one if you want"
+            >
+              <TextArea
+                rows={3}
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Add a note for the teacher, or leave blank…"
+                autoFocus
+              />
+            </Field>
+          </div>
+        ) : null}
+      </Modal>
+
+      <Modal
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
-        title="Leave history"
-        subtitle="Approved, rejected, and cancelled requests"
+        title="Teacher leave history"
+        subtitle="Accepted, rejected, and ignored requests"
         size="lg"
         footer={<Button onClick={() => setHistoryOpen(false)}>Close</Button>}
       >
@@ -281,18 +447,22 @@ function LeavePage() {
           <thead>
             <tr>
               <Th>ID</Th>
-              <Th>Applicant</Th>
+              <Th>Teacher</Th>
               <Th>Applied</Th>
               <Th>Status</Th>
+              <Th>Admin note</Th>
             </tr>
           </thead>
           <tbody>
             {historyRows.map((r) => (
               <Tr key={r.id}>
                 <Td mono>{r.id}</Td>
-                <Td>{"name" in r ? r.name : (r as TeacherLeave).name}</Td>
+                <Td>{r.name}</Td>
                 <Td mono>{r.applied}</Td>
                 <Td>{statusPill(r.status)}</Td>
+                <Td className="max-w-[220px] text-muted-foreground text-[11px]">
+                  {r.adminNote ?? "—"}
+                </Td>
               </Tr>
             ))}
           </tbody>
@@ -302,39 +472,30 @@ function LeavePage() {
   );
 }
 
-function StudentRow({
-  row,
-  onPatch,
-}: {
-  row: StudentLeave;
-  onPatch: (id: string, s: LeaveStatus) => void;
-}) {
+function StudentRow({ row }: { row: StudentLeave }) {
   return (
     <Tr>
-      <Td>{row.name}</Td>
+      <Td>
+        <div className="font-medium">{row.name}</div>
+        {(row.status === "rejected" || row.status === "ignored") && row.teacherNote ? (
+          <p className="mt-1 text-[11px] text-muted-foreground rounded-md bg-muted/40 px-2 py-1 max-w-xs">
+            {row.teacherNote}
+          </p>
+        ) : null}
+      </Td>
       <Td>{row.class}</Td>
       <Td mono>
         {row.from} → {row.to}
       </Td>
       <Td mono>{row.days}</Td>
-      <Td className="max-w-[200px] truncate text-muted-foreground">{row.reason}</Td>
+      <Td className="max-w-[160px] truncate text-muted-foreground">{row.reason}</Td>
       <Td>{statusPill(row.status)}</Td>
-      <Td align="right">
-        {row.status === "pending" ? (
-          <div className="lx-table-actions">
-            <Button size="sm" variant="primary" onClick={() => onPatch(row.id, "approved")} aria-label="Approve">
-              <Check className="size-3.5" />
-            </Button>
-            <Button size="sm" variant="danger" onClick={() => onPatch(row.id, "rejected")} aria-label="Reject">
-              <X className="size-3.5" />
-            </Button>
-            <Button size="sm" onClick={() => onPatch(row.id, "cancelled")} aria-label="Cancel">
-              <Ban className="size-3.5" />
-            </Button>
-          </div>
-        ) : (
-          <span className="text-muted-foreground text-[10px]">—</span>
-        )}
+      <Td className="text-[11px] text-muted-foreground max-w-[180px]">
+        {row.teacherNote && row.status !== "rejected" && row.status !== "ignored"
+          ? row.teacherNote
+          : row.status === "pending"
+            ? "Awaiting teacher in Connect"
+            : "—"}
       </Td>
     </Tr>
   );
@@ -342,33 +503,73 @@ function StudentRow({
 
 function TeacherRow({
   row,
-  onPatch,
+  onDecide,
 }: {
   row: TeacherLeave;
-  onPatch: (id: string, s: LeaveStatus) => void;
+  onDecide: (row: TeacherLeave, action: DecisionAction) => void;
 }) {
   return (
     <Tr>
-      <Td>{row.name}</Td>
+      <Td>
+        <div className="font-medium">{row.name}</div>
+        {row.reason ? (
+          <p className="mt-0.5 text-[11px] text-muted-foreground line-clamp-1">{row.reason}</p>
+        ) : null}
+        {row.status === "ignored" && row.adminNote ? (
+          <p className="mt-1.5 text-[11px] text-foreground/90 rounded-md border border-border bg-muted/40 px-2.5 py-1.5 max-w-sm">
+            <span className="font-medium text-muted-foreground">Ignored · </span>
+            {row.adminNote}
+          </p>
+        ) : null}
+        {row.status === "rejected" && row.adminNote ? (
+          <p className="mt-1.5 text-[11px] text-foreground/90 rounded-md border border-border bg-muted/40 px-2.5 py-1.5 max-w-sm">
+            <span className="font-medium text-muted-foreground">Rejected · </span>
+            {row.adminNote}
+          </p>
+        ) : null}
+        {row.status === "approved" && row.adminNote ? (
+          <p className="mt-1 text-[11px] text-muted-foreground max-w-sm">{row.adminNote}</p>
+        ) : null}
+      </Td>
       <Td>{row.dept}</Td>
       <Td>{row.type}</Td>
       <Td mono>
         {row.from} → {row.to}
       </Td>
       <Td mono>{row.days}</Td>
-      <Td>{row.toRole}</Td>
       <Td>{statusPill(row.status)}</Td>
       <Td align="right">
         {row.status === "pending" ? (
-          <div className="lx-table-actions">
-            <Button size="sm" variant="primary" onClick={() => onPatch(row.id, "approved")} aria-label="Approve">
-              <Check className="size-3.5" />
+          <div className="inline-flex flex-nowrap items-center justify-end gap-1.5">
+            <Button
+              size="sm"
+              variant="primary"
+              className="!h-8 !w-8 !min-h-8 !px-0"
+              onClick={() => onDecide(row, "approved")}
+              aria-label="Accept"
+              title="Accept"
+            >
+              <Check className="size-4" />
             </Button>
-            <Button size="sm" variant="danger" onClick={() => onPatch(row.id, "rejected")} aria-label="Reject">
-              <X className="size-3.5" />
+            <Button
+              size="sm"
+              variant="outline"
+              className="!h-8 !w-8 !min-h-8 !px-0"
+              onClick={() => onDecide(row, "rejected")}
+              aria-label="Reject"
+              title="Reject"
+            >
+              <Ban className="size-4" />
             </Button>
-            <Button size="sm" onClick={() => onPatch(row.id, "cancelled")} aria-label="Cancel">
-              <Ban className="size-3.5" />
+            <Button
+              size="sm"
+              variant="primary"
+              className="!h-8 !w-8 !min-h-8 !px-0 !bg-destructive !text-destructive-foreground !border-destructive/40 hover:!brightness-110"
+              onClick={() => onDecide(row, "ignored")}
+              aria-label="Ignore"
+              title="Ignore"
+            >
+              <X className="size-4" strokeWidth={2.5} />
             </Button>
           </div>
         ) : (

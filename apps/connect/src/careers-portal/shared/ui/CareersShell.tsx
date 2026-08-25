@@ -16,11 +16,21 @@ import {
   Calendar,
   Moon,
   Sun,
-  Monitor,
-  Search,
 } from "lucide-react";
-import { useState } from "react";
-import { Button, Sheet, SheetTrigger, cn } from "@lumenx/ui";
+import { useCallback, useMemo, useRef, useState } from "react";
+import {
+  Button,
+  PendingSyncBadge,
+  Sheet,
+  SheetTrigger,
+  cn,
+  useIsMobile,
+  useSwipeNavigation,
+  type SwipeNavItem,
+  ModuleTransitionRoot,
+  navigateWithModuleTransition,
+  getModuleNavDirection,
+} from "@lumenx/ui";
 import { MobileMoreSheetContent } from "@/components/app/MobileMoreSheetContent";
 import { useCareersAuth } from "@/careers-portal/core/CareersAuthProvider";
 import { useCareersTheme } from "@/careers-portal/core/CareersThemeProvider";
@@ -57,8 +67,7 @@ const JOB_SEEKER_MORE_NAV: NavItem[] = [
 const RECRUITER_PRIMARY_NAV: NavItem[] = [
   { to: "/careers/recruiter", label: "Workspace", icon: LayoutDashboard, auth: true },
   { to: "/careers/recruiter/jobs", label: "My jobs", icon: Briefcase, auth: true },
-  { to: "/careers/jobs", label: "Browse market", icon: Search, exact: true },
-  { to: "/careers/recruiter/applicants", label: "Applicants", icon: FolderOpen, auth: true },
+  { to: "/careers/recruiter/applicants", label: "Applications", icon: FolderOpen, auth: true },
 ];
 
 const RECRUITER_MORE_NAV: NavItem[] = [
@@ -90,26 +99,16 @@ function isActive(pathname: string, to: string, exact?: boolean) {
 
 function ThemeToggle({ className }: { className?: string }) {
   const { theme, setTheme } = useCareersTheme();
-  const cycle = () => {
-    const order = ["light", "dark", "system"] as const;
-    const idx = order.indexOf(theme);
-    setTheme(order[(idx + 1) % order.length]!);
-  };
+  const toggle = () => setTheme(theme === "dark" ? "light" : "dark");
   return (
     <Button
       variant="ghost"
       size="icon"
-      onClick={cycle}
-      aria-label="Toggle theme"
+      onClick={toggle}
+      aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
       className={className}
     >
-      {theme === "dark" ? (
-        <Sun className="size-4" />
-      ) : theme === "system" ? (
-        <Monitor className="size-4" />
-      ) : (
-        <Moon className="size-4" />
-      )}
+      {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
     </Button>
   );
 }
@@ -123,6 +122,52 @@ export function CareersShell({ children }: { children: React.ReactNode }) {
   const unread = user && !isRecruiter(user) ? unreadNotificationCount(user.id) : 0;
   const primaryNav = isRecruiter(user) ? RECRUITER_PRIMARY_NAV : JOB_SEEKER_PRIMARY_NAV;
   const moreNav = isRecruiter(user) ? RECRUITER_MORE_NAV : JOB_SEEKER_MORE_NAV;
+  const mainRef = useRef<HTMLElement>(null);
+  const isMobile = useIsMobile();
+
+  const swipePrimaryPaths = useMemo((): SwipeNavItem[] => {
+    return primaryNav.map((item) => ({ path: item.to, exact: item.exact }));
+  }, [primaryNav]);
+
+  const swipeMorePaths = useMemo((): SwipeNavItem[] => {
+    return moreNav.map((item) => ({ path: item.to, exact: item.exact }));
+  }, [moreNav]);
+
+  const onSwipeNavigate = useCallback(
+    (to: string) => {
+      setMoreOpen(false);
+      const item = [...primaryNav, ...moreNav].find((n) => n.to === to);
+      const run = () => {
+        if (item) {
+          const target = navTarget(item, user);
+          void nav({
+            to: target.to,
+            search: "search" in target ? target.search : undefined,
+          });
+          return;
+        }
+        void nav({ to });
+      };
+      const direction = getModuleNavDirection(loc.pathname, to, swipePrimaryPaths, swipeMorePaths, {
+        isActive,
+        settingsPath: moreNav.find((n) => n.label === "Settings")?.to,
+      });
+      navigateWithModuleTransition(run, direction);
+    },
+    [loc.pathname, moreNav, nav, primaryNav, swipeMorePaths, swipePrimaryPaths, user],
+  );
+
+  useSwipeNavigation({
+    containerRef: mainRef,
+    pathname: loc.pathname,
+    primaryPaths: swipePrimaryPaths,
+    morePaths: swipeMorePaths,
+    enabled: isMobile && !minimal,
+    isActive,
+    settingsPath: moreNav.find((item) => item.label === "Settings")?.to,
+    homePath: swipePrimaryPaths[0]?.path,
+    onNavigate: onSwipeNavigate,
+  });
 
   const NavLink = (item: NavItem) => {
     const { to, label, icon: Icon, exact } = item;
@@ -163,7 +208,9 @@ export function CareersShell({ children }: { children: React.ReactNode }) {
             <ThemeToggle />
           </div>
         </header>
-        <main className="mx-auto max-w-lg px-4 py-6">{children}</main>
+        <main ref={mainRef} className="mx-auto max-w-lg px-4 py-6">
+          {children}
+        </main>
       </div>
     );
   }
@@ -181,7 +228,10 @@ export function CareersShell({ children }: { children: React.ReactNode }) {
               <p className="text-sm font-bold truncate">LumenX</p>
             </div>
           </Link>
-          <ThemeToggle />
+          <div className="flex items-center gap-1.5">
+            <PendingSyncBadge />
+            <ThemeToggle />
+          </div>
         </div>
         <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 space-y-1">
           {primaryNav.map((item) => (
@@ -230,6 +280,7 @@ export function CareersShell({ children }: { children: React.ReactNode }) {
             <span className="truncate text-sm font-bold">Careers</span>
           </Link>
           <div className="flex items-center gap-1">
+            <PendingSyncBadge />
             <ThemeToggle />
             {user && !isRecruiter(user) && (
               <Link
@@ -252,8 +303,23 @@ export function CareersShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 pb-24 lg:pb-8 lg:px-8 min-w-0">
-          {children}
+        <main
+          ref={mainRef}
+          className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 pb-24 lg:pb-8 lg:px-8 min-w-0"
+        >
+          <div className="lx-module-swipe-stage min-w-0 w-full">
+            <ModuleTransitionRoot
+              pathname={loc.pathname}
+              primaryPaths={swipePrimaryPaths}
+              morePaths={swipeMorePaths}
+              settingsPath={moreNav.find((item) => item.label === "Settings")?.to}
+              isActive={isActive}
+              enabled={isMobile && !minimal}
+              className="min-w-0"
+            >
+              {children}
+            </ModuleTransitionRoot>
+          </div>
         </main>
 
         <nav className="fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-background/95 backdrop-blur-md lg:hidden safe-area-pb">

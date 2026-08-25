@@ -1,5 +1,6 @@
 import { Search, Plus } from "lucide-react";
 import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@lumenx/ui";
+import { ConnectDatePicker } from "@/components/app/attendance/AttendanceDatePicker";
 import type {
   AchievementLevel,
   AchievementListFilters,
@@ -112,13 +113,11 @@ export function AchievementsToolbar({
           />
         ) : null}
         <div>
-          <label className="mb-1 block text-[10px] font-medium text-muted-foreground">Date</label>
-          <Input
-            type="date"
+          <ConnectDatePicker
+            label="Date"
             value={filters.date === "all" ? "" : (filters.date ?? "")}
-            onChange={(e) => onFiltersChange({ date: e.target.value || "all" })}
-            className="h-10 rounded-xl text-xs"
-            aria-label="Filter by date"
+            onChange={(iso) => onFiltersChange({ date: iso || "all" })}
+            placeholder="All dates"
           />
         </div>
         <FilterSelect

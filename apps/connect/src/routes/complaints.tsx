@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -22,6 +22,8 @@ import {
   DialogFooter,
 } from "@lumenx/ui";
 import { toast } from "sonner";
+import { appendDemoComplaint, loadDemoComplaints, listenDemoSync } from "@lumenx/utils";
+import { notifyComplaintSubmitted } from "@lumenx/module-notifications";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@lumenx/ui";
 import { TeacherComplaintsPage } from "@/teacher-portal";
 
@@ -37,7 +39,12 @@ export const Route = createFileRoute("/complaints")({
 const complaintSchema = z.object({
   title: z.string().trim().min(4, "Enter a clear subject (at least 4 characters).").max(200),
   category: z.string().min(1, "Choose a category."),
-  priority: z.string().min(1, "Choose a priority level."),
+  destination: z.enum(["class_teacher", "principal_admin"], {
+    required_error: "Choose a destination.",
+  }),
+  priority: z.enum(["Low", "Medium", "High"], {
+    required_error: "Choose a priority level.",
+  }),
   body: z
     .string()
     .trim()
@@ -47,12 +54,18 @@ const complaintSchema = z.object({
 
 type ComplaintForm = z.infer<typeof complaintSchema>;
 
+const DEST_LABEL: Record<ComplaintForm["destination"], string> = {
+  class_teacher: "Class Teacher",
+  principal_admin: "Principal / Admin",
+};
+
 const complaintItems = [
   {
     id: "k1",
     childId: "C1",
     title: "Broken projector in Lab 3",
     category: "Infrastructure",
+    destination: "principal_admin" as const,
     priority: "Medium",
     status: "Under Review",
   },
@@ -61,6 +74,7 @@ const complaintItems = [
     childId: "C2",
     title: "Concern about evening cab safety",
     category: "Communication",
+    destination: "class_teacher" as const,
     priority: "High",
     status: "Pending",
   },
@@ -69,11 +83,23 @@ const complaintItems = [
 function ComplaintsPage() {
   const { role, activeChildId } = useApp();
   const portal = useParentPortal();
+  const [extra, setExtra] = useState(() => loadDemoComplaints());
+
+  useEffect(() => listenDemoSync("complaints", () => setExtra(loadDemoComplaints())), []);
 
   const list = useMemo(() => {
-    if (role === "parent") return complaintItems.filter((c) => c.childId === activeChildId);
-    return complaintItems;
-  }, [role, activeChildId]);
+    const mapped = extra.map((c) => ({
+      id: c.id,
+      childId: activeChildId ?? "C1",
+      title: c.title,
+      category: "Submitted",
+      destination: c.destination,
+      priority: c.priority,
+      status: c.status === "pending" ? "Pending" : c.status === "review" ? "Under Review" : "Resolved",
+    }));
+    const base = role === "parent" ? complaintItems.filter((c) => c.childId === activeChildId) : complaintItems;
+    return [...mapped, ...base];
+  }, [role, activeChildId, extra]);
 
   if (role === "teacher") return <TeacherComplaintsPage />;
 
@@ -86,8 +112,8 @@ function ComplaintsPage() {
         title="Complaints"
         subtitle={
           childLabel
-            ? `Private queue for ${childLabel}. Only cases linked to your active learner are listed.`
-            : "Confidential. Visible only to the Principal's office."
+            ? `Private queue for ${childLabel}. Choose destination — Class Teacher or Principal/Admin. No automatic routing.`
+            : "Choose destination — Class Teacher or Principal/Admin. Priority Low / Medium / High. No automatic routing."
         }
         action={<NewComplaint childLabel={childLabel} />}
       />
@@ -95,10 +121,9 @@ function ComplaintsPage() {
       <div className="mb-4 flex min-w-0 flex-col gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:flex-row sm:items-start">
         <Lock className="mt-0.5 size-5 shrink-0 text-primary" />
         <div className="min-w-0 text-sm">
-          <div className="font-medium">Private channel</div>
+          <div className="font-medium">Destination required</div>
           <div className="break-words text-muted-foreground">
-            Complaints are routed separately from notifications and never shared with teachers,
-            parents or students.
+            You must pick Class Teacher or Principal/Admin. Complaints are not auto-routed.
           </div>
         </div>
       </div>
@@ -116,7 +141,7 @@ function ComplaintsPage() {
                   <h3 className="font-semibold leading-snug break-words">{c.title}</h3>
                 </div>
                 <div className="mt-1 break-words text-xs text-muted-foreground">
-                  {c.category} • Priority: {c.priority}
+                  {c.category} • To: {DEST_LABEL[c.destination]} • Priority: {c.priority}
                 </div>
               </div>
               <Badge
@@ -140,16 +165,33 @@ function NewComplaint({ childLabel }: { childLabel: string | null }) {
     defaultValues: {
       title: "",
       category: "",
-      priority: "",
+      destination: undefined,
+      priority: undefined,
       body: "",
     },
   });
 
   const onSubmit = (data: ComplaintForm) => {
-    void data;
+    const id = `CMP-${Date.now()}`;
+    appendDemoComplaint({
+      id,
+      title: data.title,
+      from: childLabel ?? "Connect user",
+      role: childLabel ? "Parent" : "Student",
+      destination: data.destination,
+      priority: data.priority,
+      status: "pending",
+      time: "Just now",
+      body: data.body,
+    });
+    notifyComplaintSubmitted({
+      complaintId: id,
+      title: data.title,
+      requesterRole: childLabel ? "Parent" : "Student",
+    });
     setOpen(false);
     form.reset();
-    toast.success("Complaint submitted privately to the Principal's office.");
+    toast.success(`Complaint submitted to ${DEST_LABEL[data.destination]}.`);
   };
 
   return (
@@ -223,22 +265,19 @@ function NewComplaint({ childLabel }: { childLabel: string | null }) {
               />
               <FormField
                 control={form.control}
-                name="priority"
+                name="destination"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Priority</FormLabel>
+                    <FormLabel>Destination</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select priority" />
+                          <SelectValue placeholder="Select destination" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {["Low", "Medium", "High", "Urgent"].map((s) => (
-                          <SelectItem key={s} value={s}>
-                            {s}
-                          </SelectItem>
-                        ))}
+                        <SelectItem value="class_teacher">Class Teacher</SelectItem>
+                        <SelectItem value="principal_admin">Principal / Admin</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -246,6 +285,30 @@ function NewComplaint({ childLabel }: { childLabel: string | null }) {
                 )}
               />
             </div>
+            <FormField
+              control={form.control}
+              name="priority"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Priority</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select priority" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {["Low", "Medium", "High"].map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {s}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name="body"
@@ -267,7 +330,7 @@ function NewComplaint({ childLabel }: { childLabel: string | null }) {
               <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit">Submit privately</Button>
+              <Button type="submit">Submit</Button>
             </DialogFooter>
           </form>
         </Form>

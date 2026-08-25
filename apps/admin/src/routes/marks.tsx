@@ -4,225 +4,402 @@ import {
   Card,
   Button,
   Pill,
-  Select,
-  Kpi,
   SearchInput,
-  SegmentedControl,
-  PageToolbar,
-  ToolbarGroup,
-  ToolbarSpacer,
-  ToolbarMeta,
   DataTable,
   EmptyState,
   Th,
+  Modal,
+  CascadingFiltersMenu,
 } from "@lumenx/ui-admin";
 import {
   ADMIN_CLASSES,
-  ADMIN_SECTIONS,
   ADMIN_EXAMS,
+  ADMIN_SECTIONS,
   ADMIN_SUBJECTS,
-  MARK_ROWS,
-  type MarkRow,
-} from "@/lib/admin-module-data";
-import { Download, Send, ClipboardList } from "lucide-react";
-import { useMemo, useState } from "react";
+  approveMarkEntry,
+  filterMarkEntries,
+  markEntryAvgPct,
+  publishAllSubmitted,
+  rejectMarkEntry,
+  returnMarkEntry,
+  summarizeMarks,
+  teachersWithPendingMarks,
+  type MarkEntry,
+  type MarkEntryStatus,
+} from "@/lib/marks-entry-store";
+import { useAdminToast } from "@/components/AdminActionToast";
+import { pushPrincipalMarkAlert } from "@lumenx/utils";
+import {
+  notifyTeacherMarksPending,
+  notifyAdminMarksPending,
+  notifyTeacherMarksDeadline,
+} from "@lumenx/module-notifications";
+import { BellRing, CheckCircle2, Clock, Eye, Lock, RotateCcw, Send, Siren, X } from "lucide-react";
+import { useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import { adminDataFacade } from "@/lib/admin-data-facade";
 
 export const Route = createFileRoute("/marks")({
   head: () => ({ meta: [{ title: "Marks — LumenX Admin" }] }),
   component: MarksPage,
 });
 
-function totalMarks(row: MarkRow) {
-  return Object.values(row.marks).reduce((a, b) => a + b, 0);
+type Stage = "waiting" | "ready" | "published";
+
+function stageFromStatus(status: MarkEntryStatus): Stage {
+  if (status === "pending" || status === "returned" || status === "rejected") return "waiting";
+  if (status === "submitted") return "ready";
+  return "published";
 }
 
-function pct(row: MarkRow) {
-  const max = Object.keys(row.marks).length * row.maxPerSubject;
-  return max ? Math.round((totalMarks(row) / max) * 100) : 0;
+function isWaitingStatus(status: MarkEntryStatus): boolean {
+  return status === "pending" || status === "returned" || status === "rejected";
 }
 
 function MarksPage() {
-  const [classGrade, setClassGrade] = useState<string>("all");
-  const [section, setSection] = useState<string>("all");
-  const [examId, setExamId] = useState<string>("EX-UT1");
-  const [subject, setSubject] = useState<string>("all");
-  const [passFilter, setPassFilter] = useState<"all" | "pass" | "fail">("all");
+  const notify = useAdminToast();
+  const entries = useSyncExternalStore(
+    adminDataFacade.marks.channel.subscribe,
+    adminDataFacade.marks.channel.load,
+    adminDataFacade.marks.channel.load,
+  );
+  const [stage, setStage] = useState<Stage>("ready");
+  const [teacherId, setTeacherId] = useState("all");
+  const [subject, setSubject] = useState("all");
+  const [classGrade, setClassGrade] = useState("all");
+  const [section, setSection] = useState("all");
+  const [examId, setExamId] = useState("all");
   const [q, setQ] = useState("");
-  const [rows, setRows] = useState(MARK_ROWS);
+  const [reviewEntry, setReviewEntry] = useState<MarkEntry | null>(null);
+  const [alertOpen, setAlertOpen] = useState(false);
+
+  const summary = useMemo(() => summarizeMarks(entries), [entries]);
+  const pendingTeachers = useMemo(() => teachersWithPendingMarks(entries), [entries]);
+
+  const teachers = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const e of entries) map.set(e.teacherId, e.teacherName);
+    return [...map.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [entries]);
 
   const list = useMemo(() => {
-    return rows.filter((r) => {
-      if (r.examId !== examId) return false;
-      if (classGrade !== "all" && r.classGrade !== classGrade) return false;
-      if (section !== "all" && r.section !== section) return false;
-      if (q && !r.name.toLowerCase().includes(q.toLowerCase()) && !r.rollNo.includes(q))
-        return false;
-      const p = pct(r);
-      if (passFilter === "pass" && p < 40) return false;
-      if (passFilter === "fail" && p >= 40) return false;
-      return true;
+    const filtered = filterMarkEntries(entries, {
+      teacherId,
+      subject,
+      classGrade,
+      section,
+      examId,
+      status: "all",
+      q,
+    }).filter((e) => {
+      if (stage === "waiting") return isWaitingStatus(e.status);
+      if (stage === "ready") return e.status === "submitted";
+      return e.status === "published";
     });
-  }, [rows, examId, classGrade, section, passFilter, q]);
+    return filtered.sort(
+      (a, b) =>
+        a.teacherName.localeCompare(b.teacherName) ||
+        a.subject.localeCompare(b.subject) ||
+        a.classGrade.localeCompare(b.classGrade),
+    );
+  }, [entries, teacherId, subject, classGrade, section, examId, stage, q]);
 
-  const subjects = useMemo(() => {
-    if (subject !== "all") return [subject];
-    return [...ADMIN_SUBJECTS];
-  }, [subject]);
+  const persist = (next: MarkEntry[]) => {
+    adminDataFacade.marks.channel.mutate(() => next);
+  };
 
-  const publishResults = () => {
-    setRows((prev) =>
-      prev.map((r) =>
-        list.some((l) => l.id === r.id) && r.teacherPublished ? { ...r, adminPublished: true } : r,
-      ),
+  const openEntry = (entry: MarkEntry) => {
+    setReviewEntry(entry);
+  };
+
+  const approveOne = () => {
+    if (!reviewEntry || reviewEntry.status !== "submitted") return;
+    const next = approveMarkEntry(entries, reviewEntry.id);
+    persist(next);
+    setReviewEntry(next.find((e) => e.id === reviewEntry.id) ?? null);
+    notify("Marks approved and published to students & parents");
+  };
+
+  const returnOne = () => {
+    if (!reviewEntry || reviewEntry.status !== "submitted") return;
+    const next = returnMarkEntry(entries, reviewEntry.id);
+    persist(next);
+    setReviewEntry(null);
+    notify("Marks returned to teacher for correction");
+  };
+
+  const rejectOne = () => {
+    if (!reviewEntry || reviewEntry.status !== "submitted") return;
+    const next = rejectMarkEntry(entries, reviewEntry.id);
+    persist(next);
+    setReviewEntry(null);
+    notify("Marks rejected — teacher must resubmit");
+  };
+
+  const approveAllReady = () => {
+    const ids = list.filter((e) => e.status === "submitted").map((e) => e.id);
+    if (ids.length === 0) return;
+    persist(publishAllSubmitted(entries, ids));
+    notify(`Approved ${ids.length} mark sheet${ids.length === 1 ? "" : "s"}`);
+  };
+
+  const sendPendingAlerts = () => {
+    if (pendingTeachers.length === 0) return;
+    const alert = pushPrincipalMarkAlert({ recipients: pendingTeachers });
+    for (const t of pendingTeachers) {
+      const sample = entries.find((e) => e.teacherId === t.teacherId && e.status === "pending");
+      notifyTeacherMarksPending({
+        examName: sample?.examName ?? "Exam",
+        subject: sample?.subject ?? "subjects",
+        classLabel: sample
+          ? `${sample.classGrade}-${sample.section}`
+          : `${t.pendingCount} pending`,
+        teacherKey: t.teacherId,
+      });
+      notifyTeacherMarksDeadline({
+        examName: sample?.examName ?? "Exam",
+        deadline: "soon",
+      });
+    }
+    notifyAdminMarksPending({
+      examName: "Pending mark sheets",
+      pendingCount: pendingTeachers.length,
+    });
+    setAlertOpen(false);
+    if (!alert) return;
+    notify(
+      `Alert sent to ${pendingTeachers.length} teacher${pendingTeachers.length === 1 ? "" : "s"} with pending mark submissions`,
     );
   };
 
-  const publishedCount = list.filter((r) => r.adminPublished).length;
-  const avgPct = list.length ? Math.round(list.reduce((a, r) => a + pct(r), 0) / list.length) : 0;
+  const canReview = reviewEntry?.status === "submitted";
+  const isLocked = reviewEntry?.status === "published";
 
   return (
     <AppShell
-      title="Marks Management"
-      subtitle="Institute-wide results · synced after teacher publish (Connect-ready)"
+      title="Marks"
+      subtitle="Teacher enter → edit → submit → Admin approve / reject / return → publish to students & parents (Admin cannot edit scores)"
       actions={
         <>
-          <Button>
-            <Download className="size-3.5" /> Export
-          </Button>
-          <Button variant="primary" onClick={publishResults}>
-            <Send className="size-3.5" /> Publish results
-          </Button>
+          {summary.pending > 0 ? (
+            <Button variant="outline" onClick={() => setAlertOpen(true)}>
+              <Siren className="size-3.5" /> Alert pending teachers ({pendingTeachers.length})
+            </Button>
+          ) : null}
+          {stage === "ready" ? (
+            <Button variant="primary" onClick={approveAllReady} disabled={list.length === 0}>
+              <Send className="size-3.5" /> Approve all ready ({list.length})
+            </Button>
+          ) : null}
         </>
       }
     >
-      <div className="lx-kpi-grid">
-        <Kpi label="Students" value={String(list.length)} delta="In view" />
-        <Kpi label="Avg score" value={`${avgPct}%`} delta="This exam" tone="up" />
-        <Kpi label="Published" value={String(publishedCount)} delta={`of ${list.length}`} />
-        <Kpi
-          label="Pending publish"
-          value={String(list.filter((r) => r.teacherPublished && !r.adminPublished).length)}
-          tone="down"
+      {/* Institute snapshot */}
+      <div className="mb-3 grid grid-cols-4 gap-1.5 sm:gap-2">
+        <Snapshot label="Classes" value={summary.classes} />
+        <Snapshot label="Sections" value={summary.sections} />
+        <Snapshot label="Subjects" value={summary.subjects} />
+        <Snapshot label="Teachers" value={summary.teachers} />
+      </div>
+
+      {/* Clear 3-step stages */}
+      <div className="mb-3 grid grid-cols-3 gap-1.5 sm:gap-2">
+        <StageCard
+          active={stage === "waiting"}
+          onClick={() => setStage("waiting")}
+          icon={<Clock className="size-3.5" />}
+          title="Waiting"
+          count={summary.pending}
+          hint="Not submitted yet"
+          tone="waiting"
+          action={
+            summary.pending > 0 ? (
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setAlertOpen(true);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setAlertOpen(true);
+                  }
+                }}
+                className="mt-1.5 inline-flex items-center gap-1 rounded-md border border-amber-500/40 bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-900 dark:text-amber-100 hover:bg-amber-500/25"
+              >
+                <BellRing className="size-3" /> Alert
+              </span>
+            ) : null
+          }
+        />
+        <StageCard
+          active={stage === "ready"}
+          onClick={() => setStage("ready")}
+          icon={<CheckCircle2 className="size-3.5" />}
+          title="Ready"
+          count={summary.submitted}
+          hint="Approve · Reject · Return"
+          tone="ready"
+        />
+        <StageCard
+          active={stage === "published"}
+          onClick={() => setStage("published")}
+          icon={<Lock className="size-3.5" />}
+          title="Published"
+          count={summary.published}
+          hint="Locked for students"
+          tone="published"
         />
       </div>
 
-      <Card className="mt-6">
-        <PageToolbar>
-          <ToolbarGroup>
-            <Select
-              fieldSize="compact"
-              value={classGrade}
-              onChange={(e) => setClassGrade(e.target.value)}
-              className="w-36"
-            >
-              <option value="all">All classes</option>
-              {ADMIN_CLASSES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </Select>
-            <Select
-              fieldSize="compact"
-              value={section}
-              onChange={(e) => setSection(e.target.value)}
-              className="w-28"
-            >
-              <option value="all">All sections</option>
-              {ADMIN_SECTIONS.map((s) => (
-                <option key={s} value={s}>
-                  Section {s}
-                </option>
-              ))}
-            </Select>
-            <Select
-              fieldSize="compact"
-              value={examId}
-              onChange={(e) => setExamId(e.target.value)}
-              className="w-48"
-            >
-              {ADMIN_EXAMS.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.name}
-                </option>
-              ))}
-            </Select>
-            <Select
-              fieldSize="compact"
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              className="w-40"
-            >
-              <option value="all">All columns</option>
-              {ADMIN_SUBJECTS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </Select>
-          </ToolbarGroup>
-          <SegmentedControl
-            value={passFilter}
-            onChange={setPassFilter}
-            options={[
-              { value: "all", label: "All" },
-              { value: "pass", label: "Pass" },
-              { value: "fail", label: "Fail" },
-            ]}
-          />
-          <SearchInput
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search name or roll no…"
-            className="flex-1 min-w-[200px]"
-          />
-          <ToolbarSpacer />
-          <ToolbarMeta>{list.length} results</ToolbarMeta>
-        </PageToolbar>
+      <Card>
+        <div className="border-b border-border bg-background/30 px-3 py-2.5 sm:px-4">
+          <div className="mb-1.5 text-xs font-semibold">
+            {stage === "waiting" && "Waiting for teachers"}
+            {stage === "ready" && "Ready for review — Approve, Reject, or Return"}
+            {stage === "published" && "Published marks (locked)"}
+          </div>
+          <div className="flex flex-wrap items-end gap-2 lx-filter-bar">
+            <CascadingFiltersMenu
+              groups={[
+                {
+                  id: "teacher",
+                  label: "Teacher",
+                  value: teacherId,
+                  onChange: setTeacherId,
+                  options: [
+                    { value: "all", label: "All teachers" },
+                    ...teachers.map((t) => ({ value: t.id, label: t.name })),
+                  ],
+                },
+                {
+                  id: "subject",
+                  label: "Subject",
+                  value: subject,
+                  onChange: setSubject,
+                  options: [
+                    { value: "all", label: "All subjects" },
+                    ...ADMIN_SUBJECTS.map((s) => ({ value: s, label: s })),
+                  ],
+                },
+                {
+                  id: "class",
+                  label: "Class",
+                  value: classGrade,
+                  onChange: setClassGrade,
+                  options: [
+                    { value: "all", label: "All classes" },
+                    ...ADMIN_CLASSES.map((c) => ({ value: c, label: c })),
+                  ],
+                },
+                {
+                  id: "section",
+                  label: "Section",
+                  value: section,
+                  onChange: setSection,
+                  options: [
+                    { value: "all", label: "All sections" },
+                    ...ADMIN_SECTIONS.map((s) => ({ value: s, label: `Section ${s}` })),
+                  ],
+                },
+                {
+                  id: "exam",
+                  label: "Exam",
+                  value: examId,
+                  onChange: setExamId,
+                  options: [
+                    { value: "all", label: "All exams" },
+                    ...ADMIN_EXAMS.map((e) => ({ value: e.id, label: e.name })),
+                  ],
+                },
+              ]}
+            />
+            <div className="min-w-[12rem] flex-1">
+              <SearchInput
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Teacher or subject…"
+                className="w-full"
+                fieldSize="compact"
+              />
+            </div>
+          </div>
+        </div>
+
         {list.length === 0 ? (
           <EmptyState
-            icon={<ClipboardList className="size-5" />}
-            title="No marks for this filter"
-            hint="Awaiting teacher publish from Connect, or try another exam or class."
+            icon={
+              stage === "waiting" ? (
+                <Clock className="size-5" />
+              ) : stage === "ready" ? (
+                <CheckCircle2 className="size-5" />
+              ) : (
+                <Lock className="size-5" />
+              )
+            }
+            title={
+              stage === "waiting"
+                ? "Nothing waiting"
+                : stage === "ready"
+                  ? "Nothing ready for review"
+                  : "No published marks yet"
+            }
+            hint={
+              stage === "waiting"
+                ? "All teachers in this filter have submitted or been published."
+                : stage === "ready"
+                  ? "When teachers submit marks, they appear here for you to Approve, Reject, or Return."
+                  : "Approve from “Ready for review” to share with students and parents."
+            }
           />
         ) : (
           <DataTable>
             <thead>
               <tr>
-                <Th>Roll</Th>
-                <Th>Student</Th>
-                {subjects.map((s) => (
-                  <Th key={s} className="px-3">
-                    {s.slice(0, 4)}
-                  </Th>
-                ))}
-                <Th>Total</Th>
-                <Th>%</Th>
-                <Th>Pass/Fail</Th>
-                <Th>Status</Th>
+                <Th>Teacher</Th>
+                <Th>Subject</Th>
+                <Th>Class</Th>
+                <Th>Exam</Th>
+                <Th>Students</Th>
+                <Th>Avg</Th>
+                <Th>{""}</Th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {list.map((r) => {
-                const p = pct(r);
+              {list.map((e) => {
+                const avg = markEntryAvgPct(e);
                 return (
-                  <tr key={r.id} className="hover:bg-surface-hover transition-colors">
-                    <td className="px-5 py-3 text-xs font-mono">{r.rollNo}</td>
-                    <td className="px-5 py-3 text-xs font-medium">{r.name}</td>
-                    {subjects.map((s) => (
-                      <td key={s} className="px-3 py-3 text-xs font-mono text-center">
-                        {r.marks[s] ?? "—"}
-                      </td>
-                    ))}
-                    <td className="px-5 py-3 text-xs font-mono">{totalMarks(r)}</td>
-                    <td className="px-5 py-3 text-xs font-mono">{p}%</td>
-                    <td className="px-5 py-3">
-                      {p >= 40 ? <Pill tone="success">Pass</Pill> : <Pill tone="danger">Fail</Pill>}
+                  <tr key={e.id} className="hover:bg-surface-hover transition-colors">
+                    <td className="px-5 py-3 text-xs font-medium">{e.teacherName}</td>
+                    <td className="px-5 py-3 text-xs">{e.subject}</td>
+                    <td className="px-5 py-3 text-xs whitespace-nowrap">
+                      {e.classGrade} · {e.section}
                     </td>
-                    <td className="px-5 py-3">
-                      {!r.teacherPublished && <Pill tone="warning">Pending teacher</Pill>}
-                      {r.teacherPublished && !r.adminPublished && <Pill tone="info">Ready</Pill>}
-                      {r.adminPublished && <Pill tone="success">Published</Pill>}
+                    <td className="px-5 py-3 text-xs">{e.examName}</td>
+                    <td className="px-5 py-3 text-xs font-mono">{e.students.length}</td>
+                    <td className="px-5 py-3 text-xs font-mono">
+                      {avg == null ? "—" : `${avg}%`}
+                    </td>
+                    <td className="px-5 py-3 text-right">
+                      <Button size="sm" variant="outline" onClick={() => openEntry(e)}>
+                        {stage === "ready" ? (
+                          <>
+                            <Eye className="size-3.5" /> Review
+                          </>
+                        ) : stage === "published" ? (
+                          <>
+                            <Eye className="size-3.5" /> View
+                          </>
+                        ) : (
+                          <>
+                            <Eye className="size-3.5" /> Details
+                          </>
+                        )}
+                      </Button>
                     </td>
                   </tr>
                 );
@@ -230,22 +407,254 @@ function MarksPage() {
             </tbody>
           </DataTable>
         )}
-        {list.length > 0 && (
-          <div className="px-5 py-3 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
-            <span>
-              Showing 1–{list.length} of {list.length}
-            </span>
-            <div className="flex gap-1">
-              <Button size="sm" disabled>
-                Previous
+      </Card>
+
+      <Modal
+        open={Boolean(reviewEntry)}
+        onClose={() => {
+          setReviewEntry(null);
+        }}
+        title={reviewEntry ? `${reviewEntry.subject}` : "Marks"}
+        subtitle={
+          reviewEntry
+            ? `${reviewEntry.examName} · ${reviewEntry.teacherName} · ${reviewEntry.classGrade} ${reviewEntry.section}`
+            : undefined
+        }
+        size="lg"
+        footer={
+          reviewEntry ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                onClick={() => {
+                  setReviewEntry(null);
+                }}
+              >
+                Close
               </Button>
-              <Button size="sm" disabled>
-                Next
-              </Button>
+              <div className="ml-auto flex flex-wrap gap-2">
+                {canReview ? (
+                  <>
+                    <Button variant="outline" onClick={returnOne}>
+                      <RotateCcw className="size-3.5" /> Return to Teacher
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="!border-destructive/40 !text-destructive hover:!bg-destructive/10"
+                      onClick={rejectOne}
+                    >
+                      <X className="size-3.5" /> Reject
+                    </Button>
+                    <Button variant="primary" onClick={approveOne}>
+                      <Send className="size-3.5" /> Approve
+                    </Button>
+                  </>
+                ) : null}
+              </div>
+            </div>
+          ) : null
+        }
+      >
+        {reviewEntry ? (
+          <div className="space-y-3">
+            {stageFromStatus(reviewEntry.status) === "waiting" && (
+              <Banner tone="waiting">
+                {reviewEntry.status === "returned"
+                  ? "Returned to teacher for correction. Waiting for resubmit."
+                  : reviewEntry.status === "rejected"
+                    ? "Rejected. Waiting for the teacher to enter and resubmit marks."
+                    : "Waiting for this teacher to enter and submit marks. You cannot approve yet."}
+                {reviewEntry.adminNote ? (
+                  <span className="mt-1 block text-[11px] opacity-90">Note: {reviewEntry.adminNote}</span>
+                ) : null}
+              </Banner>
+            )}
+            {stageFromStatus(reviewEntry.status) === "ready" && (
+              <Banner tone="ready">
+                Teacher submitted these marks. Approve to publish, Reject, or Return to Teacher.
+                Admin cannot edit scores.
+              </Banner>
+            )}
+            {isLocked && (
+              <Banner tone="published">
+                <Lock className="size-3.5 shrink-0" />
+                Approved and published. Students and parents can view these marks. Admin cannot edit
+                scores after publish.
+              </Banner>
+            )}
+
+            <div className="overflow-x-auto rounded-lg border border-border">
+              <table className="w-full min-w-[360px] border-collapse text-sm">
+                <thead>
+                  <tr className="bg-muted/40 text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <th className="px-3 py-2 text-left font-semibold">Roll</th>
+                    <th className="px-3 py-2 text-left font-semibold">Student</th>
+                    <th className="px-3 py-2 text-right font-semibold">
+                      Marks / {reviewEntry.maxMarks}
+                    </th>
+                    <th className="px-3 py-2 text-right font-semibold">%</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {reviewEntry.students.map((s) => {
+                    const num = s.marks;
+                    const pct =
+                      num != null && Number.isFinite(num) && reviewEntry.maxMarks
+                        ? Math.round((num / reviewEntry.maxMarks) * 100)
+                        : null;
+                    return (
+                      <tr key={s.studentId}>
+                        <td className="px-3 py-2 font-mono text-xs">{s.rollNo}</td>
+                        <td className="px-3 py-2 text-xs font-medium">{s.name}</td>
+                        <td className="px-3 py-2 text-right">
+                          <span className="font-mono text-xs">
+                            {s.marks == null ? "—" : s.marks}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono text-xs text-muted-foreground">
+                          {pct == null ? "—" : `${pct}%`}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
-        )}
-      </Card>
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={alertOpen}
+        onClose={() => setAlertOpen(false)}
+        title="Alert pending teachers"
+        subtitle="Send a reminder from the principal to submit marks"
+        footer={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button onClick={() => setAlertOpen(false)}>Cancel</Button>
+            <Button
+              variant="primary"
+              onClick={sendPendingAlerts}
+              disabled={pendingTeachers.length === 0}
+            >
+              <Siren className="size-3.5" /> Send alert ({pendingTeachers.length})
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <Banner tone="waiting">
+            <BellRing className="size-3.5 shrink-0" />
+            Each teacher below will get an urgent notification to update and submit their pending
+            marks.
+          </Banner>
+          {pendingTeachers.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No teachers have pending mark submissions.</p>
+          ) : (
+            <ul className="max-h-64 space-y-1 overflow-y-auto rounded-lg border border-border divide-y divide-border">
+              {pendingTeachers.map((t) => (
+                <li
+                  key={t.teacherId}
+                  className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
+                >
+                  <span className="font-medium">{t.teacherName}</span>
+                  <Pill tone="warning">
+                    {t.pendingCount} pending
+                  </Pill>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </Modal>
     </AppShell>
+  );
+}
+
+function Snapshot({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="lx-kpi-card">
+      <div className="lx-kpi-card__body">
+        <p className="lx-kpi-card__label">{label}</p>
+        <p className="lx-kpi-card__value">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+function StageCard({
+  active,
+  onClick,
+  icon,
+  title,
+  count,
+  hint,
+  tone,
+  action,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: ReactNode;
+  title: string;
+  count: number;
+  hint: string;
+  tone: Stage;
+  action?: ReactNode;
+}) {
+  const tones = {
+    waiting: active
+      ? "border-amber-500/50 bg-amber-500/10 ring-1 ring-amber-500/30"
+      : "border-border bg-surface hover:bg-surface-hover",
+    ready: active
+      ? "border-sky-500/50 bg-sky-500/10 ring-1 ring-sky-500/30"
+      : "border-border bg-surface hover:bg-surface-hover",
+    published: active
+      ? "border-emerald-500/50 bg-emerald-500/10 ring-1 ring-emerald-500/30"
+      : "border-border bg-surface hover:bg-surface-hover",
+  };
+  const countTone = {
+    waiting: "warning" as const,
+    ready: "info" as const,
+    published: "success" as const,
+  };
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      className={`rounded-lg border p-2 sm:p-2.5 text-left transition-colors cursor-pointer ${tones[tone]}`}
+    >
+      <div className="flex items-center justify-between gap-1.5">
+        <div className="text-muted-foreground">{icon}</div>
+        <Pill tone={countTone[tone]}>{count}</Pill>
+      </div>
+      <div className="mt-1 text-[11px] sm:text-xs font-semibold leading-tight">{title}</div>
+      <div className="mt-0.5 text-[10px] leading-snug text-muted-foreground line-clamp-2">{hint}</div>
+      {action}
+    </div>
+  );
+}
+
+function Banner({
+  children,
+  tone,
+}: {
+  children: ReactNode;
+  tone: Stage;
+}) {
+  const cls = {
+    waiting: "border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-100",
+    ready: "border-sky-500/30 bg-sky-500/10 text-sky-900 dark:text-sky-100",
+    published: "border-emerald-500/30 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100",
+  }[tone];
+  return (
+    <div className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-xs ${cls}`}>
+      {children}
+    </div>
   );
 }

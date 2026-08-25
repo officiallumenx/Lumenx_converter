@@ -9,7 +9,7 @@ import {
   Scripts,
   Link,
 } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useSyncExternalStore } from "react";
 
 import appCss from "../styles.css?url";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -17,9 +17,23 @@ import { AdminActionToastProvider } from "@/components/AdminActionToast";
 import { AdminChrome } from "@/components/AdminChrome";
 import { DemoProfileProvider } from "@/lib/demo-profile-context";
 import { AuthProvider, useAuth } from "@/auth/AuthContext";
-import { AUTH_ROUTES } from "@/auth/constants";
-import { isAppUnlocked, setAppUnlocked } from "@/auth/app-lock-store";
+import { AUTH_ROUTES, isPostAuthLanding } from "@/auth/constants";
+import {
+  registrationGatePath,
+  resolveRegistrationGate,
+} from "@/auth/registration-gate";
+import {
+  isAppUnlocked,
+  setAppUnlocked,
+  subscribeAppUnlock,
+} from "@/auth/app-lock-store";
 import { AppLockScreen } from "@/auth/components/AppLockScreen";
+import { useRolePermission } from "@/lib/roles-access";
+import { LumenXNativeShell } from "@lumenx/capacitor/native-shell";
+import { OfflineSyncHost, TypographyProvider } from "@lumenx/ui";
+import { subscribeInstituteRegistrations } from "@lumenx/utils";
+import { useState } from "react";
+import { syncAdminTenantForUser } from "@/lib/sync-admin-tenant";
 
 // ── 404 ───────────────────────────────────────────────────────
 
@@ -68,7 +82,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "LumenX Admin — Institute Intelligence Center" },
       { name: "description", content: "Premium institute operating system for principals, heads, and administrators." },
     ],
@@ -98,47 +112,119 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 /**
  * AuthGate — sits between AuthProvider and the rest of the app.
- * • Auth routes  → rendered standalone (no AdminChrome)
- * • Authenticated + protected route → AdminChrome
+ * • Auth routes → rendered standalone (no AdminChrome)
+ * • Authenticated but app lock PIN not cleared this launch → AppLockScreen
+ * • Authenticated + unlocked → AdminChrome for protected routes
  * • Unauthenticated + protected route → redirect to /welcome
  * • Loading → minimal spinner
  */
 function AuthGate() {
-  const { isAuthenticated, isLoading, status } = useAuth();
+  const { isAuthenticated, isLoading, status, user } = useAuth();
   const pathname  = useRouterState({ select: (s) => s.location.pathname });
   const navigate  = useNavigate();
-  const [unlocked, setUnlocked] = useState(() => isAppUnlocked());
+  const appUnlocked = useSyncExternalStore(subscribeAppUnlock, isAppUnlocked, () => false);
+  const routePermission = useRolePermission(user?.accessRoleId, pathname);
+  const [, setRegTick] = useState(0);
+
+  useEffect(
+    () => subscribeInstituteRegistrations(() => setRegTick((t) => t + 1)),
+    [],
+  );
 
   const isAuthRoute = (AUTH_ROUTES as readonly string[]).includes(pathname);
+  const registrationGate = resolveRegistrationGate(user);
+  const gateRedirect = registrationGatePath(registrationGate.kind);
 
   useEffect(() => {
-    if (isAuthenticated) {
-      setUnlocked(isAppUnlocked());
-    } else {
-      setUnlocked(false);
+    if (!isAuthenticated || !user) return;
+    if (registrationGate.kind !== "allow") return;
+    try {
+      syncAdminTenantForUser(user);
+    } catch {
+      // Tenant bind must not block dashboard after PIN / Enter dashboard.
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user, registrationGate.kind]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (status === "loading" || status === "idle") return;
 
-    if (!isAuthenticated && !isAuthRoute) {
+    if (!isAuthenticated && !isAuthRoute && pathname !== "/welcome") {
       navigate({ to: "/welcome", replace: true });
+      return;
     }
-    if (isAuthenticated && unlocked && (pathname === "/welcome" || pathname === "/login" || pathname === "/splash")) {
+
+    if (!isAuthenticated) return;
+
+    // Incomplete registration: force OTP → setup → pending (no dashboard).
+    if (registrationGate.kind !== "allow" && gateRedirect && pathname !== gateRedirect) {
+      navigate({ to: gateRedirect, replace: true });
+      return;
+    }
+
+    // Fully allowed: leave registration-only routes (except pending status screen).
+    if (registrationGate.kind === "allow") {
+      const leaveRegistration =
+        pathname === "/signup" ||
+        pathname === "/verify-email-otp" ||
+        pathname === "/verify-mobile-otp" ||
+        pathname === "/institute-setup";
+      if (leaveRegistration) {
+        navigate({ to: "/", replace: true });
+        return;
+      }
+      if (appUnlocked && isPostAuthLanding(pathname)) {
+        navigate({ to: "/", replace: true });
+      }
+    }
+  }, [
+    isAuthenticated,
+    isAuthRoute,
+    pathname,
+    status,
+    navigate,
+    appUnlocked,
+    registrationGate.kind,
+    gateRedirect,
+  ]);
+
+  useEffect(() => {
+    if (
+      isAuthenticated &&
+      registrationGate.kind === "allow" &&
+      appUnlocked &&
+      user?.accessRoleId &&
+      !isAuthRoute &&
+      routePermission === "none" &&
+      pathname !== "/"
+    ) {
       navigate({ to: "/", replace: true });
     }
-  }, [isAuthenticated, isAuthRoute, pathname, status, navigate, unlocked]);
+  }, [
+    isAuthenticated,
+    registrationGate.kind,
+    appUnlocked,
+    user?.accessRoleId,
+    isAuthRoute,
+    routePermission,
+    pathname,
+    navigate,
+  ]);
 
-  const handleUnlocked = () => {
+  const handleUnlocked = useCallback(() => {
     setAppUnlocked(true);
-    setUnlocked(true);
-    if (pathname === "/welcome" || pathname === "/login" || pathname === "/splash") {
+    const gate = resolveRegistrationGate(user);
+    const path = registrationGatePath(gate.kind);
+    if (path) {
+      navigate({ to: path, replace: true });
+      return;
+    }
+    // Stay on current protected route, or land on home from login/welcome.
+    if (isPostAuthLanding(pathname) || pathname === "/pending-verification") {
       navigate({ to: "/", replace: true });
     }
-  };
+  }, [pathname, navigate, user]);
 
-  // Auth routes (login, signup, etc.) — no chrome, no lock
+  // Auth routes (login, signup, OTP, pending) — no chrome, no lock
   if (isAuthRoute) {
     return <Outlet />;
   }
@@ -153,8 +239,36 @@ function AuthGate() {
 
   if (!isAuthenticated) return null;
 
+  // Block Admin chrome until Nexus approves — redirect (layout effect) + fallback UI
+  if (registrationGate.kind !== "allow") {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background px-4 text-center">
+        <div className="size-8 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+        <div className="max-w-sm space-y-2">
+          <p className="text-sm font-medium text-foreground">
+            {registrationGate.kind === "rejected"
+              ? "Registration was declined"
+              : "Waiting for Nexus approval"}
+          </p>
+          <p className="text-[11px] text-muted-foreground">
+            Dashboard stays locked until your institute is approved. You can
+            check status on the pending page.
+          </p>
+          {gateRedirect && (
+            <Link
+              to={gateRedirect}
+              className="inline-flex text-xs font-medium text-primary hover:underline"
+            >
+              Open status page
+            </Link>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   // Session active but app not unlocked this launch → PIN screen
-  if (!unlocked) {
+  if (!appUnlocked) {
     return <AppLockScreen onUnlocked={handleUnlocked} />;
   }
 
@@ -167,11 +281,16 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
     <QueryClientProvider client={queryClient}>
+      <LumenXNativeShell />
       <ThemeProvider>
         <AuthProvider>
           <DemoProfileProvider>
             <AdminActionToastProvider>
-              <AuthGate />
+              <OfflineSyncHost app="admin" seedDemo={false} topStatus={false} className="min-h-screen-dvh">
+                <TypographyProvider>
+                  <AuthGate />
+                </TypographyProvider>
+              </OfflineSyncHost>
             </AdminActionToastProvider>
           </DemoProfileProvider>
         </AuthProvider>

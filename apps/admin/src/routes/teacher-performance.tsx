@@ -1,12 +1,13 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { Card, CardHeader, Button, Pill, Kpi } from "@lumenx/ui-admin";
 import { TEACHER_PERFORMANCE } from "@/lib/admin-module-data";
-import { Download, TrendingUp, Award } from "lucide-react";
+import { TrendingUp, Award, FileDown } from "lucide-react";
+import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-labels";
 import { useMemo } from "react";
 
 export const Route = createFileRoute("/teacher-performance")({
-  head: () => ({ meta: [{ title: "Teacher Performance — LumenX Admin" }] }),
+  head: () => ({ meta: [{ title: adminPageTitle("/teacher-performance") }] }),
   component: TeacherPerformancePage,
 });
 
@@ -21,12 +22,14 @@ function TeacherPerformancePage() {
 
   return (
     <AppShell
-      title="Teacher Performance"
-      subtitle="Student feedback & trends · demo analytics"
+      title={M.performance}
+      subtitle={`Student feedback & trends · analytics only · exports are in ${M.reports}`}
       actions={
-        <Button>
-          <Download className="size-3.5" /> Export report
-        </Button>
+        <Link to="/reports">
+          <Button variant="outline">
+            <FileDown className="size-3.5" /> {M.reports}
+          </Button>
+        </Link>
       }
     >
       <div className="lx-kpi-grid">

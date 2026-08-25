@@ -29,7 +29,7 @@ export type TemplateBlock = {
   variable?: string;
 };
 
-/** Rich visual certificate / ID layouts (Canva-style) — one theme per document type */
+/** Rich visual certificate / ID layouts — one theme per document type */
 export type VisualThemeId =
   | "achievement_elegant"
   | "bonafide_ornate"
@@ -173,7 +173,7 @@ export type VersionDiff = {
 
 export type TemplateActivity = {
   id: string;
-  action: "created" | "duplicated" | "generated" | "imported" | "archived" | "edited";
+  action: "created" | "duplicated" | "generated" | "imported" | "archived" | "edited" | "activated" | "restored";
   templateName: string;
   detail?: string;
   at: string;
@@ -195,23 +195,29 @@ export type TemplateVariable = {
 export type TemplateHubView =
   | "dashboard"
   | "library"
+  | "builder"
+  | "generate"
+  | "generated"
+  | "students"
+  | "more"
+  /** @deprecated Mapped to library with kind filter */
   | "certificates"
   | "reports"
   | "id_cards"
   | "documents"
-  | "builder"
+  /** @deprecated Mapped to more */
   | "imports"
-  | "generate"
-  | "generated"
   | "categories"
   | "settings";
+
+export type TemplateMoreSection = "imports" | "categories" | "settings";
 
 export type ImportStep = "upload" | "detect" | "map" | "preview" | "save";
 
 export type TemplateImportJob = {
   id: string;
   fileName: string;
-  format: "docx" | "pdf" | "png" | "jpg" | "jpeg";
+  format: "ppt" | "pptx";
   step: ImportStep;
   uploadedAt: string;
   mappedVariables: string[];

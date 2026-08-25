@@ -1,4 +1,10 @@
-export type AttendanceDayStatus = "present" | "absent" | "leave" | "holiday" | "future";
+export type AttendanceDayStatus =
+  | "present"
+  | "absent"
+  | "leave"
+  | "holiday"
+  | "future"
+  | "unknown";
 
 export type AttendanceDay = {
   day: number;

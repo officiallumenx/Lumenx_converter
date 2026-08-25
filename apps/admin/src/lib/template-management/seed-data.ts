@@ -808,8 +808,8 @@ export const SEED_GENERATED: GeneratedDocument[] = [
     templateId: "tpl-sys-progress",
     templateName: "Progress Report — Term",
     kind: "report",
-    recipientName: "Aarav Sharma",
-    recipientRef: "STU-1201",
+    recipientName: "Ethan Wright",
+    recipientRef: "STU-1044",
     generatedAt: "2026-06-10T08:00:00",
     generatedBy: "Dr. Priya Menon",
     batchId: "batch-report-12a-v1",
@@ -840,8 +840,8 @@ export const SEED_GENERATED: GeneratedDocument[] = [
     templateId: "tpl-sys-progress",
     templateName: "Progress Report — Term",
     kind: "report",
-    recipientName: "Aarav Sharma",
-    recipientRef: "STU-1201",
+    recipientName: "Ethan Wright",
+    recipientRef: "STU-1044",
     generatedAt: "2026-06-13T08:00:00",
     generatedBy: "Dr. Priya Menon",
     batchId: "batch-report-12a",
@@ -859,8 +859,8 @@ export const SEED_GENERATED: GeneratedDocument[] = [
     notificationCount: 3,
     rejectionReason: null,
     notifications: [
-      { id: "notif-g1008-s", documentId: "gen-1008", documentName: "Progress Report — Term", recipientName: "Aarav Sharma", recipientPortal: "student", channel: "in_app", sentAt: "2026-06-13T11:30:00", readAt: "2026-06-13T14:00:00" },
-      { id: "notif-g1008-p", documentId: "gen-1008", documentName: "Progress Report — Term", recipientName: "Rakesh Sharma (Parent)", recipientPortal: "parent", channel: "email", sentAt: "2026-06-13T11:30:00", readAt: "2026-06-13T18:22:00" },
+      { id: "notif-g1008-s", documentId: "gen-1008", documentName: "Progress Report — Term", recipientName: "Ethan Wright", recipientPortal: "student", channel: "in_app", sentAt: "2026-06-13T11:30:00", readAt: "2026-06-13T14:00:00" },
+      { id: "notif-g1008-p", documentId: "gen-1008", documentName: "Progress Report — Term", recipientName: "S. Wright (Parent)", recipientPortal: "parent", channel: "email", sentAt: "2026-06-13T11:30:00", readAt: "2026-06-13T18:22:00" },
       { id: "notif-g1008-t", documentId: "gen-1008", documentName: "Progress Report — Term", recipientName: "Mr. Ajay Sharma (Teacher)", recipientPortal: "teacher", channel: "in_app", sentAt: "2026-06-13T11:30:00", readAt: "2026-06-13T12:05:00" },
     ],
     documentGroupId: "grp-report-aarav",
@@ -874,14 +874,14 @@ export const SEED_GENERATED: GeneratedDocument[] = [
   // SINGLE-VERSION DOCUMENTS
   // ══════════════════════════════════════════════════════════════════════════════
 
-  // Admin Review: Progress Report (Tanvi Khanna) — in workflow, no version yet
+  // Admin Review: Progress Report (Priya Patel) — in workflow, no version yet
   {
     id: "gen-1002",
     templateId: "tpl-sys-progress",
     templateName: "Progress Report — Term",
     kind: "report",
-    recipientName: "Tanvi Khanna",
-    recipientRef: "STU-0882",
+    recipientName: "Priya Patel",
+    recipientRef: "STU-1048",
     generatedAt: "2026-06-17T14:00:00",
     generatedBy: "Dr. Priya Menon",
     batchId: "batch-881",
@@ -912,7 +912,7 @@ export const SEED_GENERATED: GeneratedDocument[] = [
     templateName: "Student ID — Standard",
     kind: "id_card",
     recipientName: "Marcus Lee",
-    recipientRef: "STU-1190",
+    recipientRef: "STU-1047",
     generatedAt: "2026-06-16T09:12:00",
     generatedBy: "Admin User",
     status: "ready",
@@ -943,7 +943,7 @@ export const SEED_GENERATED: GeneratedDocument[] = [
     templateName: "Sports Winner Certificate",
     kind: "certificate",
     recipientName: "Julian Draxler",
-    recipientRef: "STU-882",
+    recipientRef: "STU-1043",
     generatedAt: "2026-06-15T16:45:00",
     generatedBy: "Sports Dept",
     batchId: "batch-sports-12",
@@ -966,14 +966,14 @@ export const SEED_GENERATED: GeneratedDocument[] = [
     versionNote: "",
   },
 
-  // Draft: Transfer Certificate (Priya Mehta)
+  // Draft: Transfer Certificate (Alina Moreno)
   draft({
     id: "gen-1005",
     templateId: "tpl-sys-transfer",
     templateName: "Transfer Certificate — Board Format",
     kind: "document",
-    recipientName: "Priya Mehta",
-    recipientRef: "STU-0441",
+    recipientName: "Alina Moreno",
+    recipientRef: "STU-1046",
     generatedAt: "2026-06-19T09:00:00",
     generatedBy: "Mr. Vikram Tiwari",
     batchId: "batch-tc-06",
@@ -981,14 +981,14 @@ export const SEED_GENERATED: GeneratedDocument[] = [
     certificateNumber: "LXA/TC/2026/0031",
   }),
 
-  // Teacher Review: Annual Report (Rohan Mehta)
+  // Teacher Review: Annual Report (Omar Haddad)
   {
     id: "gen-1006",
     templateId: "tpl-sys-annual",
     templateName: "Annual Report Card",
     kind: "report",
-    recipientName: "Rohan Mehta",
-    recipientRef: "STU-1101",
+    recipientName: "Omar Haddad",
+    recipientRef: "STU-1049",
     generatedAt: "2026-06-18T15:00:00",
     generatedBy: "Admin User",
     batchId: "batch-annual-11",
@@ -1011,14 +1011,14 @@ export const SEED_GENERATED: GeneratedDocument[] = [
     versionNote: "",
   },
 
-  // Published: Conduct Certificate (Sneha Gupta) — single version
+  // Published: Conduct Certificate (Sana Khan) — single version
   {
     id: "gen-1007",
     templateId: "tpl-sys-conduct",
     templateName: "Conduct Certificate",
     kind: "certificate",
-    recipientName: "Sneha Gupta",
-    recipientRef: "STU-1102",
+    recipientName: "Sana Khan",
+    recipientRef: "STU-1045",
     generatedAt: "2026-06-14T11:20:00",
     generatedBy: "Mrs. Priya Nair",
     status: "ready",
@@ -1034,14 +1034,74 @@ export const SEED_GENERATED: GeneratedDocument[] = [
     notificationCount: 2,
     rejectionReason: null,
     notifications: [
-      { id: "notif-g1007-s", documentId: "gen-1007", documentName: "Conduct Certificate", recipientName: "Sneha Gupta", recipientPortal: "student", channel: "in_app", sentAt: "2026-06-14T12:00:00", readAt: "2026-06-14T13:14:00" },
-      { id: "notif-g1007-p", documentId: "gen-1007", documentName: "Conduct Certificate", recipientName: "Vinay Gupta (Parent)", recipientPortal: "parent", channel: "sms", sentAt: "2026-06-14T12:00:00", readAt: null },
+      { id: "notif-g1007-s", documentId: "gen-1007", documentName: "Conduct Certificate", recipientName: "Sana Khan", recipientPortal: "student", channel: "in_app", sentAt: "2026-06-14T12:00:00", readAt: "2026-06-14T13:14:00" },
+      { id: "notif-g1007-p", documentId: "gen-1007", documentName: "Conduct Certificate", recipientName: "I. Khan (Parent)", recipientPortal: "parent", channel: "sms", sentAt: "2026-06-14T12:00:00", readAt: null },
     ],
     documentGroupId: "gen-1007",
     versionNumber: 1,
     isCurrentVersion: true,
     versionChanges: "",
     versionNote: "Single version — no corrections",
+  },
+
+  // Published: Academic Excellence (Marcus Lee)
+  {
+    id: "gen-1009",
+    templateId: "tpl-sys-achievement",
+    templateName: "Academic Excellence Award",
+    kind: "certificate",
+    recipientName: "Marcus Lee",
+    recipientRef: "STU-1047",
+    generatedAt: "2026-06-12T10:00:00",
+    generatedBy: "Admin User",
+    status: "ready",
+    certificateNumber: "LXA/EXC/2026/0044",
+    workflowState: "published",
+    workflowHistory: [
+      { state: "draft", actor: "Admin User", at: "2026-06-12T10:00:00" },
+      { state: "published", actor: "Mrs. Priya Nair", at: "2026-06-12T11:00:00" },
+    ],
+    publishedAt: "2026-06-12T11:00:00",
+    portalVisibility: { student: true, parent: true, teacher: false },
+    notificationsSent: true,
+    notificationCount: 1,
+    rejectionReason: null,
+    notifications: [],
+    documentGroupId: "gen-1009",
+    versionNumber: 1,
+    isCurrentVersion: true,
+    versionChanges: "",
+    versionNote: "Single version",
+  },
+
+  // Published: Study Certificate (Priya Patel)
+  {
+    id: "gen-1010",
+    templateId: "tpl-sys-study",
+    templateName: "Study Certificate",
+    kind: "certificate",
+    recipientName: "Priya Patel",
+    recipientRef: "STU-1048",
+    generatedAt: "2026-06-11T09:30:00",
+    generatedBy: "Admin User",
+    status: "ready",
+    certificateNumber: "LXA/STD/2026/0021",
+    workflowState: "published",
+    workflowHistory: [
+      { state: "draft", actor: "Admin User", at: "2026-06-11T09:30:00" },
+      { state: "published", actor: "Admin User", at: "2026-06-11T10:00:00" },
+    ],
+    publishedAt: "2026-06-11T10:00:00",
+    portalVisibility: { student: true, parent: true, teacher: false },
+    notificationsSent: false,
+    notificationCount: 0,
+    rejectionReason: null,
+    notifications: [],
+    documentGroupId: "gen-1010",
+    versionNumber: 1,
+    isCurrentVersion: true,
+    versionChanges: "",
+    versionNote: "Single version",
   },
 ];
 

@@ -71,7 +71,7 @@ export function ApplicationsListPage() {
 
 export function ApplicationDetailPage({ applicationId }: { applicationId: string }) {
   const app = getApplicationById(applicationId);
-  const institute = app ? getInstituteProfile(app.instituteId) : undefined;
+  const institute = app?.instituteId ? getInstituteProfile(app.instituteId) : undefined;
 
   if (!app) {
     return (

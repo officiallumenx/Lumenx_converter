@@ -3,11 +3,14 @@ import { PageHeader } from "@/components/app/PageHeader";
 import { useStudentPortal } from "@/context/StudentPortalContext";
 import { useParentPortal } from "@/context/ParentPortalContext";
 import { studentCertificateRecords as demoCertificateRecords } from "@/lib/student/mock-data";
+import type { StudentCertificateRecord } from "@/lib/student/mock-data";
+import { mergeIssuedCertificates } from "@/lib/student/admin-issued-certificates-bridge";
 import { Badge, Button, cn, Input } from "@lumenx/ui";
 import { FileText, Download, Eye, Share2, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@lumenx/ui";
 import { EmptyState, PageSkeleton } from "@/student-portal/shared/ui";
+import { downloadStudentCertificateToDevice } from "@/lib/device-file-downloads";
 
 const CATEGORY_LABEL = {
   academic: "Academic",
@@ -26,7 +29,7 @@ export function StudentCertificatesPage({ readOnlyParent = false }: { readOnlyPa
 
   const studentCertificateRecords =
     readOnlyParent && parentSnap
-      ? demoCertificateRecords
+      ? mergeIssuedCertificates(parentSnap.child.id, demoCertificateRecords)
       : portal.isStudent && portal.snapshot
         ? portal.snapshot.certificates
         : [];
@@ -137,7 +140,13 @@ export function StudentCertificatesPage({ readOnlyParent = false }: { readOnlyPa
                 <Button
                   size="sm"
                   className="rounded-lg gap-1.5"
-                  onClick={() => toast.success(`Download started: ${c.title}`)}
+                  onClick={() => {
+                    const { filename } = downloadStudentCertificateToDevice(
+                      c,
+                      studentProfile?.name ?? "Student",
+                    );
+                    toast.success("Saved to Downloads", { description: filename });
+                  }}
                 >
                   <Download className="size-3.5" /> Download
                 </Button>
@@ -191,7 +200,9 @@ export function StudentCertificatesPage({ readOnlyParent = false }: { readOnlyPa
                   {preview.refNo}
                 </div>
                 <div className="mt-3 font-display text-lg font-semibold">{preview.title}</div>
-                <div className="mt-2 text-muted-foreground">Awarded to {studentProfile.name}</div>
+                <div className="mt-2 text-muted-foreground">
+                  Awarded to {studentProfile?.name ?? "Student"}
+                </div>
                 <div className="mt-2 text-xs leading-relaxed text-muted-foreground px-2">
                   {preview.description}
                 </div>
@@ -205,7 +216,14 @@ export function StudentCertificatesPage({ readOnlyParent = false }: { readOnlyPa
               <div className="flex gap-2">
                 <Button
                   className="flex-1 rounded-xl gap-2"
-                  onClick={() => toast.success("Certificate downloaded")}
+                  onClick={() => {
+                    if (!preview) return;
+                    const { filename } = downloadStudentCertificateToDevice(
+                      preview,
+                      studentProfile?.name ?? "Student",
+                    );
+                    toast.success("Saved to Downloads", { description: filename });
+                  }}
                 >
                   <Download className="size-4" /> Download PDF
                 </Button>

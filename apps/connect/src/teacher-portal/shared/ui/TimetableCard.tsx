@@ -29,9 +29,11 @@ export function TimetableCard({
         {slot.time}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate font-medium">{slot.subject}</div>
-        <div className="truncate text-xs text-muted-foreground">
+        <div className="truncate font-semibold text-primary">
           Class {slot.className}-{slot.section}
+        </div>
+        <div className="truncate text-xs text-muted-foreground">
+          {slot.subject}
           {slot.room ? ` · Room ${slot.room}` : ""}
         </div>
       </div>

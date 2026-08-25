@@ -10,6 +10,8 @@ import {
   getTodayDayName,
   teacherRepository,
 } from "@/lib/teacher/repositories";
+import { sectionsForClassName, uniqueSortedClassNames } from "@/lib/class-section-options";
+import { highlightTimetableSlots } from "@/lib/student/timetable-utils";
 import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
 import {
   Select,
@@ -21,16 +23,6 @@ import {
   Badge,
 } from "@lumenx/ui";
 import type { TimetableSlot } from "@/lib/teacher/types";
-
-function parseStart(time: string): number {
-  const m = time.match(/(\d+):(\d+)/);
-  if (!m) return 0;
-  let h = parseInt(m[1], 10);
-  const min = parseInt(m[2], 10);
-  if (time.toLowerCase().includes("pm") && h < 12) h += 12;
-  if (time.toLowerCase().includes("am") && h === 12) h = 0;
-  return h * 60 + min;
-}
 
 export function TeacherTimetablePage() {
   const portal = useTeacherPortal();
@@ -45,17 +37,12 @@ export function TeacherTimetablePage() {
   const [loading, setLoading] = useState(true);
 
   const classNames = useMemo(
-    () => [...new Set(portal.classes.map((c) => c.className))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
+    () => uniqueSortedClassNames(portal.classes),
     [portal.classes],
   );
 
   const sections = useMemo(
-    () =>
-      [
-        ...new Set(
-          portal.classes.filter((c) => c.className === classNameFilter).map((c) => c.section),
-        ),
-      ].sort(),
+    () => sectionsForClassName(portal.classes, classNameFilter),
     [portal.classes, classNameFilter],
   );
 
@@ -115,25 +102,8 @@ export function TeacherTimetablePage() {
     return counts;
   }, [weekSlots]);
 
-  const withHighlight = (list: TimetableSlot[]) => {
-    if (day !== today)
-      return list.map((s) => ({ slot: s, current: false, next: false, past: false }));
-    const sorted = [...list].sort((a, b) => parseStart(a.time) - parseStart(b.time));
-    let currentIdx = -1;
-    for (let i = 0; i < sorted.length; i++) {
-      const start = parseStart(sorted[i].time);
-      const end = start + 45;
-      if (nowMins >= start && nowMins < end) currentIdx = i;
-    }
-    const nextIdx =
-      currentIdx >= 0 ? currentIdx + 1 : sorted.findIndex((s) => parseStart(s.time) > nowMins);
-    return sorted.map((s, i) => ({
-      slot: s,
-      current: i === currentIdx,
-      next: i === nextIdx && (currentIdx >= 0 || nextIdx === i),
-      past: i < currentIdx || (currentIdx < 0 && parseStart(s.time) + 45 <= nowMins),
-    }));
-  };
+  const withHighlight = (list: TimetableSlot[]) =>
+    highlightTimetableSlots(list, { day, today, nowMins });
 
   const highlightedDay = useMemo(() => withHighlight(daySlots), [daySlots, day, today, nowMins]);
 
@@ -143,8 +113,8 @@ export function TeacherTimetablePage() {
     () =>
       highlightedDay.map(({ slot, current, next, past }) => ({
         time: slot.time,
-        subject: slot.subject,
-        subtitle: `Class ${slot.className}-${slot.section}${slot.room ? ` · Room ${slot.room}` : ""}`,
+        subject: `Class ${slot.className}-${slot.section}`,
+        subtitle: `${slot.subject}${slot.room ? ` · Room ${slot.room}` : ""}`,
         badge:
           current || next
             ? undefined
@@ -301,8 +271,8 @@ export function TeacherTimetablePage() {
               if (!slotsForDay.length) return null;
               const rows: PeriodRow[] = slotsForDay.map((slot) => ({
                 time: slot.time,
-                subject: slot.subject,
-                subtitle: `Class ${slot.className}-${slot.section}${slot.room ? ` · Room ${slot.room}` : ""}`,
+                subject: `Class ${slot.className}-${slot.section}`,
+                subtitle: `${slot.subject}${slot.room ? ` · Room ${slot.room}` : ""}`,
                 badge: mode === "class" && isTeacherPeriod(slot) ? "Your class" : undefined,
                 state: "default",
               }));
@@ -357,10 +327,12 @@ function TeacherHighlight({
       >
         {label}
       </Badge>
-      <div className="font-semibold">{slot.subject}</div>
+      <div className="font-semibold text-primary">
+        Class {slot.className}-{slot.section}
+      </div>
       <div className="mt-1 text-sm text-muted-foreground">{slot.time}</div>
       <div className="text-xs text-muted-foreground">
-        Class {slot.className}-{slot.section}
+        {slot.subject}
         {slot.room ? ` · Room ${slot.room}` : ""}
       </div>
       {showMarkLink && isNow && (

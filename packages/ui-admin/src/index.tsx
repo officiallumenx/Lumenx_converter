@@ -1,10 +1,18 @@
 import { type ReactNode, type InputHTMLAttributes, type TextareaHTMLAttributes, type SelectHTMLAttributes, type HTMLAttributes, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Search, X, BarChart3 } from "lucide-react";
+import { Search, X } from "lucide-react";
+import { ThemedSelect } from "./themed-select";
+import { ThemedDateInput } from "./themed-date-input";
 
+/* Horizontal padding is applied per-input so leading-icon `pl-*` can win over defaults. */
 const inputBase =
-  "w-full px-3 rounded-md bg-background text-foreground border border-border text-sm placeholder:text-muted-foreground/70 focus:outline-none focus:border-primary/60 focus:ring-2 focus:ring-ring/30 hover:border-border-strong transition-colors appearance-none";
-const inputSizes = { md: "h-10", compact: "h-9 text-xs" } as const;
+  "w-full rounded-md bg-background text-foreground border border-border text-xs sm:text-sm placeholder:text-muted-foreground/70 focus:outline-none focus:border-primary/60 focus:ring-2 focus:ring-ring/30 hover:border-border-strong transition-colors appearance-none";
+const inputPadDefault = "pl-2.5 pr-2.5 sm:pl-3 sm:pr-3";
+const inputPadLeadingIcon = "pl-9 pr-2.5 sm:pr-3";
+const inputSizes = {
+  md: "h-9 sm:h-10",
+  compact: "h-8 text-xs sm:h-9",
+} as const;
 type FieldSize = keyof typeof inputSizes;
 
 export function Card({ children, className = "", interactive = false, ...props }: { children: ReactNode; className?: string; interactive?: boolean } & HTMLAttributes<HTMLDivElement>) {
@@ -20,12 +28,16 @@ export function Card({ children, className = "", interactive = false, ...props }
 
 export function CardHeader({ title, action, hint }: { title: string; action?: ReactNode; hint?: string }) {
   return (
-    <div className="lx-card-header flex flex-wrap items-start justify-between gap-3 border-b border-border/60">
-      <div className="min-w-0 flex-1">
+    <div className="lx-card-header flex flex-col items-stretch sm:flex-row sm:flex-wrap sm:items-start justify-between gap-2.5 sm:gap-3 px-4 pt-3.5 pb-3 sm:px-5 sm:pt-4 sm:pb-3 border-b border-border/60">
+      <div className="min-w-0 flex-1 space-y-1">
         <h3 className="text-sm font-semibold tracking-tight text-foreground leading-snug">{title}</h3>
-        {hint && <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">{hint}</p>}
+        {hint && <p className="text-[11px] text-muted-foreground leading-relaxed">{hint}</p>}
       </div>
-      {action && <div className="shrink-0 max-w-full lx-btn-group">{action}</div>}
+      {action && (
+        <div className="shrink-0 max-w-full w-full sm:w-auto lx-btn-group justify-start sm:justify-end">
+          {action}
+        </div>
+      )}
     </div>
   );
 }
@@ -58,14 +70,15 @@ export function Kpi({ label, value, delta, tone = "neutral", footer, icon }: {
   const toneCls = tone === "up" ? "text-success" : tone === "down" ? "text-destructive" : "text-muted-foreground";
   const toneBg = tone === "up" ? "bg-success/10 border-success/20" : tone === "down" ? "bg-destructive/10 border-destructive/20" : "bg-muted border-border";
   return (
-    <div className="lx-kpi-card group h-full w-full min-w-0">
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-border-strong to-transparent opacity-60 pointer-events-none" />
+    <div className="lx-kpi-card group w-full min-w-0">
       <div className="lx-kpi-card__body">
         <div className="lx-kpi-card__head">
           <p className="lx-kpi-card__label">{label}</p>
-          <div className="lx-kpi-card__icon" aria-hidden>
-            {icon ?? <BarChart3 />}
-          </div>
+          {icon ? (
+            <div className="lx-kpi-card__icon" aria-hidden>
+              {icon}
+            </div>
+          ) : null}
         </div>
         <p className="lx-kpi-card__value">{value}</p>
         {delta && (
@@ -110,9 +123,9 @@ export function Button({ children, variant = "default", size = "md", loading = f
     outline: "bg-transparent border border-border hover:bg-surface text-foreground",
   } as const;
   const sizes = {
-    sm: "h-8 min-h-8 px-2.5 text-[11px] [&_svg]:size-3.5",
-    md: "h-9 min-h-9 px-3.5 text-xs [&_svg]:size-3.5",
-    lg: "h-10 min-h-10 px-4 text-sm [&_svg]:size-4",
+    sm: "h-7 min-h-7 px-2 text-[11px] [&_svg]:size-3 sm:h-8 sm:min-h-8 sm:px-2.5 sm:[&_svg]:size-3.5",
+    md: "h-8 min-h-8 px-2.5 text-xs [&_svg]:size-3.5 sm:h-9 sm:min-h-9 sm:px-3.5",
+    lg: "h-9 min-h-9 px-3 text-sm [&_svg]:size-4 sm:h-10 sm:min-h-10 sm:px-4",
   } as const;
   const gapSizes = { sm: "gap-1", md: "gap-1.5", lg: "gap-2" } as const;
   return (
@@ -177,12 +190,39 @@ export function FormGrid({ children, cols = 2, className = "" }: { children: Rea
   );
 }
 
-export function TextInput({ fieldSize = "md", className = "", ...props }: InputHTMLAttributes<HTMLInputElement> & { fieldSize?: FieldSize }) {
-  return (
+export function TextInput({
+  fieldSize = "md",
+  className = "",
+  type,
+  leadingIcon,
+  ...props
+}: InputHTMLAttributes<HTMLInputElement> & {
+  fieldSize?: FieldSize;
+  /** Renders a left icon; reserves padding so text/numbers never sit under it. */
+  leadingIcon?: ReactNode;
+}) {
+  if (type === "date") {
+    return <ThemedDateInput fieldSize={fieldSize} className={className} {...props} />;
+  }
+  const pad = leadingIcon ? inputPadLeadingIcon : inputPadDefault;
+  const input = (
     <input
       {...props}
-      className={`${inputBase} ${inputSizes[fieldSize]} ${className}`}
+      type={type}
+      className={`${inputBase} ${inputSizes[fieldSize]} ${pad} ${className}`}
     />
+  );
+  if (!leadingIcon) return input;
+  return (
+    <div className="relative w-full min-w-0">
+      <span
+        className="pointer-events-none absolute left-2.5 top-1/2 z-[1] -translate-y-1/2 inline-flex size-3.5 items-center justify-center text-muted-foreground [&_svg]:size-3.5"
+        aria-hidden
+      >
+        {leadingIcon}
+      </span>
+      {input}
+    </div>
   );
 }
 
@@ -195,24 +235,26 @@ export function TextArea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   );
 }
 
-export function Select({ children, fieldSize = "md", className = "", ...rest }: SelectHTMLAttributes<HTMLSelectElement> & { fieldSize?: FieldSize }) {
+export function Select({
+  children,
+  fieldSize = "compact",
+  className = "",
+  ...rest
+}: SelectHTMLAttributes<HTMLSelectElement> & { fieldSize?: FieldSize }) {
   return (
-    <select
-      {...rest}
-      className={`${inputBase} ${inputSizes[fieldSize]} ${className}`}
-    >
+    <ThemedSelect fieldSize={fieldSize} className={className} {...rest}>
       {children}
-    </select>
+    </ThemedSelect>
   );
 }
 
 export function SearchInput({ className = "", inputClassName = "", fieldSize = "compact", ...props }: InputHTMLAttributes<HTMLInputElement> & { inputClassName?: string; fieldSize?: FieldSize }) {
   return (
-    <div className={`relative min-w-[200px] ${className}`}>
-      <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" aria-hidden />
+    <div className={`relative w-full min-w-0 ${className}`}>
+      <Search className="absolute left-2.5 top-1/2 z-[1] -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" aria-hidden />
       <input
         {...props}
-        className={`${inputBase} ${inputSizes[fieldSize]} w-full pl-9 pr-3 ${inputClassName}`}
+        className={`${inputBase} ${inputSizes[fieldSize]} ${inputPadLeadingIcon} w-full min-w-0 ${inputClassName}`}
       />
     </div>
   );
@@ -245,7 +287,7 @@ export function SegmentedControl<T extends string>({
             role="tab"
             aria-selected={selected}
             onClick={() => onChange(opt.value)}
-            className={`px-3 h-8 min-h-8 shrink-0 rounded text-[11px] font-medium tracking-wide transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+            className={`px-2.5 h-7 min-h-7 sm:h-8 sm:min-h-8 shrink-0 rounded text-[11px] font-medium tracking-wide transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
               selected ? "bg-surface text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground hover:bg-surface-hover/80"
             }`}
           >
@@ -260,14 +302,14 @@ export function SegmentedControl<T extends string>({
 
 export function PageToolbar({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`px-4 sm:px-5 py-4 border-b border-border flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end bg-background/30 ${className}`}>
+    <div className={`lx-page-toolbar px-3 sm:px-4 py-2.5 sm:py-3 border-b border-border flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end bg-background/30 ${className}`}>
       {children}
     </div>
   );
 }
 
 export function ToolbarGroup({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <div className={`flex flex-wrap items-end gap-2 sm:gap-3 ${className}`}>{children}</div>;
+  return <div className={`flex flex-wrap items-end gap-1.5 sm:gap-2 ${className}`}>{children}</div>;
 }
 
 export function ToolbarSpacer() {
@@ -280,11 +322,47 @@ export function ToolbarMeta({ children }: { children: ReactNode }) {
 
 /* ---------- Modal ---------- */
 
-export function Modal({ open, onClose, title, subtitle, children, footer, size = "md" }: {
+function isScrollableY(el: HTMLElement): boolean {
+  const { overflowY } = getComputedStyle(el);
+  if (overflowY !== "auto" && overflowY !== "scroll" && overflowY !== "overlay") return false;
+  return el.scrollHeight > el.clientHeight + 1;
+}
+
+function findNestedScrollableY(start: EventTarget | null, boundary: HTMLElement): HTMLElement | null {
+  let el: Element | null = start instanceof Element ? start : null;
+  while (el && el !== boundary) {
+    if (el instanceof HTMLElement && isScrollableY(el)) return el;
+    el = el.parentElement;
+  }
+  return null;
+}
+
+/** When inner nested scroll hits the end, continue on the outer modal body. */
+function chainWheelToOuter(outer: HTMLElement, e: WheelEvent): void {
+  if (e.deltaY === 0) return;
+  const nested = findNestedScrollableY(e.target, outer);
+  if (!nested || nested === outer) return;
+
+  const max = nested.scrollHeight - nested.clientHeight;
+  const top = nested.scrollTop;
+  const atTop = top <= 0;
+  const atBottom = top >= max - 1;
+  if (!((e.deltaY < 0 && atTop) || (e.deltaY > 0 && atBottom))) return;
+
+  const outerMax = outer.scrollHeight - outer.clientHeight;
+  if (outerMax <= 0) return;
+
+  const prev = outer.scrollTop;
+  outer.scrollTop = Math.min(outerMax, Math.max(0, prev + e.deltaY));
+  if (outer.scrollTop !== prev) e.preventDefault();
+}
+
+export function Modal({ open, onClose, title, subtitle, children, footer, size = "lg" }: {
   open: boolean; onClose: () => void; title: string; subtitle?: string; children: ReactNode; footer?: ReactNode;
   size?: "sm" | "md" | "lg" | "xl";
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
@@ -307,9 +385,16 @@ export function Modal({ open, onClose, title, subtitle, children, footer, size =
     dialogRef.current?.focus();
   }, [open]);
 
-  if (!open || typeof document === "undefined") return null;
+  useEffect(() => {
+    if (!open) return;
+    const body = bodyRef.current;
+    if (!body) return;
+    const onWheel = (e: WheelEvent) => chainWheelToOuter(body, e);
+    body.addEventListener("wheel", onWheel, { passive: false });
+    return () => body.removeEventListener("wheel", onWheel);
+  }, [open]);
 
-  const bodyMaxHeight = footer ? "min(calc(75vh - 9.5rem), 22rem)" : "min(calc(75vh - 5.5rem), 26rem)";
+  if (!open || typeof document === "undefined") return null;
 
   const sizeClass = { sm: "lx-modal-dialog--sm", md: "lx-modal-dialog--md", lg: "lx-modal-dialog--lg", xl: "lx-modal-dialog--xl" }[size];
 
@@ -329,10 +414,10 @@ export function Modal({ open, onClose, title, subtitle, children, footer, size =
         className={`lx-modal-dialog lx-modal-panel ${sizeClass}`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-3 px-4 py-3.5 sm:px-5 sm:py-4 border-b border-border shrink-0">
+        <div className="flex items-start justify-between gap-3 px-5 py-4 sm:px-6 sm:py-5 border-b border-border shrink-0">
           <div className="min-w-0">
             <h2 id="lx-modal-title" className="text-base font-semibold tracking-tight">{title}</h2>
-            {subtitle && <p id="lx-modal-subtitle" className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
+            {subtitle && <p id="lx-modal-subtitle" className="text-sm text-muted-foreground mt-1">{subtitle}</p>}
           </div>
           <button
             type="button"
@@ -344,15 +429,12 @@ export function Modal({ open, onClose, title, subtitle, children, footer, size =
           </button>
         </div>
 
-        <div
-          className="lx-modal-body lx-form-stack px-4 py-4 sm:px-5 sm:py-5"
-          style={{ maxHeight: bodyMaxHeight }}
-        >
+        <div ref={bodyRef} className="lx-modal-body lx-form-stack px-5 py-5 sm:px-6 sm:py-6">
           {children}
         </div>
 
         {footer && (
-          <div className="px-4 sm:px-5 py-3 border-t border-border bg-elevated rounded-b-xl flex flex-wrap items-center justify-end gap-2 shrink-0 lx-btn-group">
+          <div className="px-5 sm:px-6 py-4 border-t border-border bg-elevated rounded-b-xl flex flex-wrap items-center justify-end gap-2 shrink-0 lx-btn-group lx-modal-footer">
             {footer}
           </div>
         )}
@@ -386,10 +468,10 @@ export function PageLoadingSkeleton() {
   return (
     <div className="space-y-5 animate-entrance">
       <div className="lx-kpi-grid">
-        <Skeleton className="lx-kpi-card rounded-xl w-full min-h-[5rem]" />
-        <Skeleton className="lx-kpi-card rounded-xl w-full min-h-[5rem]" />
-        <Skeleton className="lx-kpi-card rounded-xl w-full min-h-[5rem]" />
-        <Skeleton className="lx-kpi-card rounded-xl w-full min-h-[5rem]" />
+        <Skeleton className="lx-kpi-card rounded-md w-full min-h-[2.5rem]" />
+        <Skeleton className="lx-kpi-card rounded-md w-full min-h-[2.5rem]" />
+        <Skeleton className="lx-kpi-card rounded-md w-full min-h-[2.5rem]" />
+        <Skeleton className="lx-kpi-card rounded-md w-full min-h-[2.5rem]" />
       </div>
       <div className="rounded-xl border border-border bg-surface overflow-hidden">
         <Skeleton className="h-12 rounded-none" />
@@ -428,7 +510,7 @@ export function Th({ children, className = "", align = "left" }: { children: Rea
 export function Td({ children, className = "", mono, align = "left" }: { children: ReactNode; className?: string; mono?: boolean; align?: "left" | "right" | "center" }) {
   const alignCls = align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left";
   return (
-    <td className={`px-4 sm:px-5 py-3.5 text-xs sm:text-sm text-foreground ${alignCls} ${mono ? "font-mono tabular-nums" : ""} ${className}`}>
+    <td className={`px-4 sm:px-5 py-3.5 text-xs text-foreground ${alignCls} ${mono ? "font-mono tabular-nums" : ""} ${className}`}>
       {children}
     </td>
   );
@@ -437,3 +519,11 @@ export function Td({ children, className = "", mono, align = "left" }: { childre
 export function Tr({ children, className = "" }: { children: ReactNode; className?: string }) {
   return <tr className={`lx-table-tr transition-colors duration-150 ${className}`}>{children}</tr>;
 }
+
+export { ThemedSelect } from "./themed-select";
+export { ThemedDateInput } from "./themed-date-input";
+export {
+  CascadingFiltersMenu,
+  type CascadingFilterGroup,
+  type CascadingFilterOption,
+} from "./cascading-filters-menu";

@@ -63,8 +63,9 @@ const DEMO_TALENT: TalentCandidateCard[] = [
 function readPoolEntries(organizationId: string): TalentPoolEntry[] {
   const prefix = `${CAREERS_STORAGE_KEYS.talentPool}_`;
   const entries: TalentPoolEntry[] = [];
-  for (let i = 0; i < storage.length; i++) {
-    const key = storage.key(i);
+  const len = storage.length ?? 0;
+  for (let i = 0; i < len; i++) {
+    const key = storage.key?.(i);
     if (!key?.startsWith(prefix)) continue;
     try {
       const raw = storage.getItem(key);
@@ -101,7 +102,9 @@ function profileToCard(
   const profile = getCandidateProfile(candidateId);
   const name = getUserName(candidateId) ?? "Candidate";
   const exp =
-    profile.teaching.academic?.teachingExperienceYears ?? profile.experience[0]?.duration ?? "—";
+    profile.teaching.academic?.teachingExperienceYears ??
+    profile.experience[0]?.from ??
+    "—";
   return {
     candidateId,
     name,

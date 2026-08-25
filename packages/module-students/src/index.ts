@@ -4,7 +4,7 @@ export const MODULE_ID = MODULE_IDS.students;
 export const MIN_PLAN = "core" as const;
 export const OWNER_APP = "admin" as const;
 
-export type StudentStatus = "active" | "at-risk" | "watch" | "inactive";
+export type StudentStatus = "active" | "at-risk" | "watch" | "inactive" | "graduated";
 
 export interface AdminStudentRecord {
   id: string;

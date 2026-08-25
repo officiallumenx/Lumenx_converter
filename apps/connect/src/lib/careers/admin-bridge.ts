@@ -1,19 +1,18 @@
 import { CAREERS_STORAGE_KEYS, createBrowserAuthStorage } from "@lumenx/auth";
+import { postDemoSync } from "@lumenx/utils";
 import type { ApplicationStatus, JobApplication } from "./types";
 import { normalizeApplicationStatus } from "./status-utils";
 
 const storage = createBrowserAuthStorage();
 
+/** Aligned with Admin Careers board (same columns as Admissions). */
 export type AdminCareerStage =
   | "review"
-  | "shortlist"
-  | "assessment"
-  | "demo"
+  | "verification"
   | "interview"
-  | "offer"
-  | "hired"
-  | "rejected"
-  | "hold";
+  | "approved"
+  | "waitlist"
+  | "rejected";
 
 export interface AdminCareerSyncRow {
   id: string;
@@ -33,29 +32,26 @@ export interface CareersSyncSnapshot {
 
 const STAGE_TO_STATUS: Record<AdminCareerStage, ApplicationStatus> = {
   review: "under_review",
-  shortlist: "shortlisted",
-  assessment: "assessment",
-  demo: "demo_class",
+  verification: "shortlisted",
   interview: "interview_scheduled",
-  offer: "offer_sent",
-  hired: "offer_accepted",
+  approved: "offer_accepted",
+  waitlist: "on_hold",
   rejected: "rejected",
-  hold: "on_hold",
 };
 
 const STATUS_TO_STAGE: Partial<Record<ApplicationStatus, AdminCareerStage>> = {
   submitted: "review",
   under_review: "review",
-  shortlisted: "shortlist",
-  assessment: "assessment",
-  demo_class: "demo",
+  shortlisted: "verification",
+  assessment: "verification",
+  demo_class: "verification",
   interview_scheduled: "interview",
   interview_completed: "interview",
-  offer_sent: "offer",
-  offer_accepted: "hired",
-  selected: "hired",
+  offer_sent: "approved",
+  offer_accepted: "approved",
+  selected: "approved",
   rejected: "rejected",
-  on_hold: "hold",
+  on_hold: "waitlist",
 };
 
 function readSnapshot(): CareersSyncSnapshot | null {
@@ -70,6 +66,25 @@ function readSnapshot(): CareersSyncSnapshot | null {
 
 function writeSnapshot(snapshot: CareersSyncSnapshot) {
   storage.setItem(CAREERS_STORAGE_KEYS.sync, JSON.stringify(snapshot));
+  postDemoSync("careers", snapshot);
+  try {
+    window.opener?.postMessage({ type: "lumenx-careers-sync", ...snapshot }, "*");
+  } catch {
+    /* ignore */
+  }
+}
+
+function normalizeStage(stage: string): AdminCareerStage {
+  const known: AdminCareerStage[] = [
+    "review",
+    "verification",
+    "interview",
+    "approved",
+    "waitlist",
+    "rejected",
+  ];
+  if (known.includes(stage as AdminCareerStage)) return stage as AdminCareerStage;
+  return STATUS_TO_STAGE[stage as ApplicationStatus] ?? "review";
 }
 
 export function applicationToSyncRow(app: JobApplication): AdminCareerSyncRow {
@@ -104,7 +119,12 @@ export function pushSyncSnapshot(apps: JobApplication[]) {
 
 export function readAdminSyncRows(fallback: JobApplication[]): AdminCareerSyncRow[] {
   const snap = readSnapshot();
-  if (snap?.applications?.length) return snap.applications;
+  if (snap?.applications?.length) {
+    return snap.applications.map((row) => ({
+      ...row,
+      stage: normalizeStage(row.stage),
+    }));
+  }
   return fallback.map(applicationToSyncRow);
 }
 

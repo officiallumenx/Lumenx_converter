@@ -1,4 +1,5 @@
 import { DEMO_CONNECT_PASSWORD } from "@lumenx/auth";
+import { normalizePhoneDigits } from "@lumenx/utils";
 import { getConnectStudentProfile } from "@/lib/mock-data";
 
 /** Institute-issued temporary password for first-time student sign-in. */
@@ -33,10 +34,7 @@ export type StudentSignInResult =
   | { ok: false; error: string };
 
 function normalizePhone(phone: string): string {
-  const digits = phone.replace(/\D/g, "");
-  if (digits.length === 12 && digits.startsWith("91")) return digits.slice(2);
-  if (digits.length > 10) return digits.slice(-10);
-  return digits;
+  return normalizePhoneDigits(phone);
 }
 
 function phoneKey(phone: string, instituteId: string): string {

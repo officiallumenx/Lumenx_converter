@@ -1,4 +1,5 @@
 import type {
+  AttendanceRecord,
   AttendanceReport,
   AssignmentSubmission,
   DashboardSnapshot,
@@ -41,6 +42,7 @@ export const teacherProfile: TeacherProfile = {
   joinedOn: "June 2018",
   bio: "Passionate mathematics educator with 8 years of experience in secondary education. Specialises in making abstract concepts concrete through visual learning and real-world applications. Class teacher for 10-B.",
   hasTransport: true,
+  isAttendanceIncharge: false,
 };
 
 export const teacherClasses: TeacherClass[] = [
@@ -880,7 +882,7 @@ export const teacherNotifications: TeacherNotification[] = [
   {
     id: "tn-2",
     title: "Mid-Term marks deadline",
-    body: "Publish Mathematics marks for Class 10-B by 5 Jun.",
+    body: "Submit Mathematics marks for Class 10-B to Admin by 5 Jun.",
     category: "exam_updates",
     time: "5h ago",
     unread: true,
@@ -1091,9 +1093,66 @@ function buildTeacherClassFees(): TeacherFeeRecord[] {
 export const teacherClassFees: TeacherFeeRecord[] = buildTeacherClassFees();
 
 export const attendanceReports: AttendanceReport[] = [
-  { period: "daily", label: "Today", present: 30, absent: 2, rate: 94 },
-  { period: "weekly", label: "This week", present: 148, absent: 12, rate: 93 },
-  { period: "monthly", label: "May 2026", present: 612, absent: 48, rate: 93 },
+  { period: "daily", label: "Today", present: 30, absent: 2, rate: 94, workingDays: 1 },
+  { period: "weekly", label: "This week", present: 148, absent: 12, rate: 93, workingDays: 6 },
+  { period: "monthly", label: "May 2026", present: 612, absent: 48, rate: 93, workingDays: 22 },
+];
+
+/** Seeded student attendance history — multiple days × classes for History tab. */
+function localIsoDaysAgo(daysAgo: number): string {
+  const d = new Date();
+  d.setHours(12, 0, 0, 0);
+  d.setDate(d.getDate() - daysAgo);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** @deprecated Dual SoT removed — history lives in Attendance Registers only. */
+export const attendanceHistorySeed: AttendanceRecord[] = [
+  {
+    classId: "cls-10b-math",
+    date: localIsoDaysAgo(0),
+    absentIds: ["cls-10b-math-s02", "cls-10b-math-s05"],
+    leaveIds: [],
+    status: "submitted",
+  },
+  {
+    classId: "cls-10a-math",
+    date: localIsoDaysAgo(0),
+    absentIds: ["cls-10a-math-s02"],
+    leaveIds: [],
+    status: "submitted",
+  },
+  {
+    classId: "cls-9a-math",
+    date: localIsoDaysAgo(1),
+    absentIds: ["cls-9a-math-s03"],
+    leaveIds: [],
+    status: "submitted",
+  },
+  {
+    classId: "cls-10b-math",
+    date: localIsoDaysAgo(1),
+    absentIds: [],
+    leaveIds: ["cls-10b-math-s02"],
+    status: "submitted",
+  },
+  {
+    classId: "cls-8c-math",
+    date: localIsoDaysAgo(2),
+    absentIds: ["cls-8c-math-s04"],
+    leaveIds: [],
+    status: "submitted",
+  },
+  {
+    classId: "cls-10a-math",
+    date: localIsoDaysAgo(3),
+    absentIds: [],
+    leaveIds: [],
+    status: "submitted",
+  },
 ];
 
 export const dashboardAnnouncements = [
@@ -1126,6 +1185,11 @@ export function getDashboardSnapshot(): DashboardSnapshot {
       { classId: "cls-10b-math", label: "10-B Mathematics", count: 32 },
       { classId: "cls-9a-math", label: "9-A Mathematics", count: 28 },
     ],
+    attendanceCompleted: [
+      { classId: "cls-10a-math", label: "10-A Mathematics", count: 30 },
+      { classId: "cls-8c-math", label: "8-C Mathematics", count: 34 },
+    ],
+    classesRemaining: 2,
     pendingMarks: [
       { examId: "ex-mid", label: "Mid-Term • 10-B", count: 32 },
       { examId: "ex-ut2", label: "Unit Test 2 • 10-B", count: 32 },

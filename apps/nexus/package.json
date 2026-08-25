@@ -9,12 +9,19 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test:billing-calc": "tsx src/lib/billing/billing-calc.selftest.ts",
+    "test:billing-invoice": "tsx src/lib/billing/billing-invoice.selftest.ts",
+    "test:billing-renewals": "tsx src/lib/billing/billing-renewals.selftest.ts",
+    "test:billing-history": "tsx src/lib/billing/billing-history.selftest.ts",
+    "test:subscription-pricing": "tsx ../../packages/utils/src/subscription/pricing.selftest.ts",
+    "test:subscription-lifecycle": "tsx ../../packages/utils/src/subscription/lifecycle.selftest.ts"
   },
   "dependencies": {
     "@cloudflare/vite-plugin": "^1.25.5",
     "@lumenx/config": "*",
-    "@lumenx/module-students": "*",
+    "@lumenx/module-certificates": "*",
+    "@lumenx/notifications": "*",
     "@lumenx/ui": "*",
     "@lumenx/ui-admin": "*",
     "@lumenx/utils": "*",
@@ -24,8 +31,8 @@
     "@tanstack/react-start": "^1.167.50",
     "@tanstack/router-plugin": "^1.167.28",
     "lucide-react": "^0.575.0",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "tailwindcss": "^4.2.1",
     "tw-animate-css": "^1.3.4",
     "vite-tsconfig-paths": "^6.0.2"

@@ -107,9 +107,6 @@ export function CareersHomePage() {
                   <Link to="/careers/recruiter/jobs">Manage listings</Link>
                 </Button>
                 <Button size="lg" variant="outline" asChild>
-                  <Link to="/careers/jobs">Browse market</Link>
-                </Button>
-                <Button size="lg" variant="outline" asChild>
                   <Link to="/careers/recruiter">
                     <LayoutDashboard className="size-4 mr-1.5" /> Workspace
                   </Link>

@@ -11,7 +11,7 @@ export const STUDENT_FAQS = [
   },
   {
     q: "Where are my assignments and homework?",
-    a: "Go to Assignments from the More menu or search. You can filter by subject and due date.",
+    a: "Open Homework from the main menu (or search). Switch between Assignments and Homework tabs. There is no online submission — hand work in at school.",
   },
   {
     q: "How do I check exam schedules?",
@@ -30,7 +30,7 @@ export const STUDENT_FAQS = [
 export const STUDENT_HELP_TOPICS = [
   {
     title: "Getting started",
-    body: "Use the sidebar for Dashboard, Attendance, Marks, and Timetable. Tap More on mobile for Growth, Assignments, Exams, Events, Fees, Sports, Teachers, Messages, and Complaints.",
+    body: "Use Home, Attendance, Homework, Marks, and Timetable from the main menu. Tap More for Growth, Events, Fees, Sports, Teachers, Certificates, and Settings.",
   },
   {
     title: "Academics",

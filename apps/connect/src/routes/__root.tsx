@@ -1,4 +1,3 @@
-import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -9,10 +8,12 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
+import { lazy, Suspense } from "react";
 
 import appCss from "../styles.css?url";
 import logoUrl from "../assets/lumenx-logo.png?url";
 import { Toaster } from "@lumenx/ui/sonner";
+import { OfflineSyncHost, TypographyProvider } from "@lumenx/ui";
 import { LumenXNativeShell } from "@lumenx/capacitor/native-shell";
 
 const ConnectPortalProviders = lazy(() =>
@@ -144,23 +145,26 @@ function ConnectProvidersFallback() {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-  const isolated = useRouterState({
-    select: (s) =>
-      s.location.pathname.startsWith("/careers") || s.location.pathname.startsWith("/admissions"),
-  });
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const isolated =
+    pathname.startsWith("/careers") || pathname.startsWith("/admissions");
 
   return (
     <QueryClientProvider client={queryClient}>
       <LumenXNativeShell />
-      {isolated ? (
-        <Outlet />
-      ) : (
-        <Suspense fallback={<ConnectProvidersFallback />}>
-          <ConnectPortalProviders>
+      <OfflineSyncHost app="connect" className="min-h-screen-dvh">
+        <TypographyProvider>
+          {isolated ? (
             <Outlet />
-          </ConnectPortalProviders>
-        </Suspense>
-      )}
+          ) : (
+            <Suspense fallback={<ConnectProvidersFallback />}>
+              <ConnectPortalProviders>
+                <Outlet />
+              </ConnectPortalProviders>
+            </Suspense>
+          )}
+        </TypographyProvider>
+      </OfflineSyncHost>
       <Toaster
         position="top-center"
         richColors

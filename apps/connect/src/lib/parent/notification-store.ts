@@ -1,4 +1,10 @@
 import type { AppNotification } from "@lumenx/types";
+import {
+  applyNotificationRetention,
+  applyStarredFlags,
+  setNotificationStarred,
+  softDeleteNotification,
+} from "@lumenx/utils";
 
 type Listener = () => void;
 
@@ -8,7 +14,7 @@ let items: AppNotification[] = [];
 let syncedChildId: string | null = null;
 const listeners = new Set<Listener>();
 
-let readIds = loadReadIds();
+const readIds = loadReadIds();
 
 function notify() {
   listeners.forEach((l) => l());
@@ -39,15 +45,22 @@ function applyReadState(list: AppNotification[]): AppNotification[] {
   }));
 }
 
+function withLifecycle(list: AppNotification[]): AppNotification[] {
+  return applyNotificationRetention(applyStarredFlags(applyReadState(list)));
+}
+
 export const parentNotificationStore = {
   syncForChild(childId: string, source: AppNotification[]) {
-    const next = applyReadState(source.map((n) => ({ ...n })));
+    const next = withLifecycle(source.map((n) => ({ ...n })));
     const sameChild = syncedChildId === childId;
     const sameSnapshot =
       sameChild &&
       next.length === items.length &&
       next.every(
-        (n, i) => n.id === items[i]?.id && n.unread === items[i]?.unread,
+        (n, i) =>
+          n.id === items[i]?.id &&
+          n.unread === items[i]?.unread &&
+          n.starred === items[i]?.starred,
       );
 
     syncedChildId = childId;
@@ -86,6 +99,33 @@ export const parentNotificationStore = {
       saveReadIds();
       notify();
     }
+  },
+
+  toggleStar: (id: string) => {
+    const current = items.find((n) => n.id === id);
+    if (!current) return;
+    const nextStarred = !current.starred;
+    setNotificationStarred(id, nextStarred);
+    items = items.map((n) => (n.id === id ? { ...n, starred: nextStarred } : n));
+    notify();
+  },
+
+  softDelete: (id: string) => {
+    const current = items.find((n) => n.id === id);
+    if (!current) return;
+    softDeleteNotification(current);
+    items = items.filter((n) => n.id !== id);
+    notify();
+  },
+
+  /** Append a single notification (e.g. DM pointer) without replacing the synced feed. */
+  add: (notification: AppNotification) => {
+    if (items.some((n) => n.id === notification.id)) return;
+    items = [
+      { ...notification, createdAt: notification.createdAt ?? new Date().toISOString() },
+      ...items,
+    ];
+    notify();
   },
 
   subscribe: (listener: Listener) => {

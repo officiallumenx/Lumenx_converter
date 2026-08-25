@@ -1,10 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { AppShell } from "@/components/app/AppShell";
 import { PageHeader } from "@/components/app/PageHeader";
 import { SectionCard } from "@/components/app/SectionCard";
 import { useApp } from "@/lib/app-state";
-import { reportCards, performance, gradeFor } from "@/lib/mock-data";
 import { Button, Input } from "@lumenx/ui";
 import { Badge } from "@lumenx/ui";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@lumenx/ui";
@@ -12,9 +11,15 @@ import { Save, Send } from "lucide-react";
 import { toast } from "sonner";
 import { ReportCardView } from "@/components/app/ReportCardView";
 import { useParentPortal } from "@/context/ParentPortalContext";
-import { Skeleton } from "@lumenx/ui";
+import { Skeleton, useLocalStorageExternalStore } from "@lumenx/ui";
 import { TeacherMarksPage } from "@/teacher-portal";
 import { StudentMarksPage } from "@/student-portal";
+import {
+  mergeReportCards,
+  publishedReportCardsForLearner,
+} from "@/lib/learner-published-marks";
+import { LEARNER_PUBLISHED_MARKS_KEY } from "@lumenx/utils";
+import { gradeFor } from "@/lib/marks-utils";
 
 export const Route = createFileRoute("/marks")({
   head: () => ({
@@ -22,7 +27,7 @@ export const Route = createFileRoute("/marks")({
       { title: "Marks & Report Cards — LumenX Connect" },
       {
         name: "description",
-        content: "Enter, publish and review subject-wise marks, grades and report cards.",
+        content: "Enter and submit subject-wise marks for Admin publishing.",
       },
     ],
   }),
@@ -220,6 +225,8 @@ function SelectField({
 
 function ParentMarks() {
   const portal = useParentPortal();
+  const publishedTick = useLocalStorageExternalStore(LEARNER_PUBLISHED_MARKS_KEY);
+
   if (!portal.isParent) return null;
   if (portal.isLoading || !portal.snapshot) {
     return (
@@ -231,13 +238,23 @@ function ParentMarks() {
     );
   }
   const { child, reportCards: rc, performance: perf } = portal.snapshot;
+  const fromAdmin = publishedReportCardsForLearner({
+    name: child.name,
+    rollNo: child.rollNo,
+    className: child.className,
+    section: child.section,
+  });
+  // publishedTick forces refresh when another tab publishes marks
+  void publishedTick;
+  const reportCards = mergeReportCards(rc, fromAdmin);
+
   return (
     <div className="min-w-0 max-w-full" key={portal.activeChildId}>
       <PageHeader
         title="Academic Performance"
         subtitle={`${child.name} • ${child.className} ${child.section} • Avg ${child.avgScore}%`}
       />
-      <ReportCardView reportCards={rc} termPerformance={perf} hideDrafts />
+      <ReportCardView reportCards={reportCards} termPerformance={perf} hideDrafts />
     </div>
   );
 }

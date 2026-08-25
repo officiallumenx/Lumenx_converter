@@ -2,12 +2,14 @@
 @source "../src";
 @source "../../../packages/ui/src";
 @import "tw-animate-css";
+@import "@lumenx/ui/theme/typography.css";
+@import "@lumenx/ui/theme/kpi.css";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Sora", "Inter", sans-serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: var(--font-sans);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -56,6 +58,8 @@
 
 :root {
   --radius: 1rem;
+  --connect-min-readable-text: var(--lx-text-caption);
+  --connect-small-readable-text: var(--lx-text-button);
   --safe-area-top-fallback: 0px;
   --safe-area-inset-top-measured: 0px;
   --safe-area-inset-bottom-measured: 0px;
@@ -144,8 +148,9 @@
   }
   html {
     -webkit-text-size-adjust: 100%;
-    /* Slightly smaller type on narrow phones, scales up toward 16px on larger viewports */
-    font-size: clamp(13px, 12px + 0.45vw, 16px);
+    text-size-adjust: 100%;
+    /* Shared typography scale — fixed px via --lx-root-font-size (not device scale) */
+    font-size: var(--lx-root-font-size, 16px);
   }
   html,
   body,
@@ -161,6 +166,18 @@
     color: var(--color-foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+  }
+  /*
+   * Keep Connect aligned with browser / device text scale. A number of compact
+   * labels used fixed 9-11px Tailwind arbitrary sizes, which looked smaller
+   * than the rest of the system UI. These overrides keep those labels compact
+   * while still using rem-based, accessible sizing.
+   */
+  .text-\[9px\],
+  .text-\[10px\],
+  .text-\[11px\] {
+    font-size: var(--connect-min-readable-text);
+    line-height: 1.25;
   }
   /* App-like surfaces: block long-press / drag text selection (inputs stay selectable). */
   :where(*:not(input, textarea, select, option, [contenteditable="true"], [contenteditable=""])) {
@@ -250,46 +267,57 @@
   .connect-step-enter {
     animation: connect-step-enter 0.18s cubic-bezier(0.25, 1, 0.4, 1) both;
   }
-  /* Login: sticky branded header; form centered at rest; scroll + inset when keyboard is open */
+  /* Login: fixed mobile viewport; top-anchored form (no center jump when keyboard opens) */
+  .login-page-root {
+    min-height: 100dvh;
+  }
+  .login-page-grid {
+    min-height: 100dvh;
+  }
+  @media (max-width: 1023px) {
+    .login-page-root,
+    .login-page-grid {
+      height: 100dvh;
+      max-height: 100dvh;
+      min-height: 0;
+      overflow: hidden;
+    }
+  }
   .login-keyboard-shell {
-    --keyboard-offset: 0px;
     --login-vv-height: 100dvh;
+    --login-vv-offset-top: 0px;
     padding-top: max(
-      1.25rem,
+      0.75rem,
       env(safe-area-inset-top, 0px),
       var(--safe-area-inset-top-measured, 0px),
       var(--safe-area-top-fallback, 0px)
     );
-    padding-bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
     padding-left: max(1.25rem, env(safe-area-inset-left, 0px));
     padding-right: max(1.25rem, env(safe-area-inset-right, 0px));
   }
   @media (max-width: 1023px) {
-    .login-keyboard-shell--rest {
-      min-height: 100dvh;
-      min-height: 100svh;
-    }
-    .login-keyboard-shell--open {
+    .login-keyboard-shell--mobile {
       height: var(--login-vv-height, 100dvh);
       max-height: var(--login-vv-height, 100dvh);
+      min-height: 0;
       overflow: hidden;
-      padding-bottom: 0;
+    }
+    .login-keyboard-shell--open {
+      position: fixed;
+      top: var(--login-vv-offset-top, 0px);
+      left: 0;
+      right: 0;
+      z-index: 30;
+      padding-bottom: 0.5rem;
+      background: var(--background);
+    }
+    .login-form-panel {
+      flex: 0 0 auto;
+      justify-content: flex-start;
     }
   }
-  @media (min-width: 640px) {
-    .login-keyboard-shell {
-      padding-top: max(
-        2rem,
-        env(safe-area-inset-top, 0px),
-        var(--safe-area-inset-top-measured, 0px),
-        var(--safe-area-top-fallback, 0px)
-      );
-      padding-bottom: 2rem;
-      padding-left: max(2rem, env(safe-area-inset-left, 0px));
-      padding-right: max(2rem, env(safe-area-inset-right, 0px));
-    }
-  }
-  @media (min-width: 768px) {
+  @media (min-width: 1024px) {
     .login-keyboard-shell {
       padding-top: max(
         3rem,
@@ -300,9 +328,18 @@
       padding-bottom: 3rem;
       padding-left: max(3rem, env(safe-area-inset-left, 0px));
       padding-right: max(3rem, env(safe-area-inset-right, 0px));
+      transform: none;
+      height: auto;
+      max-height: none;
+      min-height: 0;
+      overflow: visible;
+      position: relative;
+      top: auto;
+      left: auto;
+      right: auto;
+      z-index: auto;
+      background: transparent;
     }
-  }
-  @media (min-width: 1024px) {
     .login-keyboard-scroll {
       overflow: visible;
     }
@@ -312,42 +349,62 @@
     }
   }
   .login-keyboard-scroll {
-    scroll-padding-top: 6.5rem;
+    scroll-padding-top: 0.5rem;
     scroll-padding-bottom: 1rem;
-    padding-bottom: max(env(safe-area-inset-bottom, 0px), calc(var(--keyboard-offset, 0px) + 16px));
-    transition: padding-bottom 0.18s ease-out;
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
   }
   .login-keyboard-brand {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.625rem;
+    gap: 0.375rem;
     width: 100%;
-    margin-bottom: 1rem;
-    padding-top: 0.25rem;
+    margin-bottom: 0.5rem;
+    padding-top: 0;
   }
   .login-keyboard-header {
     position: sticky;
     top: 0;
     z-index: 20;
-    margin: -0.25rem -0.25rem 0;
-    padding: 0.25rem 0.25rem 0.75rem;
+    margin: 0;
+    padding: 0 0 0.5rem;
     background: transparent;
   }
+  /* Keyboard open: compress chrome so fields stay near the top like native apps */
   .login-keyboard-shell--open .login-keyboard-header {
-    padding-bottom: 0.5rem;
+    padding-bottom: 0.25rem;
   }
   .login-keyboard-shell--open .login-keyboard-brand {
-    margin-bottom: 0.75rem;
+    flex-direction: row;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+  }
+  .login-keyboard-shell--open .login-keyboard-brand img {
+    height: 1.75rem !important;
+    width: auto;
+  }
+  .login-keyboard-shell--open .login-keyboard-brand > div {
+    text-align: left;
+  }
+  .login-keyboard-shell--open .login-keyboard-brand > div > p:first-child {
+    font-size: 0.875rem;
+  }
+  .login-keyboard-shell--open .login-brand-tagline {
+    display: none;
   }
   .login-keyboard-shell--open .login-keyboard-header .login-stepper {
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.25rem !important;
   }
-  @media (max-width: 1023px) {
-    .login-keyboard-shell--open .login-form-panel {
-      justify-content: flex-start;
-      padding-top: 0.25rem;
-    }
+  .login-keyboard-shell--open .login-step-body {
+    gap: 1rem;
+  }
+  .login-keyboard-shell--open .login-step-title {
+    font-size: 1.25rem;
+  }
+  .login-keyboard-shell--open .login-step-subtitle {
+    margin-top: 0.25rem;
+    font-size: 0.8125rem;
   }
   /* Login module — presentation polish (layout, motion, touch targets) */
   .login-keyboard-header {
@@ -369,7 +426,7 @@
   .login-step-body {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: 1.125rem;
   }
   @media (min-width: 640px) {
     .login-step-body {
@@ -688,7 +745,7 @@
     border-radius: var(--radius-lg);
     font-size: 0.8125rem;
     font-weight: 500;
-    color: var(--primary);
+    color: var(--foreground);
     white-space: nowrap;
     touch-action: manipulation;
     transition:
@@ -697,7 +754,7 @@
   }
   .student-section-link:hover {
     text-decoration: underline;
-    background: oklch(from var(--primary) l c h / 0.06);
+    background: oklch(from var(--muted) l c h / 0.45);
   }
   .student-section-link:focus-visible {
     outline: 2px solid var(--ring);
@@ -742,28 +799,60 @@
     outline: 2px solid var(--ring);
     outline-offset: 2px;
   }
+  .student-module-name {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1.25;
+  }
   .student-quick-link {
     display: flex;
-    min-height: 4.75rem;
+    min-height: 2.625rem;
     min-width: 0;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    border-radius: var(--radius-xl);
-    border: 1px solid var(--border);
-    background: oklch(from var(--muted) l c h / 0.25);
-    padding: 0.75rem;
-    text-align: center;
+    justify-content: flex-start;
+    gap: 0.625rem;
+    border-radius: var(--radius-lg);
+    border: 1px solid transparent;
+    padding: 0.4375rem 0.625rem;
+    text-align: left;
     touch-action: manipulation;
     transition:
       border-color 0.15s ease,
       background-color 0.15s ease,
-      transform 0.12s ease;
+      box-shadow 0.15s ease,
+      transform 0.12s ease,
+      filter 0.15s ease;
+  }
+  .student-quick-link__icon {
+    display: grid;
+    flex-shrink: 0;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.625rem;
   }
   .student-quick-link:hover {
-    background: oklch(from var(--muted) l c h / 0.5);
-    border-color: oklch(from var(--primary) l c h / 0.25);
+    filter: brightness(1.02);
+    box-shadow: 0 1px 4px oklch(0 0 0 / 0.06);
+  }
+  .dark .student-quick-link:hover {
+    filter: brightness(1.08);
+    box-shadow: 0 1px 6px oklch(0 0 0 / 0.25);
+  }
+  .student-home-hero {
+    border-color: color-mix(in oklab, #2563eb 35%, var(--border));
+    box-shadow: 0 10px 32px -12px color-mix(in oklab, #1e40af 55%, transparent);
+  }
+  .student-home-hero__gradient {
+    background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 48%, #93c5fd 100%);
+  }
+  .dark .student-home-hero__gradient {
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 36%, #2563eb 68%, #60a5fa 100%);
+  }
+  .dark .student-home-hero {
+    border-color: color-mix(in oklab, #60a5fa 28%, var(--border));
+    box-shadow: 0 12px 36px -14px oklch(0.45 0.12 260 / 0.55);
   }
   .student-quick-link:active {
     transform: scale(0.98);
@@ -998,15 +1087,14 @@
   .activity-quick-link {
     display: flex;
     min-width: 0;
-    min-height: 4.5rem;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 0.375rem;
-    border-radius: var(--radius-xl);
+    gap: 0.25rem;
+    border-radius: var(--radius-lg);
     border: 1px solid var(--border);
     background: var(--card);
-    padding: 0.625rem 0.5rem;
+    padding: 0.5rem 0.375rem;
     text-align: center;
     box-shadow: var(--shadow-soft);
     touch-action: manipulation;
@@ -1052,26 +1140,48 @@
     text-transform: uppercase;
     color: var(--muted-foreground);
   }
+  .activity-panel {
+    border-radius: var(--radius-2xl);
+    border: 1px solid var(--border);
+    background: var(--card);
+    padding: 1rem 1.125rem;
+    box-shadow: var(--shadow-soft);
+  }
+  @media (min-width: 640px) {
+    .activity-panel {
+      padding: 1.25rem 1.375rem;
+    }
+  }
+  .activity-page {
+    padding-bottom: 0.25rem;
+  }
+  .activity-filter-bar {
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+  }
+  .activity-filter-bar::-webkit-scrollbar {
+    display: none;
+  }
+  .activity-filter-bar .activity-filter-chip {
+    flex-shrink: 0;
+  }
+  .activity-browse-card {
+    touch-action: manipulation;
+  }
   .activity-empty-state {
     border-radius: var(--radius-2xl);
     border: 1px dashed oklch(from var(--border) l c h / 0.95);
     background: oklch(from var(--muted) l c h / 0.2);
-    padding: 2.5rem 1.25rem;
+    padding: 2rem 1.25rem;
     text-align: center;
     font-size: 0.875rem;
     line-height: 1.55;
     color: var(--muted-foreground);
   }
-  .activity-panel {
-    border-radius: var(--radius-2xl);
-    border: 1px solid var(--border);
-    background: var(--card);
-    padding: 1rem 1.25rem;
-    box-shadow: var(--shadow-soft);
-  }
   @media (min-width: 640px) {
-    .activity-panel {
-      padding: 1.25rem;
+    .activity-empty-state {
+      padding: 2.5rem 1.5rem;
     }
   }
   /* Settings — shared profile & preferences polish */
@@ -1186,11 +1296,16 @@
     color: var(--muted-foreground);
   }
   .settings-readonly-value {
+    min-width: 0;
+    max-width: 100%;
     border-radius: var(--radius-xl);
     border: 1px solid var(--border);
     background: oklch(from var(--muted) l c h / 0.3);
     padding: 0.5rem 0.75rem;
     font-size: 0.875rem;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
   .settings-readonly-value.is-multiline {
     padding-top: 0.625rem;
@@ -1357,7 +1472,7 @@
     border: 1px solid var(--border);
     background: var(--card);
     padding: 0 0.625rem;
-    font-size: 0.625rem;
+    font-size: var(--connect-min-readable-text);
     font-weight: 500;
   }
   @media (min-width: 640px) {
@@ -1449,6 +1564,15 @@
     height: 100vh;
     height: 100dvh;
   }
+  /* App chrome: small viewport height so the OS keyboard does not shrink the shell / move the header. */
+  .h-screen-svh {
+    height: 100vh;
+    height: 100svh;
+  }
+  .max-h-screen-svh {
+    max-height: 100vh;
+    max-height: 100svh;
+  }
   .min-h-screen-dvh {
     min-height: 100vh;
     min-height: 100dvh;
@@ -1468,6 +1592,69 @@
   .mobile-nav-bar {
     background-color: oklch(1 0 0);
     box-shadow: 0 -2px 12px oklch(0.2 0.04 260 / 0.1);
+  }
+  .student-mobile-nav-bar {
+    width: 100%;
+    max-width: 100%;
+  }
+  .student-mobile-nav-item {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.2rem;
+    border-radius: var(--radius-xl);
+    background: oklch(1 0 0);
+    padding: 0.3rem 0.15rem 0.35rem;
+    text-align: center;
+    overflow: visible;
+    touch-action: manipulation;
+    transition:
+      background-color 0.15s ease,
+      transform 0.12s ease;
+  }
+  .dark .student-mobile-nav-item {
+    background: var(--card);
+  }
+  .student-mobile-nav-icon {
+    display: grid;
+    flex-shrink: 0;
+    place-items: center;
+    width: 1.875rem;
+    height: 1.875rem;
+    border-radius: 0.625rem;
+    transition:
+      background-color 0.15s ease,
+      color 0.15s ease;
+  }
+  .student-mobile-nav-label {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    padding: 0 0.05rem;
+    /* Single line; readable, rem-based text so it follows system/browser scaling. */
+    font-size: var(--connect-min-readable-text);
+    font-weight: 500;
+    line-height: 1.2;
+    color: var(--foreground);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    text-align: center;
+  }
+  .student-mobile-nav-item--active .student-mobile-nav-label {
+    font-weight: 600;
+    color: var(--nav-accent, var(--foreground));
+  }
+  .student-more-tile {
+    min-height: 4.75rem;
+    border: 1px solid var(--border);
+    background: oklch(1 0 0);
+  }
+  .dark .student-more-tile {
+    background: var(--card);
   }
   .dark .mobile-nav-bar {
     background-color: var(--card);

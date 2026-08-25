@@ -5,12 +5,14 @@ import { normalizeApplicationStatus } from "./status-utils";
 const storage = createBrowserAuthStorage();
 
 export type AdminAdmissionStage =
+  | "submitted"
   | "review"
   | "verification"
-  | "interview"
+  | "parent_confirmation"
+  | "waitlisted"
   | "approved"
-  | "waitlist"
-  | "rejected";
+  | "rejected"
+  | "withdrawn";
 
 export interface AdminSyncRow {
   id: string;
@@ -28,25 +30,31 @@ export interface AdmissionsSyncSnapshot {
 }
 
 const STAGE_TO_STATUS: Record<AdminAdmissionStage, ApplicationStatus> = {
-  review: "under_final_review",
-  verification: "document_verification",
-  interview: "interview_scheduled",
+  submitted: "submitted",
+  review: "review",
+  verification: "verification",
+  parent_confirmation: "parent_confirmation",
+  waitlisted: "waitlisted",
   approved: "approved",
-  waitlist: "waitlisted",
   rejected: "rejected",
+  withdrawn: "withdrawn",
 };
 
 const STATUS_TO_STAGE: Partial<Record<ApplicationStatus, AdminAdmissionStage>> = {
-  submitted: "review",
-  documents_pending: "review",
+  submitted: "submitted",
+  review: "review",
+  verification: "verification",
+  parent_confirmation: "parent_confirmation",
+  withdrawn: "withdrawn",
+  documents_pending: "verification",
   documents_uploaded: "verification",
   document_verification: "verification",
-  interview_scheduled: "interview",
-  interview_completed: "interview",
+  interview_scheduled: "verification",
+  interview_completed: "verification",
   under_final_review: "review",
   under_review: "review",
   approved: "approved",
-  waitlisted: "waitlist",
+  waitlisted: "waitlisted",
   rejected: "rejected",
 };
 
@@ -87,10 +95,54 @@ export function applicationToSyncRow(app: AdmissionApplication): AdminSyncRow {
 
 /** Push Connect applications to shared demo sync storage */
 export function pushSyncSnapshot(apps: AdmissionApplication[]) {
-  writeSnapshot({
+  const snapshot: AdmissionsSyncSnapshot = {
     updatedAt: new Date().toISOString(),
     applications: apps.map(applicationToSyncRow),
-  });
+  };
+  writeSnapshot(snapshot);
+  notifyAdminOpener(snapshot.applications, snapshot.updatedAt);
+}
+
+const ADMISSIONS_SYNC_MESSAGE = "lumenx-admissions-sync";
+const ADMISSIONS_SYNC_REQUEST = "lumenx-admissions-sync-request";
+
+/** Tell Admin (opener window, often another port) about the latest sync rows. */
+function notifyAdminOpener(applications: AdminSyncRow[], updatedAt: string) {
+  if (typeof window === "undefined") return;
+  const payload = {
+    type: ADMISSIONS_SYNC_MESSAGE,
+    applications,
+    updatedAt,
+  };
+  try {
+    window.opener?.postMessage(payload, "*");
+  } catch {
+    /* ignore */
+  }
+  try {
+    window.parent?.postMessage(payload, "*");
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Reply when Admin asks for the latest admissions snapshot (cross-port). */
+export function listenForAdminSyncRequests(
+  getApps: () => AdmissionApplication[],
+): () => void {
+  if (typeof window === "undefined") return () => undefined;
+  const onMessage = (event: MessageEvent) => {
+    if (event.data?.type !== ADMISSIONS_SYNC_REQUEST) return;
+    pushSyncSnapshot(getApps());
+  };
+  window.addEventListener("message", onMessage);
+  // Push once on load so an already-open Admin picks up current stages.
+  try {
+    pushSyncSnapshot(getApps());
+  } catch {
+    /* ignore */
+  }
+  return () => window.removeEventListener("message", onMessage);
 }
 
 /** Read rows for Admin admissions module */
@@ -133,11 +185,17 @@ export function applyAdminStageToApplication(
       ? "Admission approved"
       : stage === "rejected"
         ? "Application rejected"
-        : stage === "interview"
-          ? "Interview scheduled"
-          : stage === "verification"
-            ? "Documents under verification"
-            : "Application under review";
+        : stage === "withdrawn"
+          ? "Application withdrawn"
+          : stage === "parent_confirmation"
+            ? "Pending parent confirmation"
+            : stage === "waitlisted"
+              ? "Added to waitlist"
+            : stage === "verification"
+              ? "Documents under verification"
+              : stage === "submitted"
+                ? "Application submitted"
+                : "Application under review";
 
   return {
     ...app,

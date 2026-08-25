@@ -5,10 +5,10 @@ import { Building2, MapPin, Search, Star, Users } from "lucide-react";
 import { cn } from "@lumenx/ui";
 import type { InstituteKind } from "@lumenx/types";
 import {
-  ADMISSION_INSTITUTES,
   filterInstitutes,
   getInstituteById,
   INSTITUTE_KIND_LABEL,
+  listAllInstitutes,
   LOCATIONS,
   readInstitutesScroll,
   saveInstitutesScroll,
@@ -52,7 +52,7 @@ export function InstitutesBrowsePage({
   const citiesInState = useMemo(() => {
     if (state === "all") return LOCATIONS.cities;
     return [
-      ...new Set(ADMISSION_INSTITUTES.filter((i) => i.state === state).map((i) => i.city)),
+      ...new Set(listAllInstitutes().filter((i) => i.state === state).map((i) => i.city)),
     ].sort();
   }, [state]);
 
@@ -200,7 +200,7 @@ export function InstitutesBrowsePage({
 }
 
 export function InstitutePreviewStrip() {
-  const preview = ADMISSION_INSTITUTES.slice(0, 4);
+  const preview = listAllInstitutes().slice(0, 4);
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">

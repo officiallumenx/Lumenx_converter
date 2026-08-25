@@ -1,13 +1,15 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { AdmissionsUser } from "@/lib/admissions/types";
 import {
   getCurrentUser,
   initAdmissionsStores,
+  getAllApplications,
   registerUser,
   signInUser,
   signOutUser,
   updatePassword,
 } from "@/lib/admissions/repositories";
+import { listenForAdminSyncRequests } from "@/lib/admissions/admin-bridge";
 
 interface AdmissionsAuthContextValue {
   user: AdmissionsUser | null;
@@ -21,7 +23,11 @@ interface AdmissionsAuthContextValue {
     instituteId?: string;
     instituteName?: string;
   }) => AdmissionsUser;
-  signIn: (identifier: string, password: string) => AdmissionsUser | null;
+  signIn: (
+    identifier: string,
+    password: string,
+    expectedAccountType?: AdmissionsUser["accountType"],
+  ) => AdmissionsUser | null;
   resetPassword: (identifier: string, password: string) => boolean;
   signOut: () => void;
   refresh: () => void;
@@ -41,6 +47,7 @@ export function AdmissionsAuthProvider({ children }: { children: ReactNode }) {
     initAdmissionsStores();
     setUser(getCurrentUser());
     setHydrated(true);
+    return listenForAdminSyncRequests(() => getAllApplications());
   }, []);
 
   const signUp = useCallback((input: Parameters<AdmissionsAuthContextValue["signUp"]>[0]) => {
@@ -49,11 +56,18 @@ export function AdmissionsAuthProvider({ children }: { children: ReactNode }) {
     return u;
   }, []);
 
-  const signIn = useCallback((identifier: string, password: string) => {
-    const u = signInUser(identifier, password);
-    if (u) setUser(u);
-    return u;
-  }, []);
+  const signIn = useCallback(
+    (
+      identifier: string,
+      password: string,
+      expectedAccountType?: AdmissionsUser["accountType"],
+    ) => {
+      const u = signInUser(identifier, password, expectedAccountType);
+      if (u) setUser(u);
+      return u;
+    },
+    [],
+  );
 
   const resetPassword = useCallback((identifier: string, password: string) => {
     return updatePassword(identifier, password);
@@ -64,12 +78,13 @@ export function AdmissionsAuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const value = useMemo(
+    () => ({ user, hydrated, signUp, signIn, resetPassword, signOut, refresh }),
+    [user, hydrated, signUp, signIn, resetPassword, signOut, refresh],
+  );
+
   return (
-    <AdmissionsAuthContext.Provider
-      value={{ user, hydrated, signUp, signIn, resetPassword, signOut, refresh }}
-    >
-      {children}
-    </AdmissionsAuthContext.Provider>
+    <AdmissionsAuthContext.Provider value={value}>{children}</AdmissionsAuthContext.Provider>
   );
 }
 

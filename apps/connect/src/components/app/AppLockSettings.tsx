@@ -90,8 +90,8 @@ export function AppLockSettings() {
           <div className="text-sm font-medium leading-snug">App lock</div>
           <div className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
             {hasPin
-              ? "6-digit PIN required to open the app · same PIN when you turn lock back on"
-              : "Set a 6-digit PIN to secure the app on this device"}
+              ? "6-digit PIN to reopen this app after it was locked — separate from Login PIN"
+              : "Set a 6-digit PIN to protect the app on this device after sign-in"}
           </div>
           {hasPin ? (
             <Button

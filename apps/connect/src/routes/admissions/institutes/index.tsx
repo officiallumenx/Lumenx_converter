@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { InstituteDirectoryPage } from "@/admissions-portal/features/directory/InstituteDirectoryPage";
+import { InstituteDirectoryPage } from "@/admissions-portal";
 
 const searchSchema = z.object({
   state: z.string().optional(),

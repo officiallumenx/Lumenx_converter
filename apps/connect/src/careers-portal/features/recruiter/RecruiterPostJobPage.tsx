@@ -69,7 +69,9 @@ export function RecruiterPostJobPage({ editJobId }: { editJobId?: string }) {
   const [category, setCategory] = useState<JobCategory>("human_resources");
   const [employmentType, setEmploymentType] = useState<EmploymentType>("full_time");
   const [workMode, setWorkMode] = useState<WorkMode>("onsite");
-  const [experienceRequired, setExperienceRequired] = useState(JOB_EXPERIENCE_OPTIONS[3]!.value);
+  const [experienceRequired, setExperienceRequired] = useState<string>(
+    JOB_EXPERIENCE_OPTIONS[3]!.value,
+  );
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
   const [locationDetail, setLocationDetail] = useState("");
@@ -104,7 +106,9 @@ export function RecruiterPostJobPage({ editJobId }: { editJobId?: string }) {
     setCity(job.city);
     setState(job.state);
     setLocationDetail(job.location !== defaultLocation ? job.location : "");
-    setSalaryDisplay(job.salaryDisplay === "Competitive" ? "" : job.salaryDisplay);
+    setSalaryDisplay(
+      !job.salaryDisplay || job.salaryDisplay === "Competitive" ? "" : job.salaryDisplay,
+    );
     setDeadline(job.deadline);
     setOverview(job.overview);
     setDescription(job.description ?? "");
@@ -117,6 +121,7 @@ export function RecruiterPostJobPage({ editJobId }: { editJobId?: string }) {
   }, [isEdit, editJobId, user?.organizationId, nav]);
 
   if (!user?.organizationId) return null;
+  const organizationId = user.organizationId;
   if (isEdit && !ready) return null;
 
   const selectedExperience = JOB_EXPERIENCE_OPTIONS.find((o) => o.value === experienceRequired);
@@ -172,7 +177,7 @@ export function RecruiterPostJobPage({ editJobId }: { editJobId?: string }) {
     };
 
     if (isEdit && editJobId) {
-      const updated = updateRecruiterJob(editJobId, user.organizationId, input);
+      const updated = updateRecruiterJob(editJobId, organizationId, input);
       if (!updated) {
         toast.error("Could not save changes");
         return;
@@ -183,7 +188,7 @@ export function RecruiterPostJobPage({ editJobId }: { editJobId?: string }) {
 
     const created = createRecruiterJob(
       user.id,
-      user.organizationId,
+      organizationId,
       user.organizationName ?? "Organization",
       input,
     );

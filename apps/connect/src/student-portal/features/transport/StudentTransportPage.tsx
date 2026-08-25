@@ -23,5 +23,10 @@ export function StudentTransportPage() {
 
   const name = portal.snapshot?.profile.name ?? studentProfile.name;
 
-  return <LearnerTransportView subtitle={`${name} · Live bus tracking, route & pickup alerts`} />;
+  return (
+    <LearnerTransportView
+      viewer="student"
+      subtitle={`${name} · Live bus tracking, route & pickup alerts`}
+    />
+  );
 }

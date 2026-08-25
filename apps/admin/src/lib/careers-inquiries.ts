@@ -1,8 +1,10 @@
 /** Admin read/write for Connect careers contact inquiries (shared localStorage). */
 
+import type { ContactInquiryStatus } from "@lumenx/types";
+
 const CONTACT_INQUIRIES_KEY = "ues_careers_contact_inquiries";
 
-export type AdminContactInquiryStatus = "open" | "answered" | "closed";
+export type AdminContactInquiryStatus = ContactInquiryStatus;
 
 export interface AdminContactInquiry {
   id: string;

@@ -1,5 +1,10 @@
 import type { AdmissionProgram } from "./types";
 import { getInstituteById } from "./institutes-data";
+import {
+  getOpenPublishedOpenings,
+  getOpeningById,
+  openingToProgram,
+} from "./openings-store";
 
 const PROGRAM_TEMPLATES: Omit<AdmissionProgram, "instituteId" | "id">[] = [
   {
@@ -174,7 +179,11 @@ function makeUniversityProgram(
 }
 
 export function getProgramsForInstitute(instituteId: string) {
-  return ADMISSION_PROGRAMS_V2.filter((p) => p.instituteId === instituteId);
+  const catalog = ADMISSION_PROGRAMS_V2.filter((p) => p.instituteId === instituteId);
+  const openings = getOpenPublishedOpenings(instituteId).map(openingToProgram);
+  // Institute-published openings first, then catalog (dedupe by id)
+  const seen = new Set(openings.map((p) => p.id));
+  return [...openings, ...catalog.filter((p) => !seen.has(p.id))];
 }
 
 /** V1 demo IDs → LumenX Academy V2 programs */
@@ -193,6 +202,12 @@ export function resolveProgramId(id: string): string {
 
 export function getProgramByIdV2(id: string) {
   const resolved = resolveProgramId(id);
+  const fromOpening = getOpeningById(resolved);
+  if (fromOpening && fromOpening.status === "open") {
+    return openingToProgram(fromOpening);
+  }
+  // Closed/draft openings still resolve for existing applications
+  if (fromOpening) return openingToProgram(fromOpening);
   return ADMISSION_PROGRAMS_V2.find((p) => p.id === resolved);
 }
 

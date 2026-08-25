@@ -286,11 +286,7 @@ function EventsPage() {
       <PageHeader
         title="Events & Holidays"
         subtitle="Stay on top of celebrations, breaks, workshops and notices"
-        action={
-          role === "teacher" ? (
-            <NewEventDialog onCreated={(e) => setEvents((x) => [...x, e])} />
-          ) : undefined
-        }
+        action={undefined}
       />
 
       {next && <CountdownBanner event={next} />}

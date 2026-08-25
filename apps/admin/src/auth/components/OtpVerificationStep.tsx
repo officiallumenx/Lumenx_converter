@@ -4,20 +4,16 @@
  * ───────────────────────────────────────────────────────────── */
 
 import { useState, useEffect } from "react";
-import { RefreshCw, Mail, Smartphone } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
-import { IconChip } from "@/components/IconChip";
 import { OtpInput } from "./OtpInput";
 import { AuthButton } from "./AuthButton";
-import { DemoOtpHint } from "./DemoOtpHint";
 import { useCountdown } from "../hooks/useCountdown";
 import { AUTH_BANNER_ENTER } from "../auth-ui";
 import {
   otpService,
+  DEMO_OTP,
   OTP_RESEND_COOLDOWN_SEC,
-  DEMO_EMAIL_OTP,
-  DEMO_MOBILE_OTP,
 } from "../otp-service";
 
 export interface OtpVerificationStepProps {
@@ -33,7 +29,6 @@ export interface OtpVerificationStepProps {
   sendOnMount?: boolean;
   /** embedded = recovery card header; minimal = OTP form only */
   variant?: "embedded" | "minimal";
-  demoCompact?: boolean;
 }
 
 export function OtpVerificationStep({
@@ -47,7 +42,6 @@ export function OtpVerificationStep({
   successLabel,
   sendOnMount = true,
   variant = "minimal",
-  demoCompact = false,
 }: OtpVerificationStepProps) {
   const countdown = useCountdown(OTP_RESEND_COOLDOWN_SEC);
   const [otp, setOtp] = useState("");
@@ -57,8 +51,6 @@ export function OtpVerificationStep({
   const [sending, setSending] = useState(false);
   const [sentBanner, setSentBanner] = useState(false);
 
-  const Icon: LucideIcon = channel === "email" ? Mail : Smartphone;
-  const demoOtp = channel === "email" ? DEMO_EMAIL_OTP : DEMO_MOBILE_OTP;
   const defaultVerify =
     channel === "email" ? "Verify email" : "Verify mobile number";
   const defaultSuccess =
@@ -121,15 +113,10 @@ export function OtpVerificationStep({
   return (
     <div className="space-y-5">
       {variant === "embedded" && (
-        <div className="flex items-center gap-3 p-4 rounded-xl border border-border bg-muted/20">
-          <IconChip icon={Icon} size="md" />
-          <div className="min-w-0">
-            <p className="text-xs text-muted-foreground">
-              Code sent to {channel === "email" ? "email" : "mobile"}
-            </p>
-            <p className="text-sm font-semibold truncate">{maskedDestination}</p>
-          </div>
-        </div>
+        <p className="text-sm text-muted-foreground text-center">
+          Enter the 6-digit code sent to{" "}
+          <span className="font-medium text-foreground">{maskedDestination}</span>.
+        </p>
       )}
 
       {sentBanner && (
@@ -165,6 +152,10 @@ export function OtpVerificationStep({
         {success ? (successLabel ?? defaultSuccess) : (verifyLabel ?? defaultVerify)}
       </AuthButton>
 
+      <p className="text-center text-xs text-muted-foreground">
+        Demo OTP: <span className="font-mono font-semibold tracking-widest text-foreground">{DEMO_OTP}</span>
+      </p>
+
       <div className="flex flex-col items-center gap-1.5 text-sm">
         <span className="text-muted-foreground text-xs sm:text-sm">Didn't receive it?</span>
         {countdown.isRunning ? (
@@ -186,16 +177,6 @@ export function OtpVerificationStep({
           </button>
         )}
       </div>
-
-      <DemoOtpHint
-        otp={demoOtp}
-        channel={channel}
-        compact={demoCompact}
-        onUse={(code) => {
-          setOtp(code);
-          setError(null);
-        }}
-      />
 
       {onBack && (
         <AuthButton variant="outline" onClick={onBack}>

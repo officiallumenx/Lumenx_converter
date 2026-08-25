@@ -4,7 +4,8 @@
  */
 import type { AppNotification, Child, Goal, ReportCard, SubjectMark } from "@lumenx/types";
 import { clamp } from "@lumenx/utils";
-import { buildAttendanceDays, seedFromString } from "@/lib/attendance/calendar";
+import { buildLearnerAttendanceDays, buildLearnerMonthAttendanceSummary } from "@/lib/attendance/calendar";
+import { attendanceSectionKey, toAttendanceStudentId } from "@/lib/attendance/section-key";
 import type { AttendanceDay } from "@/lib/attendance/types";
 import {
   achievements as baseAchievements,
@@ -21,6 +22,7 @@ import {
 } from "@/lib/mock-data";
 import { toLocalIsoDate } from "@/lib/leave-utils";
 import { gradeFor } from "@/lib/marks-utils";
+import { loadStudentAssignmentOverlays } from "@/lib/assignment-details";
 
 export const LINKED_CHILD_IDS = new Set(children.map((c) => c.id));
 
@@ -90,9 +92,18 @@ function cloneReportCards(seed: number): ReportCard[] {
 }
 
 export function assignmentsForClass(classTag: string, childId: string) {
-  const matched = allAssignments.filter((a) => a.class === classTag);
+  const overlays = loadStudentAssignmentOverlays().filter((a) => a.class === classTag);
+  const matched = [
+    ...overlays,
+    ...allAssignments.filter((a) => a.class === classTag && !overlays.some((o) => o.id === a.id)),
+  ];
   if (matched.length > 0) return matched;
   const today = toLocalIsoDate(new Date());
+  const offset = (days: number) => {
+    const d = new Date(`${today}T12:00:00`);
+    d.setDate(d.getDate() + days);
+    return toLocalIsoDate(d);
+  };
   return [
     {
       id: `A-X-${childId}-today-a`,
@@ -119,7 +130,7 @@ export function assignmentsForClass(classTag: string, childId: string) {
       title: "Weekly reading log",
       subject: "English",
       due: "Friday",
-      dueDate: "2026-06-06",
+      dueDate: offset(3),
       status: "pending" as const,
       class: classTag,
       type: "homework" as const,
@@ -129,7 +140,7 @@ export function assignmentsForClass(classTag: string, childId: string) {
       title: "Number skills worksheet",
       subject: "Mathematics",
       due: "Next week",
-      dueDate: "2026-06-08",
+      dueDate: offset(7),
       status: "pending" as const,
       class: classTag,
       type: "assignment" as const,
@@ -138,9 +149,9 @@ export function assignmentsForClass(classTag: string, childId: string) {
       id: `A-X-${childId}-3`,
       title: "Science observation journal",
       subject: "Physics",
-      due: "Submitted",
-      dueDate: "2026-05-29",
-      status: "submitted" as const,
+      due: "May 29",
+      dueDate: offset(-10),
+      status: "pending" as const,
       class: classTag,
       type: "homework" as const,
     },
@@ -149,32 +160,19 @@ export function assignmentsForClass(classTag: string, childId: string) {
       title: "Lab report draft",
       subject: "Chemistry",
       due: "May 27",
-      dueDate: "2026-05-27",
+      dueDate: offset(-14),
       status: "pending" as const,
       class: classTag,
       type: "assignment" as const,
     },
-  ].map((a, i) => ({
-    ...a,
-    status: i === 2 ? ("submitted" as const) : ("pending" as const),
-    due: i === 2 ? "Submitted" : a.due,
-  }));
+  ];
 }
 
 function buildNotifications(child: Child): AppNotification[] {
   const first = child.name.split(" ")[0] ?? child.name;
   const tag = childClassTag(child);
   return [
-    {
-      id: `pn-${child.id}-a`,
-      title: `${first} was marked present`,
-      desc: `Mathematics • ${tag}`,
-      time: "9:12 AM",
-      type: "info" as const,
-      category: "attendance" as const,
-      unread: true,
-      priority: "normal" as const,
-    },
+    // Attendance rows come from Attendance Notification Inbox (merged in /notifications).
     {
       id: `pn-${child.id}-b`,
       title: `Update for ${first}`,
@@ -259,9 +257,21 @@ function buildNotifications(child: Child): AppNotification[] {
 }
 
 function goalsForChild(child: Child, seed: number): Goal[] {
+  const now = new Date();
+  const attendancePct = buildLearnerMonthAttendanceSummary({
+    studentId: toAttendanceStudentId({
+      id: child.id,
+      classLabel: child.className,
+      section: child.section,
+      rollNo: child.rollNo,
+    }),
+    sectionKey: attendanceSectionKey(child.className, child.section),
+    year: now.getFullYear(),
+    month: now.getMonth(),
+  }).attendancePct;
   return baseGoals.map((g, i) => {
     if (g.metric === "attendance") {
-      return { ...g, current: child.attendance, target: Math.max(child.attendance, 95) };
+      return { ...g, current: attendancePct, target: Math.max(attendancePct, 95) };
     }
     if (g.metric === "marks") {
       return { ...g, current: child.avgScore, target: Math.max(child.avgScore + 2, 88) };
@@ -324,11 +334,20 @@ export function buildParentPortalSnapshot(
     goals: goalsForChild(child, seed),
     instituteGoals: instituteAssignedGoals,
     reportCards: cloneReportCards(seed),
-    // Same engine + child seed as the parent attendance calendar, so the current-month
-    // days shown here (Growth) match what the Attendance screen renders for this child.
+    // Registers only — matches Parent Attendance Overview for this child.
     attendanceDays: (() => {
       const now = new Date();
-      return buildAttendanceDays(now.getFullYear(), now.getMonth(), seedFromString(child.id));
+      return buildLearnerAttendanceDays({
+        year: now.getFullYear(),
+        month: now.getMonth(),
+        studentId: toAttendanceStudentId({
+          id: child.id,
+          classLabel: child.className,
+          section: child.section,
+          rollNo: child.rollNo,
+        }),
+        sectionKey: attendanceSectionKey(child.className, child.section),
+      });
     })(),
     assignments: assignmentsForClass(classTag, child.id),
     notifications: buildNotifications(child),

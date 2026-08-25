@@ -1,5 +1,11 @@
 import type { LeaveRequest, SchoolAlert } from "@lumenx/types";
+import {
+  notifyParentLeaveDecision,
+  notifyParentLeavePending,
+  notifyTeacherOfStudentLeave,
+} from "@lumenx/module-notifications";
 import { alertStore } from "@/lib/alert-store";
+import { parentNotificationStore } from "@/lib/parent/notification-store";
 import { formatLeaveRequestDates, leaveDayCount } from "@/lib/leave-utils";
 
 type Listener = () => void;
@@ -117,7 +123,6 @@ export const leaveStore = {
   },
   getAll: (): LeaveRequest[] => requests,
   getForChild: (childId: string): LeaveRequest[] => requests.filter((r) => r.childId === childId),
-  getPending: (): LeaveRequest[] => requests.filter((r) => r.status === "pending"),
   getById: (id: string): LeaveRequest | undefined => requests.find((r) => r.id === id),
   subscribe: (listener: Listener) => {
     listeners.add(listener);
@@ -153,10 +158,37 @@ export const leaveStore = {
         req,
         "Leave application submitted",
         `Pending approval from ${classTeacher} for ${range}`,
-        `Your leave request for ${req.childName} (${range}) has been sent to ${classTeacher}.\n\nReason: ${req.description}\n\nYou will receive an alert when it is approved, rejected, or reviewed.`,
+        `Your leave request for ${req.childName} (${range}) has been sent to ${classTeacher}.\n\nReason: ${req.description}\n\nYou will receive an alert when it is approved or ignored.`,
       ),
     );
     alertStore.addAlert(teacherNewLeaveAlert(req, classTeacher));
+
+    try {
+      parentNotificationStore.add(
+        notifyParentLeavePending({
+          leaveId: req.id,
+          studentName: req.childName,
+          dateRange: range,
+        }).appNotification,
+      );
+      const teacherN = notifyTeacherOfStudentLeave({
+        leaveId: req.id,
+        studentName: req.childName,
+        dateRange: range,
+        reason: req.description,
+      });
+      void import("@/lib/teacher/repositories").then(({ teacherRepository }) => {
+        teacherRepository.pushInboxNotification({
+          id: teacherN.appNotification.id,
+          title: teacherN.appNotification.title,
+          body: teacherN.appNotification.desc,
+          category: "urgent",
+          href: "/leave",
+        });
+      });
+    } catch {
+      /* notification best-effort */
+    }
 
     return req;
   },
@@ -193,6 +225,19 @@ export const leaveStore = {
         `Leave for ${req.childName} (${range}, ${days} day${days > 1 ? "s" : ""}) has been approved.\n\n${req.teacherNote ?? ""}`,
       ),
     );
+    try {
+      parentNotificationStore.add(
+        notifyParentLeaveDecision({
+          leaveId: req.id,
+          studentName: req.childName,
+          dateRange: range,
+          decision: "approved",
+          reason: req.teacherNote,
+        }).appNotification,
+      );
+    } catch {
+      /* best-effort */
+    }
   },
 
   reject(id: string, teacherNote?: string) {
@@ -219,16 +264,30 @@ export const leaveStore = {
         `Leave for ${req.childName} (${range}) was not approved.\n\nNote: ${req.teacherNote ?? "Contact the class teacher for details."}`,
       ),
     );
+    try {
+      parentNotificationStore.add(
+        notifyParentLeaveDecision({
+          leaveId: req.id,
+          studentName: req.childName,
+          dateRange: range,
+          decision: "rejected",
+          reason: req.teacherNote,
+        }).appNotification,
+      );
+    } catch {
+      /* best-effort */
+    }
   },
 
-  dismiss(id: string) {
+  dismiss(id: string, teacherNote?: string) {
+    const trimmed = teacherNote?.trim() || undefined;
     requests = requests.map((r) =>
       r.id === id
         ? {
             ...r,
             status: "dismissed" as const,
             updatedAt: nowLabel(),
-            teacherNote: "Dismissed without approval — contact class teacher if needed.",
+            teacherNote: trimmed,
           }
         : r,
     );
@@ -237,12 +296,13 @@ export const leaveStore = {
     if (!req) return;
     alertStore.resolveByLeaveId(id);
     const range = formatLeaveRequestDates(req);
+    const noteLine = trimmed ? `\n\nNote: ${trimmed}` : "";
     alertStore.addAlert(
       parentStatusAlert(
         req,
-        "Leave request dismissed",
+        "Leave request ignored",
         `${range} · Reviewed, no approval`,
-        `The class teacher reviewed the leave request for ${req.childName} (${range}) and dismissed it without approval.\n\nPlease contact the class teacher if you still need leave.`,
+        `The class teacher reviewed the leave request for ${req.childName} (${range}) and ignored it.${noteLine}`,
       ),
     );
   },

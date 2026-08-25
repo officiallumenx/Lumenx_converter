@@ -10,7 +10,8 @@ import type { TeacherNotification } from "@/lib/teacher/types";
 
 const FILTERS = [
   { id: "all", label: "All" },
-  { id: "urgent", label: "🚨 Urgent" },
+  { id: "important", label: "Important" },
+  { id: "urgent", label: "Urgent" },
   { id: "announcements", label: "Announcements" },
   { id: "events", label: "Events" },
   { id: "exam_updates", label: "Exams" },
@@ -39,11 +40,16 @@ export function TeacherNotificationsPage() {
     const unsub = teacherRepository.subscribeNotifications(() => {
       teacherRepository.getNotifications().then(setItems);
     });
-    return unsub;
+    return () => {
+      void unsub();
+    };
   }, []);
 
   const filtered = useMemo(() => {
     if (filter === "all") return items;
+    if (filter === "important") {
+      return items.filter((n) => n.category === "urgent" || n.category === "exam_updates");
+    }
     return items.filter((n) => n.category === filter);
   }, [items, filter]);
 
@@ -63,7 +69,7 @@ export function TeacherNotificationsPage() {
     <div className="min-w-0 space-y-5">
       <PageHeader
         title="Notifications"
-        subtitle={`${unread} unread · Announcements, events, exams & staff notices`}
+        subtitle={`${unread} unread · Subject Teacher · class announcements, exams & staff notices`}
         action={
           unread ? (
             <Button variant="outline" className="teacher-primary-action rounded-xl gap-2" onClick={markAllRead}>

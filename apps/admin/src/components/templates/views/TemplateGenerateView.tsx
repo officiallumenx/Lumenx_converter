@@ -19,7 +19,20 @@ import { useDemoProfile } from "@/lib/demo-profile-context";
 import { useTemplateStore } from "@/components/templates/useTemplateStore";
 import { TemplatePreviewFrame } from "@/components/templates/TemplatePreviewFrame";
 import { useAdminToast } from "@/components/AdminActionToast";
-import { ChevronRight, FileCheck, Users, User, GraduationCap, ExternalLink } from "lucide-react";
+import {
+  ChevronRight,
+  FileCheck,
+  Users,
+  User,
+  GraduationCap,
+  ExternalLink,
+  Award,
+} from "lucide-react";
+import {
+  loadCertificateRecommendations,
+  markCertificateRecommendationIssued,
+  type CertificateRecommendation,
+} from "@lumenx/utils";
 
 type RecipientMode = "single" | "class" | "grade" | "custom";
 
@@ -57,6 +70,9 @@ export function TemplateGenerateView({ initialTemplateId }: GenerateViewProps) {
   const [studentQ, setStudentQ] = useState("");
   const [batchId, setBatchId] = useState("");
   const [generatedCount, setGeneratedCount] = useState(0);
+  const [recommendations, setRecommendations] = useState(() =>
+    loadCertificateRecommendations().filter((r) => r.status === "pending"),
+  );
 
   const template = templates.find((t) => t.id === templateId) ?? null;
 
@@ -144,8 +160,72 @@ export function TemplateGenerateView({ initialTemplateId }: GenerateViewProps) {
     notify(`Generated ${result.count} documents · batch ${result.batchId}`);
   };
 
+  const applyRecommendation = (rec: CertificateRecommendation) => {
+    const match = allStudents.find(
+      (s) =>
+        s.id === rec.studentId ||
+        s.name.trim().toLowerCase() === rec.studentName.trim().toLowerCase(),
+    );
+    if (match) {
+      setMode("single");
+      setSingleId(match.id);
+    }
+    setStep("students");
+    notify(`Loaded recommendation for ${rec.studentName} · ${rec.achievementTitle}`);
+  };
+
+  const markIssuedFromRecommendation = (rec: CertificateRecommendation) => {
+    markCertificateRecommendationIssued(rec.id);
+    setRecommendations((prev) => prev.filter((r) => r.id !== rec.id));
+    notify(`Recommendation marked issued for ${rec.studentName}`);
+  };
+
   return (
     <PageStack>
+      {recommendations.length > 0 ? (
+        <Card>
+          <CardHeader
+            title="Certificate recommendations"
+            hint="Activity Teacher → Achievement → Recommend → Admin Issue"
+            action={<Pill tone="warning">{recommendations.length} pending</Pill>}
+          />
+          <CardBody className="space-y-2">
+            {recommendations.map((rec) => (
+              <div
+                key={rec.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/20 px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Award className="size-3.5 shrink-0 text-primary" />
+                    {rec.studentName}
+                    <span className="text-muted-foreground font-normal">
+                      · {rec.studentClassLabel}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {rec.achievementTitle} · {rec.achievementType.replace(/_/g, " ")} · by{" "}
+                    {rec.recommendedBy}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" onClick={() => applyRecommendation(rec)}>
+                    Prefill Issue
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onClick={() => markIssuedFromRecommendation(rec)}
+                  >
+                    Mark issued
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </CardBody>
+        </Card>
+      ) : null}
+
       <Card>
         <CardHeader
           title="Issue documents to students"

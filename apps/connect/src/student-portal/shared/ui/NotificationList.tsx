@@ -2,6 +2,10 @@ import { useState } from "react";
 import type { AppNotification, NotificationCategory } from "@lumenx/types";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, Badge, cn } from "@lumenx/ui";
 import { Bell, Sparkles, AlertTriangle, Info, Flame, ChevronRight } from "lucide-react";
+import { STUDENT_NOTIFICATION_COLOR, studentModuleIconStyle } from "@/lib/student/nav";
+
+const NOTIFICATION_ACCENT = STUDENT_NOTIFICATION_COLOR;
+const NOTIFICATION_ICON_STYLE = studentModuleIconStyle(NOTIFICATION_ACCENT);
 
 const CATEGORY_LABELS: Record<NotificationCategory, string> = {
   academic: "Academic",
@@ -21,16 +25,25 @@ const TYPE_STYLES = {
     icon: AlertTriangle,
     tone: "bg-warning/15 text-warning-foreground border-warning/30",
     label: "Needs attention",
+    labelClass: "text-warning-foreground",
+    unreadRow: "border-warning/30 bg-warning/5",
+    barClass: "bg-warning",
   },
   positive: {
     icon: Sparkles,
     tone: "bg-success/15 text-success border-success/30",
     label: "Good news",
+    labelClass: "text-success",
+    unreadRow: "border-success/30 bg-success/5",
+    barClass: "bg-success",
   },
   info: {
     icon: Info,
-    tone: "bg-primary/10 text-primary border-primary/20",
+    tone: "",
     label: "Update",
+    labelClass: "",
+    unreadRow: "border-primary/25 bg-primary/5",
+    barClass: "",
   },
 } as const;
 
@@ -45,7 +58,25 @@ export function NotificationList({
 
   const openDetail = (n: AppNotification) => {
     onSelect?.(n.id);
-    setSelected({ ...n, unread: false });
+    const withHref =
+      n.href && n.href.trim()
+        ? n
+        : {
+            ...n,
+            href:
+              n.category === "attendance"
+                ? "/attendance"
+                : n.category === "fees"
+                  ? "/fees"
+                  : n.category === "assignments"
+                    ? "/homework"
+                    : n.category === "exams"
+                      ? "/exams"
+                      : n.category === "events"
+                        ? "/events"
+                        : "/notifications",
+          };
+    setSelected({ ...withHref, unread: false });
   };
 
   return (
@@ -62,19 +93,21 @@ export function NotificationList({
               className={cn(
                 "student-list-row group flex min-w-0 w-full items-stretch gap-0 overflow-hidden rounded-2xl border border-border bg-card text-left motion-fast",
                 n.unread && "shadow-soft",
+                n.unread && meta.unreadRow,
                 "hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
               )}
+              style={
+                n.unread && n.type === "info"
+                  ? {
+                      borderColor: `color-mix(in srgb, ${NOTIFICATION_ACCENT.primary} 35%, var(--border))`,
+                      backgroundColor: `color-mix(in srgb, ${NOTIFICATION_ACCENT.primary} 8%, var(--card))`,
+                    }
+                  : undefined
+              }
             >
               <div
-                className={cn(
-                  "w-1 shrink-0",
-                  n.unread &&
-                    (n.type === "warning"
-                      ? "bg-warning"
-                      : n.type === "positive"
-                        ? "bg-success"
-                        : "bg-primary"),
-                )}
+                className={cn("w-1 shrink-0", n.unread && meta.barClass)}
+                style={n.unread && n.type === "info" ? { backgroundColor: NOTIFICATION_ACCENT.primary } : undefined}
                 aria-hidden
               />
               <div className="flex min-w-0 flex-1 items-start gap-3 p-4">
@@ -84,16 +117,38 @@ export function NotificationList({
                     meta.tone,
                     !n.unread && "opacity-80",
                   )}
+                  style={n.type === "info" ? NOTIFICATION_ICON_STYLE : undefined}
                 >
                   <Icon className="size-5" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    <span
+                      className={cn(
+                        "text-xs font-bold",
+                        n.unread ? meta.labelClass || "text-foreground" : "text-foreground",
+                      )}
+                      style={
+                        n.unread && n.type === "info"
+                          ? { color: NOTIFICATION_ACCENT.primary }
+                          : undefined
+                      }
+                    >
                       {CATEGORY_LABELS[n.category]}
                     </span>
                     {n.unread && (
-                      <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground">
+                      <span
+                        className={cn(
+                          "rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-white",
+                          n.type === "warning" && "bg-warning text-warning-foreground",
+                          n.type === "positive" && "bg-success",
+                        )}
+                        style={
+                          n.type === "info"
+                            ? { backgroundColor: NOTIFICATION_ACCENT.primary }
+                            : undefined
+                        }
+                      >
                         Unread
                       </span>
                     )}
@@ -115,18 +170,35 @@ export function NotificationList({
                     {n.title}
                   </div>
                   <div className="mt-1 line-clamp-2 text-sm text-muted-foreground">{n.desc}</div>
-                  <div className="mt-2 flex items-center gap-1 text-xs text-primary opacity-0 transition-opacity group-hover:opacity-70">
+                  <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-70">
                     Tap for details <ChevronRight className="size-3" />
                   </div>
                 </div>
                 <div className="shrink-0 self-start text-right">
                   {n.unread && (
                     <span
-                      className="mb-1 ml-auto block size-2 rounded-full bg-primary"
+                      className={cn(
+                        "mb-1 ml-auto block size-2 rounded-full",
+                        n.type === "warning" && "bg-warning",
+                        n.type === "positive" && "bg-success",
+                      )}
+                      style={
+                        n.type === "info" ? { backgroundColor: NOTIFICATION_ACCENT.primary } : undefined
+                      }
                       aria-label="Unread"
                     />
                   )}
-                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  <div
+                    className={cn(
+                      "text-xs font-bold",
+                      n.unread ? meta.labelClass || "text-foreground" : "text-foreground",
+                    )}
+                    style={
+                      n.unread && n.type === "info"
+                        ? { color: NOTIFICATION_ACCENT.primary }
+                        : undefined
+                    }
+                  >
                     {meta.label}
                   </div>
                   <div className="mt-0.5 text-xs tabular-nums text-muted-foreground">{n.time}</div>
@@ -173,18 +245,35 @@ function NotificationDetailDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <div className="mb-2 flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="capitalize">
+            <span
+              className={cn("text-sm font-bold", meta.labelClass || "text-foreground")}
+              style={
+                notification.type === "info"
+                  ? { color: NOTIFICATION_ACCENT.primary }
+                  : undefined
+              }
+            >
               {CATEGORY_LABELS[notification.category]}
-            </Badge>
-            <Badge variant="outline" className={cn("border-0", meta.tone)}>
+            </span>
+            <span
+              className={cn("text-sm font-bold", meta.labelClass || "text-foreground")}
+              style={
+                notification.type === "info"
+                  ? { color: NOTIFICATION_ACCENT.primary }
+                  : undefined
+              }
+            >
               {meta.label}
-            </Badge>
+            </span>
             {notification.priority === "high" && (
               <Badge className="border-0 bg-destructive/15 text-destructive">High priority</Badge>
             )}
           </div>
           <DialogTitle className="flex items-start gap-3 text-left">
-            <div className={cn("grid size-10 shrink-0 place-items-center rounded-xl", meta.tone)}>
+            <div
+              className={cn("grid size-10 shrink-0 place-items-center rounded-xl", notification.type !== "info" && meta.tone)}
+              style={notification.type === "info" ? NOTIFICATION_ICON_STYLE : undefined}
+            >
               <Icon className="size-5" />
             </div>
             <span className="leading-snug">{notification.title}</span>
@@ -203,6 +292,15 @@ function NotificationDetailDialog({
             </p>
           )}
           <div className="text-xs text-muted-foreground">Received {notification.time}</div>
+          {notification.href ? (
+            <a
+              href={notification.href}
+              className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+              onClick={() => onOpenChange(false)}
+            >
+              Open related page <ChevronRight className="size-3.5" />
+            </a>
+          ) : null}
         </div>
       </DialogContent>
     </Dialog>

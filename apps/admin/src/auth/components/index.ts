@@ -12,8 +12,6 @@ export { AuthPageHeader } from "./AuthPageHeader";
 export { AuthOtpLayout, type AuthOtpBrandContent } from "./AuthOtpLayout";
 export { OtpStepIndicator } from "./OtpStepIndicator";
 export { OtpVerificationStep } from "./OtpVerificationStep";
-export { DemoCredentialsCard } from "./DemoCredentialsCard";
-export { DemoOtpHint } from "./DemoOtpHint";
 export { OtpInput } from "./OtpInput";
 export { PinInput } from "./PinInput";
 export { PasswordStrength } from "./PasswordStrength";

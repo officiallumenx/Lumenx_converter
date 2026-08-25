@@ -27,6 +27,14 @@ import {
 import { pushSyncSnapshot } from "./admin-bridge";
 import { computeProfileCompletion } from "./profile-repository";
 import { enrollRejectedCandidate } from "./talent-pool-store";
+import { admissionsInstituteIdForAdminInstitute } from "@lumenx/utils";
+import {
+  NOTIFICATION_TEMPLATE_IDS,
+  careersStatusToLifecycle,
+  notifyCareersLifecycle,
+  renderNotificationTemplate,
+} from "@lumenx/module-notifications";
+import type { LumenxAdminIdentity } from "@/lib/admissions/lumenx-admin-bridge";
 export {
   getSavedJobIds,
   isJobSaved,
@@ -244,6 +252,56 @@ export function signOutUser() {
   setCurrentUser(null);
 }
 
+/** Create or reuse a Careers recruiter account from a verified LumenX Admin identity. */
+export function continueRecruiterWithLumenxAdmin(admin: LumenxAdminIdentity): CareersUser {
+  const email = admin.email.trim().toLowerCase();
+  const phoneDigits = (admin.phone ?? "").replace(/\D/g, "").slice(-10);
+  const organizationId = admissionsInstituteIdForAdminInstitute(admin.instituteId);
+  const users = getUsers();
+  const existing = users.find((u) => {
+    if (u.accountType !== "recruiter") return false;
+    if (u.email && u.email.trim().toLowerCase() === email) return true;
+    if (
+      phoneDigits &&
+      u.phone &&
+      u.phone.replace(/\D/g, "").slice(-10) === phoneDigits
+    ) {
+      return true;
+    }
+    return false;
+  });
+
+  if (existing) {
+    const updated: CareersUser = {
+      ...existing,
+      name: admin.name || existing.name,
+      email: existing.email ?? email,
+      phone: existing.phone ?? admin.phone,
+      organizationId: existing.organizationId ?? organizationId,
+      organizationName: existing.organizationName ?? admin.instituteName,
+      organizationType: existing.organizationType ?? "education",
+      accountType: "recruiter",
+      profileComplete: 100,
+    };
+    saveUsers(users.map((u) => (u.id === existing.id ? updated : u)));
+    setCurrentUser(updated);
+    return updated;
+  }
+
+  return registerUser({
+    name: admin.name,
+    email,
+    phone: admin.phone ?? "",
+    password: `admin-linked:${email}`,
+    emailVerified: true,
+    phoneVerified: Boolean(admin.phone),
+    accountType: "recruiter",
+    organizationId,
+    organizationName: admin.instituteName,
+    organizationType: "education",
+  });
+}
+
 export function getApplicationsForUser(candidateId: string): JobApplication[] {
   return getApplicationsStore()
     .filter((a) => a.candidateId === candidateId)
@@ -340,11 +398,20 @@ export function submitApplication(
   };
   saveApplications([app, ...apps]);
   clearDraft(candidateId);
+  const rendered = renderNotificationTemplate({
+    templateId: NOTIFICATION_TEMPLATE_IDS.careers.student.applicationSubmitted,
+    variables: {
+      applicationId: app.id,
+      jobTitle: app.jobTitle,
+      instituteName: app.instituteName,
+    },
+  });
   addNotification({
     candidateId,
     applicationId: app.id,
-    title: "Application submitted",
-    body: `Your application ${app.id} for ${app.jobTitle} at ${app.instituteName} has been submitted.`,
+    templateId: rendered.id,
+    title: rendered.title,
+    body: rendered.body,
     type: "application",
   });
   return app;
@@ -380,6 +447,21 @@ export function updateApplicationStatus(
   const next = [...apps];
   next[idx] = updated;
   saveApplications(next);
+
+  try {
+    const event = careersStatusToLifecycle(status);
+    notifyCareersLifecycle({
+      event,
+      candidateId: app.candidateId,
+      applicationId: app.id,
+      jobTitle: app.jobTitle,
+      instituteName: app.instituteName,
+      statusLabel: status.replace(/_/g, " "),
+      detail: note,
+    });
+  } catch {
+    /* notification best-effort */
+  }
 }
 
 export function uploadDocument(

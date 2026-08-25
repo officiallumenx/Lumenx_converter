@@ -9,11 +9,7 @@ import { getConnectStudentProfile } from "@/lib/mock-data";
 import type { StudentAssignment } from "@/lib/mock-data";
 import { assignmentsForClass } from "@/lib/parent-portal-data";
 import { useApp } from "@/lib/app-state";
-import {
-  getAssignmentVisualStatus,
-  ASSIGNMENT_STATUS_LABEL,
-  ASSIGNMENT_STATUS_DOT,
-} from "@/lib/assignment-status";
+import { formatAssignmentDueLabel } from "@/lib/assignment-status";
 import { BookOpen, Calendar, ChevronRight, ClipboardList, User } from "lucide-react";
 import { cn } from "@lumenx/ui";
 
@@ -35,7 +31,6 @@ function WorkList({
   return (
     <ul className="space-y-2.5">
       {items.map((a) => {
-        const visual = getAssignmentVisualStatus(a);
         const detail = resolveAssignmentDetail(a);
         const hasFiles = detail.attachments.length > 0;
 
@@ -49,9 +44,6 @@ function WorkList({
                 "hover:border-primary/30 hover:bg-primary/[0.03]",
               )}
             >
-              <span
-                className={cn("mt-1 size-2 shrink-0 rounded-full", ASSIGNMENT_STATUS_DOT[visual])}
-              />
               <div className="min-w-0 flex-1">
                 <p className="font-semibold leading-snug break-words">{a.title}</p>
                 <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -65,21 +57,16 @@ function WorkList({
                   </span>
                   <span className="inline-flex items-center gap-1">
                     <Calendar className="size-3.5 text-primary" />
-                    Due {a.due}
+                    Due {formatAssignmentDueLabel(a.dueDate, a.due)}
                   </span>
                 </div>
                 <p className="mt-1.5 text-xs text-muted-foreground line-clamp-1">
                   {hasFiles
-                    ? `${detail.attachments.length} PDF${detail.attachments.length > 1 ? "s" : ""} · Tap to view & download`
+                    ? `${detail.attachments.length} file${detail.attachments.length > 1 ? "s" : ""} · Tap to view & download`
                     : "Tap to view details"}
                 </p>
               </div>
-              <div className="flex shrink-0 flex-col items-end gap-1">
-                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                  {ASSIGNMENT_STATUS_LABEL[visual]}
-                </span>
-                <ChevronRight className="size-4 text-muted-foreground/60" />
-              </div>
+              <ChevronRight className="size-4 shrink-0 text-muted-foreground/60" />
             </button>
           </li>
         );
@@ -103,7 +90,7 @@ export function ParentHomeworkPage() {
       return {
         assignments: list.filter((a) => (a.type ?? "assignment") === "assignment"),
         homework: list.filter((a) => a.type === "homework"),
-        subtitle: `${snap.child.name} · ${snap.classTag} · view assigned work only (no online submission)`,
+        subtitle: `${snap.child.name} · ${snap.classTag} · view assigned work (hand in at school)`,
       };
     }
 
@@ -118,14 +105,14 @@ export function ParentHomeworkPage() {
       return {
         assignments: list.filter((a) => (a.type ?? "assignment") === "assignment"),
         homework: list.filter((a) => a.type === "homework"),
-        subtitle: `${profile.name} · ${classTag} · view assigned work only (no online submission)`,
+        subtitle: `${profile.name} · ${classTag} · view assigned work (hand in at school)`,
       };
     }
 
     return {
       assignments: [] as StudentAssignment[],
       homework: [] as StudentAssignment[],
-      subtitle: "Assignments and homework — view only, submit at school",
+      subtitle: "Assignments and homework — view only; hand in at school",
     };
   }, [role, portal.isParent, portal.snapshot, studentPortal.isStudent, studentPortal.snapshot]);
 

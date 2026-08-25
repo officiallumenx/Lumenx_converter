@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import {
   Card,
   Pill,
@@ -15,58 +16,96 @@ import {
   Kpi,
   PageStack,
 } from "@lumenx/ui-admin";
-import { DOC_TEMPLATES, type DocTemplate, type DocRequestKind } from "@/lib/documents-records-data";
-import { FileText } from "lucide-react";
+import {
+  getAllTemplates,
+  activateTemplate,
+} from "@/lib/template-management/store";
+import { categoryLabel } from "@/lib/template-management/categories";
+import type { TemplateStatus } from "@/lib/template-management/types";
+import { useTemplateStore } from "@/components/templates/useTemplateStore";
+import { useAdminToast } from "@/components/AdminActionToast";
+import { FileText, ExternalLink, Power, Wand2, FileCheck } from "lucide-react";
 
-const KIND_LABEL: Record<DocRequestKind, string> = {
-  bonafide: "Bonafide",
-  transfer: "Transfer",
-  conduct: "Conduct",
-  marksheet: "Marksheet",
-  character: "Character",
-  migration: "Migration",
-  experience: "Experience",
-  salary: "Salary",
-  custom: "Custom",
-};
+const KIND_LABEL = {
+  certificate: "Certificate",
+  report: "Report",
+  document: "Document",
+  id_card: "ID Card",
+} as const;
 
-const STATUS_TONE: Record<DocTemplate["status"], "success" | "warning" | "neutral"> = {
+const STATUS_TONE: Record<TemplateStatus, "success" | "warning" | "neutral"> = {
   active: "success",
   draft: "warning",
   archived: "neutral",
 };
 
+/**
+ * Documents hub Templates tab — same store as Certificates module.
+ * Edit / activate / issue live in /templates.
+ */
 export function DocTemplatesView() {
-  const [source, setSource] = useState<"all" | "system" | "custom">("all");
-  const [status, setStatus] = useState<DocTemplate["status"] | "all">("all");
+  const revision = useTemplateStore();
+  const notify = useAdminToast();
+  const [source, setSource] = useState<"all" | "system" | "custom" | "imported">("all");
+  const [status, setStatus] = useState<TemplateStatus | "all">("all");
   const [q, setQ] = useState("");
 
+  const list = useMemo(
+    () => getAllTemplates().filter((t) => t.kind === "document" || t.kind === "certificate"),
+    [revision],
+  );
+
   const filtered = useMemo(() => {
-    return DOC_TEMPLATES.filter((t) => {
-      if (source !== "all" && t.source !== source) return false;
+    return list.filter((t) => {
+      if (status === "all" && t.status === "archived") return false;
       if (status !== "all" && t.status !== status) return false;
+      if (source !== "all" && t.source !== source) return false;
       if (q) {
         const lq = q.toLowerCase();
-        return `${t.name} ${t.kind} ${t.language}`.toLowerCase().includes(lq);
+        return `${t.name} ${t.kind} ${categoryLabel(t.categoryId)}`.toLowerCase().includes(lq);
       }
       return true;
     });
-  }, [source, status, q]);
+  }, [list, source, status, q]);
 
-  const stats = useMemo(() => ({
-    active: DOC_TEMPLATES.filter((t) => t.status === "active").length,
-    system: DOC_TEMPLATES.filter((t) => t.source === "system").length,
-    custom: DOC_TEMPLATES.filter((t) => t.source === "custom").length,
-    totalUsages: DOC_TEMPLATES.reduce((a, t) => a + t.usageCount, 0),
-  }), []);
+  const stats = useMemo(() => {
+    const visible = list.filter((t) => t.status !== "archived");
+    return {
+      active: visible.filter((t) => t.status === "active").length,
+      draft: visible.filter((t) => t.status === "draft").length,
+      system: visible.filter((t) => t.source === "system").length,
+      custom: visible.filter((t) => t.source === "custom" || t.source === "imported").length,
+    };
+  }, [list]);
 
   return (
     <PageStack>
+      <Card className="border-primary/20 bg-primary/5">
+        <div className="flex flex-wrap items-center gap-3 px-4 py-3 sm:px-5">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold">Managed in Certificates</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Same library as Certificates & Documents. Activate drafts there, then issue from either hub.
+            </p>
+          </div>
+          <Link to="/templates" search={{ view: "library" }}>
+            <Button size="sm" variant="primary">
+              <ExternalLink className="size-3.5" /> Open Library
+            </Button>
+          </Link>
+          <Link to="/templates" search={{ view: "builder" }}>
+            <Button size="sm">
+              <Wand2 className="size-3.5" /> Builder
+            </Button>
+          </Link>
+        </div>
+      </Card>
+
       <KpiGrid cols={4}>
-        <Kpi label="Active templates" value={String(stats.active)} tone="up" />
-        <Kpi label="System templates" value={String(stats.system)} />
-        <Kpi label="Custom templates" value={String(stats.custom)} />
-        <Kpi label="Total usages" value={String(stats.totalUsages)} tone="up" />
+        <Kpi label="Active" value={String(stats.active)} tone="up" />
+        <Kpi label="Drafts" value={String(stats.draft)} tone="neutral" />
+        <Kpi label="System" value={String(stats.system)} />
+        <Kpi label="Custom / imported" value={String(stats.custom)} />
       </KpiGrid>
 
       <Card>
@@ -84,6 +123,7 @@ export function DocTemplatesView() {
               { label: "All", value: "all" },
               { label: "System", value: "system" },
               { label: "Custom", value: "custom" },
+              { label: "Imported", value: "imported" },
             ]}
           />
           <SegmentedControl
@@ -96,45 +136,80 @@ export function DocTemplatesView() {
               { label: "Archived", value: "archived" },
             ]}
           />
-          <ToolbarMeta count={filtered.length} label="templates" />
+          <ToolbarMeta>{filtered.length} templates</ToolbarMeta>
         </PageToolbar>
 
-        <DataTable
-          empty={filtered.length === 0}
-          emptyMessage="No templates match your filters"
-          head={
-            <tr>
-              <Th>Template name</Th>
-              <Th>Type</Th>
-              <Th>Source</Th>
-              <Th>Language</Th>
-              <Th>Size</Th>
-              <Th>Usages</Th>
-              <Th>Last modified</Th>
-              <Th>Status</Th>
-            </tr>
-          }
-        >
-          {filtered.map((t) => (
-            <Tr key={t.id}>
-              <Td>
-                <div className="flex items-center gap-2">
-                  <FileText className="size-3.5 text-muted-foreground shrink-0" />
-                  <span className="font-medium">{t.name}</span>
-                </div>
-              </Td>
-              <Td><Pill tone="info">{KIND_LABEL[t.kind]}</Pill></Td>
-              <Td>
-                <Pill tone={t.source === "system" ? "neutral" : "info"}>{t.source}</Pill>
-              </Td>
-              <Td className="text-sm">{t.language}</Td>
-              <Td className="text-sm text-muted-foreground">{t.size}</Td>
-              <Td className="text-sm">{t.usageCount}</Td>
-              <Td className="text-xs text-muted-foreground">{t.lastModified}</Td>
-              <Td><Pill tone={STATUS_TONE[t.status]}>{t.status}</Pill></Td>
-            </Tr>
-          ))}
-        </DataTable>
+        {filtered.length === 0 ? (
+          <div className="px-5 py-12 text-center text-sm text-muted-foreground">
+            No templates match your filters
+          </div>
+        ) : (
+          <DataTable>
+            <thead>
+              <tr>
+                <Th>Template name</Th>
+                <Th>Type</Th>
+                <Th>Category</Th>
+                <Th>Source</Th>
+                <Th>Usages</Th>
+                <Th>Updated</Th>
+                <Th>Status</Th>
+                <Th>Actions</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((t) => (
+                <Tr key={t.id}>
+                  <Td>
+                    <div className="flex items-center gap-2">
+                      <FileText className="size-3.5 text-muted-foreground shrink-0" />
+                      <span className="font-medium">{t.name}</span>
+                    </div>
+                  </Td>
+                  <Td>
+                    <Pill tone="info">{KIND_LABEL[t.kind]}</Pill>
+                  </Td>
+                  <Td className="text-sm text-muted-foreground">{categoryLabel(t.categoryId)}</Td>
+                  <Td>
+                    <Pill tone={t.source === "system" ? "neutral" : "info"}>{t.source}</Pill>
+                  </Td>
+                  <Td className="text-sm">{t.usageCount}</Td>
+                  <Td className="text-xs text-muted-foreground">{t.updatedAt}</Td>
+                  <Td>
+                    <Pill tone={STATUS_TONE[t.status]}>{t.status}</Pill>
+                  </Td>
+                  <Td>
+                    <div className="flex flex-wrap gap-1">
+                      {t.status === "draft" && t.source === "custom" && (
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            activateTemplate(t.id);
+                            notify(`Activated "${t.name}"`);
+                          }}
+                        >
+                          <Power className="size-3" /> Activate
+                        </Button>
+                      )}
+                      {t.status === "active" && (
+                        <Link to="/templates" search={{ view: "generate", templateId: t.id }}>
+                          <Button size="sm" variant="primary">
+                            <FileCheck className="size-3" /> Issue
+                          </Button>
+                        </Link>
+                      )}
+                      <Link to="/templates" search={{ view: "builder", templateId: t.id }}>
+                        <Button size="sm">
+                          <Wand2 className="size-3" /> Edit
+                        </Button>
+                      </Link>
+                    </div>
+                  </Td>
+                </Tr>
+              ))}
+            </tbody>
+          </DataTable>
+        )}
       </Card>
     </PageStack>
   );

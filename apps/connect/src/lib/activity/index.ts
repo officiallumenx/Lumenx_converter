@@ -1,6 +1,14 @@
 export type * from "./types";
 export { activityDashboardSnapshot } from "./mock-data";
 export { activityRepository } from "./repositories";
+export type * from "./hierarchy";
+export {
+  activityHierarchyRepository,
+  SPORTS_CATEGORY_LABELS,
+  unitKindLabel,
+  formatUnitLabel,
+  domainLabel,
+} from "./hierarchy";
 export type * from "./achievements";
 export {
   achievementsRepository,

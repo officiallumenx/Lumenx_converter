@@ -7,6 +7,7 @@ const searchSchema = z.object({
   redirect: z.string().optional(),
   program: z.string().optional(),
   institute: z.string().optional(),
+  type: z.enum(["parent", "institute"]).optional(),
 });
 
 export const Route = createFileRoute("/admissions/login")({
@@ -23,6 +24,7 @@ function LoginRoute() {
         redirect={search.redirect}
         program={search.program}
         institute={search.institute}
+        initialType={search.type}
       />
     </RedirectIfAuthed>
   );

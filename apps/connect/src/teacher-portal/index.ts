@@ -22,4 +22,5 @@ export { TeacherProfilePage } from "./features/profile";
 export { TeacherTimetablePage } from "./features/timetable";
 export { TeacherNotificationsPage } from "./features/notifications";
 export { TeacherLeavePage } from "./features/leave";
+export { TeacherDiaryPage } from "./features/diary";
 export { TeacherTransportPage } from "./features/transport";

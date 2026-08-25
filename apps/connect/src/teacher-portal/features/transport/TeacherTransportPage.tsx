@@ -71,6 +71,14 @@ export function TeacherTransportPage() {
     );
   }
 
+  const pickupStop = routeOverview.stops[0];
+  const dropStop = routeOverview.stops[routeOverview.stops.length - 1];
+
+  // First paint / empty ops can briefly have no stops — never crash on stops[0]!.
+  if (!pickupStop || !dropStop) {
+    return <PageSkeleton rows={6} />;
+  }
+
   const displayStudents = classStudents.length > 0 ? classStudents : routeStudents;
   const onBusCount = displayStudents.filter(
     (s) => s.status === "picked_up" || s.status === "on_bus" || s.status === "dropped_school",
@@ -79,9 +87,9 @@ export function TeacherTransportPage() {
 
   const assignment = {
     bus: routeOverview.bus,
-    pickupStop: routeOverview.stops[0]!,
-    dropStop: routeOverview.stops[routeOverview.stops.length - 1]!,
-    morningPickupTime: routeOverview.stops[0]!.scheduledTime,
+    pickupStop,
+    dropStop,
+    morningPickupTime: pickupStop.scheduledTime,
     afternoonDropTime: "15:40",
   };
 

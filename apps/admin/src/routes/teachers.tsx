@@ -1,12 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
+import { ADMIN_STORAGE_KEYS } from "@lumenx/config";
 import {
   Card,
   Button,
-  Pill,
   Modal,
   Field,
   TextInput,
+  TextArea,
   Select,
   SearchInput,
   SegmentedControl,
@@ -20,48 +21,47 @@ import {
   KeyRound,
   UserPlus,
   Edit3,
-  Phone,
-  Calendar,
-  BookOpen,
-  Shield,
+  Eye,
+  EyeOff,
+  Send,
 } from "lucide-react";
 import { useAdminToast } from "@/components/AdminActionToast";
-import { useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  assignSubjectsToTeacher,
+  getAssignedSubjectIdsForTeacher,
+  getAssignedSubjectNamesForTeacher,
+  getSubjectCatalog,
+} from "@/lib/subjects-data";
+import { TEACHERS_CHANGED_EVENT } from "@/lib/career-to-teacher";
+import {
+  TEACHER_ROLES,
+  teacherRoleLabel,
+  type Teacher,
+  type TeacherRole,
+  type TeacherStatus,
+} from "@/components/teachers/TeacherDisplay";
+import { TeacherStaffCard } from "@/components/teachers/TeacherStaffCard";
+import { TeacherProfileReadonly } from "@/components/teachers/TeacherProfileReadonly";
+import { coerceSelectValue } from "@lumenx/utils";
 
 export const Route = createFileRoute("/teachers")({
   head: () => ({ meta: [{ title: "Teachers — LumenX Admin" }] }),
   component: TeachersPage,
 });
 
-type TeacherStatus = "active" | "on-leave" | "pending";
-
-type Teacher = {
-  id: string;
-  name: string;
-  dept: string;
-  email: string;
-  phone: string;
-  employeeId: string;
-  joined: string;
-  classes: number;
-  assignedSections: string[];
-  status: TeacherStatus;
-  subjects: string[];
-  portalAccess: string;
-  qualification: string;
-  lastLogin: string;
-  credentialsSentAt: string | null;
-};
-
 const INITIAL: Teacher[] = [
   {
     id: "T-001",
     name: "Sarah Jenkins",
+    role: "subject-teacher",
     dept: "Mathematics",
     email: "s.jenkins@institute.edu",
     phone: "+1 555 010 2201",
+    password: "Teach@Sarah1",
     employeeId: "EMP-1041",
     joined: "Aug 2019",
+    dateOfBirth: "1985-08-18",
     classes: 6,
     assignedSections: ["10-A", "10-B", "11-A"],
     status: "active",
@@ -74,11 +74,14 @@ const INITIAL: Teacher[] = [
   {
     id: "T-002",
     name: "David Koal",
+    role: "subject-teacher",
     dept: "Physics",
     email: "d.koal@institute.edu",
     phone: "+1 555 010 2202",
+    password: "Teach@David1",
     employeeId: "EMP-1042",
     joined: "Jun 2020",
+    dateOfBirth: "1988-08-20",
     classes: 5,
     assignedSections: ["11-A", "11-B", "12-A"],
     status: "active",
@@ -91,11 +94,14 @@ const INITIAL: Teacher[] = [
   {
     id: "T-003",
     name: "Priya Iyer",
+    role: "activity-coordinator",
     dept: "Biology",
     email: "p.iyer@institute.edu",
     phone: "+91 98220 44102",
+    password: "Teach@Priya1",
     employeeId: "EMP-1043",
     joined: "Apr 2021",
+    dateOfBirth: "1990-08-22",
     classes: 4,
     assignedSections: ["9-A", "9-B"],
     status: "active",
@@ -108,11 +114,14 @@ const INITIAL: Teacher[] = [
   {
     id: "T-004",
     name: "Marcus Whitfield",
+    role: "subject-teacher",
     dept: "English",
     email: "m.whitfield@institute.edu",
     phone: "+44 7700 900441",
+    password: "Teach@Marcus1",
     employeeId: "EMP-1044",
     joined: "Jan 2018",
+    dateOfBirth: "1982-03-15",
     classes: 7,
     assignedSections: ["10-A", "10-C", "12-B"],
     status: "on-leave",
@@ -125,11 +134,14 @@ const INITIAL: Teacher[] = [
   {
     id: "T-005",
     name: "Hana Suzuki",
+    role: "subject-teacher",
     dept: "Chemistry",
     email: "h.suzuki@institute.edu",
     phone: "+81 90 1234 5678",
+    password: "Teach@Hana12",
     employeeId: "EMP-1045",
     joined: "Jul 2022",
+    dateOfBirth: "1991-08-19",
     classes: 5,
     assignedSections: ["11-C", "12-A"],
     status: "active",
@@ -142,11 +154,14 @@ const INITIAL: Teacher[] = [
   {
     id: "T-006",
     name: "Omar Faris",
+    role: "activity-coordinator",
     dept: "History",
     email: "o.faris@institute.edu",
     phone: "+971 50 882 1100",
+    password: "Teach@Omar12",
     employeeId: "EMP-1046",
     joined: "Sep 2023",
+    dateOfBirth: "1987-11-02",
     classes: 3,
     assignedSections: ["9-A"],
     status: "pending",
@@ -155,6 +170,86 @@ const INITIAL: Teacher[] = [
     qualification: "M.A History",
     lastLogin: "Never",
     credentialsSentAt: null,
+  },
+  {
+    id: "T-007",
+    name: "Coach Arjun Patel",
+    role: "subject-teacher",
+    dept: "Physical Education",
+    email: "a.patel@institute.edu",
+    phone: "+971 50 771 2200",
+    password: "Teach@Arjun7",
+    employeeId: "EMP-1047",
+    joined: "Aug 2022",
+    dateOfBirth: "1993-08-24",
+    classes: 8,
+    assignedSections: ["10-A", "10-B", "11-A"],
+    status: "active",
+    subjects: ["Sports"],
+    portalAccess: "Faculty only",
+    qualification: "M.P.Ed · Athletics Coach",
+    lastLogin: "Today",
+    credentialsSentAt: "Aug 2022",
+  },
+  {
+    id: "T-008",
+    name: "Dr. Anita Verma",
+    role: "subject-teacher",
+    dept: "Computer Science",
+    email: "a.verma@institute.edu",
+    phone: "+971 50 661 3300",
+    password: "Teach@Anita8",
+    employeeId: "EMP-1048",
+    joined: "Jan 2021",
+    dateOfBirth: "1984-06-10",
+    classes: 6,
+    assignedSections: ["10-A", "11-A", "12-A"],
+    status: "active",
+    subjects: ["Computer Lab"],
+    portalAccess: "Faculty + Grading",
+    qualification: "M.Tech Computer Science",
+    lastLogin: "Yesterday",
+    credentialsSentAt: "Jan 2021",
+  },
+  {
+    id: "T-009",
+    name: "Priya Iyer",
+    role: "subject-teacher",
+    dept: "Biology",
+    email: "p.iyer.bio@institute.edu",
+    phone: "+971 50 441 4400",
+    password: "Teach@Priya9",
+    employeeId: "EMP-1049",
+    joined: "Mar 2020",
+    dateOfBirth: "1989-08-21",
+    classes: 5,
+    assignedSections: ["10-A", "11-B"],
+    status: "active",
+    subjects: ["Biology"],
+    portalAccess: "Faculty + Grading",
+    qualification: "M.Sc Biology · B.Ed",
+    lastLogin: "2 h ago",
+    credentialsSentAt: "Mar 2020",
+  },
+  {
+    id: "T-010",
+    name: "Omar Faris",
+    role: "subject-teacher",
+    dept: "History",
+    email: "o.faris.hist@institute.edu",
+    phone: "+971 50 882 1101",
+    password: "Teach@Omar10",
+    employeeId: "EMP-1050",
+    joined: "Sep 2023",
+    dateOfBirth: "1992-01-08",
+    classes: 4,
+    assignedSections: ["9-A", "10-A"],
+    status: "active",
+    subjects: ["History"],
+    portalAccess: "Faculty only",
+    qualification: "M.A History · B.Ed",
+    lastLogin: "Today",
+    credentialsSentAt: "Sep 2023",
   },
 ];
 
@@ -165,94 +260,185 @@ const DEPARTMENTS = [
   "Chemistry",
   "English",
   "History",
+  "Physical Education",
+  "Computer Science",
 ] as const;
-const STATUS_FILTERS = ["all", "active", "on-leave", "pending"] as const;
+const TEACHER_ROLE_VALUES = TEACHER_ROLES.map((r) => r.value);
+const TEACHER_STATUS_VALUES = ["active", "on-leave", "pending"] as const satisfies readonly TeacherStatus[];
+const STATUS_FILTERS = ["all", ...TEACHER_STATUS_VALUES] as const;
+const TEACHER_STATUS_LABELS: Record<TeacherStatus, string> = {
+  active: "Active",
+  "on-leave": "On leave",
+  pending: "Pending",
+};
+const TEACHERS_STORAGE_KEY = ADMIN_STORAGE_KEYS.teachers;
 
-function statusPill(status: TeacherStatus) {
-  if (status === "active") return <Pill tone="success">Active</Pill>;
-  if (status === "on-leave") return <Pill tone="warning">On leave</Pill>;
-  return <Pill tone="info">Pending</Pill>;
+function loadTeachers(): Teacher[] {
+  try {
+    const raw = localStorage.getItem(TEACHERS_STORAGE_KEY);
+    if (raw) {
+      const stored = (JSON.parse(raw) as Array<Teacher & { role?: TeacherRole; password?: string }>).map(
+        (teacher) => ({
+          ...teacher,
+          role: teacher.role ?? "subject-teacher",
+          password: teacher.password ?? `Teach@${teacher.id.replace(/\D/g, "").slice(-4) || "1234"}`,
+          subjects: getAssignedSubjectNamesForTeacher(teacher.id),
+        }),
+      );
+      const byId = new Map(stored.map((teacher) => [teacher.id, teacher]));
+      for (const fallback of INITIAL) {
+        const existing = byId.get(fallback.id);
+        if (!existing) {
+          byId.set(fallback.id, {
+            ...fallback,
+            subjects: getAssignedSubjectNamesForTeacher(fallback.id),
+          });
+        } else if (!existing.dateOfBirth && fallback.dateOfBirth) {
+          byId.set(fallback.id, { ...existing, dateOfBirth: fallback.dateOfBirth });
+        }
+      }
+      return [...byId.values()];
+    }
+  } catch {
+    // Use demo records when storage is unavailable.
+  }
+  return INITIAL.map((teacher) => ({
+    ...teacher,
+    subjects: getAssignedSubjectNamesForTeacher(teacher.id),
+  }));
 }
 
-function DetailRow({ label, value, icon }: { label: string; value: string; icon?: ReactNode }) {
-  return (
-    <div>
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">
-        {label}
-      </div>
-      <div className="flex items-center gap-2 text-xs text-foreground">
-        {icon && <span className="text-muted-foreground shrink-0">{icon}</span>}
-        <span>{value}</span>
-      </div>
-    </div>
-  );
-}
-
-type TeacherDraft = Partial<Teacher> & { subjectsText?: string; sectionsText?: string };
+type TeacherEditForm = Partial<Teacher> & {
+  subjectIds?: string[];
+  sectionsText?: string;
+};
 
 function TeachersPage() {
   const notify = useAdminToast();
-  const [rows, setRows] = useState(INITIAL);
-  const [open, setOpen] = useState(false);
-  const [q, setQ] = useState("");
+  const [rows, setRows] = useState<Teacher[]>(loadTeachers);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]>("all");
+  const [roleFilter, setRoleFilter] = useState<"all" | TeacherRole>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState<TeacherDraft>({});
+  const [editForm, setEditForm] = useState<TeacherEditForm>({});
   const [resetTarget, setResetTarget] = useState<Teacher | null>(null);
+  const [messageTarget, setMessageTarget] = useState<Teacher | null>(null);
+  const [messageSubject, setMessageSubject] = useState("");
+  const [messageBody, setMessageBody] = useState("");
+  const [messageError, setMessageError] = useState("");
 
   const [newName, setNewName] = useState("");
+  const [newRole, setNewRole] = useState<TeacherRole>("subject-teacher");
   const [newDept, setNewDept] = useState("Mathematics");
   const [newEmail, setNewEmail] = useState("");
-  const [newSubjects, setNewSubjects] = useState("");
+  const [newDateOfBirth, setNewDateOfBirth] = useState("");
+  const [newPassword, setNewPassword] = useState("Teacher@123");
+  const [newSubjectIds, setNewSubjectIds] = useState<string[]>([]);
+  const [showProfilePassword, setShowProfilePassword] = useState(false);
+  const [showEditPassword, setShowEditPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const subjectCatalog = useMemo(
+    () => getSubjectCatalog().filter((subject) => subject.status === "active"),
+    [],
+  );
 
   const selected = useMemo(() => rows.find((t) => t.id === selectedId) ?? null, [rows, selectedId]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(TEACHERS_STORAGE_KEY, JSON.stringify(rows));
+      window.dispatchEvent(new Event(TEACHERS_CHANGED_EVENT));
+    } catch {
+      // Keep current page state when storage is unavailable.
+    }
+  }, [rows]);
 
   const list = useMemo(() => {
     return rows.filter((t) => {
       if (statusFilter !== "all" && t.status !== statusFilter) return false;
-      if (!q) return true;
-      const lq = q.toLowerCase();
+      if (roleFilter !== "all" && t.role !== roleFilter) return false;
+      if (!searchQuery) return true;
+      const normalizedQuery = searchQuery.toLowerCase();
       return (
-        t.name.toLowerCase().includes(lq) ||
-        t.dept.toLowerCase().includes(lq) ||
-        t.email.toLowerCase().includes(lq)
+        t.name.toLowerCase().includes(normalizedQuery) ||
+        t.dept.toLowerCase().includes(normalizedQuery) ||
+        t.email.toLowerCase().includes(normalizedQuery) ||
+        teacherRoleLabel(t.role).toLowerCase().includes(normalizedQuery)
       );
     });
-  }, [rows, q, statusFilter]);
+  }, [rows, searchQuery, statusFilter, roleFilter]);
 
-  const openDetail = (t: Teacher) => {
+  const openDetail = useCallback((t: Teacher) => {
     setSelectedId(t.id);
     setEditing(false);
-    setDraft({});
-  };
+    setEditForm({});
+  }, []);
 
   const closeDetail = () => {
     setSelectedId(null);
     setEditing(false);
-    setDraft({});
+    setEditForm({});
+    setShowProfilePassword(false);
+    setShowEditPassword(false);
+  };
+
+  const openMessage = useCallback((teacher: Teacher) => {
+    setSelectedId(null);
+    setEditing(false);
+    setEditForm({});
+    setShowProfilePassword(false);
+    setShowEditPassword(false);
+    setMessageTarget(teacher);
+    setMessageSubject("");
+    setMessageBody("");
+    setMessageError("");
+  }, []);
+
+  const closeMessage = () => {
+    setMessageTarget(null);
+    setMessageSubject("");
+    setMessageBody("");
+    setMessageError("");
+  };
+
+  const sendMessage = () => {
+    if (!messageTarget) return;
+    if (messageSubject.trim().length < 3) {
+      setMessageError("Subject must be at least 3 characters.");
+      return;
+    }
+    if (messageBody.trim().length < 8) {
+      setMessageError("Message must be at least 8 characters.");
+      return;
+    }
+    notify(`Message sent to ${messageTarget.name} · ${messageTarget.email || "teacher portal"}`);
+    closeMessage();
   };
 
   const startEdit = () => {
     if (!selected) return;
-    setDraft({
+    setEditForm({
       ...selected,
-      subjectsText: selected.subjects.join(", "),
+      subjectIds: getAssignedSubjectIdsForTeacher(selected.id),
       sectionsText: selected.assignedSections.join(", "),
     });
+    setShowEditPassword(false);
     setEditing(true);
   };
 
   const saveEdit = () => {
-    if (!selected || !draft.name?.trim()) return;
-    const subjects = draft.subjectsText
-      ? draft.subjectsText
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean)
-      : selected.subjects;
-    const assignedSections = draft.sectionsText
-      ? draft.sectionsText
+    if (!selected || !editForm.name?.trim()) return;
+    const nextRole = editForm.role ?? selected.role;
+    const subjectIds =
+      nextRole === "activity-coordinator"
+        ? []
+        : (editForm.subjectIds ?? getAssignedSubjectIdsForTeacher(selected.id));
+    assignSubjectsToTeacher(selected.id, subjectIds);
+    const subjects = getAssignedSubjectNamesForTeacher(selected.id);
+    const assignedSections = editForm.sectionsText
+      ? editForm.sectionsText
           .split(",")
           .map((s) => s.trim())
           .filter(Boolean)
@@ -263,13 +449,16 @@ function TeachersPage() {
         t.id === selected.id
           ? {
               ...t,
-              name: draft.name!.trim(),
-              dept: draft.dept ?? t.dept,
-              email: draft.email ?? t.email,
-              phone: draft.phone ?? t.phone,
-              status: draft.status ?? t.status,
-              portalAccess: draft.portalAccess ?? t.portalAccess,
-              qualification: draft.qualification ?? t.qualification,
+              name: editForm.name!.trim(),
+              role: editForm.role ?? t.role,
+              dept: editForm.dept ?? t.dept,
+              email: editForm.email ?? t.email,
+              phone: editForm.phone ?? t.phone,
+              password: editForm.password?.trim() || t.password,
+              status: editForm.status ?? t.status,
+              portalAccess: editForm.portalAccess ?? t.portalAccess,
+              qualification: editForm.qualification ?? t.qualification,
+              dateOfBirth: editForm.dateOfBirth?.trim() || undefined,
               subjects,
               assignedSections,
               classes: assignedSections.length || t.classes,
@@ -278,8 +467,8 @@ function TeachersPage() {
       ),
     );
     setEditing(false);
-    setDraft({});
-    notify(`${draft.name.trim()} updated successfully`);
+    setEditForm({});
+    notify(`${editForm.name.trim()} updated successfully`);
   };
 
   const confirmReset = () => {
@@ -300,28 +489,41 @@ function TeachersPage() {
       {
         id,
         name: newName.trim(),
+        role: newRole,
         dept: newDept,
         email: newEmail.trim() || `${newName.trim().split(" ")[0].toLowerCase()}@institute.edu`,
         phone: "",
+        password: newPassword.trim() || "Teacher@123",
         employeeId: `EMP-${1040 + p.length + 1}`,
         joined: new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" }),
+        dateOfBirth: newDateOfBirth.trim() || undefined,
         classes: 0,
         assignedSections: [],
         status: "pending",
-        subjects: newSubjects
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean),
+        subjects:
+          newRole === "activity-coordinator"
+            ? []
+            : subjectCatalog
+                .filter((subject) => newSubjectIds.includes(subject.id))
+                .map((subject) => subject.name),
         portalAccess: "Faculty + Grading",
         qualification: "",
         lastLogin: "Never",
         credentialsSentAt: null,
       },
     ]);
+    assignSubjectsToTeacher(
+      id,
+      newRole === "activity-coordinator" ? [] : newSubjectIds,
+    );
     setNewName("");
+    setNewRole("subject-teacher");
     setNewEmail("");
-    setNewSubjects("");
-    setOpen(false);
+    setNewDateOfBirth("");
+    setNewPassword("Teacher@123");
+    setNewSubjectIds([]);
+    setShowNewPassword(false);
+    setCreateDialogOpen(false);
     notify(`${newName.trim()} onboarded · portal invite sent`);
   };
 
@@ -330,100 +532,57 @@ function TeachersPage() {
       title="Academic Staff"
       subtitle={`${rows.length} teachers · 12 departments`}
       actions={
-        <Button variant="primary" onClick={() => setOpen(true)}>
+        <Button variant="primary" onClick={() => setCreateDialogOpen(true)}>
           <Plus className="size-3.5" /> Add Teacher
         </Button>
       }
     >
       <Card className="mb-4">
-        <PageToolbar className="!flex-row !items-center">
+        <PageToolbar className="lx-people-toolbar">
           <SearchInput
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search name or department…"
-            className="flex-1 min-w-[200px]"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search name, department, or role…"
+            className="w-full min-w-0 flex-1"
           />
           <SegmentedControl
             value={statusFilter}
             onChange={setStatusFilter}
             options={STATUS_FILTERS.map((f) => ({
               value: f,
-              label: f === "all" ? "All" : f.replace("-", " "),
+              label: f === "all" ? "All" : TEACHER_STATUS_LABELS[f],
             }))}
           />
+          <Select
+            fieldSize="compact"
+            value={roleFilter}
+            onChange={(event) =>
+              setRoleFilter(event.target.value as "all" | TeacherRole)
+            }
+            className="w-44"
+            aria-label="Filter by teacher role"
+          >
+            <option value="all">All roles</option>
+            {TEACHER_ROLES.map((role) => (
+              <option key={role.value} value={role.value}>
+                {role.label}
+              </option>
+            ))}
+          </Select>
           <ToolbarSpacer />
           <ToolbarMeta>{list.length} results</ToolbarMeta>
         </PageToolbar>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         {list.map((t) => (
-          <Card
+          <TeacherStaffCard
             key={t.id}
-            interactive
-            role="button"
-            tabIndex={0}
-            aria-label={`View ${t.name} profile`}
-            onClick={() => openDetail(t)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                openDetail(t);
-              }
-            }}
-            className="p-5 hover:bg-surface-hover transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30"
-          >
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div className="size-11 rounded-full bg-gradient-to-br from-primary/30 to-chart-5/30 ring-2 ring-border flex items-center justify-center text-xs font-semibold">
-                  {t.name
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")}
-                </div>
-                <div>
-                  <div className="text-sm font-medium">{t.name}</div>
-                  <div className="text-[11px] text-muted-foreground">{t.dept}</div>
-                  <div className="text-[10px] text-muted-foreground font-mono mt-0.5">{t.id}</div>
-                </div>
-              </div>
-              {statusPill(t.status)}
-            </div>
-            <div className="mt-5">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                Classes
-              </div>
-              <div className="text-base font-semibold mt-1">{t.classes}</div>
-            </div>
-            <div className="mt-4 flex flex-wrap gap-1">
-              {t.subjects.slice(0, 2).map((s) => (
-                <span
-                  key={s}
-                  className="px-2 py-0.5 rounded text-[10px] bg-accent border border-border"
-                >
-                  {s}
-                </span>
-              ))}
-              {t.subjects.length > 2 && (
-                <span className="text-[10px] text-muted-foreground">+{t.subjects.length - 2}</span>
-              )}
-            </div>
-            <div
-              className="flex gap-2 mt-5"
-              onClick={(e) => e.stopPropagation()}
-              onKeyDown={(e) => e.stopPropagation()}
-            >
-              <Button
-                className="flex-1 justify-center"
-                onClick={() => notify(`Message queued for ${t.name}`)}
-              >
-                <Mail className="size-3" /> Message
-              </Button>
-              <Button className="flex-1 justify-center" onClick={() => setResetTarget(t)}>
-                <KeyRound className="size-3" /> Reset
-              </Button>
-            </div>
-          </Card>
+            teacher={t}
+            onOpen={openDetail}
+            onMessage={openMessage}
+            onReset={setResetTarget}
+          />
         ))}
       </div>
 
@@ -442,18 +601,25 @@ function TeachersPage() {
               <Button
                 onClick={() => {
                   setEditing(false);
-                  setDraft({});
+                  setEditForm({});
                 }}
               >
                 Cancel
               </Button>
-              <Button variant="primary" onClick={saveEdit} disabled={!draft.name?.trim()}>
+              <Button variant="primary" onClick={saveEdit} disabled={!editForm.name?.trim()}>
                 Save changes
               </Button>
             </>
           ) : (
             <>
               <Button onClick={closeDetail}>Close</Button>
+              <Button
+                onClick={() => {
+                  if (selected) openMessage(selected);
+                }}
+              >
+                <Mail className="size-3.5" /> Message
+              </Button>
               <Button onClick={() => selected && setResetTarget(selected)}>
                 <KeyRound className="size-3.5" /> Reset credentials
               </Button>
@@ -465,111 +631,46 @@ function TeachersPage() {
         }
       >
         {selected && !editing && (
-          <div className="space-y-5">
-            <div className="flex items-center gap-4">
-              <div className="size-16 rounded-full bg-gradient-to-br from-primary/30 to-chart-5/30 ring-2 ring-border flex items-center justify-center text-sm font-semibold">
-                {selected.name
-                  .split(" ")
-                  .map((n) => n[0])
-                  .join("")}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-base font-semibold">{selected.name}</div>
-                <div className="text-sm text-muted-foreground">{selected.dept}</div>
-                <div className="mt-1">{statusPill(selected.status)}</div>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
-              <DetailRow
-                label="Email"
-                value={selected.email}
-                icon={<Mail className="size-3.5" />}
-              />
-              <DetailRow
-                label="Phone"
-                value={selected.phone || "—"}
-                icon={<Phone className="size-3.5" />}
-              />
-              <DetailRow label="Employee ID" value={selected.employeeId} />
-              <DetailRow
-                label="Joined"
-                value={selected.joined}
-                icon={<Calendar className="size-3.5" />}
-              />
-              <DetailRow
-                label="Portal access"
-                value={selected.portalAccess}
-                icon={<Shield className="size-3.5" />}
-              />
-              <DetailRow label="Last login" value={selected.lastLogin} />
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {[
-                { l: "Classes", v: String(selected.classes) },
-                { l: "Last login", v: selected.lastLogin },
-                { l: "Credentials", v: selected.credentialsSentAt ?? "Not sent" },
-              ].map((s) => (
-                <div key={s.l} className="p-3 rounded-md border border-border bg-background/40">
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    {s.l}
-                  </div>
-                  <div className="font-medium mt-1 text-sm">{s.v}</div>
-                </div>
-              ))}
-            </div>
-            <div>
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
-                Qualification
-              </div>
-              <div className="text-xs">{selected.qualification || "—"}</div>
-            </div>
-            <div>
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1">
-                <BookOpen className="size-3" /> Subjects
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {selected.subjects.map((s) => (
-                  <span
-                    key={s}
-                    className="px-2 py-1 rounded text-[11px] bg-accent border border-border"
-                  >
-                    {s}
-                  </span>
-                ))}
-              </div>
-            </div>
-            {selected.assignedSections.length > 0 && (
-              <div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
-                  Assigned sections
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {selected.assignedSections.map((s) => (
-                    <span
-                      key={s}
-                      className="px-2 py-1 rounded text-[11px] font-mono bg-background border border-border"
-                    >
-                      Grade {s}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+          <TeacherProfileReadonly
+            teacher={selected}
+            showPassword={showProfilePassword}
+            onTogglePassword={() => setShowProfilePassword((visible) => !visible)}
+          />
         )}
 
         {selected && editing && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Full name" required>
               <TextInput
-                value={draft.name ?? ""}
-                onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+                value={editForm.name ?? ""}
+                onChange={(e) => setEditForm((d) => ({ ...d, name: e.target.value }))}
               />
+            </Field>
+            <Field
+              label="Teacher role"
+              required
+              hint="Both Roles will enable role switching in Connect later"
+            >
+              <Select
+                value={editForm.role ?? "subject-teacher"}
+                onChange={(e) =>
+                  setEditForm((d) => ({
+                    ...d,
+                    role: coerceSelectValue(e.target.value, TEACHER_ROLE_VALUES, d.role ?? "subject-teacher"),
+                  }))
+                }
+              >
+                {TEACHER_ROLES.map((role) => (
+                  <option key={role.value} value={role.value}>
+                    {role.label}
+                  </option>
+                ))}
+              </Select>
             </Field>
             <Field label="Department" required>
               <Select
-                value={draft.dept ?? "Mathematics"}
-                onChange={(e) => setDraft((d) => ({ ...d, dept: e.target.value }))}
+                value={editForm.dept ?? "Mathematics"}
+                onChange={(e) => setEditForm((d) => ({ ...d, dept: e.target.value }))}
               >
                 {DEPARTMENTS.map((d) => (
                   <option key={d}>{d}</option>
@@ -579,32 +680,70 @@ function TeachersPage() {
             <Field label="Email">
               <TextInput
                 type="email"
-                value={draft.email ?? ""}
-                onChange={(e) => setDraft((d) => ({ ...d, email: e.target.value }))}
+                value={editForm.email ?? ""}
+                onChange={(e) => setEditForm((d) => ({ ...d, email: e.target.value }))}
               />
             </Field>
             <Field label="Phone">
               <TextInput
-                value={draft.phone ?? ""}
-                onChange={(e) => setDraft((d) => ({ ...d, phone: e.target.value }))}
+                value={editForm.phone ?? ""}
+                onChange={(e) => setEditForm((d) => ({ ...d, phone: e.target.value }))}
               />
+            </Field>
+            <Field label="Date of birth">
+              <TextInput
+                type="date"
+                value={editForm.dateOfBirth ?? ""}
+                onChange={(e) => setEditForm((d) => ({ ...d, dateOfBirth: e.target.value }))}
+              />
+            </Field>
+            <Field label="Account password" required hint="Admin can always view this password">
+              <div className="relative">
+                <TextInput
+                  type={showEditPassword ? "text" : "password"}
+                  value={editForm.password ?? ""}
+                  onChange={(e) => setEditForm((d) => ({ ...d, password: e.target.value }))}
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowEditPassword((visible) => !visible)}
+                  className="absolute right-2 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-surface-hover"
+                  aria-label={showEditPassword ? "Hide password" : "Show password"}
+                >
+                  {showEditPassword ? (
+                    <EyeOff className="size-3.5" />
+                  ) : (
+                    <Eye className="size-3.5" />
+                  )}
+                </button>
+              </div>
             </Field>
             <Field label="Status">
               <Select
-                value={draft.status ?? "active"}
+                value={editForm.status ?? "active"}
                 onChange={(e) =>
-                  setDraft((d) => ({ ...d, status: e.target.value as TeacherStatus }))
+                  setEditForm((d) => ({
+                    ...d,
+                    status: coerceSelectValue(
+                      e.target.value,
+                      TEACHER_STATUS_VALUES,
+                      d.status ?? "active",
+                    ),
+                  }))
                 }
               >
-                <option value="active">Active</option>
-                <option value="on-leave">On leave</option>
-                <option value="pending">Pending</option>
+                {TEACHER_STATUS_VALUES.map((status) => (
+                  <option key={status} value={status}>
+                    {TEACHER_STATUS_LABELS[status]}
+                  </option>
+                ))}
               </Select>
             </Field>
             <Field label="Portal access">
               <Select
-                value={draft.portalAccess ?? "Faculty + Grading"}
-                onChange={(e) => setDraft((d) => ({ ...d, portalAccess: e.target.value }))}
+                value={editForm.portalAccess ?? "Faculty + Grading"}
+                onChange={(e) => setEditForm((d) => ({ ...d, portalAccess: e.target.value }))}
               >
                 <option>Faculty + Grading</option>
                 <option>Faculty only</option>
@@ -613,21 +752,67 @@ function TeachersPage() {
             </Field>
             <Field label="Qualification" hint="Degrees & certifications">
               <TextInput
-                value={draft.qualification ?? ""}
-                onChange={(e) => setDraft((d) => ({ ...d, qualification: e.target.value }))}
-              />
-            </Field>
-            <Field label="Subjects" hint="Comma separated">
-              <TextInput
-                value={draft.subjectsText ?? ""}
-                onChange={(e) => setDraft((d) => ({ ...d, subjectsText: e.target.value }))}
+                value={editForm.qualification ?? ""}
+                onChange={(e) => setEditForm((d) => ({ ...d, qualification: e.target.value }))}
               />
             </Field>
             <div className="sm:col-span-2">
+              <Field
+                label="Assigned subjects"
+                hint={
+                  (editForm.role ?? selected.role) === "activity-coordinator"
+                    ? "Subject assignment is available for Subject Teacher or Both Roles"
+                    : "Select subjects from the institute catalog"
+                }
+              >
+                {(editForm.role ?? selected.role) === "activity-coordinator" ? (
+                  <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+                    Change the teacher role to Subject Teacher or Both Roles to assign subjects.
+                  </div>
+                ) : (
+                  <div className="mt-1 grid gap-2 sm:grid-cols-2">
+                    {subjectCatalog.map((subject) => {
+                      const checked = (editForm.subjectIds ?? []).includes(subject.id);
+                      return (
+                        <label
+                          key={subject.id}
+                          className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-xs ${
+                            checked ? "border-primary bg-primary/5" : "border-border"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() =>
+                              setEditForm((current) => {
+                                const ids = current.subjectIds ?? [];
+                                return {
+                                  ...current,
+                                  subjectIds: checked
+                                    ? ids.filter((id) => id !== subject.id)
+                                    : [...ids, subject.id],
+                                };
+                              })
+                            }
+                          />
+                          <span className="min-w-0">
+                            <span className="block font-medium">{subject.name}</span>
+                            <span className="font-mono text-[10px] text-muted-foreground">
+                              {subject.code}
+                            </span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </Field>
+            </div>
+            <div className="sm:col-span-2">
               <Field label="Assigned sections" hint="e.g. 10-A, 11-B">
                 <TextInput
-                  value={draft.sectionsText ?? ""}
-                  onChange={(e) => setDraft((d) => ({ ...d, sectionsText: e.target.value }))}
+                  value={editForm.sectionsText ?? ""}
+                  onChange={(e) => setEditForm((d) => ({ ...d, sectionsText: e.target.value }))}
                   placeholder="10-A, 10-B, 11-A"
                 />
               </Field>
@@ -671,14 +856,74 @@ function TeachersPage() {
       </Modal>
 
       <Modal
-        open={open}
-        onClose={() => setOpen(false)}
+        open={!!messageTarget}
+        onClose={closeMessage}
+        title="Send message"
+        subtitle={
+          messageTarget
+            ? `To ${messageTarget.name} · ${messageTarget.email || "No email on file"}`
+            : undefined
+        }
+        footer={
+          <>
+            <Button onClick={closeMessage}>Cancel</Button>
+            <Button variant="primary" onClick={sendMessage}>
+              <Send className="size-3.5" /> Send message
+            </Button>
+          </>
+        }
+      >
+        {messageTarget && (
+          <div className="space-y-4">
+            {messageError && (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+                {messageError}
+              </div>
+            )}
+            <div className="rounded-lg border border-border bg-background/40 p-3 text-xs">
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Recipient
+              </div>
+              <div className="mt-1 font-medium">{messageTarget.name}</div>
+              <div className="mt-0.5 text-muted-foreground">
+                {messageTarget.email || "No email"} · {messageTarget.phone || "No phone"}
+              </div>
+            </div>
+            <Field label="Subject" required>
+              <TextInput
+                value={messageSubject}
+                onChange={(e) => {
+                  setMessageSubject(e.target.value);
+                  setMessageError("");
+                }}
+                placeholder="e.g. Timetable update for next week"
+                autoFocus
+              />
+            </Field>
+            <Field label="Message" required hint="At least 8 characters">
+              <TextArea
+                rows={5}
+                value={messageBody}
+                onChange={(e) => {
+                  setMessageBody(e.target.value);
+                  setMessageError("");
+                }}
+                placeholder="Write your message to this teacher…"
+              />
+            </Field>
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        open={createDialogOpen}
+        onClose={() => setCreateDialogOpen(false)}
         title="Onboard teacher"
         subtitle="Create faculty record, portal access and timetable assignment"
         size="lg"
         footer={
           <>
-            <Button onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
             <Button variant="primary" onClick={onboard} disabled={!newName.trim()}>
               <UserPlus className="size-3.5" /> Onboard
             </Button>
@@ -692,6 +937,24 @@ function TeachersPage() {
               onChange={(e) => setNewName(e.target.value)}
               placeholder="Dr. Maya Robinson"
             />
+          </Field>
+          <Field
+            label="Teacher role"
+            required
+            hint="Both Roles will enable role switching in Connect later"
+          >
+            <Select
+              value={newRole}
+              onChange={(e) =>
+                setNewRole(coerceSelectValue(e.target.value, TEACHER_ROLE_VALUES, "subject-teacher"))
+              }
+            >
+              {TEACHER_ROLES.map((role) => (
+                <option key={role.value} value={role.value}>
+                  {role.label}
+                </option>
+              ))}
+            </Select>
           </Field>
           <Field label="Department" required>
             <Select value={newDept} onChange={(e) => setNewDept(e.target.value)}>
@@ -708,13 +971,84 @@ function TeachersPage() {
               placeholder="faculty@institute.edu"
             />
           </Field>
-          <Field label="Subjects" hint="Comma separated">
+          <Field label="Date of birth">
             <TextInput
-              value={newSubjects}
-              onChange={(e) => setNewSubjects(e.target.value)}
-              placeholder="Mathematics, Algebra"
+              type="date"
+              value={newDateOfBirth}
+              onChange={(e) => setNewDateOfBirth(e.target.value)}
             />
           </Field>
+          <Field label="Account password" required hint="Admin can always view this password">
+            <div className="relative">
+              <TextInput
+                type={showNewPassword ? "text" : "password"}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Teacher@123"
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowNewPassword((visible) => !visible)}
+                className="absolute right-2 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-surface-hover"
+                aria-label={showNewPassword ? "Hide password" : "Show password"}
+              >
+                {showNewPassword ? (
+                  <EyeOff className="size-3.5" />
+                ) : (
+                  <Eye className="size-3.5" />
+                )}
+              </button>
+            </div>
+          </Field>
+          <div className="sm:col-span-2">
+            <Field
+              label="Assigned subjects"
+              hint={
+                newRole === "activity-coordinator"
+                  ? "Subject assignment is available for Subject Teacher or Both Roles"
+                  : "Select subjects from the institute catalog"
+              }
+            >
+              {newRole === "activity-coordinator" ? (
+                <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+                  Choose Subject Teacher or Both Roles to assign subjects.
+                </div>
+              ) : (
+                <div className="mt-1 grid gap-2 sm:grid-cols-2">
+                  {subjectCatalog.map((subject) => {
+                    const checked = newSubjectIds.includes(subject.id);
+                    return (
+                      <label
+                        key={subject.id}
+                        className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-xs ${
+                          checked ? "border-primary bg-primary/5" : "border-border"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() =>
+                            setNewSubjectIds((ids) =>
+                              checked
+                                ? ids.filter((id) => id !== subject.id)
+                                : [...ids, subject.id],
+                            )
+                          }
+                        />
+                        <span className="min-w-0">
+                          <span className="block font-medium">{subject.name}</span>
+                          <span className="font-mono text-[10px] text-muted-foreground">
+                            {subject.code}
+                          </span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </Field>
+          </div>
           <Field label="Portal access">
             <Select>
               <option>Faculty + Grading</option>

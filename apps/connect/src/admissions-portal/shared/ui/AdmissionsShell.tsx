@@ -1,6 +1,5 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import {
-  Home,
   GraduationCap,
   FilePlus,
   FolderOpen,
@@ -12,6 +11,7 @@ import {
   User,
   Settings,
   LogIn,
+  LogOut,
   Building2,
   Moon,
   Sun,
@@ -19,11 +19,27 @@ import {
   ClipboardList,
   FormInput,
   MessageSquare,
-  Calendar,
+  DoorOpen,
 } from "lucide-react";
-import { useState } from "react";
-import { Button } from "@lumenx/ui";
-import { Sheet, SheetTrigger } from "@lumenx/ui";
+import { useCallback, useMemo, useRef, useState } from "react";
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  PendingSyncBadge,
+  Sheet,
+  SheetTrigger,
+  useIsMobile,
+  useSwipeNavigation,
+  type SwipeNavItem,
+  ModuleTransitionRoot,
+  navigateWithModuleTransition,
+  getModuleNavDirection,
+} from "@lumenx/ui";
 import { MobileMoreSheetContent } from "@/components/app/MobileMoreSheetContent";
 import { cn } from "@lumenx/ui";
 import { useAdmissionsAuth } from "@/admissions-portal/core/AdmissionsAuthProvider";
@@ -36,7 +52,7 @@ import type { AdmissionsUser } from "@/lib/admissions/types";
 type NavItem = {
   to: string;
   label: string;
-  icon: typeof Home;
+  icon: typeof Building2;
   exact?: boolean;
   auth?: boolean;
   parentOnly?: boolean;
@@ -44,7 +60,6 @@ type NavItem = {
 };
 
 const PRIMARY_NAV: NavItem[] = [
-  { to: "/admissions", label: "Home", icon: Home, exact: true },
   { to: "/admissions/institutes", label: "Institutes", icon: Building2 },
   { to: "/admissions/programs", label: "Programs", icon: GraduationCap },
   {
@@ -67,13 +82,6 @@ const MORE_NAV: NavItem[] = [
   },
   { to: "/admissions/documents", label: "Documents", icon: FileText, auth: true, parentOnly: true },
   {
-    to: "/admissions/interviews",
-    label: "Interviews",
-    icon: Calendar,
-    auth: true,
-    parentOnly: true,
-  },
-  {
     to: "/admissions/inquiries",
     label: "Inquiries",
     icon: MessageSquare,
@@ -90,7 +98,8 @@ const MORE_NAV: NavItem[] = [
 const INSTITUTE_ADMIN_NAV: NavItem[] = [
   { to: "/admissions/institute", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { to: "/admissions/institute/applications", label: "Applications", icon: FolderOpen },
-  { to: "/admissions/institute/form", label: "Form builder", icon: FormInput },
+  { to: "/admissions/institute/openings", label: "Openings", icon: DoorOpen },
+  { to: "/admissions/institute/form", label: "Application form", icon: FormInput },
   { to: "/admissions/institute/profile", label: "Institute profile", icon: Building2 },
 ];
 
@@ -100,7 +109,6 @@ function navVisible(item: NavItem, user: AdmissionsUser | null) {
     return true;
   }
   if (item.instituteOnly) return false;
-  if (item.parentOnly && user?.accountType === "institute_admin") return false;
   return true;
 }
 
@@ -124,6 +132,9 @@ function isActive(pathname: string, to: string, exact?: boolean) {
       pathname === "/admissions/institute/profile" || pathname === "/admissions/institute/settings"
     );
   }
+  if (to === "/admissions/institute/openings") {
+    return pathname === to || pathname.startsWith(`${to}/`);
+  }
   if (to.startsWith("/admissions/institute/")) {
     return pathname === to || pathname.startsWith(`${to}/`);
   }
@@ -145,6 +156,62 @@ function ThemeToggle({ className }: { className?: string }) {
   );
 }
 
+function HeaderSettingsMenu() {
+  const { user, signOut } = useAdmissionsAuth();
+  const nav = useNavigate();
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Settings"
+          className="size-9 rounded-lg border border-border"
+        >
+          <Settings className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuLabel className="truncate">
+          {user?.name ?? "Account"}
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {user ? (
+          <>
+            <DropdownMenuItem
+              onSelect={() => {
+                nav({ to: "/admissions/settings" });
+              }}
+            >
+              <Settings className="size-4 mr-2" />
+              Settings
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => {
+                signOut();
+                nav({ to: "/admissions/login" });
+              }}
+            >
+              <LogOut className="size-4 mr-2" />
+              Log out
+            </DropdownMenuItem>
+          </>
+        ) : (
+          <DropdownMenuItem
+            onSelect={() => {
+              nav({ to: "/admissions/login" });
+            }}
+          >
+            <LogIn className="size-4 mr-2" />
+            Sign in
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export function AdmissionsShell({ children }: { children: React.ReactNode }) {
   const loc = useLocation();
   const nav = useNavigate();
@@ -156,6 +223,56 @@ export function AdmissionsShell({ children }: { children: React.ReactNode }) {
   const mainNav = isInstituteAdmin
     ? INSTITUTE_ADMIN_NAV
     : PRIMARY_NAV.filter((item) => navVisible(item, user));
+  const mainRef = useRef<HTMLElement>(null);
+  const isMobile = useIsMobile();
+
+  const swipePrimaryPaths = useMemo((): SwipeNavItem[] => {
+    const items = isInstituteAdmin ? INSTITUTE_ADMIN_NAV.slice(0, 4) : PRIMARY_NAV;
+    return items.map((item) => ({ path: item.to, exact: item.exact }));
+  }, [isInstituteAdmin]);
+
+  const swipeMorePaths = useMemo((): SwipeNavItem[] => {
+    return MORE_NAV.filter((item) => navVisible(item, user)).map((item) => ({
+      path: item.to,
+      exact: item.exact,
+    }));
+  }, [user?.id, user?.accountType]);
+
+  const onSwipeNavigate = useCallback(
+    (to: string) => {
+      setMoreOpen(false);
+      const item = [...PRIMARY_NAV, ...MORE_NAV, ...INSTITUTE_ADMIN_NAV].find((n) => n.to === to);
+      const run = () => {
+        if (item) {
+          const target = navTarget(item, user);
+          void nav({
+            to: target.to,
+            search: "search" in target ? target.search : undefined,
+          });
+          return;
+        }
+        void nav({ to });
+      };
+      const direction = getModuleNavDirection(loc.pathname, to, swipePrimaryPaths, swipeMorePaths, {
+        isActive,
+        settingsPath: MORE_NAV.find((n) => n.label === "Settings")?.to,
+      });
+      navigateWithModuleTransition(run, direction);
+    },
+    [loc.pathname, nav, swipeMorePaths, swipePrimaryPaths, user],
+  );
+
+  useSwipeNavigation({
+    containerRef: mainRef,
+    pathname: loc.pathname,
+    primaryPaths: swipePrimaryPaths,
+    morePaths: swipeMorePaths,
+    enabled: isMobile && !minimal,
+    isActive,
+    settingsPath: MORE_NAV.find((item) => item.label === "Settings")?.to,
+    homePath: swipePrimaryPaths[0]?.path,
+    onNavigate: onSwipeNavigate,
+  });
 
   const NavLink = (item: NavItem) => {
     const { to, label, icon: Icon, exact } = item;
@@ -194,9 +311,12 @@ export function AdmissionsShell({ children }: { children: React.ReactNode }) {
               </div>
             </Link>
             <ThemeToggle />
+            <HeaderSettingsMenu />
           </div>
         </header>
-        <main className="mx-auto max-w-lg px-4 py-6">{children}</main>
+        <main ref={mainRef} className="mx-auto max-w-lg px-4 py-6">
+          {children}
+        </main>
       </div>
     );
   }
@@ -214,7 +334,11 @@ export function AdmissionsShell({ children }: { children: React.ReactNode }) {
               <p className="text-sm font-bold truncate">LumenX</p>
             </div>
           </Link>
-          <ThemeToggle />
+          <div className="flex items-center gap-1">
+            <PendingSyncBadge />
+            <ThemeToggle />
+            <HeaderSettingsMenu />
+          </div>
         </div>
         <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 space-y-1">
           {mainNav.map((item) => (
@@ -236,8 +360,7 @@ export function AdmissionsShell({ children }: { children: React.ReactNode }) {
                 More
               </p>
               {[
-                { to: "/admissions/institutes", label: "Browse institutes", icon: Building2 },
-                { to: "/admissions/profile", label: "Profile", icon: User, auth: true },
+                { to: "/admissions/institute/profile", label: "Institute profile", icon: Building2 },
                 { to: "/admissions/settings", label: "Settings", icon: Settings, auth: true },
               ].map((item) => (
                 <NavLink key={item.to} {...item} />
@@ -260,17 +383,19 @@ export function AdmissionsShell({ children }: { children: React.ReactNode }) {
           ) : (
             <div className="flex flex-col gap-2">
               <Button className="w-full" asChild>
-                <Link to="/admissions/signup" search={{ type: "parent" }}>
-                  <LogIn className="size-4 mr-2" /> Parent sign up
+                <Link to="/admissions/login">
+                  <LogIn className="size-4 mr-2" /> Sign in
                 </Link>
               </Button>
               <Button variant="outline" className="w-full" asChild>
-                <Link to="/admissions/signup" search={{ type: "institute" }}>
-                  Institute sign up
+                <Link to="/admissions/login" search={{ type: "parent" }}>
+                  Parent login
                 </Link>
               </Button>
               <Button variant="ghost" className="w-full" asChild>
-                <Link to="/admissions/login">Sign in</Link>
+                <Link to="/admissions/login" search={{ type: "institute" }}>
+                  Institute access
+                </Link>
               </Button>
             </div>
           )}
@@ -284,6 +409,7 @@ export function AdmissionsShell({ children }: { children: React.ReactNode }) {
             <span className="truncate text-sm font-bold">Admissions</span>
           </Link>
           <div className="flex items-center gap-1">
+            <PendingSyncBadge />
             <ThemeToggle />
             {user && (
               <Link
@@ -298,16 +424,27 @@ export function AdmissionsShell({ children }: { children: React.ReactNode }) {
                 )}
               </Link>
             )}
-            {!user && (
-              <Button size="sm" variant="outline" asChild>
-                <Link to="/admissions/login">Sign in</Link>
-              </Button>
-            )}
+            <HeaderSettingsMenu />
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 pb-24 lg:pb-8 lg:px-8 min-w-0">
-          {children}
+        <main
+          ref={mainRef}
+          className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 pb-24 lg:pb-8 lg:px-8 min-w-0"
+        >
+          <div className="lx-module-swipe-stage min-w-0 w-full">
+            <ModuleTransitionRoot
+              pathname={loc.pathname}
+              primaryPaths={swipePrimaryPaths}
+              morePaths={swipeMorePaths}
+              settingsPath={MORE_NAV.find((item) => item.label === "Settings")?.to}
+              isActive={isActive}
+              enabled={isMobile && !minimal}
+              className="min-w-0"
+            >
+              {children}
+            </ModuleTransitionRoot>
+          </div>
         </main>
 
         <nav className="fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-background/95 backdrop-blur-md lg:hidden safe-area-pb">
@@ -323,7 +460,7 @@ export function AdmissionsShell({ children }: { children: React.ReactNode }) {
                   PRIMARY_NAV[0],
                   PRIMARY_NAV[1],
                   PRIMARY_NAV[2],
-                  user ? PRIMARY_NAV[3] : { ...PRIMARY_NAV[4], login: true },
+                  user ? PRIMARY_NAV[3] : { ...PRIMARY_NAV[3], login: true },
                 ]
             )
               .filter(Boolean)
@@ -391,11 +528,11 @@ export function AdmissionsShell({ children }: { children: React.ReactNode }) {
                         <LogIn className="size-4" /> Sign in
                       </Link>
                       <Link
-                        to="/admissions/signup"
+                        to="/admissions/login"
                         onClick={() => setMoreOpen(false)}
                         className="flex items-center gap-2 rounded-xl border border-border p-3 text-sm"
                       >
-                        <User className="size-4" /> Sign up
+                        <User className="size-4" /> Create account
                       </Link>
                     </>
                   )}

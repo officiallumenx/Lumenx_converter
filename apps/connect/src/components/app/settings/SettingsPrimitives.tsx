@@ -154,7 +154,7 @@ export function SettingsSupportPanel({
           <SettingsSupportLink label="Help center" onClick={onHelp} />
           <SettingsSupportLink label="Contact support" onClick={onContact} />
           <SettingsSupportLink
-            label="Send feedback"
+            label="LumenX Feedback"
             icon={MessageSquarePlus}
             onClick={onFeedback}
           />

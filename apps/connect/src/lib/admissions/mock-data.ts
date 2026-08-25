@@ -48,7 +48,7 @@ export const SUCCESS_STORIES = [
   {
     name: "Vihaan Mehta",
     program: "Grade 9",
-    quote: "Document upload was easy. Got interview details instantly in notifications.",
+    quote: "Document upload was easy. Parent confirmation and approval updates were instant.",
   },
 ];
 
@@ -63,7 +63,7 @@ export const ADMISSION_PROCESS_STEPS = [
   {
     step: 4,
     title: "Track status",
-    desc: "Follow verification, interview, and decision updates live.",
+    desc: "Follow review, verification, parent confirmation, and decision updates live.",
   },
 ];
 
@@ -219,7 +219,7 @@ export const DEMO_APPLICATIONS: AdmissionApplication[] = [
     id: "APP-2398",
     applicantId: "ADM-DEMO-001",
     instituteId: "ins-lumenx-academy",
-    status: "interview_scheduled",
+    status: "parent_confirmation",
     programId: "prog-lumenx-academy-intermediate",
     programName: "Intermediate",
     grade: "Grade 11",
@@ -271,20 +271,12 @@ export const DEMO_APPLICATIONS: AdmissionApplication[] = [
       },
       {
         id: "t4",
-        status: "interview_scheduled",
-        label: "Interview scheduled",
+        status: "parent_confirmation",
+        label: "Awaiting parent confirmation",
         at: "2026-05-27T16:00:00Z",
       },
     ],
-    interview: {
-      date: "5 Jun 2026",
-      time: "10:30 AM",
-      mode: "in_person",
-      location: "Admissions Block, Room 102",
-      instructions: "Bring original TC and ID. Student must attend with one parent.",
-      requiredDocuments: ["Transfer Certificate", "Parent ID", "Student photo"],
-      status: "scheduled",
-    },
+    requiredActions: ["Please confirm that you accept the offered opening and submit fee intent."],
   },
   {
     id: "APP-2390",
@@ -385,9 +377,9 @@ export const DEMO_NOTIFICATIONS: AdmissionsNotification[] = [
     id: "n2",
     applicantId: "ADM-DEMO-001",
     applicationId: "APP-2398",
-    title: "Interview scheduled",
-    body: "Ananya's interview is on 5 Jun 2026 at 10:30 AM.",
-    type: "interview",
+    title: "Parent confirmation needed",
+    body: "Please confirm Ananya's seat to continue with final approval.",
+    type: "confirmation",
     read: false,
     createdAt: "2026-05-27T16:00:00Z",
   },
@@ -475,16 +467,10 @@ export const FAQ_ITEMS: FaqItem[] = [
   },
   {
     id: "f9",
-    category: "interviews",
-    question: "Is interview mandatory?",
-    answer: "For Grades 9+ and Intermediate streams, yes. Primary admissions may waive interview.",
-  },
-  {
-    id: "f10",
-    category: "interviews",
-    question: "Can interview be online?",
+    category: "process",
+    question: "What is parent confirmation?",
     answer:
-      "Hyderabad-based families attend on campus. Outstation applicants may request video interview.",
+      "After verification, the institute asks the parent to confirm seat intent before final approval.",
   },
   {
     id: "f11",

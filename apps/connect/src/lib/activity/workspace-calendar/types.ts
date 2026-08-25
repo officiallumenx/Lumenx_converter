@@ -1,23 +1,16 @@
 /**
- * Workspace calendar planner — linked activities from Sports / Extra-Curricular
- * plus manual coordinator reminders (not activities).
+ * Activity Coordinator calendar — simple planner (V1).
+ * Categories: Sports, ECA, Practice, School programmes, Personal reminders.
  */
-export type WorkspaceCalendarEntryKind =
-  | "linked"
-  | "reminder";
+
+export type WorkspaceCalendarEntryKind = "linked" | "reminder";
 
 export type WorkspaceCalendarCategory =
   | "sports"
   | "extra-curricular"
-  | "event"
   | "practice"
-  | "competition"
-  | "club"
-  | "holiday"
-  | "meeting"
-  | "certificate"
-  | "reminder"
-  | "other";
+  | "programme"
+  | "reminder";
 
 export type WorkspaceCalendarEntry = {
   id: string;
@@ -29,43 +22,66 @@ export type WorkspaceCalendarEntry = {
   category: WorkspaceCalendarCategory;
   description?: string;
   venue?: string;
+  /** Hierarchy unit id when entry is tied to a Team / Group */
+  unitId?: string;
+  unitLabel?: string;
   sourceModule?: string;
   sourceId?: string;
   colorClass: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
-export type WorkspaceCalendarViewMode = "month" | "week" | "agenda";
+export type CreateReminderInput = {
+  title: string;
+  date: string;
+  startTime?: string;
+  description?: string;
+};
+
+export type UpdateReminderInput = {
+  title?: string;
+  date?: string;
+  startTime?: string;
+  description?: string;
+};
+
+export type CreatePracticeCalendarInput = {
+  title: string;
+  date: string;
+  startTime: string;
+  unitIds: string[];
+  unitLabels: string[];
+};
 
 export type WorkspaceCalendarFilters = {
   query?: string;
   category?: WorkspaceCalendarCategory | "all";
-  view?: WorkspaceCalendarViewMode;
+  date?: string;
 };
 
 export const WORKSPACE_CALENDAR_CATEGORY_LABELS: Record<WorkspaceCalendarCategory, string> = {
   sports: "Sports",
-  "extra-curricular": "Extra-Curricular",
-  event: "Event",
+  "extra-curricular": "ECA",
   practice: "Practice",
-  competition: "Competition",
-  club: "Club",
-  holiday: "Holiday",
-  meeting: "Meeting",
-  certificate: "Certificates",
-  reminder: "Coordinator reminder",
-  other: "Other",
+  programme: "School programme",
+  reminder: "My reminder",
 };
 
 export const WORKSPACE_CALENDAR_CATEGORY_COLORS: Record<WorkspaceCalendarCategory, string> = {
   sports: "bg-sky-500",
   "extra-curricular": "bg-violet-500",
-  event: "bg-emerald-500",
   practice: "bg-teal-500",
-  competition: "bg-amber-500",
-  club: "bg-indigo-500",
-  holiday: "bg-slate-400",
-  meeting: "bg-cyan-500",
-  certificate: "bg-rose-500",
+  programme: "bg-emerald-500",
   reminder: "bg-orange-500",
-  other: "bg-muted-foreground",
 };
+
+/** Filter chips shown in the Calendar UI (order matters). */
+export const WORKSPACE_CALENDAR_FILTER_ORDER: readonly (WorkspaceCalendarCategory | "all")[] = [
+  "all",
+  "sports",
+  "extra-curricular",
+  "practice",
+  "programme",
+  "reminder",
+] as const;

@@ -4,7 +4,6 @@ import {
   FilePlus,
   FolderOpen,
   Bell,
-  Calendar,
   FileText,
   Heart,
   GraduationCap,
@@ -36,7 +35,7 @@ export function ApplicantDashboardPage() {
         d.status === "not_uploaded",
     ),
   ).length;
-  const upcomingInterviews = apps.filter((a) => a.interview?.status === "scheduled").length;
+  const awaitingConfirmation = apps.filter((a) => a.status === "parent_confirmation").length;
   const savedInstitutes = getSavedInstituteIds(user.id);
   const savedPrograms = getSavedProgramIds(user.id);
 
@@ -55,7 +54,11 @@ export function ApplicantDashboardPage() {
           icon={Upload}
           tone={pendingDocs > 0 ? "warning" : "default"}
         />
-        <StatCard label="Interviews" value={String(upcomingInterviews)} icon={Calendar} />
+        <StatCard
+          label="Parent confirmation"
+          value={String(awaitingConfirmation)}
+          icon={FileText}
+        />
         <StatCard
           label="Notifications"
           value={String(unread)}

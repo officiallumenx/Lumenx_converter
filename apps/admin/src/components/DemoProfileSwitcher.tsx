@@ -94,9 +94,7 @@ export function DemoProfileBanner() {
         <strong>{profile.label}</strong>
         {" — "}
         {profile.admin.organizationName}
-        {profile.admin.showBranchSwitcher
-          ? ` · ${profile.admin.branches.length} ${profile.admin.branchSwitcherLabel.toLowerCase()}es`
-          : " · single campus"}
+        {" · one institute"}
       </span>
     </div>
   );

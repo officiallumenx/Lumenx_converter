@@ -17,17 +17,16 @@ import type {
   TeacherStudent,
 } from "@/lib/teacher/types";
 
-export type TeacherPortalState =
-  | { isTeacher: false }
-  | {
-      isTeacher: true;
-      profile: TeacherProfile | null;
-      classes: TeacherClass[];
-      dashboard: DashboardSnapshot | null;
-      students: TeacherStudent[];
-      isLoading: boolean;
-      refresh: () => void;
-    };
+/** Flat shape so consumers can read fields without brittle discriminant narrowing. */
+export type TeacherPortalState = {
+  isTeacher: boolean;
+  profile: TeacherProfile | null;
+  classes: TeacherClass[];
+  dashboard: DashboardSnapshot | null;
+  students: TeacherStudent[];
+  isLoading: boolean;
+  refresh: () => void;
+};
 
 const TeacherPortalCtx = createContext<TeacherPortalState | undefined>(undefined);
 
@@ -47,11 +46,11 @@ export function TeacherPortalRegistry({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (role !== "teacher") {
       loadedRef.current = false;
-      setProfile(null);
-      setClasses([]);
-      setDashboard(null);
-      setStudents([]);
-      setIsLoading(false);
+      setProfile((p) => (p === null ? p : null));
+      setClasses((c) => (c.length === 0 ? c : []));
+      setDashboard((d) => (d === null ? d : null));
+      setStudents((s) => (s.length === 0 ? s : []));
+      setIsLoading((v) => (v === false ? v : false));
       return;
     }
 
@@ -83,7 +82,17 @@ export function TeacherPortalRegistry({ children }: { children: ReactNode }) {
   }, [role, tick]);
 
   const value = useMemo<TeacherPortalState>(() => {
-    if (role !== "teacher") return { isTeacher: false };
+    if (role !== "teacher") {
+      return {
+        isTeacher: false,
+        profile: null,
+        classes: [],
+        dashboard: null,
+        students: [],
+        isLoading: false,
+        refresh,
+      };
+    }
     return {
       isTeacher: true,
       profile,

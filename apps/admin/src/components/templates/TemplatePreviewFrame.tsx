@@ -150,6 +150,7 @@ export function TemplatePreviewFrame({
   showDeviceToggle = false,
   onDeviceChange,
   variableOverrides,
+  showCaptions = true,
 }: {
   template: Pick<
     TemplateRecord,
@@ -159,6 +160,8 @@ export function TemplatePreviewFrame({
   showDeviceToggle?: boolean;
   onDeviceChange?: (d: PreviewDevice) => void;
   variableOverrides?: Record<string, string>;
+  /** Hide name / size labels under the sheet (useful in tight live-preview panes). */
+  showCaptions?: boolean;
 }) {
   const { instituteProfile } = useDemoProfile();
   const size = getPreviewSizeConfig(template.previewAspect, device);
@@ -171,7 +174,7 @@ export function TemplatePreviewFrame({
   const logoUrl = template.visualFields?.logoOverrideUrl || instituteProfile.profilePhoto || undefined;
   const logoLabel = instituteProfile.logo || instituteProfile.name.slice(0, 2).toUpperCase();
 
-  const isVisual = template.layoutMode === "visual" && template.visualTheme;
+  const isVisual = template.layoutMode !== "blocks" && !!template.visualTheme;
   const visualFields =
     template.visualFields ??
     defaultVisualFields(template.visualTheme ?? "achievement_elegant", instituteProfile.name, instituteProfile.principal);
@@ -223,7 +226,7 @@ export function TemplatePreviewFrame({
             />
           ) : (
             <div
-              className={`absolute inset-0 overflow-y-auto ${size.compact ? "p-2" : "p-4 sm:p-6"}`}
+              className={`absolute inset-0 overflow-hidden ${size.compact ? "p-2" : "p-4 sm:p-6"}`}
             >
               {template.blocks.map((block) => (
                 <BlockPreview
@@ -239,11 +242,15 @@ export function TemplatePreviewFrame({
             </div>
           )}
         </div>
-        <p className="text-center text-[10px] text-muted-foreground mt-2">{template.name}</p>
-        <p className="text-center text-[10px] font-medium text-foreground/80 mt-0.5">
-          {size.label}
-        </p>
-        <p className="text-center text-[9px] text-muted-foreground">{size.deviceNote}</p>
+        {showCaptions && (
+          <>
+            <p className="text-center text-[10px] text-muted-foreground mt-2">{template.name}</p>
+            <p className="text-center text-[10px] font-medium text-foreground/80 mt-0.5">
+              {size.label}
+            </p>
+            <p className="text-center text-[9px] text-muted-foreground">{size.deviceNote}</p>
+          </>
+        )}
       </div>
     </div>
   );

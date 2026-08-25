@@ -29,9 +29,9 @@ const NAV: { view: DocHubView; label: string; short: string; icon: typeof Layout
 
 export function DocHubNav({ active }: { active: DocHubView }) {
   return (
-    <div className="mb-6 relative">
+    <div className="mb-3 sm:mb-6 relative">
       <div className="-mx-1 px-1 overflow-x-auto lx-sidebar-scroll">
-        <div className="flex gap-0.5 p-1 min-w-max bg-muted/40 rounded-xl border border-border/60">
+        <div className="lx-module-hub-nav flex gap-0.5 p-1 min-w-max bg-muted/40 rounded-xl border border-border/60">
           {NAV.map(({ view, label, short, icon: Icon, highlight }) => {
             const isActive = active === view;
             return (

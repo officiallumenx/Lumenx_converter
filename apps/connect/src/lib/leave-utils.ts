@@ -1,10 +1,13 @@
 import type { LeaveRequest, LeaveStatus } from "@lumenx/types";
+import { toLocalIsoDate } from "@lumenx/utils";
+
+export { toLocalIsoDate };
 
 export const LEAVE_STATUS_LABELS: Record<LeaveStatus, string> = {
   pending: "Pending approval",
   approved: "Approved",
   rejected: "Rejected",
-  dismissed: "Dismissed",
+  dismissed: "Ignored",
 };
 
 export const LEAVE_STATUS_TONE: Record<
@@ -17,14 +20,6 @@ export const LEAVE_STATUS_TONE: Record<
   dismissed: "muted",
 };
 
-/** Local calendar date as YYYY-MM-DD (avoids UTC shift from toISOString). */
-export function toLocalIsoDate(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
 /** Earliest selectable leave date — at least one calendar day ahead. */
 export function minLeaveDateIso(): string {
   const d = new Date();
@@ -33,7 +28,7 @@ export function minLeaveDateIso(): string {
   return toLocalIsoDate(d);
 }
 
-export function isValidLeaveDate(isoDate: string): boolean {
+function isValidLeaveDate(isoDate: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return false;
   const selected = new Date(`${isoDate}T00:00:00`);
   const min = new Date(`${minLeaveDateIso()}T00:00:00`);
@@ -65,7 +60,7 @@ export function leaveDayCount(req: Pick<LeaveRequest, "leaveStartDate" | "leaveE
   return enumerateLeaveDates(req.leaveStartDate, req.leaveEndDate).length;
 }
 
-export function formatLeaveDate(isoDate: string): string {
+function formatLeaveDate(isoDate: string): string {
   try {
     return new Date(`${isoDate}T00:00:00`).toLocaleDateString("en-IN", {
       weekday: "short",
@@ -78,7 +73,7 @@ export function formatLeaveDate(isoDate: string): string {
   }
 }
 
-export function formatLeaveRange(startDate: string, endDate: string): string {
+function formatLeaveRange(startDate: string, endDate: string): string {
   if (startDate === endDate) return formatLeaveDate(startDate);
   return `${formatLeaveDate(startDate)} – ${formatLeaveDate(endDate)}`;
 }
@@ -97,4 +92,12 @@ export function sortLeaveRequests<T extends { leaveStartDate: string; appliedAt:
   rows: T[],
 ): T[] {
   return [...rows].sort((a, b) => b.leaveStartDate.localeCompare(a.leaveStartDate));
+}
+
+export function selectPendingLeaveRequests(requests: LeaveRequest[]): LeaveRequest[] {
+  return requests.filter((r) => r.status === "pending");
+}
+
+export function isClosedLeaveStatus(status: LeaveStatus): boolean {
+  return status === "dismissed" || status === "rejected";
 }

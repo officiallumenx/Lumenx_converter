@@ -15,8 +15,12 @@
     "preview": "vite preview",
     "cap:sync": "cap sync",
     "cap:open:android": "cap open android",
-    "lint": "eslint .",
-    "format": "prettier --write ."
+    "lint": "eslint src --cache",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css,json}\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@capacitor/android": "^7.6.7",
@@ -28,8 +32,12 @@
     "@lumenx/auth": "*",
     "@lumenx/capacitor": "*",
     "@lumenx/config": "*",
-    "@lumenx/types": "*",
+    "@lumenx/module-exams": "*",
+    "@lumenx/module-fees": "*",
+    "@lumenx/module-attendance": "*",
+    "@lumenx/module-notifications": "*",
     "@lumenx/teacher-session": "*",
+    "@lumenx/types": "*",
     "@lumenx/ui": "*",
     "@lumenx/utils": "*",
     "@tailwindcss/vite": "^4.2.1",
@@ -38,8 +46,8 @@
     "@tanstack/react-start": "^1.167.50",
     "@tanstack/router-plugin": "^1.167.28",
     "lucide-react": "^0.575.0",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "react-hook-form": "^7.71.2",
     "react-qr-code": "^2.0.21",
     "recharts": "^2.15.4",
@@ -51,7 +59,7 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^7.6.7",
-    "@lovable.dev/vite-tanstack-config": "^1.5.1",
+    "@lovable.dev/vite-tanstack-config": "^1.7.0",
     "@types/node": "^22.16.5",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
@@ -59,6 +67,7 @@
     "eslint": "^9.32.0",
     "prettier": "^3.7.3",
     "typescript": "^5.8.3",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "vitest": "^3.2.7"
   }
 }

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Button } from "@lumenx/ui";
+import { Button, TextSizeControl } from "@lumenx/ui";
 import { Bell } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -32,7 +32,6 @@ import {
   uploadDocument,
 } from "@/lib/careers/repositories";
 import { documentStatusLabel } from "@/lib/careers/status-utils";
-import type { CareersThemeMode } from "@/lib/careers/types";
 
 export function DocumentsPage() {
   const { user } = useCareersAuth();
@@ -71,6 +70,31 @@ export function DocumentsPage() {
     </div>
   );
 }
+
+const CAREERS_TYPE_LABELS: Record<
+  | "application"
+  | "interview"
+  | "selection"
+  | "document"
+  | "general"
+  | "shortlisted"
+  | "demo_class"
+  | "offer"
+  | "profile_viewed"
+  | "job_alert",
+  string
+> = {
+  application: "Application",
+  interview: "Interview",
+  selection: "Selection",
+  document: "Document",
+  general: "General",
+  shortlisted: "Shortlisted",
+  demo_class: "Demo class",
+  offer: "Offer",
+  profile_viewed: "Profile viewed",
+  job_alert: "Job alert",
+};
 
 export function NotificationsPage() {
   const { user } = useCareersAuth();
@@ -120,7 +144,12 @@ export function NotificationsPage() {
             }}
             className={`w-full rounded-2xl border p-4 text-left transition-colors ${n.read ? "border-border bg-card" : "border-primary/20 bg-primary/5"}`}
           >
-            <p className="font-medium text-sm">{n.title}</p>
+            <p
+              className={`text-xs font-bold ${n.read ? "text-foreground" : "text-primary"}`}
+            >
+              {CAREERS_TYPE_LABELS[n.type]}
+            </p>
+            <p className="mt-0.5 font-medium text-sm">{n.title}</p>
             <p className="mt-1 text-xs text-muted-foreground">{n.body}</p>
             <p className="mt-2 text-[10px] text-muted-foreground">
               {new Date(n.createdAt).toLocaleString("en-IN")}
@@ -170,7 +199,7 @@ export function SettingsPage() {
 
       <SettingsSection title="Appearance">
         <div className="flex flex-wrap gap-2 py-1">
-          {(["light", "dark", "system"] as CareersThemeMode[]).map((mode) => (
+          {(["light", "dark"] as const).map((mode) => (
             <Button
               key={mode}
               size="sm"
@@ -181,6 +210,18 @@ export function SettingsPage() {
               {mode}
             </Button>
           ))}
+        </div>
+        <p className="pb-2 text-xs text-muted-foreground">
+          Light or Dark. Default is Light. Does not follow system theme.
+        </p>
+        <div className="space-y-2 py-3.5 border-t border-border/80">
+          <div>
+            <div className="text-sm font-medium leading-snug">Text Size</div>
+            <div className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
+              Small, Default, Large, or Extra Large. Default is Default.
+            </div>
+          </div>
+          <TextSizeControl />
         </div>
       </SettingsSection>
 

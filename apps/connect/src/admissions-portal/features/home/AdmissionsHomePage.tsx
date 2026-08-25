@@ -13,7 +13,7 @@ import {
   WHY_CHOOSE_US,
 } from "@/lib/admissions/mock-data";
 import { getFeaturedPrograms, getProgramsGroupedByInstitute } from "@/lib/admissions/programs-data";
-import { ADMISSION_INSTITUTES } from "@/lib/admissions/institutes-data";
+import { listAllInstitutes } from "@/lib/admissions/institutes-data";
 
 export function AdmissionsHomePage() {
   return (
@@ -24,7 +24,7 @@ export function AdmissionsHomePage() {
             Admissions 2026–27
           </p>
           <h1 className="mt-2 font-display text-3xl font-bold tracking-tight sm:text-4xl">
-            Discover & apply to {ADMISSION_INSTITUTES.length}+ institutes
+            Discover & apply to {listAllInstitutes().length}+ institutes
           </h1>
           <p className="mt-3 text-sm text-muted-foreground sm:text-base">
             Browse schools and colleges, compare programs, apply online, and track your admission
@@ -37,13 +37,13 @@ export function AdmissionsHomePage() {
               </Link>
             </Button>
             <Button size="lg" variant="outline" asChild>
-              <Link to="/admissions/signup" search={{ type: "parent" }}>
-                Parent sign up
+              <Link to="/admissions/login" search={{ type: "parent" }}>
+                Parent login
               </Link>
             </Button>
             <Button size="lg" variant="outline" asChild>
-              <Link to="/admissions/signup" search={{ type: "institute" }}>
-                Institute sign up
+              <Link to="/admissions/login" search={{ type: "institute" }}>
+                Institute login
               </Link>
             </Button>
           </div>
@@ -147,7 +147,7 @@ export function AdmissionsHomePage() {
           size="lg"
           asChild
         >
-          <Link to="/admissions/signup" search={{ type: "parent" }}>
+          <Link to="/admissions/login" search={{ type: "parent" }}>
             Get started
           </Link>
         </Button>

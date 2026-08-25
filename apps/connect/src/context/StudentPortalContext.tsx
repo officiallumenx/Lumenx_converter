@@ -12,14 +12,13 @@ import { useApp } from "@/lib/app-state";
 import { studentRepository } from "@/lib/student/repositories";
 import type { StudentSnapshot } from "@/lib/student/types";
 
-export type StudentPortalState =
-  | { isStudent: false }
-  | {
-      isStudent: true;
-      snapshot: StudentSnapshot | null;
-      isLoading: boolean;
-      refresh: () => void;
-    };
+/** Flat shape so consumers can read fields without brittle discriminant narrowing. */
+export type StudentPortalState = {
+  isStudent: boolean;
+  snapshot: StudentSnapshot | null;
+  isLoading: boolean;
+  refresh: () => void;
+};
 
 const StudentPortalCtx = createContext<StudentPortalState | undefined>(undefined);
 
@@ -34,8 +33,8 @@ export function StudentPortalRegistry({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (role !== "student") {
-      setSnapshot(null);
-      setIsLoading(false);
+      setSnapshot((s) => (s === null ? s : null));
+      setIsLoading((loading) => (loading ? false : loading));
       return;
     }
 
@@ -56,7 +55,9 @@ export function StudentPortalRegistry({ children }: { children: ReactNode }) {
   }, [role, tick]);
 
   const value = useMemo<StudentPortalState>(() => {
-    if (role !== "student") return { isStudent: false };
+    if (role !== "student") {
+      return { isStudent: false, snapshot: null, isLoading: false, refresh };
+    }
     return { isStudent: true, snapshot, isLoading, refresh };
   }, [role, snapshot, isLoading, refresh]);
 

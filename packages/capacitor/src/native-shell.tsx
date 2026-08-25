@@ -65,7 +65,7 @@ function applySafeAreaInsets() {
   root.style.setProperty("--safe-area-inset-bottom-measured", `${bottom}px`);
 
   if (Capacitor.getPlatform() === "android" && top < 8) {
-    root.style.setProperty("--safe-area-top-fallback", "28px");
+    root.style.setProperty("--safe-area-top-fallback", "44px");
   } else {
     root.style.setProperty("--safe-area-top-fallback", "0px");
   }
@@ -90,12 +90,25 @@ export function LumenXNativeShell() {
       event.preventDefault();
     };
 
+    document.documentElement.dataset.lxNative = "1";
     document.addEventListener("selectstart", blockNativeTextSelection);
     document.addEventListener("contextmenu", blockNativeTextSelection);
 
+    void import("@capacitor/status-bar")
+      .then(({ StatusBar }) => StatusBar.setOverlaysWebView({ overlay: true }))
+      .catch(() => {
+        /* plugin unavailable — Android theme still draws transparent bars */
+      });
+
     applySafeAreaInsets();
     window.addEventListener("resize", applySafeAreaInsets);
-    window.visualViewport?.addEventListener("resize", applySafeAreaInsets);
+    const onVisualViewportResize = () => {
+      const vv = window.visualViewport;
+      // Ignore keyboard-driven shrink — updating safe-area then makes the header jump.
+      if (vv && window.innerHeight - vv.height - vv.offsetTop > 80) return;
+      applySafeAreaInsets();
+    };
+    window.visualViewport?.addEventListener("resize", onVisualViewportResize);
 
     let backListener: { remove: () => Promise<void> } | undefined;
     let resumeListener: { remove: () => Promise<void> } | undefined;
@@ -133,10 +146,11 @@ export function LumenXNativeShell() {
 
     return () => {
       disposed = true;
+      delete document.documentElement.dataset.lxNative;
       document.removeEventListener("selectstart", blockNativeTextSelection);
       document.removeEventListener("contextmenu", blockNativeTextSelection);
       window.removeEventListener("resize", applySafeAreaInsets);
-      window.visualViewport?.removeEventListener("resize", applySafeAreaInsets);
+      window.visualViewport?.removeEventListener("resize", onVisualViewportResize);
       void backListener?.remove();
       void resumeListener?.remove();
     };

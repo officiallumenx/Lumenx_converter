@@ -1,7 +1,14 @@
 import type { SchoolAlert } from "@lumenx/types";
+import {
+  notifyAdminOfTeacherLeave,
+  notifyTeacherLeaveDecision,
+  notifyTeacherLeavePending,
+} from "@lumenx/module-notifications";
 import type { TeacherLeaveRequest } from "@/lib/teacher/types";
 import { teacherLeaveRequestsSeed } from "@/lib/teacher/mock-data";
 import { alertStore } from "@/lib/alert-store";
+import { assertTeacherCanWrite } from "@/lib/teacher/portal-access-guard";
+import { loadLeaveDecisions, listenDemoSync, saveLeaveDecision } from "@lumenx/utils";
 
 type Listener = () => void;
 
@@ -40,11 +47,31 @@ function adminAlertFor(req: TeacherLeaveRequest): SchoolAlert {
   };
 }
 
+function applyDecisions() {
+  const decisions = loadLeaveDecisions();
+  requests = requests.map((r) => {
+    const d = decisions[r.id];
+    if (!d) return r;
+    return {
+      ...r,
+      status: d.status,
+      reviewedNote: d.note ?? r.reviewedNote,
+    };
+  });
+}
+
 export const teacherLeaveStore = {
   init() {
     if (initialized) return;
     requests = teacherLeaveRequestsSeed.map((r) => ({ ...r }));
+    applyDecisions();
     initialized = true;
+    if (typeof window !== "undefined") {
+      listenDemoSync("leave", () => {
+        applyDecisions();
+        notify();
+      });
+    }
     notify();
   },
 
@@ -72,6 +99,7 @@ export const teacherLeaveStore = {
     toDate: string;
     reason: string;
   }): TeacherLeaveRequest {
+    assertTeacherCanWrite();
     const created: TeacherLeaveRequest = {
       id: `tlr-${Date.now()}`,
       teacherId: input.teacherId,
@@ -102,6 +130,115 @@ export const teacherLeaveStore = {
       actionRequired: false,
     });
 
+    try {
+      const dateRange =
+        created.fromDate !== created.toDate
+          ? `${created.fromDate} – ${created.toDate}`
+          : created.fromDate;
+      notifyAdminOfTeacherLeave({
+        leaveId: created.id,
+        teacherName: created.teacherName,
+        leaveType: created.type,
+        dateRange,
+        reason: created.reason,
+      });
+      const pending = notifyTeacherLeavePending({
+        leaveId: created.id,
+        dateRange,
+        reviewer: created.to === "admin" ? "admin" : "principal",
+      });
+      void import("@/lib/teacher/repositories").then(({ teacherRepository }) => {
+        teacherRepository.pushInboxNotification({
+          id: pending.appNotification.id,
+          title: pending.appNotification.title,
+          body: pending.appNotification.desc,
+          category: "staff_notices",
+          href: "/leave",
+        });
+      });
+    } catch {
+      /* best-effort */
+    }
+
     return created;
+  },
+
+  /** Admin / principal decision (mock) — note required for reject / ignore. */
+  decide(
+    id: string,
+    status: "approved" | "rejected" | "ignored",
+    reviewedNote?: string,
+  ): TeacherLeaveRequest | undefined {
+    const note = reviewedNote?.trim();
+    if ((status === "rejected" || status === "ignored") && (!note || note.length < 4)) {
+      return undefined;
+    }
+    requests = requests.map((r) =>
+      r.id === id
+        ? {
+            ...r,
+            status,
+            reviewedNote:
+              note ||
+              (status === "approved" ? "Approved by school office." : r.reviewedNote),
+          }
+        : r,
+    );
+    notify();
+    const req = requests.find((r) => r.id === id);
+    if (req && (status === "approved" || status === "rejected" || status === "ignored")) {
+      saveLeaveDecision(id, {
+        status,
+        note: note || undefined,
+        decidedAt: new Date().toISOString().slice(0, 10),
+      });
+    }
+    if (req) {
+      alertStore.addAlert({
+        id: `al-teacher-leave-decision-${req.id}-${Date.now()}`,
+        title:
+          status === "approved"
+            ? "Leave approved"
+            : status === "rejected"
+              ? "Leave rejected"
+              : "Leave ignored",
+        summary:
+          status === "approved"
+            ? "Your leave request was approved"
+            : status === "rejected"
+              ? "Your leave request was not approved"
+              : "Your leave request was ignored",
+        detail: `${req.type} leave (${req.fromDate}${req.fromDate !== req.toDate ? ` – ${req.toDate}` : ""}).\n\n${req.reviewedNote ?? ""}`,
+        severity: status === "rejected" ? "emergency" : "mandatory",
+        category: "leave",
+        time: nowLabel(),
+        source: "School Admin",
+        unread: true,
+        acknowledged: false,
+        actionRequired: false,
+      });
+      try {
+        const dateRange =
+          req.fromDate !== req.toDate ? `${req.fromDate} – ${req.toDate}` : req.fromDate;
+        const decision = notifyTeacherLeaveDecision({
+          leaveId: req.id,
+          dateRange,
+          decision: status,
+          reason: req.reviewedNote,
+        });
+        void import("@/lib/teacher/repositories").then(({ teacherRepository }) => {
+          teacherRepository.pushInboxNotification({
+            id: decision.appNotification.id,
+            title: decision.appNotification.title,
+            body: decision.appNotification.desc,
+            category: status === "rejected" ? "urgent" : "staff_notices",
+            href: "/leave",
+          });
+        });
+      } catch {
+        /* best-effort */
+      }
+    }
+    return req;
   },
 };

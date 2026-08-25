@@ -1,7 +1,10 @@
+import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Button, Badge } from "@lumenx/ui";
 import { ArrowRight, Calendar, Heart, MapPin, Play, Star, Trophy } from "lucide-react";
 import { cn } from "@lumenx/ui";
+import type { DemoInstituteProfile } from "@lumenx/types";
+import { applyInstituteProfileSyncMessage, isInstituteProfileSyncMessage } from "@lumenx/utils";
 import { AdmissionsPageHeader } from "@/admissions-portal/shared/ui/AdmissionsPageHeader";
 import { SectionCard } from "@/components/app/SectionCard";
 import { ProgramCard } from "@/admissions-portal/shared/ui/AdmissionsShellWidgets";
@@ -10,9 +13,14 @@ import { getInstituteById, INSTITUTE_KIND_LABEL } from "@/lib/admissions/institu
 import { getInstituteProfileExtended } from "@/lib/admissions/institute-profiles";
 import { getProgramsForInstitute } from "@/lib/admissions/programs-data";
 import {
+  getAdmissionsInstituteProfile,
+  subscribeSharedInstituteProfile,
+} from "@/lib/admissions/shared-institute-profile";
+import {
   InstituteLogoBadge,
   useInstituteSave,
 } from "@/admissions-portal/shared/ui/v2/AdmissionsV2Widgets";
+import { AdminInstituteProfileView } from "./AdminInstituteProfileView";
 
 export function InstituteProfilePage({ instituteId }: { instituteId: string }) {
   const institute = getInstituteById(instituteId);
@@ -20,6 +28,23 @@ export function InstituteProfilePage({ instituteId }: { instituteId: string }) {
   const programs = getProgramsForInstitute(instituteId);
   const { user } = useAdmissionsAuth();
   const { saved, toggle, canSave } = useInstituteSave(instituteId);
+  const [adminProfile, setAdminProfile] = useState<DemoInstituteProfile | null>(null);
+
+  useEffect(() => {
+    setAdminProfile(getAdmissionsInstituteProfile(instituteId));
+    return subscribeSharedInstituteProfile(instituteId, setAdminProfile);
+  }, [instituteId]);
+
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (!isInstituteProfileSyncMessage(event.data)) return;
+      if (event.data.admissionsInstituteId !== instituteId) return;
+      const applied = applyInstituteProfileSyncMessage(event.data);
+      if (applied) setAdminProfile(applied);
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [instituteId]);
 
   if (!institute) {
     return (
@@ -32,6 +57,8 @@ export function InstituteProfilePage({ instituteId }: { instituteId: string }) {
     );
   }
 
+  const displayName = adminProfile?.name || institute.name;
+  const displayAddress = adminProfile?.address || institute.contact.address;
   const applySearch = { institute: institute.id };
   const applyTarget =
     user?.accountType === "parent"
@@ -44,12 +71,11 @@ export function InstituteProfilePage({ instituteId }: { instituteId: string }) {
   return (
     <div className="animate-in fade-in duration-300 space-y-8 pb-8">
       <AdmissionsPageHeader
-        title={institute.name}
+        title={displayName}
         subtitle={`${institute.city}, ${institute.state}`}
         backTo="/admissions/institutes"
       />
 
-      {/* Hero */}
       <section
         className={cn(
           "relative overflow-hidden rounded-3xl bg-gradient-to-br border border-border p-6 sm:p-8",
@@ -64,14 +90,18 @@ export function InstituteProfilePage({ instituteId }: { instituteId: string }) {
               <span className="flex items-center gap-1 text-muted-foreground">
                 <Star className="size-3 fill-primary text-primary" /> {institute.rating}
               </span>
-              <span className="text-muted-foreground">Est. {institute.established}</span>
+              {adminProfile?.founded ? (
+                <span className="text-muted-foreground">Est. {adminProfile.founded}</span>
+              ) : (
+                <span className="text-muted-foreground">Est. {institute.established}</span>
+              )}
             </div>
-            <h2 className="mt-2 font-display text-2xl font-bold sm:text-3xl">{institute.name}</h2>
+            <h2 className="mt-2 font-display text-2xl font-bold sm:text-3xl">{displayName}</h2>
             <p className="mt-2 text-sm text-muted-foreground max-w-2xl">
-              {ext?.shortDescription ?? institute.tagline}
+              {adminProfile?.vision || ext?.shortDescription || institute.tagline}
             </p>
             <p className="mt-2 flex items-center gap-1 text-sm">
-              <MapPin className="size-4" /> {institute.contact.address}
+              <MapPin className="size-4" /> {displayAddress}
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               {user?.accountType !== "institute_admin" && (
@@ -94,6 +124,66 @@ export function InstituteProfilePage({ instituteId }: { instituteId: string }) {
         </div>
       </section>
 
+      {adminProfile ? (
+        <AdminInstituteProfileView profile={adminProfile} />
+      ) : (
+        <LegacyCatalogProfile instituteId={instituteId} />
+      )}
+
+      <SectionCard
+        title="Programs offered"
+        link={`/admissions/institutes/${instituteId}`}
+        linkLabel="All programs"
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          {programs.slice(0, 4).map((p) => (
+            <ProgramCard key={p.id} program={p} instituteId={instituteId} showInstitute={false} />
+          ))}
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Admission office">
+        <div className="text-sm space-y-1">
+          <p>
+            <strong>Phone:</strong>{" "}
+            {adminProfile?.phone || ext?.admissionOffice.phone || institute.contact.phone}
+          </p>
+          <p>
+            <strong>Email:</strong>{" "}
+            {adminProfile?.email || ext?.admissionOffice.email || institute.contact.email}
+          </p>
+          <p>
+            <strong>Hours:</strong> {ext?.admissionOffice.hours ?? "Mon–Sat, 9 AM – 5 PM"}
+          </p>
+          <p>
+            <strong>Address:</strong>{" "}
+            {displayAddress || ext?.admissionOffice.address || institute.contact.address}
+          </p>
+        </div>
+        <ul className="mt-4 space-y-2">
+          {institute.admissionDates.map((d) => (
+            <li key={d.label} className="flex justify-between text-sm border-b border-border pb-2">
+              <span className="flex items-center gap-2 text-muted-foreground">
+                <Calendar className="size-4" />
+                {d.label}
+              </span>
+              <span className="font-medium">{d.date}</span>
+            </li>
+          ))}
+        </ul>
+      </SectionCard>
+    </div>
+  );
+}
+
+/** Fallback when this institute is not linked to Admin institute profile. */
+function LegacyCatalogProfile({ instituteId }: { instituteId: string }) {
+  const institute = getInstituteById(instituteId);
+  const ext = getInstituteProfileExtended(instituteId);
+  if (!institute) return null;
+
+  return (
+    <>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
           { label: "Programs", value: String(institute.programsCount) },
@@ -207,57 +297,9 @@ export function InstituteProfilePage({ instituteId }: { instituteId: string }) {
                 <span className="sr-only">{v.title}</span>
               </div>
             ))}
-            {ext.eventsGallery.map((e) => (
-              <div
-                key={e.id}
-                className={cn("rounded-xl bg-gradient-to-br h-24 flex items-end p-2", e.gradient)}
-              >
-                <p className="text-xs font-medium">{e.title}</p>
-              </div>
-            ))}
           </div>
         </SectionCard>
       )}
-
-      <SectionCard
-        title="Programs offered"
-        link={`/admissions/institutes/${instituteId}`}
-        linkLabel="All programs"
-      >
-        <div className="grid gap-4 sm:grid-cols-2">
-          {programs.slice(0, 4).map((p) => (
-            <ProgramCard key={p.id} program={p} instituteId={instituteId} showInstitute={false} />
-          ))}
-        </div>
-      </SectionCard>
-
-      <SectionCard title="Admission office">
-        <div className="text-sm space-y-1">
-          <p>
-            <strong>Phone:</strong> {ext?.admissionOffice.phone ?? institute.contact.phone}
-          </p>
-          <p>
-            <strong>Email:</strong> {ext?.admissionOffice.email ?? institute.contact.email}
-          </p>
-          <p>
-            <strong>Hours:</strong> {ext?.admissionOffice.hours ?? "Mon–Sat, 9 AM – 5 PM"}
-          </p>
-          <p>
-            <strong>Address:</strong> {ext?.admissionOffice.address ?? institute.contact.address}
-          </p>
-        </div>
-        <ul className="mt-4 space-y-2">
-          {institute.admissionDates.map((d) => (
-            <li key={d.label} className="flex justify-between text-sm border-b border-border pb-2">
-              <span className="flex items-center gap-2 text-muted-foreground">
-                <Calendar className="size-4" />
-                {d.label}
-              </span>
-              <span className="font-medium">{d.date}</span>
-            </li>
-          ))}
-        </ul>
-      </SectionCard>
-    </div>
+    </>
   );
 }

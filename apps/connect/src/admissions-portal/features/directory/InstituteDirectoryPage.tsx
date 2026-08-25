@@ -3,8 +3,8 @@ import { Input } from "@lumenx/ui";
 import { Search, Sparkles, TrendingUp, Clock } from "lucide-react";
 import type { InstituteKind } from "@lumenx/types";
 import {
-  ADMISSION_INSTITUTES,
   filterInstitutes,
+  listAllInstitutes,
   LOCATIONS,
   INSTITUTE_KIND_LABEL,
 } from "@/lib/admissions/institutes-data";
@@ -58,7 +58,7 @@ export function InstituteDirectoryPage({
   const citiesInState = useMemo(() => {
     if (state === "all") return LOCATIONS.cities;
     return [
-      ...new Set(ADMISSION_INSTITUTES.filter((i) => i.state === state).map((i) => i.city)),
+      ...new Set(listAllInstitutes().filter((i) => i.state === state).map((i) => i.city)),
     ].sort();
   }, [state]);
 
@@ -160,7 +160,7 @@ export function InstituteDirectoryPage({
       {!q && state === "all" && city === "all" && kind === "all" && (
         <>
           {featuredList.length > 0 && (
-            <SectionCard title="Featured institutes" hint="Highlighted partners">
+            <SectionCard title="Featured institutes">
               <div className="flex items-center gap-2 text-primary text-xs mb-3">
                 <Sparkles className="size-3.5" /> Curated for 2026–27 admissions
               </div>

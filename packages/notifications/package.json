@@ -1,0 +1,42 @@
+{
+  "name": "@lumenx/notifications",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "description": "LumenX shared notification foundation (contract, adapters, category barrels). Demo/frontend only.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./shared": "./src/shared/index.ts",
+    "./registry": "./src/shared/registry/index.ts",
+    "./attendance": "./src/attendance/index.ts",
+    "./homework": "./src/homework/index.ts",
+    "./fees": "./src/fees/index.ts",
+    "./exams": "./src/exams/index.ts",
+    "./events": "./src/events/index.ts",
+    "./transport": "./src/transport/index.ts",
+    "./leave": "./src/leave/index.ts",
+    "./announcements": "./src/announcements/index.ts",
+    "./messages": "./src/messages/index.ts",
+    "./complaints": "./src/complaints/index.ts",
+    "./admissions": "./src/admissions/index.ts",
+    "./careers": "./src/careers/index.ts",
+    "./certificates": "./src/certificates/index.ts",
+    "./documents": "./src/documents/index.ts",
+    "./timetable": "./src/timetable/index.ts",
+    "./system": "./src/system/index.ts",
+    "./nexus": "./src/nexus/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@lumenx/types": "*",
+    "@lumenx/utils": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}

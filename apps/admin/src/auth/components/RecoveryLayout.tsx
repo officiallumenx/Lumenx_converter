@@ -28,7 +28,7 @@ export function RecoveryLayout({
   title,
   subtitle,
   backTo = "/login",
-  backLabel = "Back to sign in",
+  backLabel = "Back to login",
   onBack,
   children,
 }: RecoveryLayoutProps) {
@@ -36,7 +36,7 @@ export function RecoveryLayout({
   const currentIdx = stepIndex(type, currentStep as never);
 
   return (
-    <div className="min-h-screen flex bg-background text-foreground">
+    <div className="min-h-screen-dvh flex bg-background text-foreground">
       <aside className="hidden lg:flex lg:w-[38%] flex-col justify-between p-10 bg-gradient-to-br from-primary/[0.06] via-background to-muted/20 border-r border-border shrink-0">
         <div>
           <div className="flex items-center gap-2.5 mb-10">
@@ -49,7 +49,7 @@ export function RecoveryLayout({
           <p className="mt-3 text-sm text-muted-foreground leading-relaxed max-w-xs">
             {type === "forgot_password"
               ? "Verify your identity with OTP, then create a new password."
-              : "Sign in to verify your identity, complete OTP verification, then set a new PIN."}
+              : "Login to verify your identity, complete OTP verification, then set a new PIN."}
           </p>
         </div>
 
@@ -83,7 +83,7 @@ export function RecoveryLayout({
       </aside>
 
       <main className="flex-1 flex flex-col min-h-0">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 lg:hidden">
+        <div className="lx-auth-top-bar flex items-center justify-between border-b border-border/50 lg:hidden">
           <div className="flex items-center gap-2">
             <IconChip icon={Sparkles} size="xs" />
             <span className="text-xs font-bold">LUMENX ADMIN</span>

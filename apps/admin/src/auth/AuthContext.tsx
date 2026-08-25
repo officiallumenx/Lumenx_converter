@@ -9,6 +9,7 @@ import {
   useEffect,
   useState,
   useCallback,
+  useMemo,
   type ReactNode,
 } from "react";
 import type { AuthContextValue, AuthUser, SignUpFormData, ForgotPinFormData } from "./types";
@@ -24,6 +25,7 @@ import {
   mockForgotPassword,
   mockForgotPin,
 } from "./auth-store";
+import { AUTH_REMEMBER_KEY } from "./constants";
 
 // ── Context ───────────────────────────────────────────────────
 
@@ -60,13 +62,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(authUser);
         setStatus("authenticated");
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Sign in failed. Please try again.");
+        setError(err instanceof Error ? err.message : "Login failed. Please try again.");
         setStatus("unauthenticated");
         throw err;
       }
     },
     [],
   );
+
+  const completeSignIn = useCallback((authUser: AuthUser, remember = false) => {
+    saveSession(authUser, remember);
+    clearLoginFlowDraft();
+    clearAppUnlock();
+    setError(null);
+    setUser(authUser);
+    setStatus("authenticated");
+  }, []);
+
+  const patchAuthenticatedUser = useCallback((authUser: AuthUser) => {
+    const remember =
+      typeof localStorage !== "undefined" &&
+      localStorage.getItem(AUTH_REMEMBER_KEY) === "1";
+    saveSession(authUser, remember);
+    setUser(authUser);
+  }, []);
 
   const signUp = useCallback(async (data: SignUpFormData) => {
     setStatus("loading");
@@ -84,7 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
       );
       if (data.securityPin) {
-        saveUserPin(authUser.id, data.securityPin);
+        saveUserPin(authUser.id, data.securityPin, authUser.email);
       }
       saveSession(authUser, false);
       clearAppUnlock();
@@ -118,19 +137,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const clearError = useCallback(() => setError(null), []);
 
-  const value: AuthContextValue = {
-    status,
-    user,
-    isAuthenticated: status === "authenticated",
-    isLoading:       status === "loading" || status === "idle",
-    error,
-    signIn,
-    signUp,
-    signOut,
-    forgotPassword,
-    forgotPin,
-    clearError,
-  };
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      status,
+      user,
+      isAuthenticated: status === "authenticated",
+      isLoading: status === "loading" || status === "idle",
+      error,
+      signIn,
+      completeSignIn,
+      patchAuthenticatedUser,
+      signUp,
+      signOut,
+      forgotPassword,
+      forgotPin,
+      clearError,
+    }),
+    [
+      status,
+      user,
+      error,
+      signIn,
+      completeSignIn,
+      patchAuthenticatedUser,
+      signUp,
+      signOut,
+      forgotPassword,
+      forgotPin,
+      clearError,
+    ],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

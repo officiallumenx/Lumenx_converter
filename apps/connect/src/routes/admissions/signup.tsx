@@ -1,8 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { z } from "zod";
 import { RedirectIfAuthed } from "@/admissions-portal/core/guards";
-import { SignupFlow } from "@/admissions-portal/features/auth/AuthFlows";
-import type { AdmissionsAccountType } from "@/lib/admissions/types";
+import {
+  InstituteSignupFlow,
+  ParentSignupFlow,
+} from "@/admissions-portal/features/auth/AuthFlows";
 
 const searchSchema = z.object({
   type: z.enum(["parent", "institute"]).optional(),
@@ -16,10 +18,12 @@ export const Route = createFileRoute("/admissions/signup")({
 
 function SignupRoute() {
   const { type } = Route.useSearch();
-  const accountType: AdmissionsAccountType = type === "institute" ? "institute_admin" : "parent";
+  if (!type) {
+    return <Navigate to="/admissions/login" replace />;
+  }
   return (
     <RedirectIfAuthed>
-      <SignupFlow accountType={accountType} />
+      {type === "institute" ? <InstituteSignupFlow /> : <ParentSignupFlow />}
     </RedirectIfAuthed>
   );
 }

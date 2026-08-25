@@ -9,8 +9,10 @@
   },
   "dependencies": {
     "@lumenx/config": "*",
-    "@lumenx/database": "*"
+    "@lumenx/database": "*",
+    "@lumenx/notifications": "*"
   },
+
   "devDependencies": {
     "typescript": "^5.8.3"
   }

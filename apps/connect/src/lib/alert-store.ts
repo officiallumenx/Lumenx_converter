@@ -1,4 +1,5 @@
 import type { SchoolAlert } from "@lumenx/types";
+import { listenDemoSync, loadBroadcastInbox, type DemoBroadcast } from "@lumenx/utils";
 
 type Listener = () => void;
 
@@ -8,6 +9,31 @@ const listeners = new Set<Listener>();
 
 function notify() {
   listeners.forEach((l) => l());
+}
+
+function alertFromBroadcast(row: DemoBroadcast): SchoolAlert {
+  const sender = row.sender ? ` · ${row.sender}` : "";
+  const attach = row.attachmentName ? ` · Attachment: ${row.attachmentName}` : "";
+  return {
+    id: `bc-${row.id}`,
+    title: row.title,
+    summary: row.message || `Broadcast · ${row.audience}${sender}`,
+    detail: `${row.message || ""}${attach}`.trim() || row.title,
+    severity: row.priority === "critical" ? "emergency" : "mandatory",
+    category: "leave",
+    time: row.time,
+    source: row.sender ? `${row.sender} broadcast` : "Admin broadcast",
+    unread: true,
+    acknowledged: false,
+    actionRequired: false,
+  };
+}
+
+function ingestBroadcasts() {
+  for (const row of loadBroadcastInbox()) {
+    if (items.some((a) => a.id === `bc-${row.id}`)) continue;
+    items = [alertFromBroadcast(row), ...items];
+  }
 }
 
 export const alertStore = {
@@ -26,6 +52,13 @@ export const alertStore = {
       return;
     }
     items = [...items, ...seedToAdd];
+    ingestBroadcasts();
+    if (typeof window !== "undefined") {
+      listenDemoSync("broadcast", () => {
+        ingestBroadcasts();
+        notify();
+      });
+    }
     notify();
   },
   reset() {

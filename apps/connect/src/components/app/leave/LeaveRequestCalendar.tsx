@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { cn } from "@lumenx/ui";
+import { Button, cn } from "@lumenx/ui";
 import type { LeaveRequest } from "@lumenx/types";
 import {
   calendarLeadingBlanks,
@@ -15,15 +15,10 @@ import {
   connectMonthDayToday,
 } from "@/lib/connect-calendar-theme";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Button } from "@lumenx/ui";
 
 function parseIso(iso: string) {
   const [y, m, d] = iso.split("-").map(Number);
   return { year: y, month: m - 1, day: d };
-}
-
-function dayInLeave(dayIso: string, req: LeaveRequest) {
-  return dayIso >= req.leaveStartDate && dayIso <= req.leaveEndDate;
 }
 
 export function LeaveRequestCalendar({
@@ -121,15 +116,17 @@ export function LeaveRequestCalendar({
         </Button>
       </div>
 
-      <div className="mb-2 grid grid-cols-7 gap-1 text-center text-[10px] font-medium text-muted-foreground">
+      <div className="mb-2 grid grid-cols-7 gap-1.5 text-center text-[10px] font-medium text-muted-foreground">
         {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
-          <div key={`${d}-${i}`}>{d}</div>
+          <div key={`${d}-${i}`} className="min-w-0">
+            {d}
+          </div>
         ))}
       </div>
 
       <div className="grid grid-cols-7 gap-1.5">
         {Array.from({ length: leading }).map((_, i) => (
-          <div key={`pad-${i}`} className="aspect-square" aria-hidden />
+          <div key={`pad-${i}`} className="aspect-square min-w-0" aria-hidden />
         ))}
         {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
           const iso = isoFromParts(year, month, day);

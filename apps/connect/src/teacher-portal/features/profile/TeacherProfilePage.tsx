@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { getInitials } from "@lumenx/utils";
+import { getInitials, processSimpleUpload } from "@lumenx/utils";
 import { PageHeader } from "@/components/app/PageHeader";
 import { useApp } from "@/lib/app-state";
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
@@ -14,15 +14,12 @@ import {
   Switch,
   Input,
   Textarea,
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+  TextSizeControl,
 } from "@lumenx/ui";
-import { BookOpen, Briefcase, Mail, Phone, LogOut, Bell, Shield, Camera } from "lucide-react";
-import { AppLockSettings } from "@/components/app/AppLockSettings";
+import { LogOut, Bell, Shield, Pencil, X, ShieldCheck, Trash2 } from "lucide-react";
+import { SecuritySettings } from "@/components/app/SecuritySettings";
 import { toast } from "sonner";
+import { isTeacherAccessDenied } from "@/lib/teacher/portal-access-guard";
 import { useNavigate } from "@tanstack/react-router";
 import type { TeacherPreferences } from "@/lib/teacher/types";
 import { ChangePasswordDialog } from "./ChangePasswordDialog";
@@ -47,14 +44,20 @@ import { CONNECT_APP_VERSION_LABEL } from "@/lib/app-version";
 import { TeacherPortalSwitcher } from "@/components/app/TeacherPortalSwitcher";
 import { useTeacherPortalAccess } from "@/lib/teacher-session";
 
-export function TeacherProfilePage({ initialSection }: { initialSection?: "support" }) {
+const ABOUT_MAX = 160;
+
+export function TeacherProfilePage({
+  initialSection,
+}: {
+  initialSection?: "support" | "help" | "feedback" | "report";
+}) {
   const { user, signOut, toggleTheme, theme } = useApp();
   const portal = useTeacherPortal();
   const portalAccess = useTeacherPortalAccess();
   const nav = useNavigate();
   const fileRef = useRef<HTMLInputElement>(null);
   const [prefs, setPrefs] = useState<TeacherPreferences | null>(null);
-  const [editOpen, setEditOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [pwdOpen, setPwdOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
   const [faqOpen, setFaqOpen] = useState(false);
@@ -63,8 +66,6 @@ export function TeacherProfilePage({ initialSection }: { initialSection?: "suppo
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [issueOpen, setIssueOpen] = useState(false);
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
   const [privacyShare, setPrivacyShare] = useState(true);
   const [subjectsText, setSubjectsText] = useState("");
   const [classesText, setClassesText] = useState("");
@@ -74,6 +75,9 @@ export function TeacherProfilePage({ initialSection }: { initialSection?: "suppo
 
   useEffect(() => {
     if (initialSection === "support") setSupportOpen(true);
+    if (initialSection === "help") setHelpOpen(true);
+    if (initialSection === "feedback") setFeedbackOpen(true);
+    if (initialSection === "report") setIssueOpen(true);
   }, [initialSection]);
 
   useEffect(() => {
@@ -85,12 +89,10 @@ export function TeacherProfilePage({ initialSection }: { initialSection?: "suppo
   useEffect(() => {
     if (portal.isTeacher && "profile" in portal && portal.profile) {
       setName(portal.profile.name);
-      setPhone(portal.profile.phone);
-      setEmail(portal.profile.email);
       setSubjectsText(portal.profile.subjects.join(", "));
       setClassesText(portal.profile.classes.join(", "));
       setExperienceYears(String(portal.profile.experienceYears));
-      setAbout(portal.profile.bio ?? "");
+      setAbout((portal.profile.bio ?? "").slice(0, ABOUT_MAX));
       setAvatarPreview(portal.profile.avatar);
     }
   }, [portal]);
@@ -102,31 +104,61 @@ export function TeacherProfilePage({ initialSection }: { initialSection?: "suppo
 
   const profile = portal.profile;
 
+  const beginEdit = () => {
+    setName(profile.name);
+    setSubjectsText(profile.subjects.join(", "));
+    setClassesText(profile.classes.join(", "));
+    setExperienceYears(String(profile.experienceYears));
+    setAbout((profile.bio ?? "").slice(0, ABOUT_MAX));
+    setAvatarPreview(profile.avatar);
+    setEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setName(profile.name);
+    setSubjectsText(profile.subjects.join(", "));
+    setClassesText(profile.classes.join(", "));
+    setExperienceYears(String(profile.experienceYears));
+    setAbout((profile.bio ?? "").slice(0, ABOUT_MAX));
+    setAvatarPreview(profile.avatar);
+    setEditing(false);
+  };
+
   const savePrefs = async () => {
     if (!prefs) return;
-    await teacherRepository.savePreferences(prefs);
+    try {
+      await teacherRepository.savePreferences(prefs);
+    } catch (error) {
+      if (isTeacherAccessDenied(error)) return;
+      throw error;
+    }
     toast.success("Notification preferences saved");
   };
 
   const saveProfile = async () => {
-    await teacherRepository.updateProfile({
-      name,
-      phone: profile.phone,
-      email: profile.email,
-      subjects: subjectsText
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean),
-      classes: classesText
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean),
-      experienceYears: Math.max(0, Number(experienceYears) || 0),
-      bio: about.trim(),
-      avatar: avatarPreview,
-    });
+    try {
+      await teacherRepository.updateProfile({
+        name: name.trim() || profile.name,
+        phone: profile.phone,
+        email: profile.email,
+        subjects: subjectsText
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean),
+        classes: classesText
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean),
+        experienceYears: Math.max(0, Number(experienceYears) || 0),
+        bio: about.trim().slice(0, ABOUT_MAX),
+        avatar: avatarPreview,
+      });
+    } catch (error) {
+      if (isTeacherAccessDenied(error)) return;
+      throw error;
+    }
     toast.success("Profile updated");
-    setEditOpen(false);
+    setEditing(false);
     portal.refresh();
   };
 
@@ -135,76 +167,191 @@ export function TeacherProfilePage({ initialSection }: { initialSection?: "suppo
       <PageHeader title="Settings" subtitle="Your teacher account, preferences, and support" />
 
       <SettingsCard>
-        <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:gap-5">
+        <div className="flex min-w-0 items-start gap-3 sm:gap-4">
           <div className="relative shrink-0">
-            <Avatar className="size-20 sm:size-24 ring-4 ring-violet-500/20">
+            <Avatar className="size-14 shrink-0 ring-2 ring-primary/10 sm:size-16">
               {avatarPreview || user.avatar ? (
-                <AvatarImage src={avatarPreview || user.avatar} alt="" />
+                <AvatarImage src={avatarPreview || user.avatar} alt="" className="object-cover" />
               ) : null}
-              <AvatarFallback className="bg-gradient-to-br from-violet-600 to-indigo-700 text-2xl text-white font-display">
+              <AvatarFallback className="bg-gradient-to-br from-violet-600 to-indigo-700 font-display text-lg text-white sm:text-xl">
                 {getInitials(profile.name, 2)}
               </AvatarFallback>
             </Avatar>
-            <button
-              type="button"
-              aria-label="Change profile photo"
-              onClick={() => fileRef.current?.click()}
-              className="settings-avatar-action border bg-card shadow-soft"
-            >
-              <Camera className="size-4" aria-hidden />
-            </button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = () => {
-                  const next = typeof reader.result === "string" ? reader.result : undefined;
-                  setAvatarPreview(next);
-                  toast.success("Profile photo updated (demo)");
-                };
-                reader.readAsDataURL(file);
-              }}
-            />
+            {editing ? (
+              <>
+                <button
+                  type="button"
+                  aria-label="Change profile photo"
+                  onClick={() => fileRef.current?.click()}
+                  className="settings-avatar-action border bg-card shadow-soft"
+                >
+                  <Pencil className="size-3.5" aria-hidden />
+                </button>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,.jpg,.jpeg,.png"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = "";
+                    if (!file) return;
+                    void (async () => {
+                      try {
+                        const processed = await processSimpleUpload(file, "image");
+                        setAvatarPreview(processed.dataUrl);
+                        toast.success("Profile photo updated");
+                      } catch (err) {
+                        toast.error(
+                          err instanceof Error ? err.message : "Could not process that photo.",
+                        );
+                      }
+                    })();
+                  }}
+                />
+                {(avatarPreview || user.avatar) && (
+                  <button
+                    type="button"
+                    aria-label="Delete profile photo"
+                    className="absolute -bottom-1 -left-1 grid size-7 place-items-center rounded-full border bg-card text-destructive shadow-soft"
+                    onClick={() => {
+                      setAvatarPreview("");
+                      toast.success("Profile photo removed");
+                    }}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                )}
+              </>
+            ) : null}
           </div>
-          <div className="min-w-0 flex-1 text-center sm:text-left">
-            <h2 className="font-display text-xl font-semibold">{profile.name}</h2>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Employee ID: {profile.employeeId}
-            </p>
-            <div className="mt-2 flex flex-wrap justify-center gap-2 sm:justify-start">
-              <Badge className="border-0 bg-violet-500/15 text-violet-700 dark:text-violet-300">
-                Teacher
-              </Badge>
-              <Badge variant="outline">{profile.department}</Badge>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-start justify-between gap-2">
+              <div className="min-w-0">
+                {editing ? (
+                  <Input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="h-9 rounded-xl font-display text-base font-semibold sm:text-lg"
+                    placeholder="Full name"
+                    autoComplete="name"
+                  />
+                ) : (
+                  <h3 className="font-display text-lg font-semibold leading-snug break-words sm:text-xl">
+                    {profile.name}
+                  </h3>
+                )}
+                <p className="mt-0.5 text-xs text-muted-foreground sm:text-sm">
+                  {profile.employeeId} · {profile.department}
+                </p>
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">{profile.phone}</p>
+              </div>
+              {!editing ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 gap-1.5 rounded-xl"
+                  onClick={beginEdit}
+                >
+                  <Pencil className="size-3.5" />
+                  Edit
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0 gap-1 rounded-xl"
+                  onClick={cancelEdit}
+                >
+                  <X className="size-3.5" />
+                  Cancel
+                </Button>
+              )}
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="settings-primary-action mt-3 rounded-xl"
-              onClick={() => setEditOpen(true)}
-            >
-              Edit profile
-            </Button>
+            <Badge variant="outline" className="mt-2 text-[10px] sm:text-xs">
+              Teacher · Institute managed
+            </Badge>
           </div>
         </div>
 
-        <div className="mt-6 grid gap-3 sm:grid-cols-2">
-          <InfoRow icon={BookOpen} label="Subjects" value={profile.subjects.join(", ")} />
-          <InfoRow icon={Briefcase} label="Classes" value={profile.classes.join(", ")} />
-          <InfoRow icon={Mail} label="Email" value={profile.email} />
-          <InfoRow icon={Phone} label="Phone" value={profile.phone} />
-          <InfoRow icon={Briefcase} label="Experience" value={`${profile.experienceYears} years`} />
-          <InfoRow icon={Briefcase} label="Joined" value={profile.joinedOn} />
-        </div>
-        {profile.bio && (
-          <div className="mt-4 space-y-2">
-            <p className="settings-section-label">About</p>
-            <div className="settings-readonly-value is-multiline">{profile.bio}</div>
+        {editing ? (
+          <div className="mt-4 space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <SettingsField label="Subjects">
+                <Input
+                  value={subjectsText}
+                  onChange={(e) => setSubjectsText(e.target.value)}
+                  placeholder="e.g. Mathematics, Physics"
+                  className="rounded-xl"
+                />
+              </SettingsField>
+              <SettingsField label="Classes">
+                <Input
+                  value={classesText}
+                  onChange={(e) => setClassesText(e.target.value)}
+                  placeholder="e.g. 10-B, 10-A"
+                  className="rounded-xl"
+                />
+              </SettingsField>
+              <SettingsField label="Experience (years)">
+                <Input
+                  type="number"
+                  min={0}
+                  value={experienceYears}
+                  onChange={(e) => setExperienceYears(e.target.value)}
+                  className="rounded-xl"
+                />
+              </SettingsField>
+              <SettingsField label="Email">
+                <Input value={profile.email} readOnly disabled className="rounded-xl bg-muted/40" />
+              </SettingsField>
+            </div>
+            <div>
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <div className="settings-field-label mb-0">About</div>
+                <span className="text-[10px] tabular-nums text-muted-foreground">
+                  {about.length}/{ABOUT_MAX}
+                </span>
+              </div>
+              <Textarea
+                value={about}
+                onChange={(e) => setAbout(e.target.value.slice(0, ABOUT_MAX))}
+                rows={3}
+                maxLength={ABOUT_MAX}
+                placeholder="A short line about your teaching…"
+                className="min-h-[4.5rem] rounded-xl text-sm"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" size="sm" className="rounded-xl" onClick={cancelEdit}>
+                Cancel
+              </Button>
+              <Button type="button" size="sm" className="rounded-xl" onClick={saveProfile}>
+                Save
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4 min-w-0 space-y-3">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <CompactMeta label="Subjects" value={profile.subjects.join(", ") || "—"} />
+              <CompactMeta label="Classes" value={profile.classes.join(", ") || "—"} />
+              <CompactMeta label="Experience" value={`${profile.experienceYears} years`} />
+              <CompactMeta label="Email" value={profile.email} />
+            </div>
+            <div>
+              <div className="settings-field-label mb-1.5">About</div>
+              <p className="rounded-xl border border-border bg-muted/30 px-3 py-2.5 text-sm leading-relaxed text-foreground break-words whitespace-pre-wrap">
+                {(profile.bio ?? "").trim() || "No about yet. Tap Edit to add a short one."}
+              </p>
+            </div>
+            <div className="settings-info-banner">
+              <ShieldCheck className="mt-0.5 size-4 shrink-0 text-success" aria-hidden />
+              Phone and email are managed by your institute.
+            </div>
           </div>
         )}
       </SettingsCard>
@@ -288,35 +435,45 @@ export function TeacherProfilePage({ initialSection }: { initialSection?: "suppo
       <SettingsSection title="Appearance">
         <SettingsRow
           label="Dark mode"
-          desc="Easier on the eyes in low light"
+          desc="Light or Dark only · default is Light · does not follow system"
           right={<Switch checked={theme === "dark"} onCheckedChange={toggleTheme} />}
         />
+        <div className="space-y-2 py-3.5 first:pt-0 last:pb-0 sm:py-4">
+          <div>
+            <div className="text-sm font-medium leading-snug">Text Size</div>
+            <div className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
+              Small, Default, Large, or Extra Large. Default is Default.
+            </div>
+          </div>
+          <TextSizeControl />
+        </div>
       </SettingsSection>
 
       <SettingsSection title="Privacy & security" icon={Shield}>
-        <AppLockSettings />
-        <SettingsRow
-          label="Show profile to parents"
-          desc="Let parents view your bio and office hours"
-          right={
-            <Switch
-              checked={privacyShare}
-              onCheckedChange={(v) => {
-                setPrivacyShare(v);
-                toast.success("Privacy settings updated");
-              }}
-            />
-          }
-        />
-        <div className="pt-2 pb-1">
-          <Button
-            variant="outline"
-            className="settings-primary-action rounded-xl w-full sm:w-auto"
-            onClick={() => setPwdOpen(true)}
-          >
-            Change password
-          </Button>
-        </div>
+        <SecuritySettings>
+          <SettingsRow
+            label="Show profile to parents"
+            desc="Let parents view your bio and office hours"
+            right={
+              <Switch
+                checked={privacyShare}
+                onCheckedChange={(v) => {
+                  setPrivacyShare(v);
+                  toast.success("Privacy settings updated");
+                }}
+              />
+            }
+          />
+          <div className="pt-2 pb-1">
+            <Button
+              variant="outline"
+              className="settings-primary-action rounded-xl w-full sm:w-auto"
+              onClick={() => setPwdOpen(true)}
+            >
+              Change password
+            </Button>
+          </div>
+        </SecuritySettings>
       </SettingsSection>
 
       <SettingsSupportPanel
@@ -343,99 +500,6 @@ export function TeacherProfilePage({ initialSection }: { initialSection?: "suppo
         <LogOut className="size-4" aria-hidden /> Sign out
       </Button>
 
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="rounded-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit profile</DialogTitle>
-          </DialogHeader>
-          <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
-            <SettingsField label="Full name">
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Ananya Iyer"
-                autoComplete="name"
-                className="rounded-xl"
-              />
-            </SettingsField>
-            <SettingsField label="Experience (years)">
-              <Input
-                type="number"
-                min={0}
-                value={experienceYears}
-                onChange={(e) => setExperienceYears(e.target.value)}
-                placeholder="e.g. 8"
-                className="rounded-xl"
-              />
-            </SettingsField>
-            <SettingsField label="Email">
-              <Input
-                value={email}
-                readOnly
-                disabled
-                placeholder="School email"
-                className="rounded-xl bg-muted/40"
-              />
-              <p className="mt-1 text-[11px] text-muted-foreground">Managed by your school admin</p>
-            </SettingsField>
-            <SettingsField label="Phone">
-              <Input
-                value={phone}
-                readOnly
-                disabled
-                placeholder="Registered mobile"
-                className="rounded-xl bg-muted/40"
-              />
-              <p className="mt-1 text-[11px] text-muted-foreground">Managed by your school admin</p>
-            </SettingsField>
-            <SettingsField label="Subjects">
-              <Input
-                value={subjectsText}
-                onChange={(e) => setSubjectsText(e.target.value)}
-                placeholder="e.g. Mathematics, Physics"
-                className="rounded-xl"
-              />
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                Separate multiple subjects with commas
-              </p>
-            </SettingsField>
-            <SettingsField label="Classes">
-              <Input
-                value={classesText}
-                onChange={(e) => setClassesText(e.target.value)}
-                placeholder="e.g. 10-B, 10-A, 9-A"
-                className="rounded-xl"
-              />
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                Class sections you teach — comma separated
-              </p>
-            </SettingsField>
-            <div className="sm:col-span-2">
-              <SettingsField label="About">
-                <Textarea
-                  rows={4}
-                  value={about}
-                  onChange={(e) => setAbout(e.target.value)}
-                  placeholder="Brief introduction, teaching style, or class teacher note"
-                  className="rounded-xl"
-                />
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  Shown on your profile when parents view teacher details
-                </p>
-              </SettingsField>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setEditOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={saveProfile} className="settings-primary-action">
-              Save
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <ChangePasswordDialog open={pwdOpen} onOpenChange={setPwdOpen} phone={profile.phone} />
 
       <FaqDialog open={faqOpen} onOpenChange={setFaqOpen} />
@@ -447,22 +511,11 @@ export function TeacherProfilePage({ initialSection }: { initialSection?: "suppo
   );
 }
 
-function InfoRow({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: typeof BookOpen;
-  label: string;
-  value: string;
-}) {
+function CompactMeta({ label, value }: { label: string; value: string }) {
   return (
-    <div className="settings-row flex items-start gap-3 rounded-xl border border-border bg-muted/30 p-3">
-      <Icon className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
-      <div className="min-w-0">
-        <div className="settings-field-label mb-0.5">{label}</div>
-        <div className="text-sm font-medium break-words">{value}</div>
-      </div>
+    <div className="min-w-0 rounded-xl border border-border bg-muted/30 px-3 py-2">
+      <div className="settings-field-label mb-0.5">{label}</div>
+      <div className="truncate text-sm font-medium">{value}</div>
     </div>
   );
 }

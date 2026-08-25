@@ -18,6 +18,7 @@ import { getGeneratedDocuments } from "@/lib/template-management/store";
 import { useTemplateStore } from "@/components/templates/useTemplateStore";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { Download, RefreshCw, Archive } from "lucide-react";
+import { downloadGeneratedTemplateDoc } from "@/lib/template-device-download";
 
 export function TemplateGeneratedView() {
   const revision = useTemplateStore();
@@ -110,7 +111,10 @@ export function TemplateGeneratedView() {
                     <div className="flex justify-end gap-1">
                       <Button
                         size="sm"
-                        onClick={() => notify(`Download started · ${d.templateName} (demo)`)}
+                        onClick={() => {
+                          const { filename } = downloadGeneratedTemplateDoc(d);
+                          notify(`Saved to Downloads · ${filename}`);
+                        }}
                       >
                         <Download className="size-3" />
                       </Button>

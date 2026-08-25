@@ -1,8 +1,40 @@
 import type {
   TeacherActivePortal,
   TeacherAssignmentType,
+  TeacherPortalAccessLevel,
   TeacherSession,
 } from "./types";
+
+/** Parse Admin portal-access labels (and snake/kebab variants) into a typed level. */
+export function parseTeacherPortalAccess(value: unknown): TeacherPortalAccessLevel | null {
+  if (typeof value !== "string") return null;
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[+]/g, " ")
+    .replace(/[\s_]+/g, "-");
+  if (
+    normalized === "faculty-grading" ||
+    normalized === "faculty_grading"
+  ) {
+    return "faculty_grading";
+  }
+  if (normalized === "faculty-only" || normalized === "faculty_only") {
+    return "faculty_only";
+  }
+  if (normalized === "read-only" || normalized === "readonly" || normalized === "read_only") {
+    return "read_only";
+  }
+  return null;
+}
+
+export function teacherCanWrite(level: TeacherPortalAccessLevel): boolean {
+  return level !== "read_only";
+}
+
+export function teacherCanGrade(level: TeacherPortalAccessLevel): boolean {
+  return level === "faculty_grading";
+}
 
 export function teacherCanAccessActivityWorkspace(type: TeacherAssignmentType): boolean {
   return type === "activity_coordinator" || type === "dual_role";

@@ -7,11 +7,19 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
   "dependencies": {
     "@lumenx/config": "*",
-    "@lumenx/database": "*"
+    "@lumenx/database": "*",
+    "@lumenx/module-notifications": "*",
+    "@lumenx/notifications": "*",
+    "@lumenx/utils": "*"
   },
   "devDependencies": {
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
   }
 }

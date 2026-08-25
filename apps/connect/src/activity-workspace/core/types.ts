@@ -1,30 +1,21 @@
-/** Activity Coordinator workspace — primary modules (nav + dashboard). */
-export type ActivityWorkspaceModuleId =
-  | "dashboard"
-  | "sports"
-  | "extra-curricular"
-  | "attendance"
-  | "achievements"
-  | "messages"
-  | "notifications"
-  | "announcements"
-  | "certificates"
-  | "practice"
-  | "calendar"
-  | "profile";
-
-/** Legacy routes kept for bookmarks — not in primary navigation. */
-export type ActivityLegacyModuleId =
-  | "events"
-  | "competitions"
-  | "clubs"
-  | "workshops";
-
-export type ActivityModuleId = ActivityWorkspaceModuleId | ActivityLegacyModuleId;
-
-export function isPrimaryWorkspaceModule(id: ActivityModuleId): id is ActivityWorkspaceModuleId {
-  return id !== "events" &&
-    id !== "competitions" &&
-    id !== "clubs" &&
-    id !== "workshops";
-}
+/** Activity Coordinator workspace — primary modules (nav + dashboard). */
+export type ActivityWorkspaceModuleId =
+  | "dashboard"
+  | "sports"
+  | "extra-curricular"
+  | "attendance"
+  | "diary"
+  | "achievements"
+  | "messages"
+  | "notifications"
+  | "announcements"
+  | "practice"
+  | "calendar"
+  | "profile";
+
+/** Alias — finalized V1 Activity Coordinator modules only. */
+export type ActivityModuleId = ActivityWorkspaceModuleId;
+
+export function isPrimaryWorkspaceModule(_id: ActivityModuleId): _id is ActivityWorkspaceModuleId {
+  return true;
+}

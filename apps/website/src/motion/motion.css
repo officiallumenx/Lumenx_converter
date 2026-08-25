@@ -1,0 +1,304 @@
+/**
+ * LumenX website motion — transform and opacity only.
+ * Hidden reveal states apply only under html.site-motion.
+ * In-view sections are marked .is-instant before paint (see RootShell script).
+ */
+
+@keyframes site-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, var(--site-enter-y), 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes site-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes site-page-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .site-hero-enter {
+    animation: site-enter var(--site-duration-enter) var(--ease-emph) both;
+  }
+  .site-hero-enter--late {
+    animation-delay: 80ms;
+  }
+}
+
+html.site-motion .site-page {
+  animation: site-page-in var(--site-duration-page) var(--ease-emph) both;
+}
+
+html.site-motion .site-reveal:not(.is-in) .site-section-head,
+html.site-motion .site-reveal:not(.is-in) .site-stagger__item {
+  opacity: 0;
+  transform: translate3d(0, var(--site-enter-y), 0);
+}
+
+html.site-motion .site-reveal.is-in:not(.is-instant) .site-section-head {
+  animation: site-enter var(--site-duration-enter) var(--ease-emph) both;
+}
+
+html.site-motion .site-reveal.is-in:not(.is-instant) .site-stagger__item {
+  animation: site-enter var(--site-duration-enter) var(--ease-emph)
+    calc(var(--i, 0) * var(--site-stagger)) both;
+}
+
+html.site-motion .site-crossfade {
+  animation: site-fade var(--site-duration-crossfade) var(--ease-emph) both;
+}
+
+html.site-motion .how-progress__fill {
+  transition: transform var(--site-duration-enter) var(--ease-emph);
+}
+
+html.site-motion .how-node.is-active {
+  animation: how-node-pulse 1.8s var(--ease-emph) both;
+}
+
+@keyframes how-node-pulse {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.03); }
+  100% { transform: scale(1); }
+}
+
+html.site-motion .site-demo-pop {
+  animation: site-enter var(--site-duration-crossfade) var(--ease-emph) both;
+}
+
+.site-mobile-nav {
+  border-top: 1px solid var(--border);
+}
+
+html.site-motion .site-mobile-nav {
+  animation: site-enter var(--site-duration-page) var(--ease-emph) both;
+}
+
+.site-product-mark {
+  transition:
+    transform var(--site-duration-hover) var(--ease-emph),
+    box-shadow var(--site-duration-hover) ease,
+    background-color var(--site-duration-hover) ease;
+}
+
+.site-product-nav__item {
+  transition:
+    background-color var(--site-duration-hover) ease,
+    color var(--site-duration-hover) ease,
+    border-color var(--site-duration-hover) ease;
+}
+
+.site-nav-link {
+  transition:
+    color var(--site-duration-hover) ease,
+    background-color var(--site-duration-hover) ease;
+}
+
+.site-btn--primary:hover {
+  box-shadow: var(--site-shadow-glow);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  html.site-motion .site-btn--primary:hover:not(:disabled):not(:active) {
+    transform: translateY(-2px);
+  }
+  html.site-motion .site-btn--secondary:hover:not(:disabled):not(:active),
+  html.site-motion .site-btn--invert:hover:not(:disabled):not(:active) {
+    transform: translateY(-1px);
+  }
+
+  .site-card--product:hover .site-product-mark,
+  .site-eco-node:hover .site-product-mark {
+    transform: scale(1.08);
+    background: color-mix(in oklch, var(--product-accent) 16%, var(--product-wash));
+    box-shadow:
+      inset 0 0 0 1px color-mix(in oklch, var(--product-accent) 28%, transparent),
+      0 10px 22px -10px color-mix(in oklch, var(--product-accent) 55%, transparent);
+  }
+}
+
+@keyframes site-atmosphere-drift-a {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(4%, 3%, 0) scale(1.06); }
+}
+@keyframes site-atmosphere-drift-b {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-5%, 4%, 0) scale(1.08); }
+}
+@keyframes site-atmosphere-drift-c {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(3%, -4%, 0) scale(1.05); }
+}
+
+html.site-motion .site-atmosphere__blob--a {
+  animation: site-atmosphere-drift-a 28s var(--ease-emph) infinite;
+}
+html.site-motion .site-atmosphere__blob--b {
+  animation: site-atmosphere-drift-b 34s var(--ease-emph) infinite;
+}
+html.site-motion .site-atmosphere__blob--c {
+  animation: site-atmosphere-drift-c 40s var(--ease-emph) infinite;
+}
+
+html.site-motion.site-motion-paused .site-atmosphere__blob--a,
+html.site-motion.site-motion-paused .site-atmosphere__blob--b,
+html.site-motion.site-motion-paused .site-atmosphere__blob--c,
+html.site-motion.site-motion-paused .home-orbit__flow,
+html.site-motion.site-motion-paused .home-orbit__ring {
+  animation-play-state: paused !important;
+}
+
+@keyframes home-orbit-flow {
+  to { stroke-dashoffset: -12; }
+}
+@keyframes home-orbit-ring-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+html.site-motion .home-orbit__flow {
+  animation: home-orbit-flow 4.5s linear infinite;
+}
+html.site-motion .home-orbit__ring {
+  animation: home-orbit-ring-spin 80s linear infinite;
+}
+
+@keyframes home-orbit-draw {
+  from { opacity: 0; }
+  to { opacity: 0.7; }
+}
+@keyframes home-orbit-node-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+html.site-motion .home-orbit__link {
+  animation: home-orbit-draw 700ms var(--ease-emph) both;
+}
+html.site-motion .home-orbit__link[data-product="admin"] { animation-delay: 40ms; }
+html.site-motion .home-orbit__link[data-product="connect"] { animation-delay: 90ms; }
+html.site-motion .home-orbit__link[data-product="transport"] { animation-delay: 140ms; }
+html.site-motion .home-orbit__link[data-product="nexus"] { animation-delay: 190ms; }
+html.site-motion .home-orbit__link[data-product="careers"] { animation-delay: 240ms; }
+html.site-motion .home-orbit__link[data-product="admissions"] { animation-delay: 290ms; }
+
+/* Opacity only — never animate transform (nodes use transform for centering). */
+html.site-motion .home-orbit__node {
+  animation: home-orbit-node-in 520ms var(--ease-emph) both;
+}
+html.site-motion .home-orbit__node[data-product="admin"] { animation-delay: 60ms; }
+html.site-motion .home-orbit__node[data-product="connect"] { animation-delay: 110ms; }
+html.site-motion .home-orbit__node[data-product="transport"] { animation-delay: 160ms; }
+html.site-motion .home-orbit__node[data-product="nexus"] { animation-delay: 210ms; }
+html.site-motion .home-orbit__node[data-product="careers"] { animation-delay: 260ms; }
+html.site-motion .home-orbit__node[data-product="admissions"] { animation-delay: 310ms; }
+
+@keyframes eco-flow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 oklch(0.52 0.22 262 / 0); }
+  50% { box-shadow: 0 0 0 4px oklch(0.52 0.22 262 / 0.12); }
+}
+html.site-motion .home-eco-flow__node.is-lit {
+  animation: eco-flow-pulse 2.4s var(--ease-emph) both;
+}
+
+@keyframes demo-bridge {
+  from { transform: scaleX(0); opacity: 0; }
+  to { transform: scaleX(1); opacity: 1; }
+}
+html.site-motion .demo-scene--bridged::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 42%;
+  right: 42%;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    oklch(0.52 0.22 262 / 0),
+    oklch(0.52 0.18 262 / 0.55),
+    oklch(0.58 0.13 195 / 0.45),
+    oklch(0.52 0.22 262 / 0)
+  );
+  transform-origin: left center;
+  animation: demo-bridge 480ms var(--ease-emph) both;
+  pointer-events: none;
+  z-index: 2;
+}
+@media (max-width: 767px) {
+  html.site-motion .demo-scene--bridged::before {
+    display: none;
+  }
+}
+
+@media (hover: none) {
+  .site-card:hover {
+    transform: none;
+    box-shadow: var(--site-shadow-sm);
+    border-color: var(--border);
+  }
+  .site-card--quiet:hover {
+    box-shadow: var(--site-shadow-sm);
+  }
+}
+
+html.site-motion .site-icon-animated {
+  animation: site-enter var(--site-duration-enter) var(--ease-emph) both;
+}
+
+html.site-motion .eco-stage--live .eco-stage__content {
+  transition: transform 80ms linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .site-hero-enter,
+  .site-hero-enter--late,
+  html.site-motion .site-page,
+  html.site-motion .site-crossfade,
+  html.site-motion .site-demo-pop,
+  html.site-motion .site-icon-animated,
+  html.site-motion .site-mobile-nav,
+  html.site-motion .how-node.is-active,
+  html.site-motion .site-reveal.is-in .site-section-head,
+  html.site-motion .site-reveal.is-in .site-stagger__item,
+  html.site-motion .site-atmosphere__blob--a,
+  html.site-motion .site-atmosphere__blob--b,
+  html.site-motion .site-atmosphere__blob--c,
+  html.site-motion .home-orbit__link,
+  html.site-motion .home-orbit__node,
+  html.site-motion .home-orbit__flow,
+  html.site-motion .home-orbit__ring,
+  html.site-motion .home-eco-flow__node.is-lit,
+  html.site-motion .demo-scene--bridged::before {
+    animation: none !important;
+  }
+  html.site-motion .how-progress__fill {
+    transition: none !important;
+  }
+  html.site-motion .site-reveal:not(.is-in) .site-section-head,
+  html.site-motion .site-reveal:not(.is-in) .site-stagger__item {
+    opacity: 1;
+    transform: none;
+  }
+  .site-btn:active:not(:disabled),
+  .site-card:hover,
+  html.site-motion .site-btn--primary:hover:not(:disabled):not(:active),
+  html.site-motion .site-btn--secondary:hover:not(:disabled):not(:active),
+  html.site-motion .site-btn--invert:hover:not(:disabled):not(:active) {
+    transform: none !important;
+  }
+  .site-card--product:hover .site-product-mark,
+  .site-eco-node:hover .site-product-mark {
+    transform: none !important;
+  }
+}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
   CommandDialog,
@@ -15,7 +15,10 @@ import {
   Users,
 } from "lucide-react";
 import { buildAdminSearchIndex, type AdminSearchItem } from "@/lib/admin-search-data";
+import { CURRENT_INSTITUTE_ID } from "@/lib/institute-billing-store";
 import { useDemoProfile } from "@/lib/demo-profile-context";
+import { useAuth } from "@/auth/AuthContext";
+import { getRolePermission, useRolesAccessRevision } from "@/lib/roles-access";
 
 interface AdminGlobalSearchProps {
   open: boolean;
@@ -29,25 +32,29 @@ function groupItems(items: AdminSearchItem[], group: AdminSearchItem["group"]) {
 export function AdminGlobalSearch({ open, onOpenChange }: AdminGlobalSearchProps) {
   const navigate = useNavigate();
   const { profileId } = useDemoProfile();
+  const { user } = useAuth();
+  const rolesRevision = useRolesAccessRevision();
+  const instituteId = user?.instituteId || CURRENT_INSTITUTE_ID;
 
-  const index = useMemo(() => buildAdminSearchIndex(), [profileId]);
+  const index = useMemo(() => {
+    void profileId;
+    return buildAdminSearchIndex({
+      instituteId,
+      accessRoleId: user?.accessRoleId,
+    });
+  }, [profileId, instituteId, user?.accessRoleId, rolesRevision]);
+
+  const canSeeStudents =
+    !user?.accessRoleId || getRolePermission(user.accessRoleId, "/students") !== "none";
+  const canSeeTeachers =
+    !user?.accessRoleId || getRolePermission(user.accessRoleId, "/teachers") !== "none";
 
   const pages = useMemo(() => groupItems(index, "pages"), [index]);
   const students = useMemo(() => groupItems(index, "students"), [index]);
   const teachers = useMemo(() => groupItems(index, "teachers"), [index]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        onOpenChange(!open);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onOpenChange]);
-
   const go = (item: AdminSearchItem) => {
+    if (item.instituteId !== instituteId) return;
     onOpenChange(false);
     if (item.params?.id) {
       navigate({ to: "/students/$id", params: { id: item.params.id } });
@@ -58,11 +65,11 @@ export function AdminGlobalSearch({ open, onOpenChange }: AdminGlobalSearchProps
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
-      <CommandInput placeholder="Search pages, students, teachers…" />
+      <CommandInput placeholder="Search this institute (Admin portal only)…" />
       <CommandList className="max-h-[min(420px,70vh)]">
-        <CommandEmpty>No results found.</CommandEmpty>
+        <CommandEmpty>No results in this institute.</CommandEmpty>
 
-        <CommandGroup heading="Quick links">
+        <CommandGroup heading="Quick links · Admin portal">
           <CommandItem
             value="command center dashboard home"
             onSelect={() => {
@@ -71,34 +78,38 @@ export function AdminGlobalSearch({ open, onOpenChange }: AdminGlobalSearchProps
             }}
           >
             <LayoutDashboard className="size-4" />
-            Command Center
+            Overview
           </CommandItem>
-          <CommandItem
-            value="students roster list"
-            onSelect={() => {
-              onOpenChange(false);
-              navigate({ to: "/students" });
-            }}
-          >
-            <Users className="size-4" />
-            All Students
-          </CommandItem>
-          <CommandItem
-            value="teachers faculty staff"
-            onSelect={() => {
-              onOpenChange(false);
-              navigate({ to: "/teachers" });
-            }}
-          >
-            <GraduationCap className="size-4" />
-            All Teachers
-          </CommandItem>
+          {canSeeStudents && (
+            <CommandItem
+              value="students roster list"
+              onSelect={() => {
+                onOpenChange(false);
+                navigate({ to: "/students" });
+              }}
+            >
+              <Users className="size-4" />
+              All Students
+            </CommandItem>
+          )}
+          {canSeeTeachers && (
+            <CommandItem
+              value="teachers faculty staff"
+              onSelect={() => {
+                onOpenChange(false);
+                navigate({ to: "/teachers" });
+              }}
+            >
+              <GraduationCap className="size-4" />
+              All Teachers
+            </CommandItem>
+          )}
         </CommandGroup>
 
         {students.length > 0 && (
           <>
             <CommandSeparator />
-            <CommandGroup heading="Students">
+            <CommandGroup heading="Students · this institute">
               {students.map((item) => (
                 <CommandItem key={item.id} value={item.value} onSelect={() => go(item)}>
                   <Users className="size-4 text-muted-foreground" />
@@ -115,7 +126,7 @@ export function AdminGlobalSearch({ open, onOpenChange }: AdminGlobalSearchProps
         {teachers.length > 0 && (
           <>
             <CommandSeparator />
-            <CommandGroup heading="Teachers">
+            <CommandGroup heading="Teachers · this institute">
               {teachers.map((item) => (
                 <CommandItem key={item.id} value={item.value} onSelect={() => go(item)}>
                   <GraduationCap className="size-4 text-muted-foreground" />
@@ -130,7 +141,7 @@ export function AdminGlobalSearch({ open, onOpenChange }: AdminGlobalSearchProps
         )}
 
         <CommandSeparator />
-        <CommandGroup heading="Pages">
+        <CommandGroup heading="Pages · Admin portal">
           {pages.map((item) => (
             <CommandItem key={item.id} value={item.value} onSelect={() => go(item)}>
               <LayoutDashboard className="size-4 text-muted-foreground" />

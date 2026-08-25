@@ -30,6 +30,7 @@ export function ParentTransportPage() {
 
   return (
     <LearnerTransportView
+      viewer="parent"
       subtitle={`Track ${childName}'s bus · ${classTag} · pickup alerts & live route`}
       headerExtra={
         <div className="mb-1">

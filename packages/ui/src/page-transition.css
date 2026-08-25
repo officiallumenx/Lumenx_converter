@@ -1,0 +1,81 @@
+/**
+ * iOS-like module paging: translate-only, no fade, no overshoot.
+ * Inline drag styles are cleared in the same layout pass as the enter class
+ * so the first painted frame is already in the animation — no blink.
+ */
+
+:root {
+  --lx-module-transition-ms: 340ms;
+  --lx-module-transition-ease: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.lx-module-transition-root,
+.lx-module-swipe-current {
+  position: relative;
+  min-width: 0;
+  width: 100%;
+  transform-origin: 50% 50%;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.lx-module-swipe-stage {
+  position: relative;
+  min-width: 0;
+  width: 100%;
+}
+
+.lx-module-swipe-current.lx-module-swiping {
+  will-change: transform;
+  touch-action: pan-y;
+}
+
+.lx-module-enter-forward,
+.lx-module-enter-back {
+  animation-duration: var(--lx-module-transition-ms);
+  animation-timing-function: var(--lx-module-transition-ease);
+  animation-fill-mode: both;
+}
+
+.lx-module-enter-forward {
+  animation-name: lx-module-enter-forward;
+}
+
+.lx-module-enter-back {
+  animation-name: lx-module-enter-back;
+}
+
+@keyframes lx-module-enter-forward {
+  from {
+    transform: translate3d(14%, 0, 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes lx-module-enter-back {
+  from {
+    transform: translate3d(-14%, 0, 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+html[data-lx-nav-dir] .lx-page-content,
+html[data-lx-nav-dir] .lx-page-content--enter,
+html[data-lx-nav-dir] .lx-page-content--loading {
+  animation: none !important;
+  transition: none !important;
+  opacity: 1 !important;
+  filter: none !important;
+  transform: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lx-module-enter-forward,
+  .lx-module-enter-back {
+    animation: none !important;
+  }
+}

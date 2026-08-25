@@ -3,7 +3,8 @@ import { z } from "zod";
 import { ActivitySportsPage } from "@/activity-workspace";
 
 const searchSchema = z.object({
-  section: z.string().optional(),
+  category: z.enum(["indoor", "outdoor"]).optional(),
+  sport: z.string().optional(),
   team: z.string().optional(),
 });
 
@@ -12,7 +13,7 @@ export const Route = createFileRoute("/activity/sports")({
     const parsed = searchSchema.safeParse(search);
     return parsed.success ? parsed.data : {};
   },
-  head: () => ({ meta: [{ title: "Sports — Activity Portal" }] }),
+  head: () => ({ meta: [{ title: "Sports — Activity Coordinator" }] }),
   component: ActivitySportsPage,
 });
 

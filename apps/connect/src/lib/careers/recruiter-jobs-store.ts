@@ -192,6 +192,14 @@ export function updateRecruiterJobStatus(
   return updated;
 }
 
+export function deleteRecruiterJob(jobId: string, organizationId: string): boolean {
+  const jobs = readStore();
+  const idx = jobs.findIndex((j) => j.id === jobId && j.instituteId === organizationId);
+  if (idx < 0) return false;
+  writeStore(jobs.filter((_, i) => i !== idx));
+  return true;
+}
+
 export function countApplicantsForJob(jobId: string, applications: { jobId: string }[]): number {
   return applications.filter((a) => a.jobId === jobId).length;
 }

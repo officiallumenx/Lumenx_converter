@@ -10,34 +10,58 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TimetableRouteImport } from './routes/timetable'
+import { Route as TemplatesRouteImport } from './routes/templates'
 import { Route as TeachersRouteImport } from './routes/teachers'
+import { Route as SupportRouteImport } from './routes/support'
 import { Route as StudentsRouteImport } from './routes/students'
 import { Route as StorageRouteImport } from './routes/storage'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as RegistrationsRouteImport } from './routes/registrations'
+import { Route as PoliciesRouteImport } from './routes/policies'
+import { Route as PlatformUsersRouteImport } from './routes/platform-users'
 import { Route as PermissionsRouteImport } from './routes/permissions'
 import { Route as ParentsRouteImport } from './routes/parents'
 import { Route as NotificationsRouteImport } from './routes/notifications'
+import { Route as NotificationTemplatesRouteImport } from './routes/notification-templates'
 import { Route as ModulesRouteImport } from './routes/modules'
+import { Route as InstitutesRouteImport } from './routes/institutes'
+import { Route as HealthRisksRouteImport } from './routes/health-risks'
 import { Route as ExamsRouteImport } from './routes/exams'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as ComplaintsRouteImport } from './routes/complaints'
 import { Route as ClassesRouteImport } from './routes/classes'
+import { Route as CertificatesRouteImport } from './routes/certificates'
+import { Route as BillingRouteImport } from './routes/billing'
+import { Route as AuditRouteImport } from './routes/audit'
 import { Route as AttendanceRouteImport } from './routes/attendance'
 import { Route as AnnouncementsRouteImport } from './routes/announcements'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as AlertsRouteImport } from './routes/alerts'
 import { Route as AccountsRouteImport } from './routes/accounts'
+import { Route as AccessRouteImport } from './routes/access'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as InstitutesIndexRouteImport } from './routes/institutes.index'
 import { Route as StudentsIdRouteImport } from './routes/students.$id'
+import { Route as InstitutesIdRouteImport } from './routes/institutes.$id'
 
 const TimetableRoute = TimetableRouteImport.update({
   id: '/timetable',
   path: '/timetable',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TemplatesRoute = TemplatesRouteImport.update({
+  id: '/templates',
+  path: '/templates',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TeachersRoute = TeachersRouteImport.update({
   id: '/teachers',
   path: '/teachers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SupportRoute = SupportRouteImport.update({
+  id: '/support',
+  path: '/support',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StudentsRoute = StudentsRouteImport.update({
@@ -55,6 +79,21 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RegistrationsRoute = RegistrationsRouteImport.update({
+  id: '/registrations',
+  path: '/registrations',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PoliciesRoute = PoliciesRouteImport.update({
+  id: '/policies',
+  path: '/policies',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlatformUsersRoute = PlatformUsersRouteImport.update({
+  id: '/platform-users',
+  path: '/platform-users',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PermissionsRoute = PermissionsRouteImport.update({
   id: '/permissions',
   path: '/permissions',
@@ -70,9 +109,24 @@ const NotificationsRoute = NotificationsRouteImport.update({
   path: '/notifications',
   getParentRoute: () => rootRouteImport,
 } as any)
+const NotificationTemplatesRoute = NotificationTemplatesRouteImport.update({
+  id: '/notification-templates',
+  path: '/notification-templates',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ModulesRoute = ModulesRouteImport.update({
   id: '/modules',
   path: '/modules',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InstitutesRoute = InstitutesRouteImport.update({
+  id: '/institutes',
+  path: '/institutes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HealthRisksRoute = HealthRisksRouteImport.update({
+  id: '/health-risks',
+  path: '/health-risks',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ExamsRoute = ExamsRouteImport.update({
@@ -93,6 +147,21 @@ const ComplaintsRoute = ComplaintsRouteImport.update({
 const ClassesRoute = ClassesRouteImport.update({
   id: '/classes',
   path: '/classes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CertificatesRoute = CertificatesRouteImport.update({
+  id: '/certificates',
+  path: '/certificates',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BillingRoute = BillingRouteImport.update({
+  id: '/billing',
+  path: '/billing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuditRoute = AuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AttendanceRoute = AttendanceRouteImport.update({
@@ -120,172 +189,281 @@ const AccountsRoute = AccountsRouteImport.update({
   path: '/accounts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AccessRoute = AccessRouteImport.update({
+  id: '/access',
+  path: '/access',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const InstitutesIndexRoute = InstitutesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => InstitutesRoute,
 } as any)
 const StudentsIdRoute = StudentsIdRouteImport.update({
   id: '/$id',
   path: '/$id',
   getParentRoute: () => StudentsRoute,
 } as any)
+const InstitutesIdRoute = InstitutesIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => InstitutesRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/access': typeof AccessRoute
   '/accounts': typeof AccountsRoute
   '/alerts': typeof AlertsRoute
   '/analytics': typeof AnalyticsRoute
   '/announcements': typeof AnnouncementsRoute
   '/attendance': typeof AttendanceRoute
+  '/audit': typeof AuditRoute
+  '/billing': typeof BillingRoute
+  '/certificates': typeof CertificatesRoute
   '/classes': typeof ClassesRoute
   '/complaints': typeof ComplaintsRoute
   '/events': typeof EventsRoute
   '/exams': typeof ExamsRoute
+  '/health-risks': typeof HealthRisksRoute
+  '/institutes': typeof InstitutesRouteWithChildren
   '/modules': typeof ModulesRoute
+  '/notification-templates': typeof NotificationTemplatesRoute
   '/notifications': typeof NotificationsRoute
   '/parents': typeof ParentsRoute
   '/permissions': typeof PermissionsRoute
+  '/platform-users': typeof PlatformUsersRoute
+  '/policies': typeof PoliciesRoute
+  '/registrations': typeof RegistrationsRoute
   '/settings': typeof SettingsRoute
   '/storage': typeof StorageRoute
   '/students': typeof StudentsRouteWithChildren
+  '/support': typeof SupportRoute
   '/teachers': typeof TeachersRoute
+  '/templates': typeof TemplatesRoute
   '/timetable': typeof TimetableRoute
+  '/institutes/$id': typeof InstitutesIdRoute
   '/students/$id': typeof StudentsIdRoute
+  '/institutes/': typeof InstitutesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/access': typeof AccessRoute
   '/accounts': typeof AccountsRoute
   '/alerts': typeof AlertsRoute
   '/analytics': typeof AnalyticsRoute
   '/announcements': typeof AnnouncementsRoute
   '/attendance': typeof AttendanceRoute
+  '/audit': typeof AuditRoute
+  '/billing': typeof BillingRoute
+  '/certificates': typeof CertificatesRoute
   '/classes': typeof ClassesRoute
   '/complaints': typeof ComplaintsRoute
   '/events': typeof EventsRoute
   '/exams': typeof ExamsRoute
+  '/health-risks': typeof HealthRisksRoute
   '/modules': typeof ModulesRoute
+  '/notification-templates': typeof NotificationTemplatesRoute
   '/notifications': typeof NotificationsRoute
   '/parents': typeof ParentsRoute
   '/permissions': typeof PermissionsRoute
+  '/platform-users': typeof PlatformUsersRoute
+  '/policies': typeof PoliciesRoute
+  '/registrations': typeof RegistrationsRoute
   '/settings': typeof SettingsRoute
   '/storage': typeof StorageRoute
   '/students': typeof StudentsRouteWithChildren
+  '/support': typeof SupportRoute
   '/teachers': typeof TeachersRoute
+  '/templates': typeof TemplatesRoute
   '/timetable': typeof TimetableRoute
+  '/institutes/$id': typeof InstitutesIdRoute
   '/students/$id': typeof StudentsIdRoute
+  '/institutes': typeof InstitutesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/access': typeof AccessRoute
   '/accounts': typeof AccountsRoute
   '/alerts': typeof AlertsRoute
   '/analytics': typeof AnalyticsRoute
   '/announcements': typeof AnnouncementsRoute
   '/attendance': typeof AttendanceRoute
+  '/audit': typeof AuditRoute
+  '/billing': typeof BillingRoute
+  '/certificates': typeof CertificatesRoute
   '/classes': typeof ClassesRoute
   '/complaints': typeof ComplaintsRoute
   '/events': typeof EventsRoute
   '/exams': typeof ExamsRoute
+  '/health-risks': typeof HealthRisksRoute
+  '/institutes': typeof InstitutesRouteWithChildren
   '/modules': typeof ModulesRoute
+  '/notification-templates': typeof NotificationTemplatesRoute
   '/notifications': typeof NotificationsRoute
   '/parents': typeof ParentsRoute
   '/permissions': typeof PermissionsRoute
+  '/platform-users': typeof PlatformUsersRoute
+  '/policies': typeof PoliciesRoute
+  '/registrations': typeof RegistrationsRoute
   '/settings': typeof SettingsRoute
   '/storage': typeof StorageRoute
   '/students': typeof StudentsRouteWithChildren
+  '/support': typeof SupportRoute
   '/teachers': typeof TeachersRoute
+  '/templates': typeof TemplatesRoute
   '/timetable': typeof TimetableRoute
+  '/institutes/$id': typeof InstitutesIdRoute
   '/students/$id': typeof StudentsIdRoute
+  '/institutes/': typeof InstitutesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/access'
     | '/accounts'
     | '/alerts'
     | '/analytics'
     | '/announcements'
     | '/attendance'
+    | '/audit'
+    | '/billing'
+    | '/certificates'
     | '/classes'
     | '/complaints'
     | '/events'
     | '/exams'
+    | '/health-risks'
+    | '/institutes'
     | '/modules'
+    | '/notification-templates'
     | '/notifications'
     | '/parents'
     | '/permissions'
+    | '/platform-users'
+    | '/policies'
+    | '/registrations'
     | '/settings'
     | '/storage'
     | '/students'
+    | '/support'
     | '/teachers'
+    | '/templates'
     | '/timetable'
+    | '/institutes/$id'
     | '/students/$id'
+    | '/institutes/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/access'
     | '/accounts'
     | '/alerts'
     | '/analytics'
     | '/announcements'
     | '/attendance'
+    | '/audit'
+    | '/billing'
+    | '/certificates'
     | '/classes'
     | '/complaints'
     | '/events'
     | '/exams'
+    | '/health-risks'
     | '/modules'
+    | '/notification-templates'
     | '/notifications'
     | '/parents'
     | '/permissions'
+    | '/platform-users'
+    | '/policies'
+    | '/registrations'
     | '/settings'
     | '/storage'
     | '/students'
+    | '/support'
     | '/teachers'
+    | '/templates'
     | '/timetable'
+    | '/institutes/$id'
     | '/students/$id'
+    | '/institutes'
   id:
     | '__root__'
     | '/'
+    | '/access'
     | '/accounts'
     | '/alerts'
     | '/analytics'
     | '/announcements'
     | '/attendance'
+    | '/audit'
+    | '/billing'
+    | '/certificates'
     | '/classes'
     | '/complaints'
     | '/events'
     | '/exams'
+    | '/health-risks'
+    | '/institutes'
     | '/modules'
+    | '/notification-templates'
     | '/notifications'
     | '/parents'
     | '/permissions'
+    | '/platform-users'
+    | '/policies'
+    | '/registrations'
     | '/settings'
     | '/storage'
     | '/students'
+    | '/support'
     | '/teachers'
+    | '/templates'
     | '/timetable'
+    | '/institutes/$id'
     | '/students/$id'
+    | '/institutes/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AccessRoute: typeof AccessRoute
   AccountsRoute: typeof AccountsRoute
   AlertsRoute: typeof AlertsRoute
   AnalyticsRoute: typeof AnalyticsRoute
   AnnouncementsRoute: typeof AnnouncementsRoute
   AttendanceRoute: typeof AttendanceRoute
+  AuditRoute: typeof AuditRoute
+  BillingRoute: typeof BillingRoute
+  CertificatesRoute: typeof CertificatesRoute
   ClassesRoute: typeof ClassesRoute
   ComplaintsRoute: typeof ComplaintsRoute
   EventsRoute: typeof EventsRoute
   ExamsRoute: typeof ExamsRoute
+  HealthRisksRoute: typeof HealthRisksRoute
+  InstitutesRoute: typeof InstitutesRouteWithChildren
   ModulesRoute: typeof ModulesRoute
+  NotificationTemplatesRoute: typeof NotificationTemplatesRoute
   NotificationsRoute: typeof NotificationsRoute
   ParentsRoute: typeof ParentsRoute
   PermissionsRoute: typeof PermissionsRoute
+  PlatformUsersRoute: typeof PlatformUsersRoute
+  PoliciesRoute: typeof PoliciesRoute
+  RegistrationsRoute: typeof RegistrationsRoute
   SettingsRoute: typeof SettingsRoute
   StorageRoute: typeof StorageRoute
   StudentsRoute: typeof StudentsRouteWithChildren
+  SupportRoute: typeof SupportRoute
   TeachersRoute: typeof TeachersRoute
+  TemplatesRoute: typeof TemplatesRoute
   TimetableRoute: typeof TimetableRoute
 }
 
@@ -298,11 +476,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TimetableRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/templates': {
+      id: '/templates'
+      path: '/templates'
+      fullPath: '/templates'
+      preLoaderRoute: typeof TemplatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/teachers': {
       id: '/teachers'
       path: '/teachers'
       fullPath: '/teachers'
       preLoaderRoute: typeof TeachersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/support': {
+      id: '/support'
+      path: '/support'
+      fullPath: '/support'
+      preLoaderRoute: typeof SupportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/students': {
@@ -326,6 +518,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/registrations': {
+      id: '/registrations'
+      path: '/registrations'
+      fullPath: '/registrations'
+      preLoaderRoute: typeof RegistrationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/policies': {
+      id: '/policies'
+      path: '/policies'
+      fullPath: '/policies'
+      preLoaderRoute: typeof PoliciesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/platform-users': {
+      id: '/platform-users'
+      path: '/platform-users'
+      fullPath: '/platform-users'
+      preLoaderRoute: typeof PlatformUsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/permissions': {
       id: '/permissions'
       path: '/permissions'
@@ -347,11 +560,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NotificationsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/notification-templates': {
+      id: '/notification-templates'
+      path: '/notification-templates'
+      fullPath: '/notification-templates'
+      preLoaderRoute: typeof NotificationTemplatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/modules': {
       id: '/modules'
       path: '/modules'
       fullPath: '/modules'
       preLoaderRoute: typeof ModulesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/institutes': {
+      id: '/institutes'
+      path: '/institutes'
+      fullPath: '/institutes'
+      preLoaderRoute: typeof InstitutesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/health-risks': {
+      id: '/health-risks'
+      path: '/health-risks'
+      fullPath: '/health-risks'
+      preLoaderRoute: typeof HealthRisksRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/exams': {
@@ -380,6 +614,27 @@ declare module '@tanstack/react-router' {
       path: '/classes'
       fullPath: '/classes'
       preLoaderRoute: typeof ClassesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/certificates': {
+      id: '/certificates'
+      path: '/certificates'
+      fullPath: '/certificates'
+      preLoaderRoute: typeof CertificatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/billing': {
+      id: '/billing'
+      path: '/billing'
+      fullPath: '/billing'
+      preLoaderRoute: typeof BillingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/audit': {
+      id: '/audit'
+      path: '/audit'
+      fullPath: '/audit'
+      preLoaderRoute: typeof AuditRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/attendance': {
@@ -417,12 +672,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AccountsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/access': {
+      id: '/access'
+      path: '/access'
+      fullPath: '/access'
+      preLoaderRoute: typeof AccessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/institutes/': {
+      id: '/institutes/'
+      path: '/'
+      fullPath: '/institutes/'
+      preLoaderRoute: typeof InstitutesIndexRouteImport
+      parentRoute: typeof InstitutesRoute
     }
     '/students/$id': {
       id: '/students/$id'
@@ -431,8 +700,29 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StudentsIdRouteImport
       parentRoute: typeof StudentsRoute
     }
+    '/institutes/$id': {
+      id: '/institutes/$id'
+      path: '/$id'
+      fullPath: '/institutes/$id'
+      preLoaderRoute: typeof InstitutesIdRouteImport
+      parentRoute: typeof InstitutesRoute
+    }
   }
 }
+
+interface InstitutesRouteChildren {
+  InstitutesIdRoute: typeof InstitutesIdRoute
+  InstitutesIndexRoute: typeof InstitutesIndexRoute
+}
+
+const InstitutesRouteChildren: InstitutesRouteChildren = {
+  InstitutesIdRoute: InstitutesIdRoute,
+  InstitutesIndexRoute: InstitutesIndexRoute,
+}
+
+const InstitutesRouteWithChildren = InstitutesRoute._addFileChildren(
+  InstitutesRouteChildren,
+)
 
 interface StudentsRouteChildren {
   StudentsIdRoute: typeof StudentsIdRoute
@@ -448,23 +738,35 @@ const StudentsRouteWithChildren = StudentsRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AccessRoute: AccessRoute,
   AccountsRoute: AccountsRoute,
   AlertsRoute: AlertsRoute,
   AnalyticsRoute: AnalyticsRoute,
   AnnouncementsRoute: AnnouncementsRoute,
   AttendanceRoute: AttendanceRoute,
+  AuditRoute: AuditRoute,
+  BillingRoute: BillingRoute,
+  CertificatesRoute: CertificatesRoute,
   ClassesRoute: ClassesRoute,
   ComplaintsRoute: ComplaintsRoute,
   EventsRoute: EventsRoute,
   ExamsRoute: ExamsRoute,
+  HealthRisksRoute: HealthRisksRoute,
+  InstitutesRoute: InstitutesRouteWithChildren,
   ModulesRoute: ModulesRoute,
+  NotificationTemplatesRoute: NotificationTemplatesRoute,
   NotificationsRoute: NotificationsRoute,
   ParentsRoute: ParentsRoute,
   PermissionsRoute: PermissionsRoute,
+  PlatformUsersRoute: PlatformUsersRoute,
+  PoliciesRoute: PoliciesRoute,
+  RegistrationsRoute: RegistrationsRoute,
   SettingsRoute: SettingsRoute,
   StorageRoute: StorageRoute,
   StudentsRoute: StudentsRouteWithChildren,
+  SupportRoute: SupportRoute,
   TeachersRoute: TeachersRoute,
+  TemplatesRoute: TemplatesRoute,
   TimetableRoute: TimetableRoute,
 }
 export const routeTree = rootRouteImport

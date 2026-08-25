@@ -6,7 +6,6 @@ import {
   Lock,
   Eye,
   EyeOff,
-  ArrowLeft,
   Users,
   GraduationCap,
   User as UserIcon,
@@ -38,6 +37,12 @@ import {
 } from "@lumenx/ui";
 import { Checkbox } from "@lumenx/ui";
 import { Label } from "@lumenx/ui";
+import {
+  LoginBackButton,
+  LoginStepper,
+  type LoginMode,
+  type LoginStep,
+} from "@/components/app/login/LoginFlowChrome";
 import { DEMO_CONNECT_OTP, DEMO_CONNECT_PASSWORD } from "@lumenx/auth";
 import { PhoneInput, COUNTRIES, validatePhone, type Country } from "@/components/app/PhoneInput";
 import { ConnectDemoCredentialsCard } from "@/components/app/ConnectDemoCredentialsCard";
@@ -56,27 +61,25 @@ import {
   studentAccountExists,
   validateNewStudentPassword,
 } from "@/lib/student-auth-store";
+import { attemptParentPassword, getParentAccountDisplayName } from "@/lib/parent-auth-store";
 import { DUAL_ROLE_DEMO_TEACHER } from "@/lib/connect-demo-credentials";
+import {
+  checkMobileRegistered,
+  sendOtp,
+  verifyOtp,
+  createPortalSession,
+  requiresLoginPin,
+  verifyLoginPin,
+  PIN_LENGTH,
+  type PortalRole,
+} from "@/lib/portal-auth-store";
 
 export const Route = createFileRoute("/login")({
   head: () => ({ meta: [{ title: "Sign in — LumenX Connect" }] }),
   component: LoginPage,
 });
 
-type Step =
-  | "institute"
-  | "role"
-  | "phone"
-  | "password"
-  | "otp"
-  | "setPassword"
-  | "confirmOtp"
-  | "confirmPassword"
-  | "forgotPassword"
-  | "forgotOtp";
-
-type LoginMode = "signIn" | "firstSetup" | "forgotPassword";
-
+type Step = LoginStep;
 const ROLES: { id: Role; label: string; tagline: string; icon: typeof Users }[] = [
   {
     id: "parent",
@@ -121,6 +124,13 @@ function LoginPage() {
   const [role, setRole] = useState<Role | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Portal (parent / student / teacher) OTP-only flow state
+  const [portalDisplayName, setPortalDisplayName] = useState<string | undefined>(undefined);
+  const [portalOtpError, setPortalOtpError] = useState<string | null>(null);
+  const [portalPin, setPortalPin] = useState("");
+  const [portalPinError, setPortalPinError] = useState<string | null>(null);
+  const [resendSeconds, setResendSeconds] = useState(0);
+
   useEffect(() => {
     if (hydrated && user) nav({ to: "/" });
   }, [hydrated, user, nav]);
@@ -134,6 +144,13 @@ function LoginPage() {
       void 0;
     }
   }, []);
+
+  // 30-second resend countdown for portal OTP
+  useEffect(() => {
+    if (resendSeconds <= 0) return;
+    const t = window.setTimeout(() => setResendSeconds((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendSeconds]);
 
   const cleanPhone = useMemo(() => phone.replace(/\D/g, ""), [phone]);
   const phoneValid = validatePhone(cleanPhone, country);
@@ -176,9 +193,35 @@ function LoginPage() {
       void 0;
     }
     const displayName =
-      role === "student" ? getStudentAccountDisplayName(fullPhone, instituteId) : undefined;
+      role === "student"
+        ? getStudentAccountDisplayName(fullPhone, instituteId)
+        : role === "parent"
+          ? getParentAccountDisplayName(fullPhone)
+          : undefined;
     signIn(fullPhone, role, instituteId, displayName ? { displayName } : undefined);
     toast.success(`Welcome to ${ROLES.find((r) => r.id === role)!.label}`);
+  };
+
+  const finishPortalSignIn = () => {
+    if (!instituteId || !role) return;
+    try {
+      if (rememberInstitute) localStorage.setItem("ues_last_institute", instituteId);
+      else localStorage.removeItem("ues_last_institute");
+    } catch {
+      void 0;
+    }
+    createPortalSession(fullPhone, role as PortalRole, instituteId, portalDisplayName);
+    signIn(fullPhone, role, instituteId, portalDisplayName ? { displayName: portalDisplayName } : undefined);
+    toast.success(`Welcome to ${ROLES.find((r) => r.id === role)!.label}`);
+  };
+
+  const handleResendOtp = () => {
+    if (resendSeconds > 0 || !instituteId) return;
+    sendOtp(fullPhone, instituteId);
+    setOtp("");
+    setPortalOtpError(null);
+    setResendSeconds(30);
+    toast.success(`New code sent to ${fullPhone} (demo: ${DEMO_CONNECT_OTP})`);
   };
 
   const next = () => {
@@ -195,6 +238,23 @@ function LoginPage() {
     if (step === "phone") {
       setPhoneTouched(true);
       if (!phoneValid) return toast.error(`Enter a valid ${country.maxLen}-digit mobile number`);
+      // Portal roles (parent / student / teacher) use OTP-only flow
+      if (role === "parent" || role === "student" || role === "teacher") {
+        if (!instituteId) return toast.error("Select your institute first");
+        setLoading(true);
+        setTimeout(() => {
+          setLoading(false);
+          const result = checkMobileRegistered(cleanPhone, role as PortalRole, instituteId);
+          if (!result.ok) return toast.error(result.error);
+          setPortalDisplayName(result.displayName);
+          sendOtp(fullPhone, instituteId);
+          setOtp("");
+          setPortalOtpError(null);
+          setResendSeconds(30);
+          setStep("portalOtp");
+        }, 400);
+        return;
+      }
       setStep("password");
       return;
     }
@@ -212,7 +272,7 @@ function LoginPage() {
               setStep("phone");
               return;
             }
-            return toast.error(result.error);
+            return toast.error("error" in result ? result.error : "Verification failed");
           }
           setLoginMode(result.isFirstLogin ? "firstSetup" : "signIn");
           setOtp("");
@@ -222,6 +282,15 @@ function LoginPage() {
               ? `First-time sign-in — OTP sent to ${fullPhone} (demo: ${DEMO_CONNECT_OTP})`
               : `OTP sent to ${fullPhone} — use ${DEMO_CONNECT_OTP}`,
           );
+          return;
+        }
+        if (role === "parent") {
+          const result = attemptParentPassword(fullPhone, password);
+          if (!result.ok) return toast.error(result.error);
+          resetStudentFlow();
+          setOtp("");
+          setStep("otp");
+          toast.success(`OTP sent to ${fullPhone} — use ${DEMO_CONNECT_OTP}`);
           return;
         }
         if (password !== DEMO_CONNECT_PASSWORD)
@@ -323,6 +392,44 @@ function LoginPage() {
       }, 400);
       return;
     }
+    // ── Portal OTP-only steps ─────────────────────────────────────────────────
+    if (step === "portalOtp") {
+      if (otp.length !== 6) return toast.error("Enter the 6-digit code");
+      setLoading(true);
+      setTimeout(() => {
+        setLoading(false);
+        if (!instituteId || !role) return toast.error("Missing details — go back");
+        const result = verifyOtp(otp, cleanPhone, role as PortalRole, instituteId);
+        if (!result.ok) {
+          setPortalOtpError(result.error);
+          return toast.error(result.error);
+        }
+        setPortalOtpError(null);
+        // Two-step verification: only when enabled in Settings (PIN present + on).
+        if (requiresLoginPin(fullPhone, role as PortalRole)) {
+          setPortalPin("");
+          setPortalPinError(null);
+          setStep("portalPinVerify");
+        } else {
+          finishPortalSignIn();
+        }
+      }, 400);
+      return;
+    }
+    if (step === "portalPinVerify") {
+      if (portalPin.length < PIN_LENGTH) {
+        setPortalPinError(`Enter your ${PIN_LENGTH}-digit Login PIN`);
+        return;
+      }
+      if (!role) return;
+      if (!verifyLoginPin(fullPhone, role as PortalRole, portalPin)) {
+        setPortalPinError("Incorrect PIN. Try again.");
+        return;
+      }
+      setPortalPinError(null);
+      finishPortalSignIn();
+      return;
+    }
   };
 
   const back = () => {
@@ -341,6 +448,17 @@ function LoginPage() {
       setLoginMode("signIn");
       setStep("password");
     } else if (step === "forgotOtp") setStep("forgotPassword");
+    // Portal OTP-only flow
+    else if (step === "portalOtp") {
+      setOtp("");
+      setPortalOtpError(null);
+      setResendSeconds(0);
+      setStep("phone");
+    } else if (step === "portalPinVerify") {
+      setPortalPin("");
+      setPortalPinError(null);
+      setStep("phone");
+    }
   };
 
   const startForgotPassword = () => {
@@ -416,7 +534,7 @@ function LoginPage() {
                   </p>
                 </div>
               </div>
-              <Stepper step={step} role={role} loginMode={loginMode} />
+              <LoginStepper step={step} role={role} loginMode={loginMode} />
             </>
           }
         >
@@ -500,7 +618,7 @@ function LoginPage() {
                 <div className="login-portal-links">
                   <p>
                     New to {selectedInstitute?.name ?? "this institute"}?{" "}
-                    <Link to="/admissions" className="font-medium text-primary hover:underline">
+                    <Link to="/admissions/login" className="font-medium text-primary hover:underline">
                       Apply for admission
                     </Link>
                   </p>
@@ -586,7 +704,7 @@ function LoginPage() {
 
             {step === "phone" && (
               <div className="login-step-body connect-step-enter">
-                <BackButton onClick={back} />
+                <LoginBackButton onClick={back} />
                 <div>
                   <h2 className="login-step-title font-display text-2xl font-semibold sm:text-[1.75rem]">
                     Welcome
@@ -596,7 +714,10 @@ function LoginPage() {
                     <span className="text-foreground font-medium">
                       {ROLES.find((r) => r.id === role)?.label}
                     </span>
-                    . Enter your mobile number.
+                    .{" "}
+                    {role === "parent"
+                      ? "Parents sign in with their registered mobile number only."
+                      : "Enter your mobile number."}
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -659,7 +780,7 @@ function LoginPage() {
 
             {step === "password" && (
               <div className="login-step-body connect-step-enter">
-                <BackButton onClick={back} />
+                <LoginBackButton onClick={back} />
                 <div>
                   <h2 className="login-step-title font-display text-2xl font-semibold sm:text-[1.75rem]">
                     Password
@@ -703,6 +824,12 @@ function LoginPage() {
                         First-time student ({DEMO_FIRST_TIME_STUDENT_PHONE}):{" "}
                         <span className="font-mono">{STUDENT_DEFAULT_PASSWORD}</span>
                       </>
+                    ) : role === "parent" ? (
+                      <>
+                        Parent login is mobile + password only (no email). Use the phone set in
+                        Admin. Demo password if not provisioned:{" "}
+                        <span className="font-mono">{DEMO_CONNECT_PASSWORD}</span>
+                      </>
                     ) : (
                       <>
                         Demo password: <span className="font-mono">{DEMO_CONNECT_PASSWORD}</span>
@@ -734,7 +861,7 @@ function LoginPage() {
 
             {step === "otp" && (
               <div className="login-step-body connect-step-enter">
-                <BackButton onClick={back} />
+                <LoginBackButton onClick={back} />
                 <div>
                   <h2 className="login-step-title font-display text-2xl font-semibold sm:text-[1.75rem]">
                     Verify
@@ -778,7 +905,7 @@ function LoginPage() {
 
             {step === "setPassword" && (
               <div className="login-step-body connect-step-enter">
-                <BackButton onClick={back} />
+                <LoginBackButton onClick={back} />
                 <div>
                   <h2 className="login-step-title font-display text-2xl font-semibold sm:text-[1.75rem]">
                     Create password
@@ -869,7 +996,7 @@ function LoginPage() {
 
             {step === "confirmOtp" && (
               <div className="login-step-body connect-step-enter">
-                <BackButton onClick={back} />
+                <LoginBackButton onClick={back} />
                 <div>
                   <h2 className="login-step-title font-display text-2xl font-semibold sm:text-[1.75rem]">
                     Verify again
@@ -913,7 +1040,7 @@ function LoginPage() {
 
             {step === "confirmPassword" && (
               <div className="login-step-body connect-step-enter">
-                <BackButton onClick={back} />
+                <LoginBackButton onClick={back} />
                 <div>
                   <h2 className="login-step-title font-display text-2xl font-semibold sm:text-[1.75rem]">
                     Confirm password
@@ -964,7 +1091,7 @@ function LoginPage() {
 
             {step === "forgotPassword" && (
               <div className="login-step-body connect-step-enter">
-                <BackButton onClick={back} />
+                <LoginBackButton onClick={back} />
                 <div>
                   <h2 className="login-step-title font-display text-2xl font-semibold sm:text-[1.75rem]">
                     Reset password
@@ -1037,7 +1164,7 @@ function LoginPage() {
 
             {step === "forgotOtp" && (
               <div className="login-step-body connect-step-enter">
-                <BackButton onClick={back} />
+                <LoginBackButton onClick={back} />
                 <div>
                   <h2 className="login-step-title font-display text-2xl font-semibold sm:text-[1.75rem]">
                     Verify OTP
@@ -1078,6 +1205,123 @@ function LoginPage() {
                 </p>
               </div>
             )}
+
+            {/* ── Portal OTP step (parent / student / teacher) ─────────────── */}
+            {step === "portalOtp" && (
+              <div className="login-step-body connect-step-enter">
+                <LoginBackButton onClick={back} />
+                <div>
+                  <h2 className="login-step-title font-display text-2xl font-semibold sm:text-[1.75rem]">
+                    Verify mobile
+                  </h2>
+                  <p className="login-step-subtitle">
+                    We sent a 6-digit code to{" "}
+                    <span className="text-foreground font-medium">{fullPhone}</span>.
+                  </p>
+                </div>
+                <div className="flex justify-center">
+                  <InputOTP
+                    maxLength={6}
+                    value={otp}
+                    onChange={(v) => {
+                      setOtp(v);
+                      setPortalOtpError(null);
+                    }}
+                    autoFocus
+                  >
+                    <InputOTPGroup>
+                      {[0, 1, 2, 3, 4, 5].map((i) => (
+                        <InputOTPSlot
+                          key={i}
+                          index={i}
+                          className="size-11 sm:size-12 text-base sm:text-lg rounded-xl"
+                        />
+                      ))}
+                    </InputOTPGroup>
+                  </InputOTP>
+                </div>
+                {portalOtpError && (
+                  <p className="text-sm text-destructive text-center">{portalOtpError}</p>
+                )}
+                <Button
+                  onClick={next}
+                  disabled={loading || otp.length !== 6}
+                  className="login-primary-action"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" aria-hidden />
+                      Verifying…
+                    </>
+                  ) : (
+                    "Verify & continue"
+                  )}
+                </Button>
+                <div className="flex flex-col items-center gap-2">
+                  {resendSeconds > 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      Resend code in{" "}
+                      <span className="tabular-nums font-medium text-foreground">
+                        {resendSeconds}s
+                      </span>
+                    </p>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleResendOtp}
+                      className="text-sm text-primary font-medium hover:underline touch-manipulation"
+                    >
+                      Resend OTP
+                    </button>
+                  )}
+                  <p className="login-demo-hint text-center">
+                    Demo OTP: <span className="font-mono">{DEMO_CONNECT_OTP}</span>
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* ── Portal PIN verify (two-step verification) ────────────────── */}
+            {step === "portalPinVerify" && (
+              <div className="login-step-body connect-step-enter">
+                <LoginBackButton onClick={back} />
+                <div>
+                  <h2 className="login-step-title font-display text-2xl font-semibold sm:text-[1.75rem]">
+                    Two-step verification
+                  </h2>
+                  <p className="login-step-subtitle">
+                    Enter your {PIN_LENGTH}-digit Login PIN to confirm it&apos;s you.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <input
+                    id="portal-pin-verify"
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={PIN_LENGTH}
+                    placeholder="••••"
+                    autoFocus
+                    className="flex h-12 w-full rounded-xl border border-input bg-background px-3 py-2 text-base text-center tracking-widest shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    value={portalPin}
+                    onChange={(e) => {
+                      setPortalPin(e.target.value.replace(/\D/g, "").slice(0, PIN_LENGTH));
+                      setPortalPinError(null);
+                    }}
+                    onKeyDown={(e) => e.key === "Enter" && next()}
+                  />
+                  {portalPinError && (
+                    <p className="text-sm text-destructive">{portalPinError}</p>
+                  )}
+                </div>
+                <Button
+                  onClick={next}
+                  disabled={portalPin.length < PIN_LENGTH}
+                  className="login-primary-action"
+                >
+                  Sign in
+                </Button>
+              </div>
+            )}
           </div>
         </LoginKeyboardShell>
       </div>
@@ -1085,52 +1329,4 @@ function LoginPage() {
   );
 }
 
-function Stepper({
-  step,
-  role,
-  loginMode,
-}: {
-  step: Step;
-  role: Role | null;
-  loginMode: LoginMode;
-}) {
-  const order: Step[] =
-    role === "student" && loginMode === "firstSetup"
-      ? ["institute", "role", "phone", "password", "otp", "setPassword", "confirmOtp", "confirmPassword"]
-      : role === "student" && loginMode === "forgotPassword"
-        ? ["institute", "role", "phone", "password", "forgotPassword", "forgotOtp"]
-        : role === "student"
-          ? ["institute", "role", "phone", "password", "otp"]
-          : ["institute", "role", "phone", "password", "otp"];
-  const idx = Math.max(0, order.indexOf(step));
-  const progressLabel = `Step ${idx + 1} of ${order.length}`;
-  return (
-    <div
-      className="login-stepper flex items-center gap-1.5 mb-6 sm:mb-8"
-      role="progressbar"
-      aria-valuemin={1}
-      aria-valuemax={order.length}
-      aria-valuenow={idx + 1}
-      aria-label={progressLabel}
-    >
-      {order.map((s, i) => (
-        <div
-          key={s}
-          className={cn(
-            "login-stepper-segment",
-            i < idx ? "is-complete" : i === idx ? "is-current" : "is-upcoming",
-          )}
-          aria-hidden
-        />
-      ))}
-    </div>
-  );
-}
 
-function BackButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button type="button" onClick={onClick} className="login-back-btn">
-      <ArrowLeft className="size-4 shrink-0" aria-hidden /> Back
-    </button>
-  );
-}

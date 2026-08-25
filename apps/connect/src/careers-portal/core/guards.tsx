@@ -80,7 +80,8 @@ export function isAuthRoute(pathname: string) {
   return (
     pathname === "/careers/login" ||
     pathname === "/careers/signup" ||
-    pathname === "/careers/forgot-password"
+    pathname === "/careers/forgot-password" ||
+    pathname === "/careers/setup-from-admin"
   );
 }
 

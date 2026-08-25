@@ -1,15 +1,11 @@
-import { useMemo } from "react";
 import {
-  getActiveDays,
-  isSlotApplicable,
-  type TimetableScheduleConfig,
-} from "@/lib/timetable-schedule";
-import {
-  autoPickSlotsForSubject,
   cellRefKey,
+  maxPeriodsPerSubjectPerWeek,
   type TimetableCellRef,
 } from "@/lib/timetable-data";
+import { getActiveDays, isSlotApplicable, type TimetableScheduleConfig } from "@/lib/timetable-schedule";
 import { subjectTheme } from "@/components/timetable/timetable-theme";
+import { useMemo } from "react";
 
 export function SubjectWeekSlotPicker({
   schedule,
@@ -28,11 +24,20 @@ export function SubjectWeekSlotPicker({
 }) {
   const days = getActiveDays(schedule);
   const teachingRows = schedule.periodRows.filter((p) => !p.isBreak);
+  const maxPerSubject = maxPeriodsPerSubjectPerWeek(schedule);
 
   const ownerByCell = useMemo(() => {
     const map = new Map<string, string>();
     for (const [subjectId, cells] of Object.entries(slotSelections)) {
       for (const c of cells) map.set(cellRefKey(c), subjectId);
+    }
+    return map;
+  }, [slotSelections]);
+
+  const daysUsedBySubject = useMemo(() => {
+    const map = new Map<string, Set<number>>();
+    for (const [subjectId, cells] of Object.entries(slotSelections)) {
+      map.set(subjectId, new Set(cells.map((c) => c.day)));
     }
     return map;
   }, [slotSelections]);
@@ -52,16 +57,32 @@ export function SubjectWeekSlotPicker({
       return;
     }
 
+    const activeDays = daysUsedBySubject.get(activeSubjectId) ?? new Set<number>();
+    if (owner !== activeSubjectId && activeDays.has(day)) {
+      const next: Record<string, TimetableCellRef[]> = {};
+      for (const sub of subjects) {
+        next[sub.id] = (slotSelections[sub.id] ?? []).filter((c) => {
+          if (cellRefKey(c) === key) return false;
+          if (sub.id === activeSubjectId && c.day === day) return false;
+          return true;
+        });
+      }
+      next[activeSubjectId] = [...(next[activeSubjectId] ?? []), { day, period }];
+      onSlotSelectionsChange(next);
+      return;
+    }
+
+    const currentCount = slotSelections[activeSubjectId]?.length ?? 0;
+    if (currentCount >= maxPerSubject && owner !== activeSubjectId) {
+      return;
+    }
+
     const next: Record<string, TimetableCellRef[]> = {};
     for (const sub of subjects) {
       next[sub.id] = (slotSelections[sub.id] ?? []).filter((c) => cellRefKey(c) !== key);
     }
     next[activeSubjectId] = [...(next[activeSubjectId] ?? []), { day, period }];
     onSlotSelectionsChange(next);
-  };
-
-  const setPeriodCount = (subjectId: string, count: number) => {
-    onSlotSelectionsChange(autoPickSlotsForSubject(subjectId, count, slotSelections, schedule));
   };
 
   return (
@@ -81,20 +102,9 @@ export function SubjectWeekSlotPicker({
               <span className="font-medium text-sm truncate">{sub.name}</span>
               <span className="text-[10px] font-mono text-muted-foreground">{sub.code}</span>
               <div className="flex items-center gap-1.5 mt-1.5">
-                <select
-                  value={count}
-                  onClick={(e) => e.stopPropagation()}
-                  onChange={(e) => setPeriodCount(sub.id, Number(e.target.value))}
-                  className="lx-subject-slot-picker__count-select"
-                  aria-label={`Periods per week for ${sub.name}`}
-                >
-                  {Array.from({ length: 11 }, (_, n) => (
-                    <option key={n} value={n}>
-                      {n}/wk
-                    </option>
-                  ))}
-                </select>
-                <span className="text-[10px] text-muted-foreground">· click grid →</span>
+                <span className="text-[10px] font-mono font-medium">
+                  {count} pinned · 1/day max
+                </span>
               </div>
             </button>
           );
@@ -103,12 +113,13 @@ export function SubjectWeekSlotPicker({
 
       <div className="lx-subject-slot-picker__grid-wrap">
         <p className="text-[11px] text-muted-foreground mb-2">
-          Click day/period cells to assign{" "}
+          Click day/period cells to pin{" "}
           <span className="font-medium text-foreground">
             {subjects.find((s) => s.id === activeSubjectId)?.name ?? "a subject"}
           </span>
+          . Periods/week is controlled in the subject plan above.
         </p>
-        <div className="lx-timetable-scroll">
+        <div className="lx-timetable-scroll" data-swipe-nav-ignore>
           <table className="lx-timetable-grid lx-subject-slot-picker__grid">
             <thead>
               <tr>

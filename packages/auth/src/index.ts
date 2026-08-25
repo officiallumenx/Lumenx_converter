@@ -19,9 +19,12 @@ export const ADMISSIONS_STORAGE_KEYS = {
   notifications: "ues_admissions_notifications",
   instituteSettings: "ues_admissions_institute_settings",
   admissionForms: "ues_admissions_admission_forms",
+  admissionOpenings: "ues_admissions_openings",
   inquiries: "ues_admissions_inquiries",
   savedInstitutes: "ues_admissions_saved_institutes",
   savedPrograms: "ues_admissions_saved_programs",
+  /** Institutes registered via Admissions signup (demo catalog extension) */
+  customInstitutes: "ues_admissions_custom_institutes",
   /** Demo sync snapshot for Admin ↔ Connect admissions (same origin) */
   sync: "ues_admissions_sync",
 } as const;
@@ -80,6 +83,8 @@ export interface AuthStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
   removeItem(key: string): void;
+  readonly length?: number;
+  key?(index: number): string | null;
 }
 
 export function createBrowserAuthStorage(): AuthStorage {
@@ -91,6 +96,10 @@ export function createBrowserAuthStorage(): AuthStorage {
     removeItem: (key) => {
       if (typeof localStorage !== "undefined") localStorage.removeItem(key);
     },
+    get length() {
+      return typeof localStorage !== "undefined" ? localStorage.length : 0;
+    },
+    key: (index) => (typeof localStorage !== "undefined" ? localStorage.key(index) : null),
   };
 }
 
@@ -106,5 +115,16 @@ export function clearConnectSession(storage: AuthStorage): void {
   storage.removeItem(CONNECT_STORAGE_KEYS.institute);
 }
 
+/** Driver Transport app — separate from Connect session. */
+export const TRANSPORT_STORAGE_KEYS = {
+  session: "ues_transport_session",
+} as const;
+
+export function clearTransportSession(storage: AuthStorage): void {
+  storage.removeItem(TRANSPORT_STORAGE_KEYS.session);
+}
+
 export const DEMO_CONNECT_PASSWORD = "unify123";
 export const DEMO_CONNECT_OTP = "123456";
+/** Demo OTP for driver Transport login (same as Connect demo). */
+export const DEMO_TRANSPORT_OTP = DEMO_CONNECT_OTP;

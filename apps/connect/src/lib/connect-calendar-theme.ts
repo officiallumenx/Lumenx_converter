@@ -3,7 +3,9 @@ import type { DayPickerProps } from "react-day-picker";
 /** Shared blue + white styling for Connect popover calendars (react-day-picker). */
 export const connectCalendarClassNames: NonNullable<DayPickerProps["classNames"]> = {
   today: "bg-primary/10 text-primary font-semibold rounded-md",
-  month_caption: "font-display font-semibold text-foreground",
+  // Keep horizontal padding so the month label does not overlap absolute prev/next arrows.
+  month_caption:
+    "flex h-(--cell-size) w-full items-center justify-center px-(--cell-size) font-display font-semibold text-foreground",
   weekday: "text-muted-foreground text-[0.65rem] font-medium uppercase tracking-wide",
   outside: "text-muted-foreground/35",
   disabled: "text-muted-foreground/30 opacity-40",

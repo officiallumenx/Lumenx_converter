@@ -226,12 +226,12 @@ export function StudentAchievementsPage({ readOnlyParent = false }: { readOnlyPa
 
 function Stat({ label, value, icon: Icon }: { label: string; value: string; icon: typeof Trophy }) {
   return (
-    <div className="rounded-2xl border bg-card p-4 shadow-soft">
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <Icon className="size-4 shrink-0" aria-hidden />
-        <span className="student-stat-label">{label}</span>
+    <div className="lx-metric-chip bg-card text-left shadow-soft">
+      <div className="flex items-center gap-1.5 text-muted-foreground">
+        <Icon className="size-3.5 shrink-0" aria-hidden />
+        <span className="student-stat-label lx-metric-chip__label">{label}</span>
       </div>
-      <div className="mt-1 font-display text-2xl font-semibold tabular-nums">{value}</div>
+      <div className="lx-metric-chip__value">{value}</div>
     </div>
   );
 }

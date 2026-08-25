@@ -16,12 +16,14 @@ type LearnerTransportViewProps = {
   title?: string;
   subtitle: string;
   headerExtra?: React.ReactNode;
+  viewer: "parent" | "student";
 };
 
 export function LearnerTransportView({
   title = "Transport",
   subtitle,
   headerExtra,
+  viewer,
 }: LearnerTransportViewProps) {
   const assignment = useSyncExternalStore(
     transportStore.subscribe,
@@ -59,7 +61,9 @@ export function LearnerTransportView({
       {headerExtra}
       <PageHeader title={title} subtitle={subtitle} />
 
-      <TransportEtaBanner tracking={tracking} />
+      <TransportEtaBanner tracking={tracking} assignment={assignment} viewer={viewer} />
+
+      <TransportTrackingPanel tracking={tracking} />
 
       <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
         <StatCard
@@ -71,10 +75,28 @@ export function LearnerTransportView({
         />
         <StatCard
           icon={Clock}
-          label="Time to bus"
-          value={formatEtaMinutes(tracking.etaMinutes)}
-          hint={`Pickup ${assignment.morningPickupTime}`}
-          tone={tracking.etaMinutes <= 5 ? "warning" : "primary"}
+          label={
+            tracking.learnerStatus === "awaiting_pickup" ? "Time to your stop" : "Journey status"
+          }
+          value={
+            tracking.learnerStatus === "reached_school"
+              ? "Reached school"
+              : tracking.learnerStatus === "picked_up"
+                ? "Picked up"
+                : formatEtaMinutes(tracking.etaMinutes)
+          }
+          hint={
+            tracking.learnerStatus === "awaiting_pickup"
+              ? `Scheduled ${assignment.morningPickupTime}`
+              : tracking.learnerStatus === "picked_up"
+                ? "Heading to school"
+                : "Arrived safely"
+          }
+          tone={
+            tracking.learnerStatus === "awaiting_pickup" && tracking.etaMinutes <= 5
+              ? "warning"
+              : "primary"
+          }
         />
         <StatCard
           icon={MapPin}
@@ -84,9 +106,8 @@ export function LearnerTransportView({
         />
       </div>
 
-      <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="min-w-0">
         <TransportBusCard assignment={assignment} />
-        <TransportTrackingPanel tracking={tracking} />
       </div>
 
       <TransportRouteTimeline

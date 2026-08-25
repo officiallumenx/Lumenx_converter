@@ -1,4 +1,12 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { ADMISSIONS_STORAGE_KEYS, createBrowserAuthStorage } from "@lumenx/auth";
 
 export type AdmissionsThemeMode = "light" | "dark";
@@ -28,14 +36,18 @@ export function AdmissionsThemeProvider({ children }: { children: ReactNode }) {
     storage.setItem(ADMISSIONS_STORAGE_KEYS.theme, theme);
   }, [theme, isDark]);
 
-  const setTheme = (t: AdmissionsThemeMode) => setThemeState(t);
-  const toggleTheme = () => setThemeState((t) => (t === "light" ? "dark" : "light"));
-
-  return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, setTheme, isDark }}>
-      {children}
-    </ThemeContext.Provider>
+  const setTheme = useCallback((t: AdmissionsThemeMode) => setThemeState(t), []);
+  const toggleTheme = useCallback(
+    () => setThemeState((t) => (t === "light" ? "dark" : "light")),
+    [],
   );
+
+  const value = useMemo(
+    () => ({ theme, toggleTheme, setTheme, isDark }),
+    [theme, toggleTheme, setTheme, isDark],
+  );
+
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
 export function useAdmissionsTheme() {

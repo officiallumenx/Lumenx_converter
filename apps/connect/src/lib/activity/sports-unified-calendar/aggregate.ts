@@ -112,7 +112,7 @@ export function aggregateSportsCalendarEvents(): SportsCalendarEvent[] {
       tournamentId: r.tournamentId,
       tournamentName: r.tournamentName,
       venue: r.venue,
-      description: r.summary,
+      description: r.matchSummary,
       sourceModule: "results",
       sourceId: r.id,
     });

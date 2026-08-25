@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CareersAccountType, CareersUser, OrganizationType } from "@/lib/careers/types";
 import {
   getCurrentUser,
@@ -67,12 +67,13 @@ export function CareersAuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const value = useMemo(
+    () => ({ user, hydrated, signUp, signIn, resetPassword, signOut, refresh }),
+    [user, hydrated, signUp, signIn, resetPassword, signOut, refresh],
+  );
+
   return (
-    <CareersAuthContext.Provider
-      value={{ user, hydrated, signUp, signIn, resetPassword, signOut, refresh }}
-    >
-      {children}
-    </CareersAuthContext.Provider>
+    <CareersAuthContext.Provider value={value}>{children}</CareersAuthContext.Provider>
   );
 }
 

@@ -13,9 +13,9 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { useApp } from "@/lib/app-state";
-import { Avatar, AvatarFallback, AvatarImage, Button, Input, Switch } from "@lumenx/ui";
-import { compressImageToDataUrl } from "@/lib/image-compress";
-import { AppLockSettings } from "@/components/app/AppLockSettings";
+import { Avatar, AvatarFallback, AvatarImage, Button, Input, Switch, TextSizeControl } from "@lumenx/ui";
+import { processSimpleUpload } from "@lumenx/utils";
+import { SecuritySettings } from "@/components/app/SecuritySettings";
 import { toast } from "sonner";
 import { SUPPORT_EMAIL } from "./support-content";
 import {
@@ -36,7 +36,11 @@ import {
 
 import { CONNECT_APP_VERSION_LABEL } from "@/lib/app-version";
 
-export function ParentProfilePage({ initialSection }: { initialSection?: "support" }) {
+export function ParentProfilePage({
+  initialSection,
+}: {
+  initialSection?: "support" | "help" | "feedback" | "report";
+}) {
   const {
     user,
     signOut,
@@ -66,6 +70,9 @@ export function ParentProfilePage({ initialSection }: { initialSection?: "suppor
 
   useEffect(() => {
     if (initialSection === "support") setSupportOpen(true);
+    if (initialSection === "help") setHelpOpen(true);
+    if (initialSection === "feedback") setFeedbackOpen(true);
+    if (initialSection === "report") setIssueOpen(true);
   }, [initialSection]);
 
   if (!user) {
@@ -83,18 +90,10 @@ export function ParentProfilePage({ initialSection }: { initialSection?: "suppor
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please choose an image file (JPG, PNG, or WebP).");
-      return;
-    }
-    if (file.size > 12 * 1024 * 1024) {
-      toast.error("Photo must be 12 MB or smaller before upload.");
-      return;
-    }
     const tid = toast.loading("Optimizing photo…");
     try {
-      const data = await compressImageToDataUrl(file);
-      updateProfile({ avatar: data });
+      const processed = await processSimpleUpload(file, "image");
+      updateProfile({ avatar: processed.dataUrl });
       toast.success("Profile photo updated.", { id: tid });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not process that photo.", {
@@ -135,7 +134,7 @@ export function ParentProfilePage({ initialSection }: { initialSection?: "suppor
             <input
               ref={fileRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
+              accept="image/jpeg,image/jpg,image/png,.jpg,.jpeg,.png"
               className="sr-only"
               aria-label="Upload profile photo"
               onChange={onAvatarPick}
@@ -228,9 +227,18 @@ export function ParentProfilePage({ initialSection }: { initialSection?: "suppor
       <SettingsSection title="Appearance">
         <SettingsRow
           label="Dark mode"
-          desc="Easier on the eyes in low light"
+          desc="Light or Dark only · default is Light · does not follow system"
           right={<Switch checked={theme === "dark"} onCheckedChange={toggleTheme} />}
         />
+        <div className="space-y-2 py-3.5 first:pt-0 last:pb-0 sm:py-4">
+          <div>
+            <div className="text-sm font-medium leading-snug">Text Size</div>
+            <div className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
+              Small, Default, Large, or Extra Large. Default is Default.
+            </div>
+          </div>
+          <TextSizeControl />
+        </div>
       </SettingsSection>
 
       <SettingsSection title="Notification preferences" icon={Bell}>
@@ -255,12 +263,13 @@ export function ParentProfilePage({ initialSection }: { initialSection?: "suppor
       </SettingsSection>
 
       <SettingsSection title="Security & privacy" icon={Lock}>
-        <AppLockSettings />
-        <SettingsRow
-          label="Hide phone number"
-          desc="From other parents and students"
-          right={<Switch defaultChecked />}
-        />
+        <SecuritySettings>
+          <SettingsRow
+            label="Hide phone number"
+            desc="From other parents and students"
+            right={<Switch defaultChecked />}
+          />
+        </SecuritySettings>
       </SettingsSection>
 
       <SettingsSupportPanel

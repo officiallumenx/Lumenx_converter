@@ -65,47 +65,66 @@ function PeriodTimelineItem({
     <li>
       <article
         className={cn(
-          "relative min-w-0 overflow-hidden rounded-2xl border shadow-soft transition-colors",
-          isCurrent && "border-primary bg-primary/[0.06] ring-1 ring-primary/25",
-          isNext && !isCurrent && "border-primary/30 bg-primary/[0.03]",
-          isPast && "border-border/70 bg-muted/15 opacity-80",
-          !isCurrent && !isNext && !isPast && "border-border bg-card",
+          "relative min-w-0 overflow-hidden rounded-2xl border shadow-soft transition-[opacity,box-shadow,border-color] text-foreground",
+          isPast && "opacity-75",
+          isCurrent && "ring-1",
         )}
+        style={{
+          backgroundColor: style.surface,
+          borderColor: isCurrent ? style.primary : style.border,
+          boxShadow: isCurrent
+            ? `0 0 0 1px ${style.primary}33, 0 8px 20px -10px ${style.primary}55`
+            : undefined,
+        }}
       >
-        <div className={cn("absolute inset-y-0 left-0 w-1 bg-primary/80", isPast && "opacity-50")} />
+        <div
+          className={cn("absolute inset-y-0 left-0 w-1", isPast && "opacity-50")}
+          style={{ backgroundColor: style.primary }}
+          aria-hidden
+        />
         <div className="min-w-0 pl-4 pr-3 py-3 sm:pl-5 sm:pr-4 sm:py-4">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0 flex flex-1 gap-3">
               <span
-                className={cn(
-                  "grid size-8 shrink-0 place-items-center rounded-full text-xs font-bold tabular-nums sm:size-9",
+                className="grid size-8 shrink-0 place-items-center rounded-full text-xs font-bold tabular-nums sm:size-9"
+                style={
                   isCurrent
-                    ? "bg-primary text-white"
-                    : "bg-primary/10 text-primary border border-primary/20",
-                )}
+                    ? { backgroundColor: style.primary, color: "#FFFFFF" }
+                    : { backgroundColor: style.chipBg, color: style.primary }
+                }
               >
                 {index}
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span
-                    className={cn(
-                      "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                      style.chip,
-                    )}
+                    className="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold"
+                    style={{
+                      color: style.primary,
+                      backgroundColor: style.chipBg,
+                      borderColor: `${style.primary}33`,
+                    }}
                   >
                     <BookOpen className="size-3 shrink-0 opacity-80" />
                     {period.subject}
                   </span>
                   {isCurrent && (
-                    <Badge className="h-5 border-0 bg-primary px-2 text-[10px] text-white">
+                    <Badge
+                      className="h-5 border-0 px-2 text-[10px] text-white"
+                      style={{ backgroundColor: style.primary }}
+                    >
                       Live
                     </Badge>
                   )}
                   {isNext && !isCurrent && (
                     <Badge
                       variant="outline"
-                      className="h-5 border-primary/30 px-2 text-[10px] text-primary"
+                      className="h-5 px-2 text-[10px]"
+                      style={{
+                        color: style.primary,
+                        borderColor: `${style.primary}55`,
+                        backgroundColor: style.chipBg,
+                      }}
                     >
                       Next
                     </Badge>
@@ -113,7 +132,7 @@ function PeriodTimelineItem({
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
                   <span className="inline-flex items-center gap-1.5 font-medium tabular-nums text-foreground">
-                    <Clock className="size-3.5 shrink-0 text-primary" />
+                    <Clock className="size-3.5 shrink-0" style={{ color: style.primary }} />
                     <span className="sm:hidden">
                       {start}
                       {end ? ` – ${end}` : ""}
@@ -122,7 +141,7 @@ function PeriodTimelineItem({
                   </span>
                   {period.subtitle && (
                     <span className="inline-flex min-w-0 items-center gap-1.5 text-xs">
-                      <User className="size-3.5 shrink-0 text-primary" />
+                      <User className="size-3.5 shrink-0" style={{ color: style.primary }} />
                       <span className="truncate">{period.subtitle}</span>
                     </span>
                   )}
@@ -130,7 +149,14 @@ function PeriodTimelineItem({
               </div>
             </div>
             {period.badge && !isCurrent && !isNext && (
-              <Badge variant="outline" className="h-6 shrink-0 px-2 text-[10px] text-primary border-primary/25">
+              <Badge
+                variant="outline"
+                className="h-6 shrink-0 px-2 text-[10px]"
+                style={{
+                  color: style.primary,
+                  borderColor: `${style.primary}40`,
+                }}
+              >
                 {period.badge}
               </Badge>
             )}

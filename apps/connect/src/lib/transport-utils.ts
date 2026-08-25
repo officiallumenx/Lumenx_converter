@@ -10,6 +10,11 @@ export const TRANSPORT_EVENT_LABELS: Record<TransportEventType, string> = {
   departed_school: "Departed school",
   dropped_stop: "Dropped at stop",
   delay: "Route delay",
+  trip_started: "Trip started",
+  trip_completed: "Trip completed",
+  sos: "Emergency",
+  stop_pending: "Stop pending",
+  stop_approved: "Stop approved",
 };
 
 export const TRANSPORT_EVENT_TONE: Record<
@@ -25,6 +30,11 @@ export const TRANSPORT_EVENT_TONE: Record<
   departed_school: "default",
   dropped_stop: "success",
   delay: "warning",
+  trip_started: "primary",
+  trip_completed: "success",
+  sos: "warning",
+  stop_pending: "warning",
+  stop_approved: "success",
 };
 
 export function formatEtaMinutes(minutes: number): string {
@@ -34,7 +44,11 @@ export function formatEtaMinutes(minutes: number): string {
 }
 
 export function trackingStatusLabel(tracking: TransportTracking): string {
+  if (tracking.emergencyActive) return tracking.emergencyLabel || "Emergency on bus";
   if (tracking.runStatus === "delayed") return `Delayed · +${tracking.delayMinutes} min`;
+  if (tracking.learnerStatus === "reached_school") return "Reached school";
+  if (tracking.learnerStatus === "picked_up") return "Picked up";
+  if (tracking.runStatus === "scheduled") return "Trip not started";
   if (tracking.etaMinutes <= 5 && tracking.runStatus === "en_route") return "Arriving soon";
   if (tracking.runStatus === "at_stop") return "At stop";
   if (tracking.runStatus === "completed") return "Trip completed";

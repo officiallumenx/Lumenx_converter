@@ -1,17 +1,18 @@
 import type { DragEvent } from "react";
-import { AlertTriangle, Coffee, Plus } from "lucide-react";
+import { AlertTriangle, Coffee, Lock, Plus, Unlock } from "lucide-react";
 import {
   getActiveDays,
   isSlotApplicable,
   type TimetableScheduleConfig,
 } from "@/lib/timetable-schedule";
-import type { TimetableSlot } from "@/lib/timetable-data";
+import type { TimetableCellRef, TimetableSlot } from "@/lib/timetable-data";
 import {
   readTimetableDrag,
   subjectTheme,
   writeTimetableDrag,
 } from "@/components/timetable/timetable-theme";
 import { TimetableSubjectPalette } from "@/components/timetable/TimetableSubjectPalette";
+import { isLockedCell } from "@/lib/timetable-manager";
 
 function teacherInitial(name: string) {
   const parts = name.trim().split(/\s+/);
@@ -47,6 +48,8 @@ export function TimetableWeekGrid({
   onMoveSlot,
   onAssignSubject,
   enableDragDrop = false,
+  lockedCells,
+  onToggleLock,
 }: {
   grid: (TimetableSlot | null)[][];
   schedule: TimetableScheduleConfig;
@@ -60,9 +63,10 @@ export function TimetableWeekGrid({
     meta: { code: string; name: string },
   ) => void;
   enableDragDrop?: boolean;
+  lockedCells?: TimetableCellRef[];
+  onToggleLock?: (day: number, period: number) => void;
 }) {
   const days = getActiveDays(schedule);
-  const breakRow = schedule.periodRows.find((r) => r.isBreak);
   const dnd = enableDragDrop && (onMoveSlot != null || onAssignSubject != null);
 
   const uniqueSubjects = Array.from(
@@ -76,10 +80,12 @@ export function TimetableWeekGrid({
 
   const handleDrop = (day: number, period: number, e: DragEvent) => {
     e.preventDefault();
+    if (isLockedCell(lockedCells, day, period)) return;
     const payload = readTimetableDrag(e.dataTransfer);
     if (!payload) return;
     if (payload.kind === "cell" && onMoveSlot) {
       if (payload.day === day && payload.period === period) return;
+      if (isLockedCell(lockedCells, payload.day, payload.period)) return;
       onMoveSlot({ day: payload.day, period: payload.period }, { day, period });
       return;
     }
@@ -97,10 +103,11 @@ export function TimetableWeekGrid({
       <TimetableSubjectLegend subjects={uniqueSubjects} />
       {dnd && (
         <p className="text-[11px] text-muted-foreground">
-          Drag a subject from above, or drag a filled period to move or swap.
+          Drag a subject from above, or drag a filled period to move or swap. Lock cells to keep them
+          from being cleared accidentally.
         </p>
       )}
-      <div className="lx-timetable-scroll">
+      <div className="lx-timetable-scroll" data-swipe-nav-ignore>
         <table className="lx-timetable-grid">
           <thead>
             <tr>
@@ -118,12 +125,17 @@ export function TimetableWeekGrid({
           <tbody>
             {schedule.periodRows.map((p, periodIdx) => {
               if (p.isBreak) {
+                const breakLabel = p.breakName || p.label || "Break";
+                const isLunch = /lunch/i.test(breakLabel);
                 return (
-                  <tr key={p.id} className="lx-timetable-grid__break-row">
+                  <tr
+                    key={p.id}
+                    className={`lx-timetable-grid__break-row ${isLunch ? "lx-timetable-grid__break-row--lunch" : ""}`}
+                  >
                     <td colSpan={days.length + 1}>
                       <Coffee className="size-3.5 shrink-0" aria-hidden />
                       <span>
-                        Lunch break · {breakRow?.start} – {breakRow?.end}
+                        {breakLabel} · {p.start} – {p.end}
                       </span>
                     </td>
                   </tr>
@@ -149,6 +161,7 @@ export function TimetableWeekGrid({
 
                     const slot = grid[dayIdx]?.[periodIdx];
                     const conflict = slot ? slotHasConflict(dayIdx, periodIdx, slot) : false;
+                    const locked = isLockedCell(lockedCells, dayIdx, periodIdx);
 
                     if (!slot) {
                       return (
@@ -160,8 +173,8 @@ export function TimetableWeekGrid({
                             onDrop={dnd ? (e) => handleDrop(dayIdx, periodIdx, e) : undefined}
                             className={`lx-timetable-slot lx-timetable-slot--empty ${dnd ? "lx-timetable-slot--droptarget" : ""}`}
                           >
-                            <Plus className="size-4" />
-                            <span>{dnd ? "Drop or assign" : "Assign"}</span>
+                            <Plus className="size-3" />
+                            <span>{dnd ? "Add" : "Assign"}</span>
                           </button>
                         </td>
                       );
@@ -171,38 +184,57 @@ export function TimetableWeekGrid({
 
                     return (
                       <td key={d.name} className="lx-timetable-grid__cell">
-                        <button
-                          type="button"
-                          draggable={dnd}
-                          onDragStart={
-                            dnd
-                              ? (e) =>
-                                  writeTimetableDrag(e.dataTransfer, {
-                                    kind: "cell",
-                                    day: dayIdx,
-                                    period: periodIdx,
-                                  })
-                              : undefined
-                          }
-                          onDragOver={dnd ? (e) => e.preventDefault() : undefined}
-                          onDrop={dnd ? (e) => handleDrop(dayIdx, periodIdx, e) : undefined}
-                          onClick={() => onEdit(dayIdx, periodIdx)}
-                          className={`lx-timetable-slot lx-timetable-slot--filled ${theme.bg} ${theme.border} ${conflict ? "lx-timetable-slot--conflict" : ""} ${dnd ? "lx-timetable-slot--draggable" : ""}`}
-                        >
-                          <div className="lx-timetable-slot__subject">{slot.subject}</div>
-                          <div className="lx-timetable-slot__teacher">
-                            <span className="lx-timetable-slot__avatar" aria-hidden>
-                              {teacherInitial(slot.teacher)}
-                            </span>
-                            <span className="truncate">{slot.teacher}</span>
-                          </div>
-                          {conflict && (
-                            <AlertTriangle
-                              className="lx-timetable-slot__warn"
-                              aria-label="Scheduling conflict"
-                            />
+                        <div className="relative">
+                          <button
+                            type="button"
+                            draggable={dnd && !locked}
+                            onDragStart={
+                              dnd && !locked
+                                ? (e) =>
+                                    writeTimetableDrag(e.dataTransfer, {
+                                      kind: "cell",
+                                      day: dayIdx,
+                                      period: periodIdx,
+                                    })
+                                : undefined
+                            }
+                            onDragOver={dnd ? (e) => e.preventDefault() : undefined}
+                            onDrop={dnd ? (e) => handleDrop(dayIdx, periodIdx, e) : undefined}
+                            onClick={() => onEdit(dayIdx, periodIdx)}
+                            className={`lx-timetable-slot lx-timetable-slot--filled ${theme.bg} ${theme.border} ${conflict ? "lx-timetable-slot--conflict" : ""} ${dnd && !locked ? "lx-timetable-slot--draggable" : ""} ${locked ? "opacity-95 ring-1 ring-primary/40" : ""}`}
+                          >
+                            <div className="lx-timetable-slot__subject">{slot.subject}</div>
+                            <div className="lx-timetable-slot__teacher">
+                              <span className="lx-timetable-slot__avatar" aria-hidden>
+                                {teacherInitial(slot.teacher)}
+                              </span>
+                              <span className="truncate">{slot.teacher}</span>
+                            </div>
+                            {conflict && (
+                              <AlertTriangle
+                                className="lx-timetable-slot__warn"
+                                aria-label="Scheduling conflict"
+                              />
+                            )}
+                          </button>
+                          {onToggleLock && (
+                            <button
+                              type="button"
+                              className="absolute top-0.5 right-0.5 rounded bg-background/90 p-0.5 text-muted-foreground hover:text-primary"
+                              title={locked ? "Unlock period" : "Lock period"}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onToggleLock(dayIdx, periodIdx);
+                              }}
+                            >
+                              {locked ? (
+                                <Lock className="size-3" />
+                              ) : (
+                                <Unlock className="size-3 opacity-60" />
+                              )}
+                            </button>
                           )}
-                        </button>
+                        </div>
                       </td>
                     );
                   })}

@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { Badge, cn } from "@lumenx/ui";
 import { workspaceCommunicationRepository } from "@/lib/activity/workspace-communication";
 import type { WorkspaceCommunicationKind } from "@/lib/activity/workspace-communication";
-import { PageSkeleton } from "../../shared/ui";
+import { ActivityEmptyState } from "../../shared/ui";
 
 const KIND_LABEL: Record<WorkspaceCommunicationKind, string> = {
   message: "Message",
@@ -11,6 +11,7 @@ const KIND_LABEL: Record<WorkspaceCommunicationKind, string> = {
   announcement: "Announcement",
 };
 
+/** Shared list view for communication kinds — prefer feature pages for UX. */
 export function WorkspaceCommunicationPage({
   kind,
   title,
@@ -22,20 +23,13 @@ export function WorkspaceCommunicationPage({
   subtitle: string;
   embedded?: boolean;
 }) {
-  const [items, setItems] = useState<
-    Awaited<ReturnType<typeof workspaceCommunicationRepository.list>>
-  >([]);
-  const [loading, setLoading] = useState(true);
+  const all = useSyncExternalStore(
+    workspaceCommunicationRepository.subscribe,
+    workspaceCommunicationRepository.getSnapshot,
+    workspaceCommunicationRepository.getSnapshot,
+  );
 
-  useEffect(() => {
-    setLoading(true);
-    workspaceCommunicationRepository.list({ kind }).then((list) => {
-      setItems(list);
-      setLoading(false);
-    });
-  }, [kind]);
-
-  if (loading) return <PageSkeleton rows={4} />;
+  const items = useMemo(() => all.filter((i) => i.kind === kind), [all, kind]);
 
   return (
     <div className="min-w-0 space-y-5">
@@ -65,7 +59,13 @@ export function WorkspaceCommunicationPage({
             </li>
           ))
         ) : (
-          <li className="activity-empty-state py-8">Nothing here yet.</li>
+          <li>
+            <ActivityEmptyState
+              title={`No ${KIND_LABEL[kind].toLowerCase()}s yet`}
+              description="When something is recorded for Activity Coordinator, it will show here."
+              className="py-6"
+            />
+          </li>
         )}
       </ul>
     </div>

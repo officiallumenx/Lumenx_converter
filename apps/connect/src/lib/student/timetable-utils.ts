@@ -68,12 +68,124 @@ export function isPeriodPast(period: StudentPeriod, now = new Date()): boolean {
   return now.getHours() * 60 + now.getMinutes() >= end;
 }
 
-/** Consistent LumenX blue styling for all timetable subjects. */
-const LUMENX_SUBJECT_STYLE = {
-  stripe: "bg-primary",
-  chip: "bg-primary/10 text-primary border border-primary/20",
-} as const;
+/** Per-subject palette for timetable cards (theme-aware surfaces). */
+export type SubjectColorStyle = {
+  primary: string;
+  /** Light card wash */
+  surface: string;
+  /** Icon / index chip background */
+  chipBg: string;
+  border: string;
+};
 
-export function subjectStyle(_subject: string) {
-  return LUMENX_SUBJECT_STYLE;
+const SUBJECT_COLORS: Record<string, string> = {
+  mathematics: "#4F46E5", // indigo
+  maths: "#4F46E5",
+  math: "#4F46E5",
+  physics: "#2563EB", // blue
+  chemistry: "#10B981", // emerald
+  english: "#8B5CF6", // purple
+  "computer science": "#06B6D4", // cyan
+  cs: "#06B6D4",
+  history: "#F97316", // orange
+  geography: "#14B8A6", // teal
+  biology: "#22C55E", // green
+  sports: "#D97706", // amber
+  pe: "#D97706",
+  "physical education": "#D97706",
+  hindi: "#E11D48", // crimson
+  art: "#EC4899", // pink
+  music: "#A855F7", // fuchsia
+};
+
+const FALLBACK_PALETTE = [
+  "#2563EB",
+  "#8B5CF6",
+  "#10B981",
+  "#F97316",
+  "#06B6D4",
+  "#E11D48",
+  "#4F46E5",
+  "#D97706",
+];
+
+function normalizeSubjectKey(subject: string) {
+  return subject.trim().toLowerCase();
+}
+
+function hashSubject(subject: string) {
+  let h = 0;
+  for (let i = 0; i < subject.length; i++) h = (h * 31 + subject.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+/** Parse teacher slot times like "9:00 AM" / "09:30" → minutes since midnight. */
+export function parseTeacherSlotStartMinutes(time: string): number {
+  const m = time.match(/(\d+):(\d+)/);
+  if (!m) return 0;
+  let h = parseInt(m[1], 10);
+  const min = parseInt(m[2], 10);
+  if (time.toLowerCase().includes("pm") && h < 12) h += 12;
+  if (time.toLowerCase().includes("am") && h === 12) h = 0;
+  return h * 60 + min;
+}
+
+export type HighlightedTimetableSlot<T extends { time: string }> = {
+  slot: T;
+  current: boolean;
+  next: boolean;
+  past: boolean;
+};
+
+/** Mark current / next / past periods for a teacher day view. */
+export function highlightTimetableSlots<T extends { time: string }>(
+  list: T[],
+  options: {
+    day: string;
+    today: string;
+    nowMins: number;
+    periodMinutes?: number;
+  },
+): HighlightedTimetableSlot<T>[] {
+  const periodMinutes = options.periodMinutes ?? 45;
+  if (options.day !== options.today) {
+    return list.map((slot) => ({ slot, current: false, next: false, past: false }));
+  }
+  const sorted = [...list].sort(
+    (a, b) => parseTeacherSlotStartMinutes(a.time) - parseTeacherSlotStartMinutes(b.time),
+  );
+  let currentIdx = -1;
+  for (let i = 0; i < sorted.length; i++) {
+    const start = parseTeacherSlotStartMinutes(sorted[i]!.time);
+    const end = start + periodMinutes;
+    if (options.nowMins >= start && options.nowMins < end) currentIdx = i;
+  }
+  const nextIdx =
+    currentIdx >= 0
+      ? currentIdx + 1
+      : sorted.findIndex((s) => parseTeacherSlotStartMinutes(s.time) > options.nowMins);
+  return sorted.map((slot, i) => ({
+    slot,
+    current: i === currentIdx,
+    next: i === nextIdx && (currentIdx >= 0 || nextIdx === i),
+    past:
+      i < currentIdx ||
+      (currentIdx < 0 &&
+        parseTeacherSlotStartMinutes(slot.time) + periodMinutes <= options.nowMins),
+  }));
+}
+
+export function subjectPrimaryColor(subject: string): string {
+  const key = normalizeSubjectKey(subject);
+  return SUBJECT_COLORS[key] ?? FALLBACK_PALETTE[hashSubject(key) % FALLBACK_PALETTE.length];
+}
+
+export function subjectStyle(subject: string): SubjectColorStyle {
+  const primary = subjectPrimaryColor(subject);
+  return {
+    primary,
+    surface: `color-mix(in srgb, ${primary} 10%, var(--card))`,
+    chipBg: `color-mix(in srgb, ${primary} 18%, var(--card))`,
+    border: `color-mix(in srgb, ${primary} 32%, var(--border))`,
+  };
 }

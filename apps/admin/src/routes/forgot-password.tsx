@@ -8,6 +8,8 @@ import { useState } from "react";
 import { Mail, ArrowRight, Lock } from "lucide-react";
 
 import { AuthFormError } from "@/auth/components/AuthFormError";
+import { AuthButton } from "@/auth/components/AuthButton";
+import { AuthInput } from "@/auth/components/AuthInput";
 import { AuthSuccessScreen } from "@/auth/components/AuthSuccessScreen";
 import { PasswordStrength } from "@/auth/components/PasswordStrength";
 import { RecoveryLayout } from "@/auth/components/RecoveryLayout";
@@ -121,11 +123,11 @@ function ForgotPasswordPage() {
       <RecoveryLayout type="forgot_password" currentStep="reset" title="Password updated">
         <AuthSuccessScreen
           title="Password reset successful"
-          description="Your new password is active. Sign in with your email or mobile number and the new password."
+          description="Your new password is active. Login with your email or mobile number and the new password."
         >
           <Link to="/login">
             <AuthButton>
-              Continue to sign in <ArrowRight className="size-4" />
+              Continue to login <ArrowRight className="size-4" />
             </AuthButton>
           </Link>
         </AuthSuccessScreen>
@@ -255,7 +257,7 @@ function ForgotPasswordPage() {
           Continue <ArrowRight className="size-4" />
         </AuthButton>
         <Link to="/login">
-          <AuthButton type="button" variant="outline">Back to sign in</AuthButton>
+          <AuthButton type="button" variant="outline">Back to login</AuthButton>
         </Link>
       </form>
     </RecoveryLayout>

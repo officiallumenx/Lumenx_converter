@@ -41,8 +41,8 @@ export function AuditActivityPanel({ id }: { id?: string }) {
   return (
     <Card id={id}>
       <CardHeader
-        title="Activity & audit log"
-        hint="Centralized trail · attendance, marks, admissions, fees, leave, and more"
+        title="Audit log"
+        hint="Admin changes only · private chats are never logged"
       />
       <PageToolbar>
         <SearchInput

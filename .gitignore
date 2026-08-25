@@ -54,6 +54,7 @@ Desktop.ini
 # ─── AI / scaffold tooling (optional — remove block to keep specs) ──────────
 .kiro/
 .lovable/
+.cursor/
 
 # ─── Test / coverage ────────────────────────────────────────────────────────
 coverage/

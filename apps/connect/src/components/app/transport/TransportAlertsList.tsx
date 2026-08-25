@@ -40,12 +40,12 @@ export function TransportAlertsList({
       <div className="mb-3 flex flex-wrap gap-2">
         {(
           [
-            "eta_10min",
-            "eta_5min",
-            "arrived_stop",
+            "trip_started",
             "picked_up",
-            "reached_school",
             "dropped_school",
+            "trip_completed",
+            "sos",
+            "stop_pending",
           ] as const
         ).map((type) => (
           <Badge key={type} variant="outline" className="text-[10px] font-normal">

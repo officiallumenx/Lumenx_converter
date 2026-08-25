@@ -1,6 +1,6 @@
-/** Leave Center — student & teacher leave requests (demo). */
+/** Leave Center — teacher leave managed by Admin; student leave is teacher-managed in Connect. */
 
-export type LeaveStatus = "pending" | "approved" | "rejected" | "cancelled";
+export type LeaveStatus = "pending" | "approved" | "rejected" | "cancelled" | "ignored";
 
 export type StudentLeave = {
   id: string;
@@ -12,6 +12,8 @@ export type StudentLeave = {
   status: LeaveStatus;
   applied: string;
   days: number;
+  /** Teacher note from Connect (read-only in Admin). */
+  teacherNote?: string;
 };
 
 export type TeacherLeave = {
@@ -25,6 +27,10 @@ export type TeacherLeave = {
   toRole: string;
   applied: string;
   days: number;
+  reason?: string;
+  /** Admin / principal explanation shown under rejected or ignored requests. */
+  adminNote?: string;
+  decidedAt?: string;
 };
 
 export type LeaveKind = "student" | "teacher";
@@ -51,6 +57,7 @@ const STUDENT_SEED: StudentLeave[] = [
     status: "approved",
     applied: "2026-06-01",
     days: 1,
+    teacherNote: "Approved by class teacher.",
   },
   {
     id: "LV-195",
@@ -62,6 +69,7 @@ const STUDENT_SEED: StudentLeave[] = [
     status: "rejected",
     applied: "2026-05-26",
     days: 3,
+    teacherNote: "Exam week — leave not possible.",
   },
   {
     id: "LV-192",
@@ -92,9 +100,10 @@ const STUDENT_SEED: StudentLeave[] = [
     from: "2026-05-20",
     to: "2026-05-22",
     reason: "Personal",
-    status: "cancelled",
+    status: "ignored",
     applied: "2026-05-18",
     days: 3,
+    teacherNote: "Duplicate request — already covered by prior approval.",
   },
 ];
 
@@ -107,9 +116,10 @@ const TEACHER_SEED: TeacherLeave[] = [
     to: "2026-06-12",
     type: "Casual",
     status: "pending",
-    toRole: "Principal",
+    toRole: "Admin",
     applied: "2026-06-04",
     days: 3,
+    reason: "Family travel — advance notice given to HOD.",
   },
   {
     id: "TLR-041",
@@ -122,6 +132,9 @@ const TEACHER_SEED: TeacherLeave[] = [
     toRole: "Admin",
     applied: "2026-06-01",
     days: 1,
+    reason: "Fever",
+    adminNote: "Approved. Arrange substitute for period 3–4.",
+    decidedAt: "2026-06-01",
   },
   {
     id: "TLR-040",
@@ -131,9 +144,12 @@ const TEACHER_SEED: TeacherLeave[] = [
     to: "2026-06-16",
     type: "Emergency",
     status: "rejected",
-    toRole: "Principal",
+    toRole: "Admin",
     applied: "2026-06-10",
     days: 2,
+    reason: "Personal emergency",
+    adminNote: "Board exam invigilation clash — please reschedule leave.",
+    decidedAt: "2026-06-11",
   },
   {
     id: "TLR-039",
@@ -146,6 +162,8 @@ const TEACHER_SEED: TeacherLeave[] = [
     toRole: "Admin",
     applied: "2026-05-25",
     days: 1,
+    adminNote: "Half-day permission granted.",
+    decidedAt: "2026-05-25",
   },
   {
     id: "TLR-038",
@@ -154,10 +172,13 @@ const TEACHER_SEED: TeacherLeave[] = [
     from: "2026-05-15",
     to: "2026-05-17",
     type: "Casual",
-    status: "cancelled",
-    toRole: "Principal",
+    status: "ignored",
+    toRole: "Admin",
     applied: "2026-05-12",
     days: 3,
+    reason: "Personal work",
+    adminNote: "Request incomplete — missing cover plan. Please re-apply with details.",
+    decidedAt: "2026-05-13",
   },
 ];
 
@@ -184,12 +205,23 @@ export function leaveMonthlyTrends(
 }
 
 export function leaveSummary(students: StudentLeave[], teachers: TeacherLeave[]) {
-  const all = [...students, ...teachers];
-  const pending = all.filter((r) => r.status === "pending").length;
-  const approved = all.filter((r) => r.status === "approved").length;
-  const rejected = all.filter((r) => r.status === "rejected").length;
-  const cancelled = all.filter((r) => r.status === "cancelled").length;
-  const total = all.length;
-  const approvalRate = total ? Math.round((approved / total) * 100) : 0;
-  return { pending, approved, rejected, cancelled, total, approvalRate };
+  /** Admin KPIs focus on teacher leave — student leave is decided in Connect. */
+  const pending = teachers.filter((r) => r.status === "pending").length;
+  const approved = teachers.filter((r) => r.status === "approved").length;
+  const rejected = teachers.filter((r) => r.status === "rejected").length;
+  const ignored = teachers.filter((r) => r.status === "ignored").length;
+  const cancelled = teachers.filter((r) => r.status === "cancelled").length;
+  const total = teachers.length;
+  const decided = approved + rejected + ignored;
+  const approvalRate = decided ? Math.round((approved / decided) * 100) : 0;
+  return {
+    pending,
+    approved,
+    rejected,
+    ignored,
+    cancelled,
+    total,
+    approvalRate,
+    studentPendingInConnect: students.filter((r) => r.status === "pending").length,
+  };
 }

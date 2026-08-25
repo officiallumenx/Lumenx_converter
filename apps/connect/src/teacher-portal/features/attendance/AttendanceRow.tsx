@@ -6,11 +6,13 @@ export function AttendanceRow({
   student,
   isAbsent,
   isOnLeave,
+  disabled,
   onToggle,
 }: {
   student: TeacherStudent;
   isAbsent: boolean;
   isOnLeave?: boolean;
+  disabled?: boolean;
   onToggle: () => void;
 }) {
   if (isOnLeave) {
@@ -27,7 +29,7 @@ export function AttendanceRow({
         </Avatar>
         <div className="min-w-0 flex-1">
           <div className="truncate font-medium">{student.name}</div>
-          <div className="text-[10px] font-medium text-warning-foreground">Approved leave</div>
+          <div className="text-xs font-medium text-warning-foreground">Approved leave</div>
         </div>
         <div className="size-10 shrink-0 rounded-full grid place-items-center bg-warning/15 text-warning-foreground">
           <CalendarOff className="size-4" />
@@ -40,11 +42,14 @@ export function AttendanceRow({
     <button
       type="button"
       onClick={onToggle}
+      disabled={disabled}
       className={cn(
         "flex min-w-0 w-full items-center gap-2 px-3 py-3 text-left transition-colors sm:gap-3 sm:px-5",
-        isAbsent ? "bg-destructive/5" : "hover:bg-muted/40 active:bg-muted/60",
+        disabled && "cursor-not-allowed opacity-60",
+        isAbsent ? "bg-destructive/5" : !disabled && "hover:bg-muted/40 active:bg-muted/60",
       )}
       aria-pressed={isAbsent}
+      aria-disabled={disabled || undefined}
       aria-label={`${student.name}, roll ${student.roll}, ${isAbsent ? "absent" : "present"}`}
     >
       <div className="w-7 shrink-0 text-xs font-medium tabular-nums text-muted-foreground">

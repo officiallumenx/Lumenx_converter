@@ -2,6 +2,7 @@ import type { FeeItem } from "@lumenx/types";
 
 export type FeeCategory =
   | "tuition"
+  | "books"
   | "exam"
   | "transport"
   | "hostel"
@@ -11,6 +12,7 @@ export type FeeCategory =
 
 export const FEE_CATEGORY_LABELS: Record<FeeCategory, string> = {
   tuition: "Tuition",
+  books: "Books",
   exam: "Examination",
   transport: "Transport",
   hostel: "Hostel",
@@ -21,6 +23,7 @@ export const FEE_CATEGORY_LABELS: Record<FeeCategory, string> = {
 
 export const FEE_CATEGORY_ORDER: FeeCategory[] = [
   "tuition",
+  "books",
   "transport",
   "exam",
   "hostel",
@@ -32,6 +35,7 @@ export const FEE_CATEGORY_ORDER: FeeCategory[] = [
 export const PARENT_FEE_TYPE_FILTERS: { id: "all" | FeeCategory; label: string }[] = [
   { id: "all", label: "All types" },
   { id: "tuition", label: "Tuition" },
+  { id: "books", label: "Books" },
   { id: "transport", label: "Transport" },
   { id: "exam", label: "Examination" },
   { id: "hostel", label: "Hostel" },
@@ -52,6 +56,7 @@ export function inferFeeCategory(title: string, category?: FeeItem["category"]):
   if (category === "exam") return "exam";
   const t = title.toLowerCase();
   if (t.includes("tuition")) return "tuition";
+  if (t.includes("book")) return "books";
   if (t.includes("transport")) return "transport";
   if (t.includes("hostel")) return "hostel";
   if (t.includes("library")) return "library";
@@ -95,6 +100,7 @@ export type FeeDuesSummary = {
 function emptyBreakdown(): FeeCategoryBreakdown {
   return {
     tuition: 0,
+    books: 0,
     exam: 0,
     transport: 0,
     hostel: 0,

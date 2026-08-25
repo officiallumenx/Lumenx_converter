@@ -1,0 +1,2 @@
+/** Feature modules — one folder per domain (attendance, trips, etc.). */
+export {};

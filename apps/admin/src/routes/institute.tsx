@@ -10,7 +10,6 @@ import {
   TextArea,
   FormStack,
 } from "@lumenx/ui-admin";
-import { DemoProfileBanner } from "@/components/DemoProfileSwitcher";
 import { useDemoProfile } from "@/lib/demo-profile-context";
 import { normalizeInstituteProfile } from "@/lib/institute-profile-store";
 import type {
@@ -28,9 +27,10 @@ import {
   Upload,
 } from "lucide-react";
 import { useState, useCallback, useEffect, useRef, type ReactNode, type ChangeEvent } from "react";
+import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-labels";
 
 export const Route = createFileRoute("/institute")({
-  head: () => ({ meta: [{ title: "Institute Profile — LumenX Admin" }] }),
+  head: () => ({ meta: [{ title: adminPageTitle("/institute") }] }),
   component: InstitutePage,
 });
 
@@ -39,11 +39,11 @@ function newId(prefix: string) {
 }
 
 function newCustomSection(): DemoInstituteCustomSection {
-  return { id: newId("section"), title: "", entries: [] };
+  return { id: newId("section"), title: "", entries: [newSectionEntry()] };
 }
 
 function newSectionEntry(): DemoInstituteSectionEntry {
-  return { id: newId("entry"), heading: "", subheading: "", fields: [] };
+  return { id: newId("entry"), heading: "", year: "", subheading: "", fields: [] };
 }
 
 function InstitutePage() {
@@ -82,19 +82,20 @@ function InstitutePage() {
             .map((entry) => ({
               ...entry,
               heading: entry.heading.trim(),
-              subheading: entry.subheading.trim(),
+              year: (entry.year ?? "").trim(),
+              subheading: "",
               fields: entry.fields
                 .map((field) => ({
                   ...field,
-                  label: field.label.trim(),
+                  label: "",
                   value: field.value.trim(),
                 }))
-                .filter((field) => field.label.length > 0),
+                .filter((field) => field.value.length > 0),
             }))
             .filter(
               (entry) =>
                 entry.heading.length > 0 ||
-                entry.subheading.length > 0 ||
+                entry.year.length > 0 ||
                 entry.fields.length > 0,
             ),
         }))
@@ -151,7 +152,7 @@ function InstitutePage() {
   const updateSectionEntry = (
     sectionId: string,
     entryId: string,
-    patch: Partial<Pick<DemoInstituteSectionEntry, "heading" | "subheading">>,
+    patch: Partial<Pick<DemoInstituteSectionEntry, "heading" | "year">>,
   ) => {
     setForm((prev) => ({
       ...prev,
@@ -179,7 +180,7 @@ function InstitutePage() {
     }));
   };
 
-  const addEntryField = (sectionId: string, entryId: string) => {
+  const addEntrySubField = (sectionId: string, entryId: string) => {
     setForm((prev) => ({
       ...prev,
       customFields: prev.customFields.map((s) =>
@@ -190,10 +191,7 @@ function InstitutePage() {
                 e.id === entryId
                   ? {
                       ...e,
-                      fields: [
-                        ...e.fields,
-                        { id: newId("field"), label: "", value: "" },
-                      ],
+                      fields: [...e.fields, { id: newId("field"), label: "", value: "" }],
                     }
                   : e,
               ),
@@ -203,11 +201,11 @@ function InstitutePage() {
     }));
   };
 
-  const updateEntryField = (
+  const updateEntrySubField = (
     sectionId: string,
     entryId: string,
     fieldId: string,
-    patch: Partial<{ label: string; value: string }>,
+    value: string,
   ) => {
     setForm((prev) => ({
       ...prev,
@@ -220,7 +218,7 @@ function InstitutePage() {
                   ? {
                       ...e,
                       fields: e.fields.map((f) =>
-                        f.id === fieldId ? { ...f, ...patch } : f,
+                        f.id === fieldId ? { ...f, value } : f,
                       ),
                     }
                   : e,
@@ -231,7 +229,7 @@ function InstitutePage() {
     }));
   };
 
-  const removeEntryField = (sectionId: string, entryId: string, fieldId: string) => {
+  const removeEntrySubField = (sectionId: string, entryId: string, fieldId: string) => {
     setForm((prev) => ({
       ...prev,
       customFields: prev.customFields.map((s) =>
@@ -320,7 +318,7 @@ function InstitutePage() {
 
   return (
     <AppShell
-      title="Institute Profile"
+      title={M.institute}
       subtitle={`${profile.label} · Connect login, verify pages, and certificates`}
       actions={
         editing ? (
@@ -339,7 +337,6 @@ function InstitutePage() {
         )
       }
     >
-      <DemoProfileBanner />
       {saved && (
         <div className="mb-4 px-4 py-3 rounded-lg border border-success/30 bg-success/10 text-xs text-success flex items-center gap-2">
           <CheckCircle2 className="size-3.5" /> Profile saved successfully
@@ -656,17 +653,17 @@ function InstitutePage() {
             editing={editing}
             onUpdateTitle={(title) => updateCustomSectionTitle(section.id, title)}
             onRemoveSection={() => removeCustomSection(section.id)}
-            onAddEntry={() => addSectionEntry(section.id)}
-            onUpdateEntry={(entryId, patch) =>
+            onAddField={() => addSectionEntry(section.id)}
+            onUpdateField={(entryId, patch) =>
               updateSectionEntry(section.id, entryId, patch)
             }
-            onRemoveEntry={(entryId) => removeSectionEntry(section.id, entryId)}
-            onAddField={(entryId) => addEntryField(section.id, entryId)}
-            onUpdateField={(entryId, fieldId, patch) =>
-              updateEntryField(section.id, entryId, fieldId, patch)
+            onRemoveField={(entryId) => removeSectionEntry(section.id, entryId)}
+            onAddSubField={(entryId) => addEntrySubField(section.id, entryId)}
+            onUpdateSubField={(entryId, fieldId, value) =>
+              updateEntrySubField(section.id, entryId, fieldId, value)
             }
-            onRemoveField={(entryId, fieldId) =>
-              removeEntryField(section.id, entryId, fieldId)
+            onRemoveSubField={(entryId, fieldId) =>
+              removeEntrySubField(section.id, entryId, fieldId)
             }
           />
         ))}
@@ -682,54 +679,56 @@ function CustomSectionCard({
   editing,
   onUpdateTitle,
   onRemoveSection,
-  onAddEntry,
-  onUpdateEntry,
-  onRemoveEntry,
   onAddField,
   onUpdateField,
   onRemoveField,
+  onAddSubField,
+  onUpdateSubField,
+  onRemoveSubField,
 }: {
   section: DemoInstituteCustomSection;
   editing: boolean;
   onUpdateTitle: (title: string) => void;
   onRemoveSection: () => void;
-  onAddEntry: () => void;
-  onUpdateEntry: (
-    entryId: string,
-    patch: Partial<Pick<DemoInstituteSectionEntry, "heading" | "subheading">>,
-  ) => void;
-  onRemoveEntry: (entryId: string) => void;
-  onAddField: (entryId: string) => void;
+  onAddField: () => void;
   onUpdateField: (
     entryId: string,
-    fieldId: string,
-    patch: Partial<{ label: string; value: string }>,
+    patch: Partial<Pick<DemoInstituteSectionEntry, "heading" | "year">>,
   ) => void;
-  onRemoveField: (entryId: string, fieldId: string) => void;
+  onRemoveField: (entryId: string) => void;
+  onAddSubField: (entryId: string) => void;
+  onUpdateSubField: (entryId: string, fieldId: string, value: string) => void;
+  onRemoveSubField: (entryId: string, fieldId: string) => void;
 }) {
+  const [yearOpenIds, setYearOpenIds] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    for (const entry of section.entries) {
+      if ((entry.year ?? "").trim()) initial[entry.id] = true;
+    }
+    return initial;
+  });
+
+  const showYear = (entryId: string, year: string) =>
+    Boolean(yearOpenIds[entryId] || year.trim());
+
   return (
     <Card className="col-span-12 lg:col-span-6">
       <CardHeader
         title={section.title.trim() || "New section"}
-        hint={editing ? "Section title, then add entries with headings and fields" : undefined}
+        hint={editing ? "Section heading, then fields with optional year and sub fields" : undefined}
         action={
           editing ? (
-            <div className="flex flex-wrap gap-1.5">
-              <Button size="sm" onClick={onAddEntry}>
-                <Plus className="size-3" /> Add entry
-              </Button>
-              <RemoveButton
-                onClick={onRemoveSection}
-                label={`Remove ${section.title.trim() || "section"}`}
-              />
-            </div>
+            <RemoveButton
+              onClick={onRemoveSection}
+              label={`Remove ${section.title.trim() || "section"}`}
+            />
           ) : undefined
         }
       />
       <CardBody>
         {editing && (
           <div className="mb-4">
-            <Field label="Section title">
+            <Field label="Section heading">
               <TextInput
                 value={section.title}
                 onChange={(e) => onUpdateTitle(e.target.value)}
@@ -741,106 +740,113 @@ function CustomSectionCard({
 
         {editing ? (
           <FormStack>
-            {section.entries.length === 0 && (
-              <EmptyEditHint text="No entries yet. Click Add entry — each entry can have a heading, sub-heading, and multiple fields." />
-            )}
             {section.entries.map((entry, index) => (
               <EditEntryCard
                 key={entry.id}
-                title={entry.heading.trim() || `Entry ${index + 1}`}
-                onRemove={() => onRemoveEntry(entry.id)}
+                title={entry.heading.trim() || `Field ${index + 1}`}
+                onRemove={() => onRemoveField(entry.id)}
               >
-                <Field label="Heading">
+                <Field label="Field">
                   <TextInput
                     value={entry.heading}
-                    placeholder="Main heading"
-                    onChange={(e) => onUpdateEntry(entry.id, { heading: e.target.value })}
-                  />
-                </Field>
-                <Field label="Sub-heading">
-                  <TextInput
-                    value={entry.subheading}
-                    placeholder="Optional sub-heading or short note"
-                    onChange={(e) => onUpdateEntry(entry.id, { subheading: e.target.value })}
+                    placeholder="Enter matter — e.g. National Board Accreditation"
+                    onChange={(e) => onUpdateField(entry.id, { heading: e.target.value })}
                   />
                 </Field>
 
-                <div>
-                  <div className="flex items-center justify-between gap-2 mb-3">
-                    <SubsectionTitle className="mb-0">Fields</SubsectionTitle>
-                    <Button size="sm" onClick={() => onAddField(entry.id)}>
-                      <Plus className="size-3" /> Add field
-                    </Button>
+                {showYear(entry.id, entry.year ?? "") ? (
+                  <div className="flex items-end gap-2 max-w-[10rem]">
+                    <Field label="Year">
+                      <TextInput
+                        inputMode="numeric"
+                        maxLength={4}
+                        placeholder="YYYY"
+                        value={entry.year ?? ""}
+                        onChange={(e) =>
+                          onUpdateField(entry.id, {
+                            year: e.target.value.replace(/\D/g, "").slice(0, 4),
+                          })
+                        }
+                      />
+                    </Field>
+                    <RemoveButton
+                      onClick={() => {
+                        setYearOpenIds((prev) => {
+                          const next = { ...prev };
+                          delete next[entry.id];
+                          return next;
+                        });
+                        onUpdateField(entry.id, { year: "" });
+                      }}
+                      label="Remove year"
+                    />
                   </div>
-                  {entry.fields.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">
-                      Add label/value pairs — e.g. Grade · A++, Valid until · 2028
-                    </p>
-                  ) : (
-                    <div className="space-y-3">
-                      {entry.fields.map((field) => (
-                        <div
-                          key={field.id}
-                          className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2.25rem] gap-3 items-end"
-                        >
-                          <Field label="Field label">
-                            <TextInput
-                              value={field.label}
-                              placeholder="e.g. Grade"
-                              onChange={(e) =>
-                                onUpdateField(entry.id, field.id, { label: e.target.value })
-                              }
-                            />
-                          </Field>
-                          <Field label="Value">
-                            <TextInput
-                              value={field.value}
-                              placeholder="e.g. A++"
-                              onChange={(e) =>
-                                onUpdateField(entry.id, field.id, { value: e.target.value })
-                              }
-                            />
-                          </Field>
-                          <RemoveButton
-                            onClick={() => onRemoveField(entry.id, field.id)}
-                            label="Remove field"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                ) : null}
+
+                {entry.fields.length > 0 ? (
+                  <div className="space-y-2">
+                    <SubsectionTitle className="mb-0">Sub fields</SubsectionTitle>
+                    {entry.fields.map((sub, subIndex) => (
+                      <div key={sub.id} className="flex items-center gap-2">
+                        <TextInput
+                          className="flex-1"
+                          value={sub.value}
+                          placeholder={`Sub matter ${subIndex + 1}`}
+                          onChange={(e) =>
+                            onUpdateSubField(entry.id, sub.id, e.target.value)
+                          }
+                        />
+                        <RemoveButton
+                          onClick={() => onRemoveSubField(entry.id, sub.id)}
+                          label="Remove sub field"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                <div className="flex flex-wrap gap-2">
+                  {!showYear(entry.id, entry.year ?? "") ? (
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        setYearOpenIds((prev) => ({ ...prev, [entry.id]: true }))
+                      }
+                    >
+                      <Plus className="size-3" /> Year
+                    </Button>
+                  ) : null}
+                  <Button size="sm" onClick={() => onAddSubField(entry.id)}>
+                    <Plus className="size-3" /> Sub field
+                  </Button>
                 </div>
               </EditEntryCard>
             ))}
+
+            <div className="flex justify-end">
+              <Button size="sm" onClick={onAddField}>
+                <Plus className="size-3" /> New field
+              </Button>
+            </div>
           </FormStack>
         ) : section.entries.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No entries in this section.</p>
+          <p className="text-sm text-muted-foreground">No fields in this section.</p>
         ) : (
-          <div className="space-y-5">
-            {section.entries.map((entry) => (
-              <div
-                key={entry.id}
-                className="border-b border-border/60 pb-5 last:border-0 last:pb-0"
-              >
-                {entry.heading && (
-                  <h4 className="text-sm font-semibold text-foreground">{entry.heading}</h4>
-                )}
-                {entry.subheading && (
-                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                    {entry.subheading}
-                  </p>
-                )}
-                {entry.fields.length > 0 && (
-                  <div
-                    className={`grid grid-cols-1 sm:grid-cols-2 gap-3 ${entry.heading || entry.subheading ? "mt-3" : ""}`}
-                  >
-                    {entry.fields.map((field) => (
-                      <InfoRow key={field.id} label={field.label} value={field.value} />
-                    ))}
+          <div className="space-y-3">
+            {section.entries.map((entry) => {
+              const subMatters = entry.fields.map((f) => f.value.trim()).filter(Boolean);
+              const meta = [entry.year?.trim(), ...subMatters].filter(Boolean).join(" · ");
+              return (
+                <div key={entry.id} className="text-sm">
+                  <div className="font-medium text-foreground">
+                    {entry.heading.trim() || "Untitled field"}
                   </div>
-                )}
-              </div>
-            ))}
+                  {meta ? (
+                    <div className="mt-0.5 text-xs text-muted-foreground">{meta}</div>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         )}
       </CardBody>

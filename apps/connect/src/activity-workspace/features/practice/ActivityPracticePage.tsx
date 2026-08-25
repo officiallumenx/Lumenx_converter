@@ -1,99 +1,132 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import {
-  Button,
-  Input,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@lumenx/ui";
+import { Button, Input } from "@lumenx/ui";
 import { PageHeader } from "@/components/app/PageHeader";
+import { ConnectDatePicker } from "@/components/app/attendance/AttendanceDatePicker";
+import { HierarchyDomainSelect } from "@/activity-workspace/shared/components/HierarchyDomainSelect";
+import { HierarchyUnitMultiSelect } from "@/activity-workspace/shared/components/HierarchyUnitSelect";
+import { useHierarchyUnits } from "@/activity-workspace/shared/hooks/useHierarchyUnits";
+import {
+  formatUnitLabel,
+  unitKindLabel,
+  type ActivityDomain,
+} from "@/lib/activity/hierarchy";
+import { workspaceCalendarRepository } from "@/lib/activity/workspace-calendar";
+import { workspaceCommunicationRepository } from "@/lib/activity/workspace-communication";
+import { ActivityPageShell } from "@/activity-workspace/shared/ui/ActivityPageShell";
 
-const TEAMS = {
-  sports: ["Cricket Team 1", "Cricket Team 2", "Kabaddi Team 1"],
-  eca: ["Dance Team", "Music Group"],
-};
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export function ActivityPracticePage() {
-  const [activityType, setActivityType] = useState<"sports" | "eca">("sports");
-  const [teams, setTeams] = useState<string[]>([]);
+  const [domain, setDomain] = useState<ActivityDomain>("sports");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
+  const { units, loading } = useHierarchyUnits(domain);
 
-  const toggleTeam = (team: string) => {
-    setTeams((prev) => (prev.includes(team) ? prev.filter((t) => t !== team) : [...prev, team]));
-  };
+  const day = useMemo(() => {
+    if (!date) return "";
+    const d = new Date(`${date}T12:00:00`);
+    return Number.isNaN(d.getTime()) ? "" : WEEKDAYS[d.getDay()];
+  }, [date]);
 
-  const assign = () => {
-    if (!date || !time || teams.length === 0) return;
-    toast.success("Practice session assigned", {
-      description: `${teams.join(", ")} · ${date} at ${time}`,
+  const selected = useMemo(
+    () => units.filter((u) => selectedIds.includes(u.id)),
+    [units, selectedIds],
+  );
+
+  const unitWord = units[0] ? unitKindLabel(units[0].kind).toLowerCase() : "team";
+
+  const assign = async () => {
+    if (!date || !time || !day || selected.length === 0) return;
+    const labels = selected.map(formatUnitLabel);
+    await workspaceCalendarRepository.addPractice({
+      title: `Practice · ${labels.join(", ")}`,
+      date,
+      startTime: time,
+      unitIds: selected.map((u) => u.id),
+      unitLabels: labels,
     });
+    await workspaceCommunicationRepository.pushFromActivity({
+      title: "Practice assigned",
+      body: `${labels.join(", ")} · ${day} ${date} at ${time} — added to Calendar.`,
+      audienceLabel: `Practice · ${labels.join(", ")}`,
+    });
+    toast.success("Practice assigned", {
+      description: `${labels.join(", ")} · ${day} ${date} at ${time} — on Calendar`,
+    });
+    setSelectedIds([]);
+    setDate("");
+    setTime("");
   };
 
   return (
-    <div className="min-w-0 space-y-5">
+    <ActivityPageShell>
       <PageHeader
-        title="Practice sessions"
-        subtitle="Select Sports or ECA, choose team(s), and assign date, day, and time."
+        title="Practice"
+        subtitle="Pick a team or group, then set date and time."
       />
 
-      <section className="activity-panel space-y-4">
-        <Select
-          value={activityType}
-          onValueChange={(v) => {
-            setActivityType(v as "sports" | "eca");
-            setTeams([]);
-          }}
-        >
-          <SelectTrigger className="rounded-xl">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="sports">Sports</SelectItem>
-            <SelectItem value="eca">Extra-Curricular</SelectItem>
-          </SelectContent>
-        </Select>
-
+      <section className="activity-panel space-y-5">
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-            Select team(s)
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {TEAMS[activityType].map((team) => (
-              <button
-                key={team}
-                type="button"
-                onClick={() => toggleTeam(team)}
-                className={teams.includes(team) ? "activity-filter-chip is-active" : "activity-filter-chip"}
-              >
-                {team}
-              </button>
-            ))}
-          </div>
+          <p className="activity-stat-label mb-2">1 · Sports or ECA</p>
+          <HierarchyDomainSelect
+            value={domain}
+            hideLabel
+            onChange={(d) => {
+              setDomain(d);
+              setSelectedIds([]);
+            }}
+          />
+        </div>
+        <div>
+          <p className="activity-stat-label mb-2">2 · Select {unitWord}(s)</p>
+          <HierarchyUnitMultiSelect
+            units={units}
+            selectedIds={selectedIds}
+            hideLabel
+            onChange={setSelectedIds}
+            loading={loading}
+          />
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Date</label>
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="rounded-xl" />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Time</label>
-            <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="rounded-xl" />
+        <div>
+          <p className="activity-stat-label mb-2">3 · Date and time</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <ConnectDatePicker
+                label="Date"
+                value={date}
+                onChange={setDate}
+                placeholder="Select date"
+              />
+              {day ? (
+                <p className="mt-1.5 text-xs text-muted-foreground">{day}</p>
+              ) : null}
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Time</label>
+              <Input
+                type="time"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+                className="min-h-11 rounded-xl border-border bg-card"
+              />
+            </div>
           </div>
         </div>
 
         <Button
-          className="rounded-xl"
-          disabled={!date || !time || teams.length === 0}
-          onClick={assign}
+          className="activity-primary-action w-full rounded-xl sm:w-auto"
+          disabled={!date || !time || !day || selected.length === 0}
+          onClick={() => void assign()}
         >
-          Assign practice session
+          Assign practice
         </Button>
+        <p className="text-xs text-muted-foreground">
+          Assigned practice appears on the Calendar under Practice.
+        </p>
       </section>
-    </div>
+    </ActivityPageShell>
   );
 }

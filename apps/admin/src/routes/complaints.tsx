@@ -2,79 +2,39 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { Card, CardHeader, Button, Pill, PageStack, Modal } from "@lumenx/ui-admin";
 import { Lock, FileText } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAdminToast } from "@/components/AdminActionToast";
+import { DEMO_COMPLAINTS_SEED } from "@/lib/complaints-data";
+import {
+  downloadTextToDevice,
+  listenDemoSync,
+  loadDemoComplaints,
+  saveDemoComplaints,
+  type DemoComplaint,
+} from "@lumenx/utils";
+import {
+  notifyComplaintLifecycle,
+  notifyComplaintSubmitted,
+} from "@lumenx/module-notifications";
 
 export const Route = createFileRoute("/complaints")({
   head: () => ({ meta: [{ title: "Complaints — LumenX Admin" }] }),
   component: ComplaintsPage,
 });
 
-type ComplaintStatus = "pending" | "review" | "resolved";
+type ComplaintStatus = "pending" | "review" | "resolved" | "rejected";
 
 type Complaint = {
   id: string;
   title: string;
   from: string;
   role: string;
-  priority: "P0" | "P1" | "P2" | "P3";
+  destination: "class_teacher" | "principal_admin";
+  priority: "Low" | "Medium" | "High";
   status: ComplaintStatus;
   time: string;
   body: string;
 };
-
-const INITIAL: Complaint[] = [
-  {
-    id: "CMP-201",
-    title: "Broken HVAC in Block B",
-    from: "Prof. Sterling",
-    role: "Teacher",
-    priority: "P0",
-    status: "pending",
-    time: "2m ago",
-    body: "AC unit in classroom 204 has failed for the third day. Affecting exam preparation.",
-  },
-  {
-    id: "CMP-200",
-    title: "Bullying incident — Grade 9-B",
-    from: "Anonymous Parent",
-    role: "Parent",
-    priority: "P0",
-    status: "review",
-    time: "1h ago",
-    body: "Repeated incidents reported by multiple parents. Evidence attached.",
-  },
-  {
-    id: "CMP-199",
-    title: "Cafeteria food quality",
-    from: "Student Council",
-    role: "Student",
-    priority: "P2",
-    status: "pending",
-    time: "3h ago",
-    body: "Quality has deteriorated over the past week. Petition signed by 80 students.",
-  },
-  {
-    id: "CMP-198",
-    title: "Transport delays — Route 7",
-    from: "K. Patel (parent)",
-    role: "Parent",
-    priority: "P1",
-    status: "review",
-    time: "Yesterday",
-    body: "Bus consistently 25+ minutes late. Children waiting in extreme weather.",
-  },
-  {
-    id: "CMP-197",
-    title: "Library access request",
-    from: "External Research",
-    role: "External",
-    priority: "P3",
-    status: "resolved",
-    time: "2d ago",
-    body: "Resolved — access approved through Director's office.",
-  },
-];
 
 const cols: { key: ComplaintStatus; label: string; tone: "warning" | "info" | "success" }[] = [
   { key: "pending", label: "Pending", tone: "warning" },
@@ -84,7 +44,9 @@ const cols: { key: ComplaintStatus; label: string; tone: "warning" | "info" | "s
 
 function ComplaintsPage() {
   const notify = useAdminToast();
-  const [items, setItems] = useState(INITIAL);
+  const [items, setItems] = useState<Complaint[]>(() =>
+    loadDemoComplaints(DEMO_COMPLAINTS_SEED) as Complaint[],
+  );
   const [detailId, setDetailId] = useState<string | null>(null);
 
   const detail = useMemo(
@@ -92,17 +54,64 @@ function ComplaintsPage() {
     [items, detailId],
   );
 
-  const setStatus = (id: string, status: ComplaintStatus) => {
-    setItems((prev) => prev.map((c) => (c.id === id ? { ...c, status } : c)));
+  useEffect(() => listenDemoSync("complaints", () => {
+    setItems(loadDemoComplaints(DEMO_COMPLAINTS_SEED) as Complaint[]);
+  }), []);
+
+  const setStatus = (id: string, status: ComplaintStatus, reason?: string) => {
+    const current = items.find((c) => c.id === id);
+    setItems((prev) => {
+      const next = prev.map((c) => (c.id === id ? { ...c, status } : c));
+      saveDemoComplaints(next as DemoComplaint[]);
+      return next;
+    });
+    if (current) {
+      if (status === "review") {
+        notifyComplaintLifecycle({
+          complaintId: current.id,
+          title: current.title,
+          stage: "under_review",
+          requesterRole: current.role,
+        });
+      } else if (status === "resolved") {
+        notifyComplaintLifecycle({
+          complaintId: current.id,
+          title: current.title,
+          stage: "resolved",
+          requesterRole: current.role,
+        });
+      } else if (status === "rejected") {
+        notifyComplaintLifecycle({
+          complaintId: current.id,
+          title: current.title,
+          stage: "rejected",
+          requesterRole: current.role,
+          reason: reason?.trim() || "No reason provided",
+        });
+      }
+    }
     notify(`Complaint ${id} moved to ${status.replace("_", " ")}`);
   };
 
   return (
     <AppShell
       title="Complaint Triage"
-      subtitle="Confidential · Principal & root admins only"
+      subtitle="Destination required (Class Teacher or Principal/Admin) · Priority Low / Medium / High · No automatic routing"
       actions={
-        <Button onClick={() => notify("Privacy audit log exported")}>
+        <Button
+          onClick={() => {
+            const csv = [
+              "id,title,from,role,destination,priority,status,time",
+              ...items.map((c) =>
+                [c.id, c.title, c.from, c.role, c.destination, c.priority, c.status, c.time]
+                  .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+                  .join(","),
+              ),
+            ].join("\n");
+            downloadTextToDevice("complaints-privacy-log.csv", csv, "text/csv;charset=utf-8");
+            notify("Privacy audit log downloaded");
+          }}
+        >
           <Lock className="size-3.5" /> Privacy log
         </Button>
       }
@@ -110,7 +119,10 @@ function ComplaintsPage() {
       <PageStack>
         <div className="lx-kanban-grid">
           {cols.map((col) => {
-            const colItems = items.filter((c) => c.status === col.key);
+            const colItems = items.filter((c) => {
+              if (col.key === "resolved") return c.status === "resolved" || c.status === "rejected";
+              return c.status === col.key;
+            });
             return (
               <Card
                 key={col.key}
@@ -139,9 +151,9 @@ function ComplaintsPage() {
                       <div className="flex items-center gap-2 mb-1.5">
                         <Pill
                           tone={
-                            c.priority === "P0"
+                            c.priority === "High"
                               ? "danger"
-                              : c.priority === "P1"
+                              : c.priority === "Medium"
                                 ? "warning"
                                 : "neutral"
                           }
@@ -154,7 +166,10 @@ function ComplaintsPage() {
                       </div>
                       <div className="text-xs font-medium leading-snug">{c.title}</div>
                       <div className="text-[10px] text-muted-foreground mt-1">
-                        {c.from} · {c.role}
+                        {c.from} · {c.role} ·{" "}
+                        {c.destination === "class_teacher"
+                          ? "Class Teacher"
+                          : "Principal / Admin"}
                       </div>
                     </button>
                   ))}
@@ -176,7 +191,7 @@ function ComplaintsPage() {
             <>
               <Button onClick={() => setDetailId(null)}>Close</Button>
               <Button
-                disabled={detail.status === "review"}
+                disabled={detail.status === "review" || detail.status === "rejected"}
                 onClick={() => {
                   setStatus(detail.id, "review");
                   setDetailId(null);
@@ -185,8 +200,20 @@ function ComplaintsPage() {
                 Move to Review
               </Button>
               <Button
+                variant="danger"
+                disabled={detail.status === "resolved" || detail.status === "rejected"}
+                onClick={() => {
+                  const reason =
+                    window.prompt("Rejection reason (shown to requester):", "") ?? "";
+                  setStatus(detail.id, "rejected", reason);
+                  setDetailId(null);
+                }}
+              >
+                Reject
+              </Button>
+              <Button
                 variant="primary"
-                disabled={detail.status === "resolved"}
+                disabled={detail.status === "resolved" || detail.status === "rejected"}
                 onClick={() => {
                   setStatus(detail.id, "resolved");
                   setDetailId(null);
@@ -201,8 +228,23 @@ function ComplaintsPage() {
         {detail && (
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-2">
-              <Pill tone={detail.priority === "P0" ? "danger" : "warning"}>{detail.priority}</Pill>
-              <Pill tone="info">{detail.role}</Pill>
+              <Pill
+                tone={
+                  detail.priority === "High"
+                    ? "danger"
+                    : detail.priority === "Medium"
+                      ? "warning"
+                      : "neutral"
+                }
+              >
+                {detail.priority}
+              </Pill>
+              <Pill tone="info">
+                {detail.destination === "class_teacher"
+                  ? "Class Teacher"
+                  : "Principal / Admin"}
+              </Pill>
+              <Pill tone="neutral">{detail.role}</Pill>
               <Pill
                 tone={
                   detail.status === "resolved"

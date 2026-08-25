@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   Card,
-  CardHeader,
   CardBody,
   Button,
   Pill,
@@ -13,15 +12,32 @@ import {
   Modal,
   PageToolbar,
   ToolbarMeta,
+  Select,
 } from "@lumenx/ui-admin";
-import type { TemplateKind, TemplateRecord, TemplateSource } from "@/lib/template-management/types";
+import type {
+  TemplateKind,
+  TemplateRecord,
+  TemplateSource,
+  TemplateStatus,
+} from "@/lib/template-management/types";
 import {
   getAllTemplates,
   duplicateTemplate,
   toggleTemplateFavorite,
   archiveTemplate,
+  activateTemplate,
+  restoreTemplate,
 } from "@/lib/template-management/store";
 import { categoryLabel, groupLabelForCategory } from "@/lib/template-management/categories";
+import {
+  computeTemplateLibraryKpis,
+  filterAndSortTemplates,
+  groupTemplatesByKind,
+  type TemplateLibraryKindFilter,
+  type TemplateLibrarySortKey,
+  type TemplateLibrarySourceFilter,
+  type TemplateLibraryStatusFilter,
+} from "@/lib/template-management/library-query";
 import { IconChip } from "@/components/IconChip";
 import { useTemplateStore } from "@/components/templates/useTemplateStore";
 import { TemplatePreviewFrame } from "@/components/templates/TemplatePreviewFrame";
@@ -44,13 +60,23 @@ import {
   Globe,
   Lock,
   Package,
+  Power,
+  RotateCcw,
+  Wand2,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type KindFilter = TemplateKind | "all";
-type SourceFilter = TemplateSource | "all";
-type SortKey = "popular" | "newest" | "az" | "favorites";
+type KindFilter = TemplateLibraryKindFilter;
+type SourceFilter = TemplateLibrarySourceFilter;
+type StatusFilter = TemplateLibraryStatusFilter;
+type SortKey = TemplateLibrarySortKey;
+
+const STATUS_PILL: Record<TemplateStatus, { label: string; tone: "success" | "warning" | "neutral" }> = {
+  active: { label: "Active", tone: "success" },
+  draft: { label: "Draft", tone: "warning" },
+  archived: { label: "Archived", tone: "neutral" },
+};
 
 type LibraryProps = {
   kindFilter?: TemplateKind;
@@ -243,15 +269,23 @@ function TemplateCard({
   onDuplicate,
   onFavorite,
   onArchive,
+  onActivate,
+  onRestore,
 }: {
   template: TemplateRecord;
   onPreview: () => void;
   onDuplicate: () => void;
   onFavorite: () => void;
   onArchive: () => void;
+  onActivate: () => void;
+  onRestore: () => void;
 }) {
   const cfg = KIND_CONFIG[t.kind];
   const KindIcon = cfg.icon;
+  const statusCfg = STATUS_PILL[t.status];
+  const canIssue = t.status === "active";
+  const canActivate = t.status === "draft" && t.source === "custom";
+  const canRestore = t.status === "archived" && t.source === "custom";
 
   return (
     <div className="group rounded-xl border border-border bg-surface hover:border-primary/40 hover:shadow-elevated transition-all duration-200 overflow-hidden flex flex-col">
@@ -273,7 +307,7 @@ function TemplateCard({
             type="button"
             onClick={onFavorite}
             aria-label="Toggle favourite"
-            className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+            className="shrink-0 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity"
           >
             <Star className={`size-3.5 ${t.favorite ? "text-amber-400 fill-amber-400 opacity-100" : "text-muted-foreground"}`} />
           </button>
@@ -285,6 +319,7 @@ function TemplateCard({
 
         {/* Tags */}
         <div className="flex flex-wrap gap-1">
+          <Pill tone={statusCfg.tone}>{statusCfg.label}</Pill>
           <Pill tone={cfg.pillTone}>
             <KindIcon className="size-2.5 mr-0.5" />
             {cfg.label}
@@ -305,23 +340,45 @@ function TemplateCard({
 
         {/* Actions */}
         <div className="flex flex-wrap gap-1.5">
-          <Link to="/templates" search={{ view: "generate", templateId: t.id }}>
-            <Button size="sm" variant="primary" className="gap-1">
-              <FileCheck className="size-3" /> Issue
+          {canIssue && (
+            <Link to="/templates" search={{ view: "generate", templateId: t.id }}>
+              <Button size="sm" variant="primary" className="gap-1">
+                <FileCheck className="size-3" /> Issue
+              </Button>
+            </Link>
+          )}
+          {canActivate && (
+            <Button size="sm" variant="primary" onClick={onActivate} className="gap-1">
+              <Power className="size-3" /> Activate
             </Button>
-          </Link>
+          )}
+          {canRestore && (
+            <Button size="sm" variant="primary" onClick={onRestore} className="gap-1">
+              <RotateCcw className="size-3" /> Restore
+            </Button>
+          )}
           <Button size="sm" onClick={onPreview}>
             <Eye className="size-3" /> Preview
           </Button>
+          <Link to="/templates" search={{ view: "builder", templateId: t.id }}>
+            <Button size="sm">
+              <Wand2 className="size-3" /> Edit
+            </Button>
+          </Link>
           <Button size="sm" onClick={onDuplicate}>
             <Copy className="size-3" /> Duplicate
           </Button>
-          {t.source === "custom" && (
+          {t.source === "custom" && t.status !== "archived" && (
             <Button size="sm" variant="ghost" onClick={onArchive} className="text-destructive hover:text-destructive">
               <Archive className="size-3" />
             </Button>
           )}
         </div>
+        {t.status === "draft" && (
+          <p className="text-[10px] text-amber-600 dark:text-amber-400">
+            Draft — activate before issuing to students.
+          </p>
+        )}
       </div>
     </div>
   );
@@ -335,17 +392,25 @@ function TemplateListRow({
   onDuplicate,
   onFavorite,
   onArchive,
+  onActivate,
+  onRestore,
 }: {
   template: TemplateRecord;
   onPreview: () => void;
   onDuplicate: () => void;
   onFavorite: () => void;
   onArchive: () => void;
+  onActivate: () => void;
+  onRestore: () => void;
 }) {
   const cfg = KIND_CONFIG[t.kind];
   const srcCfg = SOURCE_CONFIG[t.source];
   const SrcIcon = srcCfg.icon;
   const KindIcon = cfg.icon;
+  const statusCfg = STATUS_PILL[t.status];
+  const canIssue = t.status === "active";
+  const canActivate = t.status === "draft" && t.source === "custom";
+  const canRestore = t.status === "archived" && t.source === "custom";
 
   return (
     <div className="flex flex-wrap items-center gap-3 px-4 sm:px-5 py-3 hover:bg-surface-hover/60 transition-colors border-b border-border/40 last:border-0">
@@ -356,6 +421,7 @@ function TemplateListRow({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-semibold truncate">{t.name}</span>
+          <Pill tone={statusCfg.tone}>{statusCfg.label}</Pill>
           {t.favorite && <Star className="size-3 text-amber-400 fill-amber-400 shrink-0" />}
         </div>
         <p className="text-xs text-muted-foreground">
@@ -373,7 +439,7 @@ function TemplateListRow({
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-1 shrink-0">
+      <div className="flex items-center gap-1 shrink-0 flex-wrap">
         <Button size="sm" onClick={onPreview}>
           <Eye className="size-3" /> Preview
         </Button>
@@ -388,7 +454,7 @@ function TemplateListRow({
         >
           <Star className={`size-3.5 ${t.favorite ? "text-amber-400 fill-amber-400" : ""}`} />
         </button>
-        {t.source === "custom" && (
+        {t.source === "custom" && t.status !== "archived" && (
           <button
             type="button"
             onClick={onArchive}
@@ -398,11 +464,23 @@ function TemplateListRow({
             <Archive className="size-3.5" />
           </button>
         )}
-        <Link to="/templates" search={{ view: "generate", templateId: t.id }}>
-          <Button size="sm" variant="primary">
-            <FileCheck className="size-3" /> Issue
+        {canActivate && (
+          <Button size="sm" variant="primary" onClick={onActivate}>
+            <Power className="size-3" /> Activate
           </Button>
-        </Link>
+        )}
+        {canRestore && (
+          <Button size="sm" variant="primary" onClick={onRestore}>
+            <RotateCcw className="size-3" /> Restore
+          </Button>
+        )}
+        {canIssue && (
+          <Link to="/templates" search={{ view: "generate", templateId: t.id }}>
+            <Button size="sm" variant="primary">
+              <FileCheck className="size-3" /> Issue
+            </Button>
+          </Link>
+        )}
       </div>
     </div>
   );
@@ -418,6 +496,8 @@ function SectionGroup({
   onDuplicate,
   onFavorite,
   onArchive,
+  onActivate,
+  onRestore,
 }: {
   kind: TemplateKind;
   templates: TemplateRecord[];
@@ -426,6 +506,8 @@ function SectionGroup({
   onDuplicate: (t: TemplateRecord) => void;
   onFavorite: (id: string) => void;
   onArchive: (t: TemplateRecord) => void;
+  onActivate: (t: TemplateRecord) => void;
+  onRestore: (t: TemplateRecord) => void;
 }) {
   const [expanded, setExpanded] = useState(true);
   const cfg = KIND_CONFIG[kind];
@@ -459,6 +541,8 @@ function SectionGroup({
                 onDuplicate={() => onDuplicate(t)}
                 onFavorite={() => onFavorite(t.id)}
                 onArchive={() => onArchive(t)}
+                onActivate={() => onActivate(t)}
+                onRestore={() => onRestore(t)}
               />
             ))}
           </div>
@@ -472,6 +556,8 @@ function SectionGroup({
                 onDuplicate={() => onDuplicate(t)}
                 onFavorite={() => onFavorite(t.id)}
                 onArchive={() => onArchive(t)}
+                onActivate={() => onActivate(t)}
+                onRestore={() => onRestore(t)}
               />
             ))}
           </div>
@@ -509,7 +595,7 @@ function ArchiveConfirm({
       }
     >
       <p className="text-sm text-muted-foreground">
-        This will archive <strong>{template.name}</strong>. Archived templates won't appear in the library but can be restored from Settings.
+        This will archive <strong>{template.name}</strong>. It will leave the active library. Switch the status filter to Archived to restore it as a draft, then activate again to issue.
       </p>
     </Modal>
   );
@@ -521,25 +607,31 @@ function PreviewModal({
   template,
   onClose,
   onDuplicate,
+  onActivate,
 }: {
   template: TemplateRecord;
   onClose: () => void;
   onDuplicate: () => void;
+  onActivate: () => void;
 }) {
   const [device, setDevice] = useState<"desktop" | "tablet" | "mobile" | "print">("desktop");
   const cfg = KIND_CONFIG[template.kind];
   const srcCfg = SOURCE_CONFIG[template.source];
   const SrcIcon = srcCfg.icon;
+  const statusCfg = STATUS_PILL[template.status];
+  const canIssue = template.status === "active";
+  const canActivate = template.status === "draft" && template.source === "custom";
 
   return (
     <Modal
       open
       onClose={onClose}
       title={template.name}
-      subtitle={`${cfg.label} · ${categoryLabel(template.categoryId)}`}
+      subtitle={`${cfg.label} · ${categoryLabel(template.categoryId)} · ${statusCfg.label}`}
       size="xl"
       footer={
         <div className="flex flex-wrap items-center gap-2 w-full">
+          <Pill tone={statusCfg.tone}>{statusCfg.label}</Pill>
           <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-semibold bg-primary/10 text-foreground">
             <IconChip icon={SrcIcon} size="xs" variant="soft" />
             {srcCfg.label}
@@ -554,11 +646,18 @@ function PreviewModal({
               <Layers className="size-3.5" /> Open in builder
             </Button>
           </Link>
-          <Link to="/templates" search={{ view: "generate", templateId: template.id }}>
-            <Button variant="primary">
-              <FileCheck className="size-3.5" /> Issue to students
+          {canActivate && (
+            <Button variant="primary" onClick={onActivate}>
+              <Power className="size-3.5" /> Activate
             </Button>
-          </Link>
+          )}
+          {canIssue && (
+            <Link to="/templates" search={{ view: "generate", templateId: template.id }}>
+              <Button variant="primary">
+                <FileCheck className="size-3.5" /> Issue to students
+              </Button>
+            </Link>
+          )}
         </div>
       }
     >
@@ -639,55 +738,34 @@ export function TemplateLibraryView({ kindFilter: routeKindFilter }: LibraryProp
   const [q, setQ] = useState("");
   const [kindFilter, setKindFilter] = useState<KindFilter>(routeKindFilter ?? "all");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sort, setSort] = useState<SortKey>("popular");
   const [preview, setPreview] = useState<TemplateRecord | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<TemplateRecord | null>(null);
 
-  const allTemplates = useMemo(() => getAllTemplates().filter((t) => t.status !== "archived"), [revision]);
+  const allTemplates = useMemo(() => getAllTemplates(), [revision]);
 
-  const kpiCounts = useMemo(() => ({
-    total: allTemplates.length,
-    certificates: allTemplates.filter((t) => t.kind === "certificate").length,
-    reports: allTemplates.filter((t) => t.kind === "report").length,
-    documents: allTemplates.filter((t) => t.kind === "document").length,
-    id_cards: allTemplates.filter((t) => t.kind === "id_card").length,
-    system: allTemplates.filter((t) => t.source === "system").length,
-    imported: allTemplates.filter((t) => t.source === "imported").length,
-    custom: allTemplates.filter((t) => t.source === "custom").length,
-    favorites: allTemplates.filter((t) => t.favorite).length,
-  }), [allTemplates]);
+  const kpiCounts = useMemo(
+    () => computeTemplateLibraryKpis(allTemplates),
+    [allTemplates],
+  );
 
-  const filtered = useMemo(() => {
-    let list = allTemplates;
-
-    if (routeKindFilter) list = list.filter((t) => t.kind === routeKindFilter);
-    else if (kindFilter !== "all") list = list.filter((t) => t.kind === kindFilter);
-
-    if (sourceFilter !== "all") list = list.filter((t) => t.source === sourceFilter);
-
-    if (q.trim()) {
-      const lq = q.toLowerCase();
-      list = list.filter(
-        (t) =>
-          t.name.toLowerCase().includes(lq) ||
-          t.description.toLowerCase().includes(lq) ||
-          t.tags.some((tag) => tag.toLowerCase().includes(lq)) ||
-          categoryLabel(t.categoryId).toLowerCase().includes(lq),
-      );
-    }
-
-    return [...list].sort((a, b) => {
-      if (sort === "popular") return b.usageCount - a.usageCount;
-      if (sort === "newest") return b.updatedAt.localeCompare(a.updatedAt);
-      if (sort === "az") return a.name.localeCompare(b.name);
-      if (sort === "favorites") return (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0);
-      return 0;
-    });
-  }, [allTemplates, routeKindFilter, kindFilter, sourceFilter, q, sort]);
+  const filtered = useMemo(
+    () =>
+      filterAndSortTemplates(allTemplates, {
+        status: statusFilter,
+        kind: kindFilter,
+        routeKind: routeKindFilter,
+        source: sourceFilter,
+        q,
+        sort,
+      }),
+    [allTemplates, routeKindFilter, kindFilter, sourceFilter, statusFilter, q, sort],
+  );
 
   const handleDuplicate = (t: TemplateRecord) => {
     const copy = duplicateTemplate(t);
-    notify(`Duplicated as "${copy.name}"`);
+    notify(`Duplicated as "${copy.name}" (draft — activate to issue)`);
   };
 
   const handleArchive = (t: TemplateRecord) => {
@@ -700,17 +778,33 @@ export function TemplateLibraryView({ kindFilter: routeKindFilter }: LibraryProp
     archiveTemplate(archiveTarget.id);
     notify(`Archived "${archiveTarget.name}"`);
     setArchiveTarget(null);
+    setStatusFilter("archived");
+  };
+
+  const handleActivate = (t: TemplateRecord) => {
+    activateTemplate(t.id);
+    notify(`"${t.name}" is active — ready to issue`);
+    if (preview?.id === t.id) setPreview({ ...t, status: "active" });
+  };
+
+  const handleRestore = (t: TemplateRecord) => {
+    restoreTemplate(t.id);
+    notify(`Restored "${t.name}" as draft — activate to issue`);
+    setStatusFilter("draft");
   };
 
   // Group by kind when showing all
-  const showGroups = (routeKindFilter == null) && kindFilter === "all" && !q && sourceFilter === "all";
+  const showGroups =
+    routeKindFilter == null &&
+    kindFilter === "all" &&
+    !q &&
+    sourceFilter === "all" &&
+    statusFilter === "all";
   const kindOrder: TemplateKind[] = ["certificate", "report", "document", "id_card"];
 
   const groupedFiltered = useMemo(() => {
     if (!showGroups) return {} as Record<TemplateKind, TemplateRecord[]>;
-    const out: Record<TemplateKind, TemplateRecord[]> = { certificate: [], report: [], document: [], id_card: [] };
-    for (const t of filtered) out[t.kind].push(t);
-    return out;
+    return groupTemplatesByKind(filtered, kindOrder);
   }, [filtered, showGroups]);
 
   return (
@@ -719,50 +813,76 @@ export function TemplateLibraryView({ kindFilter: routeKindFilter }: LibraryProp
         {/* KPIs */}
         {!routeKindFilter && (
           <KpiGrid cols={5}>
-            <Kpi label="Total templates" value={String(kpiCounts.total)} tone="neutral" />
-            <Kpi label="Certificates" value={String(kpiCounts.certificates)} tone="neutral" delta={`${kpiCounts.system} system`} />
-            <Kpi label="Reports" value={String(kpiCounts.reports)} tone="neutral" />
+            <Kpi label="Active" value={String(kpiCounts.active)} tone="up" />
+            <Kpi label="Drafts" value={String(kpiCounts.draft)} tone="neutral" />
+            <Kpi label="Certificates" value={String(kpiCounts.certificates)} tone="neutral" />
             <Kpi label="Documents" value={String(kpiCounts.documents)} tone="neutral" />
             <Kpi label="ID Cards" value={String(kpiCounts.id_cards)} tone="neutral" />
           </KpiGrid>
         )}
 
-        {/* Source summary strip */}
+        {/* Status + source strips */}
         {!routeKindFilter && (
-          <div className="flex flex-wrap gap-3">
-            {(["system", "imported", "custom"] as TemplateSource[]).map((src) => {
-              const cfg = SOURCE_CONFIG[src];
-              const SrcIcon = cfg.icon;
-              const count = kpiCounts[src];
-              return (
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  { v: "all" as const, label: "In library", count: kpiCounts.total },
+                  { v: "active" as const, label: "Active", count: kpiCounts.active },
+                  { v: "draft" as const, label: "Draft", count: kpiCounts.draft },
+                  { v: "archived" as const, label: "Archived", count: kpiCounts.archived },
+                ] as { v: StatusFilter; label: string; count: number }[]
+              ).map(({ v, label, count }) => (
                 <button
-                  key={src}
+                  key={v}
                   type="button"
-                  onClick={() => setSourceFilter(sourceFilter === src ? "all" : src)}
+                  onClick={() => setStatusFilter(v)}
                   className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all ${
-                    sourceFilter === src
+                    statusFilter === v
                       ? "border-primary bg-primary/10 text-primary"
                       : "border-border bg-surface hover:bg-surface-hover text-muted-foreground"
                   }`}
                 >
-                  <IconChip icon={SrcIcon} size="xs" variant="soft" active={sourceFilter === src} />
-                  <span className="capitalize">{src}</span>
-                  <span className={`ml-0.5 text-xs font-mono ${sourceFilter === src ? "" : "opacity-60"}`}>({count})</span>
+                  {label}
+                  <span className={`text-xs font-mono ${statusFilter === v ? "" : "opacity-60"}`}>({count})</span>
                 </button>
-              );
-            })}
-            <button
-              type="button"
-              onClick={() => setSourceFilter("all")}
-              className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all ${
-                sourceFilter === "all"
-                  ? "border-primary bg-primary/5 text-primary"
-                  : "border-border bg-surface hover:bg-surface-hover text-muted-foreground"
-              }`}
-            >
-              <Layers className="size-3.5" /> All sources
-              <span className="ml-0.5 text-xs font-mono opacity-60">({kpiCounts.total})</span>
-            </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-3">
+              {(["system", "imported", "custom"] as TemplateSource[]).map((src) => {
+                const cfg = SOURCE_CONFIG[src];
+                const SrcIcon = cfg.icon;
+                const count = kpiCounts[src];
+                return (
+                  <button
+                    key={src}
+                    type="button"
+                    onClick={() => setSourceFilter(sourceFilter === src ? "all" : src)}
+                    className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all ${
+                      sourceFilter === src
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border bg-surface hover:bg-surface-hover text-muted-foreground"
+                    }`}
+                  >
+                    <IconChip icon={SrcIcon} size="xs" variant="soft" active={sourceFilter === src} />
+                    <span className="capitalize">{src}</span>
+                    <span className={`ml-0.5 text-xs font-mono ${sourceFilter === src ? "" : "opacity-60"}`}>({count})</span>
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                onClick={() => setSourceFilter("all")}
+                className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all ${
+                  sourceFilter === "all"
+                    ? "border-primary bg-primary/5 text-primary"
+                    : "border-border bg-surface hover:bg-surface-hover text-muted-foreground"
+                }`}
+              >
+                <Layers className="size-3.5" /> All sources
+                <span className="ml-0.5 text-xs font-mono opacity-60">({kpiCounts.total})</span>
+              </button>
+            </div>
           </div>
         )}
 
@@ -802,16 +922,17 @@ export function TemplateLibraryView({ kindFilter: routeKindFilter }: LibraryProp
             )}
 
             {/* Sort */}
-            <select
+            <Select
               value={sort}
               onChange={(e) => setSort(e.target.value as SortKey)}
-              className="h-9 px-2.5 rounded-md border border-border bg-background text-xs text-foreground focus:outline-none focus:border-primary/60"
+              fieldSize="md"
+              className="w-auto min-w-[9rem] text-xs"
             >
               <option value="popular">Most popular</option>
               <option value="newest">Most recent</option>
               <option value="az">A → Z</option>
               <option value="favorites">Favorites first</option>
-            </select>
+            </Select>
 
             {/* Grid/List toggle */}
             <div className="flex gap-1 p-1 bg-background rounded-md border border-border">
@@ -864,6 +985,8 @@ export function TemplateLibraryView({ kindFilter: routeKindFilter }: LibraryProp
                       onDuplicate={handleDuplicate}
                       onFavorite={toggleTemplateFavorite}
                       onArchive={handleArchive}
+                      onActivate={handleActivate}
+                      onRestore={handleRestore}
                     />
                   ))}
               </div>
@@ -878,6 +1001,8 @@ export function TemplateLibraryView({ kindFilter: routeKindFilter }: LibraryProp
                     onDuplicate={() => handleDuplicate(t)}
                     onFavorite={() => toggleTemplateFavorite(t.id)}
                     onArchive={() => handleArchive(t)}
+                    onActivate={() => handleActivate(t)}
+                    onRestore={() => handleRestore(t)}
                   />
                 ))}
               </div>
@@ -892,6 +1017,8 @@ export function TemplateLibraryView({ kindFilter: routeKindFilter }: LibraryProp
                     onDuplicate={() => handleDuplicate(t)}
                     onFavorite={() => toggleTemplateFavorite(t.id)}
                     onArchive={() => handleArchive(t)}
+                    onActivate={() => handleActivate(t)}
+                    onRestore={() => handleRestore(t)}
                   />
                 ))}
               </div>
@@ -906,6 +1033,7 @@ export function TemplateLibraryView({ kindFilter: routeKindFilter }: LibraryProp
           template={preview}
           onClose={() => setPreview(null)}
           onDuplicate={() => { handleDuplicate(preview); setPreview(null); }}
+          onActivate={() => handleActivate(preview)}
         />
       )}
 

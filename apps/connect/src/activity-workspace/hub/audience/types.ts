@@ -29,6 +29,8 @@ export type AudienceGroupSelection = {
 export type AudienceStudentSelection = {
   type: "individual_students";
   studentIds: string[];
+  /** Optional display labels aligned with studentIds (notifications / summaries). */
+  studentLabels?: string[];
 };
 
 export type AudienceTeamSelection = {

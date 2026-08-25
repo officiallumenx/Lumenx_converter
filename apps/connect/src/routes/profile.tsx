@@ -21,7 +21,7 @@ const StudentProfilePage = lazy(() =>
 );
 
 const searchSchema = z.object({
-  section: z.enum(["support"]).optional(),
+  section: z.enum(["support", "help", "feedback", "report"]).optional(),
 });
 
 function ProfileLoading() {

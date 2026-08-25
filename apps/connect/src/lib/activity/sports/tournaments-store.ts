@@ -89,9 +89,11 @@ export function updateTournamentInStore(
   const idx = tournamentsStore.findIndex((t) => t.id === id);
   if (idx < 0) throw new Error("Tournament not found");
   const prev = tournamentsStore[idx];
+  const { matches: _ignoredMatches, ...restPatch } = patch;
   const updated = cloneTournament({
     ...prev,
-    ...patch,
+    ...restPatch,
+    matches: prev.matches,
     name: patch.name?.trim() ?? prev.name,
     venue: patch.venue?.trim() ?? prev.venue,
     organizer: patch.organizer?.trim() ?? prev.organizer,

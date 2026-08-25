@@ -72,6 +72,7 @@ export function AttendanceDatePicker({
         <PopoverContent className={connectDatePopoverClassName} align="start">
           <Calendar
             mode="single"
+            weekStartsOn={1}
             selected={selected}
             onSelect={(date) => {
               if (!date) return;

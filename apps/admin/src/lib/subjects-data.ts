@@ -1,7 +1,12 @@
 /** Subject catalog — create subjects, assign qualified teachers, feed timetable. */
 
-import { readDemoProfileId } from "@lumenx/types";
+import { ADMIN_STORAGE_KEYS } from "@lumenx/config";
+import { readDemoProfileId, type TeacherRole } from "@lumenx/types";
 import { getDepartments, getLevelLabels, isCollegeMode } from "@/lib/academic-data";
+import {
+  isRegisteredAdminTenant,
+  readAdminDataScopeKey,
+} from "@/lib/admin-tenant";
 
 export const GRADES = ["Grade 9", "Grade 10", "Grade 11", "Grade 12"] as const;
 
@@ -30,6 +35,11 @@ export type InstituteTeacher = {
 };
 
 export type TimetableSubject = { id: string; name: string; code: string; periodsPerWeek: number };
+export type InstituteSubjectOption = {
+  name: string;
+  code: string;
+  category: string;
+};
 
 export const SUBJECT_CATEGORIES = [
   "Sciences",
@@ -41,6 +51,43 @@ export const SUBJECT_CATEGORIES = [
   "Technology",
   "Other",
 ] as const;
+
+const SCHOOL_SUBJECT_OPTIONS: InstituteSubjectOption[] = [
+  { name: "Mathematics", code: "MTH 101", category: "Sciences" },
+  { name: "Mathematics", code: "MTH 204", category: "Sciences" },
+  { name: "Physics", code: "PHY 201", category: "Sciences" },
+  { name: "Chemistry", code: "CHEM 220", category: "Sciences" },
+  { name: "Biology", code: "BIO 110", category: "Sciences" },
+  { name: "English", code: "ENG 301", category: "Languages" },
+  { name: "History", code: "HIST 150", category: "Humanities" },
+  { name: "Geography", code: "GEO 160", category: "Humanities" },
+  { name: "Economics", code: "ECO 210", category: "Commerce" },
+  { name: "Commerce", code: "COM 210", category: "Commerce" },
+  { name: "Computer Science", code: "CS 401", category: "Technology" },
+  { name: "Computer Lab", code: "CS LAB 401", category: "Technology" },
+  { name: "Sports", code: "PE 100", category: "Physical Education" },
+  { name: "Physical Education", code: "PE 100", category: "Physical Education" },
+  { name: "Art", code: "ART 100", category: "Arts" },
+  { name: "Music", code: "MUS 100", category: "Arts" },
+];
+
+const COLLEGE_SUBJECT_OPTIONS: InstituteSubjectOption[] = [
+  { name: "Mathematics", code: "MATH 101", category: "Sciences" },
+  { name: "Physics", code: "PHY 101", category: "Sciences" },
+  { name: "Chemistry", code: "CHEM 101", category: "Sciences" },
+  { name: "Biology", code: "BIO 101", category: "Sciences" },
+  { name: "English", code: "ENG 101", category: "Languages" },
+  { name: "Civics", code: "CIV 101", category: "Humanities" },
+  { name: "Economics", code: "ECO 101", category: "Commerce" },
+  { name: "Commerce", code: "COM 101", category: "Commerce" },
+  { name: "Computer Science", code: "CS 101", category: "Technology" },
+  { name: "Physical Education", code: "PE 101", category: "Physical Education" },
+];
+
+export function getInstituteSubjectOptions(): InstituteSubjectOption[] {
+  const source = isCollegeMode() ? COLLEGE_SUBJECT_OPTIONS : SCHOOL_SUBJECT_OPTIONS;
+  return source.map((option) => ({ ...option }));
+}
 
 const INITIAL_TEACHERS: InstituteTeacher[] = [
   {
@@ -375,7 +422,7 @@ const INITIAL_CATALOG: SubjectCatalogItem[] = [
     category: "Sciences",
     periodsPerWeek: 6,
     grades: ["Grade 9", "Grade 10"],
-    assignedTeacherIds: ["T-M1", "T-M2", "T-M3", "T-M4", "T-M5"],
+    assignedTeacherIds: ["T-001"],
     status: "active",
   },
   {
@@ -385,7 +432,7 @@ const INITIAL_CATALOG: SubjectCatalogItem[] = [
     category: "Sciences",
     periodsPerWeek: 6,
     grades: ["Grade 11", "Grade 12"],
-    assignedTeacherIds: ["T-M1", "T-M2", "T-M3", "T-M4", "T-M5"],
+    assignedTeacherIds: ["T-001"],
     status: "active",
   },
   {
@@ -395,7 +442,7 @@ const INITIAL_CATALOG: SubjectCatalogItem[] = [
     category: "Sciences",
     periodsPerWeek: 5,
     grades: ["Grade 9", "Grade 10", "Grade 11", "Grade 12"],
-    assignedTeacherIds: ["T-P1", "T-P2", "T-P3", "T-P4", "T-P5"],
+    assignedTeacherIds: ["T-002"],
     status: "active",
   },
   {
@@ -405,7 +452,7 @@ const INITIAL_CATALOG: SubjectCatalogItem[] = [
     category: "Languages",
     periodsPerWeek: 5,
     grades: ["Grade 9", "Grade 10", "Grade 11", "Grade 12"],
-    assignedTeacherIds: ["T-E1", "T-E2", "T-E3", "T-E4", "T-E5"],
+    assignedTeacherIds: ["T-004"],
     status: "active",
   },
   {
@@ -415,7 +462,7 @@ const INITIAL_CATALOG: SubjectCatalogItem[] = [
     category: "Sciences",
     periodsPerWeek: 4,
     grades: ["Grade 9", "Grade 10", "Grade 11", "Grade 12"],
-    assignedTeacherIds: ["T-B1", "T-B2", "T-B3", "T-B4", "T-B5"],
+    assignedTeacherIds: ["T-009"],
     status: "active",
   },
   {
@@ -425,7 +472,7 @@ const INITIAL_CATALOG: SubjectCatalogItem[] = [
     category: "Sciences",
     periodsPerWeek: 4,
     grades: ["Grade 9", "Grade 10", "Grade 11", "Grade 12"],
-    assignedTeacherIds: ["T-C1", "T-C2", "T-C3", "T-C4", "T-C5"],
+    assignedTeacherIds: ["T-005"],
     status: "active",
   },
   {
@@ -435,7 +482,7 @@ const INITIAL_CATALOG: SubjectCatalogItem[] = [
     category: "Humanities",
     periodsPerWeek: 3,
     grades: ["Grade 9", "Grade 10", "Grade 11", "Grade 12"],
-    assignedTeacherIds: ["T-H1", "T-H2", "T-H3", "T-H4", "T-H5"],
+    assignedTeacherIds: ["T-010"],
     status: "active",
   },
   {
@@ -445,7 +492,7 @@ const INITIAL_CATALOG: SubjectCatalogItem[] = [
     category: "Physical Education",
     periodsPerWeek: 3,
     grades: ["Grade 9", "Grade 10", "Grade 11", "Grade 12"],
-    assignedTeacherIds: ["T-PE1", "T-PE2", "T-PE3", "T-PE4", "T-PE5"],
+    assignedTeacherIds: ["T-007"],
     status: "active",
   },
   {
@@ -455,7 +502,7 @@ const INITIAL_CATALOG: SubjectCatalogItem[] = [
     category: "Technology",
     periodsPerWeek: 2,
     grades: ["Grade 9", "Grade 10", "Grade 11", "Grade 12"],
-    assignedTeacherIds: ["T-CL1", "T-CL2", "T-CL3", "T-CL4", "T-CL5"],
+    assignedTeacherIds: ["T-008"],
     status: "active",
   },
 ];
@@ -468,7 +515,7 @@ const COLLEGE_CATALOG: SubjectCatalogItem[] = [
     category: "Sciences",
     periodsPerWeek: 6,
     grades: ["1st Year", "2nd Year"],
-    assignedTeacherIds: ["T-M1", "T-M2", "T-M3", "T-M4", "T-M5"],
+    assignedTeacherIds: ["T-001"],
     status: "active",
   },
   {
@@ -478,7 +525,7 @@ const COLLEGE_CATALOG: SubjectCatalogItem[] = [
     category: "Sciences",
     periodsPerWeek: 5,
     grades: ["1st Year", "2nd Year"],
-    assignedTeacherIds: ["T-P1", "T-P2", "T-P3", "T-P4", "T-P5"],
+    assignedTeacherIds: ["T-002"],
     status: "active",
   },
   {
@@ -488,7 +535,7 @@ const COLLEGE_CATALOG: SubjectCatalogItem[] = [
     category: "Sciences",
     periodsPerWeek: 5,
     grades: ["1st Year", "2nd Year"],
-    assignedTeacherIds: ["T-C1", "T-C2", "T-C3", "T-C4", "T-C5"],
+    assignedTeacherIds: ["T-005"],
     status: "active",
   },
   {
@@ -498,7 +545,7 @@ const COLLEGE_CATALOG: SubjectCatalogItem[] = [
     category: "Sciences",
     periodsPerWeek: 5,
     grades: ["1st Year", "2nd Year"],
-    assignedTeacherIds: ["T-B1", "T-B2", "T-B3", "T-B4", "T-B5"],
+    assignedTeacherIds: [],
     status: "active",
   },
   {
@@ -508,7 +555,7 @@ const COLLEGE_CATALOG: SubjectCatalogItem[] = [
     category: "Languages",
     periodsPerWeek: 4,
     grades: ["1st Year", "2nd Year"],
-    assignedTeacherIds: ["T-E1", "T-E2", "T-E3", "T-E4", "T-E5"],
+    assignedTeacherIds: ["T-004"],
     status: "active",
   },
   {
@@ -518,7 +565,7 @@ const COLLEGE_CATALOG: SubjectCatalogItem[] = [
     category: "Humanities",
     periodsPerWeek: 3,
     grades: ["1st Year", "2nd Year"],
-    assignedTeacherIds: ["T-H1", "T-H2", "T-H3", "T-H4", "T-H5"],
+    assignedTeacherIds: [],
     status: "active",
   },
   {
@@ -528,7 +575,7 @@ const COLLEGE_CATALOG: SubjectCatalogItem[] = [
     category: "Commerce",
     periodsPerWeek: 4,
     grades: ["1st Year", "2nd Year"],
-    assignedTeacherIds: ["T-H1", "T-H2", "T-H3", "T-H4", "T-H5"],
+    assignedTeacherIds: [],
     status: "active",
   },
   {
@@ -538,7 +585,7 @@ const COLLEGE_CATALOG: SubjectCatalogItem[] = [
     category: "Commerce",
     periodsPerWeek: 4,
     grades: ["1st Year", "2nd Year"],
-    assignedTeacherIds: ["T-H2", "T-H3", "T-H4", "T-H5", "T-E2"],
+    assignedTeacherIds: [],
     status: "active",
   },
   {
@@ -548,12 +595,28 @@ const COLLEGE_CATALOG: SubjectCatalogItem[] = [
     category: "Physical Education",
     periodsPerWeek: 2,
     grades: ["1st Year", "2nd Year"],
-    assignedTeacherIds: ["T-PE1", "T-PE2", "T-PE3", "T-PE4", "T-PE5"],
+    assignedTeacherIds: ["T-007"],
     status: "active",
   },
 ];
 
 function catalogForProfile(): SubjectCatalogItem[] {
+  const scopeKey = readAdminDataScopeKey();
+  try {
+    const raw = localStorage.getItem(`lumenx.admin.subjects.v2.${scopeKey}`);
+    if (raw) {
+      const parsed = (JSON.parse(raw) as SubjectCatalogItem[]).map((subject) => ({
+        ...subject,
+        grades: [...(subject.grades ?? [])],
+        assignedTeacherIds: [...(subject.assignedTeacherIds ?? [])],
+      }));
+      if (isRegisteredAdminTenant()) return parsed;
+      return ensureSpecialistSubjectTeachers(parsed);
+    }
+  } catch {
+    // Fall back to profile seed data.
+  }
+  if (isRegisteredAdminTenant()) return [];
   const source = readDemoProfileId() === "inter_college" ? COLLEGE_CATALOG : INITIAL_CATALOG;
   return source.map((s) => ({
     ...s,
@@ -562,13 +625,64 @@ function catalogForProfile(): SubjectCatalogItem[] {
   }));
 }
 
+/** Ensure Sports / Computer Lab / etc. always have at least one assignable teacher. */
+function ensureSpecialistSubjectTeachers(catalog: SubjectCatalogItem[]): SubjectCatalogItem[] {
+  const defaults: Record<string, string[]> = {
+    "PE 100": ["T-007"],
+    "CS LAB 401": ["T-008"],
+    "BIO 110": ["T-009"],
+    "HIST 150": ["T-010"],
+    "PE 101": ["T-007"],
+  };
+  let changed = false;
+  const next = catalog.map((subject) => {
+    if (subject.assignedTeacherIds.length > 0) return subject;
+    const ids = defaults[subject.code];
+    if (!ids) return subject;
+    changed = true;
+    return { ...subject, assignedTeacherIds: [...ids] };
+  });
+  if (changed) {
+    try {
+      localStorage.setItem(
+        `lumenx.admin.subjects.v2.${readAdminDataScopeKey()}`,
+        JSON.stringify(next),
+      );
+    } catch {
+      // Ignore persistence failures in prototype mode.
+    }
+  }
+  return next;
+}
+
+function persistSubjectCatalog(): void {
+  subjectCatalogRevision += 1;
+  instituteTeachersCache = null;
+  try {
+    localStorage.setItem(
+      `lumenx.admin.subjects.v2.${readAdminDataScopeKey()}`,
+      JSON.stringify(subjectCatalog),
+    );
+  } catch {
+    // Keep in-memory subject management usable when storage is unavailable.
+  }
+}
+
 let subjectCatalog: SubjectCatalogItem[] = catalogForProfile();
 let instituteTeachers: InstituteTeacher[] = INITIAL_TEACHERS.map((t) => ({
   ...t,
   subjects: [...t.subjects],
 }));
+let subjectCatalogRevision = 0;
+let adminTeachersStorageRaw: string | null = null;
+let adminTeachersCache: AdminTeacherDirectoryRecord[] | null = null;
+let adminTeachersRevision = 0;
+let instituteTeachersCacheKey = "";
+let instituteTeachersCache: InstituteTeacher[] | null = null;
 
 function syncTeacherSubjectsFromCatalog() {
+  subjectCatalogRevision += 1;
+  instituteTeachersCache = null;
   instituteTeachers = instituteTeachers.map((teacher) => {
     const tags = new Set<string>();
     for (const sub of subjectCatalog) {
@@ -584,6 +698,11 @@ syncTeacherSubjectsFromCatalog();
 
 export function reloadSubjectCatalogForProfile(): void {
   subjectCatalog = catalogForProfile();
+  subjectCatalogRevision += 1;
+  instituteTeachersCache = null;
+  adminTeachersStorageRaw = null;
+  adminTeachersCache = null;
+  adminTeachersRevision += 1;
   syncTeacherSubjectsFromCatalog();
 }
 
@@ -595,8 +714,195 @@ export function getSubjectCatalog(): SubjectCatalogItem[] {
   }));
 }
 
+type AdminTeacherDirectoryRecord = {
+  id: string;
+  name: string;
+  role?: TeacherRole;
+  dept: string;
+  qualification: string;
+};
+
+const ADMIN_TEACHERS_STORAGE_KEY_BASE = ADMIN_STORAGE_KEYS.teachers;
+function adminTeachersStorageKey(): string {
+  return `${ADMIN_TEACHERS_STORAGE_KEY_BASE}.${readAdminDataScopeKey()}`;
+}
+const ADMIN_TEACHER_FALLBACK: AdminTeacherDirectoryRecord[] = [
+  {
+    id: "T-001",
+    name: "Sarah Jenkins",
+    role: "subject-teacher",
+    dept: "Mathematics",
+    qualification: "M.Sc Mathematics · B.Ed",
+  },
+  {
+    id: "T-002",
+    name: "David Koal",
+    role: "subject-teacher",
+    dept: "Physics",
+    qualification: "Ph.D Physics",
+  },
+  {
+    id: "T-003",
+    name: "Priya Iyer",
+    role: "activity-coordinator",
+    dept: "Biology",
+    qualification: "M.Sc Biology · B.Ed",
+  },
+  {
+    id: "T-004",
+    name: "Marcus Whitfield",
+    role: "subject-teacher",
+    dept: "English",
+    qualification: "M.A English Literature",
+  },
+  {
+    id: "T-005",
+    name: "Hana Suzuki",
+    role: "subject-teacher",
+    dept: "Chemistry",
+    qualification: "M.Sc Chemistry",
+  },
+  {
+    id: "T-006",
+    name: "Omar Faris",
+    role: "activity-coordinator",
+    dept: "History",
+    qualification: "M.A History",
+  },
+  {
+    id: "T-007",
+    name: "Coach Arjun Patel",
+    role: "subject-teacher",
+    dept: "Physical Education",
+    qualification: "M.P.Ed · Athletics Coach",
+  },
+  {
+    id: "T-008",
+    name: "Dr. Anita Verma",
+    role: "subject-teacher",
+    dept: "Computer Science",
+    qualification: "M.Tech Computer Science",
+  },
+  {
+    id: "T-009",
+    name: "Priya Iyer",
+    role: "subject-teacher",
+    dept: "Biology",
+    qualification: "M.Sc Biology · B.Ed",
+  },
+  {
+    id: "T-010",
+    name: "Omar Faris",
+    role: "subject-teacher",
+    dept: "History",
+    qualification: "M.A History · B.Ed",
+  },
+];
+
+function readAdminTeachers(): AdminTeacherDirectoryRecord[] {
+  const storageKey = adminTeachersStorageKey();
+  const raw = localStorage.getItem(storageKey);
+  if (raw === adminTeachersStorageRaw && adminTeachersCache) {
+    return adminTeachersCache.map((teacher) => ({ ...teacher }));
+  }
+
+  let stored: AdminTeacherDirectoryRecord[] = [];
+  try {
+    if (raw) stored = JSON.parse(raw) as AdminTeacherDirectoryRecord[];
+  } catch {
+    // Use the Admin teacher seed when browser storage is unavailable.
+  }
+  let normalized: AdminTeacherDirectoryRecord[] = [];
+  if (isRegisteredAdminTenant()) {
+    normalized = stored.map((teacher) => ({ ...teacher }));
+  } else if (stored.length === 0) {
+    normalized = ADMIN_TEACHER_FALLBACK.map((teacher) => ({ ...teacher }));
+  } else {
+    // Keep specialist demo teachers available even when an older directory was saved.
+    const byId = new Map(stored.map((teacher) => [teacher.id, teacher]));
+    for (const fallback of ADMIN_TEACHER_FALLBACK) {
+      if (!byId.has(fallback.id)) byId.set(fallback.id, fallback);
+    }
+    normalized = [...byId.values()];
+  }
+
+  const fallbackRaw = JSON.stringify(
+    isRegisteredAdminTenant() ? [] : ADMIN_TEACHER_FALLBACK,
+  );
+  const nextRaw = raw ?? fallbackRaw;
+  if (nextRaw !== adminTeachersStorageRaw) {
+    adminTeachersRevision += 1;
+    instituteTeachersCache = null;
+  }
+  adminTeachersStorageRaw = nextRaw;
+  adminTeachersCache = normalized;
+  return normalized.map((teacher) => ({ ...teacher }));
+}
+
+function experienceYearsForAdminTeacher(name: string, dept: string): number {
+  const seed = INITIAL_TEACHERS.find(
+    (teacher) => teacher.name === name || (teacher.department === dept && teacher.name === name),
+  );
+  if (seed) return seed.experienceYears;
+  const byDept = INITIAL_TEACHERS.find((teacher) => teacher.department === dept);
+  return byDept?.experienceYears ?? 5;
+}
+
 export function getInstituteTeachers(): InstituteTeacher[] {
-  return instituteTeachers.map((t) => ({ ...t, subjects: [...t.subjects] }));
+  const cacheKey = `${subjectCatalogRevision}:${adminTeachersRevision}`;
+  if (cacheKey === instituteTeachersCacheKey && instituteTeachersCache) {
+    return instituteTeachersCache.map((teacher) => ({
+      ...teacher,
+      subjects: [...teacher.subjects],
+    }));
+  }
+
+  const next = readAdminTeachers()
+    .filter((teacher) => teacher.role !== "activity-coordinator")
+    .map((teacher) => {
+      const assigned = subjectCatalog.filter((subject) =>
+        subject.assignedTeacherIds.includes(teacher.id),
+      );
+      return {
+        id: teacher.id,
+        name: teacher.name,
+        subjects: assigned.flatMap((subject) => [subject.name, subject.code]),
+        experienceYears: experienceYearsForAdminTeacher(teacher.name, teacher.dept),
+        qualification: teacher.qualification,
+        department: teacher.dept,
+      };
+    });
+  instituteTeachersCache = next;
+  instituteTeachersCacheKey = cacheKey;
+  return next.map((teacher) => ({ ...teacher, subjects: [...teacher.subjects] }));
+}
+
+export function getAssignedSubjectIdsForTeacher(teacherId: string): string[] {
+  return subjectCatalog
+    .filter((subject) => subject.assignedTeacherIds.includes(teacherId))
+    .map((subject) => subject.id);
+}
+
+export function assignSubjectsToTeacher(
+  teacherId: string,
+  subjectIds: string[],
+): SubjectCatalogItem[] {
+  const selected = new Set(subjectIds);
+  subjectCatalog = subjectCatalog.map((subject) => {
+    const teacherIds = new Set(subject.assignedTeacherIds);
+    if (selected.has(subject.id)) teacherIds.add(teacherId);
+    else teacherIds.delete(teacherId);
+    return { ...subject, assignedTeacherIds: [...teacherIds] };
+  });
+  syncTeacherSubjectsFromCatalog();
+  persistSubjectCatalog();
+  return getSubjectCatalog();
+}
+
+export function getAssignedSubjectNamesForTeacher(teacherId: string): string[] {
+  return subjectCatalog
+    .filter((subject) => subject.assignedTeacherIds.includes(teacherId))
+    .map((subject) => subject.name);
 }
 
 export function getSubjectsByGrade(): Record<string, TimetableSubject[]> {
@@ -637,6 +943,7 @@ export function addSubject(input: {
     status: input.status ?? "active",
   };
   subjectCatalog = [...subjectCatalog, item];
+  persistSubjectCatalog();
   return item;
 }
 
@@ -659,7 +966,10 @@ export function updateSubject(
     };
     return updated;
   });
-  if (updated) syncTeacherSubjectsFromCatalog();
+  if (updated) {
+    syncTeacherSubjectsFromCatalog();
+    persistSubjectCatalog();
+  }
   return updated;
 }
 
@@ -668,13 +978,14 @@ export function deleteSubject(id: string): boolean {
   subjectCatalog = subjectCatalog.filter((s) => s.id !== id);
   if (subjectCatalog.length === before) return false;
   syncTeacherSubjectsFromCatalog();
+  persistSubjectCatalog();
   return true;
 }
 
 export function getSubjectById(id: string) {
   const s = subjectCatalog.find((x) => x.id === id);
   if (!s) return null;
-  return { ...s, grades: [...s.grades], assignedTeacherIds: [...s.assignedTeacherIds] };
+  return { ...s, grades: [...(s.grades ?? [])], assignedTeacherIds: [...(s.assignedTeacherIds ?? [])] };
 }
 
 export function assignTeachersToSubject(
@@ -688,20 +999,61 @@ export function teachersForSubjectCode(
   subjectCode: string,
   subjectName?: string,
 ): InstituteTeacher[] {
+  const adminTeachers = getInstituteTeachers();
   const assigned = subjectCatalog.find((s) => s.code === subjectCode || s.name === subjectName);
-  if (assigned && assigned.assignedTeacherIds.length > 0) {
-    return instituteTeachers.filter((t) => assigned.assignedTeacherIds.includes(t.id));
-  }
-  return instituteTeachers.filter((t) =>
-    t.subjects.some(
+
+  const matchesTags = (teacher: InstituteTeacher) =>
+    teacher.subjects.some(
       (s) =>
         s === subjectCode ||
         s === subjectName ||
-        (subjectName != null && subjectName.toLowerCase().includes(s.toLowerCase())),
-    ),
-  );
+        (subjectName != null &&
+          (subjectName.toLowerCase().includes(s.toLowerCase()) ||
+            s.toLowerCase().includes(subjectName.toLowerCase()))),
+    );
+
+  if (assigned && assigned.assignedTeacherIds.length > 0) {
+    const matched = assigned.assignedTeacherIds
+      .map((id) => adminTeachers.find((t) => t.id === id) ?? teacherById(id))
+      .filter((t): t is InstituteTeacher => t != null);
+    if (matched.length > 0) return matched;
+  }
+
+  const bySubjectTag = adminTeachers.filter(matchesTags);
+  if (bySubjectTag.length > 0) return bySubjectTag;
+
+  // Seed faculty fallback — remap to Admin IDs by name when possible.
+  const seed = instituteTeachers.filter(matchesTags);
+  if (seed.length === 0) {
+    // Last resort: any admin teacher in a matching department/category.
+    const deptHint = subjectName ?? subjectCode;
+    const byDept = adminTeachers.filter((t) =>
+      t.department.toLowerCase().includes(deptHint.toLowerCase().split(" ")[0] ?? ""),
+    );
+    return byDept.length > 0 ? byDept : adminTeachers.slice(0, 1);
+  }
+
+  return seed.map((teacher) => {
+    const adminMatch = adminTeachers.find((a) => a.name === teacher.name);
+    return adminMatch ?? teacher;
+  });
 }
 
 export function teacherById(id: string) {
-  return instituteTeachers.find((t) => t.id === id);
+  return (
+    getInstituteTeachers().find((t) => t.id === id) ??
+    instituteTeachers.find((t) => t.id === id) ??
+    ADMIN_TEACHER_FALLBACK.filter((t) => t.role !== "activity-coordinator")
+      .map((teacher) => ({
+        id: teacher.id,
+        name: teacher.name,
+        subjects: subjectCatalog
+          .filter((subject) => subject.assignedTeacherIds.includes(teacher.id))
+          .flatMap((subject) => [subject.name, subject.code]),
+        experienceYears: experienceYearsForAdminTeacher(teacher.name, teacher.dept),
+        qualification: teacher.qualification,
+        department: teacher.dept,
+      }))
+      .find((t) => t.id === id)
+  );
 }

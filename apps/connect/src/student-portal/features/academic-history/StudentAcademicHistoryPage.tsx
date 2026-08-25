@@ -8,6 +8,8 @@ import { useStudentPortal } from "@/context/StudentPortalContext";
 import { useParentPortal } from "@/context/ParentPortalContext";
 import type { ExamHistoryEntry } from "@/lib/student/mock-data";
 import { examHistory as demoExamHistory, academicTermSummaries as demoAcademicTerms } from "@/lib/student/mock-data";
+import { buildLearnerMonthAttendanceSummary } from "@/lib/attendance/calendar";
+import { attendanceSectionKey, toAttendanceStudentId } from "@/lib/attendance/section-key";
 import { Badge, Tabs, TabsList, TabsTrigger, TabsContent } from "@lumenx/ui";
 import {
   ResponsiveContainer,
@@ -38,29 +40,64 @@ export function StudentAcademicHistoryPage({ readOnlyParent = false }: { readOnl
   const [activeTerm, setActiveTerm] = useState("");
 
   const snap = readOnlyParent ? parentSnap : portal.isStudent ? portal.snapshot : null;
+  const studentSnap = !readOnlyParent && portal.isStudent ? portal.snapshot : null;
   const reportCards = snap?.reportCards ?? [];
   const trend = snap?.trend ?? [];
   const performance = snap?.performance ?? [];
-  const examHistory = readOnlyParent ? demoExamHistory : (snap?.examHistory ?? []);
-  const academicTermSummaries = readOnlyParent ? demoAcademicTerms : (snap?.academicTerms ?? []);
+  const examHistory = readOnlyParent ? demoExamHistory : (studentSnap?.examHistory ?? []);
+  const academicTermSummaries = readOnlyParent
+    ? demoAcademicTerms
+    : (studentSnap?.academicTerms ?? []);
   const studentProfile = readOnlyParent && parentSnap
     ? {
         name: parentSnap.child.name,
         class: parentSnap.child.className,
         section: parentSnap.child.section,
+        rollNo: parentSnap.child.rollNo,
+        id: parentSnap.child.id,
       }
-    : snap?.profile;
+    : studentSnap?.profile;
+
+  const attendancePct = useMemo(() => {
+    if (!studentProfile) return 0;
+    if (studentSnap?.attendanceSummary) return studentSnap.attendanceSummary.attendancePct;
+    const classLabel =
+      "class" in studentProfile ? studentProfile.class : (studentProfile as { className?: string }).className;
+    const section = studentProfile.section;
+    const rollNo = "rollNo" in studentProfile ? studentProfile.rollNo : "";
+    const id = "id" in studentProfile ? String(studentProfile.id) : "";
+    if (!classLabel || !section) return 0;
+    return buildLearnerMonthAttendanceSummary({
+      studentId: toAttendanceStudentId({
+        id,
+        classLabel,
+        section,
+        rollNo: rollNo || undefined,
+      }),
+      sectionKey: attendanceSectionKey(classLabel, section),
+    }).attendancePct;
+  }, [studentProfile, studentSnap?.attendanceSummary]);
 
   const published = useMemo(
     () => reportCards.filter((r) => r.status === "published"),
     [reportCards],
   );
-  const resolvedTerm = activeTerm || academicTermSummaries[0]?.id || "";
-  const termSummary = useMemo(
-    () => academicTermSummaries.find((t) => t.id === resolvedTerm) ?? academicTermSummaries[0],
-    [academicTermSummaries, resolvedTerm],
+  const latestPublished = published[published.length - 1];
+  const visibleTerms = useMemo(
+    () =>
+      academicTermSummaries.filter((t) =>
+        reportCards.some((r) => r.id === t.reportCardId && r.status === "published"),
+      ),
+    [academicTermSummaries, reportCards],
   );
-  const activeReport = reportCards.find((r) => r.id === termSummary?.reportCardId);
+  const resolvedTerm = activeTerm || visibleTerms[0]?.id || "";
+  const termSummary = useMemo(
+    () => visibleTerms.find((t) => t.id === resolvedTerm) ?? visibleTerms[0],
+    [visibleTerms, resolvedTerm],
+  );
+  const activeReport = reportCards.find(
+    (r) => r.id === termSummary?.reportCardId && r.status === "published",
+  );
 
   const termExams = useMemo(
     () =>
@@ -99,7 +136,7 @@ export function StudentAcademicHistoryPage({ readOnlyParent = false }: { readOnl
   if (!readOnlyParent && (portal.isLoading || !snap || !studentProfile)) {
     return <PageSkeleton rows={6} />;
   }
-  if (readOnlyParent && !studentProfile) return <PageSkeleton rows={6} />;
+  if (!studentProfile) return <PageSkeleton rows={6} />;
 
   return (
     <div className="min-w-0 space-y-5">
@@ -116,14 +153,14 @@ export function StudentAcademicHistoryPage({ readOnlyParent = false }: { readOnl
         <StatCard
           icon={GraduationCap}
           label="Overall avg"
-          value={published[0] ? `${published[0].percentage}%` : "—"}
+          value={latestPublished ? `${latestPublished.percentage}%` : "—"}
           tone="primary"
-          hint={published[0] ? `Grade ${published[0].grade}` : undefined}
+          hint={latestPublished ? `Grade ${latestPublished.grade}` : undefined}
         />
         <StatCard
           icon={Trophy}
           label="Class rank"
-          value={published[0] ? `#${published[0].rank}` : "—"}
+          value={latestPublished ? `#${latestPublished.rank}` : "—"}
           hint="Latest published term"
         />
         <StatCard
@@ -136,21 +173,21 @@ export function StudentAcademicHistoryPage({ readOnlyParent = false }: { readOnl
         <StatCard
           icon={ClipboardCheck}
           label="Attendance"
-          value={`${studentProfile.attendance}%`}
+          value={attendancePct != null ? `${attendancePct}%` : "—"}
           tone="success"
         />
       </div>
 
       <Tabs value={resolvedTerm} onValueChange={setActiveTerm}>
         <TabsList className="h-auto w-full flex-wrap justify-start rounded-xl">
-          {academicTermSummaries.map((t) => (
+          {visibleTerms.map((t) => (
             <TabsTrigger key={t.id} value={t.id} className="rounded-lg">
               {t.label}
             </TabsTrigger>
           ))}
         </TabsList>
 
-        {academicTermSummaries.map((t) => (
+        {visibleTerms.map((t) => (
           <TabsContent key={t.id} value={t.id} className="mt-4 space-y-4">
             <div className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-4">
               <MiniStat label="Average" value={`${t.avgScore}%`} />
@@ -159,13 +196,13 @@ export function StudentAcademicHistoryPage({ readOnlyParent = false }: { readOnl
               <MiniStat label="Year" value={t.year} />
             </div>
 
-            {activeReport && (
+            {activeReport && t.id === termSummary?.id && (
               <SectionCard
                 title="Report card summary"
                 action={
                   <Link
                     to="/marks"
-                    className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                    className="text-xs text-foreground hover:underline inline-flex items-center gap-1"
                   >
                     Full report <ArrowRight className="size-3" />
                   </Link>
@@ -298,11 +335,11 @@ export function StudentAcademicHistoryPage({ readOnlyParent = false }: { readOnl
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Badge className="border-0 bg-primary/15 text-primary">{r.percentage}%</Badge>
+                <Badge className="border-0 bg-muted text-foreground">{r.percentage}%</Badge>
                 <Badge variant="outline">Grade {r.grade}</Badge>
                 <Link
                   to="/marks"
-                  className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                  className="text-xs text-foreground hover:underline inline-flex items-center gap-1"
                 >
                   View <ArrowRight className="size-3" />
                 </Link>

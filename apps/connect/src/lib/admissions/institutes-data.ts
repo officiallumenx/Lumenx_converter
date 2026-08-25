@@ -229,9 +229,115 @@ export const INSTITUTE_KIND_LABEL: Record<InstituteKind, string> = {
   university: "University",
 };
 
+function readCustomInstitutes(): AdmissionInstituteProfile[] {
+  try {
+    const raw = createBrowserAuthStorage().getItem(ADMISSIONS_STORAGE_KEYS.customInstitutes);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as AdmissionInstituteProfile[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeCustomInstitutes(items: AdmissionInstituteProfile[]) {
+  createBrowserAuthStorage().setItem(
+    ADMISSIONS_STORAGE_KEYS.customInstitutes,
+    JSON.stringify(items),
+  );
+}
+
+/** Catalog + institutes registered from Admissions signup. */
+export function listAllInstitutes(): AdmissionInstituteProfile[] {
+  const custom = readCustomInstitutes();
+  const byId = new Map<string, AdmissionInstituteProfile>();
+  for (const i of ADMISSION_INSTITUTES) byId.set(i.id, i);
+  for (const i of custom) byId.set(i.id, i);
+  return [...byId.values()];
+}
+
+export type RegisterCustomInstituteInput = {
+  id: string;
+  name: string;
+  code?: string;
+  city?: string;
+  state?: string;
+  kind?: InstituteKind;
+  syllabus?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+};
+
+/** Persist a new school so it appears in Browse institutes (demo localStorage). */
+export function registerCustomInstitute(
+  input: RegisterCustomInstituteInput,
+): AdmissionInstituteProfile {
+  const existing = listAllInstitutes().find((i) => i.id === input.id);
+  if (existing) return existing;
+
+  const addressLine =
+    input.address?.trim() ||
+    [input.city?.trim(), input.state?.trim()].filter(Boolean).join(", ") ||
+    "";
+
+  const profile: AdmissionInstituteProfile = {
+    id: input.id,
+    name: input.name.trim(),
+    code: (input.code?.trim() || input.name.trim().slice(0, 6).toUpperCase() || "CUSTOM").slice(
+      0,
+      12,
+    ),
+    kind: input.kind ?? "school",
+    city: input.city?.trim() || "—",
+    state: input.state?.trim() || "—",
+    country: "India",
+    tagline: input.syllabus
+      ? `${input.syllabus} · Now accepting applications on LumenX Admissions`
+      : "Now accepting applications on LumenX Admissions",
+    heroStat: "New on LumenX",
+    rating: 0,
+    programsCount: 0,
+    seatsOpen: 0,
+    imageGradient: "from-primary/25 to-muted",
+    highlights: [
+      "Online applications",
+      "Admissions portal",
+      ...(input.syllabus ? [`Syllabus: ${input.syllabus}`] : []),
+    ],
+    achievements: [],
+    facilities: [],
+    contact: {
+      phone: input.phone?.trim() || "",
+      email: input.email?.trim() || "",
+      address: addressLine,
+    },
+    admissionDates: [{ label: "Applications", date: "Open now" }],
+    about: `${input.name.trim()} is registered on LumenX Admissions. Update your institute profile for a richer public page.`,
+    established: String(new Date().getFullYear()),
+    accreditation: input.syllabus?.trim() || "—",
+  };
+
+  writeCustomInstitutes([profile, ...readCustomInstitutes()]);
+  return profile;
+}
+
+export function getLocationFilters() {
+  const all = listAllInstitutes();
+  return {
+    states: [...new Set(all.map((i) => i.state).filter((s) => s && s !== "—"))].sort(),
+    cities: [...new Set(all.map((i) => i.city).filter((c) => c && c !== "—"))].sort(),
+  };
+}
+
+/** @deprecated Prefer getLocationFilters() so custom institutes are included. */
 export const LOCATIONS = {
-  states: [...new Set(ADMISSION_INSTITUTES.map((i) => i.state))].sort(),
-  cities: [...new Set(ADMISSION_INSTITUTES.map((i) => i.city))].sort(),
+  get states() {
+    return getLocationFilters().states;
+  },
+  get cities() {
+    return getLocationFilters().cities;
+  },
 };
 
 function readSettingsOverrides(): InstituteSettingsOverride[] {
@@ -245,7 +351,7 @@ function readSettingsOverrides(): InstituteSettingsOverride[] {
 }
 
 export function getInstituteById(id: string) {
-  const base = ADMISSION_INSTITUTES.find((i) => i.id === id);
+  const base = listAllInstitutes().find((i) => i.id === id);
   if (!base) return undefined;
   const override = readSettingsOverrides().find((s) => s.instituteId === id);
   if (!override) return base;
@@ -268,7 +374,7 @@ export function filterInstitutes(opts: {
   city?: string;
   kind?: InstituteKind | "all";
 }) {
-  return ADMISSION_INSTITUTES.filter((i) => {
+  return listAllInstitutes().filter((i) => {
     if (opts.state && opts.state !== "all" && i.state !== opts.state) return false;
     if (opts.city && opts.city !== "all" && i.city !== opts.city) return false;
     if (opts.kind && opts.kind !== "all" && i.kind !== opts.kind) return false;

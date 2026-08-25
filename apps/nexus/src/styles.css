@@ -1,6 +1,10 @@
 @import "tailwindcss" source(none);
 @source "../src";
+@source "../../../packages/ui/src";
+@source "../../../packages/ui-admin/src";
 @import "tw-animate-css";
+@import "@lumenx/ui/theme/typography.css";
+@import "@lumenx/ui/theme/kpi.css";
 
 @custom-variant dark (&:is(.dark, .dark *));
 
@@ -63,12 +67,19 @@
 }
 
 /*
- * Nexus — Platform Command theme
- * Distinct from Admin (colorful institute indigo) and Connect (soft Sora blue, rounded).
- * Cyan/teal on cool slate · dark command sidebar · sharper radius · grid texture.
+ * Nexus — Command Cyan (platform only)
+ * Brand: teal/cyan · Risk: red emergency · amber attention · green healthy
+ * Distinct from Admin institute indigo.
  */
 :root {
   --radius: 0.5rem;
+  /* Spacing scale — shared with ui-admin chrome */
+  --space-1: 0.5rem;
+  --space-2: 0.75rem;
+  --space-3: 1rem;
+  --space-4: 1.5rem;
+  --space-5: 2rem;
+  --space-6: 3rem;
   --nexus-cyan: oklch(0.72 0.14 195);
   --nexus-violet: oklch(0.62 0.18 285);
   --background: oklch(0.965 0.008 240);
@@ -88,9 +99,10 @@
   --muted-foreground: oklch(0.48 0.025 240);
   --accent: oklch(0.92 0.025 195);
   --accent-foreground: oklch(0.22 0.03 240);
+  /* Semantic risk */
   --success: oklch(0.62 0.14 165);
-  --warning: oklch(0.74 0.14 85);
-  --destructive: oklch(0.58 0.20 25);
+  --warning: oklch(0.76 0.15 85);
+  --destructive: oklch(0.58 0.21 25);
   --destructive-foreground: oklch(0.99 0.003 250);
   --border: oklch(0.22 0.03 240 / 0.10);
   --border-strong: oklch(0.22 0.03 240 / 0.16);
@@ -98,10 +110,9 @@
   --ring: oklch(0.58 0.13 195 / 0.45);
   --chart-1: oklch(0.58 0.13 195);
   --chart-2: oklch(0.62 0.14 165);
-  --chart-3: oklch(0.62 0.18 285);
-  --chart-4: oklch(0.74 0.14 85);
-  --chart-5: oklch(0.58 0.20 25);
-  /* Command sidebar — always dark slate */
+  --chart-3: oklch(0.76 0.15 85);
+  --chart-4: oklch(0.62 0.18 285);
+  --chart-5: oklch(0.58 0.21 25);
   --sidebar: oklch(0.17 0.025 245);
   --sidebar-foreground: oklch(0.92 0.01 240);
   --sidebar-primary: oklch(0.72 0.14 195);
@@ -142,19 +153,19 @@ html[data-app="nexus"] body,
   --muted-foreground: oklch(0.68 0.025 240);
   --accent: oklch(0.26 0.04 195);
   --accent-foreground: oklch(0.95 0.008 240);
-  --success: oklch(0.72 0.14 165);
-  --warning: oklch(0.80 0.13 85);
-  --destructive: oklch(0.66 0.20 25);
+  --success: oklch(0.74 0.14 165);
+  --warning: oklch(0.82 0.14 85);
+  --destructive: oklch(0.68 0.20 25);
   --destructive-foreground: oklch(0.98 0.005 250);
   --border: oklch(1 0 0 / 0.08);
   --border-strong: oklch(1 0 0 / 0.14);
   --input: oklch(1 0 0 / 0.10);
   --ring: oklch(0.72 0.14 195 / 0.55);
   --chart-1: oklch(0.72 0.14 195);
-  --chart-2: oklch(0.72 0.14 165);
-  --chart-3: oklch(0.68 0.16 285);
-  --chart-4: oklch(0.80 0.13 85);
-  --chart-5: oklch(0.66 0.20 25);
+  --chart-2: oklch(0.74 0.14 165);
+  --chart-3: oklch(0.82 0.14 85);
+  --chart-4: oklch(0.68 0.16 285);
+  --chart-5: oklch(0.68 0.20 25);
   --sidebar: oklch(0.11 0.022 248);
   --sidebar-foreground: oklch(0.92 0.01 240);
   --sidebar-primary: oklch(0.72 0.14 195);
@@ -180,11 +191,18 @@ html[data-app="nexus"] body,
 @layer base {
   * { border-color: var(--color-border); }
   html, body { height: 100%; }
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    font-size: var(--lx-root-font-size, 16px);
+  }
   html[data-app="nexus"] { color-scheme: light; }
   html[data-app="nexus"].dark { color-scheme: dark; }
   body {
     color: var(--color-foreground);
     font-family: var(--font-sans);
+    font-size: var(--lx-text-body);
+    line-height: var(--lx-leading-body);
     font-feature-settings: "cv11", "ss01";
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
@@ -223,7 +241,7 @@ html[data-app="nexus"] body,
 .nexus-status-pill {
   background: oklch(0.58 0.13 195 / 0.12);
   border: 1px solid oklch(0.58 0.13 195 / 0.25);
-  color: oklch(0.48 0.11 195);
+  color: oklch(0.42 0.11 195);
 }
 .dark .nexus-status-pill {
   background: oklch(0.72 0.14 195 / 0.12);
@@ -251,3 +269,168 @@ html[data-app="nexus"] body,
   border-radius: 4px;
 }
 @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+
+/* ── Shared ui-admin chrome (cards · forms · modals · toolbars) ── */
+
+.lx-page-stack > * + * {
+  margin-top: var(--space-3);
+}
+@media (min-width: 768px) {
+  .lx-page-stack > * + * {
+    margin-top: var(--space-4);
+  }
+}
+
+.lx-card-body {
+  padding: var(--space-3);
+}
+@media (min-width: 640px) {
+  .lx-card-body {
+    padding: var(--space-3) var(--space-4);
+  }
+}
+
+.lx-card-header {
+  gap: var(--space-2);
+}
+@media (min-width: 640px) {
+  .lx-card-header {
+    gap: var(--space-3);
+  }
+}
+
+.dark .lx-card-header {
+  border-bottom-color: var(--color-border-strong);
+  background: color-mix(in oklch, var(--color-foreground) 2%, transparent);
+}
+
+.lx-form-stack > * + * {
+  margin-top: var(--space-4);
+}
+.lx-form-grid {
+  display: grid;
+  gap: var(--space-4);
+}
+@media (min-width: 640px) {
+  .lx-form-grid--2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+}
+
+.lx-btn-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.lx-empty-state {
+  padding: var(--space-6) var(--space-4);
+}
+@media (min-width: 640px) {
+  .lx-empty-state {
+    padding: var(--space-6) var(--space-5);
+  }
+}
+
+.lx-segmented-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  max-width: 100%;
+}
+.lx-segmented-scroll::-webkit-scrollbar {
+  display: none;
+}
+.lx-segmented-scroll > [role="tablist"] {
+  flex-wrap: nowrap;
+  min-width: min-content;
+}
+
+.lx-spinner {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid color-mix(in oklch, currentColor 35%, transparent);
+  border-top-color: currentColor;
+  border-radius: 9999px;
+  animation: lx-spin 0.8s cubic-bezier(0.45, 0.05, 0.25, 0.95) infinite;
+}
+@keyframes lx-spin {
+  to { transform: rotate(360deg); }
+}
+
+.lx-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9990;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: color-mix(in oklch, var(--color-foreground) 30%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.lx-modal-dialog {
+  position: relative;
+  z-index: 9991;
+  width: 100%;
+  margin-inline: auto;
+  border-radius: var(--radius-xl);
+  background: var(--color-elevated);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-pop);
+  display: flex;
+  flex-direction: column;
+  max-height: min(92vh, 52rem);
+  overflow: hidden;
+}
+.lx-modal-dialog--sm { max-width: 28rem; }
+.lx-modal-dialog--md { max-width: 36rem; }
+.lx-modal-dialog--lg { max-width: 44rem; }
+.lx-modal-dialog--xl { max-width: min(92vw, 56rem); }
+.lx-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.lx-modal-backdrop {
+  animation: lx-modal-backdrop 0.28s var(--ease-emph) both;
+}
+.lx-modal-panel {
+  animation: lx-modal-panel 0.34s var(--ease-emph) both;
+  transform-origin: center center;
+}
+@keyframes lx-modal-backdrop {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes lx-modal-panel {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.lx-table-wrap {
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+/* Align hand-rolled card bodies with padded CardHeader */
+.lx-card-header + div[class*="px-"] {
+  padding-top: 1rem;
+}
+
+@media (max-width: 639px) {
+  .lx-card-header .lx-btn-group {
+    width: 100%;
+  }
+  .lx-card-header .lx-btn-group > * {
+    flex: 1 1 auto;
+  }
+}

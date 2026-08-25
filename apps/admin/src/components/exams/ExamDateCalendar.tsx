@@ -1,11 +1,12 @@
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   buildExamCalendarDays,
   calendarMonthsInRange,
   monthGridCells,
   type ExamDayInfo,
 } from "@/lib/exam-calendar-utils";
-import { formatExamDateWithDay } from "@/lib/exam-timetable-data";
+import { formatExamDateWithDay, moveListItem } from "@/lib/exam-timetable-data";
+import { GripVertical } from "lucide-react";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -24,11 +25,19 @@ export function ExamDateCalendar({
   startDate,
   endDate,
   subjects,
+  onQuickEdit,
+  onReorderSubjects,
 }: {
   startDate: string;
   endDate: string;
   subjects: string[];
+  onQuickEdit?: () => void;
+  /** When set, paper list is drag-reorderable and updates subject order. */
+  onReorderSubjects?: (next: string[] | ((prev: string[]) => string[])) => void;
 }) {
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const dragIndexRef = useRef<number | null>(null);
+
   const dayMap = useMemo(() => {
     const days = buildExamCalendarDays(startDate, endDate, subjects);
     return new Map(days.map((d) => [d.iso, d]));
@@ -39,6 +48,11 @@ export function ExamDateCalendar({
     [startDate, endDate],
   );
 
+  const papers = useMemo(
+    () => buildExamCalendarDays(startDate, endDate, subjects).filter((d) => d.kind === "paper"),
+    [startDate, endDate, subjects],
+  );
+
   if (!startDate || !endDate) {
     return (
       <div className="rounded-lg border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
@@ -46,6 +60,8 @@ export function ExamDateCalendar({
       </div>
     );
   }
+
+  const canReorder = Boolean(onReorderSubjects) && subjects.length > 1;
 
   return (
     <div className="space-y-4">
@@ -55,7 +71,7 @@ export function ExamDateCalendar({
         <Legend swatch="bg-surface border-border/60" label="Working day (no paper)" />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-h-[340px] overflow-y-auto pr-1">
+      <div className="grid max-h-[340px] grid-cols-1 gap-4 overflow-y-auto pr-1 lg:grid-cols-2">
         {months.map(({ year, month }) => (
           <MonthBlock
             key={`${year}-${month}`}
@@ -70,24 +86,92 @@ export function ExamDateCalendar({
 
       {subjects.length > 0 && (
         <div className="rounded-lg border border-border bg-muted/20 p-3">
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-2">
-            Paper schedule preview
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Paper schedule preview
+              {canReorder ? " · drag to reorder" : ""}
+            </div>
+            {onQuickEdit ? (
+              <button
+                type="button"
+                onClick={onQuickEdit}
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-[11px] font-medium text-foreground hover:bg-surface-hover"
+              >
+                Edit dates / subjects
+              </button>
+            ) : null}
           </div>
           <ul className="space-y-1 text-xs">
-            {buildExamCalendarDays(startDate, endDate, subjects)
-              .filter((d) => d.kind === "paper")
-              .map((d) => (
-                <li key={d.iso} className="flex justify-between gap-2">
-                  <span className="text-muted-foreground">
-                    Paper {d.paperNumber} · {formatExamDateWithDay(d.iso)}
+            {papers.map((d, index) => {
+              const subject = d.subject ?? subjects[index] ?? "Paper";
+              return (
+                <li
+                  key={`${d.iso}-${index}`}
+                  draggable={canReorder}
+                  onDragStart={
+                    canReorder
+                      ? (e) => {
+                          dragIndexRef.current = index;
+                          setDragIndex(index);
+                          e.dataTransfer.effectAllowed = "move";
+                          e.dataTransfer.setData("text/plain", String(index));
+                        }
+                      : undefined
+                  }
+                  onDragEnter={canReorder ? (e) => e.preventDefault() : undefined}
+                  onDragOver={
+                    canReorder
+                      ? (e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = "move";
+                          const from = dragIndexRef.current;
+                          if (from === null || from === index || !onReorderSubjects) return;
+                          onReorderSubjects((prev) => moveListItem(prev, from, index));
+                          dragIndexRef.current = index;
+                          setDragIndex(index);
+                        }
+                      : undefined
+                  }
+                  onDrop={
+                    canReorder
+                      ? (e) => {
+                          e.preventDefault();
+                          dragIndexRef.current = null;
+                          setDragIndex(null);
+                        }
+                      : undefined
+                  }
+                  onDragEnd={
+                    canReorder
+                      ? () => {
+                          dragIndexRef.current = null;
+                          setDragIndex(null);
+                        }
+                      : undefined
+                  }
+                  className={`flex items-center justify-between gap-2 rounded-md px-2 py-1.5 select-none ${
+                    canReorder ? "cursor-grab active:cursor-grabbing border border-transparent" : ""
+                  } ${
+                    canReorder && dragIndex === index
+                      ? "border-primary bg-primary/10 opacity-60"
+                      : ""
+                  }`}
+                >
+                  <span className="flex min-w-0 items-center gap-2 text-muted-foreground">
+                    {canReorder ? (
+                      <GripVertical className="size-3.5 shrink-0 pointer-events-none" />
+                    ) : null}
+                    <span>
+                      Paper {d.paperNumber} · {formatExamDateWithDay(d.iso)}
+                    </span>
                   </span>
-                  <span className="font-medium">{d.subject}</span>
+                  <span className="font-medium text-foreground">{subject}</span>
                 </li>
-              ))}
+              );
+            })}
           </ul>
-          {buildExamCalendarDays(startDate, endDate, subjects).filter((d) => d.kind === "paper")
-            .length < subjects.length && (
-            <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-2">
+          {papers.length < subjects.length && (
+            <p className="mt-2 text-[11px] text-amber-600 dark:text-amber-400">
               Not enough working days in the selected range — extend the end date or remove subjects.
             </p>
           )}

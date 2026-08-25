@@ -131,7 +131,7 @@ function ForgotPinPage() {
         >
           <Link to="/login">
             <AuthButton>
-              Continue to sign in <ArrowRight className="size-4" />
+              Continue to login <ArrowRight className="size-4" />
             </AuthButton>
           </Link>
         </AuthSuccessScreen>
@@ -251,7 +251,7 @@ function ForgotPinPage() {
       type="forgot_pin"
       currentStep="identify"
       title="Forgot your security PIN?"
-      subtitle="Sign in with your email or mobile and password to verify your identity"
+      subtitle="Login with your email or mobile and password to verify your identity"
       backTo="/login"
     >
       <form onSubmit={handleIdentify} className="space-y-4">
@@ -298,7 +298,7 @@ function ForgotPinPage() {
           Verify &amp; continue <ArrowRight className="size-4" />
         </AuthButton>
         <Link to="/login">
-          <AuthButton type="button" variant="outline">Back to sign in</AuthButton>
+          <AuthButton type="button" variant="outline">Back to login</AuthButton>
         </Link>
       </form>
     </RecoveryLayout>

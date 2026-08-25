@@ -1,0 +1,193 @@
+/**
+ * LumenX Transport — CSS design tokens for Tailwind v4.
+ * Source of truth for runtime theming. TS modules mirror these values.
+ */
+
+@theme inline {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  --font-display: "Sora", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.5rem;
+  --radius-3xl: 2rem;
+
+  /* Content widths — use these instead of max-w-md/lg (spacing tokens broke those). */
+  --width-auth: 28rem;
+  --width-dialog: 32rem;
+  --width-app: 45rem;
+
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --breakpoint-2xl: 1536px;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-glow: var(--primary-glow);
+  --color-transport: var(--transport);
+  --color-transport-foreground: var(--transport-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-divider: var(--divider);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --shadow-soft: var(--elevation-soft);
+  --shadow-elevated: var(--elevation-elevated);
+  --shadow-glow: var(--elevation-glow);
+  --shadow-transport-glow: var(--elevation-transport-glow);
+
+  --ease-standard: cubic-bezier(0.25, 1, 0.4, 1);
+  --ease-emphasized: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-fast: 120ms;
+  --duration-normal: 180ms;
+  --duration-slow: 280ms;
+
+  --gradient-primary: linear-gradient(135deg, #2563eb, #3b82f6);
+  --gradient-transport: linear-gradient(135deg, #f97316, #fb923c);
+  --gradient-soft: linear-gradient(180deg, #f8fafc, #f1f5f9);
+  --gradient-hero: radial-gradient(ellipse at top, rgb(37 99 235 / 0.16), transparent 60%);
+}
+
+:root {
+  --radius: 1rem;
+  --transport-min-readable-text: var(--lx-text-caption);
+  --transport-small-readable-text: 0.8125rem;
+  --safe-area-top-fallback: 0px;
+  --safe-area-inset-top-measured: 0px;
+  --safe-area-inset-bottom-measured: 0px;
+  --safe-area-bottom: max(
+    env(safe-area-inset-bottom, 0px),
+    var(--safe-area-inset-bottom-measured, 0px)
+  );
+  --safe-area-top: max(
+    env(safe-area-inset-top, 0px),
+    var(--safe-area-inset-top-measured, 0px),
+    var(--safe-area-top-fallback, 0px)
+  );
+
+  /* Core brand palette */
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+  --primary-glow: #3b82f6;
+  --transport: #ea580c;
+  --transport-foreground: #ffffff;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0f172a;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: #fff7ed;
+  --accent-foreground: #9a3412;
+  --success: #10b981;
+  --success-foreground: #ffffff;
+  --warning: #f59e0b;
+  --warning-foreground: #78350f;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #e2e8f0;
+  --divider: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #2563eb;
+  --sidebar: #f8fafc;
+  --sidebar-foreground: #0f172a;
+  --sidebar-primary: #2563eb;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f1f5f9;
+  --sidebar-accent-foreground: #0f172a;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #2563eb;
+
+  --elevation-soft: 0 1px 2px rgb(15 23 42 / 0.04), 0 4px 16px rgb(15 23 42 / 0.06);
+  --elevation-elevated: 0 8px 32px -8px rgb(15 23 42 / 0.18);
+  --elevation-glow: 0 8px 32px -8px rgb(37 99 235 / 0.45);
+  --elevation-transport-glow: 0 8px 32px -8px rgb(249 115 22 / 0.4);
+}
+
+/**
+ * Dark mode stubs — setup only.
+ * Apply `.dark` on html/root when a ThemeProvider is added later.
+ */
+.dark {
+  --background: #0b1220;
+  --foreground: #f8fafc;
+  --card: #111827;
+  --card-foreground: #f8fafc;
+  --popover: #111827;
+  --popover-foreground: #f8fafc;
+  --primary: #3b82f6;
+  --primary-foreground: #0b1220;
+  --primary-glow: #60a5fa;
+  --transport: #f97316;
+  --transport-foreground: #ffffff;
+  --secondary: #1e293b;
+  --secondary-foreground: #f8fafc;
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+  --accent: #431407;
+  --accent-foreground: #fed7aa;
+  --success: #34d399;
+  --success-foreground: #0b1220;
+  --warning: #fbbf24;
+  --warning-foreground: #0b1220;
+  --destructive: #f87171;
+  --destructive-foreground: #ffffff;
+  --border: #1f2937;
+  --divider: #1f2937;
+  --input: #1f2937;
+  --ring: #3b82f6;
+  --sidebar: #0f172a;
+  --sidebar-foreground: #f1f5f9;
+  --sidebar-primary: #3b82f6;
+  --sidebar-primary-foreground: #0b1220;
+  --sidebar-accent: #1e293b;
+  --sidebar-accent-foreground: #f1f5f9;
+  --sidebar-border: #1f2937;
+  --sidebar-ring: #3b82f6;
+
+  --elevation-soft: 0 1px 2px rgb(0 0 0 / 0.35), 0 4px 16px rgb(0 0 0 / 0.35);
+  --elevation-elevated: 0 8px 32px -8px rgb(0 0 0 / 0.55);
+  --elevation-glow: 0 8px 32px -8px rgb(59 130 246 / 0.4);
+  --elevation-transport-glow: 0 8px 32px -8px rgb(251 146 60 / 0.35);
+
+  --gradient-soft: linear-gradient(180deg, #0f172a, #0b1220);
+  --gradient-hero: radial-gradient(ellipse at top, rgb(37 99 235 / 0.22), transparent 60%);
+}

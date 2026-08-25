@@ -5,18 +5,36 @@ import { SectionCard } from "@/components/app/SectionCard";
 import { ReportCardView } from "@/components/app/ReportCardView";
 import { useStudentPortal } from "@/context/StudentPortalContext";
 import { countPassFail, isPassing, passFailLabel } from "@/lib/marks-utils";
-import { cn } from "@lumenx/ui";
+import {
+  mergeReportCards,
+  publishedReportCardsForLearner,
+} from "@/lib/learner-published-marks";
+import { LEARNER_PUBLISHED_MARKS_KEY } from "@lumenx/utils";
+import { cn, useLocalStorageExternalStore } from "@lumenx/ui";
 import { ArrowRight } from "lucide-react";
 import { PageSkeleton } from "@/student-portal/shared/ui";
 
 export function StudentMarksPage() {
   const portal = useStudentPortal();
   const [selectedExamId, setSelectedExamId] = useState<string | undefined>();
+  useLocalStorageExternalStore(LEARNER_PUBLISHED_MARKS_KEY);
 
   const snap = portal.isStudent ? portal.snapshot : null;
+
+  const reportCards = useMemo(() => {
+    if (!snap) return [];
+    const fromAdmin = publishedReportCardsForLearner({
+      name: snap.profile.name,
+      rollNo: snap.profile.rollNo,
+      className: snap.profile.class,
+      section: snap.profile.section,
+    });
+    return mergeReportCards(snap.reportCards, fromAdmin);
+  }, [snap]);
+
   const published = useMemo(
-    () => snap?.reportCards.filter((r) => r.status === "published") ?? [],
-    [snap?.reportCards],
+    () => reportCards.filter((r) => r.status === "published"),
+    [reportCards],
   );
 
   const selected =
@@ -51,27 +69,27 @@ export function StudentMarksPage() {
 
       {selected && (
         <SectionCard title={`${analytics.examLabel} — summary`}>
-          <div className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-2.5">
             <AnalyticsStat
               label="Overall result"
               value={analytics.overall}
-              tone={analytics.overallPass ? "success" : "warning"}
+              tone={analytics.overallPass ? "pass" : "fail"}
             />
             <AnalyticsStat
               label="Subjects passed"
               value={`${analytics.passed}/${analytics.total}`}
-              tone="success"
+              tone="passed"
             />
             <AnalyticsStat
               label="Subjects failed"
               value={String(analytics.failed)}
-              tone={analytics.failed > 0 ? "warning" : "default"}
+              tone={analytics.failed > 0 ? "fail" : "neutral"}
             />
             <AnalyticsStat
               label="Strongest subject"
               value={analytics.strongest ? `${analytics.strongest.total}%` : "—"}
               hint={analytics.strongest?.subject}
-              tone="primary"
+              tone="strong"
             />
           </div>
           <div className="mt-3 flex justify-end">
@@ -83,7 +101,7 @@ export function StudentMarksPage() {
       )}
 
       <ReportCardView
-        reportCards={snap.reportCards}
+        reportCards={reportCards}
         termPerformance={snap.performance}
         showTeacherRemarks={false}
         detailsLinkTo="/academic-history"
@@ -99,23 +117,26 @@ function AnalyticsStat({
   label,
   value,
   hint,
-  tone = "default",
+  tone = "neutral",
 }: {
   label: string;
   value: string;
   hint?: string;
-  tone?: "default" | "primary" | "success" | "warning";
+  tone?: "neutral" | "pass" | "fail" | "passed" | "strong";
 }) {
   const toneCls = {
-    default: "",
-    primary: "border-primary/20 bg-primary/5",
-    success: "border-success/20 bg-success/5",
-    warning: "border-warning/20 bg-warning/5",
+    neutral: "border-border bg-muted/20",
+    pass: "border-emerald-500/30 bg-emerald-500/[0.09] dark:bg-emerald-500/15",
+    fail: "border-rose-500/30 bg-rose-500/[0.09] dark:bg-rose-500/15",
+    passed: "border-sky-500/30 bg-sky-500/[0.09] dark:bg-sky-500/15",
+    strong: "border-amber-500/30 bg-amber-500/[0.09] dark:bg-amber-500/15",
   }[tone];
   return (
-    <div className={cn("rounded-xl border bg-muted/20 p-3", toneCls)}>
+    <div className={cn("min-w-0 rounded-xl border p-2.5 shadow-soft sm:p-3", toneCls)}>
       <div className="student-stat-label">{label}</div>
-      <div className="mt-0.5 font-display text-xl font-semibold tabular-nums">{value}</div>
+      <div className="mt-0.5 font-display text-lg font-semibold tabular-nums text-foreground sm:text-xl">
+        {value}
+      </div>
       {hint && <div className="mt-0.5 truncate text-xs text-muted-foreground">{hint}</div>}
     </div>
   );

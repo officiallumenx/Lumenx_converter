@@ -9,7 +9,7 @@ import type {
 } from "./types";
 import type { AdmissionInstituteProfile } from "./institutes-data";
 import { getInstituteById } from "./institutes-data";
-import { statusLabel } from "./mock-data";
+import { canTransitionApplicationStatus, statusLabel } from "./status-utils";
 
 const storage = createBrowserAuthStorage();
 
@@ -150,7 +150,7 @@ export const FORM_FIELD_TYPES: {
 ];
 
 function normalizeFormField(field: AdmissionFormField): AdmissionFormField {
-  if (field.type === "file" || (field.type as string) === "file") {
+  if ((field.type as string) === "file") {
     const accept = field.fileAccept ?? "any";
     const mapped =
       accept === "pdf"
@@ -205,8 +205,9 @@ export function getApplicationsForInstitute(
 
 export function getInstituteApplicationStats(instituteId: string, apps: AdmissionApplication[]) {
   const list = getApplicationsForInstitute(instituteId, apps);
+  const waitlisted = list.filter((a) => a.status === "waitlisted").length;
   const pending = list.filter((a) =>
-    ["submitted", "under_review", "document_verification", "interview_scheduled"].includes(
+    ["submitted", "review", "verification", "parent_confirmation", "waitlisted"].includes(
       a.status,
     ),
   ).length;
@@ -215,7 +216,7 @@ export function getInstituteApplicationStats(instituteId: string, apps: Admissio
     pending,
     approved: list.filter((a) => a.status === "approved").length,
     rejected: list.filter((a) => a.status === "rejected").length,
-    waitlisted: list.filter((a) => a.status === "waitlisted").length,
+    waitlisted,
   };
 }
 
@@ -233,6 +234,9 @@ export function updateApplicationByInstituteAdmin(
 
   const timeline = [...app.timeline];
   if (patch.status && patch.status !== app.status) {
+    if (!canTransitionApplicationStatus(app.status, patch.status)) {
+      return null;
+    }
     const event: TimelineEvent = {
       id: `t-${Date.now()}`,
       status: patch.status,

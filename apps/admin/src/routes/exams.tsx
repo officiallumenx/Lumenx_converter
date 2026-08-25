@@ -18,7 +18,6 @@ import {
   ClipboardList,
   Plus,
   Trash2,
-  Wand2,
   Send,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -26,11 +25,13 @@ import { useDemoProfile } from "@/lib/demo-profile-context";
 import { isCollegeMode } from "@/lib/academic-data";
 import { ExamScheduleWizard } from "@/components/exams/ExamScheduleWizard";
 import { ExamTimetableTable } from "@/components/exams/ExamTimetableTable";
-import { ExamDateCalendar } from "@/components/exams/ExamDateCalendar";
+import { useAdminToast } from "@/components/AdminActionToast";
 import {
-  createExamTimetable,
   examDateLabel,
+  examMarksLabel,
+  examTimeLabel,
   examTimetableRange,
+  formatExamClassLabel,
   getGradeScopeOptions,
   getInitialExamTimetables,
   getInitialExams,
@@ -39,9 +40,16 @@ import {
   removeSlotFromTimetable,
   isExamOutdated,
   isTimetableOutdated,
+  syncExamToLearnerSchedules,
+  unpublishExamFromLearners,
   type ExamRecord,
   type ExamTimetable,
 } from "@/lib/exam-timetable-data";
+import {
+  notifyExamTimetablePublished,
+  notifyExamScheduleChange,
+  scheduleExamPaperReminders,
+} from "@lumenx/module-notifications";
 
 export const Route = createFileRoute("/exams")({
   head: () => ({ meta: [{ title: "Exams — LumenX Admin" }] }),
@@ -51,6 +59,7 @@ export const Route = createFileRoute("/exams")({
 const SECTION_OPTIONS = ["All", "A", "B", "C", "D"];
 
 function ExamsPage() {
+  const notify = useAdminToast();
   const { profileId } = useDemoProfile();
   const college = isCollegeMode();
   const gradeOptions = useMemo(() => getGradeScopeOptions(), [profileId]);
@@ -63,15 +72,7 @@ function ExamsPage() {
   const [selectedTtId, setSelectedTtId] = useState<string | null>(null);
 
   const [scheduleOpen, setScheduleOpen] = useState(false);
-  const [createTtOpen, setCreateTtOpen] = useState(false);
   const [addPaperOpen, setAddPaperOpen] = useState(false);
-
-  const activeExams = useMemo(() => exams.filter((e) => !isExamOutdated(e)), [exams]);
-  const outdatedExams = useMemo(() => exams.filter((e) => isExamOutdated(e)), [exams]);
-
-  const [ttExamId, setTtExamId] = useState("");
-  const [ttStartTime, setTtStartTime] = useState("09:00");
-  const [ttEndTime, setTtEndTime] = useState("12:00");
 
   const [paperDate, setPaperDate] = useState("");
   const [paperSubject, setPaperSubject] = useState(subjectOptions[0] ?? "Mathematics");
@@ -88,74 +89,106 @@ function ExamsPage() {
     setPaperSubject(subjectOptions[0] ?? "Mathematics");
   }, [profileId]);
 
-  useEffect(() => {
-    if (activeExams.length === 0) {
-      setTtExamId("");
-      return;
-    }
-    if (!activeExams.some((e) => e.id === ttExamId)) {
-      setTtExamId(activeExams[0]!.id);
-    }
-  }, [activeExams, ttExamId]);
-
   const selectedTt = timetables.find((t) => t.id === selectedTtId) ?? null;
   const selectedTtOutdated = selectedTt ? isTimetableOutdated(selectedTt, exams) : false;
 
-  const selectedExamForTt = exams.find((e) => e.id === ttExamId) ?? null;
-
-  const updateTimetable = useCallback((id: string, updater: (t: ExamTimetable) => ExamTimetable) => {
-    setTimetables((prev) => prev.map((t) => (t.id === id ? updater(t) : t)));
-  }, []);
+  const updateTimetable = useCallback(
+    (id: string, updater: (t: ExamTimetable) => ExamTimetable) => {
+      setTimetables((prev) =>
+        prev.map((t) => {
+          if (t.id !== id) return t;
+          const before = t;
+          const next = updater(t);
+          if (next.status === "published") {
+            const exam = exams.find((e) => e.id === next.examId);
+            if (exam) syncExamToLearnerSchedules(exam, next);
+            if (before.status === "published") {
+              const beforeById = new Map(before.slots.map((s) => [s.id, s]));
+              for (const slot of next.slots) {
+                const prevSlot = beforeById.get(slot.id);
+                if (!prevSlot) continue;
+                if (prevSlot.date !== slot.date) {
+                  notifyExamScheduleChange({
+                    examId: exam?.id ?? next.examId,
+                    examName: next.examName,
+                    subject: slot.subject,
+                    kind: "date",
+                    newValue: slot.date,
+                  });
+                }
+                if (prevSlot.startTime !== slot.startTime || prevSlot.endTime !== slot.endTime) {
+                  notifyExamScheduleChange({
+                    examId: exam?.id ?? next.examId,
+                    examName: next.examName,
+                    subject: slot.subject,
+                    kind: "time",
+                    newValue: `${slot.startTime}–${slot.endTime}`,
+                  });
+                }
+                if ((prevSlot.room || "") !== (slot.room || "")) {
+                  notifyExamScheduleChange({
+                    examId: exam?.id ?? next.examId,
+                    examName: next.examName,
+                    subject: slot.subject,
+                    kind: "venue",
+                    newValue: slot.room || "TBA",
+                  });
+                }
+              }
+              for (const prevSlot of before.slots) {
+                if (!next.slots.some((s) => s.id === prevSlot.id)) {
+                  notifyExamScheduleChange({
+                    examId: exam?.id ?? next.examId,
+                    examName: next.examName,
+                    subject: prevSlot.subject,
+                    kind: "cancelled",
+                    detail: "This paper was removed from the timetable.",
+                  });
+                }
+              }
+            }
+          }
+          return next;
+        }),
+      );
+    },
+    [exams],
+  );
 
   const handleWizardComplete = ({
     exam,
     timetable,
   }: {
     exam: ExamRecord;
-    timetable: ExamTimetable | null;
+    timetable: ExamTimetable;
   }) => {
     setExams((p) => [...p, exam]);
-    if (timetable) {
-      setTimetables((p) => [...p, timetable]);
-      setSelectedTtId(timetable.id);
-    }
+    setTimetables((p) => [...p, timetable]);
+    setSelectedTtId(timetable.id);
+    notify(
+      `Exam created with timetable (draft). Publish to share with ${formatExamClassLabel(exam)} students & parents.`,
+    );
   };
 
   const deleteExam = (id: string) => {
     setExams((p) => p.filter((e) => e.id !== id));
     setTimetables((p) => p.filter((t) => t.examId !== id));
-    if (selectedTt?.examId === id) setSelectedTtId(null);
+    unpublishExamFromLearners(id);
+    setSelectedTtId((cur) => {
+      const curTt = timetables.find((t) => t.id === cur);
+      return curTt?.examId === id ? null : cur;
+    });
   };
 
   const deleteTimetable = (id: string) => {
+    const tt = timetables.find((t) => t.id === id);
     setTimetables((p) => p.filter((t) => t.id !== id));
+    if (tt) {
+      const exam = exams.find((e) => e.id === tt.examId);
+      if (exam) syncExamToLearnerSchedules(exam, null);
+      else unpublishExamFromLearners(tt.examId);
+    }
     if (selectedTtId === id) setSelectedTtId(null);
-  };
-
-  const openCreateTimetable = () => {
-    if (activeExams[0]) setTtExamId(activeExams[0].id);
-    setCreateTtOpen(true);
-  };
-
-  const handleCreateTimetable = () => {
-    const exam = exams.find((e) => e.id === ttExamId);
-    if (!exam || isExamOutdated(exam)) return;
-
-    const created = createExamTimetable({
-      exam,
-      gradeScope: exam.grade,
-      startDate: exam.startDate,
-      endDate: exam.endDate,
-      subjectNames: exam.subjects,
-      section: exam.section,
-      header: exam.header,
-      startTime: ttStartTime,
-      endTime: ttEndTime,
-      skipBlockedDays: true,
-    });
-    setTimetables((p) => [...p, created]);
-    setSelectedTtId(created.id);
-    setCreateTtOpen(false);
   };
 
   const handleAddPaper = () => {
@@ -178,7 +211,36 @@ function ExamsPage() {
   };
 
   const publishTimetable = (id: string) => {
-    updateTimetable(id, (t) => ({ ...t, status: "published" }));
+    const tt = timetables.find((t) => t.id === id);
+    if (!tt) return;
+    const exam = exams.find((e) => e.id === tt.examId);
+    setTimetables((prev) =>
+      prev.map((t) => {
+        if (t.id !== id) return t;
+        const next = { ...t, status: "published" as const };
+        if (exam) syncExamToLearnerSchedules(exam, next);
+        return next;
+      }),
+    );
+    const audience = exam ? formatExamClassLabel(exam) : "assigned classes";
+    notifyExamTimetablePublished({
+      examId: tt.examId,
+      examName: tt.examName,
+      dateRange: examTimetableRange(tt.slots),
+      classLabel: audience,
+    });
+    for (const slot of tt.slots) {
+      scheduleExamPaperReminders({
+        examId: tt.examId,
+        examName: tt.examName,
+        subject: slot.subject,
+        time: `${slot.startTime}–${slot.endTime}`,
+        venue: slot.room || "TBA",
+      });
+    }
+    notify(
+      `Timetable published. Students and parents in ${audience} can now see the exam schedule.`,
+    );
   };
 
   const upcoming = exams.filter(
@@ -192,7 +254,7 @@ function ExamsPage() {
     return (
       <AppShell
         title={selectedTt.examName}
-        subtitle={`${selectedTt.term} · ${examTimetableRange(selectedTt.slots)} · ${selectedTt.slots.length} papers`}
+        subtitle={`${examTimetableRange(selectedTt.slots)} · ${selectedTt.slots.length} papers`}
         actions={
           <>
             <Button onClick={() => setSelectedTtId(null)}>
@@ -238,6 +300,31 @@ function ExamsPage() {
                 : (slotId) =>
                     updateTimetable(selectedTt.id, (t) => removeSlotFromTimetable(t, slotId))
             }
+            onQuickEdit={
+              selectedTtOutdated
+                ? undefined
+                : (patch) => {
+                    setExams((prev) =>
+                      prev.map((e) =>
+                        e.id === selectedTt.examId
+                          ? {
+                              ...e,
+                              header: patch.header,
+                              startTime: patch.startTime,
+                              endTime: patch.endTime,
+                            }
+                          : e,
+                      ),
+                    );
+                    updateTimetable(selectedTt.id, (t) => ({
+                      ...t,
+                      header: patch.header,
+                      startTime: patch.startTime,
+                      endTime: patch.endTime,
+                      slots: patch.slots,
+                    }));
+                  }
+            }
           />
         </div>
 
@@ -272,14 +359,9 @@ function ExamsPage() {
       title="Exams"
       subtitle="Exam pipeline, exam timetables, and grading · marks in Marks module"
       actions={
-        <>
-          <Button onClick={() => setScheduleOpen(true)}>
-            <Plus className="size-3.5" /> Create exam
-          </Button>
-          <Button variant="primary" onClick={openCreateTimetable} disabled={activeExams.length === 0}>
-            <CalendarDays className="size-3.5" /> Create exam timetable
-          </Button>
-        </>
+        <Button variant="primary" onClick={() => setScheduleOpen(true)}>
+          <Plus className="size-3.5" /> Create exam
+        </Button>
       }
     >
       <div className="lx-kpi-grid">
@@ -292,38 +374,18 @@ function ExamsPage() {
       <Card className="mt-6">
         <CardHeader
           title="Exam timetables"
-          hint="Subject-wise date schedule by class and section"
-          action={
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={openCreateTimetable}
-              disabled={activeExams.length === 0}
-            >
-              <Plus className="size-3.5" /> New timetable
-            </Button>
-          }
+          hint="Created with each exam · publish to share with students & parents"
         />
         {timetables.length === 0 ? (
           <div className="px-5 pb-5">
             <EmptyState
               icon={<CalendarDays className="size-6 text-primary" />}
               title="No exam timetables yet"
-              hint={
-                activeExams.length === 0
-                  ? "Schedule an active exam first, then create a timetable for it."
-                  : "Create a timetable to assign exam dates, subjects, and times for each paper."
-              }
+              hint="Create an exam to generate its timetable automatically."
               action={
-                activeExams.length > 0 ? (
-                  <Button variant="primary" onClick={openCreateTimetable}>
-                    <Wand2 className="size-3.5" /> Create exam timetable
-                  </Button>
-                ) : (
-                  <Button variant="primary" onClick={() => setScheduleOpen(true)}>
-                    <Plus className="size-3.5" /> Create exam
-                  </Button>
-                )
+                <Button variant="primary" onClick={() => setScheduleOpen(true)}>
+                  <Plus className="size-3.5" /> Create exam
+                </Button>
               }
             />
           </div>
@@ -388,7 +450,7 @@ function ExamsPage() {
                         e.stopPropagation();
                         deleteTimetable(tt.id);
                       }}
-                      className="absolute top-2 right-2 p-1.5 rounded-md opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-opacity"
+                      className="absolute top-2 right-2 p-1.5 rounded-md opacity-100 lg:opacity-0 lg:group-hover:opacity-100 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-opacity"
                       aria-label="Delete timetable"
                     >
                       <Trash2 className="size-3.5" />
@@ -439,7 +501,8 @@ function ExamsPage() {
                     )}
                   </div>
                   <div className="text-[11px] text-muted-foreground mt-1">
-                    {e.grade} · {examDateLabel(e)}
+                    {formatExamClassLabel(e)} · {examDateLabel(e)} · {examTimeLabel(e)} · Marks{" "}
+                    {examMarksLabel(e)}
                   </div>
                 </div>
                 {!outdated && (
@@ -467,90 +530,11 @@ function ExamsPage() {
         </div>
       </Card>
 
-      <Modal
-        open={createTtOpen}
-        onClose={() => setCreateTtOpen(false)}
-        title="Create exam timetable"
-        subtitle="Select an exam — dates and subjects come from step 1"
-        size="lg"
-        footer={
-          <>
-            <Button onClick={() => setCreateTtOpen(false)}>Cancel</Button>
-            <Button variant="primary" onClick={handleCreateTimetable} disabled={!ttExamId || !selectedExamForTt}>
-              <Wand2 className="size-3.5" /> Generate timetable
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Exam" required>
-              <Select value={ttExamId} onChange={(e) => setTtExamId(e.target.value)}>
-                {activeExams.length === 0 && (
-                  <option value="">No active exams — create one first</option>
-                )}
-                {activeExams.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.name} · {e.term}
-                  </option>
-                ))}
-                {outdatedExams.length > 0 && (
-                  <optgroup label="Outdated (not selectable)">
-                    {outdatedExams.map((e) => (
-                      <option key={e.id} value={e.id} disabled>
-                        {e.name} · {e.term} — outdated
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-              </Select>
-            </Field>
-            <Field label="Paper start time">
-              <TextInput type="time" value={ttStartTime} onChange={(e) => setTtStartTime(e.target.value)} />
-            </Field>
-            <Field label="Paper end time">
-              <TextInput type="time" value={ttEndTime} onChange={(e) => setTtEndTime(e.target.value)} />
-            </Field>
-          </div>
-
-          {selectedExamForTt && (
-            <>
-              <div className="rounded-lg border border-border bg-muted/20 px-4 py-3 text-xs grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <div>
-                  <span className="text-muted-foreground">Class</span>
-                  <div className="font-medium">{selectedExamForTt.grade}</div>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Section</span>
-                  <div className="font-medium">{selectedExamForTt.section}</div>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Dates</span>
-                  <div className="font-medium">{examDateLabel(selectedExamForTt)}</div>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Subjects</span>
-                  <div className="font-medium">{selectedExamForTt.subjects.join(", ")}</div>
-                </div>
-              </div>
-              <Field label="Calendar preview" hint="Non-exam days are skipped when generating">
-                <ExamDateCalendar
-                  startDate={selectedExamForTt.startDate}
-                  endDate={selectedExamForTt.endDate}
-                  subjects={selectedExamForTt.subjects}
-                />
-              </Field>
-            </>
-          )}
-        </div>
-      </Modal>
-
       <ExamScheduleWizard
         open={scheduleOpen}
         onClose={() => setScheduleOpen(false)}
         onComplete={handleWizardComplete}
         college={college}
-        gradeOptions={gradeOptions}
         subjectOptions={subjectOptions}
       />
     </AppShell>
@@ -636,10 +620,10 @@ function AddPaperModal({
             ))}
           </Select>
         </Field>
-        <Field label="Start time">
+        <Field label="Exam time · from">
           <TextInput type="time" value={paperStart} onChange={(e) => setPaperStart(e.target.value)} />
         </Field>
-        <Field label="End time">
+        <Field label="Exam time · to">
           <TextInput type="time" value={paperEnd} onChange={(e) => setPaperEnd(e.target.value)} />
         </Field>
       </div>

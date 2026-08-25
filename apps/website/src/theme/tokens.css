@@ -1,0 +1,170 @@
+/**
+ * LumenX website — design tokens.
+ * Brand is royal → cyan blue (official logo), not gold.
+ * Import before @theme mappings in styles.css.
+ */
+
+:root {
+  /* Brand matches Admin / Connect indigo (apps/admin --primary). */
+  --site-brand: oklch(0.52 0.22 262);
+  --site-brand-hover: oklch(0.46 0.22 262);
+  --site-brand-soft: oklch(0.93 0.05 262);
+  --site-brand-foreground: oklch(0.99 0.005 250);
+  --site-cyan: oklch(0.58 0.13 195);
+  --site-ink: oklch(0.24 0.06 262);
+  --site-ink-soft: oklch(0.34 0.05 262);
+
+  /* Blue-tinted paper — not plain white */
+  --background: oklch(0.945 0.035 255);
+  --foreground: var(--site-ink);
+  --surface: oklch(0.965 0.028 255);
+  --surface-hover: oklch(0.93 0.045 262);
+  --elevated: oklch(0.975 0.022 255);
+  --card: oklch(0.97 0.024 255);
+  --card-foreground: var(--site-ink);
+  --popover: oklch(0.98 0.018 255);
+  --popover-foreground: var(--site-ink);
+  --muted: oklch(0.925 0.042 255);
+  --muted-foreground: oklch(0.38 0.04 262);
+  --primary: var(--site-brand);
+  --primary-foreground: var(--site-brand-foreground);
+  --secondary: oklch(0.945 0.03 255);
+  --secondary-foreground: var(--site-ink);
+  --accent: var(--site-brand-soft);
+  --accent-foreground: var(--site-ink);
+  --success: oklch(0.52 0.11 155);
+  --warning: oklch(0.7 0.12 75);
+  --destructive: oklch(0.52 0.18 25);
+  --destructive-foreground: oklch(0.99 0.005 250);
+
+  /* —— Borders —— */
+  --border: oklch(0.42 0.12 262 / 0.16);
+  --border-strong: oklch(0.42 0.14 262 / 0.24);
+  --border-brand: oklch(0.52 0.22 262 / 0.38);
+  --input: oklch(0.42 0.12 262 / 0.18);
+  --ring: oklch(0.52 0.22 262 / 0.45);
+
+  /* Product accents — same values as the apps */
+  --site-product-admin: oklch(0.52 0.22 262);
+  --site-product-admin-wash: oklch(0.52 0.22 262 / 0.16);
+  --site-product-connect: oklch(0.5 0.22 260);
+  --site-product-connect-wash: oklch(0.5 0.22 260 / 0.16);
+  --site-product-transport: oklch(0.546 0.193 264);
+  --site-product-transport-wash: oklch(0.546 0.193 264 / 0.16);
+  --site-product-admissions: oklch(0.54 0.16 230);
+  --site-product-admissions-wash: oklch(0.54 0.16 230 / 0.16);
+  --site-product-careers: oklch(0.48 0.16 278);
+  --site-product-careers-wash: oklch(0.48 0.16 278 / 0.16);
+  --site-product-nexus: oklch(0.58 0.13 195);
+  --site-product-nexus-wash: oklch(0.58 0.13 195 / 0.16);
+
+  --product-accent: var(--site-brand);
+  --product-wash: var(--site-brand-soft);
+
+  /* —— Radius —— */
+  --radius: 0.75rem;
+  --site-radius-sm: 0.5rem;
+  --site-radius-md: 0.75rem;
+  --site-radius-lg: 1rem;
+  --site-radius-xl: 1.5rem;
+  --site-radius-full: 999px;
+
+  /* —— Spacing (4 / 8 / 12 / 16 / 24 / 32 / 48 / 64) —— */
+  --site-space-1: 0.25rem;
+  --site-space-2: 0.5rem;
+  --site-space-3: 0.75rem;
+  --site-space-4: 1rem;
+  --site-space-5: 1.5rem;
+  --site-space-6: 2rem;
+  --site-space-7: 3rem;
+  --site-space-8: 4rem;
+  --site-gutter: clamp(1.25rem, 4vw, 2rem);
+  --site-section-y: clamp(4.5rem, 8vw, 6.5rem);
+  --site-header-h: 4rem;
+  --site-max: 72rem;
+  --site-narrow: 42rem;
+
+  /* —— Shadows (indigo-tinted) —— */
+  --site-shadow-xs: 0 1px 2px oklch(0.42 0.16 262 / 0.08);
+  --site-shadow-sm: 0 1px 2px oklch(0.42 0.16 262 / 0.06), 0 4px 14px -6px oklch(0.42 0.18 262 / 0.16);
+  --site-shadow-md: 0 1px 0 oklch(1 0 0 / 0.55) inset, 0 12px 32px -14px oklch(0.42 0.2 262 / 0.32);
+  --site-shadow-lg: 0 1px 0 oklch(1 0 0 / 0.6) inset, 0 24px 48px -18px oklch(0.42 0.2 262 / 0.38);
+  --site-shadow-glow: 0 10px 28px -12px oklch(0.52 0.22 262 / 0.55);
+  --site-shadow-focus: 0 0 0 2px var(--background), 0 0 0 4px var(--site-brand);
+  --shadow-xs: var(--site-shadow-xs);
+  --shadow-sm: var(--site-shadow-sm);
+  --shadow-elevated: var(--site-shadow-md);
+  --shadow-pop: var(--site-shadow-lg);
+
+  --ease-emph: cubic-bezier(0.22, 1, 0.36, 1);
+  --site-duration: 180ms;
+  --site-duration-hover: 180ms;
+  --site-duration-enter: 380ms;
+  --site-duration-page: 200ms;
+  --site-duration-crossfade: 200ms;
+  --site-stagger: 55ms;
+  --site-enter-y: 12px;
+
+  /* Marketing type (extends shared --lx-text-*) */
+  --site-text-hero: clamp(2.35rem, 4.8vw, 4rem);
+  --site-text-display: clamp(1.7rem, 2.5vw, 2.2rem);
+  --site-text-kicker: 0.75rem;
+
+  /* —— Breakpoints (aligned with Tailwind defaults) —— */
+  --site-bp-sm: 40rem;
+  --site-bp-md: 48rem;
+  --site-bp-lg: 64rem;
+  --site-bp-xl: 80rem;
+}
+
+[data-product="admin"] {
+  --product-accent: var(--site-product-admin);
+  --product-wash: var(--site-product-admin-wash);
+}
+[data-product="connect"] {
+  --product-accent: var(--site-product-connect);
+  --product-wash: var(--site-product-connect-wash);
+}
+[data-product="transport"] {
+  --product-accent: var(--site-product-transport);
+  --product-wash: var(--site-product-transport-wash);
+}
+[data-product="admissions"] {
+  --product-accent: var(--site-product-admissions);
+  --product-wash: var(--site-product-admissions-wash);
+}
+[data-product="careers"] {
+  --product-accent: var(--site-product-careers);
+  --product-wash: var(--site-product-careers-wash);
+}
+[data-product="nexus"] {
+  --product-accent: var(--site-product-nexus);
+  --product-wash: var(--site-product-nexus-wash);
+}
+
+.dark {
+  --site-brand: oklch(0.74 0.19 262);
+  --site-brand-hover: oklch(0.8 0.16 262);
+  --site-brand-soft: oklch(0.3 0.08 262);
+  --site-brand-foreground: oklch(0.16 0.04 262);
+  --site-ink: oklch(0.96 0.01 255);
+  --background: oklch(0.18 0.04 262);
+  --foreground: var(--site-ink);
+  --surface: oklch(0.2 0.03 252);
+  --surface-hover: oklch(0.24 0.03 252);
+  --elevated: oklch(0.23 0.03 252);
+  --card: oklch(0.2 0.03 252);
+  --card-foreground: var(--site-ink);
+  --muted: oklch(0.24 0.03 252);
+  --muted-foreground: oklch(0.72 0.02 250);
+  --secondary: oklch(0.24 0.03 252);
+  --accent: var(--site-brand-soft);
+  --border: oklch(1 0 0 / 0.08);
+  --border-strong: oklch(1 0 0 / 0.14);
+  --input: oklch(1 0 0 / 0.1);
+  --ring: oklch(0.72 0.12 230 / 0.5);
+  --site-shadow-md: 0 12px 32px -16px oklch(0 0 0 / 0.55);
+  --site-shadow-lg: 0 22px 48px -20px oklch(0 0 0 / 0.65);
+  --shadow-elevated: var(--site-shadow-md);
+  --shadow-pop: var(--site-shadow-lg);
+}

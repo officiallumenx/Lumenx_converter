@@ -33,7 +33,9 @@ export function saveOtpPending(data: Partial<OtpPendingData>): void {
       startedAt: Date.now(),
     };
     localStorage.setItem(OTP_PENDING_KEY, JSON.stringify({ ...existing, ...data }));
-  } catch (_) {}
+  } catch (_) {
+    // Continue without persisted OTP state when storage is unavailable.
+  }
 }
 
 export function loadOtpPending(): OtpPendingData | null {
@@ -48,13 +50,16 @@ export function loadOtpPending(): OtpPendingData | null {
 export function clearOtpPending(): void {
   try {
     localStorage.removeItem(OTP_PENDING_KEY);
-  } catch (_) {}
+  } catch (_) {
+    // Ignore storage cleanup failures.
+  }
 }
 
 // ── Demo OTP codes (replace with real delivery in production) ──
 
-export const DEMO_EMAIL_OTP  = "123456";
-export const DEMO_MOBILE_OTP = "654321";
+export const DEMO_OTP = "123456";
+export const DEMO_EMAIL_OTP = DEMO_OTP;
+export const DEMO_MOBILE_OTP = DEMO_OTP;
 
 export const OTP_RESEND_COOLDOWN_SEC = 60;
 export const OTP_LENGTH              = 6;

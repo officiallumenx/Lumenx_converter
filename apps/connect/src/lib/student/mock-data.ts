@@ -1,9 +1,5 @@
 /** Student-portal demo data for Phase 2 modules */
-import {
-  buildAttendanceDays as buildStudentAttendanceDays,
-  computeAttendanceSummary,
-  shiftMonth,
-} from "@/lib/attendance/calendar";
+import { buildAttendanceDays as buildStudentAttendanceDays } from "@/lib/attendance/calendar";
 
 export { buildStudentAttendanceDays };
 
@@ -179,14 +175,14 @@ export const academicTermSummaries = [
     reportCardId: "rc-hy",
   },
   {
-    id: "2024-mid",
-    label: "Mid-Term (2024-25)",
+    id: "2024-ut1",
+    label: "Unit Test 1 (2024-25)",
     year: "2024-25",
-    avgScore: 78,
-    rank: 9,
+    avgScore: 86,
+    rank: 5,
     classSize: 42,
-    attendance: 92,
-    reportCardId: "rc-mid",
+    attendance: 93,
+    reportCardId: "rc-u1",
   },
 ];
 
@@ -250,60 +246,40 @@ export const studentCertificateRecords: StudentCertificateRecord[] = [
 
 export type AttendanceDayStatus = import("@/lib/attendance/types").AttendanceDayStatus;
 
-const STUDENT_ATTENDANCE_YEAR = 2026;
-const STUDENT_ATTENDANCE_MONTH = 5; // June 2026
-const STUDENT_ATTENDANCE_SEED = 0;
-
-// Derive the summary from the same calendar computation that renders the day grid so the
-// headline percentage/counts can never diverge from the calendar (single source of truth).
-const studentAttendanceComputed = computeAttendanceSummary(
-  buildStudentAttendanceDays(STUDENT_ATTENDANCE_YEAR, STUDENT_ATTENDANCE_MONTH, STUDENT_ATTENDANCE_SEED),
-  STUDENT_ATTENDANCE_YEAR,
-  STUDENT_ATTENDANCE_MONTH,
-);
-
-export const studentAttendanceSummary = {
-  monthLabel: studentAttendanceComputed.monthLabel,
-  year: STUDENT_ATTENDANCE_YEAR,
-  month: STUDENT_ATTENDANCE_MONTH,
-  attendancePct: studentAttendanceComputed.attendancePct,
-  classAvgPct: 89,
-  present: studentAttendanceComputed.present,
-  absent: studentAttendanceComputed.absent,
-  leave: studentAttendanceComputed.leave,
-  workingDays: studentAttendanceComputed.workingDays,
-};
-
 export const STUDENT_ATTENDANCE_DEFAULTS = {
-  year: STUDENT_ATTENDANCE_YEAR,
-  month: STUDENT_ATTENDANCE_MONTH,
-  seed: STUDENT_ATTENDANCE_SEED,
+  /** Prefer `new Date()` at call sites — kept for older imports. */
+  get year() {
+    return new Date().getFullYear();
+  },
+  get month() {
+    return new Date().getMonth();
+  },
+  /** @deprecated Calendar seed removed — Registers are the only SoT. */
+  seed: 0,
 };
 
-// Month-over-month attendance delta, computed from the calendar rather than hardcoded.
-const studentAttendancePrevMonth = (() => {
-  const prev = shiftMonth(STUDENT_ATTENDANCE_YEAR, STUDENT_ATTENDANCE_MONTH, -1);
-  return computeAttendanceSummary(
-    buildStudentAttendanceDays(prev.year, prev.month, STUDENT_ATTENDANCE_SEED),
-    prev.year,
-    prev.month,
-  );
-})();
+/** @deprecated Prefer buildLearnerMonthAttendanceSummary from Registers. */
+export const studentAttendanceSummary = {
+  monthLabel: "",
+  year: STUDENT_ATTENDANCE_DEFAULTS.year,
+  month: STUDENT_ATTENDANCE_DEFAULTS.month,
+  attendancePct: 0,
+  classAvgPct: 0,
+  present: 0,
+  absent: 0,
+  leave: 0,
+  workingDays: 0,
+};
 
-export const studentAttendanceMonthDelta =
-  studentAttendanceComputed.attendancePct - studentAttendancePrevMonth.attendancePct;
+/** @deprecated Prefer computeLearnerMonthAttendanceDelta from Registers. */
+export const studentAttendanceMonthDelta = 0;
 
-export const studentAttendanceTrend = [
-  { week: "Week 1", pct: 88 },
-  { week: "Week 2", pct: 90 },
-  { week: "Week 3", pct: 94 },
-  { week: "Week 4", pct: 92 },
-];
+/** @deprecated Prefer buildLearnerAttendanceTrend from Registers. */
+export const studentAttendanceTrend: { week: string; pct: number }[] = [];
 
-export const studentAttendanceLog = [
-  { date: "30 May 2026", status: "present" as const, note: "All periods marked" },
-  { date: "29 May 2026", status: "present" as const, note: "All periods marked" },
-  { date: "28 May 2026", status: "present" as const, note: "All periods marked" },
-  { date: "27 May 2026", status: "leave" as const, note: "Approved medical leave" },
-  { date: "26 May 2026", status: "present" as const, note: "All periods marked" },
-];
+/** @deprecated Prefer buildLearnerAttendanceLog from Registers. */
+export const studentAttendanceLog: {
+  date: string;
+  status: "present" | "absent" | "leave";
+  note: string;
+}[] = [];

@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Bookmark, Briefcase, MapPin } from "lucide-react";
-import { Badge, Button } from "@lumenx/ui";
+import { Badge, Button, SimpleFileUpload, type SimpleUploadKind, type SimpleUploadValue } from "@lumenx/ui";
 import { cn } from "@lumenx/ui";
 import { useCareersAuth } from "@/careers-portal/core/CareersAuthProvider";
 import { isRecruiter } from "@/lib/careers/auth-utils";
@@ -230,39 +230,55 @@ export function ApplicationTimeline({
 export function DocumentUploadCard({
   label,
   fileName,
+  dataUrl,
   status,
+  kind = "document",
+  onChange,
   onUpload,
+  onClear,
 }: {
   label: string;
   fileName?: string;
+  dataUrl?: string;
   status?: string;
+  kind?: SimpleUploadKind;
+  onChange?: (next: SimpleUploadValue | null) => void;
+  /** Legacy: receives a File after validation/compression. Prefer onChange. */
   onUpload?: (file: File) => void;
+  onClear?: () => void;
 }) {
+  const value: SimpleUploadValue | null = fileName
+    ? {
+        fileName,
+        mimeType: fileName.toLowerCase().endsWith(".pdf") ? "application/pdf" : "image/jpeg",
+        size: 0,
+        dataUrl: dataUrl ?? "",
+      }
+    : null;
+
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-sm font-medium">{label}</p>
-          {fileName && <p className="text-xs text-muted-foreground mt-0.5 truncate">{fileName}</p>}
-          {status && (
-            <p className="text-xs text-primary mt-1 capitalize">{status.replace(/_/g, " ")}</p>
-          )}
-        </div>
-        <label className="cursor-pointer shrink-0">
-          <Button size="sm" variant="outline" asChild>
-            <span>{fileName ? "Replace" : "Upload"}</span>
-          </Button>
-          <input
-            type="file"
-            className="hidden"
-            accept=".pdf,.jpg,.jpeg,.png"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f && onUpload) onUpload(f);
-            }}
-          />
-        </label>
-      </div>
+    <div className="space-y-1.5">
+      {status ? (
+        <p className="text-xs text-primary capitalize">{status.replace(/_/g, " ")}</p>
+      ) : null}
+      <SimpleFileUpload
+        kind={kind}
+        label={label}
+        value={value}
+        onChange={(next) => {
+          onChange?.(next);
+          if (!next) {
+            onClear?.();
+            return;
+          }
+          if (!onUpload) return;
+          void (async () => {
+            const res = await fetch(next.dataUrl);
+            const blob = await res.blob();
+            onUpload(new File([blob], next.fileName, { type: next.mimeType }));
+          })();
+        }}
+      />
     </div>
   );
 }

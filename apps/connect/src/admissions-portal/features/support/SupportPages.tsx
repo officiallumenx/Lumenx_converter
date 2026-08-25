@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Button } from "@lumenx/ui";
+import { Button, TextSizeControl, LumenXFeedbackDialog } from "@lumenx/ui";
 import { getInitials } from "@lumenx/utils";
 import {
   Accordion,
@@ -11,7 +11,7 @@ import {
   Label,
   Textarea,
 } from "@lumenx/ui";
-import { Bell, Building2, Mail, MapPin, Phone } from "lucide-react";
+import { Bell, Building2, Mail, MapPin, MessageSquarePlus, Phone } from "lucide-react";
 import { toast } from "sonner";
 import { useAdmissionsAuth } from "@/admissions-portal/core/AdmissionsAuthProvider";
 import { useAdmissionsTheme } from "@/admissions-portal/core/AdmissionsThemeProvider";
@@ -21,6 +21,7 @@ import { AdmissionsPageHeader } from "@/admissions-portal/shared/ui/AdmissionsPa
 import {
   getApplicationsForUser,
   getNotifications,
+  getTransientParentConfirmationReminders,
   markNotificationRead,
   markAllNotificationsRead,
   uploadDocument,
@@ -99,16 +100,39 @@ const NOTIF_FILTERS = [
   { key: "all", label: "All" },
   { key: "application", label: "Applications" },
   { key: "document", label: "Documents" },
-  { key: "interview", label: "Interviews" },
+  { key: "confirmation", label: "Confirmations" },
   { key: "approval", label: "Decisions" },
   { key: "general", label: "General" },
 ] as const;
+
+const ADMISSIONS_TYPE_LABELS: Record<
+  | "application"
+  | "document"
+  | "confirmation"
+  | "approval"
+  | "rejection"
+  | "reminder"
+  | "general",
+  string
+> = {
+  application: "Application",
+  document: "Document",
+  confirmation: "Parent Confirmation",
+  approval: "Approval",
+  rejection: "Rejection",
+  reminder: "Reminder",
+  general: "General",
+};
 
 export function AdmissionsNotificationsPage() {
   const { user } = useAdmissionsAuth();
   const [filter, setFilter] = useState<(typeof NOTIF_FILTERS)[number]["key"]>("all");
   const [tick, setTick] = useState(0);
-  const items = user ? getNotifications(user.id) : [];
+  const persistedItems = user ? getNotifications(user.id) : [];
+  const transientReminders = user ? getTransientParentConfirmationReminders(user.id) : [];
+  const items = [...transientReminders, ...persistedItems].sort((a, b) =>
+    b.createdAt.localeCompare(a.createdAt),
+  );
   const filtered =
     filter === "all"
       ? items
@@ -171,12 +195,19 @@ export function AdmissionsNotificationsPage() {
               key={n.id}
               type="button"
               onClick={() => {
-                markNotificationRead(n.id);
+                if (!n.id.startsWith("transient-reminder-")) {
+                  markNotificationRead(n.id);
+                }
                 setTick((t) => t + 1);
               }}
               className={`w-full rounded-2xl border p-4 text-left transition-colors ${n.read ? "border-border bg-card" : "border-primary/20 bg-primary/5"}`}
             >
-              <p className="font-medium text-sm">{n.title}</p>
+              <p
+                className={`text-xs font-bold ${n.read ? "text-foreground" : "text-primary"}`}
+              >
+                {ADMISSIONS_TYPE_LABELS[n.type]}
+              </p>
+              <p className="mt-0.5 font-medium text-sm">{n.title}</p>
               <p className="mt-1 text-xs text-muted-foreground">{n.body}</p>
               <p className="mt-2 text-[10px] text-muted-foreground">
                 {new Date(n.createdAt).toLocaleString("en-IN")}
@@ -194,7 +225,6 @@ const FAQ_CATEGORIES: { key: FaqItem["category"]; label: string }[] = [
   { key: "programs", label: "Programs" },
   { key: "fees", label: "Fees" },
   { key: "documents", label: "Documents" },
-  { key: "interviews", label: "Interviews" },
   { key: "process", label: "Application process" },
 ];
 
@@ -367,47 +397,161 @@ export function AdmissionsProfilePage() {
 }
 
 export function AdmissionsSettingsPage() {
-  const { signOut } = useAdmissionsAuth();
+  const { user, signOut } = useAdmissionsAuth();
   const { theme, setTheme } = useAdmissionsTheme();
   const nav = useNavigate();
+  const isInstitute = user?.accountType === "institute_admin";
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+
+  const sections: {
+    title: string;
+    items: { label: string; to: string; desc?: string }[];
+  }[] = [
+    {
+      title: "Appearance",
+      items: [],
+    },
+    {
+      title: "Help & support",
+      items: [
+        { label: "FAQs", to: "/admissions/faq", desc: "Common admission questions" },
+        { label: "Help center", to: "/admissions/contact", desc: "Contact admissions support" },
+      ],
+    },
+    {
+      title: "Legal",
+      items: [
+        { label: "Terms & Conditions", to: "/admissions/terms" },
+        { label: "Privacy Policy", to: "/admissions/privacy" },
+      ],
+    },
+  ];
+
+  if (isInstitute) {
+    sections.splice(1, 0, {
+      title: "Institute",
+      items: [
+        {
+          label: "Institute profile",
+          to: "/admissions/institute/profile",
+          desc: "Public school information",
+        },
+        {
+          label: "Admission openings",
+          to: "/admissions/institute/openings",
+          desc: "Publish classes and seats",
+        },
+        {
+          label: "Application form",
+          to: "/admissions/institute/form",
+          desc: "Fields parents fill when applying",
+        },
+        {
+          label: "Applications",
+          to: "/admissions/institute/applications",
+          desc: "Review and assign stages",
+        },
+      ],
+    });
+    sections.splice(2, 0, {
+      title: "Reports",
+      items: [
+        {
+          label: "Applications summary",
+          to: "/admissions/institute",
+          desc: "Dashboard KPIs and recent activity",
+        },
+      ],
+    });
+  }
 
   return (
-    <div className="animate-in fade-in duration-300">
-      <AdmissionsPageHeader title="Settings" />
-      <div className="space-y-4">
-        <div className="rounded-2xl border border-border bg-card p-4">
-          <p className="text-sm font-medium mb-3">Theme</p>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant={theme === "light" ? "default" : "outline"}
-              onClick={() => setTheme("light")}
-            >
-              Light
-            </Button>
-            <Button
-              size="sm"
-              variant={theme === "dark" ? "default" : "outline"}
-              onClick={() => setTheme("dark")}
-            >
-              Dark
-            </Button>
-          </div>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Default is light mode for admissions.
+    <div className="animate-in fade-in duration-300 space-y-4">
+      <AdmissionsPageHeader
+        title="Settings"
+        subtitle={isInstitute ? "Institute admissions preferences" : "Your admissions preferences"}
+      />
+
+      <div className="rounded-2xl border border-border bg-card p-4">
+        <p className="text-sm font-medium mb-3">Appearance</p>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant={theme === "light" ? "default" : "outline"}
+            onClick={() => setTheme("light")}
+          >
+            Light
+          </Button>
+          <Button
+            size="sm"
+            variant={theme === "dark" ? "default" : "outline"}
+            onClick={() => setTheme("dark")}
+          >
+            Dark
+          </Button>
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Light or Dark. Default is Light. Does not follow system theme.
+        </p>
+        <div className="mt-4 space-y-2 border-t border-border pt-4">
+          <p className="text-sm font-medium">Text Size</p>
+          <p className="text-xs text-muted-foreground">
+            Small, Default, Large, or Extra Large. Default is Default.
           </p>
+          <TextSizeControl />
         </div>
-        <div className="rounded-2xl border border-border bg-card p-4 text-sm space-y-2">
-          <p className="font-medium">Legal</p>
-          <div className="flex flex-wrap gap-x-4 gap-y-2">
-            <Link to="/admissions/terms" className="text-primary font-medium hover:underline">
-              Terms & Conditions
-            </Link>
-            <Link to="/admissions/privacy" className="text-primary font-medium hover:underline">
-              Privacy Policy
-            </Link>
+      </div>
+
+      {sections
+        .filter((s) => s.title !== "Appearance")
+        .map((section) => (
+          <div key={section.title} className="rounded-2xl border border-border bg-card p-4">
+            <p className="text-sm font-medium mb-3">{section.title}</p>
+            <div className="space-y-1">
+              {section.items.map((item) => (
+                <Link
+                  key={`${section.title}-${item.label}`}
+                  to={item.to}
+                  className="flex items-start justify-between gap-3 rounded-xl px-3 py-2.5 hover:bg-muted/60 transition-colors"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">{item.label}</p>
+                    {item.desc ? (
+                      <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
+                    ) : null}
+                  </div>
+                  <span className="text-muted-foreground text-sm shrink-0">→</span>
+                </Link>
+              ))}
+              {section.title === "Help & support" ? (
+                <button
+                  type="button"
+                  onClick={() => setFeedbackOpen(true)}
+                  className="flex w-full items-start justify-between gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-muted/60 transition-colors"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium inline-flex items-center gap-1.5">
+                      <MessageSquarePlus className="size-3.5 text-primary" aria-hidden />
+                      LumenX Feedback
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Rating, bug, feature request, experience — goes to LumenX, not the school
+                    </p>
+                  </div>
+                  <span className="text-muted-foreground text-sm shrink-0">→</span>
+                </button>
+              ) : null}
+            </div>
           </div>
-        </div>
+        ))}
+
+      <LumenXFeedbackDialog
+        open={feedbackOpen}
+        onOpenChange={setFeedbackOpen}
+        source="admissions"
+      />
+
+      {user ? (
         <Button
           variant="destructive"
           className="w-full"
@@ -418,7 +562,11 @@ export function AdmissionsSettingsPage() {
         >
           Log out
         </Button>
-      </div>
+      ) : (
+        <Button className="w-full" asChild>
+          <Link to="/admissions/login">Sign in</Link>
+        </Button>
+      )}
     </div>
   );
 }

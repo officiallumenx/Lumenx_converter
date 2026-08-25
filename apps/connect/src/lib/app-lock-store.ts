@@ -60,7 +60,11 @@ function read(): AppLockState {
 }
 
 function write(state: AppLockState) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // Persist failed — keep in-memory snapshot so the session remains usable.
+  }
   snapshotCacheKey = snapshotKey(state);
   snapshotCache = state;
   listeners.forEach((l) => l());

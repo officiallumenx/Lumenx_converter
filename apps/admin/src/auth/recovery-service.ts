@@ -6,6 +6,7 @@
 import { DEMO_USERS, type DemoCredential } from "./constants";
 import { saveUserPin } from "./app-lock-store";
 import { isValidEmail, normalizeLoginIdentifier, isValidLoginIdentifier } from "./validation";
+import { normalizePhoneDigits } from "@lumenx/utils";
 
 const PASSWORD_OVERRIDES_KEY = "lx_password_overrides_v1";
 
@@ -39,13 +40,6 @@ export function resolveDemoPassword(credential: DemoCredential): string {
 export function findDemoUserByEmail(email: string): DemoCredential | null {
   const normalized = email.trim().toLowerCase();
   return DEMO_USERS.find((u) => u.email.toLowerCase() === normalized) ?? null;
-}
-
-function normalizePhoneDigits(value: string): string {
-  const digits = value.replace(/\D/g, "");
-  if (digits.length === 12 && digits.startsWith("91")) return digits.slice(2);
-  if (digits.length > 10) return digits.slice(-10);
-  return digits;
 }
 
 export function findDemoUserByIdentifier(identifier: string): DemoCredential | null {

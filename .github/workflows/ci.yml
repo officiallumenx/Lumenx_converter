@@ -20,6 +20,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Typecheck Connect
+        run: npm run typecheck:connect
+
+      - name: Lint Connect
+        run: npm run lint --workspace=@lumenx/app-connect
+
+      - name: Test Connect
+        run: npm run test:connect
+
       - name: Build Connect
         run: npm run build:connect
 
@@ -31,3 +40,6 @@ jobs:
 
       - name: Build Transport
         run: npm run build:transport
+
+      - name: Build Website
+        run: npm run build:website

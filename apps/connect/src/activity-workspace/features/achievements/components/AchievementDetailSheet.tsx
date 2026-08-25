@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Bell, Pencil, Send } from "lucide-react";
+import { Award, Bell, Pencil, Send } from "lucide-react";
 import {
   Badge,
   Button,
@@ -8,6 +8,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@lumenx/ui";
+import { toast } from "sonner";
+import { pushCertificateRecommendation } from "@lumenx/utils";
 import type { ActivityAchievement } from "@/lib/activity/achievements/types";
 import {
   ACHIEVEMENT_LEVEL_LABELS,
@@ -119,14 +121,34 @@ export function AchievementDetailSheet({
                 Award Achievement
               </Button>
             ) : (
-              <Button
-                variant="outline"
-                className="rounded-xl gap-2"
-                onClick={() => onNotify(achievement)}
-              >
-                <Bell className="size-4" />
-                Send notification (mock)
-              </Button>
+              <>
+                <Button
+                  className="rounded-xl gap-2"
+                  onClick={() => {
+                    pushCertificateRecommendation({
+                      achievementId: achievement.id,
+                      achievementTitle: achievement.title,
+                      achievementType: achievement.achievementType,
+                      studentId: achievement.studentId,
+                      studentName: achievement.studentName,
+                      studentClassLabel: achievement.studentClassLabel,
+                      recommendedBy: "Activity Teacher",
+                    });
+                    toast.success("Certificate recommendation sent to Admin for issue");
+                  }}
+                >
+                  <Award className="size-4" />
+                  Recommend Certificate
+                </Button>
+                <Button
+                  variant="outline"
+                  className="rounded-xl gap-2"
+                  onClick={() => onNotify(achievement)}
+                >
+                  <Bell className="size-4" />
+                  Send notification (mock)
+                </Button>
+              </>
             )}
           </div>
         </div>

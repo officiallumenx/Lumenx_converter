@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Button, Badge, Progress } from "@lumenx/ui";
+import { Button, Badge, Progress, SimpleFileUpload, type SimpleUploadValue } from "@lumenx/ui";
 import { Building2, Heart, MapPin, Star } from "lucide-react";
 import { cn } from "@lumenx/ui";
 import { useAdmissionsAuth } from "@/admissions-portal/core/AdmissionsAuthProvider";
@@ -164,19 +164,27 @@ export function DocumentVerificationCard({
   doc,
   onUpload,
   onPreview,
+  onClear,
 }: {
   doc: ApplicationDocument;
   onUpload?: (file: File) => void;
   onPreview?: () => void;
+  onClear?: () => void;
 }) {
+  const value: SimpleUploadValue | null = doc.fileName
+    ? {
+        fileName: doc.fileName,
+        mimeType: doc.fileName.toLowerCase().endsWith(".pdf") ? "application/pdf" : "image/jpeg",
+        size: 0,
+        dataUrl: doc.previewDataUrl ?? "",
+      }
+    : null;
+
   return (
     <div className="rounded-xl border border-border bg-card p-4 space-y-3">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-sm font-medium">{doc.label}</p>
-          {doc.fileName && (
-            <p className="text-xs text-muted-foreground mt-0.5 truncate">{doc.fileName}</p>
-          )}
           {doc.version && doc.version > 1 && (
             <p className="text-[10px] text-muted-foreground">Version {doc.version}</p>
           )}
@@ -206,27 +214,27 @@ export function DocumentVerificationCard({
           ))}
         </div>
       )}
-      <div className="flex flex-wrap gap-2">
-        {doc.fileName && onPreview && (
-          <Button size="sm" variant="outline" onClick={onPreview}>
-            Preview
-          </Button>
-        )}
-        <label className="cursor-pointer">
-          <Button size="sm" variant="outline" asChild>
-            <span>{doc.fileName ? "Replace" : "Upload"}</span>
-          </Button>
-          <input
-            type="file"
-            className="hidden"
-            accept=".pdf,.jpg,.jpeg,.png"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f && onUpload) onUpload(f);
-            }}
-          />
-        </label>
-      </div>
+      {doc.fileName && onPreview ? (
+        <Button size="sm" variant="outline" onClick={onPreview}>
+          Preview
+        </Button>
+      ) : null}
+      <SimpleFileUpload
+        kind="document"
+        value={value}
+        onChange={(next) => {
+          if (!next) {
+            onClear?.();
+            return;
+          }
+          if (!onUpload) return;
+          void (async () => {
+            const res = await fetch(next.dataUrl);
+            const blob = await res.blob();
+            onUpload(new File([blob], next.fileName, { type: next.mimeType }));
+          })();
+        }}
+      />
     </div>
   );
 }

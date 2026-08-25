@@ -10,35 +10,27 @@ export function AdminPageTransition({
   pageKey: string;
 }) {
   const busy = useRouterState({ select: (s) => s.isLoading || s.isTransitioning });
-  const [entering, setEntering] = useState(false);
+  const [showSkeleton, setShowSkeleton] = useState(false);
 
   useEffect(() => {
-    if (busy) {
-      setEntering(false);
+    const swipePaging = Boolean(document.documentElement.dataset.lxNavDir);
+    if (!busy || swipePaging) {
+      setShowSkeleton(false);
       return;
     }
-    setEntering(true);
-    const t = window.setTimeout(() => setEntering(false), 520);
+    const t = window.setTimeout(() => setShowSkeleton(true), 320);
     return () => window.clearTimeout(t);
   }, [busy, pageKey]);
 
-  const contentClass = [
-    "lx-page-content",
-    busy ? "lx-page-content--loading" : "",
-    entering ? "lx-page-content--enter" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-
   return (
-    <div className="relative min-h-[12rem]" aria-busy={busy || undefined}>
+    <div className="relative min-h-[12rem]" aria-busy={showSkeleton || undefined}>
       <div
-        className={`lx-page-skeleton-layer ${busy ? "lx-page-skeleton-layer--visible" : ""}`}
-        aria-hidden={!busy}
+        className={`lx-page-skeleton-layer ${showSkeleton ? "lx-page-skeleton-layer--visible" : ""}`}
+        aria-hidden={!showSkeleton}
       >
         <PageLoadingSkeleton />
       </div>
-      <div key={pageKey} className={contentClass}>
+      <div key={pageKey} className="lx-page-content">
         {children}
       </div>
     </div>

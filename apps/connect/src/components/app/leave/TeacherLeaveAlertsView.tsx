@@ -5,19 +5,17 @@ import { PageHeader } from "@/components/app/PageHeader";
 import { LeaveRequestCard } from "@/components/app/leave/LeaveRequestCard";
 import { leaveStore } from "@/lib/leave-store";
 import { alertStore } from "@/lib/alert-store";
+import { selectPendingLeaveRequests } from "@/lib/leave-utils";
 import { Badge } from "@lumenx/ui";
 
-/** Teacher-facing leave alerts with instant approve / reject / ignore actions. */
+/** Teacher-facing leave alerts with Accept / Ignore actions. */
 export function TeacherLeaveAlertsView() {
   useEffect(() => {
     leaveStore.init();
   }, []);
 
   const requests = useSyncExternalStore(leaveStore.subscribe, leaveStore.getAll, leaveStore.getAll);
-  const pending = useMemo(
-    () => requests.filter((request) => request.status === "pending"),
-    [requests],
-  );
+  const pending = useMemo(() => selectPendingLeaveRequests(requests), [requests]);
   const allAlerts = useSyncExternalStore(
     alertStore.subscribe,
     alertStore.getItems,
@@ -32,7 +30,7 @@ export function TeacherLeaveAlertsView() {
     <div className="min-w-0 max-w-full space-y-6">
       <PageHeader
         title="Leave alerts"
-        subtitle="Parent leave requests appear here · Approve, reject, or ignore — status updates instantly for parents"
+        subtitle="Parent leave requests appear here · Accept or Ignore — status updates instantly for parents"
         action={
           <Link
             to="/leave"

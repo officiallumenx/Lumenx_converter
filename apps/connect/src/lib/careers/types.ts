@@ -1,3 +1,7 @@
+import type { ContactInquiryStatus, InterviewMode } from "@lumenx/types";
+
+export type { ContactInquiryStatus, InterviewMode };
+
 export type JobCategory =
   | "academic_faculty"
   | "sports_faculty"
@@ -53,8 +57,6 @@ export type CareerDocumentType =
   | "profile_photo"
   | "demo_teaching_video"
   | "additional";
-
-export type InterviewMode = "in_person" | "phone" | "video";
 
 export type DemoClassEvaluationStatus =
   | "pending"
@@ -301,6 +303,8 @@ export interface InstituteCareerProfile {
   contact: { phone: string; email: string; address: string; hours: string };
   featured?: boolean;
   openRolesCount?: number;
+  /** Demo highlight flag for directory cards */
+  popular?: boolean;
 }
 
 export interface ApplicationDocument {
@@ -424,6 +428,7 @@ export interface CareersNotification {
   id: string;
   candidateId: string;
   applicationId?: string;
+  templateId?: string;
   title: string;
   body: string;
   type: CareersNotificationType;
@@ -466,8 +471,6 @@ export type ContactInquiryCategory =
   | "portal"
   | "general";
 
-export type ContactInquiryStatus = "open" | "answered" | "closed";
-
 export interface ContactInquiryResponse {
   id: string;
   from: string;
@@ -493,4 +496,4 @@ export interface ContactInquiry {
   responses: ContactInquiryResponse[];
 }
 
-export type CareersThemeMode = "light" | "dark" | "system";
+export type CareersThemeMode = "light" | "dark";

@@ -3,11 +3,18 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "sideEffects": ["./src/error-capture.ts"],
+  "sideEffects": [
+    "./src/error-capture.ts"
+  ],
   "exports": {
     ".": "./src/index.ts",
     "./error-page": "./src/error-page.ts",
-    "./error-capture": "./src/error-capture.ts"
+    "./error-capture": "./src/error-capture.ts",
+    "./subscription/policy": "./src/subscription/policy.ts",
+    "./subscription/pricing": "./src/subscription/pricing.ts"
+  },
+  "dependencies": {
+    "@lumenx/types": "*"
   },
   "devDependencies": {
     "typescript": "^5.8.3"

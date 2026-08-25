@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   Button,
@@ -11,24 +11,32 @@ import {
   SelectValue,
   Textarea,
   Badge,
+  cn,
 } from "@lumenx/ui";
 import {
   Building2,
   Calendar,
   ClipboardList,
   FileText,
+  Pencil,
   Plus,
+  Save,
   Trash2,
   Users,
   CheckCircle2,
   Clock,
+  X,
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import type { DemoInstituteProfile } from "@lumenx/types";
+import { applyInstituteProfileSyncMessage, normalizeInstituteProfile } from "@lumenx/utils";
 import { useAdmissionsAuth } from "@/admissions-portal/core/AdmissionsAuthProvider";
 import { AdmissionsPageHeader } from "@/admissions-portal/shared/ui/AdmissionsPageHeader";
 import { StatCard } from "@/components/app/StatCard";
-import { ApplicationStatusTimeline } from "@/admissions-portal/shared/ui/AdmissionsShellWidgets";
+import { AdminInstituteProfileEditor } from "@/admissions-portal/features/institutes/AdminInstituteProfileEditor";
+import { AdminInstituteProfileView } from "@/admissions-portal/features/institutes/AdminInstituteProfileView";
+import { InstituteApplicationDossier } from "@/admissions-portal/features/institute-admin/InstituteApplicationDossier";
 import {
   FORM_FIELD_TYPES,
   formFieldTypeLabel,
@@ -38,23 +46,51 @@ import {
   getInstituteProfileForAdmin,
   newFormFieldId,
   saveAdmissionForm,
-  saveInstituteSettingsOverride,
   updateApplicationByInstituteAdmin,
 } from "@/lib/admissions/institute-admin";
-import { getAllApplications, updateApplication } from "@/lib/admissions/repositories";
+import { getInstituteById } from "@/lib/admissions/institutes-data";
+import {
+  getAdmissionsInstituteProfile,
+  saveAdmissionsInstituteProfile,
+  subscribeSharedInstituteProfile,
+} from "@/lib/admissions/shared-institute-profile";
+import {
+  bulkDeleteInstituteWaitlist,
+  CORRECTION_FIELD_OPTIONS,
+  getAllApplications,
+  getInstituteWaitlist,
+  getWaitlistAgeDays,
+  getCorrectionFieldLabel,
+  moveApplicationToParentConfirmation,
+  requestApplicationCorrectionByInstitute,
+  updateApplication,
+} from "@/lib/admissions/repositories";
 import { statusLabel } from "@/lib/admissions/mock-data";
 import { statusTone } from "@/lib/admissions/status-utils";
-import type { AdmissionFormField, ApplicationStatus } from "@/lib/admissions/types";
+import {
+  adminStageToStatus,
+  applicationToSyncRow,
+  type AdminAdmissionStage,
+} from "@/lib/admissions/admin-bridge";
+import type { AdmissionFormField, CorrectionFieldPath } from "@/lib/admissions/types";
+import { ensureDemoOpenings, getOpeningsForInstitute } from "@/lib/admissions/openings-store";
 
-const REVIEW_STATUSES: ApplicationStatus[] = [
-  "submitted",
-  "under_review",
-  "document_verification",
-  "interview_scheduled",
-  "approved",
-  "waitlisted",
-  "rejected",
+const BOARD_STAGES: { id: AdminAdmissionStage; label: string }[] = [
+  { id: "submitted", label: "Submitted" },
+  { id: "review", label: "Review" },
+  { id: "verification", label: "Verification" },
+  { id: "parent_confirmation", label: "Parent Confirmation" },
+  { id: "waitlisted", label: "Waitlist" },
+  { id: "approved", label: "Approved" },
+  { id: "rejected", label: "Rejected" },
+  { id: "withdrawn", label: "Withdrawn" },
 ];
+
+type AdmissionBoardStage = (typeof BOARD_STAGES)[number]["id"];
+
+function toBoardStage(stage: AdminAdmissionStage): AdmissionBoardStage {
+  return stage;
+}
 
 function useInstituteContext() {
   const { user } = useAdmissionsAuth();
@@ -67,18 +103,31 @@ function useInstituteContext() {
 
 export function InstituteAdminDashboardPage() {
   const { user, instituteId, profile } = useInstituteContext();
+  const [refreshTick, setRefreshTick] = useState(0);
   const apps = getAllApplications();
   const stats = useMemo(() => getInstituteApplicationStats(instituteId, apps), [instituteId, apps]);
   const recent = useMemo(
     () => getApplicationsForInstitute(instituteId, apps).slice(0, 5),
     [instituteId, apps],
   );
+  const waitlist = useMemo(() => {
+    void refreshTick;
+    return getInstituteWaitlist(instituteId);
+  }, [instituteId, refreshTick]);
+  const waitlistOldestAge = useMemo(() => {
+    if (waitlist.length === 0) return 0;
+    return Math.max(...waitlist.map((app) => getWaitlistAgeDays(app) ?? 0));
+  }, [waitlist]);
+
+  useEffect(() => {
+    if (instituteId) ensureDemoOpenings(instituteId);
+  }, [instituteId]);
 
   return (
     <div className="animate-in fade-in duration-300 space-y-6">
       <AdmissionsPageHeader
         title={profile?.name ?? user?.instituteName ?? "Institute dashboard"}
-        subtitle="Admissions overview · manage applications & forms"
+        subtitle="Manage openings, forms, and applications"
       />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -93,42 +142,100 @@ export function InstituteAdminDashboardPage() {
         <StatCard label="Rejected" value={String(stats.rejected)} icon={XCircle} tone="warning" />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="rounded-2xl border border-border bg-card p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-semibold">Waitlist age</h3>
+            <p className="text-xs text-muted-foreground mt-1">
+              {waitlist.length} active · oldest {waitlistOldestAge} day(s)
+            </p>
+          </div>
+          <Button
+            variant="destructive"
+            size="sm"
+            disabled={waitlist.length === 0}
+            onClick={() => {
+              const deleted = bulkDeleteInstituteWaitlist(instituteId);
+              if (deleted === 0) {
+                toast.info("No waitlist applications to delete.");
+                return;
+              }
+              setRefreshTick((tick) => tick + 1);
+              toast.success(`Deleted ${deleted} waitlist application(s).`);
+            }}
+          >
+            Bulk Delete Waitlist
+          </Button>
+        </div>
+      </div>
+
+      {getOpeningsForInstitute(instituteId).filter((o) => o.status === "open").length === 0 ? (
+        <div className="rounded-2xl border border-primary/25 bg-primary/[0.04] p-4 sm:p-5">
+          <h2 className="text-sm font-semibold">Get started</h2>
+          <p className="mt-1 text-xs text-muted-foreground max-w-xl">
+            Publish a class opening so parents can apply. Then review applications here and
+            enroll approved students in LumenX Admin when you use that product.
+          </p>
+          <ol className="mt-3 space-y-1.5 text-xs text-muted-foreground list-decimal list-inside">
+            <li>Publish an opening with seats and a deadline</li>
+            <li>Adjust your application form if needed</li>
+            <li>Share your institute profile with parents</li>
+          </ol>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button size="sm" asChild>
+              <Link to="/admissions/institute/openings">Publish opening</Link>
+            </Button>
+            <Button size="sm" variant="outline" asChild>
+              <Link to="/admissions/institute/form">Application form</Link>
+            </Button>
+            <Button size="sm" variant="outline" asChild>
+              <Link to="/admissions/institute/profile">Institute profile</Link>
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="grid gap-4 lg:grid-cols-3">
         <div className="rounded-2xl border border-border bg-card p-4">
           <h2 className="font-semibold text-sm mb-3 flex items-center gap-2">
-            <Calendar className="size-4 text-primary" /> Admission dates
+            <Calendar className="size-4 text-primary" /> Institute profile
           </h2>
-          {profile?.admissionDates.length ? (
-            <ul className="space-y-2 text-sm">
-              {profile.admissionDates.map((d) => (
-                <li
-                  key={d.label}
-                  className="flex justify-between border-b border-border pb-2 last:border-0"
-                >
-                  <span className="text-muted-foreground">{d.label}</span>
-                  <span className="font-medium">{d.date}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-muted-foreground">No dates configured.</p>
-          )}
+          <p className="text-sm text-muted-foreground">
+            Keep vision, contact, and achievements up to date for parents.
+          </p>
           <Button variant="outline" size="sm" className="mt-4" asChild>
-            <Link to="/admissions/institute/profile">Edit institute profile</Link>
+            <Link to="/admissions/institute/profile">Edit profile</Link>
           </Button>
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-4">
           <h2 className="font-semibold text-sm mb-3 flex items-center gap-2">
-            <FileText className="size-4 text-primary" /> Admission form
+            <FileText className="size-4 text-primary" /> Form & openings
           </h2>
           <p className="text-sm text-muted-foreground">
-            {getAdmissionForm(instituteId).fields.length} custom field
-            {getAdmissionForm(instituteId).fields.length !== 1 ? "s" : ""} configured for
-            applicants.
+            {getAdmissionForm(instituteId).fields.length} form fields ·{" "}
+            {getOpeningsForInstitute(instituteId).filter((o) => o.status === "open").length}{" "}
+            published openings
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/admissions/institute/form">Application form</Link>
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/admissions/institute/openings">Openings</Link>
+            </Button>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <h2 className="font-semibold text-sm mb-3 flex items-center gap-2">
+            <Users className="size-4 text-primary" /> Applications
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Admissions pipeline: submitted → review → verification → parent confirmation.
           </p>
           <Button variant="outline" size="sm" className="mt-4" asChild>
-            <Link to="/admissions/institute/form">Manage form fields</Link>
+            <Link to="/admissions/institute/applications">Open applications</Link>
           </Button>
         </div>
       </div>
@@ -169,67 +276,113 @@ export function InstituteAdminDashboardPage() {
 
 export function InstituteApplicationsPage() {
   const { instituteId } = useInstituteContext();
-  const [statusFilter, setStatusFilter] = useState<ApplicationStatus | "all">("all");
   const apps = getAllApplications();
-  const list = useMemo(() => {
-    const base = getApplicationsForInstitute(instituteId, apps);
-    if (statusFilter === "all") return base;
-    return base.filter((a) => a.status === statusFilter);
-  }, [instituteId, apps, statusFilter]);
+  const list = useMemo(
+    () => getApplicationsForInstitute(instituteId, apps),
+    [instituteId, apps],
+  );
+  const [stageFilter, setStageFilter] = useState<AdmissionBoardStage | "all">("all");
+
+  const counts = useMemo(() => {
+    const map: Record<AdmissionBoardStage, number> = {
+      submitted: 0,
+      review: 0,
+      verification: 0,
+      parent_confirmation: 0,
+      waitlisted: 0,
+      approved: 0,
+      rejected: 0,
+      withdrawn: 0,
+    };
+    for (const app of list) {
+      map[toBoardStage(applicationToSyncRow(app).stage)] += 1;
+    }
+    return map;
+  }, [list]);
+
+  const filtered = useMemo(() => {
+    if (stageFilter === "all") return list;
+    return list.filter((a) => toBoardStage(applicationToSyncRow(a).stage) === stageFilter);
+  }, [list, stageFilter]);
 
   return (
-    <div className="animate-in fade-in duration-300">
+    <div className="animate-in fade-in duration-300 space-y-5">
       <AdmissionsPageHeader
-        title="Review applications"
-        subtitle={`${list.length} application${list.length !== 1 ? "s" : ""}`}
+        title="Applications"
+        subtitle={`${list.length} application${list.length !== 1 ? "s" : ""} received`}
       />
 
-      <div className="mb-4">
-        <Label className="text-xs text-muted-foreground">Filter by status</Label>
-        <Select
-          value={statusFilter}
-          onValueChange={(v) => setStatusFilter(v as ApplicationStatus | "all")}
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+        <button
+          type="button"
+          onClick={() => setStageFilter("all")}
+          aria-pressed={stageFilter === "all"}
+          className={cn(
+            "shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+            stageFilter === "all"
+              ? "border-primary bg-primary text-primary-foreground"
+              : "border-border bg-card text-muted-foreground hover:text-foreground",
+          )}
         >
-          <SelectTrigger className="mt-1 max-w-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            {REVIEW_STATUSES.map((s) => (
-              <SelectItem key={s} value={s}>
-                {statusLabel(s)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          All · {list.length}
+        </button>
+        {BOARD_STAGES.map((s) => (
+          <button
+            type="button"
+            key={s.id}
+            onClick={() => setStageFilter(s.id)}
+            aria-pressed={stageFilter === s.id}
+            className={cn(
+              "shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+              stageFilter === s.id
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border bg-card text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {s.label} · {counts[s.id]}
+          </button>
+        ))}
       </div>
 
       <div className="space-y-2">
-        {list.map((a) => (
-          <Link
-            key={a.id}
-            to="/admissions/institute/applications/$applicationId"
-            params={{ applicationId: a.id }}
-            className="block rounded-2xl border border-border bg-card p-4 hover:border-primary/30 transition-colors"
-          >
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <p className="font-semibold">{a.student.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {a.id} · {a.programName} · {a.grade}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Submitted{" "}
-                  {a.submittedAt ? new Date(a.submittedAt).toLocaleDateString("en-IN") : "—"}
-                </p>
+        {filtered.map((a) => {
+          const stage = toBoardStage(applicationToSyncRow(a).stage);
+          const stageLabel = BOARD_STAGES.find((s) => s.id === stage)?.label ?? stage;
+          return (
+            <Link
+              key={a.id}
+              to="/admissions/institute/applications/$applicationId"
+              params={{ applicationId: a.id }}
+              className="block rounded-2xl border border-border bg-card p-4 hover:border-primary/30 transition-colors"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-semibold">{a.student.name}</p>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    {a.programName}
+                    {a.grade ? ` · ${a.grade}` : ""}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {a.id} · Submitted{" "}
+                    {a.submittedAt
+                      ? new Date(a.submittedAt).toLocaleDateString("en-IN", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })
+                      : "—"}
+                  </p>
+                </div>
+                <Badge variant={statusTone(a.status)}>{stageLabel}</Badge>
               </div>
-              <Badge variant={statusTone(a.status)}>{statusLabel(a.status)}</Badge>
-            </div>
-          </Link>
-        ))}
-        {list.length === 0 && (
+            </Link>
+          );
+        })}
+        {filtered.length === 0 && (
           <p className="py-12 text-center text-sm text-muted-foreground">
-            No applications match this filter.
+            {list.length === 0
+              ? "No applications received yet."
+              : "No applications in this stage."}
           </p>
         )}
       </div>
@@ -239,12 +392,14 @@ export function InstituteApplicationsPage() {
 
 export function InstituteApplicationReviewPage({ applicationId }: { applicationId: string }) {
   const { instituteId } = useInstituteContext();
-  const apps = getAllApplications();
+  const [refreshTick, setRefreshTick] = useState(0);
+  const apps = useMemo(() => {
+    void refreshTick;
+    return getAllApplications();
+  }, [refreshTick]);
   const app = apps.find((a) => a.id === applicationId);
-
-  const [status, setStatus] = useState<ApplicationStatus>(app?.status ?? "submitted");
-  const [adminNote, setAdminNote] = useState("");
-  const [savedNotes, setSavedNotes] = useState<string[]>(app?.adminNotes ?? []);
+  const [correctionReason, setCorrectionReason] = useState("");
+  const [correctionFields, setCorrectionFields] = useState<CorrectionFieldPath[]>([]);
 
   if (!app || (app.instituteId ?? "ins-lumenx-academy") !== instituteId) {
     return (
@@ -257,17 +412,106 @@ export function InstituteApplicationReviewPage({ applicationId }: { applicationI
     );
   }
 
-  const saveReview = () => {
-    const notes = adminNote.trim() ? [...savedNotes, adminNote.trim()] : savedNotes;
+  const currentStage = toBoardStage(applicationToSyncRow(app).stage);
+  const canMoveToVerification = currentStage === "review";
+  const isVerificationStage = currentStage === "verification";
+  const canRejectFromVerification =
+    currentStage === "verification" ||
+    currentStage === "review" ||
+    currentStage === "submitted";
+
+  const moveToVerification = () => {
+    if (!canMoveToVerification) {
+      toast.error("This application is not in review stage.");
+      return;
+    }
     const updated = updateApplicationByInstituteAdmin(applicationId, apps, {
-      status,
-      adminNotes: notes,
+      status: adminStageToStatus("verification"),
+      adminNotes: app.adminNotes ?? [],
     });
-    if (updated) {
+    if (!updated) {
+      toast.error("Could not move to verification (invalid transition).");
+      return;
+    }
+    updateApplication(updated);
+    setRefreshTick((tick) => tick + 1);
+    toast.success("Moved to verification");
+  };
+
+  const moveToParentConfirmation = () => {
+    if (!isVerificationStage) {
+      toast.error("Verify action is available only in verification stage.");
+      return;
+    }
+    try {
+      const updated = moveApplicationToParentConfirmation(applicationId, "Institute admin");
       updateApplication(updated);
-      setSavedNotes(notes);
-      setAdminNote("");
-      toast.success("Review saved");
+      setRefreshTick((tick) => tick + 1);
+      toast.success("Verified and sent for parent confirmation");
+    } catch (error) {
+      if (error instanceof Error && error.message === "APPLICATION_NOT_IN_VERIFICATION") {
+        toast.error("Application is no longer in verification stage.");
+        return;
+      }
+      toast.error("Could not send parent confirmation.");
+    }
+  };
+
+  const rejectApplication = () => {
+    if (!canRejectFromVerification) {
+      toast.error("Cannot reject from current stage.");
+      return;
+    }
+    const updated = updateApplicationByInstituteAdmin(applicationId, apps, {
+      status: adminStageToStatus("rejected"),
+      adminNotes: app.adminNotes ?? [],
+    });
+    if (!updated) {
+      toast.error("Could not reject from current stage.");
+      return;
+    }
+    updateApplication(updated);
+    setRefreshTick((tick) => tick + 1);
+    toast.success("Application rejected");
+  };
+
+  const toggleCorrectionField = (field: CorrectionFieldPath) => {
+    setCorrectionFields((prev) =>
+      prev.includes(field) ? prev.filter((item) => item !== field) : [...prev, field],
+    );
+  };
+
+  const requestCorrection = () => {
+    if (!isVerificationStage) {
+      toast.error("Request correction is available only in verification stage.");
+      return;
+    }
+    if (!correctionReason.trim()) {
+      toast.error("Provide correction reason.");
+      return;
+    }
+    if (correctionFields.length === 0) {
+      toast.error("Select requested fields.");
+      return;
+    }
+    try {
+      const updated = requestApplicationCorrectionByInstitute({
+        applicationId,
+        reason: correctionReason.trim(),
+        requestedFields: correctionFields,
+        requestedBy: "Institute admin",
+      });
+      updateApplication(updated);
+      setCorrectionReason("");
+      setCorrectionFields([]);
+      setRefreshTick((tick) => tick + 1);
+      toast.success("Correction requested and parent notified.");
+    } catch (error) {
+      if (error instanceof Error && error.message === "APPLICATION_NOT_IN_VERIFICATION") {
+        toast.error("Application is no longer in verification stage.");
+        return;
+      }
+      toast.error("Could not request correction.");
     }
   };
 
@@ -275,94 +519,239 @@ export function InstituteApplicationReviewPage({ applicationId }: { applicationI
     <div className="animate-in fade-in duration-300 space-y-6">
       <AdmissionsPageHeader
         title={app.student.name}
-        subtitle={`${app.id} · ${app.programName} · ${app.grade}`}
+        subtitle={`${app.id} · ${app.programName} · ${app.grade} · Review`}
         backTo="/admissions/institute/applications"
       />
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-border bg-card p-4 space-y-3 text-sm">
-          <h3 className="font-semibold">Student</h3>
-          <Row label="Name" value={app.student.name} />
-          <Row label="DOB" value={app.student.dateOfBirth} />
-          <Row label="Gender" value={app.student.gender} />
-          <Row label="Blood group" value={app.student.bloodGroup} />
-          <h3 className="font-semibold pt-2">Parent / guardian</h3>
-          <Row label="Father" value={app.parent.fatherName} />
-          <Row label="Mother" value={app.parent.motherName} />
-          <Row label="Mobile" value={app.parent.mobile} />
-          <Row label="Email" value={app.parent.email} />
-          <h3 className="font-semibold pt-2">Academic</h3>
-          <Row label="Current school" value={app.academic.currentSchool} />
-          <Row label="Performance" value={app.academic.performance} />
+      <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+        <div className="mb-3">
+          <h3 className="font-semibold text-sm">Complete application</h3>
+          <p className="text-xs text-muted-foreground mt-1">
+            Review all details below before moving this application to verification.
+          </p>
         </div>
+        <InstituteApplicationDossier app={app} />
+      </div>
 
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-border bg-card p-4">
-            <h3 className="font-semibold text-sm mb-3">Update status</h3>
-            <Select value={status} onValueChange={(v) => setStatus(v as ApplicationStatus)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {REVIEW_STATUSES.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {statusLabel(s)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <div className="mt-4 space-y-2">
-              <Label className="text-xs">Add admin note</Label>
-              <Textarea
-                value={adminNote}
-                onChange={(e) => setAdminNote(e.target.value)}
-                placeholder="Internal note for this application…"
-                rows={3}
-              />
-            </div>
-            {savedNotes.length > 0 && (
-              <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
-                {savedNotes.map((n, i) => (
-                  <li key={i}>• {n}</li>
-                ))}
-              </ul>
-            )}
-            <Button className="mt-4 w-full" onClick={saveReview}>
-              Save review
+      <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+        <h3 className="font-semibold text-sm">Review action</h3>
+        <p className="text-xs text-muted-foreground mt-1">
+          Available actions depend on current stage.
+        </p>
+        <div className="mt-3">
+          <Row
+            label="Current stage"
+            value={BOARD_STAGES.find((s) => s.id === currentStage)?.label ?? currentStage}
+          />
+        </div>
+        <Button
+          className="mt-4 w-full sm:w-auto"
+          disabled={!canMoveToVerification}
+          onClick={moveToVerification}
+        >
+          Move to Verification
+        </Button>
+        {isVerificationStage ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button type="button" variant="outline" onClick={moveToParentConfirmation}>
+              Verify
+            </Button>
+            <Button type="button" variant="destructive" onClick={rejectApplication}>
+              Reject
             </Button>
           </div>
-
-          <div className="rounded-2xl border border-border bg-card p-4">
-            <h3 className="font-semibold text-sm mb-3">Timeline</h3>
-            <ApplicationStatusTimeline
-              events={app.timeline.map((e) => ({ label: e.label, at: e.at, note: e.note }))}
-            />
+        ) : null}
+        {!canMoveToVerification ? (
+          <p className="text-xs text-muted-foreground mt-2">
+            This screen is locked because the application is already outside review stage.
+          </p>
+        ) : null}
+        {isVerificationStage ? (
+          <div className="mt-4 rounded-xl border border-border p-3">
+            <h4 className="text-sm font-semibold">Request correction</h4>
+            <p className="text-xs text-muted-foreground mt-1">
+              Documents are reviewed together. Parent can edit only requested fields and resubmit.
+            </p>
+            <div className="mt-3 space-y-1.5">
+              <Label className="text-xs">Reason</Label>
+              <Textarea
+                rows={3}
+                value={correctionReason}
+                onChange={(event) => setCorrectionReason(event.target.value)}
+                placeholder="Explain what needs correction"
+              />
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {CORRECTION_FIELD_OPTIONS.map((field) => (
+                <label
+                  key={field.key}
+                  className="flex items-center gap-2 rounded-lg border border-border px-2 py-1.5 text-xs"
+                >
+                  <input
+                    type="checkbox"
+                    checked={correctionFields.includes(field.key)}
+                    onChange={() => toggleCorrectionField(field.key)}
+                  />
+                  <span>{field.label}</span>
+                </label>
+              ))}
+            </div>
+            <Button className="mt-3" type="button" onClick={requestCorrection}>
+              Request Correction
+            </Button>
           </div>
+        ) : null}
+      </div>
+
+      <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+        <h3 className="font-semibold text-sm">Documents</h3>
+        <p className="text-xs text-muted-foreground mt-1">
+          Documents stay at the bottom and support preview when available.
+        </p>
+        <div className="mt-3 space-y-2">
+          {app.documents.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No documents uploaded.</p>
+          ) : (
+            app.documents.map((doc) => (
+              <div
+                key={doc.id}
+                className="rounded-xl border border-border px-3 py-2 flex flex-wrap items-center justify-between gap-2"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">{doc.label}</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {doc.fileName || "No file"} · {doc.status.replace(/_/g, " ")}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    if (!doc.previewDataUrl) {
+                      toast.error("Preview unavailable for this file.");
+                      return;
+                    }
+                    window.open(doc.previewDataUrl, "_blank", "noopener,noreferrer");
+                  }}
+                >
+                  Preview
+                </Button>
+              </div>
+            ))
+          )}
         </div>
       </div>
+
+      {app.correctionHistory && app.correctionHistory.length > 0 ? (
+        <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+          <h3 className="font-semibold text-sm">Correction history</h3>
+          <ul className="mt-3 space-y-2 text-xs text-muted-foreground">
+            {[...app.correctionHistory].reverse().map((cycle) => (
+              <li key={cycle.id} className="rounded-lg border border-border px-3 py-2">
+                <p className="font-medium text-foreground">{cycle.reason}</p>
+                <p>
+                  Requested {new Date(cycle.requestedAt).toLocaleString("en-IN")}
+                  {cycle.resubmittedAt
+                    ? ` · Resubmitted ${new Date(cycle.resubmittedAt).toLocaleString("en-IN")}`
+                    : " · Awaiting resubmission"}
+                </p>
+                <p>
+                  Fields: {cycle.requestedFields.map((field) => getCorrectionFieldLabel(field)).join(", ")}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }
 
+function emptyInstituteDraft(
+  profile: ReturnType<typeof useInstituteContext>["profile"],
+  instituteName?: string,
+): DemoInstituteProfile {
+  return {
+    name: profile?.name ?? instituteName ?? "Your institute",
+    founded: "",
+    founder: "",
+    principal: "",
+    vision: profile?.about ?? "",
+    mission: profile?.tagline ?? "",
+    ranking: "",
+    logo: "",
+    profilePhoto: "",
+    phone: profile?.contact.phone ?? "",
+    email: profile?.contact.email ?? "",
+    address: profile?.contact.address ?? "",
+    history: [],
+    awards: [],
+    achievements: [],
+    customFields: [],
+  };
+}
+
 export function InstituteSettingsPage() {
   const { user, instituteId, profile } = useInstituteContext();
-  const display = profile ?? {
-    name: user?.instituteName ?? "Your institute",
-    code: "—",
-    city: "",
-    state: "",
-    tagline: "",
-    about: "",
-    contact: { phone: "", email: "", address: "" },
-    admissionDates: [] as { label: string; date: string }[],
-  };
+  const catalogInstitute = instituteId ? getInstituteById(instituteId) : undefined;
+  const isStandaloneInstitute = instituteId.startsWith("ins-custom-");
+  const isLumenxInstitute = !isStandaloneInstitute;
+  const [savedProfile, setSavedProfile] = useState<DemoInstituteProfile | null>(null);
+  const [draft, setDraft] = useState<DemoInstituteProfile | null>(null);
+  const [editing, setEditing] = useState(false);
+  const editingRef = useRef(false);
+  editingRef.current = editing;
 
-  const [tagline, setTagline] = useState(display.tagline);
-  const [about, setAbout] = useState(display.about);
-  const [phone, setPhone] = useState(display.contact.phone);
-  const [email, setEmail] = useState(display.contact.email);
-  const [address, setAddress] = useState(display.contact.address);
-  const [dates, setDates] = useState(display.admissionDates);
+  useEffect(() => {
+    if (!instituteId) return;
+    if (isStandaloneInstitute) {
+      const existing = getAdmissionsInstituteProfile(instituteId);
+      setSavedProfile(existing);
+      setDraft(existing ?? emptyInstituteDraft(profile, user?.instituteName));
+      setEditing(false);
+      return subscribeSharedInstituteProfile(instituteId, (next) => {
+        setSavedProfile(next);
+        if (!editingRef.current) setDraft(next);
+      });
+    }
+
+    const autoProfile = normalizeInstituteProfile({
+      ...emptyInstituteDraft(profile, user?.instituteName),
+      name: profile?.name ?? catalogInstitute?.name ?? user?.instituteName ?? "LumenX Institute",
+      founded: catalogInstitute?.established ?? "",
+      vision: profile?.about ?? catalogInstitute?.about ?? "",
+      mission: profile?.tagline ?? catalogInstitute?.tagline ?? "",
+      phone: profile?.contact.phone ?? catalogInstitute?.contact.phone ?? "",
+      email: profile?.contact.email ?? catalogInstitute?.contact.email ?? "",
+      address: profile?.contact.address ?? catalogInstitute?.contact.address ?? "",
+    });
+    const synced = saveAdmissionsInstituteProfile(instituteId, autoProfile);
+    setSavedProfile(synced);
+    setDraft(synced);
+    setEditing(false);
+    return subscribeSharedInstituteProfile(instituteId, (next) => {
+      setSavedProfile(next);
+      if (!editingRef.current) setDraft(next);
+    });
+    // Only re-seed when institute changes — `profile` is a new object each render
+    // for custom institutes and would cancel Edit mode.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
+    // Re-seed only when institute context changes; avoids rerender loops.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [instituteId, isStandaloneInstitute, user?.instituteName]);
+
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      const applied = applyInstituteProfileSyncMessage(event.data);
+      if (applied && instituteId) {
+        setSavedProfile(applied);
+        if (!editingRef.current) setDraft(applied);
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [instituteId]);
 
   if (!user || user.accountType !== "institute_admin") {
     return (
@@ -383,106 +772,165 @@ export function InstituteSettingsPage() {
     );
   }
 
+  if (!draft) {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">Loading profile…</div>
+    );
+  }
+
+  const startEdit = () => {
+    if (isLumenxInstitute) return;
+    if (!savedProfile) return;
+    setDraft(normalizeInstituteProfile(savedProfile));
+    setEditing(true);
+  };
+
+  const cancelEdit = () => {
+    if (savedProfile) {
+      setDraft(normalizeInstituteProfile(savedProfile));
+    }
+    setEditing(false);
+  };
+
   const save = () => {
-    saveInstituteSettingsOverride(instituteId, {
-      tagline,
-      about,
-      contact: { phone, email, address },
-      admissionDates: dates,
+    if (isLumenxInstitute) {
+      toast.info("LumenX institute profiles are auto-populated.");
+      return;
+    }
+    const cleaned = normalizeInstituteProfile({
+      ...draft,
+      achievements: draft.achievements.map((a) => a.trim()).filter(Boolean),
+      history: draft.history.filter((h) => h.year.trim() || h.event.trim()),
+      awards: draft.awards.filter((a) => a.title.trim() || a.year.trim() || a.body.trim()),
+      customFields: (draft.customFields ?? [])
+        .map((section) => ({
+          ...section,
+          title: section.title.trim(),
+          entries: section.entries
+            .map((entry) => ({
+              ...entry,
+              heading: entry.heading.trim(),
+              year: (entry.year ?? "").trim(),
+              subheading: "",
+              fields: entry.fields
+                .map((field) => ({
+                  ...field,
+                  label: "",
+                  value: field.value.trim(),
+                }))
+                .filter((field) => field.value.length > 0),
+            }))
+            .filter(
+              (entry) =>
+                entry.heading.length > 0 ||
+                entry.year.length > 0 ||
+                entry.fields.length > 0,
+            ),
+        }))
+        .filter((section) => section.title.length > 0),
     });
+    saveAdmissionsInstituteProfile(instituteId, cleaned);
+    setSavedProfile(cleaned);
+    setDraft(cleaned);
+    setEditing(false);
     toast.success("Institute profile saved");
   };
 
-  const addDate = () => setDates((d) => [...d, { label: "", date: "" }]);
-  const removeDate = (i: number) => setDates((d) => d.filter((_, idx) => idx !== i));
-  const updateDate = (i: number, field: "label" | "date", value: string) => {
-    setDates((d) => d.map((row, idx) => (idx === i ? { ...row, [field]: value } : row)));
-  };
+  const display = (editing ? draft : savedProfile) ?? draft;
 
   return (
     <div className="animate-in fade-in duration-300 space-y-6">
       <AdmissionsPageHeader
         title="Institute profile"
-        subtitle="Edit public profile & admission dates"
+        subtitle={
+          isLumenxInstitute
+            ? "LumenX institute profile is auto-populated"
+            : "Standalone institute profile is manually managed"
+        }
         backTo="/admissions/institute"
       />
 
-      <div className="rounded-2xl border border-border bg-card p-4 sm:p-6 space-y-4">
-        <div className="flex items-center gap-3 pb-2 border-b border-border">
-          <div className="flex size-12 items-center justify-center rounded-xl bg-primary/10">
+      <div className="rounded-2xl border border-border bg-card p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary/10">
             <Building2 className="size-6 text-primary" />
           </div>
-          <div>
-            <p className="font-bold">{display.name}</p>
+          <div className="min-w-0">
+            <p className="font-bold truncate">{display.name || profile?.name || "Your institute"}</p>
             <p className="text-xs text-muted-foreground">
-              {display.code}
-              {display.city || display.state
-                ? ` · ${display.city}${display.city && display.state ? ", " : ""}${display.state}`
-                : ""}
+              {isLumenxInstitute
+                ? "Auto-populated from LumenX institute profile"
+                : "Manually managed standalone institute profile"}
+              {profile?.code ? ` · ${profile.code}` : ""}
             </p>
           </div>
         </div>
-
-        <Field label="Tagline">
-          <Input
-            value={tagline}
-            onChange={(e) => setTagline(e.target.value)}
-            placeholder="Short catchy line"
-          />
-        </Field>
-        <Field label="About">
-          <Textarea value={about} onChange={(e) => setAbout(e.target.value)} rows={4} />
-        </Field>
-        <Field label="Phone">
-          <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
-        </Field>
-        <Field label="Email">
-          <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-        </Field>
-        <Field label="Address">
-          <Textarea value={address} onChange={(e) => setAddress(e.target.value)} rows={2} />
-        </Field>
-
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <Label className="text-sm font-semibold">Important admission dates</Label>
-            <Button type="button" variant="outline" size="sm" onClick={addDate}>
-              <Plus className="size-4 mr-1" /> Add date
-            </Button>
-          </div>
-          <div className="space-y-2">
-            {dates.map((d, i) => (
-              <div key={i} className="flex gap-2 items-start">
-                <Input
-                  className="flex-1"
-                  placeholder="Label"
-                  value={d.label}
-                  onChange={(e) => updateDate(i, "label", e.target.value)}
-                />
-                <Input
-                  className="flex-1"
-                  placeholder="Date"
-                  value={d.date}
-                  onChange={(e) => updateDate(i, "date", e.target.value)}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeDate(i)}
-                  aria-label="Remove"
-                >
-                  <Trash2 className="size-4 text-destructive" />
+        <div className="flex flex-wrap gap-2">
+          {isLumenxInstitute ? (
+            <>
+              <Button variant="outline" asChild>
+                <Link to="/admissions/institutes/$instituteId" params={{ instituteId }}>
+                  Preview public page
+                </Link>
+              </Button>
+              <Button variant="outline" disabled>
+                Auto-populated
+              </Button>
+            </>
+          ) : editing ? (
+            <>
+              <Button variant="outline" onClick={cancelEdit}>
+                <X className="size-4 mr-1" /> Cancel
+              </Button>
+              <Button onClick={save}>
+                <Save className="size-4 mr-1" /> Save profile
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="outline" asChild>
+                <Link to="/admissions/institutes/$instituteId" params={{ instituteId }}>
+                  Preview public page
+                </Link>
+              </Button>
+              {savedProfile ? (
+                <Button onClick={startEdit}>
+                  <Pencil className="size-4 mr-1" /> Edit profile
                 </Button>
-              </div>
-            ))}
-          </div>
+              ) : (
+                <Button
+                  onClick={() => {
+                    setDraft(emptyInstituteDraft(profile, user?.instituteName));
+                    setEditing(true);
+                  }}
+                >
+                  <Pencil className="size-4 mr-1" /> Create profile
+                </Button>
+              )}
+            </>
+          )}
         </div>
-
-        <Button className="w-full sm:w-auto" onClick={save}>
-          Save changes
-        </Button>
       </div>
+
+      {!savedProfile && !isLumenxInstitute ? (
+        <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
+          <p className="text-sm text-muted-foreground">
+            No profile yet. Create your standalone institute profile manually.
+          </p>
+          <Button
+            onClick={() => {
+              setDraft(emptyInstituteDraft(profile, user?.instituteName));
+              setEditing(true);
+            }}
+          >
+            Create profile
+          </Button>
+        </div>
+      ) : editing ? (
+        <AdminInstituteProfileEditor value={draft} onChange={setDraft} />
+      ) : (
+        savedProfile && <AdminInstituteProfileView profile={savedProfile} />
+      )}
     </div>
   );
 }
@@ -542,8 +990,8 @@ export function AdmissionFormBuilderPage() {
   return (
     <div className="animate-in fade-in duration-300 space-y-6">
       <AdmissionsPageHeader
-        title="Admission form builder"
-        subtitle="Add custom fields · mark mandatory or optional"
+        title="Application form"
+        subtitle="Choose what parents fill in when they apply · mark required or optional"
         backTo="/admissions/institute"
       />
 

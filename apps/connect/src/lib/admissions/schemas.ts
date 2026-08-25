@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isStrongPassword } from "./password-strength";
 
 export const studentStepSchema = z.object({
   name: z.string().min(2, "Student name is required"),
@@ -43,7 +44,24 @@ export const signUpProfileSchema = z.object({
   email: z.string().email().optional().or(z.literal("")),
 });
 
-export const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
+/** Strong password: 8+ chars, upper, lower, number. */
+export const passwordSchema = z
+  .string()
+  .min(8, "Password must be at least 8 characters")
+  .refine((p) => /[A-Z]/.test(p), "Include at least one uppercase letter")
+  .refine((p) => /[a-z]/.test(p), "Include at least one lowercase letter")
+  .refine((p) => /[0-9]/.test(p), "Include at least one number")
+  .refine((p) => isStrongPassword(p), "Password is not strong enough");
+
+export const signupPasswordSchema = z
+  .object({
+    password: passwordSchema,
+    confirmPassword: z.string().min(1, "Re-enter your password"),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
 
 export const termsAcceptanceSchema = z.object({
   acceptedTerms: z.literal(true, {
@@ -53,19 +71,22 @@ export const termsAcceptanceSchema = z.object({
   }),
 });
 
-export const signupWithTermsSchema = z.object({
-  password: passwordSchema,
-  acceptedTerms: z.literal(true, {
-    errorMap: () => ({
-      message: "You must accept the Terms & Conditions and Privacy Policy.",
-    }),
-  }),
-});
+export const signupWithTermsSchema = signupPasswordSchema.and(termsAcceptanceSchema);
 
 export const signInSchema = z.object({
-  identifier: z.string().min(3, "Enter mobile or email"),
+  identifier: z.string().min(3, "Enter mobile number"),
   password: z.string().min(1, "Password is required"),
 });
+
+export const SYLLABUS_OPTIONS = [
+  "SSC",
+  "CBSE",
+  "ICSE",
+  "IB",
+  "Cambridge",
+  "State board",
+  "K–12 / Other",
+] as const;
 
 export const APPLY_STEPS = [
   "Student Information",

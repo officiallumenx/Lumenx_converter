@@ -1,80 +1,306 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
-import { Card, CardHeader, Kpi, Button } from "@lumenx/ui-admin";
-import { Archive, Trash2 } from "lucide-react";
+import {
+  Button,
+  Card,
+  CardHeader,
+  Field,
+  FormGrid,
+  Kpi,
+  PageToolbar,
+  Pill,
+  SegmentedControl,
+  TextInput,
+  ToolbarGroup,
+  ToolbarMeta,
+  ToolbarSpacer,
+} from "@lumenx/ui-admin";
+import { HardDrive, Save } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { subscribeInstituteDirectory } from "@/lib/institute-directory-store";
+import { subscribeLicenses } from "@/lib/institute-licensing-store";
+import {
+  DEFAULT_PLAN_STORAGE_LIMITS,
+  QUOTA_WARNING_PCT,
+  formatGb,
+  labelQuotaStatus,
+  listInstituteStorageQuotas,
+  loadPlanStorageLimits,
+  quotaStatusTone,
+  savePlanStorageLimits,
+  storageQuotaStats,
+  subscribeStorageQuotas,
+  type PlanStorageLimits,
+  type QuotaStatus,
+} from "@/lib/storage-quota-store";
 
 export const Route = createFileRoute("/storage")({
-  head: () => ({ meta: [{ title: "Storage — LumenX Nexus" }] }),
-  component: StoragePage,
+  head: () => ({ meta: [{ title: "Storage Quotas — LumenX Nexus" }] }),
+  component: StorageQuotasPage,
 });
 
-const breakdown = [
-  { label: "Assignments", size: 412, pct: 34, color: "bg-primary" },
-  { label: "Media (photos, video)", size: 286, pct: 24, color: "bg-chart-5" },
-  { label: "Documents", size: 184, pct: 15, color: "bg-success" },
-  { label: "Exam papers", size: 142, pct: 12, color: "bg-warning" },
-  { label: "Profile assets", size: 86, pct: 7, color: "bg-chart-2" },
-  { label: "Other", size: 90, pct: 8, color: "bg-muted-foreground" },
-];
+type StatusFilter = "all" | QuotaStatus;
 
-function StoragePage() {
+function StorageQuotasPage() {
+  const [tick, setTick] = useState(0);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [draftLimits, setDraftLimits] = useState<PlanStorageLimits>(() => loadPlanStorageLimits());
+  const [savedFlash, setSavedFlash] = useState<string | null>(null);
+
+  useEffect(() => {
+    const a = subscribeStorageQuotas(() => setTick((t) => t + 1));
+    const b = subscribeInstituteDirectory(() => setTick((t) => t + 1));
+    const c = subscribeLicenses(() => setTick((t) => t + 1));
+    return () => {
+      a();
+      b();
+      c();
+    };
+  }, []);
+
+  useEffect(() => {
+    setDraftLimits(loadPlanStorageLimits());
+  }, [tick]);
+
+  const limits = useMemo(() => loadPlanStorageLimits(), [tick]);
+  const rows = useMemo(() => listInstituteStorageQuotas(limits), [limits, tick]);
+  const stats = useMemo(() => storageQuotaStats(rows), [rows]);
+
+  const filtered = useMemo(
+    () => (statusFilter === "all" ? rows : rows.filter((r) => r.quotaStatus === statusFilter)),
+    [rows, statusFilter],
+  );
+
+  const dirty =
+    draftLimits.core !== limits.core ||
+    draftLimits.plus !== limits.plus ||
+    draftLimits.max !== limits.max;
+
+  function saveLimits() {
+    savePlanStorageLimits(draftLimits, limits);
+    setSavedFlash("Plan storage limits saved");
+    setTick((t) => t + 1);
+    window.setTimeout(() => setSavedFlash(null), 2000);
+  }
+
   return (
-    <AppShell title="Cloud Storage" subtitle="Manage assets, archives, and storage health">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Kpi label="Used" value="1.2 TB" delta="of 2 TB" />
-        <Kpi label="Available" value="822 GB" delta="40% free" tone="up" />
-        <Kpi label="Files" value="48,294" delta="+312 today" />
-        <Kpi label="Archived" value="218 GB" delta="Cold tier" />
+    <AppShell
+      title="Storage Quotas"
+      subtitle="Plan limits and institute usage · Admin manages files · Nexus monitors quota"
+    >
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+        <Kpi
+          label="Institutes monitored"
+          value={String(stats.institutes)}
+          icon={<HardDrive className="size-3.5" />}
+        />
+        <Kpi label="Total used" value={formatGb(stats.totalUsedGb)} delta={`of ${formatGb(stats.totalLimitGb)}`} />
+        <Kpi label="Within quota" value={String(stats.ok)} tone="up" />
+        <Kpi
+          label="Quota warning"
+          value={String(stats.warning)}
+          tone={stats.warning ? "down" : "neutral"}
+          delta={`≥ ${QUOTA_WARNING_PCT}%`}
+        />
+        <Kpi
+          label="Quota exceeded"
+          value={String(stats.exceeded)}
+          tone={stats.exceeded ? "down" : "up"}
+        />
       </div>
 
-      <div className="grid grid-cols-12 gap-4 mt-6">
-        <Card className="col-span-12 lg:col-span-7">
-          <CardHeader title="Storage Breakdown" />
-          <div className="px-5 pb-5">
-            <div className="flex h-3 rounded-full overflow-hidden bg-muted">
-              {breakdown.map((b) => <div key={b.label} className={b.color} style={{ width: `${b.pct}%` }} />)}
-            </div>
-            <div className="mt-5 space-y-3">
-              {breakdown.map((b) => (
-                <div key={b.label} className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2.5">
-                    <span className={`size-2.5 rounded-sm ${b.color}`} />
-                    <span>{b.label}</span>
+      <div className="grid grid-cols-12 gap-4 mb-6">
+        <Card className="col-span-12 lg:col-span-5">
+          <CardHeader
+            title="Plan storage limits"
+            hint="Core / Plus / Max ceilings in GB"
+            action={
+              dirty ? (
+                <Button variant="primary" onClick={saveLimits}>
+                  <Save className="size-3.5" /> Save limits
+                </Button>
+              ) : (
+                <Pill tone="success">Saved</Pill>
+              )
+            }
+          />
+          <div className="px-5 pb-5 space-y-4">
+            {savedFlash && <p className="text-xs text-success">{savedFlash}</p>}
+            <FormGrid>
+              <Field label="Core (GB)">
+                <TextInput
+                  type="number"
+                  min={1}
+                  value={String(draftLimits.core)}
+                  onChange={(e) =>
+                    setDraftLimits((d) => ({ ...d, core: Number(e.target.value) || 0 }))
+                  }
+                />
+              </Field>
+              <Field label="Plus (GB)">
+                <TextInput
+                  type="number"
+                  min={1}
+                  value={String(draftLimits.plus)}
+                  onChange={(e) =>
+                    setDraftLimits((d) => ({ ...d, plus: Number(e.target.value) || 0 }))
+                  }
+                />
+              </Field>
+              <Field label="Max (GB)" className="sm:col-span-2">
+                <TextInput
+                  type="number"
+                  min={1}
+                  value={String(draftLimits.max)}
+                  onChange={(e) =>
+                    setDraftLimits((d) => ({ ...d, max: Number(e.target.value) || 0 }))
+                  }
+                />
+              </Field>
+            </FormGrid>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              {(["core", "plus", "max"] as const).map((tier) => (
+                <div key={tier} className="rounded-md border border-border bg-background/40 px-2 py-2">
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-mono">
+                    {tier}
                   </div>
-                  <div className="flex items-center gap-4 text-muted-foreground">
-                    <span className="font-mono">{b.size} GB</span>
-                    <span className="font-mono w-10 text-right">{b.pct}%</span>
-                  </div>
+                  <div className="text-sm font-mono mt-1">{limits[tier]} GB</div>
                 </div>
               ))}
             </div>
+            <p className="text-[10px] text-muted-foreground leading-relaxed">
+              Defaults: Core {DEFAULT_PLAN_STORAGE_LIMITS.core} GB · Plus{" "}
+              {DEFAULT_PLAN_STORAGE_LIMITS.plus} GB · Max {DEFAULT_PLAN_STORAGE_LIMITS.max} GB. Changing
+              limits does not delete institute files.
+            </p>
           </div>
         </Card>
 
-        <Card className="col-span-12 lg:col-span-5">
-          <CardHeader title="Maintenance" hint="Reclaim space and archive old data" />
-          <div className="px-5 pb-5 space-y-3">
-            <div className="p-4 rounded-lg border border-border bg-background/40 flex items-center justify-between">
-              <div>
-                <div className="text-xs font-medium">Archive completed term 1 assignments</div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">Free up ~84 GB</div>
+        <Card className="col-span-12 lg:col-span-7">
+          <CardHeader title="Platform quota signal" hint="Aggregated across live institutes" />
+          <div className="px-5 pb-5 space-y-4">
+            <div>
+              <div className="flex justify-between text-xs mb-1.5">
+                <span className="text-muted-foreground">Network used vs allotted</span>
+                <span className="font-mono">
+                  {formatGb(stats.totalUsedGb)} / {formatGb(stats.totalLimitGb)}
+                </span>
               </div>
-              <Button><Archive className="size-3.5" /> Archive</Button>
-            </div>
-            <div className="p-4 rounded-lg border border-border bg-background/40 flex items-center justify-between">
-              <div>
-                <div className="text-xs font-medium">Remove duplicate media files</div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">142 duplicates · ~38 GB</div>
+              <div className="h-2.5 rounded-full bg-muted overflow-hidden">
+                <div
+                  className={`h-full ${
+                    stats.totalLimitGb > 0 && stats.totalUsedGb / stats.totalLimitGb >= 1
+                      ? "bg-destructive"
+                      : stats.totalLimitGb > 0 &&
+                          (stats.totalUsedGb / stats.totalLimitGb) * 100 >= QUOTA_WARNING_PCT
+                        ? "bg-warning"
+                        : "bg-primary"
+                  }`}
+                  style={{
+                    width: `${Math.min(100, stats.totalLimitGb > 0 ? (stats.totalUsedGb / stats.totalLimitGb) * 100 : 0)}%`,
+                  }}
+                />
               </div>
-              <Button variant="danger"><Trash2 className="size-3.5" /> Delete</Button>
             </div>
-            <div className="p-4 rounded-lg border border-warning/20 bg-warning/5">
-              <div className="text-xs font-medium text-warning">Approaching 60% capacity</div>
-              <div className="text-[10px] text-muted-foreground mt-1">Consider upgrading branch plan or archiving older terms.</div>
+            <div className="rounded-md border border-border bg-muted/20 px-4 py-3 text-[11px] text-muted-foreground leading-relaxed">
+              Nexus does <span className="text-foreground font-medium">not</span> manage homework,
+              documents, or media files. Admin continues file operations inside each institute. This
+              surface only sets plan ceilings and monitors usage against them.
             </div>
           </div>
         </Card>
       </div>
+
+      <Card className="mb-4">
+        <PageToolbar>
+          <ToolbarGroup>
+            <SegmentedControl
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={[
+                { value: "all", label: "All" },
+                { value: "ok", label: "Within quota" },
+                { value: "warning", label: "Warning" },
+                { value: "exceeded", label: "Exceeded" },
+              ]}
+            />
+          </ToolbarGroup>
+          <ToolbarSpacer />
+          <ToolbarMeta>{filtered.length} institutes</ToolbarMeta>
+        </PageToolbar>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Institute storage quotas"
+          hint="Usage · limit · % used · remaining · status"
+        />
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="text-[10px] uppercase tracking-wider text-muted-foreground bg-background/40 border-b border-border">
+                <th className="px-5 py-3 font-semibold">Institute</th>
+                <th className="px-5 py-3 font-semibold">Plan</th>
+                <th className="px-5 py-3 font-semibold text-right">Used</th>
+                <th className="px-5 py-3 font-semibold text-right">Limit</th>
+                <th className="px-5 py-3 font-semibold text-right">% used</th>
+                <th className="px-5 py-3 font-semibold text-right">Remaining</th>
+                <th className="px-5 py-3 font-semibold">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-5 py-10 text-center text-xs text-muted-foreground">
+                    No institutes match this filter.
+                  </td>
+                </tr>
+              ) : (
+                filtered.map((r) => (
+                  <tr key={r.instituteId} className="hover:bg-surface-hover">
+                    <td className="px-5 py-3">
+                      <Link
+                        to="/institutes/$id"
+                        params={{ id: r.instituteId }}
+                        className="text-xs font-medium text-primary hover:underline"
+                      >
+                        {r.instituteName}
+                      </Link>
+                      <div className="text-[10px] text-muted-foreground">{r.location}</div>
+                    </td>
+                    <td className="px-5 py-3 text-xs">{r.planLabel}</td>
+                    <td className="px-5 py-3 text-xs font-mono text-right">{formatGb(r.usedGb)}</td>
+                    <td className="px-5 py-3 text-xs font-mono text-right">{formatGb(r.limitGb)}</td>
+                    <td className="px-5 py-3 text-right min-w-[120px]">
+                      <div className="flex flex-col items-end gap-1">
+                        <span className="text-xs font-mono">{r.pctUsed}%</span>
+                        <div className="w-24 h-1.5 rounded bg-muted overflow-hidden">
+                          <div
+                            className={`h-full ${
+                              r.quotaStatus === "exceeded"
+                                ? "bg-destructive"
+                                : r.quotaStatus === "warning"
+                                  ? "bg-warning"
+                                  : "bg-success"
+                            }`}
+                            style={{ width: `${Math.min(100, r.pctUsed)}%` }}
+                          />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3 text-xs font-mono text-right">
+                      {r.quotaStatus === "exceeded" ? "0 GB" : formatGb(r.remainingGb)}
+                    </td>
+                    <td className="px-5 py-3">
+                      <Pill tone={quotaStatusTone(r.quotaStatus)}>{labelQuotaStatus(r.quotaStatus)}</Pill>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
     </AppShell>
   );
 }

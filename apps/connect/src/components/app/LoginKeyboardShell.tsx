@@ -1,5 +1,5 @@
-import { useEffect, useRef, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
-import { cn } from "@lumenx/ui";
+import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
+import { cn, useMediaQuery } from "@lumenx/ui";
 import { useKeyboardViewport } from "@/lib/use-keyboard-viewport-offset";
 
 type LoginKeyboardShellProps = {
@@ -11,35 +11,23 @@ type LoginKeyboardShellProps = {
   stepKey?: string;
 };
 
-function subscribeMobileLayout(onStoreChange: () => void) {
-  const mq = window.matchMedia("(max-width: 1023px)");
-  mq.addEventListener("change", onStoreChange);
-  return () => mq.removeEventListener("change", onStoreChange);
-}
-
-function getMobileLayout() {
-  return window.matchMedia("(max-width: 1023px)").matches;
-}
-
-/** Mobile login layout: branded sticky header, centered form at rest, keyboard-aware scroll when typing. */
+/**
+ * Mobile login layout (app-style):
+ * - Fixed to the visible viewport (visualViewport), not the full document.
+ * - Form stays top-anchored — no vertical centering that jumps when the keyboard opens.
+ * - Only the form panel scrolls; brand/stepper stay put.
+ */
 export function LoginKeyboardShell({ children, header, className, stepKey }: LoginKeyboardShellProps) {
-  const { offset: keyboardOffset, height: viewportHeight, open: keyboardOpen } = useKeyboardViewport();
+  const { height: viewportHeight, offsetTop, open: keyboardOpen } = useKeyboardViewport();
   const scrollRef = useRef<HTMLDivElement>(null);
   const wasKeyboardOpen = useRef(false);
-  const isMobileLayout = useSyncExternalStore(
-    subscribeMobileLayout,
-    getMobileLayout,
-    () => false,
-  );
-  const useKeyboardLayout = isMobileLayout && keyboardOpen;
+  const isMobileLayout = useMediaQuery("(max-width: 1023px)");
 
-  /** Reset scroll when the wizard step changes (Back / Continue). */
   useEffect(() => {
     if (!stepKey) return;
     scrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
   }, [stepKey]);
 
-  /** Reset scroll when the mobile keyboard closes — desktop browsers skip this path. */
   useEffect(() => {
     if (!isMobileLayout) return;
     if (wasKeyboardOpen.current && !keyboardOpen) {
@@ -48,31 +36,30 @@ export function LoginKeyboardShell({ children, header, className, stepKey }: Log
     wasKeyboardOpen.current = keyboardOpen;
   }, [keyboardOpen, isMobileLayout]);
 
+  const mobileShellStyle =
+    isMobileLayout && viewportHeight > 0
+      ? ({
+          "--login-vv-height": `${viewportHeight}px`,
+          "--login-vv-offset-top": `${offsetTop}px`,
+        } as CSSProperties)
+      : undefined;
+
   return (
     <div
       className={cn(
         "login-keyboard-shell relative flex flex-col lg:min-h-0 lg:justify-center",
-        useKeyboardLayout ? "login-keyboard-shell--open" : "login-keyboard-shell--rest min-h-screen-dvh",
+        isMobileLayout && "login-keyboard-shell--mobile",
+        isMobileLayout && keyboardOpen && "login-keyboard-shell--open",
         className,
       )}
-      style={
-        {
-          "--keyboard-offset": `${keyboardOffset}px`,
-          "--login-vv-height": `${viewportHeight}px`,
-        } as CSSProperties
-      }
+      style={mobileShellStyle}
     >
       <div
         ref={scrollRef}
         className="login-keyboard-scroll flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain lg:overflow-visible"
       >
         {header ? <div className="login-keyboard-header shrink-0">{header}</div> : null}
-        <div
-          className={cn(
-            "login-form-panel mx-auto flex w-full max-w-sm flex-1 flex-col px-1 pb-4 pt-2 sm:px-0 sm:py-4 lg:justify-center",
-            useKeyboardLayout ? "justify-start" : "justify-center",
-          )}
-        >
+        <div className="login-form-panel mx-auto flex w-full max-w-sm flex-col px-1 pb-3 pt-1 sm:px-0 sm:py-4 lg:flex-1 lg:justify-center">
           {children}
         </div>
       </div>

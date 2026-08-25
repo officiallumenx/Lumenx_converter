@@ -9,11 +9,9 @@ import {
   axisTick,
   gridStroke,
 } from "@/components/analytics/chart-utils";
-import { Button, Kpi, KpiGrid, Pill, SegmentedControl, PageStack } from "@lumenx/ui-admin";
+import { Kpi, KpiGrid, SegmentedControl, PageStack } from "@lumenx/ui-admin";
 import {
-  BRANCHES,
   ENROLLMENT_MONTHLY,
-  ATTENDANCE_MONTHLY,
   PERF_MONTHLY,
   FEE_COLLECTION_MONTHLY,
   EXAM_PASS_RATES,
@@ -21,13 +19,16 @@ import {
   COMPLAINT_SLA,
   CONNECT_USAGE,
   SUBJECT_PERFORMANCE,
-  GRADE_ATTENDANCE,
   AT_RISK_PIE,
-  BRANCH_COMPARE_CHART,
   ANALYTICS_INSIGHTS,
   sliceByRange,
 } from "@/lib/admin-analytics-data";
+import {
+  listGradeAttendanceFromRegisters,
+  listInstituteAttendanceMonthlySeries,
+} from "@/lib/attendance-report-demo";
 import { useMemo, useState } from "react";
+import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -52,8 +53,6 @@ import {
   Users,
   Wallet,
   Smartphone,
-  AlertTriangle,
-  FileDown,
   GraduationCap,
   FileText,
 } from "lucide-react";
@@ -67,41 +66,27 @@ type Range = "term" | "year";
 
 function AnalyticsPage() {
   const [range, setRange] = useState<Range>("year");
-  const [branchId, setBranchId] = useState<string>("all");
 
   const enrollment = useMemo(() => sliceByRange(ENROLLMENT_MONTHLY, range), [range]);
-  const attendance = useMemo(() => sliceByRange(ATTENDANCE_MONTHLY, range), [range]);
+  const attendance = useMemo(() => listInstituteAttendanceMonthlySeries(range), [range]);
+  const gradeAttendance = useMemo(() => listGradeAttendanceFromRegisters(), []);
   const perf = useMemo(() => sliceByRange(PERF_MONTHLY, range), [range]);
   const fees = useMemo(() => sliceByRange(FEE_COLLECTION_MONTHLY, range), [range]);
   const parents = useMemo(() => sliceByRange(PARENT_ENGAGEMENT, range), [range]);
   const sla = useMemo(() => sliceByRange(COMPLAINT_SLA, range), [range]);
   const connect = useMemo(() => sliceByRange(CONNECT_USAGE, range), [range]);
 
-  const branchLabel =
-    branchId === "all" ? "All branches" : (BRANCHES.find((b) => b.id === branchId)?.name ?? "");
-
   const avgGpa = (PERF_MONTHLY.reduce((a, d) => a + d.gpa, 0) / PERF_MONTHLY.length).toFixed(2);
-  const lastAtt = ATTENDANCE_MONTHLY[ATTENDANCE_MONTHLY.length - 1]!.v;
+  const lastAtt = attendance[attendance.length - 1]?.v ?? 0;
   const lastFee = FEE_COLLECTION_MONTHLY[FEE_COLLECTION_MONTHLY.length - 1]!.collected;
   const lastPass = EXAM_PASS_RATES[EXAM_PASS_RATES.length - 1]!.pass;
   const lastParent = PARENT_ENGAGEMENT[PARENT_ENGAGEMENT.length - 1]!.v;
-  const lastSla = COMPLAINT_SLA[COMPLAINT_SLA.length - 1]!.resolved;
-  const totalStudents = BRANCHES.reduce((a, b) => a + b.students, 0);
-
-  const branchSegments = [
-    { id: "all", label: "All branches" },
-    ...BRANCHES.map((b) => ({ id: b.id, label: b.name.replace("Branch ", "") })),
-  ];
+  const totalStudents = ENROLLMENT_MONTHLY[ENROLLMENT_MONTHLY.length - 1]!.v;
 
   return (
     <AppShell
       title="Analytics"
-      subtitle={`Institute intelligence · ${branchLabel} · Session 2025–26`}
-      actions={
-        <Button>
-          <FileDown className="size-3.5" /> Export report
-        </Button>
-      }
+      subtitle={`Live dashboard · charts & insights only · exports are in ${M.reports}`}
     >
       <PageStack>
         <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
@@ -112,11 +97,6 @@ function AnalyticsPage() {
               { value: "term", label: "Current term" },
               { value: "year", label: "Full year" },
             ]}
-          />
-          <SegmentedControl
-            value={branchId}
-            onChange={setBranchId}
-            options={branchSegments.map((b) => ({ value: b.id, label: b.label }))}
           />
         </div>
 
@@ -633,7 +613,7 @@ function AnalyticsPage() {
             hint="Current month"
           >
             <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={GRADE_ATTENDANCE} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <BarChart data={gradeAttendance} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
                 <XAxis
                   dataKey="grade"
@@ -642,7 +622,7 @@ function AnalyticsPage() {
                   tickLine={false}
                 />
                 <YAxis
-                  domain={[85, 100]}
+                  domain={[0, 100]}
                   tick={axisTick}
                   axisLine={false}
                   tickLine={false}
@@ -665,107 +645,6 @@ function AnalyticsPage() {
             </ResponsiveContainer>
           </ChartCard>
 
-          <ChartCard
-            className="col-span-12 lg:col-span-5"
-            title="Branch comparison"
-            hint="Attendance % by campus"
-          >
-            <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-              <BarChart
-                data={BRANCH_COMPARE_CHART}
-                layout="vertical"
-                margin={{ top: 4, right: 16, left: 4, bottom: 4 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} horizontal={false} />
-                <XAxis
-                  type="number"
-                  domain={[70, 100]}
-                  tick={axisTick}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  type="category"
-                  dataKey="name"
-                  tick={axisTick}
-                  width={48}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <Tooltip content={<AdminChartTooltip formatter={(_, v) => `${v}%`} />} />
-                <Bar dataKey="attendance" name="Attendance" radius={[0, 4, 4, 0]}>
-                  {BRANCH_COMPARE_CHART.map((_, i) => (
-                    <Cell
-                      key={i}
-                      fill={
-                        ["var(--chart-1)", "var(--chart-3)", "var(--chart-4)"][i] ??
-                        "var(--chart-1)"
-                      }
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartCard>
-
-          <ChartCard
-            className="col-span-12 lg:col-span-7"
-            title="Branch overview"
-            hint="Students, attendance & growth"
-          >
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border">
-                    <th className="py-3 font-semibold">Branch</th>
-                    <th className="py-3 font-semibold">Students</th>
-                    <th className="py-3 font-semibold">Attendance</th>
-                    <th className="py-3 font-semibold">YoY growth</th>
-                    <th className="py-3 font-semibold">SLA</th>
-                    <th className="py-3 font-semibold">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border text-xs">
-                  {BRANCHES.map((b) => (
-                    <tr key={b.id} className="hover:bg-surface-hover transition-colors">
-                      <td className="py-3 font-medium">{b.name}</td>
-                      <td className="py-3 font-mono">{b.students.toLocaleString()}</td>
-                      <td className="py-3 font-mono">{b.attendance}%</td>
-                      <td
-                        className={`py-3 font-mono ${b.growth >= 0 ? "text-success" : "text-destructive"}`}
-                      >
-                        {b.growth >= 0 ? "+" : ""}
-                        {b.growth}%
-                      </td>
-                      <td className="py-3 font-mono">{lastSla}%</td>
-                      <td className="py-3">
-                        <Pill
-                          tone={
-                            b.performance === "high"
-                              ? "success"
-                              : b.performance === "medium"
-                                ? "warning"
-                                : "danger"
-                          }
-                        >
-                          {b.performance === "high"
-                            ? "High"
-                            : b.performance === "medium"
-                              ? "Medium"
-                              : "Low"}
-                        </Pill>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <p className="mt-4 flex items-start gap-2 text-[11px] text-muted-foreground">
-              <AlertTriangle className="size-3.5 shrink-0 text-warning mt-0.5" />
-              Demo data — charts update with term/year filters; branch filter applies to labels for
-              preview.
-            </p>
-          </ChartCard>
         </div>
       </PageStack>
     </AppShell>

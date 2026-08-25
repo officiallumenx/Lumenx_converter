@@ -94,10 +94,10 @@ export function buildSportsReportsSnapshot(filters: SportsReportsFilters): Sport
 
   const practice = listPracticeSessionsFromStore().filter((s) => {
     if (!inDateRange(s.date, filters.dateFrom, filters.dateTo)) return false;
-    if (!matchesTeam(s.teamIds, ids)) return false;
+    if (!matchesTeam([s.teamId], ids)) return false;
     if (filters.coach !== "all" && s.coach !== filters.coach) return false;
     if (filters.sportType !== "all") {
-      const linked = sportsRepository.getTeamsSnapshot().filter((t) => s.teamIds.includes(t.id));
+      const linked = sportsRepository.getTeamsSnapshot().filter((t) => t.id === s.teamId);
       if (!linked.some((t) => t.sportType === filters.sportType)) return false;
     }
     return true;
@@ -106,7 +106,10 @@ export function buildSportsReportsSnapshot(filters: SportsReportsFilters): Sport
   const attendance = listAttendanceFromStore().filter((r) => {
     if (!inDateRange(r.sessionDate, filters.dateFrom, filters.dateTo)) return false;
     if (filters.teamId !== "all" && r.teamId !== filters.teamId) return false;
-    if (filters.coach !== "all" && r.coach !== filters.coach) return false;
+    if (filters.coach !== "all") {
+      const session = listPracticeSessionsFromStore().find((s) => s.id === r.practiceSessionId);
+      if (session?.coach !== filters.coach) return false;
+    }
     if (filters.sportType !== "all") {
       const team = sportsRepository.getTeamsSnapshot().find((t) => t.id === r.teamId);
       if (team?.sportType !== filters.sportType) return false;

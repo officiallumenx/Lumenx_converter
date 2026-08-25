@@ -6,6 +6,7 @@ import type { SportType } from "@/lib/activity/sports/types";
 import { archiveMetadataSeed, metadataKey } from "./metadata";
 import { manualArchiveRecordsSeed } from "./manual-records";
 import { getMetadataMap, getManualRecords } from "./store";
+import { inferAcademicYear } from "./academic-year";
 import type {
   SportsArchiveListFilters,
   SportsArchiveModule,
@@ -202,13 +203,6 @@ function manualRecords(): SportsArchiveRecord[] {
     seen.add(k);
     return true;
   });
-}
-
-function inferAcademicYear(dateIso: string): string {
-  const year = Number(dateIso.slice(0, 4));
-  const month = Number(dateIso.slice(5, 7));
-  if (month >= 4) return `${year}–${String(year + 1).slice(-2)}`;
-  return `${year - 1}–${String(year).slice(-2)}`;
 }
 
 function inferSportFromTeam(teamId: string): SportType | undefined {

@@ -2,6 +2,7 @@ import {
   resolveActivePortal,
   type TeacherActivePortal,
   type TeacherAssignment,
+  type TeacherPortalAccessLevel,
   type TeacherSession,
 } from "@lumenx/teacher-session";
 
@@ -68,11 +69,13 @@ export const teacherSessionStore = {
       teacherId: assignment.teacherId,
       assignmentType: assignment.assignmentType,
       activePortal: resolveActivePortal(assignment.assignmentType, preferredPortal),
+      portalAccess: assignment.portalAccess,
     };
     if (
       session?.teacherId === next.teacherId &&
       session.assignmentType === next.assignmentType &&
-      session.activePortal === next.activePortal
+      session.activePortal === next.activePortal &&
+      session.portalAccess === next.portalAccess
     ) {
       return;
     }
@@ -100,3 +103,7 @@ export const teacherSessionStore = {
     emit();
   },
 };
+
+export function getTeacherPortalAccessLevel(): TeacherPortalAccessLevel {
+  return session?.portalAccess ?? "faculty_grading";
+}

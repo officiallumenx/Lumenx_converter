@@ -11,15 +11,10 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
-  Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
   Textarea,
+  LumenXFeedbackDialog,
 } from "@lumenx/ui";
-import { Copy, Mail, MessageSquarePlus } from "lucide-react";
+import { Copy, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { PARENT_FAQS, PARENT_HELP_TOPICS, SUPPORT_EMAIL } from "./support-content";
 
@@ -135,67 +130,7 @@ export function ParentFeedbackDialog({
   open: boolean;
   onOpenChange: (o: boolean) => void;
 }) {
-  const [category, setCategory] = useState("general");
-  const [message, setMessage] = useState("");
-
-  const submit = () => {
-    if (message.trim().length < 12) {
-      toast.error("Please write at least 12 characters of feedback");
-      return;
-    }
-    toast.success("Thank you — your feedback was sent", {
-      description: "Our team reviews parent feedback regularly.",
-    });
-    setMessage("");
-    setCategory("general");
-    onOpenChange(false);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="rounded-2xl sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <MessageSquarePlus className="size-5 text-primary" /> Send feedback
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div>
-            <Label className="text-xs text-muted-foreground">Category</Label>
-            <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger className="mt-1 rounded-xl">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent position="popper" className="z-[100]">
-                <SelectItem value="general">General</SelectItem>
-                <SelectItem value="feature">Feature request</SelectItem>
-                <SelectItem value="fees">Fees & payments</SelectItem>
-                <SelectItem value="communication">Communication</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label className="text-xs text-muted-foreground">Your feedback</Label>
-            <Textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Tell us what works well or what we should improve…"
-              rows={5}
-              className="mt-1 rounded-xl"
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="ghost" className="rounded-xl" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button className="rounded-xl" onClick={submit}>
-            Submit feedback
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
+  return <LumenXFeedbackDialog open={open} onOpenChange={onOpenChange} source="connect" />;
 }
 
 export function ParentReportIssueDialog({

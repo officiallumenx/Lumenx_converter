@@ -1,11 +1,10 @@
-import type { Institute, InstituteKind } from "./index";
+import type { Institute, InstituteKind } from "./institute";
 
 export type DemoProfileId = "multi_institute" | "single_institute" | "inter_college";
 
 export type CampusKind = "school" | "college";
 
-export type DemoAdminBranch = {
-  id: string;
+export type DemoInstituteSummary = {
   name: string;
   students: number;
   attendance: number;
@@ -13,16 +12,26 @@ export type DemoAdminBranch = {
   performance: "high" | "medium" | "low";
 };
 
+/** Sub-matter under a custom section field (value is the content; label kept for legacy). */
 export type DemoInstituteSectionField = {
   id: string;
   label: string;
   value: string;
 };
 
+/**
+ * One field inside a custom section — like an achievement line, with optional year
+ * and optional sub-matters (fields[].value).
+ */
 export type DemoInstituteSectionEntry = {
   id: string;
+  /** Main matter / field text */
   heading: string;
+  /** Optional year only (e.g. 2024) */
+  year: string;
+  /** @deprecated Prefer year + fields; kept for older saved profiles */
   subheading: string;
+  /** Sub-matters under this field */
   fields: DemoInstituteSectionField[];
 };
 
@@ -142,9 +151,7 @@ export type DemoProfile = {
     headerSubtitle: string;
     principalName: string;
     principalTitle: string;
-    branches: DemoAdminBranch[];
-    showBranchSwitcher: boolean;
-    branchSwitcherLabel: string;
+    instituteSummary: DemoInstituteSummary;
     instituteProfile: DemoInstituteProfile;
   };
   connect: {
@@ -472,53 +479,32 @@ export const COLLEGE_ACADEMIC: DemoAcademicConfig = {
 export const DEMO_PROFILES: DemoProfile[] = [
   {
     id: "multi_institute",
-    label: "Multi-institute · School group",
-    shortLabel: "Multi-institute",
+    label: "Large institute · School",
+    shortLabel: "Large school",
     description:
-      "Group admin with multiple school branches — branch switcher, cross-campus analytics, shared staff pool.",
+      "One large standalone school with a single institute account.",
     campusKind: "school",
     academic: SCHOOL_ACADEMIC,
     admin: {
-      organizationName: "LumenX Education Group",
-      headerSubtitle: "Multi-branch school group · Admin OS",
+      organizationName: "LumenX International School",
+      headerSubtitle: "Single institute · School admin",
       principalName: "Dr. Alistair Vance",
-      principalTitle: "Group Principal · Root Admin",
-      showBranchSwitcher: true,
-      branchSwitcherLabel: "Branch",
-      branches: [
-        {
-          id: "alpha",
-          name: "Branch Alpha",
-          students: 2842,
-          attendance: 94.2,
-          growth: 8.4,
-          performance: "high",
-        },
-        {
-          id: "beta",
-          name: "Branch Beta",
-          students: 1920,
-          attendance: 88.1,
-          growth: 2.1,
-          performance: "medium",
-        },
-        {
-          id: "gamma",
-          name: "Branch Gamma",
-          students: 1104,
-          attendance: 79.6,
-          growth: -1.8,
-          performance: "low",
-        },
-      ],
+      principalTitle: "Principal · Root Admin",
+      instituteSummary: {
+        name: "LumenX International School",
+        students: 2842,
+        attendance: 94.2,
+        growth: 8.4,
+        performance: "high",
+      },
       instituteProfile: {
-        name: "LumenX International School Group",
+        name: "LumenX International School",
         founded: "1987",
         founder: "Dr. Helena Vance",
         principal: "Dr. Alistair Vance",
-        vision: "Empowering learners across every campus with curiosity, integrity, and excellence.",
+        vision: "Empowering learners with curiosity, integrity, and excellence.",
         mission:
-          "Deliver holistic education through innovation, inclusion, and community partnership across our school network.",
+          "Deliver holistic education through innovation, inclusion, and community partnership.",
         ranking: "Top 5 · Regional Board Schools · 2025",
         logo: "LumenX crest",
         profilePhoto: "",
@@ -528,7 +514,7 @@ export const DEMO_PROFILES: DemoProfile[] = [
         history: [
           { year: "1987", event: "Founded as a 120-student community school." },
           { year: "2004", event: "Expanded to senior secondary with science & commerce streams." },
-          { year: "2018", event: "Digital campus initiative and multi-branch rollout." },
+          { year: "2018", event: "Institute-wide digital learning initiative launched." },
         ],
         awards: [
           {
@@ -543,19 +529,19 @@ export const DEMO_PROFILES: DemoProfile[] = [
           "Inter-school robotics champions · 2024",
           "Model UNESCO delegation award · 2023",
         ],
+        customFields: [],
       },
     },
     connect: {
       portalName: "LumenX Connect",
       loginHeroTitle: "One quiet place for your school life.",
       loginHeroSubtitle:
-        "Real-time awareness for parents. Less friction for teachers. A clearer path for students — pick your campus.",
-      institutePickerTitle: "Select your school",
-      institutePickerHint:
-        "Search by campus name or school code. Multiple schools in the LumenX group appear here.",
+        "Real-time awareness for parents. Less friction for teachers. A clearer path for students.",
+      institutePickerTitle: "Your school",
+      institutePickerHint: "Sign in to your registered institute.",
       campusKindLabel: "School",
       classLabel: "Class",
-      registeredInstitutes: MULTI_INSTITUTES,
+      registeredInstitutes: [MULTI_INSTITUTES[0]!],
       defaultInstituteId: MULTI_INSTITUTES[0]!.id,
       studentProfile: SCHOOL_STUDENT_PROFILE,
     },
@@ -564,27 +550,21 @@ export const DEMO_PROFILES: DemoProfile[] = [
     id: "single_institute",
     label: "Single institute · School",
     shortLabel: "Single school",
-    description:
-      "One standalone school — no branch switcher, single-campus admin and Connect login.",
+    description: "One standalone school with one institute account.",
     campusKind: "school",
     academic: SCHOOL_ACADEMIC,
     admin: {
       organizationName: "LumenX Academy",
-      headerSubtitle: "Single campus · School admin",
+      headerSubtitle: "Single institute · School admin",
       principalName: "Dr. Priya Menon",
       principalTitle: "Principal · Admin",
-      showBranchSwitcher: false,
-      branchSwitcherLabel: "Campus",
-      branches: [
-        {
-          id: "main",
-          name: "Main Campus",
-          students: 1842,
-          attendance: 93.8,
-          growth: 5.2,
-          performance: "high",
-        },
-      ],
+      instituteSummary: {
+        name: "LumenX Academy",
+        students: 1842,
+        attendance: 93.8,
+        growth: 5.2,
+        performance: "high",
+      },
       instituteProfile: {
         name: "LumenX Academy",
         founded: "1998",
@@ -611,13 +591,14 @@ export const DEMO_PROFILES: DemoProfile[] = [
           "District topper in Class 10 · 2024",
           "State basketball runners-up · 2023",
         ],
+        customFields: [],
       },
     },
     connect: {
       portalName: "LumenX Connect",
-      loginHeroTitle: "Your school, one connected campus.",
+      loginHeroTitle: "Your school, one connected community.",
       loginHeroSubtitle:
-        "Parents, teachers, and students on a single school — no multi-campus picker needed.",
+        "Parents, teachers, and students connected through one institute.",
       institutePickerTitle: "Your school",
       institutePickerHint: "This demo uses one registered school. Sign in to LumenX Academy.",
       campusKindLabel: "School",
@@ -629,63 +610,42 @@ export const DEMO_PROFILES: DemoProfile[] = [
   },
   {
     id: "inter_college",
-    label: "Inter-college · College network",
-    shortLabel: "Inter-college",
+    label: "Standalone · Junior college",
+    shortLabel: "Junior college",
     description:
-      "Federation of colleges — junior college, degree, and engineering campuses with college terminology.",
+      "One standalone junior college with college terminology.",
     campusKind: "college",
     academic: COLLEGE_ACADEMIC,
     admin: {
-      organizationName: "LumenX Colleges Federation",
-      headerSubtitle: "Inter-college network · Federation admin",
+      organizationName: "LumenX Junior College",
+      headerSubtitle: "Single institute · College admin",
       principalName: "Prof. Rajesh Kapoor",
-      principalTitle: "Director · Federation Admin",
-      showBranchSwitcher: true,
-      branchSwitcherLabel: "College",
-      branches: [
-        {
-          id: "jc",
-          name: "Junior College · Mumbai",
-          students: 1620,
-          attendance: 91.4,
-          growth: 4.8,
-          performance: "high",
-        },
-        {
-          id: "deg",
-          name: "Degree College · Pune",
-          students: 2280,
-          attendance: 87.2,
-          growth: 3.1,
-          performance: "medium",
-        },
-        {
-          id: "eng",
-          name: "Engineering Campus · Nagpur",
-          students: 1940,
-          attendance: 85.6,
-          growth: 6.2,
-          performance: "high",
-        },
-      ],
+      principalTitle: "Principal · Admin",
+      instituteSummary: {
+        name: "LumenX Junior College",
+        students: 1620,
+        attendance: 91.4,
+        growth: 4.8,
+        performance: "high",
+      },
       instituteProfile: {
-        name: "LumenX Colleges Federation",
+        name: "LumenX Junior College",
         founded: "1965",
         founder: "Late Prof. Anand Desai",
         principal: "Prof. Rajesh Kapoor",
-        vision: "Excellence in higher education across arts, science, commerce, and engineering.",
+        vision: "Excellence in junior-college education across science and commerce.",
         mission:
-          "Coordinate admissions, faculty, and academic standards across affiliated colleges in the federation.",
-        ranking: "NAAC A++ cluster · Western India · 2025",
-        logo: "LumenX Colleges seal",
+          "Deliver strong academics, student support, and career preparation within one institute.",
+        ranking: "Top-ranked junior college · Western India · 2025",
+        logo: "LumenX Junior College seal",
         profilePhoto: "",
         phone: "+91 20 2567 3300",
         email: "director@lumenx-colleges.edu",
         address: "Fergusson Hill, Pune 411004",
         history: [
-          { year: "1965", event: "Fergusson College joined the federation as founding member." },
-          { year: "1992", event: "Engineering campus established at Nagpur." },
-          { year: "2016", event: "Unified admissions and careers portal across colleges." },
+          { year: "1965", event: "Institute founded with science and commerce streams." },
+          { year: "1992", event: "Modern laboratories and student activity facilities opened." },
+          { year: "2016", event: "Unified admissions and careers portal launched." },
         ],
         awards: [
           { title: "Best College Cluster", year: "2024", body: "AICTE Innovation Council" },
@@ -694,19 +654,19 @@ export const DEMO_PROFILES: DemoProfile[] = [
           "92% placement rate · Engineering · 2025",
           "Inter-college research symposium · 2024",
         ],
+        customFields: [],
       },
     },
     connect: {
       portalName: "LumenX Connect",
       loginHeroTitle: "Your college life, connected.",
       loginHeroSubtitle:
-        "Parents and students across junior college, degree, and engineering campuses — pick your college at sign-in.",
-      institutePickerTitle: "Select your college",
-      institutePickerHint:
-        "Search by college name or code. Junior college, degree, and engineering institutes in the federation.",
+        "Parents, teachers, and students connected through one junior college.",
+      institutePickerTitle: "Your college",
+      institutePickerHint: "Sign in to your registered college.",
       campusKindLabel: "College",
       classLabel: "Dept / Year",
-      registeredInstitutes: INTER_COLLEGE_INSTITUTES,
+      registeredInstitutes: [INTER_COLLEGE_INSTITUTES[0]!],
       defaultInstituteId: INTER_COLLEGE_INSTITUTES[0]!.id,
       studentProfile: COLLEGE_STUDENT_PROFILE,
     },

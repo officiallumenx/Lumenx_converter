@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { PageHeader } from "@/components/app/PageHeader";
 
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
 
 import { teacherRepository } from "@/lib/teacher/repositories";
+
+import { useAsyncLoad } from "@/lib/hooks/useAsyncLoad";
 
 import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
 
@@ -26,24 +28,15 @@ const CAT_LABEL = {
 export function TeacherEventsPage() {
   const portal = useTeacherPortal();
 
-  const [events, setEvents] = useState<TeacherEvent[]>([]);
-
-  const [loading, setLoading] = useState(true);
+  const { data: events, loading } = useAsyncLoad(
+    () => teacherRepository.getEvents(),
+    [portal.isTeacher],
+    { initial: [] as TeacherEvent[], enabled: portal.isTeacher },
+  );
 
   const [selected, setSelected] = useState<TeacherEvent | null>(null);
 
   const [filter, setFilter] = useState<string>("all");
-
-  useEffect(() => {
-    if (!portal.isTeacher) return;
-
-    setLoading(true);
-
-    teacherRepository.getEvents().then((e) => {
-      setEvents(e);
-      setLoading(false);
-    });
-  }, [portal.isTeacher]);
 
   const filtered = filter === "all" ? events : events.filter((e) => e.category === filter);
 

@@ -1,7 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { ActivityCertificatesPage } from "@/activity-workspace";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/activity/certificates")({
-  head: () => ({ meta: [{ title: "Certificates — Activity Portal" }] }),
-  component: ActivityCertificatesPage,
+  beforeLoad: () => {
+    throw redirect({ to: "/activity/achievements" });
+  },
 });

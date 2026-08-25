@@ -1,16 +1,24 @@
+import type { ContactInquiryStatus } from "@lumenx/types";
+
+export type { ContactInquiryStatus };
+
 export type ApplicationStatus =
   | "draft"
   | "submitted"
+  | "review"
+  | "verification"
+  | "parent_confirmation"
+  | "approved"
+  | "rejected"
+  | "withdrawn"
+  /** @deprecated Legacy aliases kept for older saved rows */
   | "documents_pending"
   | "documents_uploaded"
   | "document_verification"
   | "interview_scheduled"
   | "interview_completed"
   | "under_final_review"
-  | "approved"
-  | "rejected"
   | "waitlisted"
-  /** @deprecated V1 alias — mapped to under_final_review in UI */
   | "under_review";
 
 export type DocumentVerificationStatus =
@@ -24,11 +32,10 @@ export type DocumentVerificationStatus =
   | "pending_verification"
   | "requires_resubmission";
 
-export type InterviewMode = "in_person" | "phone" | "video";
-
 export type InquiryCategory = "admission" | "program" | "fees" | "transport" | "hostel" | "general";
 
-export type InquiryStatus = "open" | "answered" | "closed";
+/** @deprecated Prefer ContactInquiryStatus from @lumenx/types */
+export type InquiryStatus = ContactInquiryStatus;
 
 export type DocumentType =
   | "birth_certificate"
@@ -38,7 +45,39 @@ export type DocumentType =
   | "parent_id"
   | "additional";
 
+export type AdmissionType = "first_time_schooling" | "transfer_admission";
+
 export type AdmissionsAccountType = "parent" | "institute_admin";
+export type ParentConfirmationResponse = "continue" | "reject" | "expired";
+export type WaitlistRemovalReason = "expired_90_days" | "parent_removed" | "bulk_deleted";
+
+export type CorrectionFieldPath =
+  | "student.name"
+  | "student.gender"
+  | "student.dateOfBirth"
+  | "student.nationality"
+  | "student.bloodGroup"
+  | "parent.fatherName"
+  | "parent.motherName"
+  | "parent.guardianName"
+  | "parent.mobile"
+  | "parent.email"
+  | "parent.occupation"
+  | "address.address"
+  | "address.city"
+  | "address.state"
+  | "address.country"
+  | "address.postalCode"
+  | "academic.currentSchool"
+  | "academic.currentGrade"
+  | "academic.previousResults"
+  | "academic.performance"
+  | "documents.birth_certificate"
+  | "documents.transfer_certificate"
+  | "documents.marks_memo"
+  | "documents.student_photo"
+  | "documents.parent_id"
+  | "documents.additional";
 
 export interface AdmissionsUser {
   id: string;
@@ -71,6 +110,27 @@ export interface AdmissionProgram {
   faqIds?: string[];
 }
 
+/** Institute-published intake / seats opening (editable by institute admin). */
+export type AdmissionOpeningStatus = "draft" | "open" | "closed";
+
+export interface AdmissionOpening {
+  id: string;
+  instituteId: string;
+  name: string;
+  slug: string;
+  description: string;
+  duration: string;
+  eligibility: string;
+  ageCriteria?: string;
+  seatsAvailable: number;
+  grades: string[];
+  academicYear: string;
+  applicationDeadline: string;
+  status: AdmissionOpeningStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface DocumentVerificationEvent {
   id: string;
   status: DocumentVerificationStatus;
@@ -91,17 +151,6 @@ export interface ApplicationDocument {
   verificationTimeline?: DocumentVerificationEvent[];
   previewDataUrl?: string;
   version?: number;
-}
-
-export interface InterviewDetails {
-  date: string;
-  time: string;
-  mode: InterviewMode;
-  location: string;
-  instructions: string;
-  requiredDocuments?: string[];
-  status: "scheduled" | "completed" | "cancelled";
-  meetingLink?: string;
 }
 
 export interface TimelineEvent {
@@ -162,6 +211,7 @@ export interface AdmissionApplication {
   id: string;
   applicantId: string;
   instituteId?: string;
+  admissionType?: AdmissionType;
   status: ApplicationStatus;
   programId: string;
   programName: string;
@@ -175,9 +225,46 @@ export interface AdmissionApplication {
   academic: AcademicInfo;
   documents: ApplicationDocument[];
   timeline: TimelineEvent[];
+  /** Answers to institute custom form fields */
+  customAnswers?: Record<string, string>;
   adminNotes?: string[];
-  interview?: InterviewDetails;
+  /** @deprecated Interview stage removed from admissions workflow */
+  interview?: never;
   requiredActions?: string[];
+  parentConfirmationRequestedAt?: string;
+  parentConfirmationDueAt?: string;
+  parentConfirmationRespondedAt?: string;
+  parentConfirmationResponse?: ParentConfirmationResponse;
+  waitlist?: {
+    joinedAt: string;
+    expiresAt: string;
+    active: boolean;
+    priorityScore: number;
+    reminderDay80SentAt?: string;
+    seatAvailableNotifiedAt?: string;
+    lastInstituteReminderAt?: string;
+    removedAt?: string;
+    removedReason?: WaitlistRemovalReason;
+  };
+  pendingCorrection?: {
+    cycleId: string;
+    reason: string;
+    requestedAt: string;
+    requestedFields: CorrectionFieldPath[];
+    requestedBy?: string;
+  };
+  correctionHistory?: AdmissionCorrectionCycle[];
+}
+
+export interface AdmissionCorrectionCycle {
+  id: string;
+  reason: string;
+  requestedAt: string;
+  requestedFields: CorrectionFieldPath[];
+  requestedBy?: string;
+  resubmittedAt?: string;
+  resubmittedBy?: string;
+  resubmittedFields?: CorrectionFieldPath[];
 }
 
 export interface StudentInfo {
@@ -215,27 +302,49 @@ export interface AcademicInfo {
 
 export interface ApplicationDraft {
   step: number;
-  student: Partial<StudentInfo>;
+  /** Shared parent details for all children in this draft session */
   parent: Partial<ParentInfo>;
+  /** Shared address details for all children in this draft session */
   address: Partial<AddressInfo>;
+  /** Multi-child draft support (Phase 2). */
+  children?: ChildApplicationDraft[];
+  activeChildId?: string;
+  /** @deprecated legacy single-child keys retained for migration */
+  student: Partial<StudentInfo>;
   academic: Partial<AcademicInfo>;
   programId?: string;
   instituteId?: string;
   grade?: string;
   academicYear?: string;
   documents: Partial<Record<DocumentType, { fileName: string; dataUrl?: string }>>;
+  /** Institute Application form answers (field id → value) */
+  customAnswers?: Record<string, string>;
+}
+
+export interface ChildApplicationDraft {
+  id: string;
+  admissionType: AdmissionType;
+  student: Partial<StudentInfo>;
+  academic: Partial<AcademicInfo>;
+  programId?: string;
+  instituteId?: string;
+  grade?: string;
+  academicYear?: string;
+  documents: Partial<Record<DocumentType, { fileName: string; dataUrl?: string }>>;
+  customAnswers?: Record<string, string>;
 }
 
 export interface AdmissionsNotification {
   id: string;
   applicantId: string;
   applicationId?: string;
+  templateId?: string;
   title: string;
   body: string;
   type:
     | "application"
     | "document"
-    | "interview"
+    | "confirmation"
     | "approval"
     | "rejection"
     | "reminder"
@@ -295,7 +404,7 @@ export interface InstituteProfileExtended {
 
 export interface FaqItem {
   id: string;
-  category: "admissions" | "programs" | "fees" | "documents" | "interviews" | "process";
+  category: "admissions" | "programs" | "fees" | "documents" | "process";
   question: string;
   answer: string;
 }

@@ -1,4 +1,13 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle, Badge, Button, cn } from "@lumenx/ui";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  Badge,
+  Button,
+  cn,
+} from "@lumenx/ui";
 import { Crown, Mail, MapPin, Clock, Phone, MessageSquare } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { teachers } from "@/lib/mock-data";
@@ -29,6 +38,9 @@ export function TeacherDetailDialog({
               </Badge>
             )}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Profile and contact details for {t.name}, {t.subject}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">

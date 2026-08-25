@@ -10,11 +10,47 @@ import {
 import {
   academicTermSummaries,
   examHistory,
-  studentAttendanceSummary,
   studentCertificateRecords,
   studentCompetitions,
 } from "@/lib/student/mock-data";
+import { buildLearnerMonthAttendanceSummary } from "@/lib/attendance/calendar";
+import { attendanceSectionKey, toAttendanceStudentId } from "@/lib/attendance/section-key";
 import type { StudentSnapshot } from "@/lib/student/types";
+import {
+  displayOrEmpty,
+  findIdCardSyncRow,
+  type StudentIdCardSyncRow,
+} from "@/lib/student/admin-id-card-bridge";
+import { resolveCanonicalStudentId } from "@lumenx/utils";
+
+function registerAttendanceSummary(input: {
+  id: string;
+  classLabel: string;
+  section: string;
+  rollNo: string;
+}) {
+  const summary = buildLearnerMonthAttendanceSummary({
+    studentId: toAttendanceStudentId({
+      id: input.id,
+      classLabel: input.classLabel,
+      section: input.section,
+      rollNo: input.rollNo,
+    }),
+    sectionKey: attendanceSectionKey(input.classLabel, input.section),
+  });
+  return {
+    monthLabel: summary.monthLabel,
+    year: summary.year,
+    month: summary.month,
+    attendancePct: summary.attendancePct,
+    classAvgPct: 0,
+    present: summary.present,
+    absent: summary.absent,
+    leave: summary.leave,
+    workingDays: summary.workingDays,
+    monthDelta: 0,
+  };
+}
 
 /** Full student profile shown on the public /verify page (not embedded in QR). */
 export type StudentIdQrPayload = {
@@ -22,6 +58,9 @@ export type StudentIdQrPayload = {
   type: "lumenx-student-profile";
   generatedAt: string;
   verifyUrl: string;
+  /** When true, public page shows identity-only (Admin-synced card). */
+  identityOnly?: boolean;
+  photoDataUrl?: string;
   identity: {
     studentId: string;
     name: string;
@@ -111,6 +150,65 @@ const PARENT_CHILD_ADDRESSES: Record<string, string> = {
   C3: "8 Civic Centre Lane, Madhapur, Hyderabad — 500033",
 };
 
+function emptyAcademic(): StudentIdQrPayload["academic"] {
+  return {
+    overallAvg: 0,
+    rank: 0,
+    classSize: 0,
+    attendancePct: 0,
+    performanceBySubject: [],
+    termTrend: [],
+    terms: [],
+  };
+}
+
+function emptyAttendance(): StudentIdQrPayload["attendance"] {
+  return {
+    monthLabel: "—",
+    present: 0,
+    absent: 0,
+    leave: 0,
+    workingDays: 0,
+    pct: 0,
+    classAvgPct: 0,
+  };
+}
+
+function payloadFromAdminSync(row: StudentIdCardSyncRow, origin = ""): StudentIdQrPayload {
+  return {
+    v: 2,
+    type: "lumenx-student-profile",
+    generatedAt: new Date().toISOString(),
+    verifyUrl: buildStudentVerifyUrl(row.studentId, origin),
+    identityOnly: true,
+    photoDataUrl: row.photoDataUrl,
+    identity: {
+      studentId: row.studentId,
+      name: row.name,
+      rollNo: displayOrEmpty(row.rollNo),
+      class: displayOrEmpty(row.classLabel),
+      section: displayOrEmpty(row.section),
+      institute: row.institute || "LumenX Academy",
+      address: displayOrEmpty(row.address),
+      bloodGroup: displayOrEmpty(row.bloodGroup),
+      emergencyContact: displayOrEmpty(row.emergencyContact),
+      parentName: displayOrEmpty(row.parentName),
+      house: displayOrEmpty(row.house),
+      classTeacher: "—",
+      email: displayOrEmpty(row.email),
+      idCardIssuedOn: displayOrEmpty(row.idCardIssuedOn),
+      idCardValidTill: displayOrEmpty(row.idCardValidTill),
+    },
+    academic: emptyAcademic(),
+    progressReports: [],
+    achievements: [],
+    certificates: [],
+    competitions: [],
+    examHistory: [],
+    attendance: emptyAttendance(),
+  };
+}
+
 function defaultSnapshot(): Pick<
   StudentSnapshot,
   | "performance"
@@ -132,7 +230,12 @@ function defaultSnapshot(): Pick<
     competitions: [...studentCompetitions],
     examHistory: [...examHistory],
     academicTerms: [...academicTermSummaries],
-    attendanceSummary: { ...studentAttendanceSummary },
+    attendanceSummary: registerAttendanceSummary({
+      id: studentProfile.id,
+      classLabel: studentProfile.class,
+      section: studentProfile.section,
+      rollNo: studentProfile.rollNo,
+    }),
   };
 }
 
@@ -287,6 +390,12 @@ function snapshotForChild(child: Child, studentId: string): StudentSnapshot {
     score: Math.min(100, Math.round(p.score * scale)),
     prev: Math.min(100, Math.round(p.prev * scale)),
   }));
+  const attendanceSummary = registerAttendanceSummary({
+    id: studentId,
+    classLabel: child.className,
+    section: child.section,
+    rollNo: child.rollNo,
+  });
 
   return {
     profile: {
@@ -296,7 +405,7 @@ function snapshotForChild(child: Child, studentId: string): StudentSnapshot {
       class: child.className,
       section: child.section,
       rollNo: child.rollNo,
-      attendance: child.attendance,
+      attendance: attendanceSummary.attendancePct,
       address: PARENT_CHILD_ADDRESSES[child.id] ?? studentProfile.address,
     },
     performance: scaledPerformance,
@@ -309,23 +418,26 @@ function snapshotForChild(child: Child, studentId: string): StudentSnapshot {
     academicTerms: academicTermSummaries.map((t) => ({
       ...t,
       avgScore: Math.min(100, Math.round(t.avgScore * scale)),
-      attendance: child.attendance,
+      attendance: attendanceSummary.attendancePct,
     })),
-    attendanceSummary: {
-      ...studentAttendanceSummary,
-      attendancePct: child.attendance,
-    },
+    attendanceSummary,
   } as StudentSnapshot;
 }
 
-/** Demo lookup for public verify page and QR preview. */
+/** Demo lookup for public verify page and QR preview. Prefers Admin sync for STU-* IDs. */
 export function resolveStudentVerificationProfile(
   studentId: string,
   origin = "",
 ): StudentIdQrPayload | null {
   const normalized = decodeURIComponent(studentId).trim();
+  const canonical = resolveCanonicalStudentId(normalized);
 
-  if (normalized === studentProfile.id) {
+  const syncRow = findIdCardSyncRow(normalized) ?? findIdCardSyncRow(canonical);
+  if (syncRow) {
+    return payloadFromAdminSync(syncRow, origin);
+  }
+
+  if (normalized === studentProfile.id || canonical === studentProfile.id) {
     return buildPayloadObject(studentProfile, defaultSnapshot(), origin);
   }
 
@@ -335,8 +447,15 @@ export function resolveStudentVerificationProfile(
     return buildPayloadObject(snap.profile, snap, origin);
   }
 
-  if (normalized.startsWith("S-")) {
-    return buildPayloadObject({ ...studentProfile, id: normalized }, defaultSnapshot(), origin);
+  if (normalized.startsWith("S-") || normalized.startsWith("STU-")) {
+    return buildPayloadObject(
+      {
+        ...studentProfile,
+        id: normalized.startsWith("STU-") ? normalized : canonical,
+      },
+      defaultSnapshot(),
+      origin,
+    );
   }
 
   return null;

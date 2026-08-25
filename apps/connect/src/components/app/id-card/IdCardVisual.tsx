@@ -1,5 +1,5 @@
 import { GraduationCap, MapPin, ShieldCheck } from "lucide-react";
-import { Avatar, AvatarFallback } from "@lumenx/ui";
+import { Avatar, AvatarFallback, AvatarImage } from "@lumenx/ui";
 import { cn } from "@lumenx/ui";
 import { StudentQrCode } from "@/components/app/student/StudentQrCode";
 
@@ -15,6 +15,7 @@ export type IdCardVisualProps = {
   validTill: string;
   qrPayload: string;
   onQrClick: () => void;
+  photoUrl?: string;
 };
 
 export function IdCardVisual({
@@ -29,10 +30,12 @@ export function IdCardVisual({
   validTill,
   qrPayload,
   onQrClick,
+  photoUrl,
 }: IdCardVisualProps) {
+  const empty = (value: string) => !value || value === "—";
+
   return (
     <div className="relative mx-auto w-full max-w-[360px] px-1 pb-2 pt-1">
-      {/* Showcase glow */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-x-6 top-8 bottom-4 rounded-[2rem] bg-primary/25 blur-3xl"
@@ -48,7 +51,6 @@ export function IdCardVisual({
           "print:shadow-none print:hover:translate-y-0",
         )}
       >
-        {/* Header */}
         <header className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 px-5 pb-5 pt-4 text-white">
           <div
             aria-hidden
@@ -77,9 +79,7 @@ export function IdCardVisual({
           </div>
         </header>
 
-        {/* Body */}
         <div className="relative bg-gradient-to-b from-slate-50 to-white px-5 pb-4 pt-5">
-          {/* Photo + name block */}
           <div className="flex flex-col items-center">
             <div className="relative">
               <div
@@ -87,13 +87,32 @@ export function IdCardVisual({
                 className="absolute -inset-1 rounded-[1.35rem] bg-gradient-to-br from-amber-400/70 via-primary/40 to-indigo-500/50 blur-[2px]"
               />
               <Avatar className="relative size-[7.5rem] rounded-[1.25rem] ring-[3px] ring-white shadow-lg sm:size-32">
-                <AvatarFallback className="rounded-[1.15rem] bg-gradient-to-br from-indigo-600 to-violet-700 font-display text-3xl text-white sm:text-4xl">
-                  {initials}
+                {photoUrl ? (
+                  <AvatarImage
+                    src={photoUrl}
+                    alt={name}
+                    className="rounded-[1.15rem] object-cover"
+                  />
+                ) : null}
+                <AvatarFallback
+                  className={cn(
+                    "rounded-[1.15rem] font-display text-3xl text-white sm:text-4xl",
+                    photoUrl
+                      ? "bg-slate-200"
+                      : "bg-gradient-to-br from-slate-300 to-slate-400 text-slate-600",
+                  )}
+                >
+                  {photoUrl ? initials : empty(initials) ? "—" : initials}
                 </AvatarFallback>
               </Avatar>
+              {!photoUrl ? (
+                <p className="absolute -bottom-5 left-1/2 w-max -translate-x-1/2 text-[9px] font-medium uppercase tracking-wide text-slate-400">
+                  Photo not added
+                </p>
+              ) : null}
             </div>
 
-            <h3 className="mt-4 text-center font-display text-xl font-bold leading-tight text-slate-900 sm:text-[1.35rem]">
+            <h3 className="mt-6 text-center font-display text-xl font-bold leading-tight text-slate-900 sm:text-[1.35rem]">
               {name}
             </h3>
             <span className="mt-1.5 inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 shadow-sm">
@@ -101,14 +120,15 @@ export function IdCardVisual({
             </span>
           </div>
 
-          {/* Roll / class / section */}
           <div className="mt-5 grid grid-cols-3 gap-2">
-            <InfoPill label="Roll No" value={rollNo} />
-            <InfoPill label="Class" value={className.replace(/^Class\s*/i, "")} />
-            <InfoPill label="Section" value={section} />
+            <InfoPill label="Roll No" value={empty(rollNo) ? "—" : rollNo} />
+            <InfoPill
+              label="Class"
+              value={empty(className) ? "—" : className.replace(/^Class\s*/i, "")}
+            />
+            <InfoPill label="Section" value={empty(section) ? "—" : section} />
           </div>
 
-          {/* Address */}
           <div className="mt-4 rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-sm">
             <div className="flex gap-2.5">
               <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -118,12 +138,18 @@ export function IdCardVisual({
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
                   Residential address
                 </p>
-                <p className="mt-1 text-xs leading-relaxed text-slate-700">{address}</p>
+                <p
+                  className={cn(
+                    "mt-1 text-xs leading-relaxed",
+                    empty(address) ? "text-slate-400" : "text-slate-700",
+                  )}
+                >
+                  {empty(address) ? "Not added" : address}
+                </p>
               </div>
             </div>
           </div>
 
-          {/* QR */}
           <div className="mt-5 flex flex-col items-center">
             <div className="relative rounded-[1.25rem] border-2 border-dashed border-slate-200 bg-white p-3 shadow-inner">
               <StudentQrCode
@@ -156,13 +182,14 @@ export function IdCardVisual({
           </div>
         </div>
 
-        {/* Footer */}
         <footer className="flex items-center justify-between gap-3 border-t border-slate-200 bg-slate-900 px-5 py-3 text-white">
           <div>
             <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-400">
               Valid until
             </p>
-            <p className="mt-0.5 text-sm font-semibold text-amber-300">{validTill}</p>
+            <p className="mt-0.5 text-sm font-semibold text-amber-300">
+              {empty(validTill) ? "Not set" : validTill}
+            </p>
           </div>
           <div className="flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1">
             <ShieldCheck className="size-3.5 text-emerald-400" />

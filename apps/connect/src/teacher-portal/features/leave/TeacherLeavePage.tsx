@@ -9,6 +9,7 @@ import {
 import { LeaveStatusBadge } from "@/components/app/leave/LeaveStatusBadge";
 import { leaveStore } from "@/lib/leave-store";
 import { teacherLeaveStore } from "@/lib/teacher-leave-store";
+import { isTeacherAccessDenied } from "@/lib/teacher/portal-access-guard";
 import {
   formatLeaveRequestDates,
   isValidLeaveRange,
@@ -90,15 +91,20 @@ export function TeacherLeavePage() {
       return;
     }
 
-    teacherLeaveStore.submit({
-      teacherId: portal.profile.id,
-      teacherName: portal.profile.name,
-      type,
-      to: approver,
-      fromDate,
-      toDate,
-      reason: reason.trim(),
-    });
+    try {
+      teacherLeaveStore.submit({
+        teacherId: portal.profile.id,
+        teacherName: portal.profile.name,
+        type,
+        to: approver,
+        fromDate,
+        toDate,
+        reason: reason.trim(),
+      });
+    } catch (error) {
+      if (isTeacherAccessDenied(error)) return;
+      throw error;
+    }
 
     const days = leaveDayCount({ leaveStartDate: fromDate, leaveEndDate: toDate });
     toast.success("Leave request sent to school office.", {
@@ -221,7 +227,11 @@ export function TeacherLeavePage() {
                         {request.type.toUpperCase()} · {request.fromDate}
                         {request.fromDate !== request.toDate ? ` to ${request.toDate}` : ""}
                       </p>
-                      <LeaveStatusBadge status={request.status} />
+                      <LeaveStatusBadge
+                        status={
+                          request.status === "ignored" ? "dismissed" : request.status
+                        }
+                      />
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">
                       Sent to {request.to === "admin" ? "Admin" : "Principal"} ·{" "}
@@ -229,8 +239,21 @@ export function TeacherLeavePage() {
                     </p>
                     <p className="mt-2 text-sm">{request.reason}</p>
                     {request.reviewedNote ? (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Note: {request.reviewedNote}
+                      <p
+                        className={`mt-2 text-xs rounded-lg px-3 py-2 ${
+                          request.status === "rejected" || request.status === "ignored"
+                            ? "border border-border bg-muted/50 text-foreground"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        <span className="font-medium text-muted-foreground">
+                          {request.status === "ignored"
+                            ? "Ignored · "
+                            : request.status === "rejected"
+                              ? "Rejected · "
+                              : "Note · "}
+                        </span>
+                        {request.reviewedNote}
                       </p>
                     ) : null}
                   </div>
@@ -268,7 +291,7 @@ export function TeacherLeavePage() {
                 Processed
               </p>
               <p className="mt-1 text-2xl font-bold tabular-nums">{history.length}</p>
-              <p className="text-xs text-muted-foreground">Approved, rejected, or dismissed</p>
+              <p className="text-xs text-muted-foreground">Approved or ignored</p>
             </div>
           </div>
 

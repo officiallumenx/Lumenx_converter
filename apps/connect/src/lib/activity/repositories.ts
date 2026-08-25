@@ -13,8 +13,8 @@ let dashboardStore: ActivityDashboardSnapshot = { ...activityDashboardSnapshot }
  * every page — eager imports previously pulled the full sports repository graph
  * (~600KB) before login, causing slow loads and intermittent startup crashes.
  */
-function resetSportsWorkspaceModules() {
-  void Promise.all([
+async function resetSportsWorkspaceModules() {
+  await Promise.all([
     import("./sports-reports/repositories").then((m) => m.sportsReportsRepository.reset()),
     import("./sports-equipment/repositories").then((m) => m.sportsEquipmentRepository.reset()),
     import("./sports-venues/repositories").then((m) => m.sportsVenuesRepository.reset()),
@@ -46,10 +46,10 @@ export const activityRepository = {
   setDashboardSnapshot(next: ActivityDashboardSnapshot) {
     dashboardStore = next;
   },
-  reset() {
+  async reset() {
     dashboardStore = { ...activityDashboardSnapshot };
     resetAchievementsStore();
     resetCertificatesStore();
-    resetSportsWorkspaceModules();
+    await resetSportsWorkspaceModules();
   },
 };

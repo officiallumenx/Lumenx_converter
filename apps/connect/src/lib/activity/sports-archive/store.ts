@@ -6,13 +6,7 @@ import {
 } from "./metadata";
 import { archiveNativeRecord, restoreNativeArchiveRecord } from "./restore-handlers";
 import type { SportsArchiveInput, SportsArchiveRecord } from "./types";
-
-function inferAcademicYear(dateIso: string): string {
-  const year = Number(dateIso.slice(0, 4));
-  const month = Number(dateIso.slice(5, 7));
-  if (month >= 4) return `${year}–${String(year + 1).slice(-2)}`;
-  return `${year - 1}–${String(year).slice(-2)}`;
-}
+import { inferAcademicYear } from "./academic-year";
 
 let metadataStore = new Map<string, ArchiveMetadataEntry>(
   archiveMetadataSeed.map((e) => [metadataKey(e.sourceModule, e.sourceId), cloneMetadataEntry(e)]),

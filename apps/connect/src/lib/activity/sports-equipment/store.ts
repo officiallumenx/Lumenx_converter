@@ -5,6 +5,7 @@ import {
   equipmentSuppliersSeed,
 } from "./mock";
 import type {
+  EquipmentCondition,
   EquipmentIssueInput,
   EquipmentItem,
   EquipmentItemInput,

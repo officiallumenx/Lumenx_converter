@@ -542,7 +542,7 @@ function TableView({ docs, onSelect }: { docs: GeneratedDocument[]; onSelect: (d
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity"
                     onClick={(e) => { e.stopPropagation(); onSelect(doc); }}
                   >
                     <Eye className="size-3.5" />

@@ -18,8 +18,10 @@ import { Route as TemplatesRouteImport } from './routes/templates'
 import { Route as TeachersRouteImport } from './routes/teachers'
 import { Route as TeacherPerformanceRouteImport } from './routes/teacher-performance'
 import { Route as TeacherAttendanceRouteImport } from './routes/teacher-attendance'
+import { Route as SubscriptionRouteImport } from './routes/subscription'
 import { Route as SubjectsRouteImport } from './routes/subjects'
 import { Route as StudentsRouteImport } from './routes/students'
+import { Route as StudentAttendanceRouteImport } from './routes/student-attendance'
 import { Route as StorageRouteImport } from './routes/storage'
 import { Route as SplashRouteImport } from './routes/splash'
 import { Route as SignupRouteImport } from './routes/signup'
@@ -35,12 +37,14 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as LeaveRouteImport } from './routes/leave'
 import { Route as InstituteSetupRouteImport } from './routes/institute-setup'
 import { Route as InstituteRouteImport } from './routes/institute'
+import { Route as HomeworkRouteImport } from './routes/homework'
 import { Route as ForgotPinRouteImport } from './routes/forgot-pin'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as FeesRouteImport } from './routes/fees'
 import { Route as ExamsRouteImport } from './routes/exams'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as DocumentsRouteImport } from './routes/documents'
+import { Route as DiaryRouteImport } from './routes/diary'
 import { Route as ComplaintsRouteImport } from './routes/complaints'
 import { Route as ClassesRouteImport } from './routes/classes'
 import { Route as CareersRouteImport } from './routes/careers'
@@ -51,8 +55,15 @@ import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as AlertsRouteImport } from './routes/alerts'
 import { Route as AdmissionsRouteImport } from './routes/admissions'
 import { Route as AccountsRouteImport } from './routes/accounts'
+import { Route as AcademicManagementRouteImport } from './routes/academic-management'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as StudentsIndexRouteImport } from './routes/students.index'
+import { Route as ParentsIndexRouteImport } from './routes/parents.index'
+import { Route as ClassesIndexRouteImport } from './routes/classes.index'
+import { Route as SubjectsIdRouteImport } from './routes/subjects.$id'
 import { Route as StudentsIdRouteImport } from './routes/students.$id'
+import { Route as ParentsIdRouteImport } from './routes/parents.$id'
+import { Route as ClassesIdRouteImport } from './routes/classes.$id'
 
 const WelcomeRoute = WelcomeRouteImport.update({
   id: '/welcome',
@@ -99,6 +110,11 @@ const TeacherAttendanceRoute = TeacherAttendanceRouteImport.update({
   path: '/teacher-attendance',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SubscriptionRoute = SubscriptionRouteImport.update({
+  id: '/subscription',
+  path: '/subscription',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SubjectsRoute = SubjectsRouteImport.update({
   id: '/subjects',
   path: '/subjects',
@@ -107,6 +123,11 @@ const SubjectsRoute = SubjectsRouteImport.update({
 const StudentsRoute = StudentsRouteImport.update({
   id: '/students',
   path: '/students',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StudentAttendanceRoute = StudentAttendanceRouteImport.update({
+  id: '/student-attendance',
+  path: '/student-attendance',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StorageRoute = StorageRouteImport.update({
@@ -184,6 +205,11 @@ const InstituteRoute = InstituteRouteImport.update({
   path: '/institute',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HomeworkRoute = HomeworkRouteImport.update({
+  id: '/homework',
+  path: '/homework',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ForgotPinRoute = ForgotPinRouteImport.update({
   id: '/forgot-pin',
   path: '/forgot-pin',
@@ -212,6 +238,11 @@ const EventsRoute = EventsRouteImport.update({
 const DocumentsRoute = DocumentsRouteImport.update({
   id: '/documents',
   path: '/documents',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DiaryRoute = DiaryRouteImport.update({
+  id: '/diary',
+  path: '/diary',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ComplaintsRoute = ComplaintsRouteImport.update({
@@ -264,19 +295,55 @@ const AccountsRoute = AccountsRouteImport.update({
   path: '/accounts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AcademicManagementRoute = AcademicManagementRouteImport.update({
+  id: '/academic-management',
+  path: '/academic-management',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const StudentsIndexRoute = StudentsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => StudentsRoute,
+} as any)
+const ParentsIndexRoute = ParentsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ParentsRoute,
+} as any)
+const ClassesIndexRoute = ClassesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ClassesRoute,
+} as any)
+const SubjectsIdRoute = SubjectsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => SubjectsRoute,
 } as any)
 const StudentsIdRoute = StudentsIdRouteImport.update({
   id: '/$id',
   path: '/$id',
   getParentRoute: () => StudentsRoute,
 } as any)
+const ParentsIdRoute = ParentsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ParentsRoute,
+} as any)
+const ClassesIdRoute = ClassesIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ClassesRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/academic-management': typeof AcademicManagementRoute
   '/accounts': typeof AccountsRoute
   '/admissions': typeof AdmissionsRoute
   '/alerts': typeof AlertsRoute
@@ -285,14 +352,16 @@ export interface FileRoutesByFullPath {
   '/attendance': typeof AttendanceRoute
   '/calendar': typeof CalendarRoute
   '/careers': typeof CareersRoute
-  '/classes': typeof ClassesRoute
+  '/classes': typeof ClassesRouteWithChildren
   '/complaints': typeof ComplaintsRoute
+  '/diary': typeof DiaryRoute
   '/documents': typeof DocumentsRoute
   '/events': typeof EventsRoute
   '/exams': typeof ExamsRoute
   '/fees': typeof FeesRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/forgot-pin': typeof ForgotPinRoute
+  '/homework': typeof HomeworkRoute
   '/institute': typeof InstituteRoute
   '/institute-setup': typeof InstituteSetupRoute
   '/leave': typeof LeaveRoute
@@ -300,7 +369,7 @@ export interface FileRoutesByFullPath {
   '/marks': typeof MarksRoute
   '/modules': typeof ModulesRoute
   '/notifications': typeof NotificationsRoute
-  '/parents': typeof ParentsRoute
+  '/parents': typeof ParentsRouteWithChildren
   '/pending-verification': typeof PendingVerificationRoute
   '/permissions': typeof PermissionsRoute
   '/reports': typeof ReportsRoute
@@ -308,8 +377,10 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/splash': typeof SplashRoute
   '/storage': typeof StorageRoute
+  '/student-attendance': typeof StudentAttendanceRoute
   '/students': typeof StudentsRouteWithChildren
-  '/subjects': typeof SubjectsRoute
+  '/subjects': typeof SubjectsRouteWithChildren
+  '/subscription': typeof SubscriptionRoute
   '/teacher-attendance': typeof TeacherAttendanceRoute
   '/teacher-performance': typeof TeacherPerformanceRoute
   '/teachers': typeof TeachersRoute
@@ -319,10 +390,17 @@ export interface FileRoutesByFullPath {
   '/verify-email-otp': typeof VerifyEmailOtpRoute
   '/verify-mobile-otp': typeof VerifyMobileOtpRoute
   '/welcome': typeof WelcomeRoute
+  '/classes/$id': typeof ClassesIdRoute
+  '/parents/$id': typeof ParentsIdRoute
   '/students/$id': typeof StudentsIdRoute
+  '/subjects/$id': typeof SubjectsIdRoute
+  '/classes/': typeof ClassesIndexRoute
+  '/parents/': typeof ParentsIndexRoute
+  '/students/': typeof StudentsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/academic-management': typeof AcademicManagementRoute
   '/accounts': typeof AccountsRoute
   '/admissions': typeof AdmissionsRoute
   '/alerts': typeof AlertsRoute
@@ -331,14 +409,15 @@ export interface FileRoutesByTo {
   '/attendance': typeof AttendanceRoute
   '/calendar': typeof CalendarRoute
   '/careers': typeof CareersRoute
-  '/classes': typeof ClassesRoute
   '/complaints': typeof ComplaintsRoute
+  '/diary': typeof DiaryRoute
   '/documents': typeof DocumentsRoute
   '/events': typeof EventsRoute
   '/exams': typeof ExamsRoute
   '/fees': typeof FeesRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/forgot-pin': typeof ForgotPinRoute
+  '/homework': typeof HomeworkRoute
   '/institute': typeof InstituteRoute
   '/institute-setup': typeof InstituteSetupRoute
   '/leave': typeof LeaveRoute
@@ -346,7 +425,6 @@ export interface FileRoutesByTo {
   '/marks': typeof MarksRoute
   '/modules': typeof ModulesRoute
   '/notifications': typeof NotificationsRoute
-  '/parents': typeof ParentsRoute
   '/pending-verification': typeof PendingVerificationRoute
   '/permissions': typeof PermissionsRoute
   '/reports': typeof ReportsRoute
@@ -354,8 +432,9 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/splash': typeof SplashRoute
   '/storage': typeof StorageRoute
-  '/students': typeof StudentsRouteWithChildren
-  '/subjects': typeof SubjectsRoute
+  '/student-attendance': typeof StudentAttendanceRoute
+  '/subjects': typeof SubjectsRouteWithChildren
+  '/subscription': typeof SubscriptionRoute
   '/teacher-attendance': typeof TeacherAttendanceRoute
   '/teacher-performance': typeof TeacherPerformanceRoute
   '/teachers': typeof TeachersRoute
@@ -365,11 +444,18 @@ export interface FileRoutesByTo {
   '/verify-email-otp': typeof VerifyEmailOtpRoute
   '/verify-mobile-otp': typeof VerifyMobileOtpRoute
   '/welcome': typeof WelcomeRoute
+  '/classes/$id': typeof ClassesIdRoute
+  '/parents/$id': typeof ParentsIdRoute
   '/students/$id': typeof StudentsIdRoute
+  '/subjects/$id': typeof SubjectsIdRoute
+  '/classes': typeof ClassesIndexRoute
+  '/parents': typeof ParentsIndexRoute
+  '/students': typeof StudentsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/academic-management': typeof AcademicManagementRoute
   '/accounts': typeof AccountsRoute
   '/admissions': typeof AdmissionsRoute
   '/alerts': typeof AlertsRoute
@@ -378,14 +464,16 @@ export interface FileRoutesById {
   '/attendance': typeof AttendanceRoute
   '/calendar': typeof CalendarRoute
   '/careers': typeof CareersRoute
-  '/classes': typeof ClassesRoute
+  '/classes': typeof ClassesRouteWithChildren
   '/complaints': typeof ComplaintsRoute
+  '/diary': typeof DiaryRoute
   '/documents': typeof DocumentsRoute
   '/events': typeof EventsRoute
   '/exams': typeof ExamsRoute
   '/fees': typeof FeesRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/forgot-pin': typeof ForgotPinRoute
+  '/homework': typeof HomeworkRoute
   '/institute': typeof InstituteRoute
   '/institute-setup': typeof InstituteSetupRoute
   '/leave': typeof LeaveRoute
@@ -393,7 +481,7 @@ export interface FileRoutesById {
   '/marks': typeof MarksRoute
   '/modules': typeof ModulesRoute
   '/notifications': typeof NotificationsRoute
-  '/parents': typeof ParentsRoute
+  '/parents': typeof ParentsRouteWithChildren
   '/pending-verification': typeof PendingVerificationRoute
   '/permissions': typeof PermissionsRoute
   '/reports': typeof ReportsRoute
@@ -401,8 +489,10 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/splash': typeof SplashRoute
   '/storage': typeof StorageRoute
+  '/student-attendance': typeof StudentAttendanceRoute
   '/students': typeof StudentsRouteWithChildren
-  '/subjects': typeof SubjectsRoute
+  '/subjects': typeof SubjectsRouteWithChildren
+  '/subscription': typeof SubscriptionRoute
   '/teacher-attendance': typeof TeacherAttendanceRoute
   '/teacher-performance': typeof TeacherPerformanceRoute
   '/teachers': typeof TeachersRoute
@@ -412,12 +502,19 @@ export interface FileRoutesById {
   '/verify-email-otp': typeof VerifyEmailOtpRoute
   '/verify-mobile-otp': typeof VerifyMobileOtpRoute
   '/welcome': typeof WelcomeRoute
+  '/classes/$id': typeof ClassesIdRoute
+  '/parents/$id': typeof ParentsIdRoute
   '/students/$id': typeof StudentsIdRoute
+  '/subjects/$id': typeof SubjectsIdRoute
+  '/classes/': typeof ClassesIndexRoute
+  '/parents/': typeof ParentsIndexRoute
+  '/students/': typeof StudentsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/academic-management'
     | '/accounts'
     | '/admissions'
     | '/alerts'
@@ -428,12 +525,14 @@ export interface FileRouteTypes {
     | '/careers'
     | '/classes'
     | '/complaints'
+    | '/diary'
     | '/documents'
     | '/events'
     | '/exams'
     | '/fees'
     | '/forgot-password'
     | '/forgot-pin'
+    | '/homework'
     | '/institute'
     | '/institute-setup'
     | '/leave'
@@ -449,8 +548,10 @@ export interface FileRouteTypes {
     | '/signup'
     | '/splash'
     | '/storage'
+    | '/student-attendance'
     | '/students'
     | '/subjects'
+    | '/subscription'
     | '/teacher-attendance'
     | '/teacher-performance'
     | '/teachers'
@@ -460,10 +561,17 @@ export interface FileRouteTypes {
     | '/verify-email-otp'
     | '/verify-mobile-otp'
     | '/welcome'
+    | '/classes/$id'
+    | '/parents/$id'
     | '/students/$id'
+    | '/subjects/$id'
+    | '/classes/'
+    | '/parents/'
+    | '/students/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/academic-management'
     | '/accounts'
     | '/admissions'
     | '/alerts'
@@ -472,14 +580,15 @@ export interface FileRouteTypes {
     | '/attendance'
     | '/calendar'
     | '/careers'
-    | '/classes'
     | '/complaints'
+    | '/diary'
     | '/documents'
     | '/events'
     | '/exams'
     | '/fees'
     | '/forgot-password'
     | '/forgot-pin'
+    | '/homework'
     | '/institute'
     | '/institute-setup'
     | '/leave'
@@ -487,7 +596,6 @@ export interface FileRouteTypes {
     | '/marks'
     | '/modules'
     | '/notifications'
-    | '/parents'
     | '/pending-verification'
     | '/permissions'
     | '/reports'
@@ -495,8 +603,9 @@ export interface FileRouteTypes {
     | '/signup'
     | '/splash'
     | '/storage'
-    | '/students'
+    | '/student-attendance'
     | '/subjects'
+    | '/subscription'
     | '/teacher-attendance'
     | '/teacher-performance'
     | '/teachers'
@@ -506,10 +615,17 @@ export interface FileRouteTypes {
     | '/verify-email-otp'
     | '/verify-mobile-otp'
     | '/welcome'
+    | '/classes/$id'
+    | '/parents/$id'
     | '/students/$id'
+    | '/subjects/$id'
+    | '/classes'
+    | '/parents'
+    | '/students'
   id:
     | '__root__'
     | '/'
+    | '/academic-management'
     | '/accounts'
     | '/admissions'
     | '/alerts'
@@ -520,12 +636,14 @@ export interface FileRouteTypes {
     | '/careers'
     | '/classes'
     | '/complaints'
+    | '/diary'
     | '/documents'
     | '/events'
     | '/exams'
     | '/fees'
     | '/forgot-password'
     | '/forgot-pin'
+    | '/homework'
     | '/institute'
     | '/institute-setup'
     | '/leave'
@@ -541,8 +659,10 @@ export interface FileRouteTypes {
     | '/signup'
     | '/splash'
     | '/storage'
+    | '/student-attendance'
     | '/students'
     | '/subjects'
+    | '/subscription'
     | '/teacher-attendance'
     | '/teacher-performance'
     | '/teachers'
@@ -552,11 +672,18 @@ export interface FileRouteTypes {
     | '/verify-email-otp'
     | '/verify-mobile-otp'
     | '/welcome'
+    | '/classes/$id'
+    | '/parents/$id'
     | '/students/$id'
+    | '/subjects/$id'
+    | '/classes/'
+    | '/parents/'
+    | '/students/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AcademicManagementRoute: typeof AcademicManagementRoute
   AccountsRoute: typeof AccountsRoute
   AdmissionsRoute: typeof AdmissionsRoute
   AlertsRoute: typeof AlertsRoute
@@ -565,14 +692,16 @@ export interface RootRouteChildren {
   AttendanceRoute: typeof AttendanceRoute
   CalendarRoute: typeof CalendarRoute
   CareersRoute: typeof CareersRoute
-  ClassesRoute: typeof ClassesRoute
+  ClassesRoute: typeof ClassesRouteWithChildren
   ComplaintsRoute: typeof ComplaintsRoute
+  DiaryRoute: typeof DiaryRoute
   DocumentsRoute: typeof DocumentsRoute
   EventsRoute: typeof EventsRoute
   ExamsRoute: typeof ExamsRoute
   FeesRoute: typeof FeesRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   ForgotPinRoute: typeof ForgotPinRoute
+  HomeworkRoute: typeof HomeworkRoute
   InstituteRoute: typeof InstituteRoute
   InstituteSetupRoute: typeof InstituteSetupRoute
   LeaveRoute: typeof LeaveRoute
@@ -580,7 +709,7 @@ export interface RootRouteChildren {
   MarksRoute: typeof MarksRoute
   ModulesRoute: typeof ModulesRoute
   NotificationsRoute: typeof NotificationsRoute
-  ParentsRoute: typeof ParentsRoute
+  ParentsRoute: typeof ParentsRouteWithChildren
   PendingVerificationRoute: typeof PendingVerificationRoute
   PermissionsRoute: typeof PermissionsRoute
   ReportsRoute: typeof ReportsRoute
@@ -588,8 +717,10 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   SplashRoute: typeof SplashRoute
   StorageRoute: typeof StorageRoute
+  StudentAttendanceRoute: typeof StudentAttendanceRoute
   StudentsRoute: typeof StudentsRouteWithChildren
-  SubjectsRoute: typeof SubjectsRoute
+  SubjectsRoute: typeof SubjectsRouteWithChildren
+  SubscriptionRoute: typeof SubscriptionRoute
   TeacherAttendanceRoute: typeof TeacherAttendanceRoute
   TeacherPerformanceRoute: typeof TeacherPerformanceRoute
   TeachersRoute: typeof TeachersRoute
@@ -666,6 +797,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TeacherAttendanceRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/subscription': {
+      id: '/subscription'
+      path: '/subscription'
+      fullPath: '/subscription'
+      preLoaderRoute: typeof SubscriptionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/subjects': {
       id: '/subjects'
       path: '/subjects'
@@ -678,6 +816,13 @@ declare module '@tanstack/react-router' {
       path: '/students'
       fullPath: '/students'
       preLoaderRoute: typeof StudentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/student-attendance': {
+      id: '/student-attendance'
+      path: '/student-attendance'
+      fullPath: '/student-attendance'
+      preLoaderRoute: typeof StudentAttendanceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/storage': {
@@ -785,6 +930,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InstituteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/homework': {
+      id: '/homework'
+      path: '/homework'
+      fullPath: '/homework'
+      preLoaderRoute: typeof HomeworkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/forgot-pin': {
       id: '/forgot-pin'
       path: '/forgot-pin'
@@ -825,6 +977,13 @@ declare module '@tanstack/react-router' {
       path: '/documents'
       fullPath: '/documents'
       preLoaderRoute: typeof DocumentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/diary': {
+      id: '/diary'
+      path: '/diary'
+      fullPath: '/diary'
+      preLoaderRoute: typeof DiaryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/complaints': {
@@ -897,12 +1056,47 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AccountsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/academic-management': {
+      id: '/academic-management'
+      path: '/academic-management'
+      fullPath: '/academic-management'
+      preLoaderRoute: typeof AcademicManagementRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/students/': {
+      id: '/students/'
+      path: '/'
+      fullPath: '/students/'
+      preLoaderRoute: typeof StudentsIndexRouteImport
+      parentRoute: typeof StudentsRoute
+    }
+    '/parents/': {
+      id: '/parents/'
+      path: '/'
+      fullPath: '/parents/'
+      preLoaderRoute: typeof ParentsIndexRouteImport
+      parentRoute: typeof ParentsRoute
+    }
+    '/classes/': {
+      id: '/classes/'
+      path: '/'
+      fullPath: '/classes/'
+      preLoaderRoute: typeof ClassesIndexRouteImport
+      parentRoute: typeof ClassesRoute
+    }
+    '/subjects/$id': {
+      id: '/subjects/$id'
+      path: '/$id'
+      fullPath: '/subjects/$id'
+      preLoaderRoute: typeof SubjectsIdRouteImport
+      parentRoute: typeof SubjectsRoute
     }
     '/students/$id': {
       id: '/students/$id'
@@ -911,23 +1105,78 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StudentsIdRouteImport
       parentRoute: typeof StudentsRoute
     }
+    '/parents/$id': {
+      id: '/parents/$id'
+      path: '/$id'
+      fullPath: '/parents/$id'
+      preLoaderRoute: typeof ParentsIdRouteImport
+      parentRoute: typeof ParentsRoute
+    }
+    '/classes/$id': {
+      id: '/classes/$id'
+      path: '/$id'
+      fullPath: '/classes/$id'
+      preLoaderRoute: typeof ClassesIdRouteImport
+      parentRoute: typeof ClassesRoute
+    }
   }
 }
 
+interface ClassesRouteChildren {
+  ClassesIdRoute: typeof ClassesIdRoute
+  ClassesIndexRoute: typeof ClassesIndexRoute
+}
+
+const ClassesRouteChildren: ClassesRouteChildren = {
+  ClassesIdRoute: ClassesIdRoute,
+  ClassesIndexRoute: ClassesIndexRoute,
+}
+
+const ClassesRouteWithChildren =
+  ClassesRoute._addFileChildren(ClassesRouteChildren)
+
+interface ParentsRouteChildren {
+  ParentsIdRoute: typeof ParentsIdRoute
+  ParentsIndexRoute: typeof ParentsIndexRoute
+}
+
+const ParentsRouteChildren: ParentsRouteChildren = {
+  ParentsIdRoute: ParentsIdRoute,
+  ParentsIndexRoute: ParentsIndexRoute,
+}
+
+const ParentsRouteWithChildren =
+  ParentsRoute._addFileChildren(ParentsRouteChildren)
+
 interface StudentsRouteChildren {
   StudentsIdRoute: typeof StudentsIdRoute
+  StudentsIndexRoute: typeof StudentsIndexRoute
 }
 
 const StudentsRouteChildren: StudentsRouteChildren = {
   StudentsIdRoute: StudentsIdRoute,
+  StudentsIndexRoute: StudentsIndexRoute,
 }
 
 const StudentsRouteWithChildren = StudentsRoute._addFileChildren(
   StudentsRouteChildren,
 )
 
+interface SubjectsRouteChildren {
+  SubjectsIdRoute: typeof SubjectsIdRoute
+}
+
+const SubjectsRouteChildren: SubjectsRouteChildren = {
+  SubjectsIdRoute: SubjectsIdRoute,
+}
+
+const SubjectsRouteWithChildren = SubjectsRoute._addFileChildren(
+  SubjectsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AcademicManagementRoute: AcademicManagementRoute,
   AccountsRoute: AccountsRoute,
   AdmissionsRoute: AdmissionsRoute,
   AlertsRoute: AlertsRoute,
@@ -936,14 +1185,16 @@ const rootRouteChildren: RootRouteChildren = {
   AttendanceRoute: AttendanceRoute,
   CalendarRoute: CalendarRoute,
   CareersRoute: CareersRoute,
-  ClassesRoute: ClassesRoute,
+  ClassesRoute: ClassesRouteWithChildren,
   ComplaintsRoute: ComplaintsRoute,
+  DiaryRoute: DiaryRoute,
   DocumentsRoute: DocumentsRoute,
   EventsRoute: EventsRoute,
   ExamsRoute: ExamsRoute,
   FeesRoute: FeesRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   ForgotPinRoute: ForgotPinRoute,
+  HomeworkRoute: HomeworkRoute,
   InstituteRoute: InstituteRoute,
   InstituteSetupRoute: InstituteSetupRoute,
   LeaveRoute: LeaveRoute,
@@ -951,7 +1202,7 @@ const rootRouteChildren: RootRouteChildren = {
   MarksRoute: MarksRoute,
   ModulesRoute: ModulesRoute,
   NotificationsRoute: NotificationsRoute,
-  ParentsRoute: ParentsRoute,
+  ParentsRoute: ParentsRouteWithChildren,
   PendingVerificationRoute: PendingVerificationRoute,
   PermissionsRoute: PermissionsRoute,
   ReportsRoute: ReportsRoute,
@@ -959,8 +1210,10 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRoute,
   SplashRoute: SplashRoute,
   StorageRoute: StorageRoute,
+  StudentAttendanceRoute: StudentAttendanceRoute,
   StudentsRoute: StudentsRouteWithChildren,
-  SubjectsRoute: SubjectsRoute,
+  SubjectsRoute: SubjectsRouteWithChildren,
+  SubscriptionRoute: SubscriptionRoute,
   TeacherAttendanceRoute: TeacherAttendanceRoute,
   TeacherPerformanceRoute: TeacherPerformanceRoute,
   TeachersRoute: TeachersRoute,

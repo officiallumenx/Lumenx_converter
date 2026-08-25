@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { Avatar, AvatarFallback, Badge, cn } from "@lumenx/ui";
 import { teacherRepository } from "@/lib/teacher/repositories";
+import { isTeacherAccessDenied } from "@/lib/teacher/portal-access-guard";
 import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
 import { StudentDetailPanel } from "./StudentDetailPanel";
 import { toast } from "sonner";
@@ -35,7 +36,12 @@ export function StudentAccordionList({
   };
 
   const addRemark = async (studentId: string, type: RemarkType, text: string) => {
-    await teacherRepository.addRemark(studentId, { type, text });
+    try {
+      await teacherRepository.addRemark(studentId, { type, text });
+    } catch (error) {
+      if (isTeacherAccessDenied(error)) return;
+      throw error;
+    }
     toast.success("Remark added");
     await loadDetail(studentId);
   };

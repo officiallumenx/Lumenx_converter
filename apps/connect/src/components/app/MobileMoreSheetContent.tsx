@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { SheetContent, SheetTitle, cn } from "@lumenx/ui";
+import { SheetContent, SheetDescription, SheetTitle, cn } from "@lumenx/ui";
 
 type MobileMoreSheetContentProps = {
   title: ReactNode;
@@ -26,6 +26,9 @@ export function MobileMoreSheetContent({ title, children, className }: MobileMor
           aria-hidden
         />
         <SheetTitle className="text-left font-display text-lg">{title}</SheetTitle>
+        <SheetDescription className="sr-only">
+          Browse more modules and account actions
+        </SheetDescription>
       </div>
       <div className="connect-more-sheet-body min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 pb-[max(1.25rem,var(--safe-area-bottom))]">
         {children}

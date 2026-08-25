@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/app/PageHeader";
 import { SectionCard } from "@/components/app/SectionCard";
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
 import { teacherRepository } from "@/lib/teacher/repositories";
+import { sectionsForClassName, uniqueSortedClassNames } from "@/lib/class-section-options";
 import { useAsyncAction } from "@/teacher-portal/core/hooks/useAsyncAction";
 import { MarksAnalytics, MarksTable } from "./MarksTable";
 import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
@@ -33,17 +34,12 @@ export function TeacherMarksPage() {
   const [loading, setLoading] = useState(true);
 
   const classNames = useMemo(
-    () => [...new Set(portal.classes.map((c) => c.className))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
+    () => uniqueSortedClassNames(portal.classes),
     [portal.classes],
   );
 
   const sections = useMemo(
-    () =>
-      [
-        ...new Set(
-          portal.classes.filter((c) => c.className === classNameFilter).map((c) => c.section),
-        ),
-      ].sort(),
+    () => sectionsForClassName(portal.classes, classNameFilter),
     [portal.classes, classNameFilter],
   );
 
@@ -97,60 +93,61 @@ export function TeacherMarksPage() {
     toast.success("Draft saved");
   }, [examId, classId, rows]);
 
-  const publishFn = useCallback(async () => {
+  const submitFn = useCallback(async () => {
     await teacherRepository.saveMarkEntries(examId, classId, rows);
-    await teacherRepository.publishMarks(examId, classId);
-    setRows((rs) => rs.map((r) => ({ ...r, status: "published" })));
-    toast.success("Results published");
+    await teacherRepository.submitMarks(examId, classId);
+    setRows((rs) => rs.map((r) => ({ ...r, status: "submitted" })));
+    toast.success("Marks submitted to Admin for publishing");
   }, [examId, classId, rows]);
 
   const { run: saveDraft, pending: savingDraft } = useAsyncAction(saveDraftFn);
-  const { run: publish, pending: publishing } = useAsyncAction(publishFn);
+  const { run: submit, pending: submitting } = useAsyncAction(submitFn);
 
-  const [confirmPublish, setConfirmPublish] = useState(false);
+  const [confirmSubmit, setConfirmSubmit] = useState(false);
 
   if (!portal.isTeacher) return null;
 
   const exam = exams.find((e) => e.id === examId);
   const cls = portal.classes.find((c) => c.id === classId);
   const isPublished = rows[0]?.status === "published";
-  const saving = savingDraft || publishing;
+  const isSubmitted = rows[0]?.status === "submitted";
+  const saving = savingDraft || submitting;
   const enteredCount = rows.filter((r) => r.exam != null || r.internal != null).length;
 
   return (
     <div className="min-w-0 max-w-full">
       <PageHeader
         title="Marks"
-        subtitle="View, enter, edit, and publish results for your classes"
+        subtitle="Enter marks and submit them to Admin for publishing"
         action={
           <div className="flex gap-2">
             <Button
               variant="outline"
               className="rounded-xl gap-2"
               onClick={() => saveDraft()}
-              disabled={saving || isPublished}
+              disabled={saving || isPublished || isSubmitted}
             >
               <Save className="size-4" /> Save draft
             </Button>
             <Button
               className="rounded-xl gap-2 shadow-glow"
-              onClick={() => setConfirmPublish(true)}
-              disabled={saving || isPublished || enteredCount === 0}
+              onClick={() => setConfirmSubmit(true)}
+              disabled={saving || isPublished || isSubmitted || enteredCount === 0}
             >
-              <Send className="size-4" /> Publish results
+              <Send className="size-4" /> Submit to Admin
             </Button>
           </div>
         }
       />
       <ConfirmDialog
-        open={confirmPublish}
-        onOpenChange={setConfirmPublish}
-        title="Publish results?"
-        description={`Marks for ${exam?.name ?? "this exam"} · Class ${cls?.className ?? ""}-${cls?.section ?? ""} will be visible to students, parents, and admin. This action cannot be undone.`}
-        confirmLabel="Publish"
+        open={confirmSubmit}
+        onOpenChange={setConfirmSubmit}
+        title="Submit marks to Admin?"
+        description={`Marks for ${exam?.name ?? "this exam"} · Class ${cls?.className ?? ""}-${cls?.section ?? ""} will be locked for review. Admin will publish them to students and parents.`}
+        confirmLabel="Submit"
         onConfirm={() => {
-          setConfirmPublish(false);
-          publish();
+          setConfirmSubmit(false);
+          submit();
         }}
       />
 
@@ -219,12 +216,12 @@ export function TeacherMarksPage() {
           title={`${exam?.name ?? "Exam"} · Class ${cls?.className}-${cls?.section} · ${exam?.subject ?? cls?.subject ?? ""}`}
           action={
             <Badge variant="outline" className="rounded-md capitalize">
-              {isPublished ? "Published" : "Draft"}
+              {isPublished ? "Published" : isSubmitted ? "Submitted" : "Draft"}
             </Badge>
           }
         >
           <MarksAnalytics rows={rows} />
-          <MarksTable rows={rows} onUpdate={update} readOnly={isPublished} />
+          <MarksTable rows={rows} onUpdate={update} readOnly={isPublished || isSubmitted} />
         </SectionCard>
       )}
     </div>

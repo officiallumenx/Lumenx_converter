@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { InstituteApplicationsPage } from "@/admissions-portal/features/institute-admin/InstituteAdminPages";
+import { InstituteApplicationsBoardPage } from "@/admissions-portal/features/institute-admin/InstituteApplicationsBoardPage";
 
 export const Route = createFileRoute("/admissions/institute/applications/")({
-  head: () => ({ meta: [{ title: "Review applications — Institute" }] }),
-  component: InstituteApplicationsPage,
+  head: () => ({ meta: [{ title: "Applications — Institute" }] }),
+  component: InstituteApplicationsBoardPage,
 });

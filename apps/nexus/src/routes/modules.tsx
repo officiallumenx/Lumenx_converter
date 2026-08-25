@@ -1,185 +1,532 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
-import { Card, CardHeader, Button, Pill } from "@lumenx/ui-admin";
 import {
-  Users, GraduationCap, Heart, Building2, CalendarRange, ClipboardCheck, FileText,
-  MessageSquareWarning, Bell, Megaphone, CalendarDays, Siren, ShieldCheck, HardDrive,
-  BarChart3, Sparkles, Zap, Crown, Check,
+  Card,
+  CardHeader,
+  Pill,
+  Field,
+  Select,
+  SegmentedControl,
+} from "@lumenx/ui-admin";
+import {
+  Users,
+  GraduationCap,
+  Heart,
+  Building2,
+  CalendarRange,
+  ClipboardCheck,
+  FileText,
+  MessageSquareWarning,
+  Bell,
+  Megaphone,
+  CalendarDays,
+  Siren,
+  ShieldCheck,
+  HardDrive,
+  BarChart3,
+  Bus,
+  IndianRupee,
+  Briefcase,
+  School,
+  Layers,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  syncDirectoryFromLicense,
+  listPlatformInstitutes,
+  subscribeInstituteDirectory,
+} from "@/lib/institute-directory-store";
+import {
+  CONNECT_PORTAL_CATALOG,
+  PLATFORM_APP_CATALOG,
+  adminModulesForUi,
+  defaultLicense,
+  disableModule,
+  enableModule,
+  getLicense,
+  loadLicenses,
+  setConnectPortalEnabled,
+  setConnectPortalModuleEnabled,
+  setPlatformAppEnabled,
+  subscribeLicenses,
+  type ConnectPortalId,
+  type InstituteLicense,
+  type PlatformAppId,
+} from "@/lib/institute-licensing-store";
+import { setAdminBoundNexusInstituteId } from "@lumenx/config";
+import { colorForModule, moduleAccentStyle } from "@/lib/nexus-module-colors";
 
 export const Route = createFileRoute("/modules")({
-  head: () => ({ meta: [{ title: "Modules — LumenX Nexus" }] }),
+  head: () => ({ meta: [{ title: "Module entitlements — LumenX Nexus" }] }),
   component: ModulesPage,
 });
 
-type Plan = "Starter" | "Professional" | "Enterprise";
+type SurfaceTab = "admin" | "connect" | "careers" | "admissions" | "transport";
 
-type Module = {
-  id: string; label: string; icon: typeof Users;
-  description: string;
-  minPlan: Plan;
-  group: "Core" | "Operations" | "Communications" | "Intelligence" | "Infrastructure";
+const iconMap: Record<string, typeof Users> = {
+  students: Users,
+  teachers: GraduationCap,
+  parents: Heart,
+  classes: Building2,
+  attendance: ClipboardCheck,
+  "student-attendance": ClipboardCheck,
+  timetable: CalendarRange,
+  exams: FileText,
+  marks: FileText,
+  complaints: MessageSquareWarning,
+  notifications: Bell,
+  announcements: Megaphone,
+  events: CalendarDays,
+  alerts: Siren,
+  analytics: BarChart3,
+  storage: HardDrive,
+  transport: Bus,
+  fees: IndianRupee,
+  permissions: ShieldCheck,
+  careers: Briefcase,
+  admissions: School,
 };
 
-const modules: Module[] = [
-  { id: "students", label: "Students", icon: Users, description: "Directory, admissions, 360 profiles", minPlan: "Starter", group: "Core" },
-  { id: "teachers", label: "Teachers", icon: GraduationCap, description: "Faculty records, workload, ratings", minPlan: "Starter", group: "Core" },
-  { id: "parents", label: "Parents", icon: Heart, description: "Guardian accounts and child linking", minPlan: "Starter", group: "Core" },
-  { id: "classes", label: "Classes & Sections", icon: Building2, description: "Class structure and section assignments", minPlan: "Starter", group: "Core" },
-  { id: "attendance", label: "Attendance", icon: ClipboardCheck, description: "Daily attendance capture and reports", minPlan: "Starter", group: "Operations" },
-  { id: "timetable", label: "Timetable Builder", icon: CalendarRange, description: "Conflict-aware schedule builder", minPlan: "Professional", group: "Operations" },
-  { id: "exams", label: "Exams & Marks", icon: FileText, description: "Exam scheduling and grade ingestion", minPlan: "Professional", group: "Operations" },
-  { id: "complaints", label: "Complaints", icon: MessageSquareWarning, description: "Case management with SLAs", minPlan: "Professional", group: "Operations" },
-  { id: "notifications", label: "Notifications", icon: Bell, description: "Push/email/SMS triggered messages", minPlan: "Starter", group: "Communications" },
-  { id: "announcements", label: "Announcements", icon: Megaphone, description: "Long-form notices with pinning", minPlan: "Professional", group: "Communications" },
-  { id: "events", label: "Events", icon: CalendarDays, description: "Calendar, RSVPs, audience targeting", minPlan: "Professional", group: "Communications" },
-  { id: "alerts", label: "Alerts (P0–P3)", icon: Siren, description: "Rule-based operational alerting", minPlan: "Enterprise", group: "Communications" },
-  { id: "analytics", label: "Analytics", icon: BarChart3, description: "Cohort and performance intelligence", minPlan: "Professional", group: "Intelligence" },
-  { id: "permissions", label: "IAM & Permissions", icon: ShieldCheck, description: "Roles, scopes, custom matrices", minPlan: "Enterprise", group: "Infrastructure" },
-  { id: "storage", label: "Cloud Storage", icon: HardDrive, description: "Archive, quotas, cleanup", minPlan: "Professional", group: "Infrastructure" },
-];
-
-const planOrder: Plan[] = ["Starter", "Professional", "Enterprise"];
+function mirrorDirectory(license: InstituteLicense) {
+  syncDirectoryFromLicense({
+    instituteId: license.instituteId,
+    plan: license.plan,
+    billingCadence: license.cadence,
+    amountInr: license.amountInr,
+    paidAmountInr: license.paidAmountInr,
+    billingStartAt: license.startAt,
+    modules: license.modules,
+  });
+}
 
 function ModulesPage() {
-  const [plan, setPlan] = useState<Plan>("Professional");
-  const [enabled, setEnabled] = useState<Record<string, boolean>>(
-    Object.fromEntries(modules.map((m) => [m.id, planOrder.indexOf(m.minPlan) <= planOrder.indexOf("Professional")])),
+  const [tick, setTick] = useState(0);
+  const [surface, setSurface] = useState<SurfaceTab>("admin");
+  const [connectPortal, setConnectPortal] = useState<ConnectPortalId>("teachers");
+  const [flash, setFlash] = useState<string | null>(null);
+
+  useEffect(() => {
+    const a = subscribeLicenses(() => setTick((t) => t + 1));
+    const b = subscribeInstituteDirectory(() => setTick((t) => t + 1));
+    return () => {
+      a();
+      b();
+    };
+  }, []);
+
+  const institutes = useMemo(
+    () =>
+      listPlatformInstitutes()
+        .filter((i) => i.status !== "archived")
+        .map((i) => ({
+          id: i.id,
+          name: i.name,
+          city: i.city,
+          studentCount: i.studentCount,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [tick],
   );
 
-  const isAvailable = (m: Module) => planOrder.indexOf(m.minPlan) <= planOrder.indexOf(plan);
+  const [instituteId, setInstituteId] = useState(() => institutes[0]?.id ?? "ins-delhi-riverside");
 
-  const toggle = (id: string) => {
-    const m = modules.find((x) => x.id === id);
-    if (!m || !isAvailable(m)) return;
-    setEnabled((p) => ({ ...p, [id]: !p[id] }));
+  useEffect(() => {
+    if (!institutes.some((i) => i.id === instituteId) && institutes[0]) {
+      setInstituteId(institutes[0].id);
+    }
+  }, [institutes, instituteId]);
+
+  useEffect(() => {
+    setAdminBoundNexusInstituteId(instituteId);
+  }, [instituteId]);
+
+  void tick;
+  const draft = loadLicenses()[instituteId] ?? defaultLicense(instituteId);
+  const license = getLicense(instituteId);
+  const institute = institutes.find((i) => i.id === instituteId) ?? {
+    id: instituteId,
+    name: instituteId,
+    city: "—",
+    studentCount: 0,
   };
 
-  const groups = Array.from(new Set(modules.map((m) => m.group)));
-  const activeCount = modules.filter((m) => enabled[m.id] && isAvailable(m)).length;
+  const adminCatalog = useMemo(() => adminModulesForUi(), []);
+  const adminGroups = useMemo(
+    () => Array.from(new Set(adminCatalog.map((m) => m.group))),
+    [adminCatalog],
+  );
+  const adminOn = adminCatalog.filter((m) => draft.modules[m.id]).length;
+
+  const refresh = (message: string) => {
+    setFlash(message);
+    window.setTimeout(() => setFlash(null), 2800);
+    setTick((t) => t + 1);
+  };
+
+  const selectInstitute = (id: string) => {
+    setInstituteId(id);
+    setFlash(null);
+  };
+
+  const toggleAdminModule = (moduleId: string) => {
+    const on = Boolean(draft.modules[moduleId]);
+    const lic = on ? disableModule(instituteId, moduleId) : enableModule(instituteId, moduleId);
+    if (!lic) return;
+    mirrorDirectory(lic);
+    refresh(on ? `Disabled ${moduleId}` : `Enabled ${moduleId}`);
+  };
+
+  const togglePortal = (portalId: ConnectPortalId, enabled: boolean) => {
+    const lic = setConnectPortalEnabled(instituteId, portalId, enabled);
+    mirrorDirectory(lic);
+    refresh(
+      enabled
+        ? `${CONNECT_PORTAL_CATALOG.find((p) => p.id === portalId)!.label} portal on`
+        : `${CONNECT_PORTAL_CATALOG.find((p) => p.id === portalId)!.label} portal off`,
+    );
+  };
+
+  const togglePortalModule = (portalId: ConnectPortalId, moduleId: string) => {
+    const on = Boolean(draft.connect[portalId].modules[moduleId]);
+    const lic = setConnectPortalModuleEnabled(instituteId, portalId, moduleId, !on);
+    if (!lic) return;
+    mirrorDirectory(lic);
+    refresh(on ? `Disabled ${moduleId}` : `Enabled ${moduleId}`);
+  };
+
+  const toggleApp = (appId: PlatformAppId, enabled: boolean) => {
+    const lic = setPlatformAppEnabled(instituteId, appId, enabled);
+    mirrorDirectory(lic);
+    const label = PLATFORM_APP_CATALOG.find((a) => a.id === appId)!.label;
+    refresh(enabled ? `${label} app on` : `${label} app off`);
+  };
 
   return (
-    <AppShell title="Modules & Plan" subtitle="Activate operational modules — availability depends on your subscription plan"
-      actions={<Button variant="primary"><Sparkles className="size-3.5" /> Upgrade Plan</Button>}
+    <AppShell
+      title="Module entitlements"
+      subtitle="Admin · Connect portals · Careers / Admissions / Transport apps"
     >
-      {/* Plan switcher */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-        {([
-          { p: "Starter", icon: Zap, price: "Free", desc: "Core people management for small institutes",
-            features: ["Up to 500 students", "Basic notifications", "Single branch"] },
-          { p: "Professional", icon: Sparkles, price: "$249/mo", desc: "Operational depth for growing institutes",
-            features: ["Up to 5,000 students", "Timetable builder", "Multi-branch · 3", "Analytics"] },
-          { p: "Enterprise", icon: Crown, price: "Custom", desc: "Unlimited scale with IAM and SLAs",
-            features: ["Unlimited students", "IAM & custom roles", "Alert rule engine", "Priority SLA"] },
-        ] as const).map((opt) => {
-          const Icon = opt.icon;
-          const active = plan === opt.p;
-          return (
-            <button key={opt.p} onClick={() => setPlan(opt.p as Plan)}
-              className={`text-left p-5 rounded-xl border transition-all duration-200 ${
-                active
-                  ? "border-primary bg-primary/5 shadow-glow"
-                  : "border-border bg-surface hover:border-border-strong hover:-translate-y-0.5"
-              }`}>
-              <div className="flex items-center justify-between mb-3">
-                <div className={`size-9 rounded-md flex items-center justify-center border ${active ? "bg-primary/15 border-primary/30 text-primary" : "bg-accent border-border text-muted-foreground"}`}>
-                  <Icon className="size-4" />
-                </div>
-                {active && <Pill tone="info" pulse>Current</Pill>}
-              </div>
-              <div className="flex items-baseline gap-2">
-                <div className="text-base font-semibold">{opt.p}</div>
-                <div className="text-xs text-muted-foreground font-mono">{opt.price}</div>
-              </div>
-              <p className="text-[11px] text-muted-foreground mt-1">{opt.desc}</p>
-              <ul className="mt-4 space-y-1.5">
-                {opt.features.map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-[11px]">
-                    <Check className="size-3 text-success" /> {f}
-                  </li>
-                ))}
-              </ul>
-            </button>
-          );
-        })}
-      </div>
+      {flash && (
+        <div className="mb-4 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-primary">
+          {flash}
+        </div>
+      )}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Card className="p-5">
-          <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Active modules</div>
-          <div className="mt-2 text-2xl font-semibold tracking-tight">{activeCount}/{modules.length}</div>
-        </Card>
-        <Card className="p-5">
-          <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Current plan</div>
-          <div className="mt-2 text-2xl font-semibold tracking-tight">{plan}</div>
-        </Card>
-        <Card className="p-5">
-          <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Locked modules</div>
-          <div className="mt-2 text-2xl font-semibold tracking-tight">{modules.filter((m) => !isAvailable(m)).length}</div>
-        </Card>
-        <Card className="p-5">
-          <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Module groups</div>
-          <div className="mt-2 text-2xl font-semibold tracking-tight">{groups.length}</div>
-        </Card>
-      </div>
-
-      {groups.map((g) => (
-        <Card key={g} className="mb-4">
-          <CardHeader title={g} hint={`${modules.filter((m) => m.group === g).length} modules in this group`} />
-          <div className="px-5 pb-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {modules.filter((m) => m.group === g).map((m) => {
-              const Icon = m.icon;
-              const avail = isAvailable(m);
-              const on = enabled[m.id] && avail;
-              return (
-                <div key={m.id}
-                  className={`p-4 rounded-lg border transition-all ${
-                    on ? "border-primary/30 bg-primary/[0.04]"
-                       : avail ? "border-border bg-background/40 hover:border-border-strong"
-                       : "border-dashed border-border bg-muted/30 opacity-70"
-                  }`}>
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`size-9 rounded-md flex items-center justify-center border ${
-                        on ? "bg-primary/15 border-primary/30 text-primary"
-                           : avail ? "bg-accent border-border text-muted-foreground"
-                           : "bg-muted border-border text-muted-foreground"
-                      }`}>
-                        <Icon className="size-4" />
-                      </div>
-                      <div>
-                        <div className="text-xs font-semibold flex items-center gap-1.5">
-                          {m.label}
-                          {!avail && <Pill tone="warning">{m.minPlan}+</Pill>}
-                        </div>
-                        <div className="text-[10px] text-muted-foreground">{m.description}</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-4 flex items-center justify-between">
-                    <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
-                      Min plan · {m.minPlan}
-                    </span>
-                    <Toggle on={on} disabled={!avail} onChange={() => toggle(m.id)} />
-                  </div>
-                </div>
-              );
-            })}
+      <Card className="mb-4">
+        <div className="px-4 sm:px-5 py-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+          <Field label="Institute" required className="min-w-0 flex-1 sm:min-w-[220px]">
+            <Select value={instituteId} onChange={(e) => selectInstitute(e.target.value)}>
+              {institutes.map((i) => (
+                <option key={i.id} value={i.id}>
+                  {i.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <div className="rounded-md border border-border bg-muted/20 px-3 py-2.5 text-[11px] space-y-1 min-w-0 sm:min-w-[180px]">
+            <div className="truncate">
+              <span className="text-muted-foreground">City · </span>
+              {institute.city}
+            </div>
+            <div>
+              <span className="text-muted-foreground">Students · </span>
+              {institute.studentCount.toLocaleString("en-IN")}
+            </div>
           </div>
-        </Card>
-      ))}
+        </div>
+      </Card>
+
+      <div className="mb-4">
+        <SegmentedControl
+          value={surface}
+          onChange={(v) => setSurface(v as SurfaceTab)}
+          options={[
+            { value: "admin", label: "Admin" },
+            { value: "connect", label: "Connect" },
+            { value: "careers", label: "Careers" },
+            { value: "admissions", label: "Admissions" },
+            { value: "transport", label: "Transport" },
+          ]}
+        />
+      </div>
+
+      {surface === "admin" && (
+        <>
+          <Card className="mb-4">
+            <CardHeader
+              title="Admin"
+              hint={`${adminOn} modules on · institute ops app · Careers / Admissions / Transport are under their own tabs`}
+              action={<Layers className="size-4 text-muted-foreground" />}
+            />
+            <div className="px-5 pb-4 text-[11px] text-muted-foreground">
+              Turn modules on or off for this institute’s Admin app. Disabling hides nav; data stays.
+            </div>
+          </Card>
+
+          {adminGroups.map((g) => (
+            <Card key={g} className="mb-4">
+              <CardHeader
+                title={g}
+                hint={`${adminCatalog.filter((m) => m.group === g).length} modules`}
+              />
+              <div className="px-5 pb-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {adminCatalog
+                  .filter((m) => m.group === g)
+                  .map((m) => {
+                    const Icon = iconMap[m.id] ?? Users;
+                    const on = Boolean(draft.modules[m.id]);
+                    const accent = colorForModule(m.id);
+                    const well = moduleAccentStyle(accent, on);
+                    return (
+                      <FeatureTile
+                        key={m.id}
+                        label={m.label}
+                        description={m.description}
+                        on={on}
+                        icon={<Icon className="size-4" />}
+                        wellStyle={well}
+                        borderColor={on ? accent.border : undefined}
+                        onToggle={() => toggleAdminModule(m.id)}
+                      />
+                    );
+                  })}
+              </div>
+            </Card>
+          ))}
+        </>
+      )}
+
+      {surface === "connect" && (
+        <>
+          <Card className="mb-4">
+            <CardHeader
+              title="Connect"
+              hint="Teachers · Parents · Students — portal on/off plus module on/off"
+            />
+            <div className="px-5 pb-4">
+              <SegmentedControl
+                value={connectPortal}
+                onChange={(v) => setConnectPortal(v as ConnectPortalId)}
+                options={CONNECT_PORTAL_CATALOG.map((p) => ({
+                  value: p.id,
+                  label: p.label,
+                }))}
+              />
+            </div>
+          </Card>
+
+          {CONNECT_PORTAL_CATALOG.filter((p) => p.id === connectPortal).map((portal) => {
+            const ent = license.connect[portal.id];
+            const moduleOn = Object.values(ent.modules).filter(Boolean).length;
+            return (
+              <Card key={portal.id} className="mb-4">
+                <CardHeader
+                  title={`${portal.label} portal`}
+                  hint={portal.description}
+                  action={
+                    <div className="flex items-center gap-3">
+                      <Pill tone={ent.enabled ? "success" : "danger"}>
+                        {ent.enabled ? "Portal on" : "Portal off"}
+                      </Pill>
+                      <Toggle
+                        on={ent.enabled}
+                        onChange={() => togglePortal(portal.id, !ent.enabled)}
+                      />
+                    </div>
+                  }
+                />
+                <div className="px-5 pb-3 text-[11px] text-muted-foreground">
+                  {ent.enabled
+                    ? `${moduleOn}/${portal.features.length} modules granted · turning the portal off hides the whole ${portal.label.toLowerCase()} experience`
+                    : `Portal is off — module toggles below are preserved but Connect will not show this portal`}
+                </div>
+                <div
+                  className={`px-5 pb-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 ${
+                    !ent.enabled ? "opacity-60" : ""
+                  }`}
+                >
+                  {portal.features.map((f) => {
+                    const on = Boolean(ent.modules[f.id]);
+                    const locked = f.toggleable === false;
+                    return (
+                      <FeatureTile
+                        key={f.id}
+                        label={f.label}
+                        description={
+                          locked ? `${f.description} · always on with portal` : f.description
+                        }
+                        on={on}
+                        locked={locked}
+                        onToggle={
+                          locked ? undefined : () => togglePortalModule(portal.id, f.id)
+                        }
+                      />
+                    );
+                  })}
+                </div>
+              </Card>
+            );
+          })}
+        </>
+      )}
+
+      {(surface === "careers" || surface === "admissions" || surface === "transport") && (
+        <AppEntitlementPanel
+          appId={surface}
+          enabled={license.apps[surface].enabled}
+          onToggle={(enabled) => toggleApp(surface, enabled)}
+        />
+      )}
+
+      <p className="mt-2 text-[11px] text-muted-foreground font-mono">
+        Admin modules gate Admin nav. Connect portal/module flags are stored per institute. Careers,
+        Admissions, and Transport are whole-app switches — feature lists are for visibility only.
+        Disabling never deletes data.
+      </p>
     </AppShell>
   );
 }
 
-function Toggle({ on, disabled, onChange }: { on: boolean; disabled?: boolean; onChange: () => void }) {
+function AppEntitlementPanel({
+  appId,
+  enabled,
+  onToggle,
+}: {
+  appId: PlatformAppId;
+  enabled: boolean;
+  onToggle: (enabled: boolean) => void;
+}) {
+  const app = PLATFORM_APP_CATALOG.find((a) => a.id === appId)!;
+  const Icon =
+    appId === "careers" ? Briefcase : appId === "admissions" ? School : Bus;
+
   return (
-    <button onClick={onChange} disabled={disabled}
-      className={`relative w-10 h-5 rounded-full transition-colors ${
+    <Card className="mb-4">
+      <CardHeader
+        title={app.label}
+        hint={app.description}
+        action={
+          <div className="flex items-center gap-3">
+            <Pill tone={enabled ? "success" : "danger"}>
+              {enabled ? "App on" : "App off"}
+            </Pill>
+            <Toggle on={enabled} onChange={() => onToggle(!enabled)} />
+          </div>
+        }
+      />
+      <div className="px-5 pb-3 flex items-start gap-3">
+        <div className="size-10 rounded-md border border-border bg-muted/30 flex items-center justify-center shrink-0">
+          <Icon className="size-4 text-muted-foreground" />
+        </div>
+        <div className="text-[11px] text-muted-foreground leading-relaxed">
+          This surface is controlled as a <span className="text-foreground font-medium">whole app</span>
+          . Features below are listed so you can see what’s included — they are not toggled
+          individually. Turning the app off disables the entire {app.label.toLowerCase()} experience
+          for this institute (Admin mirror module stays in sync).
+        </div>
+      </div>
+      <div className={`px-5 pb-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 ${!enabled ? "opacity-60" : ""}`}>
+        {app.features.map((f) => (
+          <div
+            key={f.id}
+            className="rounded-lg border border-border bg-background/40 px-3 py-3"
+          >
+            <div className="text-xs font-semibold flex items-center gap-2">
+              {f.label}
+              <Pill tone="neutral">Included</Pill>
+            </div>
+            <div className="mt-1 text-[10px] text-muted-foreground">{f.description}</div>
+            <div className="mt-2 text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+              Follows app · {enabled ? "available" : "hidden with app"}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function FeatureTile({
+  label,
+  description,
+  on,
+  icon,
+  wellStyle,
+  borderColor,
+  locked,
+  onToggle,
+}: {
+  label: string;
+  description: string;
+  on: boolean;
+  icon?: ReactNode;
+  wellStyle?: CSSProperties;
+  borderColor?: string;
+  locked?: boolean;
+  onToggle?: () => void;
+}) {
+  return (
+    <div
+      className={`p-3.5 sm:p-4 rounded-lg border transition-all min-w-0 flex flex-col gap-3 ${
+        on ? "bg-background/60" : "border-border bg-background/40"
+      }`}
+      style={borderColor ? { borderColor } : undefined}
+    >
+      <div className="flex items-start gap-3 min-w-0">
+        {icon ? (
+          <div
+            className="size-9 rounded-md flex items-center justify-center border shrink-0"
+            style={wellStyle}
+          >
+            {icon}
+          </div>
+        ) : null}
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="text-xs font-semibold leading-snug break-words">{label}</div>
+          <div className="flex flex-wrap gap-1.5">
+            {!on && <Pill tone="neutral">Off</Pill>}
+            {on && <Pill tone="success">On</Pill>}
+            {locked && <Pill tone="info">Always</Pill>}
+          </div>
+          <div className="text-[11px] text-muted-foreground leading-relaxed">{description}</div>
+        </div>
+      </div>
+      {onToggle ? (
+        <div className="mt-auto pt-1 flex items-center justify-between gap-3 border-t border-border/60">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+            {on ? "Granted" : "Hidden"}
+          </span>
+          <Toggle on={on} onChange={onToggle} disabled={locked} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function Toggle({
+  on,
+  onChange,
+  disabled,
+}: {
+  on: boolean;
+  onChange: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onChange}
+      className={`relative w-10 h-5 rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
         on ? "bg-primary" : "bg-muted"
-      } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}>
-      <span className={`absolute top-0.5 size-4 rounded-full bg-white shadow transition-all ${on ? "left-[22px]" : "left-0.5"}`} />
+      }`}
+    >
+      <span
+        className={`absolute top-0.5 size-4 rounded-full bg-white shadow transition-all ${
+          on ? "left-[22px]" : "left-0.5"
+        }`}
+      />
     </button>
   );
 }
+

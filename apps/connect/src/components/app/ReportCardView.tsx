@@ -71,7 +71,7 @@ function MarksStackLegend() {
           style={{ background: MARKS_INTERNAL_FILL }}
           aria-hidden
         />
-        Internal (/20 scaled)
+        Internal (/20)
       </span>
       <span className="inline-flex items-center gap-1.5">
         <span
@@ -79,7 +79,7 @@ function MarksStackLegend() {
           style={{ background: MARKS_EXAM_PASS_FILL }}
           aria-hidden
         />
-        Exam (/80 scaled)
+        External (/80)
       </span>
     </div>
   );
@@ -114,22 +114,18 @@ export function ReportCardView(props?: {
   const active = props?.selectedId ?? internalActive;
 
   const setActive = (id: string) => {
+    if (id === active) return;
     props?.onSelectedIdChange?.(id);
     if (props?.selectedId === undefined) setInternalActive(id);
   };
 
   useEffect(() => {
     const next = visibleCards[0]?.id ?? cards[0]?.id ?? "";
-    if (!visibleCards.some((r) => r.id === active)) setActive(next);
+    if (!next) return;
+    if (visibleCards.some((r) => r.id === active)) return;
+    setActive(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync selection when card list identity changes
   }, [visibleCards, cards, active]);
-
-  useEffect(() => {
-    const next = visibleCards[0]?.id ?? cards[0]?.id ?? "";
-    if (next && !visibleCards.some((c) => c.id === active)) {
-      setActive(next);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync when card list changes
-  }, [visibleCards, cards]);
 
   if (!visibleCards.length && !cards.length) return null;
 
@@ -216,14 +212,14 @@ export function ReportCardView(props?: {
 
           return (
             <TabsContent key={r.id} value={r.id} className="mt-4 space-y-4">
-              <div className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-4">
-                <Stat label="Percentage" value={`${r.percentage}%`} tone="primary" />
-                <Stat label="Grade" value={r.grade} tone="success" />
-                <Stat label="Class rank" value={`#${r.rank}`} />
+              <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-2.5">
+                <Stat label="Percentage" value={`${r.percentage}%`} tone="percentage" />
+                <Stat label="Grade" value={r.grade} tone="grade" />
+                <Stat label="Class rank" value={`#${r.rank}`} tone="rank" />
                 <Stat
                   label="Result"
                   value={passFailLabel(r.percentage)}
-                  tone={isPassing(r.percentage) ? "success" : "warning"}
+                  tone={isPassing(r.percentage) ? "pass" : "fail"}
                 />
               </div>
 
@@ -235,38 +231,64 @@ export function ReportCardView(props?: {
                   </Badge>
                 }
               >
-                <div className="-mx-4 min-w-0 overflow-x-auto md:mx-0">
-                  <Table>
+                <div className="min-w-0 overflow-hidden">
+                  <Table className="w-full table-fixed text-sm">
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Subject</TableHead>
-                        <TableHead className="text-right">Internal /20</TableHead>
-                        <TableHead className="text-right">Exam /80</TableHead>
-                        <TableHead className="text-right">Total /100</TableHead>
-                        <TableHead>Grade</TableHead>
-                        <TableHead>Result</TableHead>
+                        <TableHead className="h-10 w-[26%] px-2 text-xs">Subject</TableHead>
+                        <TableHead className="h-10 w-[13%] px-1.5 text-right text-xs leading-tight">
+                          <span className="block">Internal</span>
+                          <span className="block font-normal text-muted-foreground">/20</span>
+                        </TableHead>
+                        <TableHead className="h-10 w-[13%] px-1.5 text-right text-xs leading-tight">
+                          <span className="block">External</span>
+                          <span className="block font-normal text-muted-foreground">/80</span>
+                        </TableHead>
+                        <TableHead className="h-10 w-[13%] px-1.5 text-right text-xs leading-tight">
+                          <span className="block">Total</span>
+                          <span className="block font-normal text-muted-foreground">/100</span>
+                        </TableHead>
+                        <TableHead className="h-10 w-[12%] px-1.5 text-center text-xs">
+                          Grade
+                        </TableHead>
+                        <TableHead className="h-10 w-[13%] px-1.5 text-center text-xs">
+                          Result
+                        </TableHead>
                         {showTeacherRemarks && (
-                          <TableHead className="hidden md:table-cell">Teacher remark</TableHead>
+                          <TableHead className="hidden h-10 px-2 text-xs md:table-cell">
+                            Remark
+                          </TableHead>
                         )}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {r.marks.map((m) => (
                         <TableRow key={m.subject}>
-                          <TableCell className="font-medium">{m.subject}</TableCell>
-                          <TableCell className="text-right tabular-nums">{m.internal}</TableCell>
-                          <TableCell className="text-right tabular-nums">{m.exam}</TableCell>
-                          <TableCell className="text-right font-semibold tabular-nums">
+                          <TableCell className="truncate px-2 py-2.5 font-medium">
+                            {m.subject}
+                          </TableCell>
+                          <TableCell className="px-1.5 py-2.5 text-right tabular-nums">
+                            {m.internal}
+                          </TableCell>
+                          <TableCell className="px-1.5 py-2.5 text-right tabular-nums">
+                            {m.exam}
+                          </TableCell>
+                          <TableCell className="px-1.5 py-2.5 text-right font-semibold tabular-nums">
                             {m.total}
                           </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{m.grade}</Badge>
+                          <TableCell className="px-1.5 py-2.5 text-center">
+                            <Badge
+                              variant="outline"
+                              className="h-6 px-2 text-xs font-semibold"
+                            >
+                              {m.grade}
+                            </Badge>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="px-1.5 py-2.5 text-center">
                             <PassFailBadge total={m.total} />
                           </TableCell>
                           {showTeacherRemarks && (
-                            <TableCell className="hidden text-sm text-muted-foreground md:table-cell">
+                            <TableCell className="hidden truncate px-2 py-2.5 text-sm text-muted-foreground md:table-cell">
                               {m.remark ?? "—"}
                             </TableCell>
                           )}
@@ -588,20 +610,28 @@ function Stat({
 }: {
   label: string;
   value: string;
-  tone?: "default" | "primary" | "success" | "warning";
+  tone?: "default" | "primary" | "success" | "warning" | "percentage" | "grade" | "rank" | "pass" | "fail";
 }) {
-  const toneCls = {
-    default: "bg-card",
-    primary: "bg-primary/10",
-    success: "bg-success/10",
-    warning: "bg-warning/10",
-  }[tone];
+  const toneBox: Record<string, string> = {
+    default: "border-border bg-card",
+    primary: "border-primary/25 bg-primary/10",
+    success: "border-success/25 bg-success/10",
+    warning: "border-warning/30 bg-warning/10",
+    percentage: "border-indigo-500/30 bg-indigo-500/[0.09] dark:bg-indigo-500/15",
+    grade: "border-violet-500/30 bg-violet-500/[0.09] dark:bg-violet-500/15",
+    rank: "border-cyan-500/30 bg-cyan-500/[0.09] dark:bg-cyan-500/15",
+    pass: "border-emerald-500/30 bg-emerald-500/[0.09] dark:bg-emerald-500/15",
+    fail: "border-rose-500/30 bg-rose-500/[0.09] dark:bg-rose-500/15",
+  };
+
   return (
-    <div className={`min-w-0 rounded-2xl border border-border p-4 shadow-soft ${toneCls}`}>
-      <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+    <div className={cn("min-w-0 rounded-xl border p-2.5 shadow-soft sm:p-3", toneBox[tone] ?? toneBox.default)}>
+      <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:text-[11px]">
         {label}
       </div>
-      <div className="mt-1 font-display text-xl font-semibold sm:text-2xl">{value}</div>
+      <div className="mt-0.5 font-display text-lg font-semibold leading-tight tabular-nums text-foreground sm:text-xl">
+        {value}
+      </div>
     </div>
   );
 }

@@ -21,6 +21,7 @@ import {
 
 const CATEGORY_ICON: Record<FeeCategory, typeof Wallet> = {
   tuition: Wallet,
+  books: Wallet,
   exam: GraduationCap,
   transport: Bus,
   hostel: Clock,
@@ -31,6 +32,7 @@ const CATEGORY_ICON: Record<FeeCategory, typeof Wallet> = {
 
 const CATEGORY_CLS: Record<FeeCategory, string> = {
   tuition: "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20",
+  books: "bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/20",
   exam: "bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/20",
   transport: "bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-500/20",
   hostel: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/20",

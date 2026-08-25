@@ -67,7 +67,7 @@ export function InstituteProfilePage({ instituteId }: { instituteId: string }) {
 
   return (
     <div className="animate-in fade-in duration-300 space-y-8">
-      <CareersPageHeader backTo="/careers/institutes" backLabel="Institutes" />
+      <CareersPageHeader backTo="/careers/institutes" />
 
       <div className={cn("rounded-2xl bg-gradient-to-br p-6 sm:p-8 text-white", inst.logoGradient)}>
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">

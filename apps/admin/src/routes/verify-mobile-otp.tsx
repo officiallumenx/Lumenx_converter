@@ -4,7 +4,7 @@
  * ───────────────────────────────────────────────────────────── */
 
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Smartphone, ArrowLeft, CheckCircle2 } from "lucide-react";
 
 import {
@@ -33,8 +33,16 @@ function VerifyMobileOtpPage() {
   const [completed, setCompleted] = useState(false);
 
   const pending = loadOtpPending();
-  const mobile = pending?.mobile || user?.phone || "+91 98765 43210";
-  const maskedMobile = maskMobile(mobile);
+  const mobile = pending?.mobile || user?.phone || "";
+  const maskedMobile = mobile ? maskMobile(mobile) : "";
+
+  useEffect(() => {
+    if (!mobile) {
+      void navigate({ to: "/login", replace: true });
+    }
+  }, [mobile, navigate]);
+
+  if (!mobile) return null;
 
   if (completed) {
     return (

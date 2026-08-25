@@ -38,12 +38,12 @@ const BRAND_FEATURES = [
   {
     icon: ShieldCheck,
     label: "Enterprise Security",
-    hint: "Roles · Permissions · 2FA · Audit log",
+    hint: "Roles & Access · OTP · Audit log",
   },
   {
     icon: GraduationCap,
-    label: "Documents & Records",
-    hint: "Certificates · Reports · TC · Signatures",
+    label: "Certificates",
+    hint: "Designs · Issue · Student records",
   },
 ] as const;
 
@@ -58,7 +58,7 @@ export function AuthLayout({
   const { theme } = useTheme();
 
   return (
-    <div className="min-h-screen flex bg-background text-foreground">
+    <div className="min-h-screen-dvh flex bg-background text-foreground">
       {/* ── Left: brand panel (visible lg+) ───────────────── */}
       <aside className="hidden lg:flex lg:w-[44%] xl:w-[40%] flex-col justify-between p-12 bg-gradient-to-br from-primary/[0.07] via-background to-chart-5/[0.05] border-r border-border relative overflow-hidden shrink-0">
         {/* Grid texture */}
@@ -121,7 +121,7 @@ export function AuthLayout({
       {/* ── Right: form area ───────────────────────────────── */}
       <main className="flex-1 flex flex-col min-h-0">
         {/* Mobile logo bar */}
-        <div className="flex items-center justify-between px-6 py-5 lg:hidden border-b border-border">
+        <div className="lx-auth-top-bar flex items-center justify-between lg:hidden border-b border-border shrink-0">
           <Link to="/" className="flex items-center gap-2.5">
             <div className="size-8 rounded-lg lx-icon-chip lx-icon-chip--sm shadow-glow">
               <Sparkles strokeWidth={2} />
@@ -163,8 +163,8 @@ export function AuthLayout({
         </div>
 
         {/* Footer */}
-        <div className="px-6 pb-4 text-center text-[10px] text-muted-foreground/50 shrink-0">
-          {theme} mode · Demo environment · No real authentication performed
+        <div className="px-6 pb-[max(1rem,var(--lx-safe-bottom))] text-center text-[10px] text-muted-foreground/50 shrink-0">
+          {theme} mode
         </div>
       </main>
     </div>

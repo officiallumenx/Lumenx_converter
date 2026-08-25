@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/app/PageHeader";
 import { TeacherMessagesPage } from "@/teacher-portal";
 import { useApp } from "@/lib/app-state";
 import { useParentPortal } from "@/context/ParentPortalContext";
+import { useStudentPortal } from "@/context/StudentPortalContext";
 import { children } from "@/lib/mock-data";
 import { sentMessagesStore } from "@/lib/messages-store";
 import { Button, Textarea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, cn } from "@lumenx/ui";
@@ -26,8 +27,12 @@ type RecipientMode = "class_teacher" | "subject_teacher" | "principal";
 function MessagesPage() {
   const { role, activeChildId, setActiveChildId } = useApp();
   const portal = useParentPortal();
+  const studentPortal = useStudentPortal();
   const snap = role === "parent" && portal.isParent ? portal.snapshot : null;
+  const studentSnap =
+    role === "student" && studentPortal.isStudent ? studentPortal.snapshot : null;
   const isParent = role === "parent";
+  const isStudent = role === "student";
   const [messageChildId, setMessageChildId] = useState(
     () => activeChildId ?? children[0]?.id ?? "",
   );
@@ -65,21 +70,27 @@ function MessagesPage() {
   );
 
   const threads = useMemo(() => {
-    const base = [
-      { id: "seed-1", who: "Ananya Iyer", last: "Thanks for the update.", time: "2h" },
-      { id: "seed-2", who: "Principal Office", last: "Holiday notice attached.", time: "1d" },
-      { id: "seed-3", who: "Rahul Verma", last: "Aarav did well today.", time: "2d" },
-    ];
+    const base = isStudent
+      ? [
+          { id: "seed-1", who: "Ananya Iyer", last: "Bring your notebook tomorrow.", time: "2h" },
+          { id: "seed-2", who: "Principal Office", last: "Holiday notice attached.", time: "1d" },
+          { id: "seed-3", who: "Rahul Verma", last: "Great work in today's class.", time: "2d" },
+        ]
+      : [
+          { id: "seed-1", who: "Ananya Iyer", last: "Thanks for the update.", time: "2h" },
+          { id: "seed-2", who: "Principal Office", last: "Holiday notice attached.", time: "1d" },
+          { id: "seed-3", who: "Rahul Verma", last: "Aarav did well today.", time: "2d" },
+        ];
     const childName = isParent ? messageChild?.name.split(" ")[0] : snap?.shortName;
     const withChild =
-      childName
+      !isStudent && childName
         ? base.map((t, i) =>
             i === 2 ? { ...t, last: `${childName} did well in class today.` } : t,
           )
         : base;
     // Surface messages the user just sent at the top so "Send" is not phantom state.
     return [...sentThreads, ...withChild];
-  }, [snap, isParent, messageChild, sentThreads]);
+  }, [snap, isParent, isStudent, messageChild, sentThreads]);
 
   const send = () => {
     if (isParent && !messageChildId) {
@@ -115,8 +126,8 @@ function MessagesPage() {
         subtitle={
           isParent
             ? "Select your child first — teachers receive messages linked to that learner."
-            : snap
-              ? `Writing as a guardian about ${snap.child.name} (${snap.classTag}). Choose recipient below.`
+            : isStudent && studentSnap
+              ? `Message your teachers · ${studentSnap.profile.class} ${studentSnap.profile.section}`
               : "Choose who you are writing to, then pick subject teachers by subject when needed."
         }
       />

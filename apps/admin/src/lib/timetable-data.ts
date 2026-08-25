@@ -5,19 +5,24 @@ import {
   getGrades,
   getInstituteTeachers,
   getSubjectsByGrade,
+  teacherById,
   teachersForSubjectCode,
   type InstituteTeacher,
 } from "@/lib/subjects-data";
 import { getInstituteClasses, isCollegeMode } from "@/lib/academic-data";
+import { isRegisteredAdminTenant } from "@/lib/admin-tenant";
+import { loadClassDirectory, type ClassSection } from "@/lib/class-directory-store";
 import {
   DEFAULT_SCHEDULE,
   emptyGridForSchedule,
   getActiveDays,
   isSlotApplicable,
   isTeachingRow,
+  matchesLunchPreference,
   teachingSlotsForSchedule,
   countTeachingSlotsPerWeek as countSlotsForSchedule,
   countEmptySlotsForSchedule,
+  timesOverlap,
   type TimetableScheduleConfig,
 } from "@/lib/timetable-schedule";
 
@@ -26,6 +31,9 @@ export type { TimetableScheduleConfig } from "@/lib/timetable-schedule";
 export type Teacher = InstituteTeacher;
 
 export type Subject = { id: string; name: string; code: string; periodsPerWeek: number };
+
+/** Soft placement preference used during auto-generation. */
+export type PlacementPreference = "any" | "before_lunch" | "after_lunch";
 
 /** @deprecated Use getRecordSchedule() — kept for imports that expect fixed days */
 export const TIMETABLE_DAYS = getActiveDays(DEFAULT_SCHEDULE).map((d) => d.name);
@@ -43,11 +51,45 @@ export const SECTIONS = ["A", "B", "C", "D"] as const;
 export type TeacherAssignMode = "manual" | "auto";
 export type GenerateScope = "current" | "all";
 
-export type InstituteClass = { id: string; grade: string; section: string };
+export type InstituteClass = {
+  id: string;
+  grade: string;
+  section: string;
+  room?: string;
+  subjectTeacherAssignments?: Record<string, string>;
+};
 
-/** All class sections in the institute — used for bulk timetable generation. */
+function classSectionToInstituteClass(cls: ClassSection): InstituteClass {
+  return {
+    id: cls.id,
+    grade: cls.timetableGrade,
+    section: cls.section,
+    room: cls.room,
+    subjectTeacherAssignments: cls.subjectTeacherAssignments ?? {},
+  };
+}
+
+/** All class sections in the institute — prefers persisted class directory. */
 export function getInstituteClassesList(): InstituteClass[] {
+  try {
+    const directory = loadClassDirectory();
+    if (directory.length > 0) return directory.map(classSectionToInstituteClass);
+  } catch {
+    // Fall back to academic profile classes.
+  }
   return getInstituteClasses().map(({ id, grade, section }) => ({ id, grade, section }));
+}
+
+export function findInstituteClass(grade: string, section: string): InstituteClass | undefined {
+  return getInstituteClassesList().find((cls) => cls.grade === grade && cls.section === section);
+}
+
+/** Class-level subject → teacher overrides from the class directory. */
+export function getClassSubjectTeacherAssignments(
+  grade: string,
+  section: string,
+): Record<string, string> {
+  return findInstituteClass(grade, section)?.subjectTeacherAssignments ?? {};
 }
 
 /** @deprecated Use getInstituteClassesList() */
@@ -64,9 +106,17 @@ export type AutoGenerateConfig = {
   subjectPeriodsPerWeek?: Record<string, number>;
   /** Explicit day/period cells per subject — used when generating the grid */
   subjectSlotSelections?: Record<string, TimetableCellRef[]>;
+  /** Soft before/after lunch preferences per subject */
+  subjectPlacementPreferences?: Record<string, PlacementPreference>;
+  /** Preserve these cells when regenerating (manual locks) */
+  lockedCells?: TimetableCellRef[];
+  /** Existing grid to preserve locked/manual cells from */
+  preserveGrid?: TimetableGrid;
   /** Other timetables used to avoid double-booking teachers */
   existingTimetables?: TimetableRecord[];
   excludeTimetableId?: string;
+  /** When false, do not fill leftover empty cells beyond quotas */
+  fillBeyondQuotas?: boolean;
 };
 
 export type TimetableCellRef = { day: number; period: number };
@@ -97,6 +147,14 @@ export type TimetableRecord = {
   subjectPeriodsPerWeek?: Record<string, number>;
   /** Explicit day/period picks per subject */
   subjectSlotSelections?: Record<string, TimetableCellRef[]>;
+  /** Last-used subject → teacher map for regenerate / staff panel */
+  subjectTeachers?: Record<string, string>;
+  /** Soft placement preferences */
+  subjectPlacementPreferences?: Record<string, PlacementPreference>;
+  /** Notices when preferences were relaxed to complete quotas */
+  relaxedPreferenceNotices?: string[];
+  /** Manager-locked cells preserved across regeneration */
+  lockedCells?: TimetableCellRef[];
   updatedAt: string;
 };
 
@@ -129,8 +187,12 @@ function teachingSlots(schedule: TimetableScheduleConfig) {
 
 type TeacherBooking = Set<string>;
 
-function bookingKey(teacherId: string, day: number, period: number) {
-  return `${teacherId}-${day}-${period}`;
+function bookingKey(resourceId: string, dayName: string, start: string, end: string) {
+  return `${resourceId}|${dayName}|${start}|${end}`;
+}
+
+function roomResourceId(room: string) {
+  return `room:${room}`;
 }
 
 function seedBookingsFromTimetables(
@@ -140,16 +202,60 @@ function seedBookingsFromTimetables(
 ) {
   for (const tt of timetables) {
     if (skipIds?.has(tt.id)) continue;
+    const schedule = getRecordSchedule(tt);
+    const days = getActiveDays(schedule);
     tt.grid.forEach((dayCol, dayIdx) => {
+      const dayName = days[dayIdx]?.name;
+      if (!dayName) return;
       dayCol.forEach((slot, periodIdx) => {
-        if (slot?.teacherId) bookings.add(bookingKey(slot.teacherId, dayIdx, periodIdx));
+        if (!slot) return;
+        const row = schedule.periodRows[periodIdx];
+        if (!row || row.isBreak) return;
+        if (slot.teacherId) {
+          bookings.add(bookingKey(slot.teacherId, dayName, row.start, row.end));
+        }
+        if (slot.room) {
+          bookings.add(bookingKey(roomResourceId(slot.room), dayName, row.start, row.end));
+        }
       });
     });
   }
 }
 
-function isTeacherBooked(bookings: TeacherBooking, teacherId: string, day: number, period: number) {
-  return bookings.has(bookingKey(teacherId, day, period));
+function isResourceBookedAt(
+  bookings: TeacherBooking,
+  resourceId: string,
+  dayName: string,
+  start: string,
+  end: string,
+) {
+  for (const key of bookings) {
+    const [id, bookedDay, bookedStart, bookedEnd] = key.split("|");
+    if (id !== resourceId || bookedDay !== dayName) continue;
+    if (timesOverlap(start, end, bookedStart!, bookedEnd!)) return true;
+  }
+  return false;
+}
+
+function isTeacherBookedAt(
+  bookings: TeacherBooking,
+  teacherId: string,
+  dayName: string,
+  start: string,
+  end: string,
+) {
+  return isResourceBookedAt(bookings, teacherId, dayName, start, end);
+}
+
+function isRoomBookedAt(
+  bookings: TeacherBooking,
+  room: string,
+  dayName: string,
+  start: string,
+  end: string,
+) {
+  if (!room) return false;
+  return isResourceBookedAt(bookings, roomResourceId(room), dayName, start, end);
 }
 
 function subjectsForGrade(grade: string) {
@@ -194,32 +300,95 @@ export function periodsFromSlotSelections(
   return Object.fromEntries(subjects.map((s) => [s.id, selections[s.id]?.length ?? 0]));
 }
 
-/** Pick evenly spaced teaching slots for each subject (default weekly layout). */
+/** Hard rule: at most one teaching period of a subject on any single day. */
+export function maxPeriodsPerSubjectPerWeek(schedule: TimetableScheduleConfig): number {
+  return Math.max(1, getActiveDays(schedule).length);
+}
+
+export function capSubjectPeriodsToOnePerDay(
+  periods: Record<string, number>,
+  schedule: TimetableScheduleConfig,
+): Record<string, number> {
+  const cap = maxPeriodsPerSubjectPerWeek(schedule);
+  return Object.fromEntries(
+    Object.entries(periods).map(([id, count]) => [id, Math.min(Math.max(0, count), cap)]),
+  );
+}
+
+function subjectOccupiesDay(
+  grid: TimetableGrid,
+  subjectId: string,
+  subjectCode: string,
+  day: number,
+): boolean {
+  const dayCol = grid[day];
+  if (!dayCol) return false;
+  return dayCol.some(
+    (slot) => slot != null && (slot.subjectId === subjectId || slot.subject === subjectCode),
+  );
+}
+
+/** Pick evenly spaced teaching slots — max one period of each subject per day. */
 export function buildDefaultSubjectSlotSelections(
   subjects: Subject[],
   schedule: TimetableScheduleConfig,
   periods?: Record<string, number>,
+  preferences?: Record<string, PlacementPreference>,
 ): Record<string, TimetableCellRef[]> {
   const selections: Record<string, TimetableCellRef[]> = {};
   const used = new Set<string>();
   const slots = teachingSlotsForSchedule(schedule);
+  const dayCount = Math.max(1, getActiveDays(schedule).length);
+  const weekCap = maxPeriodsPerSubjectPerWeek(schedule);
 
-  for (const subject of subjects) {
-    const count = periods?.[subject.id] ?? subject.periodsPerWeek;
+  // Heavier weekly subjects first so they claim spread-out days early.
+  const orderedSubjects = [...subjects].sort((a, b) => {
+    const aCount = Math.min(periods?.[a.id] ?? a.periodsPerWeek, weekCap);
+    const bCount = Math.min(periods?.[b.id] ?? b.periodsPerWeek, weekCap);
+    return bCount - aCount;
+  });
+
+  for (const subject of orderedSubjects) {
+    const count = Math.min(periods?.[subject.id] ?? subject.periodsPerWeek, weekCap);
+    const pref = preferences?.[subject.id] ?? "any";
+    const preferred = slots.filter((slot) =>
+      matchesLunchPreference(schedule, slot.period, pref),
+    );
+    // Strict preference: do not fall back to the other side of lunch.
+    const ordered =
+      pref === "any"
+        ? slots
+        : preferred.length > 0
+          ? preferred
+          : [];
     const cells: TimetableCellRef[] = [];
+    const daysUsed = new Set<number>();
+    const dayLoads = new Array(dayCount).fill(0);
+
     for (let n = 0; n < count; n++) {
-      for (let i = 0; i < slots.length; i++) {
-        const slot = slots[i]!;
+      let best: (typeof ordered)[number] | null = null;
+      let bestScore = Number.POSITIVE_INFINITY;
+      for (const slot of ordered) {
         const key = cellRefKey(slot);
         if (used.has(key)) continue;
-        used.add(key);
-        cells.push(slot);
-        break;
+        if (daysUsed.has(slot.day)) continue; // max one period of this subject per day
+        const score = dayLoads[slot.day]! * 20 + slot.period;
+        if (score < bestScore) {
+          bestScore = score;
+          best = slot;
+        }
       }
+      if (!best) break;
+      used.add(cellRefKey(best));
+      daysUsed.add(best.day);
+      dayLoads[best.day]! += 1;
+      cells.push(best);
     }
     selections[subject.id] = cells;
   }
-  return selections;
+
+  // Keep stable subject order in the returned map.
+  return Object.fromEntries(subjects.map((s) => [s.id, selections[s.id] ?? []]));
 }
 
 export function autoPickSlotsForSubject(
@@ -227,18 +396,42 @@ export function autoPickSlotsForSubject(
   count: number,
   selections: Record<string, TimetableCellRef[]>,
   schedule: TimetableScheduleConfig,
+  preference: PlacementPreference = "any",
 ): Record<string, TimetableCellRef[]> {
   const used = new Set<string>();
   for (const [id, cells] of Object.entries(selections)) {
     if (id === subjectId) continue;
     for (const c of cells) used.add(cellRefKey(c));
   }
+  const weekCap = maxPeriodsPerSubjectPerWeek(schedule);
+  const target = Math.min(Math.max(0, count), weekCap);
   const picked: TimetableCellRef[] = [];
-  for (const slot of teachingSlotsForSchedule(schedule)) {
-    if (picked.length >= count) break;
-    if (used.has(cellRefKey(slot))) continue;
-    picked.push(slot);
-    used.add(cellRefKey(slot));
+  const daysUsed = new Set<number>();
+  const dayCount = Math.max(1, getActiveDays(schedule).length);
+  const dayLoads = new Array(dayCount).fill(0);
+  const preferredSlots = teachingSlotsForSchedule(schedule).filter((slot) =>
+    matchesLunchPreference(schedule, slot.period, preference),
+  );
+  // Strict: only use matching lunch-side slots when preference is set.
+  const candidateSlots = preference === "any" ? teachingSlotsForSchedule(schedule) : preferredSlots;
+
+  for (let n = 0; n < target; n++) {
+    let best: TimetableCellRef | null = null;
+    let bestScore = Number.POSITIVE_INFINITY;
+    for (const slot of candidateSlots) {
+      if (used.has(cellRefKey(slot))) continue;
+      if (daysUsed.has(slot.day)) continue;
+      const score = dayLoads[slot.day]! * 20 + slot.period;
+      if (score < bestScore) {
+        bestScore = score;
+        best = slot;
+      }
+    }
+    if (!best) break;
+    used.add(cellRefKey(best));
+    daysUsed.add(best.day);
+    dayLoads[best.day]! += 1;
+    picked.push(best);
   }
   return { ...selections, [subjectId]: picked };
 }
@@ -270,18 +463,24 @@ export function inferSubjectSlotsFromGrid(
   return selections;
 }
 
-/** Ensure every subject has a teacher — fills gaps for Sports, Computer Lab, etc. */
+/** Ensure every subject has a teacher — class overrides → partial → experience. */
 export function mergeSubjectTeachersForGrade(
   grade: string,
   section: string,
   partial: Record<string, string>,
 ): Record<string, string> {
+  const classOverrides = getClassSubjectTeacherAssignments(grade, section);
   const fallback =
     assignSubjectTeachersByExperience([{ id: "_tmp", grade, section }])[
       classKey(grade, section)
     ] ?? {};
   const merged: Record<string, string> = {};
   for (const sub of subjectsForGrade(grade)) {
+    const fromClass = classOverrides[sub.id];
+    if (fromClass !== undefined && fromClass !== "") {
+      merged[sub.id] = fromClass;
+      continue;
+    }
     merged[sub.id] =
       partial[sub.id] || fallback[sub.id] || rankTeachersByExperience(sub)[0]?.id || "";
   }
@@ -298,6 +497,8 @@ export function classLocationLabel(grade: string, section: string) {
 }
 
 export function slotVenue(grade: string, section: string) {
+  const room = findInstituteClass(grade, section)?.room?.trim();
+  if (room) return room;
   return classLocationLabel(grade, section);
 }
 
@@ -460,50 +661,84 @@ export function detectConflicts(
   focusId?: string,
 ): TimetableConflict[] {
   const conflicts: TimetableConflict[] = [];
-  const teacherMap = new Map<string, { classKey: string; day: number; period: number }[]>();
-  const roomMap = new Map<string, { classKey: string; day: number; period: number }[]>();
+
+  type Occ = {
+    classKey: string;
+    dayName: string;
+    periodLabel: string;
+    start: string;
+    end: string;
+    resource: string;
+    kind: "teacher" | "room";
+  };
+
+  const teacherOcc: Occ[] = [];
+  const roomOcc: Occ[] = [];
 
   for (const tt of timetables) {
     const ck = classKey(tt.grade, tt.section);
     const schedule = getRecordSchedule(tt);
     const days = getActiveDays(schedule);
     tt.grid.forEach((dayCol, dayIdx) => {
+      const dayName = days[dayIdx]?.name;
+      if (!dayName) return;
       dayCol.forEach((slot, periodIdx) => {
         if (!slot || !isTeachingRow(schedule, periodIdx)) return;
         if (!isSlotApplicable(schedule, dayIdx, periodIdx)) return;
-        const tKey = `${dayIdx}-${periodIdx}-${slotTeacher(slot)}`;
-        const rKey = `${dayIdx}-${periodIdx}-${slot.room}`;
-        if (!teacherMap.has(tKey)) teacherMap.set(tKey, []);
-        teacherMap.get(tKey)!.push({ classKey: ck, day: dayIdx, period: periodIdx });
-        if (!roomMap.has(rKey)) roomMap.set(rKey, []);
-        roomMap.get(rKey)!.push({ classKey: ck, day: dayIdx, period: periodIdx });
+        const row = schedule.periodRows[periodIdx]!;
+        teacherOcc.push({
+          classKey: ck,
+          dayName,
+          periodLabel: row.label,
+          start: row.start,
+          end: row.end,
+          resource: slotTeacher(slot),
+          kind: "teacher",
+        });
+        roomOcc.push({
+          classKey: ck,
+          dayName,
+          periodLabel: row.label,
+          start: row.start,
+          end: row.end,
+          resource: slot.room,
+          kind: "room",
+        });
       });
     });
   }
 
-  const pushConflict = (
-    kind: "teacher" | "room",
-    key: string,
-    entries: { classKey: string; day: number; period: number }[],
-    resource: string,
-    schedule: TimetableScheduleConfig,
-  ) => {
-    if (entries.length < 2) return;
-    const day = getActiveDays(schedule)[entries[0]!.day]?.name ?? "";
-    const period = schedule.periodRows[entries[0]!.period]?.label ?? "";
-    conflicts.push({ day, period, kind, resource, classes: entries.map((e) => e.classKey) });
+  const collect = (occurrences: Occ[]) => {
+    for (let i = 0; i < occurrences.length; i++) {
+      for (let j = i + 1; j < occurrences.length; j++) {
+        const a = occurrences[i]!;
+        const b = occurrences[j]!;
+        if (a.resource !== b.resource) continue;
+        if (a.dayName !== b.dayName) continue;
+        if (a.classKey === b.classKey) continue;
+        if (!timesOverlap(a.start, a.end, b.start, b.end)) continue;
+        const existing = conflicts.find(
+          (c) =>
+            c.kind === a.kind &&
+            c.resource === a.resource &&
+            c.day === a.dayName &&
+            c.classes.includes(a.classKey) &&
+            c.classes.includes(b.classKey),
+        );
+        if (existing) continue;
+        conflicts.push({
+          day: a.dayName,
+          period: `${a.periodLabel} ↔ ${b.periodLabel}`,
+          kind: a.kind,
+          resource: a.resource,
+          classes: [a.classKey, b.classKey],
+        });
+      }
+    }
   };
 
-  teacherMap.forEach((entries, key) => {
-    const resource = key.split("-").slice(2).join("-");
-    const tt = timetables.find((t) => classKey(t.grade, t.section) === entries[0]?.classKey);
-    pushConflict("teacher", key, entries, resource, getRecordSchedule(tt));
-  });
-  roomMap.forEach((entries, key) => {
-    const resource = key.split("-").slice(2).join("-");
-    const tt = timetables.find((t) => classKey(t.grade, t.section) === entries[0]?.classKey);
-    pushConflict("room", key, entries, resource, getRecordSchedule(tt));
-  });
+  collect(teacherOcc);
+  collect(roomOcc);
 
   if (focusId) {
     const focus = timetables.find((t) => t.id === focusId);
@@ -520,7 +755,11 @@ function buildTeacherBookings(
 ): TeacherBooking {
   const bookings: TeacherBooking = new Set();
   for (const tt of timetables) {
+    const schedule = getRecordSchedule(tt);
+    const days = getActiveDays(schedule);
     tt.grid.forEach((dayCol, dayIdx) => {
+      const dayName = days[dayIdx]?.name;
+      if (!dayName) return;
       dayCol.forEach((slot, periodIdx) => {
         if (
           skip &&
@@ -530,7 +769,15 @@ function buildTeacherBookings(
         ) {
           return;
         }
-        if (slot?.teacherId) bookings.add(bookingKey(slot.teacherId, dayIdx, periodIdx));
+        if (!slot) return;
+        const row = schedule.periodRows[periodIdx];
+        if (!row || row.isBreak) return;
+        if (slot.teacherId) {
+          bookings.add(bookingKey(slot.teacherId, dayName, row.start, row.end));
+        }
+        if (slot.room) {
+          bookings.add(bookingKey(roomResourceId(slot.room), dayName, row.start, row.end));
+        }
       });
     });
   }
@@ -560,11 +807,17 @@ export function resolveConflictsForTimetable(
 
     for (const c of conflicts) {
       const dayIdx = dayNames.indexOf(c.day);
-      const periodIdx = schedule.periodRows.findIndex((p) => p.label === c.period && !p.isBreak);
-      if (dayIdx < 0 || periodIdx < 0) continue;
+      if (dayIdx < 0) continue;
+
+      // Conflict period label may be "P1 · 08:00 ↔ P2 · 09:00" — match either side on this grid.
+      const periodIdx = schedule.periodRows.findIndex(
+        (p) => !p.isBreak && (c.period.includes(p.label) || c.period === p.label),
+      );
+      if (periodIdx < 0) continue;
 
       const slot = focus.grid[dayIdx]?.[periodIdx];
       if (!slot?.teacherId) continue;
+      const row = schedule.periodRows[periodIdx]!;
 
       const subject =
         subjectsForGrade(focus.grade).find(
@@ -585,7 +838,7 @@ export function resolveConflictsForTimetable(
 
       for (const teacher of alternatives) {
         if (teacher.id === slot.teacherId) continue;
-        if (isTeacherBooked(bookings, teacher.id, dayIdx, periodIdx)) continue;
+        if (isTeacherBookedAt(bookings, teacher.id, c.day, row.start, row.end)) continue;
 
         focus.grid[dayIdx]![periodIdx] = {
           ...slot,
@@ -611,7 +864,7 @@ export function resolveConflictsForTimetable(
 }
 
 export function conflictCountByTimetable(timetables: TimetableRecord[]): Record<string, number> {
-  const all = detectConflicts(timetables).filter((c) => c.kind === "teacher");
+  const all = detectConflicts(timetables);
   const counts: Record<string, number> = {};
   for (const tt of timetables) {
     const ck = classKey(tt.grade, tt.section);
@@ -626,6 +879,16 @@ export function autoGenerateTimetable(
   config: AutoGenerateConfig,
   bookings?: TeacherBooking,
 ): TimetableGrid {
+  const result = autoGenerateTimetableDetailed(grade, section, config, bookings);
+  return result.grid;
+}
+
+export function autoGenerateTimetableDetailed(
+  grade: string,
+  section: string,
+  config: AutoGenerateConfig,
+  bookings?: TeacherBooking,
+): { grid: TimetableGrid; unplaced: number; relaxedNotices: string[] } {
   const opts: AutoGenerateConfig = { ...config, grade, section };
   const venue = slotVenue(grade, section);
   const subjectTeachers = resolveSubjectTeachers(grade, opts);
@@ -639,7 +902,7 @@ export function autoGenerateTimetable(
     );
   }
 
-  const { grid } = fillGridFromSubjectTeachers(
+  return fillGridFromSubjectTeachers(
     grade,
     section,
     subjectTeachers,
@@ -648,8 +911,10 @@ export function autoGenerateTimetable(
     opts.schedule,
     opts.subjectPeriodsPerWeek,
     opts.subjectSlotSelections,
+    opts.subjectPlacementPreferences,
+    opts.lockedCells,
+    opts.preserveGrid,
   );
-  return grid;
 }
 
 function fillGridFromSubjectTeachers(
@@ -661,19 +926,54 @@ function fillGridFromSubjectTeachers(
   schedule: TimetableScheduleConfig,
   subjectPeriodsPerWeek?: Record<string, number>,
   subjectSlotSelections?: Record<string, TimetableCellRef[]>,
-): { grid: TimetableGrid; unplaced: number } {
+  subjectPlacementPreferences?: Record<string, PlacementPreference>,
+  lockedCells?: TimetableCellRef[],
+  preserveGrid?: TimetableGrid,
+): { grid: TimetableGrid; unplaced: number; relaxedNotices: string[] } {
   const grid: TimetableGrid = emptyGridForSchedule(schedule);
   const subjects = subjectsForGrade(grade);
   const allSlots = teachingSlots(schedule);
-  const teachers = getInstituteTeachers();
+  const days = getActiveDays(schedule);
   let unplaced = 0;
+  const relaxedNotices: string[] = [];
+  const locked = new Set((lockedCells ?? []).map(cellRefKey));
+
+  // Preserve locked / manual cells first.
+  if (preserveGrid) {
+    preserveGrid.forEach((dayCol, dayIdx) => {
+      dayCol.forEach((slot, periodIdx) => {
+        if (!slot) return;
+        if (locked.size > 0 && !locked.has(cellRefKey({ day: dayIdx, period: periodIdx }))) {
+          return;
+        }
+        if (!isSlotApplicable(schedule, dayIdx, periodIdx)) return;
+        const row = schedule.periodRows[periodIdx];
+        const dayName = days[dayIdx]?.name;
+        if (!row || !dayName) return;
+        const room = slot.room || venue;
+        grid[dayIdx]![periodIdx] = { ...slot, room };
+        if (slot.teacherId) {
+          bookings.add(bookingKey(slot.teacherId, dayName, row.start, row.end));
+        }
+        if (room) {
+          bookings.add(bookingKey(roomResourceId(room), dayName, row.start, row.end));
+        }
+      });
+    });
+  }
 
   const teacherFor = (subject: Subject) => {
     const teacherId = subjectTeachers[subject.id];
-    return teachers.find((t) => t.id === teacherId) ?? rankTeachersByExperience(subject)[0];
+    if (teacherId) {
+      const resolved = teacherById(teacherId);
+      if (resolved) return resolved;
+    }
+    return rankTeachersByExperience(subject)[0];
   };
 
   const placeSlot = (subject: Subject, teacher: Teacher, day: number, period: number) => {
+    const row = schedule.periodRows[period]!;
+    const dayName = days[day]!.name;
     grid[day]![period] = {
       subjectId: subject.id,
       subject: subject.code,
@@ -681,39 +981,101 @@ function fillGridFromSubjectTeachers(
       teacher: teacher.name,
       room: venue,
     };
-    bookings.add(bookingKey(teacher.id, day, period));
+    bookings.add(bookingKey(teacher.id, dayName, row.start, row.end));
+    if (venue) {
+      bookings.add(bookingKey(roomResourceId(venue), dayName, row.start, row.end));
+    }
   };
 
-  // Pass 1 — explicit day/period selections
+  const canPlace = (
+    teacher: Teacher,
+    subject: Subject,
+    day: number,
+    period: number,
+  ) => {
+    if (grid[day]?.[period]) return false;
+    if (locked.has(cellRefKey({ day, period }))) return false;
+    if (!isSlotApplicable(schedule, day, period)) return false;
+    if (subjectOccupiesDay(grid, subject.id, subject.code, day)) return false;
+    const row = schedule.periodRows[period]!;
+    const dayName = days[day]!.name;
+    if (isTeacherBookedAt(bookings, teacher.id, dayName, row.start, row.end)) return false;
+    if (isRoomBookedAt(bookings, venue, dayName, row.start, row.end)) return false;
+    return true;
+  };
+
+  const weekCap = maxPeriodsPerSubjectPerWeek(schedule);
+
+  // Pass 1 — explicit day/period selections (respect lunch preference + one subject/day)
+  // Do not count failures here — Pass 2 will retry remaining quotas and count unplaced once.
   if (subjectSlotSelections && Object.keys(subjectSlotSelections).length > 0) {
     for (const subject of subjects) {
+      const preference = subjectPlacementPreferences?.[subject.id] ?? "any";
       const cells = subjectSlotSelections[subject.id] ?? [];
       const teacher = teacherFor(subject);
       if (!teacher) continue;
+      const daysUsed = new Set<number>();
       for (const { day, period } of cells) {
-        if (!isSlotApplicable(schedule, day, period)) continue;
-        if (grid[day]?.[period]) continue;
-        if (isTeacherBooked(bookings, teacher.id, day, period)) {
-          unplaced++;
+        if (!matchesLunchPreference(schedule, period, preference)) {
+          // Ignore stale picks that violate the current before/after lunch rule.
+          continue;
+        }
+        if (daysUsed.has(day) || subjectOccupiesDay(grid, subject.id, subject.code, day)) {
+          continue;
+        }
+        if (!canPlace(teacher, subject, day, period)) {
+          for (const alt of rankTeachersByExperience(subject)) {
+            if (!canPlace(alt, subject, day, period)) continue;
+            placeSlot(subject, alt, day, period);
+            daysUsed.add(day);
+            break;
+          }
           continue;
         }
         placeSlot(subject, teacher, day, period);
+        daysUsed.add(day);
       }
     }
   }
 
-  // Pass 2 — round-robin auto fill for remaining weekly quotas
-  type QueueItem = { subject: Subject; teacher: Teacher; remaining: number };
+  // Pass 2 — remaining quotas, with hard before/after lunch constraints
+  type QueueItem = {
+    subject: Subject;
+    teacher: Teacher;
+    remaining: number;
+    preference: PlacementPreference;
+  };
   const queues: QueueItem[] = subjects
     .map((subject) => {
       const teacher = teacherFor(subject);
       if (!teacher) return null;
-      const target = periodsForSubject(subject, subjectPeriodsPerWeek);
+      const preference = subjectPlacementPreferences?.[subject.id] ?? "any";
+      const rawTarget = periodsForSubject(subject, subjectPeriodsPerWeek);
+      const target = Math.min(rawTarget, weekCap);
+      if (rawTarget > weekCap) {
+        relaxedNotices.push(
+          `${subject.name}: capped at ${weekCap}/week (max one period per day).`,
+        );
+      }
       const placed = countSubjectInGrid(grid, subject.id, subject.code);
       const remaining = Math.max(0, target - placed);
-      return remaining > 0 ? { subject, teacher, remaining } : null;
+      return remaining > 0
+        ? {
+            subject,
+            teacher,
+            remaining,
+            preference,
+          }
+        : null;
     })
-    .filter((q): q is QueueItem => q != null);
+    .filter((q): q is QueueItem => q != null)
+    .sort((a, b) => b.remaining - a.remaining);
+
+  const scoreSlot = (
+    slot: { day: number; period: number },
+    subjectDayLoads: number[],
+    dayFillLoads: number[],
+  ) => subjectDayLoads[slot.day]! * 1000 + dayFillLoads[slot.day]! * 10 + slot.period;
 
   let safety = allSlots.length * Math.max(queues.length, 1) + 1;
   while (queues.some((q) => q.remaining > 0) && safety-- > 0) {
@@ -721,35 +1083,45 @@ function fillGridFromSubjectTeachers(
     for (const q of queues) {
       if (q.remaining <= 0) continue;
 
+      const subjectDayLoads = new Array(days.length).fill(0);
+      const dayFillLoads = new Array(days.length).fill(0);
+      grid.forEach((col, dayIdx) => {
+        subjectDayLoads[dayIdx] = col.filter((s) => s?.subjectId === q.subject.id).length;
+        dayFillLoads[dayIdx] = col.filter((s) => s != null).length;
+      });
+
+      const candidates = allSlots
+        .filter((slot) => matchesLunchPreference(schedule, slot.period, q.preference))
+        .sort(
+          (a, b) =>
+            scoreSlot(a, subjectDayLoads, dayFillLoads) - scoreSlot(b, subjectDayLoads, dayFillLoads),
+        );
+
       let placed = false;
-      for (const { day, period } of allSlots) {
-        if (grid[day]?.[period]) continue;
-        if (isTeacherBooked(bookings, q.teacher.id, day, period)) continue;
-        placeSlot(q.subject, q.teacher, day, period);
-        q.remaining--;
-        placed = true;
-        progress = true;
-        break;
-      }
+      const tryTeachers = [
+        q.teacher,
+        ...rankTeachersByExperience(q.subject).filter((t) => t.id !== q.teacher.id),
+      ];
 
-      if (!placed) {
-        for (const alt of rankTeachersByExperience(q.subject)) {
-          if (alt.id === q.teacher.id) continue;
-          for (const { day, period } of allSlots) {
-            if (grid[day]?.[period]) continue;
-            if (isTeacherBooked(bookings, alt.id, day, period)) continue;
-            q.teacher = alt;
-            placeSlot(q.subject, alt, day, period);
-            q.remaining--;
-            placed = true;
-            progress = true;
-            break;
-          }
-          if (placed) break;
+      for (const teacher of tryTeachers) {
+        for (const { day, period } of candidates) {
+          if (!canPlace(teacher, q.subject, day, period)) continue;
+          q.teacher = teacher;
+          placeSlot(q.subject, teacher, day, period);
+          q.remaining--;
+          placed = true;
+          progress = true;
+          break;
         }
+        if (placed) break;
       }
 
       if (!placed) {
+        if (q.preference !== "any") {
+          relaxedNotices.push(
+            `${q.subject.name}: could not place ${q.remaining} period(s) ${q.preference.replace("_", " ")} — left empty rather than moving to the other side of lunch.`,
+          );
+        }
         unplaced += q.remaining;
         q.remaining = 0;
       }
@@ -757,7 +1129,7 @@ function fillGridFromSubjectTeachers(
     if (!progress) break;
   }
 
-  return { grid, unplaced };
+  return { grid, unplaced, relaxedNotices };
 }
 
 /** Generate timetables for every institute class in one pass — no teacher double-booked at the same period. */
@@ -780,7 +1152,11 @@ export function generateAllInstituteTimetables(
 
   for (const cls of sorted) {
     const ck = classKey(cls.grade, cls.section);
-    const subjectTeachers = assignments[ck] ?? {};
+    const subjectTeachers = mergeSubjectTeachersForGrade(
+      cls.grade,
+      cls.section,
+      assignments[ck] ?? {},
+    );
     const venue = slotVenue(cls.grade, cls.section);
     const { grid, unplaced } = fillGridFromSubjectTeachers(
       cls.grade,
@@ -801,6 +1177,7 @@ export function generateAllInstituteTimetables(
       status: "draft",
       grid,
       schedule,
+      subjectTeachers,
       updatedAt: today,
     });
   }
@@ -833,6 +1210,15 @@ export function countTeachingSlotsPerWeek(schedule: TimetableScheduleConfig = DE
   return countSlotsForSchedule(schedule);
 }
 
+export function validateSubjectPeriodBudget(
+  subjectPeriods: Record<string, number>,
+  schedule: TimetableScheduleConfig,
+): { ok: boolean; total: number; capacity: number } {
+  const total = Object.values(subjectPeriods).reduce((sum, n) => sum + Math.max(0, n), 0);
+  const capacity = countSlotsForSchedule(schedule);
+  return { ok: total <= capacity, total, capacity };
+}
+
 export function countEmptySlots(
   grid: TimetableGrid,
   schedule: TimetableScheduleConfig = DEFAULT_SCHEDULE,
@@ -850,7 +1236,7 @@ function countSubjectInGrid(grid: TimetableGrid, subjectId: string, code: string
   return n;
 }
 
-/** Fill only empty cells — keeps existing assignments. */
+/** Fill only empty cells up to configured weekly quotas — keeps existing assignments. */
 export function fillEmptySlots(
   grade: string,
   section: string,
@@ -860,10 +1246,21 @@ export function fillEmptySlots(
   const schedule = config.schedule;
   const next = existingGrid.map((col) => [...col]);
   const bookings: TeacherBooking = new Set();
+  const days = getActiveDays(schedule);
 
   next.forEach((dayCol, dayIdx) => {
+    const dayName = days[dayIdx]?.name;
+    if (!dayName) return;
     dayCol.forEach((slot, periodIdx) => {
-      if (slot?.teacherId) bookings.add(bookingKey(slot.teacherId, dayIdx, periodIdx));
+      if (!slot) return;
+      const row = schedule.periodRows[periodIdx];
+      if (!row || row.isBreak) return;
+      if (slot.teacherId) {
+        bookings.add(bookingKey(slot.teacherId, dayName, row.start, row.end));
+      }
+      if (slot.room) {
+        bookings.add(bookingKey(roomResourceId(slot.room), dayName, row.start, row.end));
+      }
     });
   });
 
@@ -878,26 +1275,80 @@ export function fillEmptySlots(
   const opts: AutoGenerateConfig = { ...config, grade, section };
   const subjectTeachers = resolveSubjectTeachers(grade, opts);
   const subjects = subjectsForGrade(grade);
-  const teachers = getInstituteTeachers();
   const venue = slotVenue(grade, section);
   let filled = 0;
 
   for (const subject of subjects) {
     const existing = countSubjectInGrid(next, subject.id, subject.code);
-    const needed = Math.max(0, periodsForSubject(subject, config.subjectPeriodsPerWeek) - existing);
+    const weekCap = maxPeriodsPerSubjectPerWeek(schedule);
+    const needed = Math.max(
+      0,
+      Math.min(periodsForSubject(subject, config.subjectPeriodsPerWeek), weekCap) - existing,
+    );
     if (needed === 0) continue;
 
-    const teacherId = subjectTeachers[subject.id];
-    const teacher =
-      teachers.find((t) => t.id === teacherId) ?? rankTeachersByExperience(subject)[0];
-    if (!teacher) continue;
+    const preferredId = subjectTeachers[subject.id];
+    const preferred =
+      (preferredId ? teacherById(preferredId) : null) ?? rankTeachersByExperience(subject)[0];
+    if (!preferred) continue;
+    const preference = config.subjectPlacementPreferences?.[subject.id] ?? "any";
+    const tryTeachers = [
+      preferred,
+      ...rankTeachersByExperience(subject).filter((t) => t.id !== preferred.id),
+    ];
 
     for (let n = 0; n < needed; n++) {
       let placed = false;
-      for (const { day, period } of teachingSlots(schedule)) {
-        if (next[day]?.[period]) continue;
-        if (isTeacherBooked(bookings, teacher.id, day, period)) continue;
+      const dayFillLoads = days.map((_, dayIdx) =>
+        (next[dayIdx] ?? []).filter((s) => s != null).length,
+      );
+      const candidates = teachingSlots(schedule)
+        .filter((slot) => matchesLunchPreference(schedule, slot.period, preference))
+        .sort((a, b) => dayFillLoads[a.day]! - dayFillLoads[b.day]! || a.period - b.period);
 
+      for (const teacher of tryTeachers) {
+        for (const { day, period } of candidates) {
+          if (next[day]?.[period]) continue;
+          if (subjectOccupiesDay(next, subject.id, subject.code, day)) continue;
+          const row = schedule.periodRows[period]!;
+          const dayName = days[day]!.name;
+          if (isTeacherBookedAt(bookings, teacher.id, dayName, row.start, row.end)) continue;
+          if (isRoomBookedAt(bookings, venue, dayName, row.start, row.end)) continue;
+
+          next[day]![period] = {
+            subjectId: subject.id,
+            subject: subject.code,
+            teacherId: teacher.id,
+            teacher: teacher.name,
+            room: venue,
+          };
+          bookings.add(bookingKey(teacher.id, dayName, row.start, row.end));
+          if (venue) {
+            bookings.add(bookingKey(roomResourceId(venue), dayName, row.start, row.end));
+          }
+          filled++;
+          placed = true;
+          break;
+        }
+        if (placed) break;
+      }
+      if (!placed) break;
+    }
+  }
+
+  // Optional: fill leftover empty cells only when explicitly requested.
+  if (config.fillBeyondQuotas) {
+    for (const { day, period } of teachingSlots(schedule)) {
+      if (next[day]?.[period]) continue;
+      for (const subject of subjects) {
+        if (subjectOccupiesDay(next, subject.id, subject.code, day)) continue;
+        const teacherId = subjectTeachers[subject.id];
+        const teacher =
+          (teacherId ? teacherById(teacherId) : null) ?? rankTeachersByExperience(subject)[0];
+        if (!teacher) continue;
+        const row = schedule.periodRows[period]!;
+        const dayName = days[day]!.name;
+        if (isTeacherBookedAt(bookings, teacher.id, dayName, row.start, row.end)) continue;
         next[day]![period] = {
           subjectId: subject.id,
           subject: subject.code,
@@ -905,32 +1356,10 @@ export function fillEmptySlots(
           teacher: teacher.name,
           room: venue,
         };
-        bookings.add(bookingKey(teacher.id, day, period));
+        bookings.add(bookingKey(teacher.id, dayName, row.start, row.end));
         filled++;
-        placed = true;
         break;
       }
-      if (!placed) break;
-    }
-  }
-
-  for (const { day, period } of teachingSlots(schedule)) {
-    if (next[day]?.[period]) continue;
-    for (const subject of subjects) {
-      const teacherId = subjectTeachers[subject.id];
-      const teacher =
-        teachers.find((t) => t.id === teacherId) ?? rankTeachersByExperience(subject)[0];
-      if (!teacher || isTeacherBooked(bookings, teacher.id, day, period)) continue;
-      next[day]![period] = {
-        subjectId: subject.id,
-        subject: subject.code,
-        teacherId: teacher.id,
-        teacher: teacher.name,
-        room: venue,
-      };
-      bookings.add(bookingKey(teacher.id, day, period));
-      filled++;
-      break;
     }
   }
 
@@ -950,9 +1379,11 @@ function buildInitialTimetables(): TimetableRecord[] {
       ]
     : [
         { id: "TT-10A", grade: "Grade 10", section: "A", status: "published" as const },
+        { id: "TT-10B", grade: "Grade 10", section: "B", status: "published" as const },
         { id: "TT-12A", grade: "Grade 12", section: "A", status: "draft" as const },
         { id: "TT-11A", grade: "Grade 11", section: "A", status: "published" as const },
         { id: "TT-12B", grade: "Grade 12", section: "B", status: "published" as const },
+        { id: "TT-9A", grade: "Grade 9", section: "A", status: "published" as const },
       ];
 
   const assignments = assignSubjectTeachersByExperience(getInstituteClassesList());
@@ -963,17 +1394,21 @@ function buildInitialTimetables(): TimetableRecord[] {
     const ck = classKey(spec.grade, spec.section);
     const subs = subjectsForGrade(spec.grade);
     const subjectPeriodsPerWeek = buildDefaultSubjectPeriods(subs);
+    const subjectPlacementPreferences = Object.fromEntries(
+      subs.map((s) => [s.id, "any" as PlacementPreference]),
+    );
     const subjectSlotSelections = buildDefaultSubjectSlotSelections(
       subs,
       schedule,
       subjectPeriodsPerWeek,
+      subjectPlacementPreferences,
     );
     const subjectTeachers = mergeSubjectTeachersForGrade(
       spec.grade,
       spec.section,
       assignments[ck] ?? {},
     );
-    const { grid } = fillGridFromSubjectTeachers(
+    const { grid, relaxedNotices } = fillGridFromSubjectTeachers(
       spec.grade,
       spec.section,
       subjectTeachers,
@@ -982,6 +1417,7 @@ function buildInitialTimetables(): TimetableRecord[] {
       schedule,
       subjectPeriodsPerWeek,
       subjectSlotSelections,
+      subjectPlacementPreferences,
     );
     records.push({
       id: spec.id,
@@ -993,6 +1429,9 @@ function buildInitialTimetables(): TimetableRecord[] {
       schedule,
       subjectPeriodsPerWeek,
       subjectSlotSelections,
+      subjectTeachers,
+      subjectPlacementPreferences,
+      relaxedPreferenceNotices: relaxedNotices,
       updatedAt: today,
     });
   }
@@ -1001,6 +1440,7 @@ function buildInitialTimetables(): TimetableRecord[] {
 }
 
 export function getInitialTimetables(): TimetableRecord[] {
+  if (isRegisteredAdminTenant()) return [];
   return buildInitialTimetables();
 }
 

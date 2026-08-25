@@ -1,19 +1,23 @@
 export type Role = "parent" | "teacher" | "student";
 
-export type InstituteKind =
-  | "school"
-  | "junior_college"
-  | "degree_college"
-  | "engineering"
-  | "university";
-
-/** Registered campus shown at sign-in (multi-institute UX). */
-export interface Institute {
-  id: string;
-  name: string;
-  code: string;
-  kind: InstituteKind;
-}
+export type { Institute, InstituteKind } from "./institute";
+export type {
+  TeacherRecord,
+  TeacherRole,
+  TeacherStatus,
+} from "./staff";
+export type {
+  ConnectLoginAccountStatus,
+  PortalAccessStatus,
+  PortalAccountStatus,
+  PortalInviteStatus,
+} from "./account";
+export type {
+  AdminPortalDocStatus,
+  CertificateLifecycleStatus,
+  ContactInquiryStatus,
+  InterviewMode,
+} from "./portal";
 
 export interface User {
   id: string;
@@ -123,6 +127,16 @@ export interface AppNotification {
   priority?: "low" | "normal" | "high";
   /** Extended body shown when the notification is opened. */
   detail?: string;
+  /** Starred notifications never auto-delete. */
+  starred?: boolean;
+  /** ISO timestamp used for 90-day retention. */
+  createdAt?: string;
+  /** Soft-deleted into notification recycle bin (15 days). */
+  deletedAt?: string;
+  /** Shared template id from `@lumenx/module-notifications` when applicable. */
+  templateId?: string;
+  /** In-app deep link path (e.g. `/fees`, `/student-attendance`). */
+  href?: string;
 }
 
 /** Mandatory vs emergency alerts routed to parents/students (distinct from general notifications). */

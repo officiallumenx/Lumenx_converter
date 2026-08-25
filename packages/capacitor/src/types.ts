@@ -1,5 +1,5 @@
 /** LumenX apps that can ship as Capacitor / PWA clients. */
-export type LumenXMobileApp = "connect" | "admin" | "nexus";
+export type LumenXMobileApp = "connect" | "admin" | "nexus" | "transport";
 
 /**
  * Capacitor configuration shape (mirrors @capacitor/cli CapacitorConfig).
@@ -18,6 +18,13 @@ export interface LumenXCapacitorConfig {
   };
   server: {
     androidScheme: "https" | "http";
+  };
+  plugins?: {
+    StatusBar?: {
+      overlaysWebView?: boolean;
+      style?: "DARK" | "LIGHT" | "DEFAULT";
+      backgroundColor?: string;
+    };
   };
 }
 

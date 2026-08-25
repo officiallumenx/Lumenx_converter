@@ -9,8 +9,10 @@ import {
   SelectTrigger,
   SelectValue,
   Textarea,
+  SimpleFileUpload,
+  type SimpleUploadValue,
 } from "@lumenx/ui";
-import { Camera, Mail, Phone, Plus, Trash2 } from "lucide-react";
+import { Mail, Phone, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { DocumentUploadCard } from "@/careers-portal/shared/ui/CareersShellWidgets";
 import {
@@ -44,19 +46,6 @@ const EMPLOYMENT_STATUS_OPTIONS: { value: EmploymentStatus; label: string }[] = 
   { value: "student", label: "Student / Fresher" },
 ];
 
-function readFileAsDataUrl(file: File, maxMb: number): Promise<string> {
-  return new Promise((resolve, reject) => {
-    if (file.size > maxMb * 1024 * 1024) {
-      reject(new Error(`File must be under ${maxMb}MB`));
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error("Could not read file"));
-    reader.readAsDataURL(file);
-  });
-}
-
 function EntryActions({ onRemove }: { onRemove: () => void }) {
   return (
     <Button
@@ -81,15 +70,14 @@ export function ProfileOverviewSection({
   userName: string;
   onChange: (patch: Partial<CandidateProfile>) => void;
 }) {
-  const uploadPhoto = async (file: File) => {
-    try {
-      const dataUrl = await readFileAsDataUrl(file, 2);
-      onChange({ photoDataUrl: dataUrl, photoFileName: file.name });
-      toast.success("Profile photo updated");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Upload failed");
-    }
-  };
+  const photoValue: SimpleUploadValue | null = profile.photoDataUrl
+    ? {
+        fileName: profile.photoFileName || "photo.jpg",
+        mimeType: "image/jpeg",
+        size: 0,
+        dataUrl: profile.photoDataUrl,
+      }
+    : null;
 
   return (
     <ProfileSectionCard
@@ -97,28 +85,21 @@ export function ProfileOverviewSection({
       description="Photo, headline, summary, and career preferences."
     >
       <div className="flex flex-col sm:flex-row gap-4 items-start">
-        <div className="relative shrink-0">
-          <div className="size-24 rounded-full border-2 border-border bg-muted overflow-hidden flex items-center justify-center">
-            {profile.photoDataUrl ? (
-              <img src={profile.photoDataUrl} alt="" className="size-full object-cover" />
-            ) : (
-              <span className="text-2xl font-semibold text-muted-foreground">
-                {userName.charAt(0).toUpperCase()}
-              </span>
-            )}
-          </div>
-          <label className="absolute -bottom-1 -right-1 cursor-pointer rounded-full bg-primary p-2 text-primary-foreground shadow-md">
-            <Camera className="size-4" />
-            <input
-              type="file"
-              className="hidden"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) void uploadPhoto(f);
-              }}
-            />
-          </label>
+        <div className="w-full max-w-[220px] shrink-0">
+          <SimpleFileUpload
+            kind="image"
+            compact
+            label="Profile photo"
+            value={photoValue}
+            onChange={(next) => {
+              if (!next) {
+                onChange({ photoDataUrl: undefined, photoFileName: undefined });
+                return;
+              }
+              onChange({ photoDataUrl: next.dataUrl, photoFileName: next.fileName });
+              toast.success("Profile photo updated");
+            }}
+          />
         </div>
         <div className="flex-1 space-y-3 w-full">
           <p className="font-medium">{userName}</p>
@@ -905,16 +886,6 @@ export function ProfileResumeLinksSection({
   profile: CandidateProfile;
   onChange: (patch: Partial<CandidateProfile>) => void;
 }) {
-  const uploadResume = async (file: File) => {
-    try {
-      const dataUrl = await readFileAsDataUrl(file, 5);
-      onChange({ resumeDataUrl: dataUrl, resumeFileName: file.name });
-      toast.success("Resume uploaded");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Upload failed");
-    }
-  };
-
   const updateLink = (i: number, patch: Partial<ProfileLinkEntry>) => {
     const next = [...profile.profileLinks];
     next[i] = { ...next[i]!, ...patch };
@@ -929,8 +900,16 @@ export function ProfileResumeLinksSection({
       <DocumentUploadCard
         label="Resume (PDF recommended)"
         fileName={profile.resumeFileName}
+        dataUrl={profile.resumeDataUrl}
         status={profile.resumeFileName ? "uploaded" : undefined}
-        onUpload={(file) => void uploadResume(file)}
+        onChange={(next) => {
+          if (!next) {
+            onChange({ resumeDataUrl: undefined, resumeFileName: undefined });
+            return;
+          }
+          onChange({ resumeDataUrl: next.dataUrl, resumeFileName: next.fileName });
+          toast.success("Resume uploaded");
+        }}
       />
 
       <div className="border-t border-border pt-4">

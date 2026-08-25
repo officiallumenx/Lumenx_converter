@@ -74,9 +74,9 @@ function BrandPanel({ brand }: { brand: AuthOtpBrandContent }) {
 
 export function AuthOtpLayout({ children, brand }: AuthOtpLayoutProps) {
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-screen-dvh bg-background">
       <BrandPanel brand={brand} />
-      <div className="flex flex-1 flex-col items-center justify-center px-4 py-10 sm:px-8 sm:py-12">
+      <div className="flex flex-1 flex-col items-center justify-center px-4 py-10 sm:px-8 sm:py-12 pt-[calc(var(--lx-safe-top)+2.5rem)]">
         <div className={`w-full ${AUTH_PAGE_MAX} ${AUTH_PAGE_ENTER}`}>{children}</div>
       </div>
     </div>

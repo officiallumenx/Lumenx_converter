@@ -11,17 +11,16 @@ import { useApp } from "@/lib/app-state";
 import { fetchParentPortalSnapshot, parentPortalQueryKeys } from "@/api/parent-portal";
 import type { ParentPortalSnapshot } from "@/lib/parent-portal-data";
 
-export type ParentPortalState =
-  | { isParent: false }
-  | {
-      isParent: true;
-      /** Safe to render: hidden while loading a *different* child to avoid cross-child flash. */
-      snapshot: ParentPortalSnapshot | null;
-      isLoading: boolean;
-      activeChildId: string;
-      instituteId: string | null;
-      queryKey: readonly unknown[];
-    };
+/** Flat shape so consumers can read fields without brittle discriminant narrowing. */
+export type ParentPortalState = {
+  isParent: boolean;
+  /** Safe to render: hidden while loading a *different* child to avoid cross-child flash. */
+  snapshot: ParentPortalSnapshot | null;
+  isLoading: boolean;
+  activeChildId: string;
+  instituteId: string | null;
+  queryKey: readonly unknown[];
+};
 
 const ParentPortalCtx = createContext<ParentPortalState | undefined>(undefined);
 
@@ -76,7 +75,16 @@ export function ParentPortalRegistry({ children }: { children: ReactNode }) {
   }, [role, activeChildId, activeInstituteId]);
 
   const value = useMemo<ParentPortalState>(() => {
-    if (role !== "parent") return { isParent: false };
+    if (role !== "parent") {
+      return {
+        isParent: false,
+        snapshot: null,
+        isLoading: false,
+        activeChildId,
+        instituteId: activeInstituteId,
+        queryKey: parentPortalQueryKeys.snapshot(activeInstituteId, activeChildId),
+      };
+    }
     return {
       isParent: true,
       snapshot,

@@ -24,7 +24,7 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
   { id: MODULE_IDS.admissions, name: "Admissions", minPlan: "plus", owner: "admin", packageName: "@lumenx/module-admissions" },
   { id: MODULE_IDS.transport, name: "Transport", minPlan: "plus", owner: "transport", packageName: "@lumenx/module-transport" },
   { id: MODULE_IDS.careers, name: "Careers", minPlan: "max", owner: "admin", packageName: "@lumenx/module-careers" },
-  { id: MODULE_IDS.certificates, name: "Certificates", minPlan: "max", owner: "admin", packageName: "@lumenx/module-certificates" },
+  { id: MODULE_IDS.certificates, name: "Certificates", minPlan: "max", owner: "nexus", packageName: "@lumenx/module-certificates" },
 ];
 
 export function isModuleEnabled(moduleId: string, plan: Plan): boolean {

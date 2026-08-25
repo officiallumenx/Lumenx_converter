@@ -114,7 +114,7 @@ function ClassDetailView({
         </Link>
         <Link to="/assignments">
           <Button variant="outline" className="rounded-xl gap-2">
-            <BookOpen className="size-4" /> Assignments
+            <BookOpen className="size-4" /> Homework
           </Button>
         </Link>
         <Link to="/students">

@@ -1,4 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Outlet,
+  useNavigate,
+  useRouterState,
+} from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import {
   Card,
@@ -10,27 +15,30 @@ import {
   Select,
   SearchInput,
   PageToolbar,
-  ToolbarSpacer,
   ToolbarMeta,
   DataTable,
   EmptyState,
   Th,
 } from "@lumenx/ui-admin";
-import { BookOpen, Pencil, Plus, Trash2, UserPlus } from "lucide-react";
-import { useMemo, useState, useEffect } from "react";
+import { BookOpen, MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
+import { useAuth } from "@/auth/AuthContext";
+import { softDeleteToRecycleBin } from "@lumenx/utils";
 import {
-  getGrades,
   SUBJECT_CATEGORIES,
   addSubject,
   assignTeachersToSubject,
   deleteSubject,
-  getInstituteTeachers,
-  getSubjectCatalog,
   updateSubject,
   type SubjectCatalogItem,
 } from "@/lib/subjects-data";
 import { useDemoProfile } from "@/lib/demo-profile-context";
 import { isCollegeMode } from "@/lib/academic-data";
+import { loadClassDirectory, saveClassDirectory } from "@/lib/class-directory-store";
+import { useAnchoredRowMenu } from "@/hooks/useAnchoredRowMenu";
+import { adminDataFacade } from "@/lib/admin-data-facade";
+import { useAdminWriteAccess } from "@/components/admin-write/AdminWriteAccessContext";
 
 export const Route = createFileRoute("/subjects")({
   head: () => ({ meta: [{ title: "Subjects — LumenX Admin" }] }),
@@ -49,13 +57,18 @@ const emptyForm = (defaultGrade: string) => ({
 });
 
 function SubjectsPage() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
   const { profileId, profile } = useDemoProfile();
+  const { guardWriteAction, writesAllowed, reason } = useAdminWriteAccess();
   const college = isCollegeMode();
-  const grades = useMemo(() => [...getGrades()], [profileId]);
+  const grades = useMemo(() => [...adminDataFacade.subjects.listGradeLabels()], [profileId]);
+  const subjectOptions = useMemo(() => adminDataFacade.subjects.listSubjectOptions(), [profileId]);
   const defaultGrade = grades[0] ?? "Grade 10";
 
-  const [catalog, setCatalog] = useState(() => getSubjectCatalog());
-  const teachers = useMemo(() => getInstituteTeachers(), [catalog]);
+  const [catalog, setCatalog] = useState(() => adminDataFacade.subjects.listCatalog());
+  const teachers = useMemo(() => adminDataFacade.subjects.listTeachers(), [catalog]);
 
   const [q, setQ] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -76,7 +89,19 @@ function SubjectsPage() {
   const [selectedGrades, setSelectedGrades] = useState<string[]>([defaultGrade]);
   const [assignIds, setAssignIds] = useState<string[]>([]);
 
-  const refresh = () => setCatalog(getSubjectCatalog());
+  const refresh = () => setCatalog(adminDataFacade.subjects.listCatalog());
+  const availableSubjectOptions = useMemo(
+    () =>
+      subjectOptions.filter(
+        (option) =>
+          (formMode === "edit" &&
+            option.code.toLowerCase() === code.trim().toLowerCase()) ||
+          !catalog.some(
+            (subject) => subject.code.toLowerCase() === option.code.toLowerCase(),
+          ),
+      ),
+    [subjectOptions, catalog, formMode, code],
+  );
 
   useEffect(() => {
     refresh();
@@ -104,9 +129,28 @@ function SubjectsPage() {
   };
 
   const openCreate = () => {
+    const firstAvailable = subjectOptions.find(
+      (option) =>
+        !catalog.some(
+          (subject) => subject.code.toLowerCase() === option.code.toLowerCase(),
+        ),
+    );
     resetForm();
+    if (firstAvailable) {
+      setName(firstAvailable.name);
+      setCode(firstAvailable.code);
+      setCategory(firstAvailable.category);
+    }
     setFormMode("create");
     setFormOpen(true);
+  };
+
+  const selectInstituteSubject = (subjectCode: string) => {
+    const option = subjectOptions.find((item) => item.code === subjectCode);
+    if (!option) return;
+    setName(option.name);
+    setCode(option.code);
+    setCategory(option.category);
   };
 
   const openEdit = (subject: SubjectCatalogItem) => {
@@ -161,7 +205,21 @@ function SubjectsPage() {
 
   const confirmDelete = () => {
     if (!activeSubject) return;
+    softDeleteToRecycleBin({
+      module: "Subjects",
+      title: activeSubject.name,
+      subtitle: activeSubject.code,
+      deletedBy: user?.name ?? "Admin",
+      snapshot: { ...activeSubject } as unknown as Record<string, unknown>,
+    });
     deleteSubject(activeSubject.id);
+    saveClassDirectory(
+      loadClassDirectory().map((record) => {
+        const assignments = { ...(record.subjectTeacherAssignments ?? {}) };
+        delete assignments[activeSubject.id];
+        return { ...record, subjectTeacherAssignments: assignments };
+      }),
+    );
     refresh();
     setDeleteOpen(false);
     setActiveSubject(null);
@@ -179,38 +237,47 @@ function SubjectsPage() {
     setAssignIds((prev) => (prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]));
   };
 
+  if (pathname.startsWith("/subjects/")) return <Outlet />;
+
   return (
     <AppShell
       title={profile.academic.subjectsPageTitle}
       subtitle={`${catalog.length} subjects · create, edit, and assign teachers`}
       actions={
-        <Button variant="primary" onClick={openCreate}>
+        <Button
+          variant="primary"
+          data-admin-write
+          disabled={!writesAllowed}
+          title={!writesAllowed ? reason ?? undefined : undefined}
+          onClick={() => guardWriteAction(openCreate)}
+        >
           <Plus className="size-3.5" /> New subject
         </Button>
       }
     >
       <Card>
-        <PageToolbar>
-          <SearchInput
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search subject name or code…"
-            className="flex-1 min-w-[200px]"
-          />
-          <Select
-            fieldSize="compact"
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="w-40"
-          >
-            <option value="all">All categories</option>
-            {SUBJECT_CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </Select>
-          <ToolbarSpacer />
+        <PageToolbar className="!flex-row flex-nowrap items-center gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <SearchInput
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search subject name or code…"
+              className="min-w-0 flex-1"
+            />
+            <Select
+              fieldSize="compact"
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="w-40 shrink-0 sm:w-44"
+            >
+              <option value="all">All categories</option>
+              {SUBJECT_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </Select>
+          </div>
           <ToolbarMeta>{list.length} results</ToolbarMeta>
         </PageToolbar>
 
@@ -220,7 +287,13 @@ function SubjectsPage() {
             title="No subjects found"
             hint="Try another search term or category filter."
             action={
-              <Button variant="primary" onClick={openCreate}>
+              <Button
+                variant="primary"
+                data-admin-write
+                disabled={!writesAllowed}
+                title={!writesAllowed ? reason ?? undefined : undefined}
+                onClick={() => guardWriteAction(openCreate)}
+              >
                 <Plus className="size-3.5" /> New subject
               </Button>
             }
@@ -235,14 +308,28 @@ function SubjectsPage() {
                 <Th>Periods/wk</Th>
                 <Th>Teachers</Th>
                 <Th>Status</Th>
-                <Th className="text-right">Actions</Th>
+                <Th className="w-12">
+                  <span className="sr-only">Actions</span>
+                </Th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {list.map((s) => {
                 const assigned = teachers.filter((t) => s.assignedTeacherIds.includes(t.id));
                 return (
-                  <tr key={s.id} className="hover:bg-surface-hover">
+                  <tr
+                    key={s.id}
+                    role="link"
+                    tabIndex={0}
+                    className="cursor-pointer hover:bg-surface-hover"
+                    onClick={() => navigate({ to: "/subjects/$id", params: { id: s.id } })}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        navigate({ to: "/subjects/$id", params: { id: s.id } });
+                      }
+                    }}
+                  >
                     <td className="px-5 py-3">
                       <div className="text-xs font-medium">{s.name}</div>
                       <div className="text-[10px] text-muted-foreground font-mono">{s.code}</div>
@@ -273,18 +360,17 @@ function SubjectsPage() {
                     <td className="px-5 py-3">
                       <Pill tone={s.status === "active" ? "success" : "warning"}>{s.status}</Pill>
                     </td>
-                    <td className="px-5 py-3">
-                      <div className="flex flex-wrap justify-end gap-1.5">
-                        <Button variant="outline" size="sm" onClick={() => openEdit(s)}>
-                          <Pencil className="size-3" /> Edit
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => openAssign(s)}>
-                          <UserPlus className="size-3" /> Teachers
-                        </Button>
-                        <Button variant="danger" size="sm" onClick={() => openDelete(s)}>
-                          <Trash2 className="size-3" />
-                        </Button>
-                      </div>
+                    <td
+                      className="px-5 py-3"
+                      onClick={(event) => event.stopPropagation()}
+                      onKeyDown={(event) => event.stopPropagation()}
+                    >
+                      <SubjectRowMenu
+                        onView={() => navigate({ to: "/subjects/$id", params: { id: s.id } })}
+                        onEdit={() => openEdit(s)}
+                        onAssignTeachers={() => openAssign(s)}
+                        onDelete={() => openDelete(s)}
+                      />
                     </td>
                   </tr>
                 );
@@ -320,7 +406,8 @@ function SubjectsPage() {
             </Button>
             <Button
               variant="primary"
-              onClick={saveForm}
+              data-admin-write
+              onClick={() => guardWriteAction(saveForm)}
               disabled={!name.trim() || !code.trim() || selectedGrades.length === 0}
             >
               {formMode === "edit" ? "Save changes" : "Create subject"}
@@ -329,18 +416,23 @@ function SubjectsPage() {
         }
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Subject name" required>
-            <TextInput
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Mathematics"
-            />
+          <Field label="Institute subject" required hint="Choose from approved subjects">
+            <Select value={code} onChange={(e) => selectInstituteSubject(e.target.value)}>
+              <option value="" disabled>
+                Select subject
+              </option>
+              {availableSubjectOptions.map((option) => (
+                <option key={option.code} value={option.code}>
+                  {option.name} · {option.code}
+                </option>
+              ))}
+            </Select>
           </Field>
           <Field label="Subject code" required>
             <TextInput
               value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="MTH 101"
+              readOnly
+              className="bg-muted/30"
             />
           </Field>
           <Field label="Category">
@@ -410,7 +502,7 @@ function SubjectsPage() {
             >
               Cancel
             </Button>
-            <Button variant="danger" onClick={confirmDelete}>
+            <Button variant="danger" data-admin-write onClick={() => guardWriteAction(confirmDelete)}>
               <Trash2 className="size-3.5" /> Delete subject
             </Button>
           </>
@@ -454,7 +546,7 @@ function SubjectsPage() {
             >
               Cancel
             </Button>
-            <Button variant="primary" onClick={saveAssignments}>
+            <Button variant="primary" data-admin-write onClick={() => guardWriteAction(saveAssignments)}>
               Save assignments
             </Button>
           </>
@@ -507,5 +599,71 @@ function SubjectsPage() {
         )}
       </Modal>
     </AppShell>
+  );
+}
+
+function SubjectRowMenu({
+  onView,
+  onEdit,
+  onAssignTeachers,
+  onDelete,
+}: {
+  onView: () => void;
+  onEdit: () => void;
+  onAssignTeachers: () => void;
+  onDelete: () => void;
+}) {
+  const { open, coords, buttonRef, menuRef, run, toggle } = useAnchoredRowMenu({
+    menuWidth: 176,
+    menuHeight: 180,
+  });
+
+  const itemClass =
+    "block w-full px-3 py-2 text-left text-xs hover:bg-accent hover:text-accent-foreground";
+
+  const menu =
+    open && coords
+      ? createPortal(
+          <div
+            ref={menuRef}
+            className="fixed z-[80] min-w-44 overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-pop"
+            style={{ top: coords.top, left: coords.left }}
+          >
+            <button type="button" className={itemClass} onClick={() => run(onView)}>
+              View details
+            </button>
+            <button type="button" className={itemClass} onClick={() => run(onEdit)}>
+              Edit
+            </button>
+            <button type="button" className={itemClass} onClick={() => run(onAssignTeachers)}>
+              Assign teachers
+            </button>
+            <div className="border-t border-border" />
+            <button
+              type="button"
+              className="block w-full px-3 py-2 text-left text-xs text-destructive hover:bg-destructive/10"
+              onClick={() => run(onDelete)}
+            >
+              Delete
+            </button>
+          </div>,
+          document.body,
+        )
+      : null;
+
+  return (
+    <div className="relative flex justify-end">
+      <button
+        ref={buttonRef}
+        type="button"
+        aria-label="Subject actions"
+        aria-expanded={open}
+        onClick={toggle}
+        className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+      >
+        <MoreHorizontal className="size-4" />
+      </button>
+      {menu}
+    </div>
   );
 }

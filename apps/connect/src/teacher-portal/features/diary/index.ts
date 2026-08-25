@@ -1,0 +1,1 @@
+export { TeacherDiaryPage } from "./TeacherDiaryPage";

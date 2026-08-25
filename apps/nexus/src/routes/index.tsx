@@ -1,349 +1,573 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
-import { Card, CardHeader, Kpi, Pill, Button } from "@lumenx/ui-admin";
+import { Button, Card, CardHeader, Kpi, Pill } from "@lumenx/ui-admin";
 import {
-  Users, GraduationCap, ClipboardCheck, AlertTriangle, TrendingUp, Activity,
-  FileDown, Send, ArrowUpRight, UserPlus, CalendarRange, Megaphone, CalendarDays,
-  MessageSquareWarning, FileText, ClipboardList, HardDrive, ShieldCheck,
-  Building2, BookOpen, Heart, Sparkles, Clock, CheckCircle2, AlertCircle,
+  Activity,
+  AlertTriangle,
+  ArrowUpRight,
+  Building2,
+  CreditCard,
+  GraduationCap,
+  HardDrive,
+  HeartHandshake,
+  Layers,
+  LifeBuoy,
+  RefreshCw,
+  ShieldAlert,
+  TrendingDown,
+  Users,
+  UserCircle2,
 } from "lucide-react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  buildMissionControlSnapshot,
+  type PlatformActivityKind,
+} from "@/lib/command-center-metrics";
+import { subscribeInstituteDirectory } from "@/lib/institute-directory-store";
+import { subscribeLicenses } from "@/lib/institute-licensing-store";
+import { colorForModule } from "@/lib/nexus-module-colors";
 
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [{ title: "Command Center — LumenX Nexus" }] }),
-  component: Dashboard,
+  component: MissionControlPage,
 });
 
-const attendance = [62, 78, 71, 92, 86, 74, 70];
-const days = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+const activityTone: Record<PlatformActivityKind, string> = {
+  plan_changed: "bg-primary/10 text-primary border-primary/20",
+  module_toggled: "bg-chart-4/10 text-chart-4 border-chart-4/20",
+  institute_created: "bg-success/10 text-success border-success/20",
+  payment_status: "bg-warning/10 text-warning border-warning/20",
+  support_ticket: "bg-destructive/10 text-destructive border-destructive/20",
+};
 
-const weakStudents = [
-  { name: "Julian Draxler", id: "JD", grade: "11-C", subject: "Physics", score: 42, delta: -12 },
-  { name: "Alina Moreno", id: "AM", grade: "9-A", subject: "Mathematics", score: 38, delta: -8 },
-  { name: "Ethan Wright", id: "EW", grade: "10-B", subject: "Chemistry", score: 51, delta: -4 },
-  { name: "Sana Khan", id: "SK", grade: "12-A", subject: "Biology", score: 56, delta: -2 },
-];
+function MissionControlPage() {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const unsubDir = subscribeInstituteDirectory(() => setTick((t) => t + 1));
+    const unsubLic = subscribeLicenses(() => setTick((t) => t + 1));
+    return () => {
+      unsubDir();
+      unsubLic();
+    };
+  }, []);
 
-const activity = [
-  { who: "Sarah Jenkins", what: "uploaded marks for", target: "MTH-101 · Mid-term", time: "2m ago", icon: FileText, tone: "primary" },
-  { who: "Marcus Whitfield", what: "submitted attendance for", target: "Grade 10-B", time: "8m ago", icon: ClipboardCheck, tone: "success" },
-  { who: "Front Office", what: "resolved complaint", target: "#CMP-2104 (Lab safety)", time: "14m ago", icon: CheckCircle2, tone: "success" },
-  { who: "Admin R. Chen", what: "updated timetable for", target: "Grade 11 · Term 2", time: "21m ago", icon: CalendarRange, tone: "primary" },
-  { who: "System", what: "auto-enrolled", target: "12 new admissions to Grade 9", time: "37m ago", icon: UserPlus, tone: "muted" },
-  { who: "Liang Ortega", what: "assigned Hana Suzuki to", target: "CHEM-220 · Tue P5", time: "1h ago", icon: GraduationCap, tone: "primary" },
-  { who: "Dept Head · Science", what: "approved 14 student credentials in", target: "Science Department", time: "1h ago", icon: ShieldCheck, tone: "success" },
-  { who: "Sub-Admin", what: "flagged complaint as urgent in", target: "Parent Portal", time: "2h ago", icon: AlertCircle, tone: "danger" },
-];
+  const snap = useMemo(() => buildMissionControlSnapshot(), [tick]);
+  const { kpis, business, platform, risk, activity, format } = snap;
+  const planTotal = business.planMix.core + business.planMix.plus + business.planMix.max || 1;
 
-const quickActions = [
-  { label: "Add Student", to: "/students", icon: UserPlus, tone: "primary" },
-  { label: "Add Teacher", to: "/teachers", icon: GraduationCap, tone: "info" },
-  { label: "Create Timetable", to: "/timetable", icon: CalendarRange, tone: "info" },
-  { label: "Send Announcement", to: "/announcements", icon: Megaphone, tone: "warning" },
-  { label: "Create Event", to: "/events", icon: CalendarDays, tone: "success" },
-  { label: "Open Complaints", to: "/complaints", icon: MessageSquareWarning, tone: "danger" },
-  { label: "Upload Marks", to: "/exams", icon: FileText, tone: "primary" },
-  { label: "Add Assignment", to: "/exams", icon: ClipboardList, tone: "info" },
-] as const;
-
-const toneBg = {
-  primary: "bg-primary/10 text-primary border-primary/20",
-  success: "bg-success/10 text-success border-success/20",
-  warning: "bg-warning/10 text-warning border-warning/20",
-  danger: "bg-destructive/10 text-destructive border-destructive/20",
-  info: "bg-chart-5/10 text-chart-5 border-chart-5/20",
-  muted: "bg-muted text-muted-foreground border-border",
-} as const;
-
-function Dashboard() {
   return (
     <AppShell
-      title="Institute Intelligence"
-      subtitle="Branch Alpha · Session 2025–26 · Real-time operational overview"
+      title="Command Center"
+      subtitle="LumenX platform overview · institutes, plans, billing, health, and support"
       actions={
         <>
-          <Button><FileDown className="size-3.5" /> Export Report</Button>
-          <Button variant="primary"><Send className="size-3.5" /> Compose Alert</Button>
+          <Link to="/institutes">
+            <Button>
+              Institutes <ArrowUpRight className="size-3" />
+            </Button>
+          </Link>
+          <Link to="/billing">
+            <Button variant="primary">
+              Billing <ArrowUpRight className="size-3" />
+            </Button>
+          </Link>
         </>
       }
     >
-      {/* KPI strip — 8 operational signals */}
-      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
-        <Kpi label="Students" value="2,842" delta="+124" tone="up" icon={<Users className="size-3.5" />} />
-        <Kpi label="Teachers" value="186" delta="+4" tone="up" icon={<GraduationCap className="size-3.5" />} />
-        <Kpi label="Classes" value="42" delta="126 sec." icon={<Building2 className="size-3.5" />} />
-        <Kpi label="Attendance" value="94.2%" delta="−2.1%" tone="down" icon={<ClipboardCheck className="size-3.5" />} />
-        <Kpi label="Complaints" value="11" delta="3 P0" tone="down" icon={<MessageSquareWarning className="size-3.5" />} />
-        <Kpi label="Exams" value="8" delta="next: 4d" icon={<FileText className="size-3.5" />} />
-        <Kpi label="Storage" value="1.2 TB" delta="60% used" icon={<HardDrive className="size-3.5" />} />
-        <Kpi label="Admins" value="16" delta="Live now" tone="up" icon={<ShieldCheck className="size-3.5" />} />
+      {/* Top platform KPIs — two rows so labels/icons don’t crush */}
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+          <Kpi label="Total Institutes" value={format.count(kpis.totalInstitutes)} icon={<Building2 className="size-3.5" />} />
+          <Kpi label="Active" value={format.count(kpis.activeInstitutes)} tone="up" />
+          <Kpi label="Trial" value={format.count(kpis.trialInstitutes)} />
+          <Kpi
+            label="Suspended"
+            value={format.count(kpis.suspendedInstitutes)}
+            tone={kpis.suspendedInstitutes ? "down" : "neutral"}
+          />
+          <Kpi
+            label="Overdue"
+            value={format.count(kpis.overdueInstitutes)}
+            tone={kpis.overdueInstitutes ? "down" : "up"}
+            icon={<AlertTriangle className="size-3.5" />}
+          />
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Kpi label="Students (all)" value={format.count(kpis.totalStudents)} icon={<Users className="size-3.5" />} />
+          <Kpi label="Faculty (all)" value={format.count(kpis.totalFaculty)} icon={<GraduationCap className="size-3.5" />} />
+          <Kpi label="Parents (all)" value={format.count(kpis.totalParents)} icon={<UserCircle2 className="size-3.5" />} />
+          <Kpi
+            label="Platform Users"
+            value={format.count(kpis.totalPlatformUsers)}
+            delta="All roles combined"
+            icon={<HeartHandshake className="size-3.5" />}
+          />
+        </div>
       </div>
 
-      {/* Quick actions rail */}
-      <Card className="mt-6">
-        <CardHeader title="Quick Actions" hint="Operational shortcuts for institute-wide workflows"
-          action={<div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-mono uppercase tracking-wider"><Sparkles className="size-3" /> ⌘K Command palette</div>} />
-        <div className="px-5 pb-5 grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-2.5">
-          {quickActions.map((q) => {
-            const Icon = q.icon;
-            return (
-              <Link key={q.label} to={q.to}
-                className="group flex flex-col items-start gap-3 p-3.5 rounded-lg border border-border bg-background/50 hover:bg-surface-hover hover:border-border-strong hover:-translate-y-0.5 transition-all duration-200 hover:shadow-elevated">
-                <div className={`size-9 rounded-md border flex items-center justify-center transition-transform group-hover:scale-110 ${toneBg[q.tone]}`}>
-                  <Icon className="size-4" strokeWidth={2} />
-                </div>
-                <div className="text-[11px] font-medium leading-tight">{q.label}</div>
-              </Link>
-            );
-          })}
-        </div>
-      </Card>
-
-      <div className="grid grid-cols-12 gap-4 mt-6">
-        {/* Attendance trend */}
-        <Card className="col-span-12 lg:col-span-8">
-          <CardHeader title="Attendance Intelligence Trend" hint="Last 7 days · institute-wide"
-            action={
-              <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
-                <span className="flex items-center gap-1.5"><i className="size-2 rounded-full bg-primary inline-block" /> Present</span>
-                <span className="flex items-center gap-1.5"><i className="size-2 rounded-full bg-muted-foreground/40 inline-block" /> Forecast</span>
-              </div>
-            } />
-          <div className="px-5 pb-5">
-            <div className="h-56 flex items-end gap-3 px-1">
-              {attendance.map((v, i) => (
-                <div key={i} className="flex-1 group relative">
-                  <div className={`rounded-t-md transition-all ${i < 5 ? "bg-primary/30 hover:bg-primary/60" : "bg-muted border-t border-border"}`} style={{ height: `${v}%` }}>
-                    {i === 3 && <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-mono text-primary">94%</div>}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="flex justify-between mt-3 font-mono text-[10px] text-muted-foreground">
-              {days.map((d) => <span key={d}>{d}</span>)}
-            </div>
-          </div>
-        </Card>
-
-        {/* Right column — interventions + urgent */}
-        <div className="col-span-12 lg:col-span-4 space-y-4">
-          <Card>
-            <CardHeader title="Critical Interventions" action={<Pill tone="danger" pulse>4 high risk</Pill>} />
+      {/* Business */}
+      <section className="mt-8">
+        <SectionLabel title="Business" hint="Plans, revenue signal, renewals" />
+        <div className="grid grid-cols-12 gap-4 mt-3">
+          <Card className="col-span-12 lg:col-span-4">
+            <CardHeader
+              title="Active plans"
+              hint={`${business.activePlans} institutes on a live plan`}
+              action={<Link to="/modules"><Button>Modules</Button></Link>}
+            />
             <div className="px-5 pb-5 space-y-3">
-              {weakStudents.slice(0, 4).map((s) => (
-                <div key={s.id} className="flex items-center justify-between group cursor-pointer hover:bg-surface-hover -mx-2 px-2 py-1.5 rounded-md transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className="size-9 rounded-md bg-accent border border-border flex items-center justify-center text-[10px] font-mono">{s.id}</div>
-                    <div>
-                      <div className="text-xs font-medium">{s.name}</div>
-                      <div className="text-[10px] text-muted-foreground">Grade {s.grade} · {s.subject}</div>
+              {(["core", "plus", "max"] as const).map((tier) => {
+                const n = business.planMix[tier];
+                const pct = Math.round((n / planTotal) * 100);
+                const bar =
+                  tier === "core" ? "bg-muted-foreground" : tier === "plus" ? "bg-primary" : "bg-chart-5";
+                return (
+                  <div key={tier}>
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span>{business.planLabels[tier]}</span>
+                      <span className="font-mono text-muted-foreground">
+                        {n} · {pct}%
+                      </span>
+                    </div>
+                    <div className="h-1.5 rounded bg-muted overflow-hidden">
+                      <div className={`h-full ${bar}`} style={{ width: `${pct}%` }} />
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-xs font-mono text-destructive">{s.score}%</div>
-                    <div className="text-[10px] text-muted-foreground">{s.delta} pts</div>
-                  </div>
-                </div>
-              ))}
-              <Link to="/analytics" className="block">
-                <Button className="w-full justify-center mt-2">Open intervention analytics <ArrowUpRight className="size-3" /></Button>
+                );
+              })}
+            </div>
+          </Card>
+
+          <Card className="col-span-12 sm:col-span-6 lg:col-span-4">
+            <CardHeader title="Revenue signal" hint="Institute licensing · not student fees" />
+            <div className="px-5 pb-5 grid grid-cols-2 gap-3">
+              <MetricTile label="Paid" value={format.money(business.revenuePaidInr)} tone="success" />
+              <MetricTile label="Billed" value={format.money(business.revenueBilledInr)} />
+              <MetricTile
+                label="Pending"
+                value={format.money(business.pendingInr)}
+                tone={business.pendingInr ? "warning" : "neutral"}
+              />
+              <MetricTile
+                label="Overdue institutes"
+                value={String(business.overdueCount)}
+                tone={business.overdueCount ? "danger" : "success"}
+              />
+            </div>
+            <div className="px-5 pb-5">
+              <Link to="/billing">
+                <Button className="w-full justify-center">
+                  Open billing <ArrowUpRight className="size-3" />
+                </Button>
               </Link>
             </div>
           </Card>
 
-          <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 shadow-elevated">
-            <div className="flex gap-3">
-              <div className="size-9 rounded-md bg-destructive/15 flex items-center justify-center shrink-0">
-                <AlertTriangle className="size-4 text-destructive" />
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <div className="text-xs font-semibold text-destructive">Urgent Complaint</div>
-                  <Pill tone="danger" pulse>P0</Pill>
-                </div>
-                <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
-                  Grade 12 Faculty — Escalation regarding facility maintenance during examination period.
-                </p>
-                <Link to="/complaints"><Button className="mt-3 h-7 text-[11px]">Open case</Button></Link>
-              </div>
+          <Card className="col-span-12 sm:col-span-6 lg:col-span-4">
+            <CardHeader
+              title="Upcoming renewals"
+              hint={`${business.upcomingRenewals.length} in reminder window`}
+              action={<Pill tone="info">{business.upcomingRenewals.length}</Pill>}
+            />
+            <div className="px-5 pb-5 space-y-2.5">
+              {business.upcomingRenewals.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No renewals in the current reminder window.</p>
+              ) : (
+                business.upcomingRenewals.map((r) => (
+                  <div key={r.instituteId} className="flex items-start justify-between gap-3 text-xs">
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">{r.instituteName}</div>
+                      <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                        {business.planLabels[r.plan]} · {format.money(r.amountInr)}
+                      </div>
+                    </div>
+                    <Pill tone={r.status === "overdue" ? "danger" : r.status === "due" ? "warning" : "info"}>
+                      {r.status === "overdue"
+                        ? `${Math.abs(r.daysUntil)}d overdue`
+                        : r.daysUntil === 0
+                          ? "Due today"
+                          : `${r.daysUntil}d`}
+                    </Pill>
+                  </div>
+                ))
+              )}
             </div>
+          </Card>
+        </div>
+      </section>
+
+      {/* Platform */}
+      <section className="mt-8">
+        <SectionLabel title="Platform" hint="Adoption, usage, health, support" />
+        <div className="grid grid-cols-12 gap-4 mt-3">
+          <Card className="col-span-12 lg:col-span-5">
+            <CardHeader title="Module adoption" hint="Share of live institutes with module enabled" />
+            <div className="px-5 pb-5 space-y-2.5 max-h-72 overflow-y-auto">
+              {platform.moduleAdoption.map((m) => {
+                const accent = colorForModule(m.id);
+                return (
+                <div key={m.id}>
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="truncate pr-2">{m.label}</span>
+                    <span className="font-mono text-muted-foreground shrink-0">
+                      {m.enabled}/{m.total} · {m.pct}%
+                    </span>
+                  </div>
+                  <div className="h-1.5 rounded bg-muted overflow-hidden">
+                    <div
+                      className="h-full"
+                      style={{ width: `${m.pct}%`, background: accent.solid }}
+                    />
+                  </div>
+                </div>
+                );
+              })}
+            </div>
+          </Card>
+
+          <Card className="col-span-12 sm:col-span-6 lg:col-span-3">
+            <CardHeader title="Active usage" hint={`Platform avg ${platform.avgActiveUsagePct}%`} />
+            <div className="px-5 pb-5 space-y-3">
+              <MetricTile label="Healthy" value={String(platform.activeUsageHealthy)} tone="success" />
+              <MetricTile label="Moderate" value={String(platform.activeUsageModerate)} tone="info" />
+              <MetricTile label="Low / inactive" value={String(platform.activeUsageLow)} tone="warning" />
+            </div>
+          </Card>
+
+          <Card className="col-span-12 sm:col-span-6 lg:col-span-4">
+            <CardHeader
+              title="Inactive institutes"
+              hint="Suspended or usage below threshold"
+              action={<Pill tone={platform.inactiveInstitutes.length ? "warning" : "success"}>{platform.inactiveInstitutes.length}</Pill>}
+            />
+            <div className="px-5 pb-5 space-y-2.5">
+              {platform.inactiveInstitutes.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No inactive institutes in the live set.</p>
+              ) : (
+                platform.inactiveInstitutes.slice(0, 5).map((i) => (
+                  <Link
+                    key={i.id}
+                    to="/institutes/$id"
+                    params={{ id: i.id }}
+                    className="flex items-center justify-between gap-2 text-xs hover:bg-surface-hover -mx-2 px-2 py-1.5 rounded-md transition-colors"
+                  >
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">{i.name}</div>
+                      <div className="text-[10px] text-muted-foreground truncate">{i.location}</div>
+                    </div>
+                    <span className="font-mono text-muted-foreground shrink-0">{i.usagePct}%</span>
+                  </Link>
+                ))
+              )}
+            </div>
+          </Card>
+
+          <Card className="col-span-12 md:col-span-6 lg:col-span-6">
+            <CardHeader
+              title="Platform health"
+              hint="Infrastructure signals"
+              action={<Pill tone={platform.health.healthTone} pulse>{platform.health.healthLabel}</Pill>}
+            />
+            <div className="px-5 pb-5 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <HealthCell label="API p99" value={`${platform.health.apiP99Ms}ms`} icon={Activity} />
+              <HealthCell label="Ingest lag" value={`${platform.health.ingestLagSec}s`} icon={RefreshCw} />
+              <HealthCell label="Job failures (24h)" value={String(platform.health.jobFailures24h)} icon={ShieldAlert} />
+              <HealthCell label="Avg institute usage" value={`${platform.avgActiveUsagePct}%`} icon={Layers} />
+            </div>
+          </Card>
+
+          <Card className="col-span-12 md:col-span-6 lg:col-span-6">
+            <CardHeader
+              title="Support & SLA"
+              hint="Platform tickets · institute names only"
+              action={
+                <Link to="/support">
+                  <Button>Support</Button>
+                </Link>
+              }
+            />
+            <div className="px-5 pb-5 grid grid-cols-2 gap-3">
+              <MetricTile
+                label="Open tickets"
+                value={String(platform.openTickets)}
+                tone="info"
+                icon={<LifeBuoy className="size-3.5" />}
+              />
+              <MetricTile
+                label="SLA breaches"
+                value={String(platform.slaBreaches)}
+                tone={platform.slaBreaches ? "danger" : "success"}
+                icon={<AlertTriangle className="size-3.5" />}
+              />
+            </div>
+          </Card>
+        </div>
+      </section>
+
+      {/* Risk */}
+      <section className="mt-8">
+        <SectionLabel title="Risk" hint="Institute-level watchlist · aggregates only" />
+        <div className="grid grid-cols-12 gap-4 mt-3">
+          <Card className="col-span-12 lg:col-span-5">
+            <CardHeader title="Top risky institutes" action={<Pill tone="danger">{risk.topRisky.length}</Pill>} />
+            <div className="px-5 pb-5 space-y-2.5">
+              {risk.topRisky.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No elevated risk institutes.</p>
+              ) : (
+                risk.topRisky.map((i) => (
+                  <Link
+                    key={i.id}
+                    to="/institutes/$id"
+                    params={{ id: i.id }}
+                    className="flex items-start justify-between gap-3 text-xs hover:bg-surface-hover -mx-2 px-2 py-2 rounded-md transition-colors"
+                  >
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">{i.name}</div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">
+                        {i.location} · {format.count(i.studentCount)} students · {i.usagePct}% usage
+                      </div>
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {i.reasons.map((r) => (
+                          <span
+                            key={r}
+                            className="text-[9px] uppercase tracking-wider font-mono px-1.5 py-0.5 rounded border border-border text-muted-foreground"
+                          >
+                            {r}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <Pill tone={i.riskTone === "danger" ? "danger" : i.riskTone === "warning" ? "warning" : "neutral"}>
+                      {i.riskLabel}
+                    </Pill>
+                  </Link>
+                ))
+              )}
+            </div>
+          </Card>
+
+          <div className="col-span-12 lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <RiskList
+              title="Usage decline"
+              empty="No declining usage signals."
+              icon={<TrendingDown className="size-3.5" />}
+              rows={risk.usageDecline.map((r) => ({
+                id: r.id,
+                name: r.name,
+                meta: `${r.location} · ${r.usagePct}%`,
+                value: `${r.deltaPts > 0 ? "+" : ""}${r.deltaPts} pts`,
+                danger: r.deltaPts < 0,
+              }))}
+            />
+            <RiskList
+              title="Student-count decline"
+              empty="No enrollment decline signals."
+              icon={<Users className="size-3.5" />}
+              rows={risk.studentDecline.map((r) => ({
+                id: r.id,
+                name: r.name,
+                meta: `${r.location} · ${format.count(r.studentCount)}`,
+                value: format.count(r.delta),
+                danger: true,
+              }))}
+            />
+            <RiskList
+              title="Payment risk"
+              empty="No payment risk institutes."
+              icon={<CreditCard className="size-3.5" />}
+              rows={risk.paymentRisk.map((r) => ({
+                id: r.id,
+                name: r.name,
+                meta: `${r.location} · ${r.paymentStatus}`,
+                value: format.money(r.pendingInr),
+                danger: r.paymentStatus === "overdue",
+              }))}
+            />
+            <RiskList
+              title="Storage risk"
+              empty="No storage pressure institutes."
+              icon={<HardDrive className="size-3.5" />}
+              rows={risk.storageRisk.map((r) => ({
+                id: r.id,
+                name: r.name,
+                meta: r.location,
+                value: `${r.pressurePct}%`,
+                danger: r.pressurePct >= 85,
+              }))}
+            />
+            <RiskList
+              title="Support risk"
+              empty="No support-risk institutes."
+              className="sm:col-span-2"
+              icon={<LifeBuoy className="size-3.5" />}
+              rows={risk.supportRisk.map((r) => ({
+                id: r.id,
+                name: r.name,
+                meta: `${r.location} · ${r.risk}`,
+                value: `${r.openTicketsDemo} open`,
+                danger: r.risk === "critical",
+              }))}
+            />
           </div>
         </div>
+      </section>
 
-        {/* Real-time activity feed */}
-        <Card className="col-span-12 lg:col-span-7">
-          <CardHeader title="Live Operational Activity" hint="Real-time across all branches"
+      {/* Recent platform activity */}
+      <section className="mt-8 mb-2">
+        <SectionLabel title="Recent platform activity" hint="Commercial and lifecycle events · no personal names" />
+        <Card className="mt-3">
+          <CardHeader
+            title="Activity feed"
             action={
-              <div className="flex items-center gap-2">
-                <span className="flex items-center gap-1.5 text-[10px] text-success font-mono uppercase tracking-wider">
-                  <span className="size-1.5 rounded-full bg-success animate-pulse" /> LIVE
-                </span>
-                <Button variant="ghost">View all</Button>
-              </div>
-            } />
+              <span className="flex items-center gap-1.5 text-[10px] text-success font-mono uppercase tracking-wider">
+                <span className="size-1.5 rounded-full bg-success animate-pulse" /> Demo feed
+              </span>
+            }
+          />
           <div className="px-5 pb-5 space-y-1">
-            {activity.map((a, i) => {
-              const Icon = a.icon;
-              return (
-                <div key={i} className="flex items-start gap-3 py-2.5 border-b border-border last:border-0 hover:bg-surface-hover -mx-2 px-2 rounded-md transition-colors group">
-                  <div className={`size-8 rounded-md border flex items-center justify-center shrink-0 ${toneBg[a.tone as keyof typeof toneBg]}`}>
-                    <Icon className="size-3.5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs leading-relaxed">
-                      <span className="font-medium">{a.who}</span>{" "}
-                      <span className="text-muted-foreground">{a.what}</span>{" "}
-                      <span className="text-primary">{a.target}</span>
-                    </p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5 font-mono flex items-center gap-1">
-                      <Clock className="size-2.5" /> {a.time}
-                    </p>
-                  </div>
+            {activity.map((a) => (
+              <div
+                key={a.id}
+                className="flex items-start gap-3 py-2.5 border-b border-border last:border-0"
+              >
+                <div
+                  className={`size-8 rounded-md border flex items-center justify-center shrink-0 ${activityTone[a.kind]}`}
+                >
+                  <ActivityIcon kind={a.kind} />
                 </div>
-              );
-            })}
-          </div>
-        </Card>
-
-        {/* Performance breakdown */}
-        <Card className="col-span-12 lg:col-span-5">
-          <CardHeader title="Class Performance" hint="Average GPA by grade"
-            action={<div className="flex items-center gap-1.5 text-[10px] text-success"><TrendingUp className="size-3" /> +0.18 vs last term</div>} />
-          <div className="px-5 pb-5 space-y-3">
-            {[
-              { grade: "Grade 12-A", gpa: 3.84, pct: 95, tone: "bg-success" },
-              { grade: "Grade 11-B", gpa: 3.62, pct: 88, tone: "bg-primary" },
-              { grade: "Grade 10-A", gpa: 3.41, pct: 82, tone: "bg-primary" },
-              { grade: "Grade 9-C", gpa: 2.98, pct: 71, tone: "bg-warning" },
-              { grade: "Grade 11-C", gpa: 2.64, pct: 62, tone: "bg-destructive" },
-            ].map((c) => (
-              <div key={c.grade}>
-                <div className="flex items-center justify-between text-xs mb-1">
-                  <span>{c.grade}</span>
-                  <span className="font-mono text-muted-foreground">{c.gpa.toFixed(2)}</span>
-                </div>
-                <div className="h-1.5 rounded bg-muted overflow-hidden"><div className={`h-full ${c.tone}`} style={{ width: `${c.pct}%` }} /></div>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        {/* Parent engagement + teacher trends */}
-        <Card className="col-span-12 md:col-span-6 lg:col-span-4">
-          <CardHeader title="Parent Engagement" hint="30-day average" />
-          <div className="px-5 pb-5 space-y-3">
-            {[
-              { l: "Portal logins", v: "78%", tone: "bg-success", pct: 78 },
-              { l: "Message reads", v: "64%", tone: "bg-primary", pct: 64 },
-              { l: "Event RSVPs", v: "41%", tone: "bg-warning", pct: 41 },
-              { l: "Survey response", v: "23%", tone: "bg-destructive", pct: 23 },
-            ].map((m) => (
-              <div key={m.l}>
-                <div className="flex items-center justify-between text-xs mb-1">
-                  <span className="text-muted-foreground">{m.l}</span>
-                  <span className="font-mono">{m.v}</span>
-                </div>
-                <div className="h-1.5 rounded bg-muted overflow-hidden"><div className={`h-full ${m.tone}`} style={{ width: `${m.pct}%` }} /></div>
-              </div>
-            ))}
-            <Link to="/parents"><Button className="w-full justify-center mt-2">Manage parents <ArrowUpRight className="size-3" /></Button></Link>
-          </div>
-        </Card>
-
-        <Card className="col-span-12 md:col-span-6 lg:col-span-4">
-          <CardHeader title="Teacher Performance" hint="Top movers this term"
-            action={<Pill tone="info">186 staff</Pill>} />
-          <div className="px-5 pb-5 space-y-2.5">
-            {[
-              { n: "Priya Iyer", d: "Biology", r: 4.92, delta: "+0.18", tone: "up" },
-              { n: "Sarah Jenkins", d: "Mathematics", r: 4.81, delta: "+0.12", tone: "up" },
-              { n: "Hana Suzuki", d: "Chemistry", r: 4.74, delta: "+0.06", tone: "up" },
-              { n: "Marcus Whitfield", d: "English", r: 4.42, delta: "−0.14", tone: "down" },
-            ].map((t) => (
-              <div key={t.n} className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="size-7 rounded-full bg-gradient-to-br from-primary/30 to-chart-5/30 ring-1 ring-border flex items-center justify-center text-[9px] font-semibold">
-                    {t.n.split(" ").map((x) => x[0]).join("")}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="font-medium truncate">{t.n}</div>
-                    <div className="text-[10px] text-muted-foreground truncate">{t.d}</div>
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <div className="font-mono">{t.r}</div>
-                  <div className={`text-[10px] ${t.tone === "up" ? "text-success" : "text-destructive"}`}>{t.delta}</div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs leading-relaxed">
+                    <span className="font-medium">{a.title}</span>
+                    {a.instituteName ? (
+                      <>
+                        {" "}
+                        <span className="text-muted-foreground">·</span>{" "}
+                        <span className="text-primary">{a.instituteName}</span>
+                      </>
+                    ) : null}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">{a.detail}</p>
+                  <p className="text-[10px] text-muted-foreground mt-1 font-mono">{a.time}</p>
                 </div>
               </div>
             ))}
           </div>
         </Card>
-
-        <Card className="col-span-12 md:col-span-12 lg:col-span-4">
-          <CardHeader title="Upcoming" hint="Next 7 days" />
-          <div className="px-5 pb-5 space-y-2.5">
-            {[
-              { d: "Mon", t: "10:00", e: "Grade 10 — Mid-term Maths", icon: FileText, tone: "primary" },
-              { d: "Tue", t: "14:30", e: "Parent–Teacher Meet · 11", icon: Heart, tone: "success" },
-              { d: "Wed", t: "09:00", e: "Inter-school Debate", icon: CalendarDays, tone: "warning" },
-              { d: "Fri", t: "16:00", e: "Annual Sports Day Rehearsal", icon: BookOpen, tone: "info" },
-            ].map((u) => {
-              const Icon = u.icon;
-              return (
-                <div key={u.e} className="flex items-center gap-3 py-1.5">
-                  <div className={`size-8 rounded-md border flex items-center justify-center ${toneBg[u.tone as keyof typeof toneBg]}`}>
-                    <Icon className="size-3.5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs font-medium truncate">{u.e}</div>
-                    <div className="text-[10px] text-muted-foreground font-mono">{u.d} · {u.t}</div>
-                  </div>
-                </div>
-              );
-            })}
-            <Link to="/events"><Button className="w-full justify-center mt-2">View calendar <ArrowUpRight className="size-3" /></Button></Link>
-          </div>
-        </Card>
-
-        {/* Storage + system health */}
-        <Card className="col-span-12 md:col-span-6">
-          <CardHeader title="Storage Health" hint="2 TB allocated"
-            action={<Link to="/storage"><Button>Manage</Button></Link>} />
-          <div className="px-5 pb-5">
-            <div className="flex h-2.5 rounded-full overflow-hidden bg-muted">
-              <div className="bg-primary" style={{ width: "34%" }} />
-              <div className="bg-chart-5" style={{ width: "24%" }} />
-              <div className="bg-success" style={{ width: "15%" }} />
-              <div className="bg-warning" style={{ width: "12%" }} />
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 text-[11px]">
-              <div><span className="size-2 inline-block rounded-sm bg-primary mr-1.5" /> Assignments · 412 GB</div>
-              <div><span className="size-2 inline-block rounded-sm bg-chart-5 mr-1.5" /> Media · 286 GB</div>
-              <div><span className="size-2 inline-block rounded-sm bg-success mr-1.5" /> Docs · 184 GB</div>
-              <div><span className="size-2 inline-block rounded-sm bg-warning mr-1.5" /> Exams · 142 GB</div>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="col-span-12 md:col-span-6">
-          <CardHeader title="System Health" hint="All systems nominal"
-            action={<Pill tone="success" pulse>Operational</Pill>} />
-          <div className="px-5 pb-5 grid grid-cols-2 gap-3 text-xs">
-            {[
-              { l: "API Gateway", v: "182ms p99", t: "success" },
-              { l: "Database", v: "12ms p50", t: "success" },
-              { l: "Notifications", v: "Queued: 4", t: "success" },
-              { l: "Background Jobs", v: "2 running", t: "info" },
-            ].map((s) => (
-              <div key={s.l} className="p-3 rounded-md border border-border bg-background/40">
-                <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-muted-foreground">
-                  <Activity className="size-3" /> {s.l}
-                </div>
-                <div className="font-mono mt-1.5">{s.v}</div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
+      </section>
     </AppShell>
   );
+}
+
+function SectionLabel({ title, hint }: { title: string; hint: string }) {
+  return (
+    <div>
+      <h2 className="text-sm font-semibold tracking-tight">{title}</h2>
+      <p className="text-[11px] text-muted-foreground mt-0.5">{hint}</p>
+    </div>
+  );
+}
+
+function MetricTile({
+  label,
+  value,
+  tone = "neutral",
+  icon,
+}: {
+  label: string;
+  value: string;
+  tone?: "neutral" | "success" | "warning" | "danger" | "info";
+  icon?: ReactNode;
+}) {
+  const toneCls =
+    tone === "success"
+      ? "text-success"
+      : tone === "warning"
+        ? "text-warning"
+        : tone === "danger"
+          ? "text-destructive"
+          : tone === "info"
+            ? "text-primary"
+            : "text-muted-foreground";
+  return (
+    <div className="p-3 rounded-md border border-border bg-background/40">
+      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+        {icon}
+        {label}
+      </div>
+      <div className={`font-mono mt-1.5 text-sm ${toneCls}`}>{value}</div>
+    </div>
+  );
+}
+
+function HealthCell({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  icon: typeof Activity;
+}) {
+  return (
+    <div className="p-3 rounded-md border border-border bg-background/40">
+      <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-muted-foreground">
+        <Icon className="size-3" /> {label}
+      </div>
+      <div className="font-mono mt-1.5">{value}</div>
+    </div>
+  );
+}
+
+function RiskList({
+  title,
+  empty,
+  rows,
+  icon,
+  className = "",
+}: {
+  title: string;
+  empty: string;
+  icon?: ReactNode;
+  className?: string;
+  rows: { id: string; name: string; meta: string; value: string; danger?: boolean }[];
+}) {
+  return (
+    <Card className={className}>
+      <CardHeader
+        title={title}
+        action={icon ? <span className="text-muted-foreground">{icon}</span> : undefined}
+      />
+      <div className="px-5 pb-5 space-y-2.5">
+        {rows.length === 0 ? (
+          <p className="text-xs text-muted-foreground">{empty}</p>
+        ) : (
+          rows.map((r) => (
+            <Link
+              key={r.id}
+              to="/institutes/$id"
+              params={{ id: r.id }}
+              className="flex items-center justify-between gap-2 text-xs hover:bg-surface-hover -mx-2 px-2 py-1.5 rounded-md transition-colors"
+            >
+              <div className="min-w-0">
+                <div className="font-medium truncate">{r.name}</div>
+                <div className="text-[10px] text-muted-foreground truncate">{r.meta}</div>
+              </div>
+              <span className={`font-mono shrink-0 ${r.danger ? "text-destructive" : "text-muted-foreground"}`}>
+                {r.value}
+              </span>
+            </Link>
+          ))
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function ActivityIcon({ kind }: { kind: PlatformActivityKind }) {
+  const cls = "size-3.5";
+  if (kind === "plan_changed") return <Layers className={cls} />;
+  if (kind === "module_toggled") return <Layers className={cls} />;
+  if (kind === "institute_created") return <Building2 className={cls} />;
+  if (kind === "payment_status") return <CreditCard className={cls} />;
+  return <LifeBuoy className={cls} />;
 }

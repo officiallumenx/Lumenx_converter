@@ -10,6 +10,7 @@ import {
 
 import appCss from "../styles.css?url";
 import { ThemeProvider } from "@/components/theme-provider";
+import { TypographyProvider } from "@lumenx/ui";
 
 function NotFoundComponent() {
   return (
@@ -81,7 +82,9 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <Outlet />
+        <TypographyProvider>
+          <Outlet />
+        </TypographyProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

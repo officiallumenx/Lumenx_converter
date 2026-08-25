@@ -15,19 +15,38 @@ export function TimetableDayPicker({
   periodCounts?: Record<string, number>;
 }) {
   const countFor = (d: string) => periodCounts?.[d] ?? 0;
+  const colCount = Math.max(days.length, 1);
 
   return (
-    <section className="min-w-0 rounded-2xl border border-border bg-card p-3 shadow-soft sm:p-4">
-      <div className="mb-3 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-        <CalendarDays className="size-3.5 text-primary shrink-0" />
-        Select day
+    <section className="min-w-0 rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-5">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
+          <CalendarDays className="size-3.5 shrink-0 text-primary" />
+          Select day
+        </div>
+        <p className="min-w-0 truncate text-right text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">{selected}</span>
+          {selected === todayName ? " · Today" : ""}
+          {countFor(selected) > 0 && (
+            <span>
+              {" "}
+              · {countFor(selected)} period{countFor(selected) === 1 ? "" : "s"}
+            </span>
+          )}
+        </p>
       </div>
 
-      <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
+      <div
+        className="grid w-full gap-2.5 sm:gap-3"
+        style={{ gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))` }}
+        role="group"
+        aria-label="Week days"
+      >
         {days.map((d) => {
           const isSelected = selected === d;
           const isToday = d === todayName;
           const count = countFor(d);
+          const short = d.slice(0, 3);
 
           return (
             <button
@@ -36,50 +55,37 @@ export function TimetableDayPicker({
               onClick={() => onSelect(d)}
               aria-pressed={isSelected}
               aria-label={isToday ? `${d}, today` : d}
-              className={cn(
-                "flex min-w-0 flex-col items-center justify-center rounded-xl px-0.5 py-2 sm:py-2.5 motion-fast transition-[background-color,color,box-shadow,transform] touch-manipulation",
-                isSelected
-                  ? "bg-primary text-white shadow-soft scale-[1.02]"
-                  : "bg-white text-primary border border-primary/30 hover:border-primary/50 hover:bg-primary/[0.04] dark:bg-background dark:border-primary/25",
-                isToday && !isSelected && "ring-2 ring-primary/20 ring-offset-1 ring-offset-card",
-              )}
+              className="group flex min-w-0 flex-col items-center gap-1.5 touch-manipulation"
             >
-              <span className="text-[11px] font-semibold leading-none sm:text-xs">{d.slice(0, 3)}</span>
-              {isToday && (
-                <span
-                  className={cn(
-                    "mt-0.5 text-[8px] font-medium leading-none sm:text-[9px]",
-                    isSelected ? "text-white/90" : "text-primary/80",
-                  )}
-                >
-                  Today
-                </span>
-              )}
-              {!isToday && count > 0 && (
-                <span
-                  className={cn(
-                    "mt-0.5 text-[8px] tabular-nums leading-none sm:text-[9px]",
-                    isSelected ? "text-white/80" : "text-muted-foreground",
-                  )}
-                >
-                  {count}p
-                </span>
-              )}
+              <span
+                className={cn(
+                  "grid aspect-square w-full place-items-center rounded-full text-[11px] font-semibold tracking-wide motion-fast transition-[background-color,color,box-shadow,border-color,transform] sm:text-xs",
+                  isSelected
+                    ? "bg-primary text-white shadow-[0_8px_20px_-6px_color-mix(in_srgb,var(--primary)_50%,transparent)]"
+                    : "border border-border/80 bg-muted/35 text-foreground hover:border-primary/40 hover:bg-primary/[0.07]",
+                  isToday &&
+                    !isSelected &&
+                    "border-primary/50 bg-primary/[0.1] text-primary shadow-[0_0_0_3px_color-mix(in_srgb,var(--primary)_18%,transparent)]",
+                )}
+              >
+                {short}
+              </span>
+              <span
+                className={cn(
+                  "max-w-full truncate text-center text-[9px] font-medium leading-none sm:text-[10px]",
+                  isSelected
+                    ? "text-primary"
+                    : isToday
+                      ? "text-primary/85"
+                      : "text-muted-foreground",
+                )}
+              >
+                {isToday ? "Today" : count > 0 ? `${count}p` : "—"}
+              </span>
             </button>
           );
         })}
       </div>
-
-      <p className="mt-3 text-xs text-muted-foreground">
-        <span className="font-medium text-foreground">{selected}</span>
-        {selected === todayName ? " · Today" : ""}
-        {countFor(selected) > 0 && (
-          <span>
-            {" "}
-            · {countFor(selected)} period{countFor(selected) === 1 ? "" : "s"}
-          </span>
-        )}
-      </p>
     </section>
   );
 }

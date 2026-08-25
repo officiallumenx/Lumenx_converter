@@ -1,5 +1,11 @@
-export { ModulePlaceholder } from "./ModulePlaceholder";
 export { PageSkeleton } from "./PageSkeleton";
 export { ActivitySessionCard, ActivityCategoryIcon } from "./ActivitySessionCard";
 export { ActivityNotificationCard } from "./ActivityNotificationCard";
 export { ActivityTimelineItem } from "./ActivityTimelineItem";
+export { ActivityEmptyState } from "./ActivityEmptyState";
+export { ActivityBrowseCard } from "./ActivityBrowseCard";
+export { ActivityInlineAdd } from "./ActivityInlineAdd";
+export { ActivitySearchField } from "./ActivitySearchField";
+export { ActivitySectionHeader } from "./ActivitySectionHeader";
+export { ActivityPageShell } from "./ActivityPageShell";
+export { ActivityFilterBar } from "./ActivityFilterBar";

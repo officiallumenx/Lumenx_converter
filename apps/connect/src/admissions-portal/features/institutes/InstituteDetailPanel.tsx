@@ -1,15 +1,12 @@
 import { Link } from "@tanstack/react-router";
 import { Button } from "@lumenx/ui";
-import { ArrowRight, Building2, Calendar, MapPin, Star, Trophy } from "lucide-react";
+import { ArrowRight, Calendar, MapPin, Star, Trophy } from "lucide-react";
 import { cn } from "@lumenx/ui";
 import { useAdmissionsAuth } from "@/admissions-portal/core/AdmissionsAuthProvider";
 import {
-  getInstituteById,
   INSTITUTE_KIND_LABEL,
   type AdmissionInstituteProfile,
 } from "@/lib/admissions/institutes-data";
-import { AdmissionsPageHeader } from "@/admissions-portal/shared/ui/AdmissionsPageHeader";
-import { InstitutesBrowsePage } from "./InstitutesBrowsePage";
 
 export function InstituteDetailPanel({ institute }: { institute: AdmissionInstituteProfile }) {
   const { user } = useAdmissionsAuth();
@@ -133,36 +130,5 @@ export function InstituteDetailPanel({ institute }: { institute: AdmissionInstit
         </div>
       </div>
     </div>
-  );
-}
-
-export function InstituteDetailPage({ instituteId }: { instituteId: string }) {
-  const institute = getInstituteById(instituteId);
-
-  if (!institute) {
-    return (
-      <div className="py-12 text-center">
-        <p className="text-muted-foreground">Institute not found.</p>
-        <Button className="mt-4" asChild>
-          <Link to="/admissions/institutes">Browse institutes</Link>
-        </Button>
-      </div>
-    );
-  }
-
-  return (
-    <>
-      <div className="hidden lg:block">
-        <InstitutesBrowsePage selectedId={instituteId} />
-      </div>
-      <div className="lg:hidden">
-        <AdmissionsPageHeader
-          title={institute.name}
-          subtitle={`${institute.city}, ${institute.state}`}
-          backTo="/admissions/institutes"
-        />
-        <InstituteDetailPanel institute={institute} />
-      </div>
-    </>
   );
 }

@@ -35,7 +35,8 @@ LumenX is a modular education platform for institutes — connecting administrat
 | LumenX Connect | `apps/connect/` | Runnable UI prototype (mock data) |
 | LumenX Admin | `apps/admin/` | Runnable UI prototype (mock data) |
 | LumenX Nexus | `apps/nexus/` | Runnable scaffold (Admin-derived; platform differentiation in progress) |
-| LumenX Transport | `apps/transport/` (planned) | Not yet in repo |
+| LumenX Transport | `apps/transport/` | Runnable UI prototype |
+| LumenX Website | `apps/website/` | Public marketing site |
 
 ### 1.5 Technology direction
 

@@ -112,7 +112,7 @@ export function ParentLeavePage() {
               <li>Select the child, then choose leave start and end dates.</li>
               <li>Request goes instantly to the class teacher as a leave alert.</li>
               <li>When approved, attendance is updated for each day in the range.</li>
-              <li>You receive an alert when status is approved, rejected, or dismissed.</li>
+              <li>You receive an alert when status is approved or ignored.</li>
             </ol>
           </div>
         </div>

@@ -1,1 +1,0 @@
-export { ActivityWorkshopsPage } from "./ActivityWorkshopsPage";

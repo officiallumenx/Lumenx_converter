@@ -1,7 +1,19 @@
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Badge, Button } from "@lumenx/ui";
-import { Briefcase, Pencil, Plus } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  Badge,
+  Button,
+} from "@lumenx/ui";
+import { Pencil, Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { SectionCard } from "@/components/app/SectionCard";
 import { JobCard } from "@/careers-portal/shared/ui/CareersShellWidgets";
 import { useCareersAuth } from "@/careers-portal/core/CareersAuthProvider";
@@ -9,10 +21,11 @@ import { CareersPageHeader } from "@/careers-portal/shared/ui/CareersPageHeader"
 import { getApplicationsForOrganization } from "@/lib/careers/repositories";
 import {
   countApplicantsForJob,
+  deleteRecruiterJob,
   getRecruiterJobsForOrg,
   updateRecruiterJobStatus,
 } from "@/lib/careers/recruiter-jobs-store";
-import type { RecruiterJobStatus } from "@/lib/careers/types";
+import type { JobPosting, RecruiterJobStatus } from "@/lib/careers/types";
 
 const STATUS_TONE: Record<RecruiterJobStatus, "default" | "secondary" | "outline"> = {
   open: "default",
@@ -23,6 +36,7 @@ const STATUS_TONE: Record<RecruiterJobStatus, "default" | "secondary" | "outline
 export function RecruiterJobsPage() {
   const { user } = useCareersAuth();
   const [refresh, setRefresh] = useState(0);
+  const [deleteTarget, setDeleteTarget] = useState<JobPosting | null>(null);
 
   const orgId = user?.organizationId ?? "";
   const jobs = useMemo(() => (orgId ? getRecruiterJobsForOrg(orgId) : []), [orgId, refresh]);
@@ -34,6 +48,18 @@ export function RecruiterJobsPage() {
   const setStatus = (jobId: string, status: RecruiterJobStatus) => {
     updateRecruiterJobStatus(jobId, status);
     setRefresh((n) => n + 1);
+  };
+
+  const confirmDelete = () => {
+    if (!deleteTarget) return;
+    const ok = deleteRecruiterJob(deleteTarget.id, orgId);
+    if (ok) {
+      toast.success(`${deleteTarget.title} deleted`);
+      setRefresh((n) => n + 1);
+    } else {
+      toast.error("Could not delete this job");
+    }
+    setDeleteTarget(null);
   };
 
   return (
@@ -48,11 +74,6 @@ export function RecruiterJobsPage() {
         <Button asChild>
           <Link to="/careers/recruiter/jobs/new">
             <Plus className="size-4 mr-2" /> Post a job
-          </Link>
-        </Button>
-        <Button variant="outline" asChild>
-          <Link to="/careers/jobs">
-            <Briefcase className="size-4 mr-2" /> Browse market
           </Link>
         </Button>
       </div>
@@ -114,6 +135,13 @@ export function RecruiterJobsPage() {
                             Preview
                           </Link>
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => setDeleteTarget(job)}
+                        >
+                          <Trash2 className="size-3.5 mr-1.5" /> Delete
+                        </Button>
                       </div>
                     </div>
                   }
@@ -123,6 +151,33 @@ export function RecruiterJobsPage() {
           </div>
         )}
       </SectionCard>
+
+      <AlertDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this job?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget
+                ? `"${deleteTarget.title}" will be removed from My jobs. Existing applications stay in records but will no longer show under this role.`
+                : undefined}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={confirmDelete}
+            >
+              Delete job
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

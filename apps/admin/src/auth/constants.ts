@@ -3,13 +3,14 @@
  *  Demo users, roles, validation rules, route definitions.
  * ───────────────────────────────────────────────────────────── */
 
+import { ADMIN_STORAGE_KEYS } from "@lumenx/config";
 import type { AuthUser, AdminRole } from "./types";
 
 // ── Session ───────────────────────────────────────────────────
 
-export const AUTH_SESSION_KEY   = "lx_admin_session_v1";
-export const AUTH_REMEMBER_KEY  = "lx_admin_remember";
-export const DEMO_REGISTERED_KEY = "lx_admin_demo_registered_v1";
+export const AUTH_SESSION_KEY = ADMIN_STORAGE_KEYS.session;
+export const AUTH_REMEMBER_KEY = ADMIN_STORAGE_KEYS.remember;
+export const DEMO_REGISTERED_KEY = ADMIN_STORAGE_KEYS.demoRegistered;
 export const SESSION_TTL_MS     = 8 * 60 * 60 * 1000;   // 8 hours
 export const REMEMBER_TTL_MS    = 30 * 24 * 60 * 60 * 1000; // 30 days
 
@@ -29,6 +30,13 @@ export const AUTH_ROUTES = [
 ] as const;
 
 export type AuthRoutePath = (typeof AUTH_ROUTES)[number];
+
+/** Authenticated users hitting these should redirect into the app. */
+export const POST_AUTH_LANDING_ROUTES = ["/welcome", "/login", "/splash"] as const;
+
+export function isPostAuthLanding(pathname: string): boolean {
+  return (POST_AUTH_LANDING_ROUTES as readonly string[]).includes(pathname);
+}
 
 export const DEFAULT_AFTER_LOGIN  = "/" as const;
 export const DEFAULT_AFTER_LOGOUT = "/welcome" as const;
@@ -71,6 +79,7 @@ export const DEMO_USERS: DemoCredential[] = [
       initials:      "AV",
       role:          "super_admin",
       title:         "Principal",
+      accessRoleId:  "ROL-001",
       phone:         "+91 98765 43210",
       instituteId:   "LX-INST-001",
       instituteName: "LumenX International School",
@@ -91,6 +100,7 @@ export const DEMO_USERS: DemoCredential[] = [
       initials:      "RK",
       role:          "vice_principal",
       title:         "Vice Principal",
+      accessRoleId:  "ROL-ATT-ADMIN",
       phone:         "+91 98765 43211",
       instituteId:   "LX-INST-001",
       instituteName: "LumenX International School",
@@ -123,18 +133,19 @@ export const DEMO_USERS: DemoCredential[] = [
   {
     email:    "coordinator@lumenx.edu",
     password: "Admin@1234",
-    label:    "Coordinator",
+    label:    "Attendance Coordinator",
     user: {
       id:            "LX-ADM-004",
       email:         "coordinator@lumenx.edu",
       name:          "Mr. Aditya Sharma",
       initials:      "AS",
       role:          "coordinator",
-      title:         "Academic Coordinator",
+      title:         "Attendance Coordinator",
+      accessRoleId:  "ROL-ATT-COORD",
       phone:         "+91 98765 43213",
       instituteId:   "LX-INST-001",
       instituteName: "LumenX International School",
-      isVerified:    false, // pending verification demo
+      isVerified:    true,
       mfaEnabled:    false,
       createdAt:     "2024-01-10T08:00:00Z",
     },

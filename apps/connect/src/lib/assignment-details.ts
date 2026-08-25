@@ -1,5 +1,6 @@
 import type { StudentAssignment } from "@/lib/mock-data";
 import { teachers } from "@/lib/mock-data";
+import { downloadBlobToDevice, downloadDataUrlToDevice } from "@lumenx/utils";
 
 export interface AssignmentAttachment {
   id: string;
@@ -8,6 +9,8 @@ export interface AssignmentAttachment {
   mimeType: string;
   /** Demo download payload (plain text stand-in for PDF/doc). */
   content: string;
+  /** Real uploaded file (data URL) from simplified homework upload. */
+  dataUrl?: string;
 }
 
 export type StudentAssignmentDetail = StudentAssignment & {
@@ -19,24 +22,103 @@ export type StudentAssignmentDetail = StudentAssignment & {
   publishedAt?: string;
 };
 
+const DETAIL_EXTRAS_KEY = "lumenx.assignment-detail-extras.v1";
+const STUDENT_OVERLAY_KEY = "lumenx.student-assignment-overlay.v1";
+
+type AssignmentDetailExtra = Partial<
+  Omit<StudentAssignmentDetail, keyof StudentAssignment>
+>;
+
+function loadDetailExtras(): Record<string, AssignmentDetailExtra> {
+  try {
+    const raw = localStorage.getItem(DETAIL_EXTRAS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, AssignmentDetailExtra>;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveDetailExtras(map: Record<string, AssignmentDetailExtra>) {
+  try {
+    localStorage.setItem(DETAIL_EXTRAS_KEY, JSON.stringify(map));
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+export function upsertAssignmentDetailExtra(id: string, patch: AssignmentDetailExtra) {
+  const map = loadDetailExtras();
+  map[id] = { ...map[id], ...patch };
+  saveDetailExtras(map);
+}
+
+export function loadStudentAssignmentOverlays(): StudentAssignment[] {
+  try {
+    const raw = localStorage.getItem(STUDENT_OVERLAY_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as StudentAssignment[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function upsertStudentAssignmentOverlay(assignment: StudentAssignment) {
+  const list = loadStudentAssignmentOverlays().filter((a) => a.id !== assignment.id);
+  list.unshift(assignment);
+  try {
+    localStorage.setItem(STUDENT_OVERLAY_KEY, JSON.stringify(list.slice(0, 80)));
+  } catch {
+    /* ignore */
+  }
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${Math.round((bytes / (1024 * 1024)) * 10) / 10} MB`;
+}
+
+export function attachmentFromSimpleUpload(input: {
+  fileName: string;
+  mimeType: string;
+  size: number;
+  dataUrl: string;
+}): AssignmentAttachment {
+  return {
+    id: `att-${Date.now()}`,
+    fileName: input.fileName,
+    fileSize: formatFileSize(input.size),
+    mimeType: input.mimeType,
+    content: input.fileName,
+    dataUrl: input.dataUrl,
+  };
+}
+
 export function teacherForSubject(subject: string) {
   const match = teachers.find((t) => t.subject === subject);
   return match ?? { id: "T0", name: "Subject teacher", subject };
 }
 
+function downloadFromDataUrl(file: AssignmentAttachment) {
+  if (!file.dataUrl) return false;
+  downloadDataUrlToDevice(file.fileName, file.dataUrl);
+  return true;
+}
+
 export function downloadAssignmentAttachment(file: AssignmentAttachment) {
+  if (downloadFromDataUrl(file)) return;
   const blob = new Blob([file.content], { type: file.mimeType || "application/octet-stream" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = file.fileName;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+  downloadBlobToDevice(file.fileName, blob);
 }
 
 export function openAssignmentAttachment(file: AssignmentAttachment) {
+  if (file.dataUrl) {
+    window.open(file.dataUrl, "_blank", "noopener,noreferrer");
+    return;
+  }
   const blob = new Blob([file.content], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   window.open(url, "_blank", "noopener,noreferrer");
@@ -64,7 +146,7 @@ export const ASSIGNMENT_DETAIL_BY_ID: Record<
     description:
       "Practice problems covering quadratic equations, factorisation, and the quadratic formula from Chapter 4.",
     instructions:
-      "Solve exercises 1–20 from the textbook. Show all working steps. You may submit typed PDF or clear photos of handwritten work.",
+      "Solve exercises 1–20 from the textbook. Show all working steps in your notebook.",
     teacherId: "T1",
     teacherName: "Ananya Iyer",
     publishedAt: "31 May 2026",
@@ -107,7 +189,7 @@ export const ASSIGNMENT_DETAIL_BY_ID: Record<
   A3: {
     description: "500-word essay on climate action initiatives in your community or school.",
     instructions:
-      "Minimum 500 words. Use APA-style references. Submit as DOCX or PDF. Original work only — plagiarism checks apply.",
+      "Minimum 500 words. Use APA-style references. Write in your notebook or on ruled sheets. Original work only.",
     teacherId: "T3",
     teacherName: "Priya Menon",
     publishedAt: "20 May 2026",
@@ -132,7 +214,7 @@ export const ASSIGNMENT_DETAIL_BY_ID: Record<
   },
   A5: {
     description: "Review sheet on trigonometric ratios, identities, and standard angles.",
-    instructions: "Complete all problems. This was due last week — submit ASAP if still pending.",
+    instructions: "Complete all problems. This was due last week — finish and hand in at school as soon as possible.",
     teacherId: "T1",
     teacherName: "Ananya Iyer",
     publishedAt: "22 May 2026",
@@ -149,7 +231,7 @@ export const ASSIGNMENT_DETAIL_BY_ID: Record<
   H1: {
     description: "Read Chapter 4 on organic chemistry fundamentals and prepare short notes.",
     instructions:
-      "Read pages 78–92. Write 5 bullet-point takeaways in your notebook — photo optional for submission.",
+      "Read pages 78–92. Write 5 bullet-point takeaways in your notebook.",
     teacherId: "T5",
     teacherName: "Neha Kapoor",
     publishedAt: "1 Jun 2026",
@@ -157,7 +239,7 @@ export const ASSIGNMENT_DETAIL_BY_ID: Record<
   },
   H2: {
     description: "Grammar exercises from Unit 6 — tenses, subject–verb agreement, and punctuation.",
-    instructions: "Complete exercises 6.1–6.4. Submit scanned pages or a single PDF.",
+    instructions: "Complete exercises 6.1–6.4 in your notebook and hand in at school.",
     teacherId: "T3",
     teacherName: "Priya Menon",
     publishedAt: "28 May 2026",
@@ -174,7 +256,7 @@ export const ASSIGNMENT_DETAIL_BY_ID: Record<
   H3: {
     description: "Label major physiographic divisions on the map of India.",
     instructions:
-      "Use the attached outline map. Colour-code mountains, plateaus, and plains. Submit clear photo or PDF.",
+      "Use the attached outline map. Colour-code mountains, plateaus, and plains. Bring the completed map to class.",
     teacherId: "T0",
     teacherName: "Geography faculty",
     publishedAt: "20 May 2026",
@@ -239,14 +321,16 @@ export const ASSIGNMENT_DETAIL_BY_ID: Record<
 };
 
 export function resolveAssignmentDetail(a: StudentAssignment): StudentAssignmentDetail {
-  const extra = ASSIGNMENT_DETAIL_BY_ID[a.id];
+  const stored = loadDetailExtras()[a.id];
+  const extra = { ...ASSIGNMENT_DETAIL_BY_ID[a.id], ...stored };
   const teacher = extra?.teacherName
     ? { id: extra.teacherId ?? "T0", name: extra.teacherName }
     : teacherForSubject(a.subject);
 
   const description = extra?.description ?? `${a.title} — work assigned for ${a.subject}.`;
   const instructions =
-    extra?.instructions ?? "Follow your teacher's instructions and submit before the due date.";
+    extra?.instructions ??
+    "Follow your teacher's instructions and hand in the work at school before the due date.";
   const attachments =
     extra && Object.prototype.hasOwnProperty.call(extra, "attachments")
       ? (extra.attachments ?? [])

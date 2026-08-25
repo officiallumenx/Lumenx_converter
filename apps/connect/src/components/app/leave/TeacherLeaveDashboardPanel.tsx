@@ -1,18 +1,20 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, BellRing } from "lucide-react";
 import { Badge } from "@lumenx/ui";
 import { LeaveRequestCard } from "@/components/app/leave/LeaveRequestCard";
 import { leaveStore } from "@/lib/leave-store";
+import { selectPendingLeaveRequests } from "@/lib/leave-utils";
 
-/** Dashboard widget — pending leave with inline approve / reject / ignore. */
+/** Dashboard widget — pending leave with inline Accept / Ignore. */
 export function TeacherLeaveDashboardPanel() {
   useEffect(() => {
     leaveStore.init();
   }, []);
 
   const requests = useSyncExternalStore(leaveStore.subscribe, leaveStore.getAll, leaveStore.getAll);
-  const pending = leaveStore.getPending().slice(0, 2);
+  const pending = useMemo(() => selectPendingLeaveRequests(requests), [requests]);
+  const pendingPreview = pending.slice(0, 2);
 
   return (
     <section className="rounded-2xl border border-warning/30 bg-card p-4 shadow-soft sm:p-5">
@@ -25,7 +27,7 @@ export function TeacherLeaveDashboardPanel() {
               variant="outline"
               className="border-warning/40 text-warning-foreground text-[10px]"
             >
-              {leaveStore.getPending().length} pending
+              {pending.length} pending
             </Badge>
           )}
         </div>
@@ -36,16 +38,15 @@ export function TeacherLeaveDashboardPanel() {
           Manage <ArrowRight className="size-3" />
         </Link>
       </div>
-      {pending.length === 0 ? (
+      {pendingPreview.length === 0 ? (
         <p className="text-sm text-muted-foreground py-2">No pending leave requests.</p>
       ) : (
         <div className="space-y-3">
-          {pending.map((req) => (
+          {pendingPreview.map((req) => (
             <LeaveRequestCard key={req.id} request={req} compact />
           ))}
         </div>
       )}
-      <span className="sr-only">{requests.length}</span>
     </section>
   );
 }

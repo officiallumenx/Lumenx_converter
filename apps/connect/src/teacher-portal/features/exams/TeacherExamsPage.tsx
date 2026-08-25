@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { PageHeader } from "@/components/app/PageHeader";
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
 import { teacherRepository } from "@/lib/teacher/repositories";
+import { sectionsForClassName, uniqueSortedClassNames } from "@/lib/class-section-options";
 import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
 import { EmptyState } from "@/teacher-portal/shared/ui/EmptyState";
 import {
@@ -22,6 +23,16 @@ import {
 import { FileText, BarChart3, Calendar, MapPin, Clock } from "lucide-react";
 import type { TeacherExam } from "@/lib/teacher/types";
 
+function isMarksLocked(status: TeacherExam["marksStatus"]) {
+  return status === "submitted" || status === "published";
+}
+
+function marksActionLabel(status: TeacherExam["marksStatus"]) {
+  if (status === "published") return "Published by Admin";
+  if (status === "submitted") return "Submitted to Admin";
+  return "Enter marks";
+}
+
 export function TeacherExamsPage() {
   const portal = useTeacherPortal();
   const [exams, setExams] = useState<TeacherExam[]>([]);
@@ -32,17 +43,14 @@ export function TeacherExamsPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | TeacherExam["status"]>("all");
 
   const classNames = useMemo(
-    () => [...new Set(portal.classes.map((c) => c.className))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
+    () => uniqueSortedClassNames(portal.classes),
     [portal.classes],
   );
 
-  const sections = useMemo(() => {
-    const pool =
-      classFilter === "all"
-        ? portal.classes
-        : portal.classes.filter((c) => c.className === classFilter);
-    return [...new Set(pool.map((c) => c.section))].sort();
-  }, [portal.classes, classFilter]);
+  const sections = useMemo(
+    () => sectionsForClassName(portal.classes, classFilter),
+    [portal.classes, classFilter],
+  );
 
   useEffect(() => {
     if (sectionFilter !== "all" && !sections.includes(sectionFilter)) {
@@ -168,8 +176,17 @@ export function TeacherExamsPage() {
                   View details
                 </Button>
                 <Link to="/marks" search={{ examId: ex.id, classId: ex.classId }}>
-                  <Button size="sm" className="rounded-lg gap-1">
-                    <BarChart3 className="size-3" /> Enter marks
+                  <Button
+                    size="sm"
+                    variant={isMarksLocked(ex.marksStatus) ? "outline" : "default"}
+                    className={cn(
+                      "rounded-lg gap-1",
+                      isMarksLocked(ex.marksStatus) &&
+                        "border-sky-300 bg-sky-100 text-sky-800 hover:bg-sky-200 hover:text-sky-900 dark:border-sky-500/40 dark:bg-sky-500/20 dark:text-sky-200",
+                    )}
+                  >
+                    <BarChart3 className="size-3" />
+                    {marksActionLabel(ex.marksStatus)}
                   </Button>
                 </Link>
               </div>
@@ -222,9 +239,16 @@ export function TeacherExamsPage() {
                   Marks: {selected.marksStatus}
                 </Badge>
                 <Link to="/marks" search={{ examId: selected.id, classId: selected.classId }}>
-                  <Button className="mt-2 rounded-xl gap-2">
-                    <BarChart3 className="size-4" />{" "}
-                    {selected.marksStatus === "published" ? "View results" : "Enter marks"}
+                  <Button
+                    className={cn(
+                      "mt-2 rounded-xl gap-2",
+                      isMarksLocked(selected.marksStatus) &&
+                        "border-sky-300 bg-sky-100 text-sky-800 hover:bg-sky-200 hover:text-sky-900 dark:border-sky-500/40 dark:bg-sky-500/20 dark:text-sky-200",
+                    )}
+                    variant={isMarksLocked(selected.marksStatus) ? "outline" : "default"}
+                  >
+                    <BarChart3 className="size-4" />
+                    {marksActionLabel(selected.marksStatus)}
                   </Button>
                 </Link>
               </Section>

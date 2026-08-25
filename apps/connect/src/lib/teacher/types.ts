@@ -1,5 +1,7 @@
+import type { AttendanceMarkStatus, AttendanceMethod } from "@lumenx/module-attendance";
+
 export type AttendanceStatus = "present" | "absent";
-export type MarkStatus = "draft" | "published";
+export type MarkStatus = "draft" | "submitted" | "published";
 export type PublishStatus = "draft" | "published" | "expired";
 export type ComplaintStatus =
   | "draft"
@@ -27,6 +29,8 @@ export interface TeacherProfile {
   bio?: string;
   /** When true, teacher can open Transport (route monitor). School must offer transport. */
   hasTransport?: boolean;
+  /** When true, teacher may mark when Attendance Owner = Attendance Incharge. */
+  isAttendanceIncharge?: boolean;
 }
 
 export interface StudentAttentionItem {
@@ -174,6 +178,8 @@ export interface TeacherNotification {
   unread: boolean;
   /** Defaults to subject workspace when omitted. Activity items live in workspace-communication store. */
   portalScope?: "subject" | "activity";
+  /** Optional deep link (e.g. /attendance for pending reminders). */
+  href?: string;
 }
 
 export interface TeacherComplaint {
@@ -232,7 +238,7 @@ export interface TeacherLeaveRequest {
   fromDate: string;
   toDate: string;
   reason: string;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "approved" | "rejected" | "ignored";
   submittedAt: string;
   reviewedNote?: string;
 }
@@ -251,6 +257,10 @@ export interface DashboardSnapshot {
   todayClasses: TimetableSlot[];
   weekClassCount: number;
   attendancePending: { classId: string; label: string; count: number }[];
+  /** Classes with attendance submitted today */
+  attendanceCompleted: { classId: string; label: string; count: number }[];
+  /** Alias count for remaining classes to mark (= pending length) */
+  classesRemaining: number;
   pendingMarks: { examId: string; label: string; count: number }[];
   pendingHomework: { assignmentId: string; label: string; pendingCount: number }[];
   homeworkOverview: { classId: string; label: string; submissionPct: number }[];
@@ -276,6 +286,8 @@ export interface AttendanceReport {
   present: number;
   absent: number;
   rate: number;
+  /** School working days in the report window (Sundays + holidays excluded). */
+  workingDays: number;
 }
 
 export interface AttendanceRecord {
@@ -284,7 +296,12 @@ export interface AttendanceRecord {
   absentIds: string[];
   /** Students on approved leave — excluded from absent count */
   leaveIds?: string[];
-  status: "draft" | "submitted";
+  status: AttendanceMarkStatus;
+  /** Engine slot id (daily / morning / afternoon / period). */
+  slotId?: string;
+  slotLabel?: string;
+  method?: AttendanceMethod;
+  configVersionId?: string;
 }
 
 export type AssignmentStatus = "pending" | "submitted" | "graded";

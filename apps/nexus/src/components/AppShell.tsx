@@ -1,59 +1,17 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
-  LayoutDashboard, Users, GraduationCap, CalendarRange, ClipboardCheck,
-  FileText, BarChart3, MessageSquareWarning, Bell, ShieldCheck,
-  HardDrive, Settings, Building2, Search, ChevronRight, Hexagon,
-  Heart, CalendarDays, Siren, KeyRound, Megaphone, Sun, Moon, Menu, Layers,
+  Search, ChevronRight, Hexagon,
+  Building2, Sun, Moon, Menu, Bell,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useTheme } from "@/components/theme-provider";
-
-const nav = [
-  {
-    label: "Intelligence",
-    items: [
-      { to: "/", label: "Command Center", icon: LayoutDashboard },
-      { to: "/analytics", label: "Analytics", icon: BarChart3 },
-    ],
-  },
-  {
-    label: "People",
-    items: [
-      { to: "/students", label: "Students", icon: Users },
-      { to: "/teachers", label: "Teachers", icon: GraduationCap },
-      { to: "/parents", label: "Parents", icon: Heart },
-      { to: "/accounts", label: "Accounts & Access", icon: KeyRound },
-    ],
-  },
-  {
-    label: "Academics",
-    items: [
-      { to: "/classes", label: "Classes & Sections", icon: Building2 },
-      { to: "/timetable", label: "Timetable", icon: CalendarRange },
-      { to: "/attendance", label: "Attendance", icon: ClipboardCheck },
-      { to: "/exams", label: "Exams & Marks", icon: FileText },
-    ],
-  },
-  {
-    label: "Communications",
-    items: [
-      { to: "/notifications", label: "Notifications", icon: Bell },
-      { to: "/announcements", label: "Announcements", icon: Megaphone },
-      { to: "/events", label: "Events", icon: CalendarDays },
-      { to: "/alerts", label: "Alerts", icon: Siren },
-      { to: "/complaints", label: "Complaints", icon: MessageSquareWarning },
-    ],
-  },
-  {
-    label: "Operations",
-    items: [
-      { to: "/permissions", label: "Permissions", icon: ShieldCheck },
-      { to: "/modules", label: "Modules & Plan", icon: Layers },
-      { to: "/storage", label: "Storage", icon: HardDrive },
-      { to: "/settings", label: "Settings", icon: Settings },
-    ],
-  },
-] as const;
+import { nexusNav, NEXUS_SEARCH_PLACEHOLDER } from "@/lib/nexus-nav";
+import { NexusGlobalSearch } from "@/components/NexusGlobalSearch";
+import {
+  getActiveNexusOperator,
+  subscribePlatformAccess,
+} from "@/lib/platform-access-store";
+import { loadLicenses, ensureLicensesCoverDirectory } from "@/lib/institute-licensing-store";
 
 export function AppShell({ children, title, subtitle, actions }: {
   children: ReactNode;
@@ -64,7 +22,38 @@ export function AppShell({ children, title, subtitle, actions }: {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const [openSearch, setOpenSearch] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [operatorTick, setOperatorTick] = useState(0);
   const { theme, toggle } = useTheme();
+
+  useEffect(() => {
+    return subscribePlatformAccess(() => setOperatorTick((n) => n + 1));
+  }, []);
+
+  // One-time hydrate: licensing SoT + directory projection (no live subscriptions here).
+  useEffect(() => {
+    loadLicenses();
+    ensureLicensesCoverDirectory();
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setOpenSearch(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  void operatorTick;
+  const operator = getActiveNexusOperator();
+  const operatorInitials = (operator?.displayName ?? "PO")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("") || "PO";
 
   const SidebarContent = (
     <>
@@ -78,7 +67,7 @@ export function AppShell({ children, title, subtitle, actions }: {
         </div>
       </div>
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
-        {nav.map((group) => (
+        {nexusNav.map((group) => (
           <div key={group.label}>
             <div className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-sidebar-foreground/45 font-mono">
               {group.label}
@@ -111,11 +100,15 @@ export function AppShell({ children, title, subtitle, actions }: {
       <div className="px-4 py-4 border-t border-sidebar-border">
         <div className="flex items-center gap-3 px-2">
           <div className="size-9 rounded-full bg-gradient-to-br from-[oklch(0.58_0.13_195)] to-[oklch(0.62_0.18_285)] ring-2 ring-sidebar-border flex items-center justify-center text-[11px] font-semibold text-primary-foreground font-mono">
-            PO
+            {operatorInitials}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-xs font-medium truncate text-sidebar-foreground">Platform Owner</div>
-            <div className="text-[10px] text-sidebar-foreground/50 truncate font-mono">nexus_root · LumenX</div>
+            <div className="text-xs font-medium truncate text-sidebar-foreground">
+              {operator?.displayName ?? "Platform Owner"}
+            </div>
+            <div className="text-[10px] text-sidebar-foreground/50 truncate font-mono">
+              {operator?.handle ?? "nexus_root"} · LumenX
+            </div>
           </div>
         </div>
       </div>
@@ -143,12 +136,21 @@ export function AppShell({ children, title, subtitle, actions }: {
           </button>
           <div className="flex items-center gap-3 flex-1 max-w-md">
             <button
+              type="button"
               onClick={() => setOpenSearch(true)}
               className="hidden sm:flex items-center gap-2 w-full px-3 h-9 rounded-md bg-surface border border-border text-xs text-muted-foreground hover:bg-surface-hover transition-colors font-mono"
             >
               <Search className="size-3.5" />
-              <span className="truncate">Search institutes, plans, modules…</span>
+              <span className="truncate">{NEXUS_SEARCH_PLACEHOLDER}</span>
               <kbd className="ml-auto hidden sm:inline-flex font-mono text-[10px] px-1.5 py-0.5 rounded border border-border bg-background/60">⌘K</kbd>
+            </button>
+            <button
+              type="button"
+              onClick={() => setOpenSearch(true)}
+              className="sm:hidden size-9 rounded-md border border-border bg-surface flex items-center justify-center"
+              aria-label="Open platform search"
+            >
+              <Search className="size-4" />
             </button>
           </div>
           <div className="flex items-center gap-2">
@@ -170,33 +172,22 @@ export function AppShell({ children, title, subtitle, actions }: {
           </div>
         </header>
 
-        <main className="flex-1 px-4 md:px-8 py-8 animate-entrance">
+        <main className="flex-1 px-4 sm:px-6 md:px-8 py-6 md:py-8 animate-entrance">
           <div className="max-w-[1440px] mx-auto w-full">
-            <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
-              <div>
-                <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-primary mb-1">Nexus</p>
-                <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">{title}</h1>
-                {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-4 mb-6 md:mb-8">
+              <div className="min-w-0 space-y-1">
+                <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-primary">Nexus</p>
+                <h1 className="text-2xl md:text-3xl font-semibold tracking-tight leading-tight">{title}</h1>
+                {subtitle && <p className="text-sm text-muted-foreground leading-relaxed max-w-2xl">{subtitle}</p>}
               </div>
-              {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
+              {actions && <div className="flex flex-wrap items-center gap-2 shrink-0">{actions}</div>}
             </div>
             {children}
           </div>
         </main>
       </div>
 
-      {openSearch && (
-        <div className="fixed inset-0 z-50 bg-foreground/30 backdrop-blur-sm flex items-start justify-center pt-32" onClick={() => setOpenSearch(false)}>
-          <div className="w-full max-w-xl mx-4 rounded-xl bg-elevated border border-border shadow-elevated" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-3 px-4 h-12 border-b border-border">
-              <Search className="size-4 text-muted-foreground" />
-              <input autoFocus placeholder="Search the institute…" className="flex-1 bg-transparent outline-none text-sm" />
-              <kbd className="font-mono text-[10px] px-1.5 py-0.5 rounded border border-border">ESC</kbd>
-            </div>
-            <div className="p-4 text-xs text-muted-foreground font-mono">Search institutes, plans, modules, features…</div>
-          </div>
-        </div>
-      )}
+      <NexusGlobalSearch open={openSearch} onOpenChange={setOpenSearch} />
     </div>
   );
 }

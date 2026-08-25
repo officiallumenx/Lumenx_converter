@@ -7,6 +7,10 @@ import {
 } from "@lumenx/types";
 import type { AdminStudentRecord } from "@lumenx/module-students";
 import { MOCK_ADMIN_STUDENTS } from "@lumenx/module-students";
+import {
+  EMPTY_SCHOOL_ACADEMIC,
+  isRegisteredAdminTenant,
+} from "@/lib/admin-tenant";
 
 export type InstituteClass = {
   id: string;
@@ -17,6 +21,7 @@ export type InstituteClass = {
 };
 
 export function getAcademicConfig(): DemoAcademicConfig {
+  if (isRegisteredAdminTenant()) return EMPTY_SCHOOL_ACADEMIC;
   return getDemoProfile().academic;
 }
 
@@ -170,6 +175,7 @@ export const COLLEGE_MOCK_STUDENTS: AdminStudentRecord[] = [
 ];
 
 export function getMockStudentsForProfile(): AdminStudentRecord[] {
+  if (isRegisteredAdminTenant()) return [];
   if (readDemoProfileId() === "inter_college") {
     return COLLEGE_MOCK_STUDENTS.map((s) => ({ ...s }));
   }

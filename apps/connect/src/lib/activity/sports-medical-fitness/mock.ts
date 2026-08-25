@@ -264,4 +264,4 @@ export const fitnessProfilesSeed: StudentFitnessProfile[] = [
 ].map((p) => ({
   ...p,
   latestMetrics: latestFromTests(p.fitnessTests),
-}));
+})) as StudentFitnessProfile[];

@@ -22,5 +22,12 @@ export function createCapacitorConfig(options: LumenXCapacitorAppOptions): Lumen
     server: {
       androidScheme: LUMENX_ANDROID_SCHEME,
     },
+    plugins: {
+      StatusBar: {
+        overlaysWebView: true,
+        style: "LIGHT",
+        backgroundColor: "#00000000",
+      },
+    },
   };
 }

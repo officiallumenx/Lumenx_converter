@@ -1,0 +1,1 @@
+export { EmergencyPage } from "./EmergencyPage";

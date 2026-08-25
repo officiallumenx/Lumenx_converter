@@ -18,7 +18,8 @@ import { attemptStudentPassword } from "@/lib/student-auth-store";
 import { toast } from "sonner";
 
 type ForgotStep = "password" | "otp" | "newPin" | "confirmPin" | "verifyPin";
-type ChangeStep = "oldPin" | "newPins" | "otp";
+/** Current App Lock PIN → OTP → New PIN → Confirm */
+type ChangeStep = "oldPin" | "otp" | "newPin" | "confirmPin";
 
 function PinField({
   label,
@@ -409,7 +410,7 @@ export function AppLockForgotPinDialog(props: {
   );
 }
 
-/** Change PIN: old PIN → new + confirm (same screen) → OTP → unlock */
+/** Change PIN: current App Lock PIN → OTP → new PIN → confirm */
 export function AppLockChangePinDialog({
   open,
   onOpenChange,
@@ -437,27 +438,32 @@ export function AppLockChangePinDialog({
 
   const verifyOld = () => {
     if (!appLockStore.verifyPin(oldPin)) return toast.error("Incorrect current PIN");
-    setNewPin("");
-    setConfirmPin("");
-    setStep("newPins");
-  };
-
-  const continueNewPins = () => {
-    if (!/^\d{6}$/.test(newPin)) return toast.error("Enter a 6-digit PIN");
-    if (newPin === oldPin) return toast.error("New PIN must be different from current PIN");
-    if (newPin !== confirmPin) return toast.error("PINs do not match");
     setOtp("");
     setStep("otp");
     toast.success(`OTP sent (demo: ${DEMO_CONNECT_OTP})`);
   };
 
-  const finish = () => {
+  const verifyOtpStep = () => {
     if (!verifyDemoOtp(otp)) return toast.error(`Incorrect OTP (demo: ${DEMO_CONNECT_OTP})`);
+    setNewPin("");
+    setConfirmPin("");
+    setStep("newPin");
+  };
+
+  const continueNewPin = () => {
+    if (!/^\d{6}$/.test(newPin)) return toast.error("Enter a 6-digit PIN");
+    if (newPin === oldPin) return toast.error("New PIN must be different from current PIN");
+    setConfirmPin("");
+    setStep("confirmPin");
+  };
+
+  const finish = () => {
+    if (newPin !== confirmPin) return toast.error("PINs do not match");
     setLoading(true);
     setTimeout(() => {
       setLoading(false);
       appLockStore.updatePin(newPin);
-      toast.success("App lock PIN changed — you're in");
+      toast.success("App lock PIN changed");
       onOpenChange(false);
     }, 280);
   };
@@ -471,7 +477,7 @@ export function AppLockChangePinDialog({
 
         {step === "oldPin" && (
           <div className="space-y-4">
-            <PinField label="Current PIN" value={oldPin} onChange={setOldPin} autoFocus />
+            <PinField label="Current App Lock PIN" value={oldPin} onChange={setOldPin} autoFocus />
             <DialogActions
               onBack={() => onOpenChange(false)}
               backLabel="Cancel"
@@ -481,26 +487,42 @@ export function AppLockChangePinDialog({
           </div>
         )}
 
-        {step === "newPins" && (
+        {step === "otp" && (
+          <OtpBlock
+            otp={otp}
+            onChange={setOtp}
+            onVerify={verifyOtpStep}
+            loading={false}
+            label="Verify OTP"
+          />
+        )}
+
+        {step === "newPin" && (
           <div className="space-y-4">
-            <PinFieldPair
-              pin={newPin}
-              confirmPin={confirmPin}
-              onPin={setNewPin}
-              onConfirm={setConfirmPin}
-              pinLabel="New PIN"
-              confirmLabel="Re-enter new PIN"
-            />
+            <PinField label="New App Lock PIN" value={newPin} onChange={setNewPin} autoFocus />
             <DialogActions
-              onBack={() => setStep("oldPin")}
-              onNext={continueNewPins}
-              nextDisabled={newPin.length !== 6 || confirmPin.length !== 6}
+              onBack={() => setStep("otp")}
+              onNext={continueNewPin}
+              nextDisabled={newPin.length !== 6}
             />
           </div>
         )}
 
-        {step === "otp" && (
-          <OtpBlock otp={otp} onChange={setOtp} onVerify={finish} loading={loading} label="Confirm & unlock" />
+        {step === "confirmPin" && (
+          <div className="space-y-4">
+            <PinField
+              label="Confirm new App Lock PIN"
+              value={confirmPin}
+              onChange={setConfirmPin}
+              autoFocus
+            />
+            <DialogActions
+              onBack={() => setStep("newPin")}
+              onNext={finish}
+              nextDisabled={loading || confirmPin.length !== 6}
+              nextLabel={loading ? "Saving…" : "Save PIN"}
+            />
+          </div>
         )}
       </DialogContent>
     </Dialog>

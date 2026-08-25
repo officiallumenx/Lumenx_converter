@@ -19,6 +19,7 @@ import { DEMO_CONNECT_OTP } from "@lumenx/auth";
 import { PhoneInput, COUNTRIES, validatePhone, type Country } from "@/components/app/PhoneInput";
 import { useCareersAuth } from "@/careers-portal/core/CareersAuthProvider";
 import { SignupStepper } from "@/careers-portal/features/auth/SignupStepper";
+import { LumenxAdminContinueCard } from "@/careers-portal/features/auth/LumenxAdminContinueCard";
 import { TermsAcceptCheckbox } from "@/components/legal/TermsAcceptCheckbox";
 import {
   passwordSchema,
@@ -31,12 +32,14 @@ import { careersDefaultRoute, ORGANIZATION_TYPE_OPTIONS } from "@/lib/careers/au
 import { createInitialCandidateProfile } from "@/lib/careers/profile-repository";
 import { getAllInstituteProfiles } from "@/lib/careers/institute-profiles";
 import type { CareersAccountType, OrganizationType } from "@/lib/careers/types";
+import { useSafeTimeout } from "@/lib/use-safe-timeout";
 
 type Step = "identifier" | "password";
 
 export function SignInFlow({ redirect, job }: { redirect?: string; job?: string }) {
   const { signIn } = useCareersAuth();
   const nav = useNavigate();
+  const safeTimeout = useSafeTimeout();
   const [step, setStep] = useState<Step>("identifier");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -51,7 +54,7 @@ export function SignInFlow({ redirect, job }: { redirect?: string; job?: string 
       return;
     }
     setLoading(true);
-    setTimeout(() => {
+    safeTimeout(() => {
       const loggedIn = signIn(identifier, password);
       setLoading(false);
       if (loggedIn) {
@@ -77,7 +80,20 @@ export function SignInFlow({ redirect, job }: { redirect?: string; job?: string 
         Use your mobile number or email — we route you to the right workspace automatically.
       </p>
 
-      <div className="mt-8 space-y-4">
+      <div className="mt-6">
+        <LumenxAdminContinueCard mode="sign-in" />
+      </div>
+
+      <div className="relative my-6">
+        <div className="absolute inset-0 flex items-center">
+          <span className="w-full border-t border-border" />
+        </div>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-background px-2 text-muted-foreground">Or use Careers login</span>
+        </div>
+      </div>
+
+      <div className="space-y-4">
         {step === "identifier" ? (
           <div className="space-y-2">
             <Label>Mobile or email</Label>
@@ -124,6 +140,7 @@ export function SignInFlow({ redirect, job }: { redirect?: string; job?: string 
         <summary className="cursor-pointer font-medium text-foreground">Demo credentials</summary>
         <p className="mt-2">Job seeker: priya.candidate@example.com / demo123</p>
         <p className="mt-1">Recruiter: hr@lumenx.edu / demo123</p>
+        <p className="mt-1">LumenX Admin: principal@lumenx.edu / Admin@1234</p>
       </details>
 
       <p className="mt-4 text-center text-sm">
@@ -212,6 +229,7 @@ function AccountTypeCard({
 export function SignupFlow({ initialAccountType }: { initialAccountType?: CareersAccountType }) {
   const { signUp } = useCareersAuth();
   const nav = useNavigate();
+  const safeTimeout = useSafeTimeout();
   const employers = getAllInstituteProfiles();
 
   const [accountType, setAccountType] = useState<CareersAccountType | null>(
@@ -343,7 +361,7 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
       : undefined;
 
     setLoading(true);
-    setTimeout(() => {
+    safeTimeout(() => {
       const user = signUp({
         name: name.trim(),
         email: email.trim(),
@@ -434,6 +452,17 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
 
       {step === "accountType" && (
         <div className="mt-8 space-y-3">
+          <LumenxAdminContinueCard mode="sign-up" />
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-border" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">
+                Or create a Careers account
+              </span>
+            </div>
+          </div>
           <AccountTypeCard
             selected={accountType === "job_seeker"}
             onSelect={() => setAccountType("job_seeker")}

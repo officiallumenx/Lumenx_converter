@@ -119,6 +119,14 @@ export function classSectionLabel(
   return `Section ${sectionFilter} · all ${isCollegeMode() ? "years" : "grades"}`;
 }
 
+export function classLabelForGrade(grade: string): string {
+  const parsed = parseClassSection(grade);
+  if (!parsed) return grade ? `Class ${grade}` : "Class";
+  const num = Number(parsed.classNum);
+  if (Number.isFinite(num)) return `Class ${num}`;
+  return `Class ${parsed.classNum}`;
+}
+
 export function formatStudentGradeDisplay(grade: string): string {
   const batch = parseCollegeBatch(grade);
   if (batch) {

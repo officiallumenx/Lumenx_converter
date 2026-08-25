@@ -5,14 +5,11 @@ import {
   ClipboardCheck,
   Droplets,
   GraduationCap,
-  MapPin,
-  Phone,
   ShieldCheck,
   Trophy,
   User,
-  Users,
 } from "lucide-react";
-import { Avatar, AvatarFallback, Badge } from "@lumenx/ui";
+import { Avatar, AvatarFallback, AvatarImage, Badge } from "@lumenx/ui";
 import { cn } from "@lumenx/ui";
 import { getInitials } from "@lumenx/utils";
 import type { StudentIdQrPayload } from "@/lib/student/id-card-qr-payload";
@@ -21,6 +18,11 @@ type StudentVerifyViewProps = {
   profile: StudentIdQrPayload;
   compact?: boolean;
 };
+
+function emptyLabel(value: string | undefined): string {
+  const trimmed = value?.trim();
+  return trimmed && trimmed !== "—" ? trimmed : "Not added";
+}
 
 export function StudentVerifyView({ profile, compact = false }: StudentVerifyViewProps) {
   const {
@@ -32,12 +34,24 @@ export function StudentVerifyView({ profile, compact = false }: StudentVerifyVie
     competitions,
     examHistory,
     attendance,
+    identityOnly,
+    photoDataUrl,
   } = profile;
 
   const initials = getInitials(identity.name, 2);
+  const validLabel = emptyLabel(identity.idCardValidTill);
 
   const validDate = new Date(identity.idCardValidTill);
-  const isExpired = !Number.isNaN(validDate.getTime()) && validDate < new Date();
+  const isExpired =
+    validLabel !== "Not added" &&
+    !Number.isNaN(validDate.getTime()) &&
+    validDate < new Date();
+
+  const showAcademic =
+    !identityOnly &&
+    (academic.performanceBySubject.length > 0 ||
+      academic.overallAvg > 0 ||
+      progressReports.length > 0);
 
   return (
     <div className={cn("mx-auto w-full max-w-lg", compact ? "space-y-4" : "space-y-5 pb-8")}>
@@ -59,10 +73,10 @@ export function StudentVerifyView({ profile, compact = false }: StudentVerifyVie
               isExpired ? "text-amber-800" : "text-emerald-800",
             )}
           >
-            {isExpired ? "ID expired — contact school office" : "Official school student record"}
+            {isExpired ? "ID expired — contact school office" : "Official school student ID"}
           </p>
           <p className="text-xs text-muted-foreground">
-            {identity.institute} · Valid till {identity.idCardValidTill} · No login required
+            {identity.institute} · Valid till {validLabel} · No login required
           </p>
         </div>
       </div>
@@ -70,65 +84,77 @@ export function StudentVerifyView({ profile, compact = false }: StudentVerifyVie
       <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
         <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 px-5 py-4 text-center text-white">
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-300/90">
-            Student profile
+            Student identity
           </p>
           <h1 className="mt-1 font-display text-lg font-bold">{identity.institute}</h1>
         </div>
         <div className="flex flex-col items-center px-5 pb-5 pt-4">
           <Avatar className="size-20 ring-4 ring-primary/15">
-            <AvatarFallback className="bg-gradient-to-br from-indigo-600 to-violet-700 text-2xl text-white">
-              {initials}
+            {photoDataUrl ? (
+              <AvatarImage src={photoDataUrl} alt={identity.name} className="object-cover" />
+            ) : null}
+            <AvatarFallback
+              className={cn(
+                "text-2xl text-white",
+                photoDataUrl
+                  ? "bg-slate-200"
+                  : "bg-gradient-to-br from-slate-300 to-slate-400 text-slate-600",
+              )}
+            >
+              {photoDataUrl ? initials : "—"}
             </AvatarFallback>
           </Avatar>
+          {!photoDataUrl ? (
+            <p className="mt-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              Photo not added
+            </p>
+          ) : null}
           <h2 className="mt-3 text-center font-display text-xl font-bold">{identity.name}</h2>
           <p className="text-sm text-muted-foreground">
-            {identity.class} · Sec {identity.section} · Roll {identity.rollNo}
+            {emptyLabel(identity.class)} · Sec {emptyLabel(identity.section)} · Roll{" "}
+            {emptyLabel(identity.rollNo)}
           </p>
           <p className="mt-0.5 text-xs font-medium text-muted-foreground">{identity.studentId}</p>
         </div>
         <dl className="grid grid-cols-2 gap-px border-t border-border bg-border text-sm">
-          <InfoCell icon={Building2} label="House" value={identity.house} />
-          <InfoCell icon={Droplets} label="Blood group" value={identity.bloodGroup} />
+          <InfoCell icon={Building2} label="House" value={emptyLabel(identity.house)} />
+          <InfoCell icon={Droplets} label="Blood group" value={emptyLabel(identity.bloodGroup)} />
           <InfoCell
-            icon={Users}
-            label="Parent"
-            value={identity.parentName}
+            icon={User}
+            label="Issued on"
+            value={emptyLabel(identity.idCardIssuedOn)}
             className="col-span-2"
-          />
-          <InfoCell
-            icon={Phone}
-            label="Emergency"
-            value={identity.emergencyContact}
-            className="col-span-2"
-          />
-          <InfoCell
-            icon={MapPin}
-            label="Address"
-            value={identity.address}
-            className="col-span-2"
-            multiline
           />
         </dl>
       </section>
 
-      <VerifySection icon={GraduationCap} title="Academic summary">
-        <div className="grid grid-cols-3 gap-2">
-          <StatPill label="Overall avg" value={`${academic.overallAvg}%`} />
-          <StatPill label="Class rank" value={`#${academic.rank}`} />
-          <StatPill label="Attendance" value={`${academic.attendancePct}%`} />
-        </div>
-        <div className="mt-3 space-y-2">
-          {academic.performanceBySubject.map((s) => (
-            <div key={s.subject} className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">{s.subject}</span>
-              <span className="font-semibold">
-                {s.score}%
-                <span className="ml-1 text-xs text-muted-foreground">(prev {s.prev}%)</span>
-              </span>
-            </div>
-          ))}
-        </div>
-      </VerifySection>
+      {!showAcademic ? (
+        <p className="rounded-2xl border border-dashed border-border bg-card px-4 py-3 text-center text-xs text-muted-foreground">
+          Public ID shows school identity only. Academic details stay inside Connect after login.
+        </p>
+      ) : (
+        <VerifySection icon={GraduationCap} title="Academic summary">
+          <div className="grid grid-cols-3 gap-2">
+            <StatPill label="Overall avg" value={`${academic.overallAvg}%`} />
+            <StatPill label="Class rank" value={`#${academic.rank}`} />
+            <StatPill label="Attendance" value={`${academic.attendancePct}%`} />
+          </div>
+          <div className="mt-3 space-y-2">
+            {academic.performanceBySubject.map((s) => (
+              <div key={s.subject} className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">{s.subject}</span>
+                <span className="font-semibold">
+                  {s.score}%
+                  <span className="ml-1 text-xs text-muted-foreground">(prev {s.prev}%)</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </VerifySection>
+      )}
+
+      {showAcademic ? (
+        <>
 
       {progressReports.length > 0 && (
         <VerifySection icon={BookOpen} title="Progress reports">
@@ -227,9 +253,11 @@ export function StudentVerifyView({ profile, compact = false }: StudentVerifyVie
           </ul>
         )}
       </VerifySection>
+        </>
+      ) : null}
 
       <p className="text-center text-[11px] text-muted-foreground">
-        School ID card profile · {new Date(profile.generatedAt).toLocaleString()}
+        School ID card · {new Date(profile.generatedAt).toLocaleString()}
       </p>
     </div>
   );
@@ -279,6 +307,7 @@ function InfoCell({
   className?: string;
   multiline?: boolean;
 }) {
+  const isEmpty = value === "Not added";
   return (
     <div className={cn("flex gap-2.5 bg-card px-4 py-3", className)}>
       <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
@@ -286,7 +315,13 @@ function InfoCell({
         <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
           {label}
         </dt>
-        <dd className={cn("mt-0.5 text-sm font-medium", multiline && "leading-relaxed")}>
+        <dd
+          className={cn(
+            "mt-0.5 text-sm font-medium",
+            isEmpty && "text-muted-foreground",
+            multiline && "leading-relaxed",
+          )}
+        >
           {value}
         </dd>
       </div>

@@ -38,9 +38,18 @@ import {
   cn,
 } from "@lumenx/ui";
 import { toast } from "sonner";
+import { downloadTextToDevice } from "@lumenx/utils";
 import { useApp } from "@/lib/app-state";
 import { teacherRepository } from "@/lib/teacher/repositories";
 import type { TeacherFeeRecord } from "@/lib/teacher/repositories";
+import { sectionsForClassName, uniqueSortedClassNames } from "@/lib/class-section-options";
+import {
+  filterTeacherFeeRecords,
+  summarizeTeacherFeeScope,
+  teacherFeeHasOverdue,
+  teacherFeeScopeLabel,
+  type TeacherFeeStatusFilter,
+} from "@/lib/teacher-fees-query";
 import { ParentFeesContent } from "@/parent-portal/features/fees/ParentFeesContent";
 
 export const Route = createFileRoute("/fees")({
@@ -76,7 +85,7 @@ function TeacherFeesContent() {
   const [loading, setLoading] = useState(true);
   const [classNameFilter, setClassNameFilter] = useState("all");
   const [sectionFilter, setSectionFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "due" | "overdue">("all");
+  const [statusFilter, setStatusFilter] = useState<TeacherFeeStatusFilter>("all");
 
   useEffect(() => {
     teacherRepository.getClassFees().then((r) => {
@@ -85,21 +94,12 @@ function TeacherFeesContent() {
     });
   }, []);
 
-  const classNames = useMemo(
-    () =>
-      [...new Set(records.map((r) => r.className))].sort((a, b) =>
-        a.localeCompare(b, undefined, { numeric: true }),
-      ),
-    [records],
-  );
+  const classNames = useMemo(() => uniqueSortedClassNames(records), [records]);
 
-  const sections = useMemo(() => {
-    const pool =
-      classNameFilter === "all"
-        ? records
-        : records.filter((r) => r.className === classNameFilter);
-    return [...new Set(pool.map((r) => r.section))].sort();
-  }, [records, classNameFilter]);
+  const sections = useMemo(
+    () => sectionsForClassName(records, classNameFilter),
+    [records, classNameFilter],
+  );
 
   useEffect(() => {
     if (sectionFilter !== "all" && !sections.includes(sectionFilter)) {
@@ -107,50 +107,32 @@ function TeacherFeesContent() {
     }
   }, [sections, sectionFilter]);
 
-  const scopedRecords = useMemo(() => {
-    return records.filter((r) => {
-      if (classNameFilter !== "all" && r.className !== classNameFilter) return false;
-      if (sectionFilter !== "all" && r.section !== sectionFilter) return false;
-      return true;
-    });
-  }, [records, classNameFilter, sectionFilter]);
+  const scopedRecords = useMemo(
+    () =>
+      filterTeacherFeeRecords(records, {
+        className: classNameFilter,
+        section: sectionFilter,
+        status: "all",
+      }),
+    [records, classNameFilter, sectionFilter],
+  );
 
-  const hasOverdue = (r: TeacherFeeRecord) =>
-    r.tuition.status === "overdue" ||
-    r.examFee.status === "overdue" ||
-    r.transport?.status === "overdue";
+  const displayed = useMemo(
+    () =>
+      filterTeacherFeeRecords(records, {
+        className: classNameFilter,
+        section: sectionFilter,
+        status: statusFilter,
+      }),
+    [records, classNameFilter, sectionFilter, statusFilter],
+  );
 
-  const isFullyPaid = (r: TeacherFeeRecord) => r.totalDue === 0;
+  const classSummary = useMemo(
+    () => summarizeTeacherFeeScope(scopedRecords),
+    [scopedRecords],
+  );
 
-  const displayed = useMemo(() => {
-    if (statusFilter === "all") return scopedRecords;
-    if (statusFilter === "paid") return scopedRecords.filter(isFullyPaid);
-    if (statusFilter === "overdue") return scopedRecords.filter(hasOverdue);
-    return scopedRecords.filter((r) => r.totalDue > 0);
-  }, [scopedRecords, statusFilter]);
-
-  const classSummary = useMemo(() => {
-    const totalDue = scopedRecords.reduce((s, r) => s + r.totalDue, 0);
-    const pendingStudents = scopedRecords.filter((r) => r.totalDue > 0).length;
-    const overdueStudents = scopedRecords.filter(hasOverdue).length;
-    const clearedStudents = scopedRecords.filter(isFullyPaid).length;
-    const dueOnlyStudents = scopedRecords.filter((r) => r.totalDue > 0 && !hasOverdue(r)).length;
-    return {
-      totalDue,
-      pendingStudents,
-      overdueStudents,
-      clearedStudents,
-      dueOnlyStudents,
-      studentCount: scopedRecords.length,
-    };
-  }, [scopedRecords]);
-
-  const scopeLabel =
-    classNameFilter === "all" && sectionFilter === "all"
-      ? "All classes"
-      : sectionFilter === "all"
-        ? `Class ${classNameFilter}`
-        : `Class ${classNameFilter}-${sectionFilter}`;
+  const scopeLabel = teacherFeeScopeLabel(classNameFilter, sectionFilter);
 
   return (
     <div className="min-w-0 space-y-5">
@@ -254,7 +236,7 @@ function TeacherFeesContent() {
                   </td>
                   <td className="p-3 text-right font-semibold tabular-nums">
                     {r.totalDue > 0 ? (
-                      <span className={hasOverdue(r) ? "text-destructive" : "text-warning-foreground"}>
+                      <span className={teacherFeeHasOverdue(r) ? "text-destructive" : "text-warning-foreground"}>
                         {formatInr(r.totalDue)}
                       </span>
                     ) : (
@@ -482,7 +464,7 @@ function StudentFeesContent() {
           </p>
           <div className="space-y-2">
             {generalFees.map((f) => (
-              <FeeScheduleRow key={f.id} f={f} role={role} />
+              <FeeScheduleRow key={f.id} f={f} />
             ))}
           </div>
         </SectionCard>
@@ -509,7 +491,7 @@ function StudentFeesContent() {
           </div>
           <div className="space-y-2">
             {examFees.map((f) => (
-              <FeeScheduleRow key={f.id} f={f} role={role} />
+              <FeeScheduleRow key={f.id} f={f} />
             ))}
           </div>
         </SectionCard>
@@ -524,14 +506,14 @@ function StudentFeesContent() {
         </div>
         <Progress value={paidPct} className="h-2.5" />
         <p className="mt-3 text-[11px] text-muted-foreground">
-          Receipt numbers shown are placeholders until online payments are connected.
+          Pay offline at the school office. Download receipts from Payment history after Admin records your payment.
         </p>
       </SectionCard>
     </div>
   );
 }
 
-function FeeScheduleRow({ f, role }: { f: FeeItem; role: Role | null }) {
+function FeeScheduleRow({ f }: { f: FeeItem }) {
   const s = STATUS[f.status];
   const Icon = s.icon;
   const category = inferFeeCategory(f.title, f.category);
@@ -568,29 +550,37 @@ function FeeScheduleRow({ f, role }: { f: FeeItem; role: Role | null }) {
           </div>
           <Badge className={cn("mt-1 border-0", s.cls)}>{s.label}</Badge>
         </div>
-        {f.status === "paid" && (
+        {f.status === "paid" && f.receiptNo && (
           <Button
             size="icon"
             variant="ghost"
             className="shrink-0"
-            onClick={() =>
-              toast.success("Receipt download will be available once payments are connected")
-            }
+            onClick={() => {
+              const content = [
+                "LumenX Institute",
+                "FEE RECEIPT",
+                "========================================",
+                `Receipt No. : ${f.receiptNo}`,
+                `Fee         : ${f.title}`,
+                `Amount      : ${formatInr(f.amount)}`,
+                `Paid on     : ${f.paidOn ?? "—"}`,
+                "----------------------------------------",
+                "Paid offline at the school office.",
+                "========================================",
+                "",
+              ].join("\n");
+              const { filename } = downloadTextToDevice(
+                `${f.receiptNo}.txt`,
+                content,
+                "text/plain;charset=utf-8",
+              );
+              toast.success("Saved to Downloads", { description: filename });
+            }}
             aria-label="Download receipt"
           >
             <Receipt className="size-4" />
           </Button>
         )}
-        {(f.status === "overdue" || f.status === "partial" || f.status === "upcoming") &&
-          role === "parent" && (
-            <Button
-              size="sm"
-              className="shrink-0 rounded-xl"
-              onClick={() => toast.info("Payment gateway coming soon")}
-            >
-              Pay now
-            </Button>
-          )}
       </div>
     </div>
   );

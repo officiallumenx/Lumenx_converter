@@ -50,7 +50,15 @@ export function useKeyboardViewport(): KeyboardViewportState {
     const update = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
-        setState(readKeyboardViewport());
+        const next = readKeyboardViewport();
+        setState((prev) =>
+          prev.offset === next.offset &&
+          prev.height === next.height &&
+          prev.offsetTop === next.offsetTop &&
+          prev.open === next.open
+            ? prev
+            : next,
+        );
       });
     };
 
@@ -74,7 +82,7 @@ const LOGIN_SCROLL_SELECTOR = ".login-keyboard-scroll";
 
 /**
  * Scroll only enough to keep the focused field above the keyboard.
- * Avoids full-page scrollIntoView that pushes the form to the top and leaves it there.
+ * Avoids full-page scrollIntoView that pushes the form around.
  */
 export function scrollFieldIntoView(el: HTMLElement | null) {
   if (!el) return;
@@ -87,7 +95,7 @@ export function scrollFieldIntoView(el: HTMLElement | null) {
     if (!scrollParent) return;
 
     const vv = window.visualViewport;
-    const visibleBottom = vv ? vv.offsetTop + vv.height - 24 : window.innerHeight - 24;
+    const visibleBottom = vv ? vv.offsetTop + vv.height - 16 : window.innerHeight - 16;
     const elRect = el.getBoundingClientRect();
 
     if (elRect.bottom > visibleBottom) {
@@ -98,8 +106,8 @@ export function scrollFieldIntoView(el: HTMLElement | null) {
     const header = scrollParent.querySelector(".login-keyboard-header");
     const headerBottom =
       header?.getBoundingClientRect().bottom ?? scrollParent.getBoundingClientRect().top;
-    if (elRect.top < headerBottom + 8) {
-      scrollParent.scrollTop -= headerBottom + 8 - elRect.top;
+    if (elRect.top < headerBottom + 4) {
+      scrollParent.scrollTop -= headerBottom + 4 - elRect.top;
     }
   });
 }

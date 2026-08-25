@@ -57,7 +57,10 @@ export function buildApplicationDraftFromProfile(
       email: email ?? "",
       mobile: phone ?? "",
     },
-    address: { country: "India", ...prefill.address },
+    address: {
+      ...(prefill.address ?? {}),
+      country: prefill.address?.country ?? "India",
+    },
     professional: {
       highestQualification: prefill.professional.highestQualification || "—",
       experienceYears: prefill.professional.experienceYears || "0",

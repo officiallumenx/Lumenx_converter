@@ -63,6 +63,8 @@ export interface StudentSnapshot {
     absent: number;
     leave: number;
     workingDays: number;
+    /** Current vs previous month % from Registers. */
+    monthDelta: number;
   };
   attendanceDays: { day: number; status: AttendanceDayStatus }[];
   attendanceTrend: { week: string; pct: number }[];

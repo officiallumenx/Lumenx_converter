@@ -13,6 +13,7 @@ import type { ImportStep } from "@/lib/template-management/types";
 import { TEMPLATE_VARIABLES } from "@/lib/template-management/categories";
 import { addImportJob } from "@/lib/template-management/store";
 import { useAdminToast } from "@/components/AdminActionToast";
+import { DESIGN_UPLOAD_ACCEPT, DESIGN_UPLOAD_HINT, parseDesignUpload } from "@/lib/template-management/office-upload";
 import { Upload, ChevronRight, CheckCircle2 } from "lucide-react";
 
 const STEPS: ImportStep[] = ["upload", "detect", "map", "preview", "save"];
@@ -29,21 +30,25 @@ export function TemplateImportsView() {
   const notify = useAdminToast();
   const [step, setStep] = useState<ImportStep>("upload");
   const [fileName, setFileName] = useState("");
-  const [format, setFormat] = useState<"docx" | "pdf" | "png" | "jpg" | "jpeg">("docx");
+  const [format, setFormat] = useState<"ppt" | "pptx">("pptx");
   const [mapped, setMapped] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   const stepIndex = STEPS.indexOf(step);
 
   const onFile = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    setFileName(file.name);
-    const ext = file.name.split(".").pop()?.toLowerCase();
-    if (ext === "pdf" || ext === "png" || ext === "jpg" || ext === "jpeg" || ext === "docx") {
-      setFormat(ext as typeof format);
-    }
-    setStep("detect");
     e.target.value = "";
+    if (!file) return;
+    const parsed = parseDesignUpload(file);
+    if (!parsed) {
+      setError(`Only ${DESIGN_UPLOAD_HINT.toLowerCase()}.`);
+      return;
+    }
+    setError(null);
+    setFileName(parsed.name);
+    setFormat(parsed.format);
+    setStep("detect");
   };
 
   const finish = () => {
@@ -64,7 +69,7 @@ export function TemplateImportsView() {
   return (
     <PageStack>
       <Card>
-        <CardHeader title="Import workflow" hint="DOCX · PDF · PNG · JPG · JPEG" />
+        <CardHeader title="Import workflow" hint={DESIGN_UPLOAD_HINT} />
         <CardBody>
           <div className="flex flex-wrap gap-2 mb-6">
             {STEPS.map((s, i) => (
@@ -76,12 +81,15 @@ export function TemplateImportsView() {
           </div>
 
           {step === "upload" && (
-            <label className="flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-border p-12 cursor-pointer hover:bg-muted/20 transition-colors">
-              <Upload className="size-8 text-muted-foreground" />
-              <span className="text-sm font-medium">Upload institute template file</span>
-              <span className="text-xs text-muted-foreground">DOCX, PDF, PNG, JPG, JPEG</span>
-              <input type="file" accept=".docx,.pdf,.png,.jpg,.jpeg" className="hidden" onChange={onFile} />
-            </label>
+            <div className="space-y-3">
+              <label className="flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-border p-12 cursor-pointer hover:bg-muted/20 transition-colors">
+                <Upload className="size-8 text-muted-foreground" />
+                <span className="text-sm font-medium">Upload institute template file</span>
+                <span className="text-xs text-muted-foreground">{DESIGN_UPLOAD_HINT}</span>
+                <input type="file" accept={DESIGN_UPLOAD_ACCEPT} className="hidden" onChange={onFile} />
+              </label>
+              {error && <p className="text-xs text-destructive text-center">{error}</p>}
+            </div>
           )}
 
           {step === "detect" && (

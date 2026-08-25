@@ -61,7 +61,7 @@ function normalizeInquiry(
     jobTitle: raw.jobTitle,
     createdAt,
     updatedAt: raw.updatedAt ?? createdAt,
-    status: raw.status === "responded" ? "answered" : (raw.status ?? "open"),
+    status: (raw.status as string) === "responded" ? "answered" : (raw.status ?? "open"),
     responses: raw.responses ?? [],
   };
 }

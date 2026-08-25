@@ -76,12 +76,6 @@ export function RecruiterWorkspacePage() {
             </Link>
           </Button>
           <Button variant="outline" className="h-auto py-3 justify-start" asChild>
-            <Link to="/careers/jobs">
-              <Briefcase className="size-4 mr-2 shrink-0" />
-              Browse market
-            </Link>
-          </Button>
-          <Button variant="outline" className="h-auto py-3 justify-start" asChild>
             <Link to="/careers/recruiter/applicants">
               <FolderOpen className="size-4 mr-2 shrink-0" />
               Applicant pipeline

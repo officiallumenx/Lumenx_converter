@@ -13,6 +13,16 @@ export const parentRepository = {
     query: string,
   ): Promise<ParentSearchResults> {
     await delay();
+    // Current institute + selected child only — never other institutes.
+    if (!instituteId) {
+      return {
+        modules: [],
+        assignments: [],
+        notifications: [],
+        reportCards: [],
+        teachers: [],
+      };
+    }
     const snap = buildParentPortalSnapshot(instituteId, childId);
     const q = query.trim().toLowerCase();
     if (!q) {
@@ -46,8 +56,10 @@ export const parentRepository = {
       .filter((r) => r.term.toLowerCase().includes(q))
       .map((r) => ({ id: r.id, term: r.term, percentage: r.percentage }));
 
+    // Prefer teachers surfaced for this child/institute snapshot when present.
     const teacherMatches = teachers
       .filter((t) => t.name.toLowerCase().includes(q) || t.subject.toLowerCase().includes(q))
+      .slice(0, 6)
       .map((t) => ({ id: t.id, name: t.name, subject: t.subject }));
 
     return { modules, assignments, notifications, reportCards, teachers: teacherMatches };

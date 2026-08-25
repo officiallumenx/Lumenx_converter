@@ -99,7 +99,7 @@ export function AttendanceSummaryMetrics({ summary }: { summary: AttendancePerio
     },
     {
       icon: UserCheck,
-      label: "Attendance",
+      label: "Overall attendance",
       value: `${summary.attendancePct}%`,
       tone: "success",
     },

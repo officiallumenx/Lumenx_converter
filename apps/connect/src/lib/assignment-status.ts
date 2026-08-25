@@ -4,7 +4,8 @@ import { toLocalIsoDate } from "@/lib/leave-utils";
 /** Pending with due date within this many days (inclusive) = urgent / low due date */
 const DUE_SOON_DAYS = 2;
 
-export type AssignmentVisualStatus = "submitted" | "due" | "dueToday" | "dueSoon" | "overdue";
+/** Due-date urgency only — Connect has no online homework/assignment submission. */
+export type AssignmentVisualStatus = "due" | "dueToday" | "dueSoon" | "overdue";
 
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -18,10 +19,20 @@ function daysUntilDue(dueDate: string) {
   return Math.round((due.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
 }
 
+/** Human due label from ISO dueDate (always relative to today — never stale copy). */
+export function formatAssignmentDueLabel(dueDate?: string, fallback = "—"): string {
+  if (!dueDate) return fallback;
+  const days = daysUntilDue(dueDate);
+  if (days === 0) return "Today";
+  if (days === 1) return "Tomorrow";
+  if (days > 1 && days <= 7) return `In ${days} days`;
+  const due = new Date(`${dueDate}T12:00:00`);
+  return due.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+}
+
 export function getAssignmentVisualStatus(
-  a: Pick<StudentAssignment, "status" | "dueDate">,
+  a: Pick<StudentAssignment, "dueDate">,
 ): AssignmentVisualStatus {
-  if (a.status === "submitted") return "submitted";
   if (a.dueDate) {
     const days = daysUntilDue(a.dueDate);
     if (days < 0) return "overdue";
@@ -32,7 +43,6 @@ export function getAssignmentVisualStatus(
 }
 
 export const ASSIGNMENT_STATUS_DOT: Record<AssignmentVisualStatus, string> = {
-  submitted: "bg-success",
   due: "bg-warning",
   dueToday: "bg-primary",
   dueSoon: "bg-destructive",
@@ -40,8 +50,7 @@ export const ASSIGNMENT_STATUS_DOT: Record<AssignmentVisualStatus, string> = {
 };
 
 export const ASSIGNMENT_STATUS_LABEL: Record<AssignmentVisualStatus, string> = {
-  submitted: "Submitted",
-  due: "Pending",
+  due: "Assigned",
   dueToday: "Due today",
   dueSoon: "Due soon",
   overdue: "Overdue",
@@ -51,14 +60,8 @@ export const ASSIGNMENT_CARD_STYLES: Record<
   AssignmentVisualStatus,
   { card: string; icon: string; badge: string; label: string }
 > = {
-  submitted: {
-    label: "Submitted",
-    card: "border-success/40 bg-success/5 border-l-4 border-l-success",
-    icon: "bg-success/15 text-success",
-    badge: "border-success/40 bg-success/10 text-success",
-  },
   due: {
-    label: "Pending",
+    label: "Assigned",
     card: "border-warning/40 bg-warning/5 border-l-4 border-l-warning",
     icon: "bg-warning/15 text-warning-foreground",
     badge: "border-warning/40 bg-warning/10 text-warning-foreground",
@@ -76,7 +79,7 @@ export const ASSIGNMENT_CARD_STYLES: Record<
     badge: "border-destructive/40 bg-destructive/10 text-destructive",
   },
   overdue: {
-    label: "Not submitted — overdue",
+    label: "Overdue",
     card: "border-2 border-destructive bg-destructive/15 shadow-sm",
     icon: "bg-destructive/25 text-destructive",
     badge: "border-destructive bg-destructive/20 text-destructive font-semibold",
@@ -88,7 +91,6 @@ const URGENCY_ORDER: Record<AssignmentVisualStatus, number> = {
   dueSoon: 1,
   dueToday: 2,
   due: 3,
-  submitted: 4,
 };
 
 export function sortAssignmentsByUrgency(a: StudentAssignment, b: StudentAssignment) {
@@ -99,9 +101,7 @@ export function pendingWorkForChild(
   assignments: StudentAssignment[],
   type: StudentAssignment["type"],
 ) {
-  return assignments
-    .filter((a) => a.type === type && a.status === "pending")
-    .sort(sortAssignmentsByUrgency);
+  return assignments.filter((a) => a.type === type).sort(sortAssignmentsByUrgency);
 }
 
 /** Assignments or homework with due date = today (local calendar). */
@@ -117,28 +117,23 @@ export function todayWorkForChild(
 
 export const ASSIGNMENT_LEGEND = [
   {
-    status: "submitted" as const,
-    title: "Submitted",
-    description: "Work turned in on time",
-  },
-  {
     status: "due" as const,
-    title: "Pending",
-    description: "Assignment or homework not yet due",
+    title: "Assigned",
+    description: "Assigned work — complete offline / at school",
   },
   {
     status: "dueToday" as const,
     title: "Due today",
-    description: "Due today — complete and submit",
+    description: "Due today — complete and hand in at school",
   },
   {
     status: "dueSoon" as const,
     title: "Due soon",
-    description: "Due within 2 days — submit urgently",
+    description: "Due within 2 days",
   },
   {
     status: "overdue" as const,
     title: "Overdue",
-    description: "Past due date and not submitted",
+    description: "Past the due date",
   },
 ];

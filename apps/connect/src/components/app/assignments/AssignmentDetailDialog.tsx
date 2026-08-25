@@ -4,7 +4,7 @@ import {
   downloadAssignmentAttachment,
   openAssignmentAttachment,
 } from "@/lib/assignment-details";
-import { getAssignmentVisualStatus, ASSIGNMENT_CARD_STYLES } from "@/lib/assignment-status";
+import { formatAssignmentDueLabel } from "@/lib/assignment-status";
 import { toast } from "sonner";
 import {
   Badge,
@@ -14,7 +14,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  cn,
 } from "@lumenx/ui";
 
 export function AssignmentDetailDialog({
@@ -30,8 +29,6 @@ export function AssignmentDetailDialog({
 }) {
   if (!assignment) return null;
 
-  const visual = getAssignmentVisualStatus(assignment);
-  const styles = ASSIGNMENT_CARD_STYLES[visual];
   const typeLabel = assignment.type === "homework" ? "Homework" : "Assignment";
 
   return (
@@ -41,9 +38,6 @@ export function AssignmentDetailDialog({
           <div className="flex flex-wrap items-center gap-2 pr-8">
             <Badge variant="outline" className="text-[10px] capitalize">
               {typeLabel}
-            </Badge>
-            <Badge variant="outline" className={cn("text-[10px]", styles.badge)}>
-              {styles.label}
             </Badge>
           </div>
           <DialogTitle className="text-left text-base leading-snug break-words sm:text-lg">
@@ -60,13 +54,7 @@ export function AssignmentDetailDialog({
               <MetaRow
                 icon={Calendar}
                 label="Due"
-                value={
-                  visual === "submitted"
-                    ? "Submitted"
-                    : visual === "overdue"
-                      ? `Overdue · was due ${assignment.due}`
-                      : assignment.due
-                }
+                value={formatAssignmentDueLabel(assignment.dueDate, assignment.due)}
               />
             </div>
 
@@ -129,7 +117,7 @@ export function AssignmentDetailDialog({
                           className="w-full rounded-lg gap-1.5"
                           onClick={() => {
                             downloadAssignmentAttachment(file);
-                            toast.success("Download started", { description: file.fileName });
+                            toast.success("Saved to Downloads", { description: file.fileName });
                           }}
                         >
                           <Download className="size-3.5 shrink-0" />

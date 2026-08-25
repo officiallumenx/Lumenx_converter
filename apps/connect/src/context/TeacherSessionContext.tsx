@@ -22,15 +22,25 @@ export function TeacherSessionRegistry({ children }: { children: ReactNode }) {
       return;
     }
 
-    const teacherId = teacherPortal.isTeacher ? teacherPortal.profile?.id : undefined;
+    const profile = teacherPortal.isTeacher ? teacherPortal.profile : undefined;
+    const teacherId = profile?.id;
     if (!teacherId) return;
 
     const my = ++seq.current;
-    teacherSessionRepository.getAssignment(teacherId).then((assignment) => {
-      if (seq.current !== my) return;
-      teacherSessionStore.hydrate(assignment);
-    });
-  }, [hydrated, role, teacherPortal.isTeacher, teacherPortal.profile?.id]);
+    teacherSessionRepository
+      .getAssignment(teacherId, { email: profile.email, phone: profile.phone })
+      .then((assignment) => {
+        if (seq.current !== my) return;
+        teacherSessionStore.hydrate(assignment);
+      });
+  }, [
+    hydrated,
+    role,
+    teacherPortal.isTeacher,
+    teacherPortal.profile?.id,
+    teacherPortal.profile?.email,
+    teacherPortal.profile?.phone,
+  ]);
 
   return children;
 }

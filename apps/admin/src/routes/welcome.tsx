@@ -4,7 +4,6 @@ import {
   GraduationCap, CalendarRange, FileBarChart, Award,
 } from "lucide-react";
 import { AuthButton } from "@/auth/components/AuthButton";
-import { DemoCredentialsCard } from "@/auth/components/DemoCredentialsCard";
 import { IconChip } from "@/components/IconChip";
 
 export const Route = createFileRoute("/welcome")({
@@ -15,15 +14,15 @@ export const Route = createFileRoute("/welcome")({
 const FEATURES = [
   { icon: Users,        label: "People Management",   desc: "Students, teachers, parents"     },
   { icon: CalendarRange,label: "Smart Timetables",     desc: "Visual drag-and-drop builder"    },
-  { icon: BarChart3,    label: "Live Analytics",       desc: "KPIs, charts, and export"        },
+  { icon: BarChart3,    label: "Live Analytics",       desc: "Live dashboard, charts, insights" },
   { icon: GraduationCap,label: "Exams & Marks",        desc: "Pipeline from paper to portal"   },
-  { icon: FileBarChart, label: "Reporting Center",     desc: "Automated scheduled reports"     },
-  { icon: ShieldCheck,  label: "Roles & Permissions",  desc: "Granular enterprise access"      },
+  { icon: FileBarChart, label: "Reports",     desc: "Download Excel, PDF, and CSV"     },
+  { icon: ShieldCheck,  label: "Roles & Access",  desc: "Granular institute access"      },
 ];
 
 function WelcomePage() {
   return (
-    <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
+    <div className="min-h-screen-dvh bg-background text-foreground overflow-x-hidden">
       {/* Ambient background */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute -top-32 -left-32 w-[50vw] h-[50vw] bg-primary/[0.06] rounded-full blur-3xl" />
@@ -38,7 +37,7 @@ function WelcomePage() {
       </div>
 
       {/* ── Top nav ──────────────────────────────────────────── */}
-      <header className="relative z-10 flex items-center justify-between px-6 sm:px-10 h-16 border-b border-border/50 backdrop-blur-sm">
+      <header className="lx-auth-top-bar relative z-10 flex items-center justify-between border-b border-border/50 backdrop-blur-sm">
         <div className="flex items-center gap-2.5">
           <div className="size-8 rounded-lg bg-primary flex items-center justify-center shadow-glow">
             <Sparkles className="size-4 text-primary-foreground" />
@@ -48,7 +47,7 @@ function WelcomePage() {
         <div className="flex items-center gap-2">
           <Link to="/login">
             <AuthButton variant="outline" fullWidth={false} size="sm">
-              Sign in
+              Login
             </AuthButton>
           </Link>
           <Link to="/signup">
@@ -62,7 +61,7 @@ function WelcomePage() {
       {/* ── Hero ─────────────────────────────────────────────── */}
       <section className="relative z-10 flex flex-col items-center text-center px-6 pt-20 pb-16 sm:pt-24 sm:pb-20">
         <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-primary/30 bg-primary/[0.06] text-xs text-primary mb-6">
-          Session 2025–26 · Demo environment
+          Institute operating system
         </div>
 
         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1] max-w-3xl">
@@ -82,16 +81,9 @@ function WelcomePage() {
           </Link>
           <Link to="/login">
             <AuthButton variant="outline" fullWidth={false}>
-              Sign in to your institute
+              Login to your institute
             </AuthButton>
           </Link>
-        </div>
-      </section>
-
-      {/* ── Demo credentials ─────────────────────────────────── */}
-      <section className="relative z-10 px-6 sm:px-10 pb-12">
-        <div className="max-w-md mx-auto">
-          <DemoCredentialsCard />
         </div>
       </section>
 
@@ -122,7 +114,7 @@ function WelcomePage() {
           <IconChip icon={Award} size="lg" className="mx-auto mb-4" />
           <h3 className="text-xl font-bold">Ready to transform your institute?</h3>
           <p className="text-sm text-muted-foreground mt-2 mb-6 max-w-sm mx-auto">
-            Explore the full admin platform with demo data — no setup required.
+            Create your institute account and start managing academics, people, and operations.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link to="/signup">
@@ -132,7 +124,7 @@ function WelcomePage() {
             </Link>
             <Link to="/login">
               <AuthButton variant="outline" fullWidth={false}>
-                Already have an account? Sign in
+                Already have an account? Login
               </AuthButton>
             </Link>
           </div>

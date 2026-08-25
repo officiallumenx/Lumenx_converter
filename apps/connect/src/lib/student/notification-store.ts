@@ -1,9 +1,26 @@
 import { categorizedNotifications } from "@/lib/mock-data";
 import type { AppNotification } from "@lumenx/types";
+import {
+  applyNotificationRetention,
+  applyStarredFlags,
+  setNotificationStarred,
+  softDeleteNotification,
+} from "@lumenx/utils";
 
 type Listener = () => void;
 
-let items: AppNotification[] = categorizedNotifications.student.map((n) => ({ ...n }));
+function seedItems(): AppNotification[] {
+  return applyNotificationRetention(
+    applyStarredFlags(
+      categorizedNotifications.student.map((n) => ({
+        ...n,
+        createdAt: n.createdAt ?? new Date().toISOString(),
+      })),
+    ),
+  );
+}
+
+let items: AppNotification[] = seedItems();
 const listeners = new Set<Listener>();
 
 function notify() {
@@ -12,7 +29,19 @@ function notify() {
 
 export const studentNotificationStore = {
   reset: () => {
-    items = categorizedNotifications.student.map((n) => ({ ...n }));
+    items = seedItems();
+    notify();
+  },
+  /** Replace feed (e.g. merge Attendance inbox). Keeps read/star lifecycle helpers. */
+  syncFromSource: (source: AppNotification[]) => {
+    items = applyNotificationRetention(
+      applyStarredFlags(
+        source.map((n) => ({
+          ...n,
+          createdAt: n.createdAt ?? new Date().toISOString(),
+        })),
+      ),
+    );
     notify();
   },
   getItems: (): AppNotification[] => items,
@@ -25,9 +54,29 @@ export const studentNotificationStore = {
     items = items.map((n) => ({ ...n, unread: false }));
     notify();
   },
+  toggleStar: (id: string) => {
+    const current = items.find((n) => n.id === id);
+    if (!current) return;
+    const nextStarred = !current.starred;
+    setNotificationStarred(id, nextStarred);
+    items = items.map((n) => (n.id === id ? { ...n, starred: nextStarred } : n));
+    notify();
+  },
+  softDelete: (id: string) => {
+    const current = items.find((n) => n.id === id);
+    if (!current) return;
+    softDeleteNotification(current);
+    items = items.filter((n) => n.id !== id);
+    notify();
+  },
   add: (notification: AppNotification) => {
     if (items.some((n) => n.id === notification.id)) return;
-    items = [notification, ...items];
+    items = applyNotificationRetention(
+      applyStarredFlags([
+        { ...notification, createdAt: notification.createdAt ?? new Date().toISOString() },
+        ...items,
+      ]),
+    );
     notify();
   },
   subscribe: (listener: Listener) => {
@@ -39,6 +88,8 @@ export const studentNotificationStore = {
 /** Student portal filter groups mapped to underlying notification categories */
 export const STUDENT_NOTIFICATION_FILTERS = [
   { id: "all", label: "All", categories: null as string[] | null },
+  { id: "important", label: "Important", categories: null as string[] | null },
+  { id: "attendance", label: "Attendance", categories: ["attendance"] },
   { id: "announcements", label: "Announcements", categories: ["circulars", "holidays"] },
   { id: "events", label: "Events", categories: ["events"] },
   { id: "exams", label: "Exams", categories: ["exams"] },
@@ -53,7 +104,13 @@ export function filterStudentNotifications(
   filterId: StudentNotificationFilterId,
 ): AppNotification[] {
   if (filterId === "all") return list;
+  if (filterId === "important") {
+    return list.filter(
+      (n) => n.priority === "high" || n.category === "emergency" || n.type === "warning",
+    );
+  }
   const def = STUDENT_NOTIFICATION_FILTERS.find((f) => f.id === filterId);
   if (!def?.categories) return list;
-  return list.filter((n) => def.categories!.includes(n.category));
+  const cats = def.categories as readonly string[];
+  return list.filter((n) => cats.includes(n.category));
 }

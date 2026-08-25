@@ -29,14 +29,21 @@ import {
   ClipboardCheck,
   History,
   Pencil,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import type {
   AttendanceRecord,
   AttendanceReport,
+  TeacherClass,
   TeacherSelfAttendanceRecord,
   TeacherStudent,
 } from "@/lib/teacher/types";
+import { todayLocalIso } from "@lumenx/utils";
+import {
+  buildAttendanceActor,
+  useAttendanceWorkflow,
+} from "./useAttendanceWorkflow";
 
 export function TeacherAttendancePage() {
   const portal = useTeacherPortal();
@@ -60,7 +67,30 @@ export function TeacherAttendancePage() {
   const [hasSavedRecord, setHasSavedRecord] = useState(false);
   const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
   const [selfAttendance, setSelfAttendance] = useState<TeacherSelfAttendanceRecord[]>([]);
+  const [activeSlotId, setActiveSlotId] = useState("slot:day");
   const loadSeqRef = useRef(0);
+
+  const markDate = editingDate ?? todayLocalIso();
+  const selectedClass = portal.isTeacher
+    ? portal.classes.find((c) => c.id === classId) ?? null
+    : null;
+  const { workflow, methodLabel, ownerLabel, sectionKey, markGate } = useAttendanceWorkflow({
+    date: markDate,
+    selectedClass,
+    profile: portal.profile,
+    teacherClasses: portal.isTeacher ? portal.classes : [],
+  });
+
+  useEffect(() => {
+    if (!workflow?.slots.length) return;
+    if (!workflow.slots.some((s) => s.id === activeSlotId)) {
+      setActiveSlotId(workflow.markableSlotIds[0] ?? workflow.slots[0]!.id);
+    }
+  }, [workflow, activeSlotId]);
+
+  const canMarkActiveSlot = Boolean(
+    markGate.markingEnabled && workflow?.markableSlotIds.includes(activeSlotId),
+  );
 
   useEffect(() => {
     leaveStore.init();
@@ -126,11 +156,12 @@ export function TeacherAttendancePage() {
     if (!portal.isTeacher) return;
     const my = ++loadSeqRef.current;
     setLoading(true);
+    const slotId = activeSlotId;
     const [s, r, h, existing] = await Promise.all([
       teacherRepository.getStudents(classId),
-      teacherRepository.getAttendanceReports(),
-      teacherRepository.getAttendanceHistory(classId),
-      teacherRepository.getAttendanceRecord(classId, editingDate ?? undefined),
+      teacherRepository.getAttendanceReports(classId),
+      teacherRepository.getAllAttendanceHistory(),
+      teacherRepository.getAttendanceRecord(classId, editingDate ?? undefined, slotId),
     ]);
     // Drop stale responses when the class/date changed before this load resolved.
     if (loadSeqRef.current !== my) return;
@@ -149,7 +180,7 @@ export function TeacherAttendancePage() {
       setHasSavedRecord(false);
     }
     setLoading(false);
-  }, [classId, portal.isTeacher, editingDate]);
+  }, [classId, portal.isTeacher, editingDate, activeSlotId]);
 
   useEffect(() => {
     if (!portal.isTeacher) return;
@@ -159,9 +190,11 @@ export function TeacherAttendancePage() {
   const resetToSaved = useCallback(() => {
     if (hasSavedRecord) {
       setAbsent(new Set(baselineAbsent));
-      void teacherRepository.getAttendanceRecord(classId, editingDate ?? undefined).then((r) => {
-        if (r) setOnLeave(new Set(r.leaveIds ?? []));
-      });
+      void teacherRepository
+        .getAttendanceRecord(classId, editingDate ?? undefined, activeSlotId)
+        .then((r) => {
+          if (r) setOnLeave(new Set(r.leaveIds ?? []));
+        });
       toast.info("Restored last saved attendance", {
         description: "Unsaved changes were discarded.",
       });
@@ -170,7 +203,7 @@ export function TeacherAttendancePage() {
       setOnLeave(new Set());
       toast.info("No saved record yet", { description: "All students marked present." });
     }
-  }, [baselineAbsent, hasSavedRecord, classId, editingDate]);
+  }, [baselineAbsent, hasSavedRecord, classId, editingDate, activeSlotId]);
 
   useEffect(() => {
     void loadStudents();
@@ -182,7 +215,9 @@ export function TeacherAttendancePage() {
     const unsub = leaveStore.subscribe(() => {
       void loadStudents();
     });
-    return unsub;
+    return () => {
+      void unsub();
+    };
   }, [loadStudents]);
 
   const filtered = useMemo(() => {
@@ -191,7 +226,6 @@ export function TeacherAttendancePage() {
     return students.filter((s) => s.name.toLowerCase().includes(t) || s.roll.includes(t));
   }, [students, q]);
 
-  const selectedClass = portal.isTeacher ? portal.classes.find((c) => c.id === classId) : null;
   const leaveCount = students.filter((s) => onLeave.has(s.id)).length;
   const presentCount = students.filter((s) => !absent.has(s.id) && !onLeave.has(s.id)).length;
   const absentCount = students.filter((s) => absent.has(s.id) && !onLeave.has(s.id)).length;
@@ -201,14 +235,43 @@ export function TeacherAttendancePage() {
 
   const submitFn = useCallback(
     async (draft = false) => {
+      if (!workflow || !portal.profile || !selectedClass) {
+        toast.error("Attendance workflow is not available");
+        return;
+      }
+      if (!markGate.markingEnabled) {
+        toast.error(markGate.banner ?? "You cannot mark attendance");
+        return;
+      }
+      if (!canMarkActiveSlot) {
+        toast.error(workflow.blockedReason ?? "You cannot mark this slot");
+        return;
+      }
       const absentIds = students
         .filter((s) => absent.has(s.id) && !onLeave.has(s.id))
         .map((s) => s.id);
       const leaveIds = [...onLeave];
       const recordDate = editingDate ?? undefined;
-      await teacherRepository.saveAttendance(classId, absentIds, draft, recordDate, leaveIds);
+      const actor = buildAttendanceActor(portal.profile, selectedClass);
+      await teacherRepository.saveAttendance(
+        classId,
+        absentIds,
+        draft,
+        recordDate,
+        leaveIds,
+        {
+          workflow,
+          actor,
+          slotId: activeSlotId,
+          classLabel: selectedClass.className,
+          section: selectedClass.section,
+          sectionKey,
+        },
+      );
+      const slotLabel =
+        workflow.slots.find((s) => s.id === activeSlotId)?.label ?? "Attendance";
       toast.success(draft ? "Draft saved" : "Attendance submitted", {
-        description: `${presentCount} present · ${absentCount} absent${leaveCount ? ` · ${leaveCount} on leave` : ""}`,
+        description: `${slotLabel} · ${presentCount} present · ${absentCount} absent${leaveCount ? ` · ${leaveCount} on leave` : ""}`,
       });
       if (!draft && portal.isTeacher) portal.refresh();
       setEditingDate(null);
@@ -225,12 +288,22 @@ export function TeacherAttendancePage() {
       presentCount,
       absentCount,
       leaveCount,
+      workflow,
+      selectedClass,
+      canMarkActiveSlot,
+      activeSlotId,
+      sectionKey,
+      markGate,
     ],
   );
 
   const { run: submit, pending: saving } = useAsyncAction(submitFn);
 
   const openHistoryRecord = async (record: AttendanceRecord) => {
+    if (!markGate.markingEnabled) {
+      toast.error(markGate.banner ?? "You cannot edit attendance under this configuration");
+      return;
+    }
     const cls = teacherClasses.find((c) => c.id === record.classId);
     if (cls) {
       setClassName(cls.className);
@@ -238,10 +311,15 @@ export function TeacherAttendancePage() {
     }
     setClassId(record.classId);
     setEditingDate(record.date);
+    setActiveSlotId(record.slotId ?? "slot:day");
     setQ("");
     // Read the freshest record (the history row may predate later leave approvals).
     const fresh =
-      (await teacherRepository.getAttendanceRecord(record.classId, record.date)) ?? record;
+      (await teacherRepository.getAttendanceRecord(
+        record.classId,
+        record.date,
+        record.slotId ?? "slot:day",
+      )) ?? record;
     setAbsent(new Set(fresh.absentIds));
     setOnLeave(new Set(fresh.leaveIds ?? []));
     setBaselineAbsent([...fresh.absentIds]);
@@ -255,7 +333,11 @@ export function TeacherAttendancePage() {
     <>
       <PageHeader
         title="Attendance"
-        subtitle="Mark students present or absent, save a draft, then submit."
+        subtitle={`${methodLabel} · Taken by: ${ownerLabel}${
+          markGate.markingEnabled
+            ? " · Mark present or absent, then submit."
+            : " · Marking disabled for this configuration."
+        }`}
       />
 
       <div className="mb-4 flex flex-wrap gap-2">
@@ -288,7 +370,12 @@ export function TeacherAttendancePage() {
       ) : view === "self" ? (
         <TeacherSelfAttendanceView records={selfAttendance} />
       ) : view === "history" ? (
-        <HistoryView history={history} onEdit={openHistoryRecord} />
+        <HistoryView
+          history={history}
+          classes={teacherClasses}
+          onEdit={openHistoryRecord}
+          canEdit={markGate.markingEnabled}
+        />
       ) : loading ? (
         <PageSkeleton rows={6} />
       ) : (
@@ -357,11 +444,65 @@ export function TeacherAttendancePage() {
             </Field>
           </div>
 
+          {workflow && workflow.slots.length > 1 ? (
+            <div className="flex flex-wrap gap-2">
+              {workflow.slots.map((slot) => {
+                const markable =
+                  markGate.markingEnabled && workflow.markableSlotIds.includes(slot.id);
+                const active = activeSlotId === slot.id;
+                return (
+                  <button
+                    key={slot.id}
+                    type="button"
+                    disabled={!markable}
+                    onClick={() => setActiveSlotId(slot.id)}
+                    className={cn(
+                      "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+                      active
+                        ? "bg-primary text-primary-foreground"
+                        : markable
+                          ? "bg-muted text-foreground"
+                          : "bg-muted/50 text-muted-foreground opacity-60",
+                    )}
+                    title={
+                      markable
+                        ? slot.label
+                        : markGate.markingEnabled
+                          ? "Not assigned to you for this slot"
+                          : markGate.banner ?? "Marking disabled"
+                    }
+                  >
+                    {slot.label}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+
+          {markGate.banner ? (
+            <div
+              className={cn(
+                "rounded-xl border px-3 py-2 text-sm text-foreground",
+                markGate.bannerTone === "info"
+                  ? "border-primary/30 bg-primary/5"
+                  : "border-warning/40 bg-warning/10",
+              )}
+              role="status"
+            >
+              {markGate.banner}
+            </div>
+          ) : !canMarkActiveSlot && workflow?.blockedReason ? (
+            <div className="rounded-xl border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-foreground">
+              {workflow.blockedReason}
+            </div>
+          ) : null}
+
           <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
               variant="outline"
               className="rounded-xl gap-1.5"
+              disabled={!canMarkActiveSlot}
               onClick={() => setAbsent(new Set())}
             >
               <UserCheck className="size-4" /> All present
@@ -370,13 +511,20 @@ export function TeacherAttendancePage() {
               size="sm"
               variant="outline"
               className="rounded-xl gap-1.5 border-destructive/40 text-destructive"
+              disabled={!canMarkActiveSlot}
               onClick={() =>
                 setAbsent(new Set(students.filter((s) => !onLeave.has(s.id)).map((s) => s.id)))
               }
             >
               <UserX className="size-4" /> All absent
             </Button>
-            <Button size="sm" variant="ghost" className="rounded-xl gap-1.5" onClick={resetToSaved}>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="rounded-xl gap-1.5"
+              disabled={!canMarkActiveSlot}
+              onClick={resetToSaved}
+            >
               <RotateCcw className="size-4" /> {hasSavedRecord ? "Reset to saved" : "Clear"}
             </Button>
           </div>
@@ -407,7 +555,9 @@ export function TeacherAttendancePage() {
                     student={s}
                     isAbsent={absent.has(s.id)}
                     isOnLeave={onLeave.has(s.id)}
+                    disabled={!canMarkActiveSlot}
                     onToggle={() => {
+                      if (!canMarkActiveSlot) return;
                       if (onLeave.has(s.id)) return;
                       setAbsent((p) => {
                         const n = new Set(p);
@@ -447,14 +597,14 @@ export function TeacherAttendancePage() {
               <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
                 <Button
                   variant="outline"
-                  disabled={saving || !students.length}
+                  disabled={saving || !students.length || !canMarkActiveSlot}
                   className="h-11 w-full rounded-xl sm:w-auto sm:min-w-[9.5rem]"
                   onClick={() => submit(true)}
                 >
                   {saving ? "Saving…" : "Save draft"}
                 </Button>
                 <Button
-                  disabled={saving || !students.length}
+                  disabled={saving || !students.length || !canMarkActiveSlot}
                   className="h-11 w-full gap-2 rounded-xl font-semibold shadow-glow sm:min-w-[11.5rem] sm:w-auto"
                   onClick={() => setSubmitConfirmOpen(true)}
                 >
@@ -521,48 +671,236 @@ function TeacherSelfAttendanceView({ records }: { records: TeacherSelfAttendance
   );
 }
 
+function formatHistoryDateParts(iso: string): { dayName: string; dateLabel: string } {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(y, (m ?? 1) - 1, d ?? 1);
+  if (Number.isNaN(dt.getTime())) {
+    return { dayName: "", dateLabel: iso };
+  }
+  return {
+    dayName: dt.toLocaleDateString("en-IN", { weekday: "long" }),
+    dateLabel: dt.toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }),
+  };
+}
+
 function HistoryView({
   history,
+  classes,
   onEdit,
+  canEdit = true,
 }: {
   history: AttendanceRecord[];
+  classes: TeacherClass[];
   onEdit: (r: AttendanceRecord) => void;
+  canEdit?: boolean;
 }) {
+  const [filterClass, setFilterClass] = useState("all");
+  const [filterSection, setFilterSection] = useState("all");
+  /** YYYY-MM-DD or empty = all dates */
+  const [filterDate, setFilterDate] = useState("");
+
+  const classById = useMemo(() => {
+    const map = new Map<string, TeacherClass>();
+    for (const c of classes) map.set(c.id, c);
+    return map;
+  }, [classes]);
+
+  const classOptions = useMemo(
+    () =>
+      [...new Set(classes.map((c) => c.className))].sort((a, b) =>
+        a.localeCompare(b, undefined, { numeric: true }),
+      ),
+    [classes],
+  );
+
+  const sectionOptions = useMemo(() => {
+    const list =
+      filterClass === "all"
+        ? classes
+        : classes.filter((c) => c.className === filterClass);
+    return [...new Set(list.map((c) => c.section))].sort();
+  }, [classes, filterClass]);
+
+  useEffect(() => {
+    if (filterSection !== "all" && !sectionOptions.includes(filterSection)) {
+      setFilterSection("all");
+    }
+  }, [filterSection, sectionOptions]);
+
+  const filtered = useMemo(() => {
+    return history.filter((r) => {
+      const cls = classById.get(r.classId);
+      if (filterClass !== "all" && cls?.className !== filterClass) return false;
+      if (filterSection !== "all" && cls?.section !== filterSection) return false;
+      if (filterDate && r.date !== filterDate) return false;
+      return true;
+    });
+  }, [history, classById, filterClass, filterSection, filterDate]);
+
+  const groups = useMemo(() => {
+    const byDate = new Map<string, AttendanceRecord[]>();
+    for (const r of filtered) {
+      const list = byDate.get(r.date) ?? [];
+      list.push(r);
+      byDate.set(r.date, list);
+    }
+    return [...byDate.entries()].sort(([a], [b]) => b.localeCompare(a));
+  }, [filtered]);
+
+  const filters = (
+    <div className="grid grid-cols-3 gap-2">
+      <Select
+        value={filterClass}
+        onValueChange={(v) => {
+          setFilterClass(v);
+          setFilterSection("all");
+        }}
+      >
+        <SelectTrigger className="h-10 rounded-xl">
+          <SelectValue placeholder="Class" />
+        </SelectTrigger>
+        <SelectContent position="popper" className="z-[100]">
+          <SelectItem value="all">All classes</SelectItem>
+          {classOptions.map((name) => (
+            <SelectItem key={name} value={name}>
+              Class {name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select
+        value={filterSection}
+        onValueChange={setFilterSection}
+        disabled={filterClass !== "all" && !sectionOptions.length}
+      >
+        <SelectTrigger className="h-10 rounded-xl">
+          <SelectValue placeholder="Section" />
+        </SelectTrigger>
+        <SelectContent position="popper" className="z-[100]">
+          <SelectItem value="all">All sections</SelectItem>
+          {sectionOptions.map((sec) => (
+            <SelectItem key={sec} value={sec}>
+              Section {sec}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <div className="relative min-w-0">
+        <Input
+          type="date"
+          value={filterDate}
+          onChange={(e) => setFilterDate(e.target.value)}
+          className="h-10 rounded-xl pr-8"
+          aria-label="Filter by date"
+          title="Pick a date or type YYYY-MM-DD. Clear to show all."
+        />
+        {filterDate ? (
+          <button
+            type="button"
+            className="absolute right-2 top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+            onClick={() => setFilterDate("")}
+            aria-label="Clear date filter"
+          >
+            <X className="size-3.5" aria-hidden />
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+
   if (!history.length)
     return (
-      <EmptyState
-        icon={History}
-        title="No attendance history"
-        description="Submitted records will appear here."
-      />
+      <div className="space-y-4">
+        {filters}
+        <EmptyState
+          icon={History}
+          title="No attendance history"
+          description="Submitted records will appear here, grouped by date."
+        />
+      </div>
     );
+
   return (
-    <ul className="space-y-2">
-      {history.map((r) => (
-        <li
-          key={`${r.classId}-${r.date}`}
-          className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-card p-4"
-        >
-          <div>
-            <p className="font-medium">{r.date}</p>
-            <p className="text-xs text-muted-foreground">
-              {r.absentIds.length} absent
-              {(r.leaveIds?.length ?? 0) > 0 && ` · ${r.leaveIds!.length} on leave`}
-              {" · "}
-              {r.status}
-            </p>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            className="rounded-lg gap-1"
-            onClick={() => onEdit(r)}
-          >
-            <Pencil className="size-3" /> Edit
-          </Button>
-        </li>
-      ))}
-    </ul>
+    <div className="space-y-4">
+      {filters}
+      {groups.length === 0 ? (
+        <EmptyState
+          icon={History}
+          title="No matching records"
+          description="Try another class, section, or date."
+        />
+      ) : (
+        groups.map(([date, records]) => {
+          const { dayName, dateLabel } = formatHistoryDateParts(date);
+          return (
+            <section
+              key={date}
+              className="overflow-hidden rounded-2xl border border-border bg-card shadow-soft"
+            >
+              <div className="flex items-start justify-between gap-3 border-b border-border/70 bg-muted/25 px-3 py-2.5 sm:px-4">
+                <div className="min-w-0 text-left">
+                  <p className="text-sm font-semibold leading-tight text-foreground">{dateLabel}</p>
+                  <p className="text-xs font-medium text-muted-foreground">{dayName}</p>
+                </div>
+                <p className="shrink-0 text-xs font-medium text-muted-foreground">
+                  {records.length} {records.length === 1 ? "class" : "classes"} marked
+                </p>
+              </div>
+              <ul className="divide-y divide-border/60">
+                {records.map((r) => {
+                  const cls = classById.get(r.classId);
+                  const classLabel = cls ? `${cls.className}-${cls.section}` : r.classId;
+                  const leaveN = r.leaveIds?.length ?? 0;
+                  return (
+                    <li
+                      key={`${r.classId}-${r.date}-${r.slotId ?? "slot:day"}`}
+                      className="flex flex-wrap items-center justify-between gap-2 px-3 py-3 sm:px-4"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="inline-flex items-center rounded-lg bg-primary/12 px-2.5 py-1 text-sm font-semibold text-primary">
+                            Class {classLabel}
+                          </span>
+                          {r.slotLabel ? (
+                            <span className="text-xs text-muted-foreground">{r.slotLabel}</span>
+                          ) : cls?.subject ? (
+                            <span className="text-xs text-muted-foreground">{cls.subject}</span>
+                          ) : null}
+                        </div>
+                        <p className="mt-1.5 text-xs text-muted-foreground">
+                          {r.absentIds.length} absent
+                          {leaveN > 0 ? ` · ${leaveN} on leave` : ""}
+                          {" · "}
+                          <span className="capitalize">{r.status}</span>
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-lg gap-1"
+                        disabled={!canEdit}
+                        title={
+                          canEdit
+                            ? "Edit this record"
+                            : "Editing disabled under current attendance configuration"
+                        }
+                        onClick={() => onEdit(r)}
+                      >
+                        <Pencil className="size-3" /> Edit
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          );
+        })
+      )}
+    </div>
   );
 }
 
@@ -594,25 +932,34 @@ function ReportsView({
         ))}
       </div>
       {current && (
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            ["Present", current.present, "success"],
-            ["Absent", current.absent, "destructive"],
-            ["Rate", `${current.rate}%`, "primary"],
-          ].map(([l, v, t]) => (
-            <div
-              key={String(l)}
-              className={cn(
-                "rounded-2xl border p-4 text-center",
-                t === "success" && "border-success/30 bg-success/10",
-                t === "destructive" && "border-destructive/30 bg-destructive/10",
-                t === "primary" && "border-primary/30 bg-primary/10",
-              )}
-            >
-              <div className="text-xs text-muted-foreground">{l}</div>
-              <div className="font-display text-2xl font-semibold">{v}</div>
-            </div>
-          ))}
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 sm:gap-2">
+            {[
+              ["Present", current.present, "success"],
+              ["Absent", current.absent, "destructive"],
+              ["Attendance %", `${current.rate}%`, "primary"],
+              ["Working days", current.workingDays ?? "—", "neutral"],
+            ].map(([l, v, t]) => (
+              <div
+                key={String(l)}
+                className={cn(
+                  "lx-metric-chip",
+                  t === "success" && "border-success/30 bg-success/10",
+                  t === "destructive" && "border-destructive/30 bg-destructive/10",
+                  t === "primary" && "border-primary/30 bg-primary/10",
+                  t === "neutral" && "border-border bg-muted/40",
+                )}
+              >
+                <div className="lx-metric-chip__label">{l}</div>
+                <div className="lx-metric-chip__value">{v}</div>
+              </div>
+            ))}
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Historical reports use the Attendance Method frozen on each day&apos;s
+            marks (e.g. Morning+Afternoon before September, Period Wise after).
+            Changing configuration never rewrites past attendance.
+          </p>
         </div>
       )}
     </div>
@@ -630,7 +977,7 @@ function Field({
 }) {
   return (
     <div className={className}>
-      <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{label}</label>
+      <label className="mb-1.5 block text-sm font-medium text-muted-foreground">{label}</label>
       {children}
     </div>
   );

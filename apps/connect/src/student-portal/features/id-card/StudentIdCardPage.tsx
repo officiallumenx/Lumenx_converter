@@ -1,46 +1,66 @@
 import { useState } from "react";
-import { getInitials } from "@lumenx/utils";
+import { getInitials, resolveCanonicalStudentId } from "@lumenx/utils";
 import { PageHeader } from "@/components/app/PageHeader";
 import { IdCardDetailsPanel, IdCardQrDialog, IdCardVisual } from "@/components/app/id-card";
 import { IdCardScanUrlHint, useStudentQrUrl } from "@/components/app/id-card/useStudentQrUrl";
 import { useApp } from "@/lib/app-state";
 import { useStudentPortal } from "@/context/StudentPortalContext";
 import { studentProfile } from "@/lib/mock-data";
+import {
+  findIdCardSyncRow,
+  idCardViewFromSyncRow,
+  useStudentIdCardSync,
+  type ConnectIdCardViewModel,
+} from "@/lib/student/admin-id-card-bridge";
 import { Button } from "@lumenx/ui";
 import { Printer, Download, QrCode } from "lucide-react";
 import { toast } from "sonner";
 import { PageSkeleton } from "@/student-portal/shared/ui";
+import { downloadStudentIdCardToDevice } from "@/lib/device-file-downloads";
 
 export { IdCardVisual } from "@/components/app/id-card";
 
 export function StudentIdCardPage() {
   const { user } = useApp();
   const portal = useStudentPortal();
+  const sync = useStudentIdCardSync();
   const [qrOpen, setQrOpen] = useState(false);
 
   if (!portal.isStudent) return <PageSkeleton rows={5} />;
   if (portal.isLoading || !portal.snapshot) return <PageSkeleton rows={5} />;
 
   const profile = portal.snapshot.profile;
-  const displayName = user?.name ?? profile.name;
-  const initials = getInitials(displayName, 2);
+  const lookupId = resolveCanonicalStudentId(profile.id);
+  const syncRow =
+    findIdCardSyncRow(profile.id, sync) ?? findIdCardSyncRow(lookupId, sync);
 
-  const card = {
-    name: displayName,
-    initials,
-    className: profile.class,
-    section: profile.section,
-    rollNo: profile.rollNo,
-    id: profile.id,
-    bloodGroup: profile.bloodGroup,
-    emergencyContact: profile.emergencyContact,
-    parentName: profile.parentName,
-    house: profile.house,
-    issuedOn: profile.idCardIssuedOn,
-    validTill: profile.idCardValidTill,
-    institute: profile.institute,
-    address: profile.address ?? studentProfile.address,
-  };
+  let card: ConnectIdCardViewModel;
+  if (syncRow) {
+    card = idCardViewFromSyncRow(syncRow);
+    // Prefer logged-in display name when present.
+    if (user?.name) {
+      card = { ...card, name: user.name, initials: getInitials(user.name, 2) };
+    }
+  } else {
+    const displayName = user?.name ?? profile.name;
+    card = {
+      name: displayName,
+      initials: getInitials(displayName, 2),
+      className: profile.class,
+      section: profile.section,
+      rollNo: profile.rollNo,
+      id: profile.id.startsWith("STU-") ? profile.id : lookupId,
+      bloodGroup: profile.bloodGroup || "—",
+      emergencyContact: profile.emergencyContact || "—",
+      parentName: profile.parentName || "—",
+      house: profile.house || "—",
+      issuedOn: profile.idCardIssuedOn || "—",
+      validTill: profile.idCardValidTill || "—",
+      institute: profile.institute,
+      address: profile.address ?? studentProfile.address ?? "—",
+      fromAdmin: false,
+    };
+  }
 
   return <StudentIdCardContent card={card} qrOpen={qrOpen} setQrOpen={setQrOpen} />;
 }
@@ -50,22 +70,7 @@ function StudentIdCardContent({
   qrOpen,
   setQrOpen,
 }: {
-  card: {
-    name: string;
-    initials: string;
-    className: string;
-    section: string;
-    rollNo: string;
-    id: string;
-    bloodGroup: string;
-    emergencyContact: string;
-    parentName: string;
-    house: string;
-    issuedOn: string;
-    validTill: string;
-    institute: string;
-    address: string;
-  };
+  card: ConnectIdCardViewModel;
   qrOpen: boolean;
   setQrOpen: (open: boolean) => void;
 }) {
@@ -75,18 +80,29 @@ function StudentIdCardContent({
     <div className="min-w-0 max-w-full">
       <PageHeader
         title="Digital ID Card"
-        subtitle="Scan the QR from any phone to open the full student profile — no login needed."
+        subtitle="Scan the QR from any phone to open the school identity page — no login needed."
         action={
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" className="student-primary-action gap-2 rounded-xl" onClick={() => setQrOpen(true)}>
+            <Button
+              variant="outline"
+              className="student-primary-action gap-2 rounded-xl"
+              onClick={() => setQrOpen(true)}
+            >
               <QrCode className="size-4" /> QR Preview
             </Button>
-            <Button variant="outline" className="student-primary-action gap-2 rounded-xl" onClick={() => window.print()}>
+            <Button
+              variant="outline"
+              className="student-primary-action gap-2 rounded-xl"
+              onClick={() => window.print()}
+            >
               <Printer className="size-4" /> Print
             </Button>
             <Button
               className="student-primary-action gap-2 rounded-xl shadow-glow"
-              onClick={() => toast.success("Saved to device wallet (demo)")}
+              onClick={() => {
+                const { filename } = downloadStudentIdCardToDevice(card);
+                toast.success("Saved to Downloads", { description: filename });
+              }}
             >
               <Download className="size-4" /> Save
             </Button>
@@ -110,6 +126,7 @@ function StudentIdCardContent({
             validTill={card.validTill}
             qrPayload={verifyUrl}
             onQrClick={() => setQrOpen(true)}
+            photoUrl={card.photoDataUrl}
           />
         </div>
 

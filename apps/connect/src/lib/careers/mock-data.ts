@@ -166,6 +166,7 @@ export const DEMO_APPLICATIONS: JobApplication[] = [
     id: "CAPP-2401",
     candidateId: DEMO_CANDIDATE.id,
     jobId: "job-english-faculty",
+    jobTitle: "English Faculty",
     instituteId: "ins-st-xavier-jc",
     instituteName: "St. Xavier Junior College",
     status: "submitted",

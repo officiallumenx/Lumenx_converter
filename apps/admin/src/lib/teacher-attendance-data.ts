@@ -143,6 +143,25 @@ export const ATTENDANCE_STATUS_GUIDE: {
   },
 ];
 
+const MARK_OPTION_ACTIVE_CLASS: Record<TeacherAttStatus, string> = {
+  present: "bg-success text-success-foreground border-success",
+  late: "bg-warning text-foreground border-warning",
+  "half-day": "bg-warning/80 text-foreground border-warning",
+  leave: "bg-primary text-primary-foreground border-primary",
+  absent: "bg-destructive text-destructive-foreground border-destructive",
+};
+
+/** Mark-sheet button options — labels from ATTENDANCE_STATUS_GUIDE.shortLabel. */
+export const TEACHER_MARK_OPTIONS: {
+  value: TeacherAttStatus;
+  label: string;
+  activeClass: string;
+}[] = ATTENDANCE_STATUS_GUIDE.map((item) => ({
+  value: item.value,
+  label: item.shortLabel,
+  activeClass: MARK_OPTION_ACTIVE_CLASS[item.value],
+}));
+
 export function defaultCheckIn(status: TeacherAttStatus): string | null {
   if (status === "present") return "08:15";
   if (status === "late") return "09:12";
