@@ -1,3 +1,4 @@
+import type { Actor } from "../auth/types.js";
 import type { SupabaseClients } from "../integrations/supabase.js";
 
 /**
@@ -9,5 +10,7 @@ export type AppBindings = {
     requestId: string;
     /** Process-scoped Supabase clients, or null when not configured. */
     supabase: SupabaseClients | null;
+    /** Set by requireAuth after JWT verification + actor load. */
+    actor?: Actor;
   };
 };

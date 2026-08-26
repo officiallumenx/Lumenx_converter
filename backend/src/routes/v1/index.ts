@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import health from "./health.js";
+import me from "./me.js";
 import type { AppBindings } from "../../types/app.js";
 
 /**
@@ -37,5 +38,8 @@ const v1 = new Hono<AppBindings>();
 
 // ── Operational ──────────────────────────────────────────────────
 v1.route("/health", health);
+
+// ── Session / actor ──────────────────────────────────────────────
+v1.route("/me", me);
 
 export default v1;
