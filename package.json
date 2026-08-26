@@ -20,11 +20,14 @@
     "typecheck:admin": "npm run typecheck --workspace=@lumenx/app-admin",
     "typecheck:website": "npm run typecheck --workspace=@lumenx/app-website",
     "test:connect": "npm run test --workspace=@lumenx/app-connect",
+    "dev:api": "npm run dev --workspace=@lumenx/api",
+    "typecheck:api": "npm run typecheck --workspace=@lumenx/api",
     "madge:circular": "npx madge --circular --extensions ts,tsx packages apps/admin/src apps/connect/src"
   },
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "backend"
   ],
   "overrides": {
     "react": "19.2.7",

@@ -1,0 +1,33 @@
+{
+  "name": "@lumenx/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "LumenX backend API — server-only workspace. Framework, integrations, and middleware are added in later phases.",
+  "exports": {
+    ".": "./src/app.ts"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.7"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.1",
+    "@supabase/supabase-js": "^2.112.4",
+    "dotenv": "^17.4.2",
+    "firebase-admin": "^14.3.0",
+    "hono": "^4.13.5",
+    "zod": "^3.25.76"
+  }
+}
