@@ -5,8 +5,10 @@ import type { Logger } from "../logger/logger.js";
 export interface SupabaseClients {
   /** Service-role client — full server-side access (Auth Admin, Postgres, Storage). */
   admin: SupabaseClient;
-  /** Anon-key client — limited access, suitable for forwarding user JWTs. */
+  /** Anon-key client — limited access; base for request-scoped JWT forwarding. */
   anon: SupabaseClient;
+  /** Public project URL (safe to log / probe). Never includes keys. */
+  url: string;
 }
 
 /**
@@ -75,5 +77,71 @@ export function createSupabaseClients(
 
   logger.info({ msg: "supabase_initialized", url: config.url });
 
-  return { admin, anon };
+  return { admin, anon, url: config.url };
+}
+
+/**
+ * Request-scoped Supabase client that forwards a caller JWT.
+ *
+ * BOUNDARY ONLY — does not authenticate, validate sessions, or resolve users.
+ * Future auth middleware will extract the bearer token and call this helper.
+ */
+export function createRequestScopedClient(
+  env: Env,
+  accessToken: string,
+): SupabaseClient {
+  if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) {
+    throw new Error("Supabase is not configured");
+  }
+
+  return createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
+    global: {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+}
+
+export type SupabaseConnectivityResult =
+  | { status: "ok"; latencyMs: number }
+  | { status: "unavailable"; latencyMs: number }
+  | { status: "not_configured" };
+
+/**
+ * Safe connectivity probe against Supabase Auth health.
+ * Does not query application tables and does not log credentials.
+ */
+export async function checkSupabaseConnectivity(input: {
+  url: string;
+  apikey: string;
+}): Promise<SupabaseConnectivityResult> {
+  const start = performance.now();
+  try {
+    const res = await fetch(`${input.url}/auth/v1/health`, {
+      method: "GET",
+      headers: {
+        apikey: input.apikey,
+      },
+    });
+    const latencyMs = Math.round(performance.now() - start);
+    return res.ok
+      ? { status: "ok", latencyMs }
+      : { status: "unavailable", latencyMs };
+  } catch {
+    const latencyMs = Math.round(performance.now() - start);
+    return { status: "unavailable", latencyMs };
+  }
+}
+
+/** Resolve probe credentials from env. Returns null when not configured. */
+export function resolveConnectivityProbe(
+  env: Env,
+): { url: string; apikey: string } | null {
+  if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) return null;
+  return { url: env.SUPABASE_URL, apikey: env.SUPABASE_ANON_KEY };
 }

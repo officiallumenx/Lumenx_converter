@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import health from "./health.js";
+import type { AppBindings } from "../../types/app.js";
 
 /**
  * /api/v1 — Institute-scoped API.
@@ -32,7 +33,7 @@ import health from "./health.js";
  *   v1.route("/certificates",  certificates);
  *   v1.route("/activity",      activity);
  */
-const v1 = new Hono();
+const v1 = new Hono<AppBindings>();
 
 // ── Operational ──────────────────────────────────────────────────
 v1.route("/health", health);
