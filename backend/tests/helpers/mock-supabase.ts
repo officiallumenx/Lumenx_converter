@@ -52,6 +52,11 @@ export type MockDb = {
   subscription_period: Row[];
   audit_event: Row[];
   staff_account: Row[];
+  fee_plan: Row[];
+  fee_component: Row[];
+  student_fee: Row[];
+  fee_payment: Row[];
+  concession: Row[];
 };
 
 export type MockDbError = { code: string; message?: string };
@@ -308,5 +313,10 @@ export function emptyMockDb(): MockDb {
     subscription_period: [],
     audit_event: [],
     staff_account: [],
+    fee_plan: [],
+    fee_component: [],
+    student_fee: [],
+    fee_payment: [],
+    concession: [],
   };
 }
