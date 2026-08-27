@@ -46,6 +46,10 @@ export type MockDb = {
   notification_recipient: Row[];
   notification_delivery_attempt: Row[];
   device_token: Row[];
+  license: Row[];
+  module_entitlement: Row[];
+  subscription: Row[];
+  subscription_period: Row[];
 };
 
 export type MockDbError = { code: string; message?: string };
@@ -296,5 +300,9 @@ export function emptyMockDb(): MockDb {
     notification_recipient: [],
     notification_delivery_attempt: [],
     device_token: [],
+    license: [],
+    module_entitlement: [],
+    subscription: [],
+    subscription_period: [],
   };
 }

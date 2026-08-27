@@ -8,6 +8,15 @@ export function assertPlatformOperator(actor: Actor): void {
   }
 }
 
+/** Require platform operator with one of the given platform role codes. */
+export function assertPlatformRoles(actor: Actor, roles: string[]): void {
+  assertPlatformOperator(actor);
+  const code = actor.platformRoleCode;
+  if (!code || !roles.includes(code)) {
+    throw AppError.forbidden("Insufficient platform role");
+  }
+}
+
 /**
  * Require at least one of the given institute roles on an authorized membership.
  * Platform operators bypass institute role checks after institute targeting is allowed.

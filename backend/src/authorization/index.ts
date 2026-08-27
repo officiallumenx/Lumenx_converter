@@ -5,6 +5,7 @@ export {
 } from "./tenant.js";
 export {
   assertPlatformOperator,
+  assertPlatformRoles,
   assertInstituteRoles,
   actorHasInstituteRole,
 } from "./rbac.js";
