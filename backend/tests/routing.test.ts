@@ -43,7 +43,7 @@ describe("/api/v1 namespace", () => {
 
   it("returns 404 for unimplemented v1 domain routes", async () => {
     const app = testApp();
-    const res = await app.request("/api/v1/students");
+    const res = await app.request("/api/v1/fees");
 
     expect(res.status).toBe(404);
     const body = await json(res);
