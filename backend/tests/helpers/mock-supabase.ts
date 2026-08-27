@@ -88,6 +88,8 @@ export type MockDb = {
   activity_membership: Row[];
   achievement: Row[];
   practice_session: Row[];
+  message_thread: Row[];
+  message: Row[];
 };
 
 export type MockDbError = { code: string; message?: string };
@@ -380,5 +382,7 @@ export function emptyMockDb(): MockDb {
     activity_membership: [],
     achievement: [],
     practice_session: [],
+    message_thread: [],
+    message: [],
   };
 }
