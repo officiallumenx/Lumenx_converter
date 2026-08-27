@@ -27,6 +27,11 @@ export type MockDb = {
   attendance_config_version: Row[];
   attendance_register: Row[];
   attendance_mark: Row[];
+  academic_year: Row[];
+  subject: Row[];
+  exam: Row[];
+  exam_target_section: Row[];
+  exam_subject_schedule: Row[];
 };
 
 export type MockDbError = { code: string; message?: string };
@@ -218,5 +223,10 @@ export function emptyMockDb(): MockDb {
     attendance_config_version: [],
     attendance_register: [],
     attendance_mark: [],
+    academic_year: [],
+    subject: [],
+    exam: [],
+    exam_target_section: [],
+    exam_subject_schedule: [],
   };
 }
