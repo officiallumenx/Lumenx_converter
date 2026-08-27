@@ -10,6 +10,12 @@ import diary from "./diary.js";
 import students from "./students.js";
 import parents from "./parents.js";
 import teachers from "./teachers.js";
+import {
+  academicYears,
+  classes,
+  sections,
+  subjects,
+} from "./academics.js";
 import type { AppBindings } from "../../types/app.js";
 
 /**
@@ -28,7 +34,10 @@ import type { AppBindings } from "../../types/app.js";
  *   v1.route("/students",      students);
  *   v1.route("/teachers",      teachers);
  *   v1.route("/parents",       parents);
+ *   v1.route("/academic-years", academicYears);
  *   v1.route("/classes",       classes);
+ *   v1.route("/sections",      sections);
+ *   v1.route("/subjects",      subjects);
  *   v1.route("/fees",          fees);
  *   v1.route("/transport",     transport);
  *   v1.route("/leave",         leave);
@@ -57,5 +66,9 @@ v1.route("/diary", diary);
 v1.route("/students", students);
 v1.route("/parents", parents);
 v1.route("/teachers", teachers);
+v1.route("/academic-years", academicYears);
+v1.route("/classes", classes);
+v1.route("/sections", sections);
+v1.route("/subjects", subjects);
 
 export default v1;

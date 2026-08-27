@@ -28,6 +28,7 @@ export type MockDb = {
   attendance_register: Row[];
   attendance_mark: Row[];
   academic_year: Row[];
+  class: Row[];
   subject: Row[];
   exam: Row[];
   exam_target_section: Row[];
@@ -256,6 +257,7 @@ export function emptyMockDb(): MockDb {
     attendance_register: [],
     attendance_mark: [],
     academic_year: [],
+    class: [],
     subject: [],
     exam: [],
     exam_target_section: [],
