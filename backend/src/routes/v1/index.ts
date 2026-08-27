@@ -9,6 +9,7 @@ import homework from "./homework.js";
 import diary from "./diary.js";
 import students from "./students.js";
 import parents from "./parents.js";
+import teachers from "./teachers.js";
 import type { AppBindings } from "../../types/app.js";
 
 /**
@@ -55,5 +56,6 @@ v1.route("/homework", homework);
 v1.route("/diary", diary);
 v1.route("/students", students);
 v1.route("/parents", parents);
+v1.route("/teachers", teachers);
 
 export default v1;
