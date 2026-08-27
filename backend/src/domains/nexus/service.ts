@@ -76,6 +76,11 @@ export const NEXUS_SUPPORT_WRITE_ROLES = [
   "support",
 ] as const;
 
+export const NEXUS_PLATFORM_CONFIG_WRITE_ROLES = [
+  "nexus_root",
+  "operations",
+] as const;
+
 function num(value: number | string): number {
   return typeof value === "number" ? value : Number(value);
 }

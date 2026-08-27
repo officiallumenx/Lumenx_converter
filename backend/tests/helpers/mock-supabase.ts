@@ -97,6 +97,8 @@ export type MockDb = {
   recycle_item: Row[];
   support_thread: Row[];
   support_message: Row[];
+  policy_rule: Row[];
+  storage_quota: Row[];
 };
 
 export type MockDbError = { code: string; message?: string };
@@ -402,5 +404,7 @@ export function emptyMockDb(): MockDb {
     recycle_item: [],
     support_thread: [],
     support_message: [],
+    policy_rule: [],
+    storage_quota: [],
   };
 }
