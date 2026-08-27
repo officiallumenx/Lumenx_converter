@@ -31,6 +31,7 @@ import documents from "./documents.js";
 import certificates from "./certificates.js";
 import admissions from "./admissions.js";
 import careers from "./careers.js";
+import activity from "./activity.js";
 import type { AppBindings } from "../../types/app.js";
 
 /**
@@ -61,7 +62,8 @@ import type { AppBindings } from "../../types/app.js";
  *   v1.route("/careers",       careers);
  *   v1.route("/documents",     documents);
  *   v1.route("/certificates",  certificates);
- *   v1.route("/activity",      activity); // next unimplemented stub
+ *   v1.route("/activity",      activity);
+ *   v1.route("/messages",      messages); // next unimplemented stub
  */
 const v1 = new Hono<AppBindings>();
 
@@ -105,5 +107,6 @@ v1.route("/documents", documents);
 v1.route("/certificates", certificates);
 v1.route("/admissions", admissions);
 v1.route("/careers", careers);
+v1.route("/activity", activity);
 
 export default v1;

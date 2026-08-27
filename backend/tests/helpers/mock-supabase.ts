@@ -83,6 +83,11 @@ export type MockDb = {
   career_inquiry: Row[];
   talent_pool_entry: Row[];
   user_saved_item: Row[];
+  activity_section: Row[];
+  activity_team: Row[];
+  activity_membership: Row[];
+  achievement: Row[];
+  practice_session: Row[];
 };
 
 export type MockDbError = { code: string; message?: string };
@@ -370,5 +375,10 @@ export function emptyMockDb(): MockDb {
     career_inquiry: [],
     talent_pool_entry: [],
     user_saved_item: [],
+    activity_section: [],
+    activity_team: [],
+    activity_membership: [],
+    achievement: [],
+    practice_session: [],
   };
 }
