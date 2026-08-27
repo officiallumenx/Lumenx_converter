@@ -50,6 +50,9 @@ export type MockDb = {
   module_entitlement: Row[];
   subscription: Row[];
   subscription_period: Row[];
+  renewal_record: Row[];
+  billing_adjustment: Row[];
+  payment: Row[];
   audit_event: Row[];
   staff_account: Row[];
   fee_plan: Row[];
@@ -346,6 +349,9 @@ export function emptyMockDb(): MockDb {
     module_entitlement: [],
     subscription: [],
     subscription_period: [],
+    renewal_record: [],
+    billing_adjustment: [],
+    payment: [],
     audit_event: [],
     staff_account: [],
     fee_plan: [],

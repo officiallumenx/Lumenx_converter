@@ -26,6 +26,7 @@ import {
   upsertSubscriptionForActor,
 } from "../../domains/nexus/service.js";
 import platformAudit from "./audit.js";
+import billing from "./billing.js";
 
 const uuid = z.string().uuid();
 const idParamsSchema = z.object({ id: uuid });
@@ -311,5 +312,6 @@ nexus.route("/operators", operators);
 nexus.route("/licenses", licenses);
 nexus.route("/subscriptions", subscriptions);
 nexus.route("/audit", platformAudit);
+nexus.route("/billing", billing);
 
 export default nexus;
