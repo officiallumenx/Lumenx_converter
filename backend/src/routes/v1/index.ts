@@ -21,6 +21,7 @@ import { institutes, profiles, memberships, roles } from "./identity.js";
 import notifications from "./notifications.js";
 import audit from "./audit.js";
 import fees from "./fees.js";
+import transport from "./transport.js";
 import type { AppBindings } from "../../types/app.js";
 
 /**
@@ -86,5 +87,6 @@ v1.route("/subjects", subjects);
 v1.route("/notifications", notifications);
 v1.route("/audit", audit);
 v1.route("/fees", fees);
+v1.route("/transport", transport);
 
 export default v1;

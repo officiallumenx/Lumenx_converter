@@ -57,6 +57,12 @@ export type MockDb = {
   student_fee: Row[];
   fee_payment: Row[];
   concession: Row[];
+  vehicle: Row[];
+  driver: Row[];
+  route: Row[];
+  stop: Row[];
+  transport_enrollment: Row[];
+  transport_settings: Row[];
 };
 
 export type MockDbError = { code: string; message?: string };
@@ -318,5 +324,11 @@ export function emptyMockDb(): MockDb {
     student_fee: [],
     fee_payment: [],
     concession: [],
+    vehicle: [],
+    driver: [],
+    route: [],
+    stop: [],
+    transport_enrollment: [],
+    transport_settings: [],
   };
 }
