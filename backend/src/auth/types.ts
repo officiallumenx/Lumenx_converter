@@ -28,6 +28,12 @@ export type LinkedParent = {
   instituteId: string;
 };
 
+export type LinkedStaff = {
+  staffAccountId: string;
+  instituteId: string;
+  status: string;
+};
+
 export type Actor = {
   /** auth.users.id === user_profile.id */
   userId: string;
@@ -41,4 +47,5 @@ export type Actor = {
   teachers: LinkedTeacher[];
   students: LinkedStudent[];
   parents: LinkedParent[];
+  staff: LinkedStaff[];
 };

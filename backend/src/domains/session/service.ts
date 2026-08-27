@@ -35,6 +35,11 @@ export type MeResponse = {
       parentId: string;
       instituteId: string;
     }>;
+    staff: Array<{
+      staffAccountId: string;
+      instituteId: string;
+      status: string;
+    }>;
   };
 };
 
@@ -70,6 +75,11 @@ export function toMeResponse(actor: Actor): MeResponse {
       parents: actor.parents.map((p) => ({
         parentId: p.parentId,
         instituteId: p.instituteId,
+      })),
+      staff: actor.staff.map((s) => ({
+        staffAccountId: s.staffAccountId,
+        instituteId: s.instituteId,
+        status: s.status,
       })),
     },
   };

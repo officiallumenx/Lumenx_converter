@@ -176,6 +176,7 @@ const adminActor: Actor = {
   teachers: [],
   students: [],
   parents: [],
+  staff: [],
 };
 
 const opsActor: Actor = {
@@ -190,6 +191,7 @@ const opsActor: Actor = {
   teachers: [],
   students: [],
   parents: [],
+  staff: [],
 };
 
 const analystActor: Actor = {

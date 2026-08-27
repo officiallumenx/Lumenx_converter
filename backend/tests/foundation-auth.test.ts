@@ -223,6 +223,7 @@ describe("tenant / role authorization helpers", () => {
     ],
     students: [],
     parents: [],
+    staff: [],
   };
 
   it("rejects unrelated institute for ordinary member", () => {

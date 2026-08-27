@@ -10,6 +10,7 @@ import diary from "./diary.js";
 import students from "./students.js";
 import parents from "./parents.js";
 import teachers from "./teachers.js";
+import staff from "./staff.js";
 import {
   academicYears,
   classes,
@@ -76,6 +77,7 @@ v1.route("/diary", diary);
 v1.route("/students", students);
 v1.route("/parents", parents);
 v1.route("/teachers", teachers);
+v1.route("/staff", staff);
 v1.route("/academic-years", academicYears);
 v1.route("/classes", classes);
 v1.route("/sections", sections);

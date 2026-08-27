@@ -5,6 +5,7 @@ import type {
   Actor,
   ActorMembership,
   LinkedParent,
+  LinkedStaff,
   LinkedStudent,
   LinkedTeacher,
 } from "../../auth/types.js";
@@ -48,6 +49,12 @@ type StudentRow = {
 type ParentRow = {
   id: string;
   institute_id: string;
+};
+
+type StaffAccountRow = {
+  id: string;
+  institute_id: string;
+  status: string;
 };
 
 /**
@@ -174,6 +181,19 @@ export async function loadActorByUserId(
     instituteId: p.institute_id,
   }));
 
+  const staffResult = await admin
+    .from("staff_account")
+    .select("id, institute_id, status")
+    .eq("user_profile_id", userId)
+    .is("deleted_at", null);
+
+  const staffRows = ensureDbOk(staffResult) as StaffAccountRow[];
+  const staff: LinkedStaff[] = staffRows.map((s) => ({
+    staffAccountId: s.id,
+    instituteId: s.institute_id,
+    status: s.status,
+  }));
+
   return {
     userId,
     profileId: profile.id,
@@ -186,6 +206,7 @@ export async function loadActorByUserId(
     teachers,
     students,
     parents,
+    staff,
   };
 }
 
