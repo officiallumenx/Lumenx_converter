@@ -41,6 +41,11 @@ export type MockDb = {
   homework: Row[];
   diary_day: Row[];
   diary_day_row: Row[];
+  notification_template: Row[];
+  notification: Row[];
+  notification_recipient: Row[];
+  notification_delivery_attempt: Row[];
+  device_token: Row[];
 };
 
 export type MockDbError = { code: string; message?: string };
@@ -286,5 +291,10 @@ export function emptyMockDb(): MockDb {
     homework: [],
     diary_day: [],
     diary_day_row: [],
+    notification_template: [],
+    notification: [],
+    notification_recipient: [],
+    notification_delivery_attempt: [],
+    device_token: [],
   };
 }
