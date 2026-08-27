@@ -18,6 +18,7 @@ import {
 } from "./academics.js";
 import { institutes, profiles, memberships, roles } from "./identity.js";
 import notifications from "./notifications.js";
+import audit from "./audit.js";
 import type { AppBindings } from "../../types/app.js";
 
 /**
@@ -80,5 +81,6 @@ v1.route("/classes", classes);
 v1.route("/sections", sections);
 v1.route("/subjects", subjects);
 v1.route("/notifications", notifications);
+v1.route("/audit", audit);
 
 export default v1;

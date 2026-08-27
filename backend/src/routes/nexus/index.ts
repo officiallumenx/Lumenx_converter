@@ -25,6 +25,7 @@ import {
   upsertLicenseForActor,
   upsertSubscriptionForActor,
 } from "../../domains/nexus/service.js";
+import platformAudit from "./audit.js";
 
 const uuid = z.string().uuid();
 const idParamsSchema = z.object({ id: uuid });
@@ -309,5 +310,6 @@ nexus.get("/health", (c) => {
 nexus.route("/operators", operators);
 nexus.route("/licenses", licenses);
 nexus.route("/subscriptions", subscriptions);
+nexus.route("/audit", platformAudit);
 
 export default nexus;

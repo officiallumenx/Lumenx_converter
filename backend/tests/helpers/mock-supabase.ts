@@ -50,6 +50,7 @@ export type MockDb = {
   module_entitlement: Row[];
   subscription: Row[];
   subscription_period: Row[];
+  audit_event: Row[];
 };
 
 export type MockDbError = { code: string; message?: string };
@@ -304,5 +305,6 @@ export function emptyMockDb(): MockDb {
     module_entitlement: [],
     subscription: [],
     subscription_period: [],
+    audit_event: [],
   };
 }
