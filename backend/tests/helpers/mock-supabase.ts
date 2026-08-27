@@ -72,6 +72,11 @@ export type MockDb = {
   template: Row[];
   generated_document: Row[];
   issued_certificate: Row[];
+  admission_program: Row[];
+  admission_opening: Row[];
+  admission_application: Row[];
+  admission_document: Row[];
+  admission_inquiry: Row[];
 };
 
 export type MockDbError = { code: string; message?: string };
@@ -348,5 +353,10 @@ export function emptyMockDb(): MockDb {
     template: [],
     generated_document: [],
     issued_certificate: [],
+    admission_program: [],
+    admission_opening: [],
+    admission_application: [],
+    admission_document: [],
+    admission_inquiry: [],
   };
 }
