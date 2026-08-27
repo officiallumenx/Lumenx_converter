@@ -34,6 +34,7 @@ import careers from "./careers.js";
 import activity from "./activity.js";
 import messages from "./messages.js";
 import assets from "./assets.js";
+import recycle from "./recycle.js";
 import type { AppBindings } from "../../types/app.js";
 
 /**
@@ -67,7 +68,8 @@ import type { AppBindings } from "../../types/app.js";
  *   v1.route("/activity",      activity);
  *   v1.route("/messages",      messages);
  *   v1.route("/assets",        assets);
- *   // next unimplemented stub /api/v1/recycle
+ *   v1.route("/recycle",       recycle);
+ *   // next unimplemented stub /api/nexus/billing
  */
 const v1 = new Hono<AppBindings>();
 
@@ -114,5 +116,6 @@ v1.route("/careers", careers);
 v1.route("/activity", activity);
 v1.route("/messages", messages);
 v1.route("/assets", assets);
+v1.route("/recycle", recycle);
 
 export default v1;

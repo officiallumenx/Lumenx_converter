@@ -91,6 +91,7 @@ export type MockDb = {
   message_thread: Row[];
   message: Row[];
   stored_asset: Row[];
+  recycle_item: Row[];
 };
 
 export type MockDbError = { code: string; message?: string };
@@ -386,5 +387,6 @@ export function emptyMockDb(): MockDb {
     message_thread: [],
     message: [],
     stored_asset: [],
+    recycle_item: [],
   };
 }
