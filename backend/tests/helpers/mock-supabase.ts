@@ -32,6 +32,8 @@ export type MockDb = {
   exam: Row[];
   exam_target_section: Row[];
   exam_subject_schedule: Row[];
+  mark_entry: Row[];
+  mark_score: Row[];
 };
 
 export type MockDbError = { code: string; message?: string };
@@ -228,5 +230,7 @@ export function emptyMockDb(): MockDb {
     exam: [],
     exam_target_section: [],
     exam_subject_schedule: [],
+    mark_entry: [],
+    mark_score: [],
   };
 }
