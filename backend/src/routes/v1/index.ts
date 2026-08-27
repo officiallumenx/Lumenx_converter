@@ -24,6 +24,7 @@ import fees from "./fees.js";
 import transport from "./transport.js";
 import leave from "./leave.js";
 import events from "./events.js";
+import announcements from "./announcements.js";
 import type { AppBindings } from "../../types/app.js";
 
 /**
@@ -49,7 +50,6 @@ import type { AppBindings } from "../../types/app.js";
  *   v1.route("/subjects",      subjects);
  *   v1.route("/fees",          fees);
  *   v1.route("/transport",     transport);
- *   v1.route("/announcements", announcements);
  *   v1.route("/notifications", notifications);
  *   v1.route("/admissions",    admissions);
  *   v1.route("/careers",       careers);
@@ -92,5 +92,6 @@ v1.route("/fees", fees);
 v1.route("/transport", transport);
 v1.route("/leave", leave);
 v1.route("/events", events);
+v1.route("/announcements", announcements);
 
 export default v1;
