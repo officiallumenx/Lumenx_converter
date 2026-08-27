@@ -63,6 +63,8 @@ export type MockDb = {
   stop: Row[];
   transport_enrollment: Row[];
   transport_settings: Row[];
+  leave_request: Row[];
+  leave_decision: Row[];
 };
 
 export type MockDbError = { code: string; message?: string };
@@ -330,5 +332,7 @@ export function emptyMockDb(): MockDb {
     stop: [],
     transport_enrollment: [],
     transport_settings: [],
+    leave_request: [],
+    leave_decision: [],
   };
 }
