@@ -68,6 +68,7 @@ export type MockDb = {
   event: Row[];
   announcement: Row[];
   staff_attendance: Row[];
+  complaint: Row[];
 };
 
 export type MockDbError = { code: string; message?: string };
@@ -340,5 +341,6 @@ export function emptyMockDb(): MockDb {
     event: [],
     announcement: [],
     staff_attendance: [],
+    complaint: [],
   };
 }

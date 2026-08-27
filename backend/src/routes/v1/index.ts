@@ -26,6 +26,7 @@ import leave from "./leave.js";
 import events from "./events.js";
 import announcements from "./announcements.js";
 import staffAttendance from "./staff-attendance.js";
+import complaints from "./complaints.js";
 import type { AppBindings } from "../../types/app.js";
 
 /**
@@ -95,5 +96,6 @@ v1.route("/leave", leave);
 v1.route("/events", events);
 v1.route("/announcements", announcements);
 v1.route("/staff-attendance", staffAttendance);
+v1.route("/complaints", complaints);
 
 export default v1;
