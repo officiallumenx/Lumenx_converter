@@ -50,8 +50,14 @@ export interface AuthSession {
   instituteName: string;
   /** Persisted so reload cannot skip OTP / Nexus approval. */
   isVerified: boolean;
-  token: string;           // mock JWT placeholder (real in production)
-  expiresAt: number;       // Unix ms timestamp
+  /**
+   * Demo mode: mock JWT placeholder.
+   * API mode: empty string — real access token lives in Supabase Auth storage only.
+   */
+  token: string;
+  /** How this session was established. Absent = legacy demo. */
+  authSource?: "demo" | "api";
+  expiresAt: number; // Unix ms timestamp
   issuedAt: number;
 }
 

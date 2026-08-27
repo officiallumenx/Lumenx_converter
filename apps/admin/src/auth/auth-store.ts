@@ -84,8 +84,13 @@ function findDemoRegisteredUser(
 
 // ── Session read/write ────────────────────────────────────────
 
-export function saveSession(user: AuthUser, remember = false): AuthSession {
+export function saveSession(
+  user: AuthUser,
+  remember = false,
+  options?: { authSource?: "demo" | "api"; token?: string },
+): AuthSession {
   const ttl     = remember ? REMEMBER_TTL_MS : SESSION_TTL_MS;
+  const authSource = options?.authSource ?? "demo";
   const session: AuthSession = {
     userId:        user.id,
     email:         user.email,
@@ -98,7 +103,9 @@ export function saveSession(user: AuthUser, remember = false): AuthSession {
     instituteId:   user.instituteId,
     instituteName: user.instituteName,
     isVerified:    user.isVerified,
-    token:         generateMockToken(user.id),
+    // API mode never persists a JWT here — Supabase Auth storage is authoritative.
+    token:         authSource === "api" ? "" : (options?.token ?? generateMockToken(user.id)),
+    authSource,
     issuedAt:      Date.now(),
     expiresAt:     Date.now() + ttl,
   };
