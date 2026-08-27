@@ -36,7 +36,16 @@ import { loadTeacherLeaveSnapshot, saveLeaveDecision, saveTeacherLeaveSnapshot }
 import { notifyTeacherLeaveDecision } from "@lumenx/notifications";
 import { Ban, Check, FileDown, History, Info, X } from "lucide-react";
 import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-labels";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { useInstituteContext } from "@/lib/institutes";
+import {
+  loadLeaveRequestsList,
+  resolveLeaveListView,
+  shouldCommitLeaveLoad,
+  type LeaveListItem,
+  type LeaveListStatus,
+} from "@/lib/leave";
 
 export const Route = createFileRoute("/leave")({
   head: () => ({ meta: [{ title: adminPageTitle("/leave") }] }),
@@ -55,14 +64,60 @@ function statusPill(status: LeaveStatus) {
 
 type DecisionAction = "approved" | "ignored" | "rejected";
 
+function apiItemToStudentRow(item: LeaveListItem): StudentLeave {
+  return {
+    id: item.id,
+    name: item.name,
+    class: item.className,
+    from: item.from,
+    to: item.to,
+    reason: item.reason,
+    status: item.status,
+    applied: item.applied,
+    days: item.days,
+  };
+}
+
+function apiItemToTeacherRow(item: LeaveListItem): TeacherLeave {
+  return {
+    id: item.id,
+    name: item.name,
+    dept: item.dept,
+    from: item.from,
+    to: item.to,
+    type: item.type,
+    status: item.status,
+    toRole: item.toRole,
+    applied: item.applied,
+    days: item.days,
+    reason: item.reason,
+  };
+}
+
 function LeavePage() {
   const notify = useAdminToast();
+  const apiMode = isApiAuthMode();
+  const instituteCtx = useInstituteContext();
+  const writesEnabled = !apiMode;
+
   const [kind, setKind] = useState<LeaveKind>("teacher");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [studentRows] = useState(getInitialStudentLeave);
-  const [teacherRows, setTeacherRows] = useState(() =>
-    loadTeacherLeaveSnapshot(getInitialTeacherLeave()),
+  const [demoStudentRows] = useState(() =>
+    apiMode ? [] : getInitialStudentLeave(),
   );
+  const [demoTeacherRows, setDemoTeacherRows] = useState<TeacherLeave[]>(() =>
+    apiMode ? [] : loadTeacherLeaveSnapshot(getInitialTeacherLeave()),
+  );
+  const [apiItems, setApiItems] = useState<LeaveListItem[]>([]);
+  const [listStatus, setListStatus] = useState<LeaveListStatus>(() =>
+    apiMode ? "loading" : "demo",
+  );
+  const [listError, setListError] = useState<string | null>(null);
+  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
+    string | null
+  >(null);
+  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
+  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
   const [q, setQ] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [decision, setDecision] = useState<{
@@ -70,6 +125,102 @@ function LeavePage() {
     action: DecisionAction;
   } | null>(null);
   const [note, setNote] = useState("");
+
+  const listView = resolveLeaveListView({
+    apiMode,
+    instituteStatus: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+    resolvedForInstituteId,
+    storedItems: apiItems,
+    storedStatus: listStatus,
+    storedErrorMessage: listError,
+    instituteErrorMessage: instituteCtx.errorMessage,
+  });
+  const displayStatus = listView.status;
+  const displayError = listView.errorMessage;
+
+  useEffect(() => {
+    if (!apiMode) return;
+
+    if (instituteCtx.status === "loading") {
+      setApiItems([]);
+      setListStatus("loading");
+      setListError(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "error" ||
+      instituteCtx.status === "forbidden"
+    ) {
+      setApiItems([]);
+      setListStatus(
+        instituteCtx.status === "forbidden" ? "forbidden" : "error",
+      );
+      setListError(instituteCtx.errorMessage);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "needs_selection" ||
+      instituteCtx.status === "empty" ||
+      !instituteCtx.activeInstituteId
+    ) {
+      setApiItems([]);
+      setListStatus("needs_institute");
+      setListError(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    let cancelled = false;
+    setListStatus("loading");
+    setListError(null);
+    void loadLeaveRequestsList(requestInstituteId).then((next) => {
+      if (
+        !shouldCommitLeaveLoad({
+          cancelled,
+          requestInstituteId,
+          activeInstituteId: activeInstituteIdRef.current,
+        })
+      ) {
+        return;
+      }
+      setApiItems(next.items);
+      setListStatus(next.status);
+      setListError(next.errorMessage);
+      setResolvedForInstituteId(requestInstituteId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    apiMode,
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    instituteCtx.errorMessage,
+  ]);
+
+  const apiStudentRows = useMemo(
+    () =>
+      listView.items
+        .filter((i) => i.subjectKind === "student")
+        .map(apiItemToStudentRow),
+    [listView.items],
+  );
+  const apiTeacherRows = useMemo(
+    () =>
+      listView.items
+        .filter((i) => i.subjectKind === "teacher")
+        .map(apiItemToTeacherRow),
+    [listView.items],
+  );
+
+  const studentRows = apiMode ? apiStudentRows : demoStudentRows;
+  const teacherRows = apiMode ? apiTeacherRows : demoTeacherRows;
 
   const summary = useMemo(
     () => leaveSummary(studentRows, teacherRows),
@@ -108,10 +259,14 @@ function LeavePage() {
   );
 
   const openDecision = (row: TeacherLeave, action: DecisionAction) => {
+    if (!writesEnabled) {
+      notify("Leave writes via API are not enabled in this cutover");
+      return;
+    }
     if (action === "approved") {
       // Accept immediately — no note required
       const decidedAt = new Date().toISOString().slice(0, 10);
-      setTeacherRows((prev) => {
+      setDemoTeacherRows((prev) => {
         const next = prev.map((r) =>
           r.id === row.id
             ? { ...r, status: "approved" as const, adminNote: "Accepted.", decidedAt }
@@ -140,10 +295,17 @@ function LeavePage() {
 
   const confirmDecision = () => {
     if (!decision || decision.action === "approved") return;
+    if (!writesEnabled) {
+      notify("Leave writes via API are not enabled in this cutover");
+      setDecision(null);
+      setNote("");
+      return;
+    }
     const decidedAt = new Date().toISOString().slice(0, 10);
     const trimmed = note.trim();
-    const status = decision.action === "rejected" ? "rejected" : "ignored";
-    setTeacherRows((prev) => {
+    const status: LeaveStatus =
+      decision.action === "rejected" ? "rejected" : "ignored";
+    setDemoTeacherRows((prev) => {
       const next = prev.map((r) =>
         r.id === decision.row.id
           ? {
@@ -187,7 +349,11 @@ function LeavePage() {
   return (
     <AppShell
       title={M.leave}
-      subtitle="Student leave: Parent apply → Class Teacher approve · Teacher leave: Teacher apply → Admin Approve / Reject / Ignore"
+      subtitle={
+        apiMode
+          ? "API mode · read-only list"
+          : "Student leave: Parent apply → Class Teacher approve · Teacher leave: Teacher apply → Admin Approve / Reject / Ignore"
+      }
       actions={
         <>
           <Button size="sm" onClick={() => setHistoryOpen(true)}>
@@ -253,7 +419,19 @@ function LeavePage() {
             <ToolbarMeta>{activeList.length} results</ToolbarMeta>
           </PageToolbar>
 
-          {kind === "student" ? (
+          {apiMode && !listView.rowsValid ? (
+            <CardBody>
+              <p className="text-sm text-muted-foreground text-center py-8">
+                {displayStatus === "loading"
+                  ? "Loading leave requests…"
+                  : displayStatus === "needs_institute"
+                    ? "Select an active institute to load leave requests"
+                    : displayStatus === "forbidden"
+                      ? "You do not have access to leave requests for this institute"
+                      : displayError ?? "Failed to load leave requests"}
+              </p>
+            </CardBody>
+          ) : kind === "student" ? (
             <DataTable>
               <thead>
                 <tr>
@@ -287,7 +465,12 @@ function LeavePage() {
               </thead>
               <tbody>
                 {filteredTeachers.map((r) => (
-                  <TeacherRow key={r.id} row={r} onDecide={openDecision} />
+                  <TeacherRow
+                    key={r.id}
+                    row={r}
+                    onDecide={openDecision}
+                    writesEnabled={writesEnabled}
+                  />
                 ))}
               </tbody>
             </DataTable>
@@ -504,9 +687,11 @@ function StudentRow({ row }: { row: StudentLeave }) {
 function TeacherRow({
   row,
   onDecide,
+  writesEnabled,
 }: {
   row: TeacherLeave;
   onDecide: (row: TeacherLeave, action: DecisionAction) => void;
+  writesEnabled: boolean;
 }) {
   return (
     <Tr>
@@ -539,7 +724,7 @@ function TeacherRow({
       <Td mono>{row.days}</Td>
       <Td>{statusPill(row.status)}</Td>
       <Td align="right">
-        {row.status === "pending" ? (
+        {row.status === "pending" && writesEnabled ? (
           <div className="inline-flex flex-nowrap items-center justify-end gap-1.5">
             <Button
               size="sm"
