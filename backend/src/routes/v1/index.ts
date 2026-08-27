@@ -6,6 +6,7 @@ import attendance from "./attendance.js";
 import exams from "./exams.js";
 import marks from "./marks.js";
 import homework from "./homework.js";
+import diary from "./diary.js";
 import type { AppBindings } from "../../types/app.js";
 
 /**
@@ -49,5 +50,6 @@ v1.route("/attendance", attendance);
 v1.route("/exams", exams);
 v1.route("/marks", marks);
 v1.route("/homework", homework);
+v1.route("/diary", diary);
 
 export default v1;

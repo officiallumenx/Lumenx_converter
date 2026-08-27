@@ -35,6 +35,8 @@ export type MockDb = {
   mark_entry: Row[];
   mark_score: Row[];
   homework: Row[];
+  diary_day: Row[];
+  diary_day_row: Row[];
 };
 
 export type MockDbError = { code: string; message?: string };
@@ -110,6 +112,15 @@ class QueryBuilder {
       if (cell == null || value == null) return false;
       return String(cell) <= String(value);
     });
+    return this;
+  }
+
+  not(column: string, operator: string, value: unknown) {
+    if (operator === "is" && value === null) {
+      this.filters.push((r) => r[column] != null);
+      return this;
+    }
+    this.filters.push((r) => r[column] !== value);
     return this;
   }
 
@@ -252,5 +263,7 @@ export function emptyMockDb(): MockDb {
     mark_entry: [],
     mark_score: [],
     homework: [],
+    diary_day: [],
+    diary_day_row: [],
   };
 }
