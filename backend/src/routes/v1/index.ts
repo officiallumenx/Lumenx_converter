@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import health from "./health.js";
 import me from "./me.js";
 import timetable from "./timetable.js";
+import attendance from "./attendance.js";
 import type { AppBindings } from "../../types/app.js";
 
 /**
@@ -21,7 +22,6 @@ import type { AppBindings } from "../../types/app.js";
  *   v1.route("/teachers",      teachers);
  *   v1.route("/parents",       parents);
  *   v1.route("/classes",       classes);
- *   v1.route("/attendance",    attendance);
  *   v1.route("/exams",         exams);
  *   v1.route("/marks",         marks);
  *   v1.route("/fees",          fees);
@@ -44,5 +44,6 @@ v1.route("/me", me);
 
 // ── Academic domains ─────────────────────────────────────────────
 v1.route("/timetable", timetable);
+v1.route("/attendance", attendance);
 
 export default v1;
