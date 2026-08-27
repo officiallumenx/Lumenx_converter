@@ -16,6 +16,9 @@ export type MockDb = {
   membership: Row[];
   membership_role: Row[];
   platform_operator: Row[];
+  institute: Row[];
+  institute_settings: Row[];
+  role: Row[];
   teacher: Row[];
   student: Row[];
   parent: Row[];
@@ -54,7 +57,7 @@ function newId(): string {
 
 class QueryBuilder {
   private filters: Array<(r: Row) => boolean> = [];
-  private mutateMode: "none" | "insert" | "update" = "none";
+  private mutateMode: "none" | "insert" | "update" | "delete" = "none";
   private insertRows: Row[] = [];
   private updatePatch: Row = {};
   private pendingError: PendingError = null;
@@ -80,6 +83,11 @@ class QueryBuilder {
   update(patch: Row) {
     this.mutateMode = "update";
     this.updatePatch = patch;
+    return this;
+  }
+
+  delete() {
+    this.mutateMode = "delete";
     return this;
   }
 
@@ -164,6 +172,14 @@ class QueryBuilder {
       return { data: matched.map((r) => ({ ...r })), error: null };
     }
 
+    if (this.mutateMode === "delete") {
+      const matched = applyFilters(rows, this.filters);
+      const remaining = rows.filter((r) => !matched.includes(r));
+      rows.length = 0;
+      rows.push(...remaining);
+      return { data: matched.map((r) => ({ ...r })), error: null };
+    }
+
     return { data: applyFilters(rows, this.filters).map((r) => ({ ...r })), error: null };
   }
 
@@ -245,6 +261,9 @@ export function emptyMockDb(): MockDb {
     membership: [],
     membership_role: [],
     platform_operator: [],
+    institute: [],
+    institute_settings: [],
+    role: [],
     teacher: [],
     student: [],
     parent: [],

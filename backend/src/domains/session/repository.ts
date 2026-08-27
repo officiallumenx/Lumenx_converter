@@ -80,7 +80,25 @@ export async function loadActorByUserId(
     .eq("status", "active")
     .is("deleted_at", null);
 
-  const membershipRows = ensureDbOk(membershipsResult) as MembershipRow[];
+  let membershipRows = ensureDbOk(membershipsResult) as MembershipRow[];
+
+  if (membershipRows.length > 0) {
+    const instituteIds = [...new Set(membershipRows.map((m) => m.institute_id))];
+    const institutesResult = await admin
+      .from("institute")
+      .select("id, deleted_at")
+      .in("id", instituteIds);
+    const deletedInstituteIds = new Set(
+      (ensureDbOk(institutesResult) as Array<{ id: string; deleted_at: string | null }>)
+        .filter((r) => r.deleted_at != null)
+        .map((r) => r.id),
+    );
+    if (deletedInstituteIds.size > 0) {
+      membershipRows = membershipRows.filter(
+        (m) => !deletedInstituteIds.has(m.institute_id),
+      );
+    }
+  }
 
   let rolesByMembership = new Map<string, string[]>();
   if (membershipRows.length > 0) {

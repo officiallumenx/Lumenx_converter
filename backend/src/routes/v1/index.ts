@@ -16,6 +16,7 @@ import {
   sections,
   subjects,
 } from "./academics.js";
+import { institutes, profiles, memberships, roles } from "./identity.js";
 import type { AppBindings } from "../../types/app.js";
 
 /**
@@ -31,6 +32,7 @@ import type { AppBindings } from "../../types/app.js";
  *   v1.route("/institutes",    institutes);
  *   v1.route("/profiles",      profiles);
  *   v1.route("/memberships",   memberships);
+ *   v1.route("/roles",         roles);
  *   v1.route("/students",      students);
  *   v1.route("/teachers",      teachers);
  *   v1.route("/parents",       parents);
@@ -55,6 +57,12 @@ v1.route("/health", health);
 
 // ── Session / actor ──────────────────────────────────────────────
 v1.route("/me", me);
+
+// ── Identity / tenancy ───────────────────────────────────────────
+v1.route("/institutes", institutes);
+v1.route("/profiles", profiles);
+v1.route("/memberships", memberships);
+v1.route("/roles", roles);
 
 // ── Academic domains ─────────────────────────────────────────────
 v1.route("/timetable", timetable);
