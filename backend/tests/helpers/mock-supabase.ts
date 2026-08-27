@@ -69,6 +69,8 @@ export type MockDb = {
   announcement: Row[];
   staff_attendance: Row[];
   complaint: Row[];
+  template: Row[];
+  generated_document: Row[];
 };
 
 export type MockDbError = { code: string; message?: string };
@@ -342,5 +344,7 @@ export function emptyMockDb(): MockDb {
     announcement: [],
     staff_attendance: [],
     complaint: [],
+    template: [],
+    generated_document: [],
   };
 }
