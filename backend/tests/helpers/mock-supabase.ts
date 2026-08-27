@@ -95,6 +95,8 @@ export type MockDb = {
   message: Row[];
   stored_asset: Row[];
   recycle_item: Row[];
+  support_thread: Row[];
+  support_message: Row[];
 };
 
 export type MockDbError = { code: string; message?: string };
@@ -184,6 +186,10 @@ class QueryBuilder {
       return this;
     }
     this.filters.push((r) => r[column] !== value);
+    return this;
+  }
+
+  order(_column: string, _opts?: { ascending?: boolean }) {
     return this;
   }
 
@@ -394,5 +400,7 @@ export function emptyMockDb(): MockDb {
     message: [],
     stored_asset: [],
     recycle_item: [],
+    support_thread: [],
+    support_message: [],
   };
 }

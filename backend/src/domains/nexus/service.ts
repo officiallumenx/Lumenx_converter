@@ -70,6 +70,12 @@ export const NEXUS_COMMERCIAL_WRITE_ROLES = [
   "billing",
 ] as const;
 
+export const NEXUS_SUPPORT_WRITE_ROLES = [
+  "nexus_root",
+  "operations",
+  "support",
+] as const;
+
 function num(value: number | string): number {
   return typeof value === "number" ? value : Number(value);
 }
