@@ -15,26 +15,25 @@ import {
   TextArea,
 } from "@lumenx/ui-admin";
 import { Plus, Megaphone, Eye, Pin } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { examClassDisplayLabel } from "@/lib/exam-timetable-data";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { useInstituteContext } from "@/lib/institutes";
+import {
+  loadAnnouncementsList,
+  resolveAnnouncementsListView,
+  shouldCommitAnnouncementsLoad,
+  type AnnouncementListItem,
+  type AnnouncementsListStatus,
+} from "@/lib/announcements";
 
 export const Route = createFileRoute("/announcements")({
   head: () => ({ meta: [{ title: "Announcements — LumenX Admin" }] }),
   component: AnnouncementsPage,
 });
 
-type Item = {
-  id: string;
-  title: string;
-  body?: string;
-  audience: string;
-  author: string;
-  views: number;
-  when: string;
-  pinned: boolean;
-  status: "published" | "draft" | "scheduled";
-};
+type Item = AnnouncementListItem;
 
 function todayLocalInputValue(): string {
   const d = new Date();
@@ -95,7 +94,21 @@ type VisibilityOption = (typeof VISIBILITY_OPTIONS)[number];
 
 function AnnouncementsPage() {
   const notify = useAdminToast();
-  const [items, setItems] = useState(INITIAL);
+  const apiMode = isApiAuthMode();
+  const instituteCtx = useInstituteContext();
+
+  const [items, setItems] = useState<Item[]>(() => (apiMode ? [] : INITIAL));
+  const [listStatus, setListStatus] = useState<AnnouncementsListStatus>(() =>
+    apiMode ? "loading" : "demo",
+  );
+  const [listError, setListError] = useState<string | null>(null);
+  /** Institute id for which `items` / `listStatus` were last committed (API mode). */
+  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
+    string | null
+  >(null);
+  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
+  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
+
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -105,9 +118,95 @@ function AnnouncementsPage() {
   const [scheduleAt, setScheduleAt] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
 
+  // Render-time validity: never paint institute A's rows under institute B
+  // (or under blocking institute context) before effects clear stored state.
+  const listView = resolveAnnouncementsListView({
+    apiMode,
+    instituteStatus: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+    resolvedForInstituteId,
+    storedItems: items,
+    storedStatus: listStatus,
+    storedErrorMessage: listError,
+    instituteErrorMessage: instituteCtx.errorMessage,
+  });
+  const displayItems = listView.items;
+  const displayStatus = listView.status;
+  const displayError = listView.errorMessage;
+
+  useEffect(() => {
+    if (!apiMode) {
+      setItems(INITIAL);
+      setListStatus("demo");
+      setListError(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    // Never flash demo INITIAL in API mode.
+    if (instituteCtx.status === "loading") {
+      setItems([]);
+      setListStatus("loading");
+      setListError(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    if (instituteCtx.status === "error" || instituteCtx.status === "forbidden") {
+      setItems([]);
+      setListStatus(instituteCtx.status === "forbidden" ? "forbidden" : "error");
+      setListError(instituteCtx.errorMessage);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "needs_selection" ||
+      instituteCtx.status === "empty" ||
+      !instituteCtx.activeInstituteId
+    ) {
+      setItems([]);
+      setListStatus("needs_institute");
+      setListError(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    let cancelled = false;
+    setListStatus("loading");
+    setListError(null);
+    // Keep prior items in state, but render-time view hides them until
+    // resolvedForInstituteId matches the new active institute.
+    void loadAnnouncementsList(requestInstituteId).then((next) => {
+      if (
+        !shouldCommitAnnouncementsLoad({
+          cancelled,
+          requestInstituteId,
+          activeInstituteId: activeInstituteIdRef.current,
+        })
+      ) {
+        return;
+      }
+      setItems(next.items);
+      setListStatus(next.status);
+      setListError(next.errorMessage);
+      setResolvedForInstituteId(requestInstituteId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    apiMode,
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    instituteCtx.errorMessage,
+  ]);
+
   const classesValid =
     visibility !== "Classes" || classScope === "all" || classSectionKeys.length > 0;
   const willSchedule = scheduleAt.trim().length > 0;
+  const writesEnabled = !apiMode;
 
   const audienceLabel = () => {
     if (visibility !== "Classes") return visibility;
@@ -126,6 +225,10 @@ function AnnouncementsPage() {
   };
 
   const publish = (asDraft = false) => {
+    if (!writesEnabled) {
+      notify("Announcement writes via API are not enabled in this cutover");
+      return;
+    }
     if (!title.trim() || !classesValid) return;
     const audience = audienceLabel();
     const scheduled = !asDraft && willSchedule;
@@ -172,162 +275,195 @@ function AnnouncementsPage() {
   };
 
   const togglePin = (id: string) => {
+    if (!writesEnabled) {
+      notify("Announcement writes via API are not enabled in this cutover");
+      return;
+    }
     setItems((prev) => prev.map((a) => (a.id === id ? { ...a, pinned: !a.pinned } : a)));
     notify("Pin status updated");
   };
+
+  const listHint =
+    displayStatus === "loading"
+      ? "Loading announcements…"
+      : displayStatus === "needs_institute"
+        ? "Select an active institute to load announcements"
+        : displayStatus === "forbidden"
+          ? "You do not have access to announcements for this institute"
+          : displayStatus === "error"
+            ? displayError ?? "Failed to load announcements"
+            : displayStatus === "empty"
+              ? "No announcements yet"
+              : "Drafts, scheduled and published";
 
   return (
     <AppShell
       title="Announcements"
       subtitle="Long-form institute notices, pinnable to portals"
       actions={
-        <Button variant="primary" onClick={() => setOpen(true)}>
-          <Plus className="size-3.5" /> New announcement
-        </Button>
+        writesEnabled ? (
+          <Button variant="primary" onClick={() => setOpen(true)}>
+            <Plus className="size-3.5" /> New announcement
+          </Button>
+        ) : (
+          <span className="text-[11px] text-muted-foreground">
+            API mode · read-only list
+          </span>
+        )
       }
     >
       <Card>
-        <CardHeader title="Recent" hint="Drafts, scheduled and published" />
+        <CardHeader title="Recent" hint={listHint} />
         <div className="divide-y divide-border">
-          {items.map((a) => (
-            <div
-              key={a.id}
-              className="px-5 py-4 flex flex-wrap items-center gap-4 hover:bg-surface-hover transition-colors"
-            >
-              <IconChip icon={a.pinned ? Pin : Megaphone} size="md" />
-              <div className="flex-1 min-w-[220px]">
-                <div className="text-sm font-medium">{a.title}</div>
-                <div className="text-[11px] text-muted-foreground mt-0.5">
-                  {a.author} · {a.audience}
+          {displayStatus === "loading" ? (
+            <div className="px-5 py-8 text-sm text-muted-foreground">Loading…</div>
+          ) : displayItems.length === 0 ? (
+            <div className="px-5 py-8 text-sm text-muted-foreground">{listHint}</div>
+          ) : (
+            displayItems.map((a) => (
+              <div
+                key={a.id}
+                className="px-5 py-4 flex flex-wrap items-center gap-4 hover:bg-surface-hover transition-colors"
+              >
+                <IconChip icon={a.pinned ? Pin : Megaphone} size="md" />
+                <div className="flex-1 min-w-[220px]">
+                  <div className="text-sm font-medium">{a.title}</div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">
+                    {a.author} · {a.audience}
+                  </div>
                 </div>
+                <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                  <span className="inline-flex items-center gap-1">
+                    <Eye className="size-3" />
+                    {a.views.toLocaleString()}
+                  </span>
+                  <span className="font-mono">{a.when}</span>
+                  {a.status === "draft" ? (
+                    <Pill tone="warning">Draft</Pill>
+                  ) : a.status === "scheduled" ? (
+                    <Pill tone="info">Scheduled</Pill>
+                  ) : (
+                    <Pill tone="success">Published</Pill>
+                  )}
+                </div>
+                {writesEnabled ? (
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => {
+                        setEditingId(a.id);
+                        setTitle(a.title);
+                        setBody(a.body ?? "");
+                        setOpen(true);
+                      }}
+                    >
+                      Edit
+                    </Button>
+                    <Button variant="primary" onClick={() => togglePin(a.id)}>
+                      {a.pinned ? "Unpin" : "Pin"}
+                    </Button>
+                  </div>
+                ) : null}
               </div>
-              <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-                <span className="inline-flex items-center gap-1">
-                  <Eye className="size-3" />
-                  {a.views.toLocaleString()}
-                </span>
-                <span className="font-mono">{a.when}</span>
-                {a.status === "draft" ? (
-                  <Pill tone="warning">Draft</Pill>
-                ) : a.status === "scheduled" ? (
-                  <Pill tone="info">Scheduled</Pill>
-                ) : (
-                  <Pill tone="success">Published</Pill>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  onClick={() => {
-                    setEditingId(a.id);
-                    setTitle(a.title);
-                    setBody(a.body ?? "");
-                    setOpen(true);
-                  }}
-                >
-                  Edit
-                </Button>
-                <Button variant="primary" onClick={() => togglePin(a.id)}>
-                  {a.pinned ? "Unpin" : "Pin"}
-                </Button>
-              </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </Card>
 
-      <Modal
-        open={open}
-        onClose={() => {
-          resetForm();
-          setOpen(false);
-        }}
-        title="Compose announcement"
-        size="lg"
-        footer={
-          <>
-            <Button onClick={() => publish(true)} disabled={!title.trim() || !classesValid}>
-              Save draft
-            </Button>
-            <Button
-              variant="primary"
-              onClick={() => publish(false)}
-              disabled={!title.trim() || !classesValid}
-            >
-              {willSchedule ? "Schedule" : "Publish now"}
-            </Button>
-          </>
-        }
-      >
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="sm:col-span-2">
-            <Field label="Title" required>
-              <TextInput
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Subject"
-              />
-            </Field>
-          </div>
-          <div className="sm:col-span-2">
-            <Field label="Visibility" required>
-              <Select
-                value={visibility}
-                onChange={(e) => {
-                  const next = e.target.value as VisibilityOption;
-                  setVisibility(next);
-                  if (next !== "Classes") {
-                    setClassSectionKeys([]);
-                    setClassScope("selected");
-                  }
-                }}
+      {writesEnabled ? (
+        <Modal
+          open={open}
+          onClose={() => {
+            resetForm();
+            setOpen(false);
+          }}
+          title="Compose announcement"
+          size="lg"
+          footer={
+            <>
+              <Button onClick={() => publish(true)} disabled={!title.trim() || !classesValid}>
+                Save draft
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => publish(false)}
+                disabled={!title.trim() || !classesValid}
               >
-                {VISIBILITY_OPTIONS.map((opt) => (
-                  <option key={opt} value={opt}>
-                    {opt}
-                  </option>
-                ))}
+                {willSchedule ? "Schedule" : "Publish now"}
+              </Button>
+            </>
+          }
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2">
+              <Field label="Title" required>
+                <TextInput
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Subject"
+                />
+              </Field>
+            </div>
+            <div className="sm:col-span-2">
+              <Field label="Visibility" required>
+                <Select
+                  value={visibility}
+                  onChange={(e) => {
+                    const next = e.target.value as VisibilityOption;
+                    setVisibility(next);
+                    if (next !== "Classes") {
+                      setClassSectionKeys([]);
+                      setClassScope("selected");
+                    }
+                  }}
+                >
+                  {VISIBILITY_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+            {visibility === "Classes" ? (
+              <div className="sm:col-span-2">
+                <ClassSectionAudienceField
+                  scope={classScope}
+                  selectedKeys={classSectionKeys}
+                  onScopeChange={setClassScope}
+                  onSelectedKeysChange={setClassSectionKeys}
+                  required
+                  hint="Choose which classes and sections can see this announcement"
+                />
+              </div>
+            ) : null}
+            <div className="sm:col-span-2">
+              <Field label="Body" required>
+                <TextArea
+                  className="min-h-[160px]"
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  placeholder="Write the announcement…"
+                />
+              </Field>
+            </div>
+            <Field label="Pin to top">
+              <Select defaultValue="No">
+                <option>No</option>
+                <option>Pin for 1 day</option>
+                <option>Pin for 1 week</option>
               </Select>
             </Field>
-          </div>
-          {visibility === "Classes" ? (
-            <div className="sm:col-span-2">
-              <ClassSectionAudienceField
-                scope={classScope}
-                selectedKeys={classSectionKeys}
-                onScopeChange={setClassScope}
-                onSelectedKeysChange={setClassSectionKeys}
-                required
-                hint="Choose which classes and sections can see this announcement"
-              />
-            </div>
-          ) : null}
-          <div className="sm:col-span-2">
-            <Field label="Body" required>
-              <TextArea
-                className="min-h-[160px]"
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                placeholder="Write the announcement…"
+            <Field label="Schedule" hint="Leave empty to publish immediately · 12-hour AM/PM">
+              <DateTimePicker12h
+                value={scheduleAt}
+                onChange={setScheduleAt}
+                min={todayLocalInputValue()}
+                placeholder="Publish now (no schedule)"
               />
             </Field>
           </div>
-          <Field label="Pin to top">
-            <Select defaultValue="No">
-              <option>No</option>
-              <option>Pin for 1 day</option>
-              <option>Pin for 1 week</option>
-            </Select>
-          </Field>
-          <Field label="Schedule" hint="Leave empty to publish immediately · 12-hour AM/PM">
-            <DateTimePicker12h
-              value={scheduleAt}
-              onChange={setScheduleAt}
-              min={todayLocalInputValue()}
-              placeholder="Publish now (no schedule)"
-            />
-          </Field>
-        </div>
-      </Modal>
+        </Modal>
+      ) : null}
     </AppShell>
   );
 }
