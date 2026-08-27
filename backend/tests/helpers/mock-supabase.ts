@@ -90,6 +90,7 @@ export type MockDb = {
   practice_session: Row[];
   message_thread: Row[];
   message: Row[];
+  stored_asset: Row[];
 };
 
 export type MockDbError = { code: string; message?: string };
@@ -384,5 +385,6 @@ export function emptyMockDb(): MockDb {
     practice_session: [],
     message_thread: [],
     message: [],
+    stored_asset: [],
   };
 }

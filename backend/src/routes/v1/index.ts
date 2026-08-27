@@ -33,6 +33,7 @@ import admissions from "./admissions.js";
 import careers from "./careers.js";
 import activity from "./activity.js";
 import messages from "./messages.js";
+import assets from "./assets.js";
 import type { AppBindings } from "../../types/app.js";
 
 /**
@@ -65,7 +66,8 @@ import type { AppBindings } from "../../types/app.js";
  *   v1.route("/certificates",  certificates);
  *   v1.route("/activity",      activity);
  *   v1.route("/messages",      messages);
- *   v1.route("/assets",        assets); // next unimplemented stub /api/v1/assets
+ *   v1.route("/assets",        assets);
+ *   // next unimplemented stub /api/v1/recycle
  */
 const v1 = new Hono<AppBindings>();
 
@@ -111,5 +113,6 @@ v1.route("/admissions", admissions);
 v1.route("/careers", careers);
 v1.route("/activity", activity);
 v1.route("/messages", messages);
+v1.route("/assets", assets);
 
 export default v1;
