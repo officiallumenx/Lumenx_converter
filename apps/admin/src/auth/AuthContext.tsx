@@ -35,6 +35,10 @@ import {
 } from "./api-auth";
 import { clearApiModeLocalIdentity } from "./api-local-cleanup";
 import { isDemoCompleteSignInAllowed, mergeApiPresentationPatch } from "./login-flow-auth";
+import {
+  tryApplyApiActiveInstituteSession,
+  clearApiActiveInstituteSession,
+} from "./api-active-institute";
 import { setAdminApiUnauthorizedHandler } from "@/lib/admin-api";
 
 // ── Context ───────────────────────────────────────────────────
@@ -199,6 +203,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(authUser);
   }, []);
 
+  const applyApiActiveInstitute = useCallback(
+    (instituteId: string, instituteName: string) => {
+      const next = tryApplyApiActiveInstituteSession(instituteId, instituteName);
+      if (next) setUser(next);
+    },
+    [],
+  );
+
+  /** Clear API-mode institute presentation when context is no longer validated. */
+  const clearApiActiveInstitutePresentation = useCallback(() => {
+    const next = clearApiActiveInstituteSession();
+    if (next) setUser(next);
+  }, []);
+
   const signUp = useCallback(async (data: SignUpFormData) => {
     if (isApiAuthMode()) {
       setError("Institute sign-up via API mode is not enabled in this cutover. Use demo mode or an existing account.");
@@ -278,6 +296,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signIn,
       completeSignIn,
       patchAuthenticatedUser,
+      applyApiActiveInstitute,
+      clearApiActiveInstitutePresentation,
       signUp,
       signOut,
       forgotPassword,
@@ -291,6 +311,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signIn,
       completeSignIn,
       patchAuthenticatedUser,
+      applyApiActiveInstitute,
+      clearApiActiveInstitutePresentation,
       signUp,
       signOut,
       forgotPassword,

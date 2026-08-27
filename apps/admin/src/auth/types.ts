@@ -179,6 +179,13 @@ export interface AuthContextValue {
   completeSignIn(user: AuthUser, remember?: boolean): void;
   /** Update session user without clearing app lock (e.g. Nexus approval). */
   patchAuthenticatedUser(user: AuthUser): void;
+  /**
+   * API mode only: apply a membership-validated active institute to the UI session.
+   * Authority: instituteId must match the stored validated active-institute preference.
+   */
+  applyApiActiveInstitute(instituteId: string, instituteName: string): void;
+  /** API mode: clear institute presentation when context is error/forbidden/empty. */
+  clearApiActiveInstitutePresentation(): void;
   signUp(data: SignUpFormData): Promise<void>;
   signOut(): void;
   forgotPassword(email: string): Promise<void>;

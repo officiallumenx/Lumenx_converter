@@ -70,6 +70,9 @@ import {
   subscribeAdminNotifications,
 } from "@/lib/notification-center-store";
 import { startTransportAdminNotificationSync } from "@/lib/transport-notification-sync";
+import { ApiInstituteSwitcher } from "@/components/ApiInstituteSwitcher";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { InstituteContextProvider } from "@/lib/institutes";
 import { warnAdminNavContractIfNeeded } from "@/lib/admin-navigation-contract";
 import { useAdminMountTrace, useAdminRouteTransitionTrace } from "@/hooks/useAdminPerformanceTrace";
 import { AdminWriteAccessProvider } from "@/components/admin-write/AdminWriteAccessContext";
@@ -263,6 +266,7 @@ export function AdminChrome() {
   const writesAllowed = canAdminMutate(user?.accessRoleId, path);
   const writeBlockReason = adminWriteBlockReason(user?.accessRoleId, path);
   const displayInitials = user?.initials ?? getInitials(displayName, 2);
+  const apiMode = isApiAuthMode();
 
   // Close profile menu on outside click
   useEffect(() => {
@@ -322,11 +326,15 @@ export function AdminChrome() {
         <span className="lx-icon-chip lx-icon-chip--sm shadow-glow" aria-hidden>
           <Sparkles strokeWidth={2} />
         </span>
-        <div className="leading-tight">
+        <div className="leading-tight min-w-0">
           <div className="font-semibold tracking-tight text-sm">LUMENX ADMIN</div>
-          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground truncate max-w-[11rem]">
-            {profile.admin.headerSubtitle}
-          </div>
+          {apiMode ? (
+            <ApiInstituteSwitcher className="mt-0.5" />
+          ) : (
+            <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground truncate max-w-[11rem]">
+              {profile.admin.headerSubtitle}
+            </div>
+          )}
         </div>
       </div>
       <nav
@@ -469,6 +477,7 @@ export function AdminChrome() {
   );
 
   return (
+    <InstituteContextProvider>
     <AdminWriteAccessProvider writesAllowed={writesAllowed} reason={writeBlockReason}>
       <div
       className="flex h-screen-svh max-h-screen-svh w-full overflow-hidden bg-background text-foreground"
@@ -527,12 +536,16 @@ export function AdminChrome() {
                 <div className="font-display text-sm font-semibold leading-none">
                   LumenX Admin
                 </div>
-                <div
-                  className="truncate text-[10px] text-muted-foreground md:text-[11px]"
-                  title={profile.admin.headerSubtitle}
-                >
-                  {profile.admin.headerSubtitle}
-                </div>
+                {apiMode ? (
+                  <ApiInstituteSwitcher className="mt-0.5 max-w-[14rem]" />
+                ) : (
+                  <div
+                    className="truncate text-[10px] text-muted-foreground md:text-[11px]"
+                    title={profile.admin.headerSubtitle}
+                  >
+                    {profile.admin.headerSubtitle}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -796,5 +809,6 @@ export function AdminChrome() {
       {openSearch ? <AdminGlobalSearch open={openSearch} onOpenChange={setOpenSearch} /> : null}
       </div>
     </AdminWriteAccessProvider>
+    </InstituteContextProvider>
   );
 }
