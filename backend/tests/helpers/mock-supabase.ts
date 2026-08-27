@@ -34,6 +34,7 @@ export type MockDb = {
   exam_subject_schedule: Row[];
   mark_entry: Row[];
   mark_score: Row[];
+  homework: Row[];
 };
 
 export type MockDbError = { code: string; message?: string };
@@ -91,6 +92,24 @@ class QueryBuilder {
 
   in(column: string, values: unknown[]) {
     this.filters.push((r) => values.includes(r[column]));
+    return this;
+  }
+
+  gte(column: string, value: unknown) {
+    this.filters.push((r) => {
+      const cell = r[column];
+      if (cell == null || value == null) return false;
+      return String(cell) >= String(value);
+    });
+    return this;
+  }
+
+  lte(column: string, value: unknown) {
+    this.filters.push((r) => {
+      const cell = r[column];
+      if (cell == null || value == null) return false;
+      return String(cell) <= String(value);
+    });
     return this;
   }
 
@@ -232,5 +251,6 @@ export function emptyMockDb(): MockDb {
     exam_subject_schedule: [],
     mark_entry: [],
     mark_score: [],
+    homework: [],
   };
 }

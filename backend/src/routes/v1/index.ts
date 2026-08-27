@@ -5,6 +5,7 @@ import timetable from "./timetable.js";
 import attendance from "./attendance.js";
 import exams from "./exams.js";
 import marks from "./marks.js";
+import homework from "./homework.js";
 import type { AppBindings } from "../../types/app.js";
 
 /**
@@ -47,5 +48,6 @@ v1.route("/timetable", timetable);
 v1.route("/attendance", attendance);
 v1.route("/exams", exams);
 v1.route("/marks", marks);
+v1.route("/homework", homework);
 
 export default v1;
