@@ -149,3 +149,30 @@ describe("loadStudentsList", () => {
     expect(result.items).toEqual([]);
   });
 });
+
+describe("loadStudentDetail", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+  });
+
+  it("returns demo status in demo mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
+    const getStudent = vi.fn();
+    vi.doMock("./api", () => ({ getStudent }));
+    const { loadStudentDetail } = await import("./load");
+    const result = await loadStudentDetail("stu-1");
+    expect(result.status).toBe("demo");
+    expect(getStudent).not.toHaveBeenCalled();
+  });
+
+  it("maps student detail on success", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const getStudent = vi.fn().mockResolvedValue(dto({ id: "stu-1" }));
+    vi.doMock("./api", () => ({ getStudent }));
+    const { loadStudentDetail } = await import("./load");
+    const result = await loadStudentDetail("stu-1");
+    expect(result.status).toBe("ready");
+    expect(result.student?.id).toBe("stu-1");
+  });
+});

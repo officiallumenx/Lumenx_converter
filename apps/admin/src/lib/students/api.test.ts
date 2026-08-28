@@ -116,4 +116,23 @@ describe("students api repository", () => {
     expect(result).toHaveLength(1);
     expect(result[0]?.id).toBe("stu-2");
   });
+
+  it("gets student by id in API mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const { getStudent } = await import("./api");
+    const payload = dto({ id: "stu-detail" });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ data: payload }),
+    });
+    const client = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => "tok",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    const result = await getStudent("stu-detail", client);
+    expect(result.id).toBe("stu-detail");
+    expect(fetchMock.mock.calls[0][0]).toContain("/api/v1/students/stu-detail");
+  });
 });

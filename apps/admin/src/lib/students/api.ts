@@ -30,3 +30,11 @@ export async function listStudents(
 
   return client.get<StudentDto[]>(`/api/v1/students?${query.toString()}`);
 }
+
+export async function getStudent(
+  studentId: string,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<StudentDto> {
+  assertApiMode();
+  return client.get<StudentDto>(`/api/v1/students/${studentId}`);
+}

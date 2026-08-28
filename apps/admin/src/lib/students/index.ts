@@ -1,19 +1,23 @@
 export type {
   ListStudentsParams,
   StudentAccessStatus,
+  StudentDetailItem,
   StudentDto,
   StudentGender,
   StudentListItem,
   StudentStatus,
 } from "./types";
-export { assertApiMode, listStudents } from "./api";
+export { assertApiMode, getStudent, listStudents } from "./api";
 export {
   buildStudentGradeLabel,
+  studentDtoToDetailItem,
   studentDtoToListItem,
   studentDtosToListItems,
 } from "./map";
 export {
+  loadStudentDetail,
   loadStudentsList,
+  type StudentDetailState,
   type StudentsListState,
   type StudentsListStatus,
 } from "./load";

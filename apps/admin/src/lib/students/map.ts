@@ -1,4 +1,4 @@
-import type { StudentDto, StudentListItem, StudentStatus } from "./types";
+import type { StudentDetailItem, StudentDto, StudentListItem, StudentStatus } from "./types";
 
 const KNOWN_STATUSES = new Set<StudentStatus>([
   "active",
@@ -55,6 +55,19 @@ export function studentDtoToListItem(dto: StudentDto): StudentListItem {
     attendance: 0,
     gpa: 0,
     parent: "",
+  };
+}
+
+export function studentDtoToDetailItem(dto: StudentDto): StudentDetailItem {
+  const base = studentDtoToListItem(dto);
+  return {
+    ...base,
+    address: dto.address?.trim() || "—",
+    bloodGroup: dto.bloodGroup?.trim() || null,
+    emergencyContact: dto.emergencyContact?.trim() || null,
+    house: dto.house?.trim() || null,
+    legacyCode: dto.legacyCode?.trim() || null,
+    updatedAt: dto.updatedAt,
   };
 }
 

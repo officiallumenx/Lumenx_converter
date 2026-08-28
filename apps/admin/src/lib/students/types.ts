@@ -68,6 +68,15 @@ export type StudentListItem = {
   parent: string;
 };
 
+export type StudentDetailItem = StudentListItem & {
+  address: string;
+  bloodGroup: string | null;
+  emergencyContact: string | null;
+  house: string | null;
+  legacyCode: string | null;
+  updatedAt: string;
+};
+
 export type ListStudentsParams = {
   instituteId: string;
 };

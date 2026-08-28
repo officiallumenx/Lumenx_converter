@@ -45,6 +45,8 @@ import {
 import { formatStudentGradeDisplay } from "@/lib/class-section-filter";
 import { StudentAcademicTimelineCard } from "@/components/students/StudentAcademicTimelineCard";
 import { StudentIssuedCertificatesCard } from "@/components/students/StudentIssuedCertificatesCard";
+import { StudentProfileApiPage } from "@/components/students/StudentProfileApiPage";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { isIdCardReady } from "@/lib/student-id-card-sync";
 
 export const Route = createFileRoute("/students/$id")({
@@ -69,6 +71,13 @@ function Detail({
 
 function StudentProfile() {
   const { id } = Route.useParams();
+  if (isApiAuthMode()) {
+    return <StudentProfileApiPage studentId={id} />;
+  }
+  return <StudentProfileDemo id={id} />;
+}
+
+function StudentProfileDemo({ id }: { id: string }) {
   const notify = useAdminToast();
   const [showPassword, setShowPassword] = useState(false);
   const [student, setStudent] = useState<StudentDirectoryRecord | null>(() =>
