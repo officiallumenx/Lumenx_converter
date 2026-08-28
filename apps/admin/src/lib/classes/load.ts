@@ -6,9 +6,9 @@
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/active-institute";
-import { listClassesCatalog } from "./api";
-import { sectionsToListItems } from "./map";
-import type { ClassListItem } from "./types";
+import { listClassesCatalog, getClass, getSection } from "./api";
+import { sectionsToListItems, sectionDtoToDetailItem } from "./map";
+import type { ClassListItem, SectionDetailItem } from "./types";
 
 export type ClassesListStatus =
   | "demo"
@@ -24,6 +24,53 @@ export type ClassesListState = {
   items: ClassListItem[];
   errorMessage: string | null;
 };
+
+export type SectionDetailState = {
+  status: ClassesListStatus;
+  section: SectionDetailItem | null;
+  errorMessage: string | null;
+};
+
+export async function loadSectionDetail(
+  sectionId: string,
+): Promise<SectionDetailState> {
+  if (!isApiAuthMode()) {
+    return { status: "demo", section: null, errorMessage: null };
+  }
+
+  if (!sectionId?.trim()) {
+    return { status: "error", section: null, errorMessage: "Section id is required." };
+  }
+
+  try {
+    const section = await getSection(sectionId.trim());
+    const cls = await getClass(section.classId);
+    return {
+      status: "ready",
+      section: sectionDtoToDetailItem(section, cls),
+      errorMessage: null,
+    };
+  } catch (err) {
+    const status =
+      err instanceof ApiClientError
+        ? err.status
+        : err &&
+            typeof err === "object" &&
+            "status" in err &&
+            typeof (err as { status: unknown }).status === "number"
+          ? (err as { status: number }).status
+          : null;
+    const message = err instanceof Error ? err.message : "Failed to load section";
+
+    if (status === 403) {
+      return { status: "forbidden", section: null, errorMessage: message };
+    }
+    if (status === 404) {
+      return { status: "empty", section: null, errorMessage: "Section not found." };
+    }
+    return { status: "error", section: null, errorMessage: message };
+  }
+}
 
 export async function loadClassesList(
   activeInstituteId: string | null,

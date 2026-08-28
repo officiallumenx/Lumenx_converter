@@ -51,6 +51,14 @@ export type ClassListItem = {
   subjectTeacherAssignments?: Record<string, string>;
 };
 
+export type SectionDetailItem = ClassListItem & {
+  classCode: string;
+  classStatus: ClassStatus;
+  sectionStatus: SectionStatus;
+  academicYearId: string;
+  updatedAt: string;
+};
+
 export type ListClassesParams = {
   instituteId: string;
 };

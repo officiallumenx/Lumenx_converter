@@ -49,6 +49,8 @@ import {
 import { getInstituteTeachers, getSubjectCatalog } from "@/lib/subjects-data";
 import { findTimetableForClass } from "@/lib/timetable-directory-store";
 import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
+import { ClassSectionApiPage } from "@/components/classes/ClassSectionApiPage";
+import { isApiAuthMode } from "@/auth/auth-mode";
 
 export const Route = createFileRoute("/classes/$id")({
   head: ({ params }) => ({ meta: [{ title: `${params.id} — LumenX Admin` }] }),
@@ -95,6 +97,13 @@ function loadAvailableTeachers(): StoredTeacher[] {
 
 function ClassDetailPage() {
   const { id } = Route.useParams();
+  if (isApiAuthMode()) {
+    return <ClassSectionApiPage sectionId={id} />;
+  }
+  return <ClassDetailDemo id={id} />;
+}
+
+function ClassDetailDemo({ id }: { id: string }) {
   const notify = useAdminToast();
   const { profileId, profile } = useDemoProfile();
   const [classSection, setClassSection] = useState<ClassSection | null>(() =>

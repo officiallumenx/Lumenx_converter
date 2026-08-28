@@ -44,6 +44,22 @@ export async function listClasses(
   return client.get<ClassDto[]>(`/api/v1/classes?${buildQuery(params.instituteId)}`);
 }
 
+export async function getClass(
+  classId: string,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<ClassDto> {
+  assertApiMode();
+  return client.get<ClassDto>(`/api/v1/classes/${classId}`);
+}
+
+export async function getSection(
+  sectionId: string,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<SectionDto> {
+  assertApiMode();
+  return client.get<SectionDto>(`/api/v1/sections/${sectionId}`);
+}
+
 export async function listClassesCatalog(
   params: ListClassesParams,
   client: AdminApiClient = getAdminApiClient(),

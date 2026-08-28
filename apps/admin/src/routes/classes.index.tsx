@@ -218,10 +218,6 @@ function ClassesPage() {
   };
 
   const openClassDetail = (id: string) => {
-    if (!writesEnabled) {
-      notify("Class detail pages are not enabled in API read-only mode");
-      return;
-    }
     void navigate({ to: "/classes/$id", params: { id } });
   };
 

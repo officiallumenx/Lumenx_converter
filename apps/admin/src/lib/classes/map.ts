@@ -1,4 +1,4 @@
-import type { ClassDto, ClassListItem, SectionDto } from "./types";
+import type { ClassDto, ClassListItem, SectionDetailItem, SectionDto } from "./types";
 
 export function classLabelForSection(
   section: SectionDto,
@@ -47,4 +47,20 @@ export function sectionsToListItems(
   }
   const classesById = new Map(classes.map((item) => [item.id, item]));
   return sections.map((section) => sectionDtoToListItem(section, classesById));
+}
+
+export function sectionDtoToDetailItem(
+  section: SectionDto,
+  cls: ClassDto,
+): SectionDetailItem {
+  const classesById = new Map([[cls.id, cls]]);
+  const base = sectionDtoToListItem(section, classesById);
+  return {
+    ...base,
+    classCode: cls.code?.trim() || "—",
+    classStatus: cls.status,
+    sectionStatus: section.status,
+    academicYearId: section.academicYearId,
+    updatedAt: section.updatedAt,
+  };
 }

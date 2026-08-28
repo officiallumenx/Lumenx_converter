@@ -144,3 +144,20 @@ describe("loadClassesList", () => {
     expect(result.items).toEqual([]);
   });
 });
+
+describe("loadSectionDetail", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+  });
+
+  it("returns demo status in demo mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
+    const getSection = vi.fn();
+    vi.doMock("./api", () => ({ getSection, getClass: vi.fn() }));
+    const { loadSectionDetail } = await import("./load");
+    const result = await loadSectionDetail("sec-1");
+    expect(result.status).toBe("demo");
+    expect(getSection).not.toHaveBeenCalled();
+  });
+});
