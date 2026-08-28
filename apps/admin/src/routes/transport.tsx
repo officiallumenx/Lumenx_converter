@@ -5,6 +5,7 @@ import { TransportHubNav } from "@/components/transport/TransportHubNav";
 import { useTransportStore } from "@/components/transport/useTransportStore";
 import { TransportEnrollmentsApiView } from "@/components/transport/TransportEnrollmentsApiView";
 import { TransportDashboardApiView } from "@/components/transport/TransportDashboardApiView";
+import { ApiReadUnavailablePanel } from "@/components/ApiReadUnavailablePanel";
 import { TransportVehiclesView } from "@/components/transport/views/TransportVehiclesView";
 import { TransportDriversView } from "@/components/transport/views/TransportDriversView";
 import { TransportStopsView } from "@/components/transport/views/TransportStopsView";
@@ -706,7 +707,14 @@ function TransportPage() {
                   ? `API mode · read-only · ${enrollmentsListView.rowsValid ? enrollmentsListView.items.length : "…"} enrollments`
                   : apiMode && view === "settings"
                 ? "API mode · read-only · transport settings"
-                : VIEW_SUBTITLES[view]
+                : apiMode &&
+                    (view === "reviews" ||
+                      view === "trips" ||
+                      view === "attendance" ||
+                      view === "emergencies" ||
+                      view === "analytics")
+                  ? "API mode · read unavailable · no institute read API"
+                  : VIEW_SUBTITLES[view]
       }
     >
       <TransportHubNav active={view} />
@@ -771,11 +779,61 @@ function TransportPage() {
             <TransportStudentsView snapshot={snapshot} onChange={setSnapshot} />
           )
         ) : null}
-        {view === "reviews" && <TransportReviewsView />}
-        {view === "trips" && <TransportTripsView snapshot={snapshot} />}
-        {view === "attendance" && <TransportAttendanceView />}
-        {view === "emergencies" && <TransportEmergenciesView />}
-        {view === "analytics" && <TransportAnalyticsView snapshot={snapshot} />}
+        {view === "reviews" ? (
+          apiMode ? (
+            <ApiReadUnavailablePanel
+              title="Pending requests unavailable in API mode"
+              domainLabel="Transport driver review queue"
+              hint="There is no institute-scoped read API for pending stop and assignment reviews. Demo approval data is not shown in API mode."
+            />
+          ) : (
+            <TransportReviewsView />
+          )
+        ) : null}
+        {view === "trips" ? (
+          apiMode ? (
+            <ApiReadUnavailablePanel
+              title="Trips unavailable in API mode"
+              domainLabel="Transport trips"
+              hint="There is no institute-scoped read API for live or historical trips. Demo trip schedules are not shown in API mode."
+            />
+          ) : (
+            <TransportTripsView snapshot={snapshot} />
+          )
+        ) : null}
+        {view === "attendance" ? (
+          apiMode ? (
+            <ApiReadUnavailablePanel
+              title="Transport attendance unavailable in API mode"
+              domainLabel="Transport boarding attendance"
+              hint="There is no institute-scoped read API for transport attendance marks. Demo boarding data is not shown in API mode."
+            />
+          ) : (
+            <TransportAttendanceView />
+          )
+        ) : null}
+        {view === "emergencies" ? (
+          apiMode ? (
+            <ApiReadUnavailablePanel
+              title="Emergencies unavailable in API mode"
+              domainLabel="Transport SOS emergencies"
+              hint="There is no institute-scoped read API for driver SOS cases. Demo emergency records are not shown in API mode."
+            />
+          ) : (
+            <TransportEmergenciesView />
+          )
+        ) : null}
+        {view === "analytics" ? (
+          apiMode ? (
+            <ApiReadUnavailablePanel
+              title="Transport analytics unavailable in API mode"
+              domainLabel="Transport analytics"
+              hint="There is no institute-scoped read API for transport analytics exports. Demo KPIs are not shown in API mode."
+            />
+          ) : (
+            <TransportAnalyticsView snapshot={snapshot} />
+          )
+        ) : null}
         {view === "settings" && (
           <TransportSettingsView
             snapshot={settingsSnapshot}
