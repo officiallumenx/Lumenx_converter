@@ -1,18 +1,28 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { NotificationBroadcastCompose } from "@/components/notifications/NotificationBroadcastCompose";
 import { NotificationCenterInbox } from "@/components/notifications/NotificationCenterInbox";
 import {
   getAdminNotifications,
-  getAdminUnreadCount,
   subscribeAdminNotifications,
   type AdminNotification,
 } from "@/lib/notification-center-store";
 import { startTransportAdminNotificationSync } from "@/lib/transport-notification-sync";
 import { SegmentedControl } from "@lumenx/ui-admin";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { useInstituteContext } from "@/lib/institutes";
+import {
+  loadNotificationInboxList,
+  resolveNotificationInboxListView,
+  shouldCommitNotificationInboxLoad,
+  type NotificationInboxListItem,
+  type NotificationInboxListStatus,
+} from "@/lib/notification-inbox";
 
 type Tab = "inbox" | "broadcast";
+
+type InboxRow = AdminNotification | NotificationInboxListItem;
 
 export const Route = createFileRoute("/notifications")({
   head: () => ({ meta: [{ title: "Notification Center — LumenX Admin" }] }),
@@ -26,56 +36,199 @@ export const Route = createFileRoute("/notifications")({
 });
 
 function NotificationsPage() {
+  const apiMode = isApiAuthMode();
+  const instituteCtx = useInstituteContext();
+  const writesEnabled = !apiMode;
+
   const { tab: tabFromSearch } = Route.useSearch();
   const navigate = Route.useNavigate();
-  const [tab, setTab] = useState<Tab>(tabFromSearch === "broadcast" ? "broadcast" : "inbox");
-  const [items, setItems] = useState<AdminNotification[]>(() => getAdminNotifications());
-  const [unread, setUnread] = useState(() => getAdminUnreadCount());
+  const [tab, setTab] = useState<Tab>(
+    tabFromSearch === "broadcast" && !apiMode ? "broadcast" : "inbox",
+  );
 
-  const refresh = useCallback(() => {
-    setItems(getAdminNotifications());
-    setUnread(getAdminUnreadCount());
+  const [demoItems, setDemoItems] = useState<AdminNotification[]>(() =>
+    apiMode ? [] : getAdminNotifications(),
+  );
+
+  const [apiItems, setApiItems] = useState<NotificationInboxListItem[]>([]);
+  const [listStatus, setListStatus] = useState<NotificationInboxListStatus>(() =>
+    apiMode ? "loading" : "demo",
+  );
+  const [listError, setListError] = useState<string | null>(null);
+  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
+    string | null
+  >(null);
+  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
+  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
+
+  const listView = resolveNotificationInboxListView({
+    apiMode,
+    instituteStatus: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+    resolvedForInstituteId,
+    storedItems: apiItems,
+    storedStatus: listStatus,
+    storedErrorMessage: listError,
+    instituteErrorMessage: instituteCtx.errorMessage,
+  });
+  const displayItems: InboxRow[] = apiMode ? listView.items : demoItems;
+  const displayUnread = displayItems.filter((n) => n.unread).length;
+
+  const refreshDemo = useCallback(() => {
+    setDemoItems(getAdminNotifications());
   }, []);
 
   useEffect(() => {
+    if (apiMode) return;
     startTransportAdminNotificationSync();
-  }, []);
-
-  useEffect(() => subscribeAdminNotifications(refresh), [refresh]);
+  }, [apiMode]);
 
   useEffect(() => {
+    if (apiMode) return;
+    return subscribeAdminNotifications(refreshDemo);
+  }, [apiMode, refreshDemo]);
+
+  useEffect(() => {
+    if (apiMode) return;
+
     if (tabFromSearch === "broadcast" || tabFromSearch === "inbox") {
       setTab(tabFromSearch);
     }
-  }, [tabFromSearch]);
+  }, [apiMode, tabFromSearch]);
+
+  useEffect(() => {
+    if (!apiMode) return;
+    if (tab !== "inbox") setTab("inbox");
+  }, [apiMode, tab]);
+
+  useEffect(() => {
+    if (!apiMode) return;
+
+    if (instituteCtx.status === "loading") {
+      setApiItems([]);
+      setListStatus("loading");
+      setListError(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "error" ||
+      instituteCtx.status === "forbidden"
+    ) {
+      setApiItems([]);
+      setListStatus(
+        instituteCtx.status === "forbidden" ? "forbidden" : "error",
+      );
+      setListError(instituteCtx.errorMessage);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "needs_selection" ||
+      instituteCtx.status === "empty" ||
+      !instituteCtx.activeInstituteId
+    ) {
+      setApiItems([]);
+      setListStatus("needs_institute");
+      setListError(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    let cancelled = false;
+    setListStatus("loading");
+    setListError(null);
+    void loadNotificationInboxList(requestInstituteId).then((next) => {
+      if (
+        !shouldCommitNotificationInboxLoad({
+          cancelled,
+          requestInstituteId,
+          activeInstituteId: activeInstituteIdRef.current,
+        })
+      ) {
+        return;
+      }
+      setApiItems(next.items);
+      setListStatus(next.status);
+      setListError(next.errorMessage);
+      setResolvedForInstituteId(requestInstituteId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    apiMode,
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    instituteCtx.errorMessage,
+  ]);
 
   const onTabChange = (next: Tab) => {
+    if (apiMode && next === "broadcast") return;
     setTab(next);
     void navigate({ search: { tab: next } });
   };
+
+  const unreadLabel =
+    apiMode && !listView.rowsValid
+      ? "…"
+      : displayUnread > 0
+        ? String(displayUnread)
+        : "0";
+
+  const listHint =
+    listView.status === "loading"
+      ? "Loading notifications…"
+      : listView.status === "needs_institute"
+        ? "Select an active institute to load notifications"
+        : listView.status === "forbidden"
+          ? "You do not have access to notifications for this institute"
+          : listView.status === "error"
+            ? listView.errorMessage ?? "Failed to load notifications"
+            : listView.status === "empty"
+              ? "No notifications yet"
+              : null;
 
   return (
     <AppShell
       title="Notification Center"
       subtitle={
-        tab === "inbox"
-          ? `${unread} unread · Read, search, filter, and open linked pages`
-          : "Targeted announcements & emergency alerts"
+        apiMode
+          ? "API mode · read-only · Institute notification inbox"
+          : tab === "inbox"
+            ? `${unreadLabel} unread · Read, search, filter, and open linked pages`
+            : "Targeted announcements & emergency alerts"
       }
     >
-      <div className="mb-4">
-        <SegmentedControl
-          value={tab}
-          onChange={onTabChange}
-          options={[
-            { value: "inbox", label: unread > 0 ? `Inbox (${unread})` : "Inbox" },
-            { value: "broadcast", label: "Broadcast" },
-          ]}
-        />
-      </div>
+      {!apiMode ? (
+        <div className="mb-4">
+          <SegmentedControl
+            value={tab}
+            onChange={onTabChange}
+            options={[
+              {
+                value: "inbox",
+                label:
+                  displayUnread > 0 ? `Inbox (${displayUnread})` : "Inbox",
+              },
+              { value: "broadcast", label: "Broadcast" },
+            ]}
+          />
+        </div>
+      ) : null}
 
-      {tab === "inbox" ? (
-        <NotificationCenterInbox items={items} onChange={refresh} />
+      {tab === "inbox" || apiMode ? (
+        <NotificationCenterInbox
+          items={displayItems}
+          onChange={refreshDemo}
+          writesEnabled={writesEnabled}
+          rowsValid={listView.rowsValid}
+          listHint={listHint}
+          instituteResetKey={instituteCtx.activeInstituteId}
+        />
       ) : (
         <NotificationBroadcastCompose />
       )}

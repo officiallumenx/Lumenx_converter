@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import type { NotificationCategory } from "@lumenx/types";
 import {
@@ -24,6 +24,7 @@ import {
   type NotificationDateFilter,
   type NotificationReadFilter,
 } from "@/lib/notification-center-store";
+import type { NotificationInboxListItem } from "@/lib/notification-inbox";
 import { useAdminToast } from "@/components/AdminActionToast";
 import {
   AlertTriangle,
@@ -43,13 +44,15 @@ const CATEGORY_OPTIONS: { value: NotificationCategory | "all"; label: string }[]
   })),
 ];
 
-function TypeIcon({ type }: { type: AdminNotification["type"] }) {
+type InboxRow = AdminNotification | NotificationInboxListItem;
+
+function TypeIcon({ type }: { type: InboxRow["type"] }) {
   if (type === "warning") return <AlertTriangle className="size-4" />;
   if (type === "positive") return <Sparkles className="size-4" />;
   return <Info className="size-4" />;
 }
 
-function typeTone(type: AdminNotification["type"]): "info" | "warning" | "success" {
+function typeTone(type: InboxRow["type"]): "info" | "warning" | "success" {
   if (type === "warning") return "warning";
   if (type === "positive") return "success";
   return "info";
@@ -58,9 +61,17 @@ function typeTone(type: AdminNotification["type"]): "info" | "warning" | "succes
 export function NotificationCenterInbox({
   items,
   onChange,
+  writesEnabled = true,
+  rowsValid = true,
+  listHint = null,
+  instituteResetKey = null,
 }: {
-  items: AdminNotification[];
+  items: InboxRow[];
   onChange: () => void;
+  writesEnabled?: boolean;
+  rowsValid?: boolean;
+  listHint?: string | null;
+  instituteResetKey?: string | null;
 }) {
   const notify = useAdminToast();
   const navigate = useNavigate();
@@ -68,16 +79,40 @@ export function NotificationCenterInbox({
   const [date, setDate] = useState<NotificationDateFilter>("all");
   const [category, setCategory] = useState<NotificationCategory | "all">("all");
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<AdminNotification | null>(null);
+  const [selected, setSelected] = useState<InboxRow | null>(null);
 
-  const unreadCount = useMemo(() => items.filter((n) => n.unread).length, [items]);
+  useEffect(() => {
+    setRead("all");
+    setDate("all");
+    setCategory("all");
+    setQuery("");
+    setSelected(null);
+  }, [instituteResetKey]);
+
+  const unreadCount = useMemo(
+    () => items.filter((n) => n.unread).length,
+    [items],
+  );
 
   const filtered = useMemo(
-    () => filterAdminNotifications(items, { read, category, date, query }),
+    () =>
+      filterAdminNotifications(items as AdminNotification[], {
+        read,
+        category,
+        date,
+        query,
+      }),
     [items, read, category, date, query],
   );
 
-  const openDetails = (n: AdminNotification) => {
+  const countLabel = (count: number) =>
+    !rowsValid ? "…" : String(count);
+
+  const openDetails = (n: InboxRow) => {
+    if (!writesEnabled) {
+      setSelected(n);
+      return;
+    }
     if (n.unread) {
       markAdminNotificationRead(n.id);
       onChange();
@@ -85,53 +120,72 @@ export function NotificationCenterInbox({
     setSelected(n.unread ? { ...n, unread: false } : n);
   };
 
-  const openDeepLink = (n: AdminNotification) => {
+  const openDeepLink = (n: InboxRow) => {
+    if (!writesEnabled) {
+      notify("Notification writes via API are not enabled in this cutover");
+      if (n.href) {
+        setSelected(null);
+        void navigate({ to: n.href as "/" });
+      }
+      return;
+    }
     if (n.unread) {
       markAdminNotificationRead(n.id);
       onChange();
     }
     if (n.href) {
       setSelected(null);
-      // Deep link into Admin routes (fees, admissions, attendance, …).
       void navigate({ to: n.href as "/" });
     }
   };
+
+  if (!rowsValid) {
+    return (
+      <Card className="p-5">
+        <div className="py-12 text-sm text-muted-foreground text-center">
+          {listHint ?? "Loading notifications…"}
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-4">
       <Card>
         <CardHeader
           title="Inbox"
-          hint={`${unreadCount} unread · ${items.length} total · shared notification templates`}
+          hint={`${countLabel(unreadCount)} unread · ${countLabel(items.length)} total · shared notification templates`}
           action={
-            <div className="flex flex-wrap gap-1.5 justify-end">
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={unreadCount === 0}
-                onClick={() => {
-                  markAllAdminNotificationsRead();
-                  onChange();
-                  notify("All notifications marked read");
-                }}
-              >
-                <CheckCheck className="size-3.5" /> Mark all read
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={items.length === 0}
-                onClick={() => {
-                  if (!window.confirm("Delete all notifications from the center?")) return;
-                  deleteAllAdminNotifications();
-                  setSelected(null);
-                  onChange();
-                  notify("All notifications deleted");
-                }}
-              >
-                <Trash2 className="size-3.5" /> Delete all
-              </Button>
-            </div>
+            writesEnabled ? (
+              <div className="flex flex-wrap gap-1.5 justify-end">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={unreadCount === 0}
+                  onClick={() => {
+                    markAllAdminNotificationsRead();
+                    onChange();
+                    notify("All notifications marked read");
+                  }}
+                >
+                  <CheckCheck className="size-3.5" /> Mark all read
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={items.length === 0}
+                  onClick={() => {
+                    if (!window.confirm("Delete all notifications from the center?")) return;
+                    deleteAllAdminNotifications();
+                    setSelected(null);
+                    onChange();
+                    notify("All notifications deleted");
+                  }}
+                >
+                  <Trash2 className="size-3.5" /> Delete all
+                </Button>
+              </div>
+            ) : null
           }
         />
         <CardBody className="space-y-4">
@@ -141,7 +195,10 @@ export function NotificationCenterInbox({
               onChange={setRead}
               options={[
                 { value: "all", label: "All" },
-                { value: "unread", label: `Unread (${unreadCount})` },
+                {
+                  value: "unread",
+                  label: `Unread (${countLabel(unreadCount)})`,
+                },
                 { value: "read", label: "Read" },
               ]}
             />
@@ -185,7 +242,7 @@ export function NotificationCenterInbox({
               title={items.length === 0 ? "No notifications" : "No matches"}
               hint={
                 items.length === 0
-                  ? "New ops alerts will appear here."
+                  ? listHint ?? "New ops alerts will appear here."
                   : "Try another category, date range, or search."
               }
             />
@@ -254,18 +311,20 @@ export function NotificationCenterInbox({
         footer={
           selected ? (
             <div className="flex flex-wrap gap-2 justify-end">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  deleteAdminNotification(selected.id);
-                  setSelected(null);
-                  onChange();
-                  notify("Notification deleted");
-                }}
-              >
-                <Trash2 className="size-3.5" /> Delete
-              </Button>
+              {writesEnabled ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    deleteAdminNotification(selected.id);
+                    setSelected(null);
+                    onChange();
+                    notify("Notification deleted");
+                  }}
+                >
+                  <Trash2 className="size-3.5" /> Delete
+                </Button>
+              ) : null}
               {selected.href ? (
                 <Button size="sm" variant="primary" onClick={() => openDeepLink(selected)}>
                   <ExternalLink className="size-3.5" /> Open linked page
