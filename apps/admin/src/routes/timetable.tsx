@@ -91,6 +91,8 @@ import {
   type TimetableReadiness,
 } from "@/lib/timetable-manager";
 import { useAdminWriteAccess } from "@/components/admin-write/AdminWriteAccessContext";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { TimetableApiPage } from "@/components/timetable/TimetableApiPage";
 
 export const Route = createFileRoute("/timetable")({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -108,6 +110,13 @@ function countFilled(grid: TimetableRecord["grid"], schedule: ReturnType<typeof 
 }
 
 function TimetablePage() {
+  if (isApiAuthMode()) {
+    return <TimetableApiPage />;
+  }
+  return <TimetableDemoPage />;
+}
+
+function TimetableDemoPage() {
   const search = useSearch({ from: "/timetable" });
   const { id: selectedId, createGrade: prefillGrade, createSection: prefillSection, openCreate } =
     search;
