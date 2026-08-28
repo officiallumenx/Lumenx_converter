@@ -1,11 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { AttendanceHubNav } from "@/components/attendance/AttendanceHubNav";
+import { AttendanceHubApiView } from "@/components/attendance/AttendanceHubApiView";
 import { AttendanceMonitorView } from "@/components/attendance/views/AttendanceMonitorView";
 import { AttendanceReportsView } from "@/components/attendance/views/AttendanceReportsView";
 import { AttendanceAnalyticsView } from "@/components/attendance/views/AttendanceAnalyticsView";
 import { parseHubView, validateHubViewSearch } from "@/lib/hub-view-search";
 import { adminPageTitle } from "@/lib/admin-module-labels";
+import { isApiAuthMode } from "@/auth/auth-mode";
 
 export type AttendanceHubView = "monitor" | "reports" | "analytics";
 
@@ -38,6 +40,18 @@ export const Route = createFileRoute("/attendance")({
 function AttendancePage() {
   const search = Route.useSearch();
   const view: AttendanceHubView = parseHubView(search.view, ATTENDANCE_VIEW_CONFIG);
+
+  if (isApiAuthMode()) {
+    return (
+      <AppShell
+        title={VIEW_TITLES[view]}
+        subtitle={`API mode · read-only · ${VIEW_SUBTITLES[view]}`}
+      >
+        <AttendanceHubNav active={view} />
+        <AttendanceHubApiView view={view} />
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell title={VIEW_TITLES[view]} subtitle={VIEW_SUBTITLES[view]}>
