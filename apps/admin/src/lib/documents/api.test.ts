@@ -1,0 +1,54 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createApiClient } from "@/lib/api";
+import type { DocumentTemplateDto } from "./types";
+
+const INST = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+
+describe("documents api repository", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it("lists document templates with institute_id in API mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const { listDocumentTemplates } = await import("./api");
+    const payload: DocumentTemplateDto[] = [
+      {
+        id: "ee111111-1111-4111-8111-111111111111",
+        ownerScope: "institute",
+        instituteId: INST,
+        type: "document",
+        name: "Bonafide",
+        description: null,
+        category: "official",
+        status: "active",
+        source: "custom",
+        version: 1,
+        previewAspect: "a4",
+        layoutMode: "blocks",
+        blocks: [],
+        visualTheme: null,
+        visualFields: null,
+        tags: [],
+        createdByUserId: null,
+        createdAt: "2026-06-01T10:00:00Z",
+        updatedAt: "2026-06-01T10:00:00Z",
+      },
+    ];
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ data: payload }),
+    });
+    const client = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => "tok",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    const result = await listDocumentTemplates({ instituteId: INST }, client);
+    expect(result).toEqual(payload);
+    const url = fetchMock.mock.calls[0][0] as string;
+    expect(url).toContain("/api/v1/documents/templates?");
+    expect(url).toContain(`institute_id=${INST}`);
+  });
+});

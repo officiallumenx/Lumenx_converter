@@ -14,6 +14,21 @@ import { DocCategoriesView } from "@/components/documents/views/DocCategoriesVie
 import { DocSettingsView } from "@/components/documents/views/DocSettingsView";
 import { validateHubViewSearch } from "@/lib/hub-view-search";
 import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-labels";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { useInstituteContext } from "@/lib/institutes";
+import type { GeneratedDocument, TemplateRecord } from "@/lib/template-management/types";
+import {
+  loadDocumentsGeneratedList,
+  loadDocumentsTemplatesList,
+  resolveDocumentsGeneratedListView,
+  resolveDocumentsTemplatesListView,
+  shouldCommitDocumentsGeneratedLoad,
+  shouldCommitDocumentsTemplatesLoad,
+  type DocumentsGeneratedListStatus,
+  type DocumentsListStatus,
+  type DocumentsTemplatesListStatus,
+} from "@/lib/documents";
 
 /** Kept for legacy document components that still reference this type. */
 export type DocHubView =
@@ -77,25 +92,281 @@ export const Route = createFileRoute("/documents")({
   component: DocumentsPage,
 });
 
+function documentsListHint(
+  status: DocumentsListStatus,
+  errorMessage: string | null,
+  entityLabel: string,
+  forbiddenFallback: string,
+): string | null {
+  if (status === "loading") return `Loading ${entityLabel}…`;
+  if (status === "needs_institute") return `Select an institute to load ${entityLabel}.`;
+  if (status === "forbidden") return errorMessage ?? forbiddenFallback;
+  if (status === "error") return errorMessage ?? `Failed to load ${entityLabel}.`;
+  if (status === "empty") return `No ${entityLabel} found for this institute.`;
+  return null;
+}
+
 function DocumentsPage() {
   const { view } = Route.useSearch();
   const navigate = useNavigate();
+  const apiMode = isApiAuthMode();
+  const writesEnabled = !apiMode;
+  const instituteCtx = useInstituteContext();
+  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
+  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
+
+  const [apiTemplates, setApiTemplates] = useState<TemplateRecord[]>([]);
+  const [templatesListStatus, setTemplatesListStatus] =
+    useState<DocumentsTemplatesListStatus>(() => (apiMode ? "loading" : "demo"));
+  const [templatesListError, setTemplatesListError] = useState<string | null>(null);
+  const [templatesResolvedForInstituteId, setTemplatesResolvedForInstituteId] =
+    useState<string | null>(null);
+
+  const [apiGenerated, setApiGenerated] = useState<GeneratedDocument[]>([]);
+  const [generatedListStatus, setGeneratedListStatus] =
+    useState<DocumentsGeneratedListStatus>(() => (apiMode ? "loading" : "demo"));
+  const [generatedListError, setGeneratedListError] = useState<string | null>(null);
+  const [generatedResolvedForInstituteId, setGeneratedResolvedForInstituteId] =
+    useState<string | null>(null);
+
+  const templatesListView = resolveDocumentsTemplatesListView({
+    apiMode,
+    instituteStatus: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+    resolvedForInstituteId: templatesResolvedForInstituteId,
+    storedItems: apiTemplates,
+    storedStatus: templatesListStatus,
+    storedErrorMessage: templatesListError,
+    instituteErrorMessage: instituteCtx.errorMessage,
+  });
+
+  const generatedListView = resolveDocumentsGeneratedListView({
+    apiMode,
+    instituteStatus: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+    resolvedForInstituteId: generatedResolvedForInstituteId,
+    storedItems: apiGenerated,
+    storedStatus: generatedListStatus,
+    storedErrorMessage: generatedListError,
+    instituteErrorMessage: instituteCtx.errorMessage,
+  });
+
+  const templatesHint = documentsListHint(
+    templatesListView.status,
+    templatesListView.errorMessage,
+    "document templates",
+    "You do not have access to document templates for this institute.",
+  );
+
+  const generatedHint = documentsListHint(
+    generatedListView.status,
+    generatedListView.errorMessage,
+    "generated documents",
+    "You do not have access to generated documents for this institute.",
+  );
+
+  useEffect(() => {
+    if (!apiMode || view !== "templates") return;
+
+    if (instituteCtx.status === "loading") {
+      setApiTemplates([]);
+      setTemplatesListStatus("loading");
+      setTemplatesListError(null);
+      setTemplatesResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "error" ||
+      instituteCtx.status === "forbidden"
+    ) {
+      setApiTemplates([]);
+      setTemplatesListStatus(
+        instituteCtx.status === "forbidden" ? "forbidden" : "error",
+      );
+      setTemplatesListError(instituteCtx.errorMessage);
+      setTemplatesResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "needs_selection" ||
+      instituteCtx.status === "empty" ||
+      !instituteCtx.activeInstituteId
+    ) {
+      setApiTemplates([]);
+      setTemplatesListStatus("needs_institute");
+      setTemplatesListError(null);
+      setTemplatesResolvedForInstituteId(null);
+      return;
+    }
+
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    let cancelled = false;
+    setTemplatesListStatus("loading");
+    setTemplatesListError(null);
+    void loadDocumentsTemplatesList(requestInstituteId).then((next) => {
+      if (
+        !shouldCommitDocumentsTemplatesLoad({
+          cancelled,
+          requestInstituteId,
+          activeInstituteId: activeInstituteIdRef.current,
+        })
+      ) {
+        return;
+      }
+      setApiTemplates(next.items);
+      setTemplatesListStatus(next.status);
+      setTemplatesListError(next.errorMessage);
+      setTemplatesResolvedForInstituteId(requestInstituteId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    apiMode,
+    view,
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    instituteCtx.errorMessage,
+  ]);
+
+  useEffect(() => {
+    if (!apiMode || view !== "generated") return;
+
+    if (instituteCtx.status === "loading") {
+      setApiGenerated([]);
+      setGeneratedListStatus("loading");
+      setGeneratedListError(null);
+      setGeneratedResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "error" ||
+      instituteCtx.status === "forbidden"
+    ) {
+      setApiGenerated([]);
+      setGeneratedListStatus(
+        instituteCtx.status === "forbidden" ? "forbidden" : "error",
+      );
+      setGeneratedListError(instituteCtx.errorMessage);
+      setGeneratedResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "needs_selection" ||
+      instituteCtx.status === "empty" ||
+      !instituteCtx.activeInstituteId
+    ) {
+      setApiGenerated([]);
+      setGeneratedListStatus("needs_institute");
+      setGeneratedListError(null);
+      setGeneratedResolvedForInstituteId(null);
+      return;
+    }
+
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    let cancelled = false;
+    setGeneratedListStatus("loading");
+    setGeneratedListError(null);
+    void loadDocumentsGeneratedList(requestInstituteId).then((next) => {
+      if (
+        !shouldCommitDocumentsGeneratedLoad({
+          cancelled,
+          requestInstituteId,
+          activeInstituteId: activeInstituteIdRef.current,
+        })
+      ) {
+        return;
+      }
+      setApiGenerated(next.items);
+      setGeneratedListStatus(next.status);
+      setGeneratedListError(next.errorMessage);
+      setGeneratedResolvedForInstituteId(requestInstituteId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    apiMode,
+    view,
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    instituteCtx.errorMessage,
+  ]);
+
+  const apiTemplatesForView = useMemo(() => {
+    if (!apiMode || view !== "templates" || !templatesListView.rowsValid) {
+      return undefined;
+    }
+    return templatesListView.items.filter(
+      (t) => t.kind === "document" || t.kind === "certificate",
+    );
+  }, [apiMode, view, templatesListView.items, templatesListView.rowsValid]);
+
+  const apiGeneratedForView = useMemo(() => {
+    if (!apiMode || view !== "generated" || !generatedListView.rowsValid) {
+      return undefined;
+    }
+    return generatedListView.items;
+  }, [apiMode, view, generatedListView.items, generatedListView.rowsValid]);
+
+  const subtitle = useMemo(() => {
+    const base = VIEW_SUBTITLES[view];
+    if (!apiMode) return base;
+    if (view === "templates") {
+      return templatesListView.rowsValid
+        ? `API mode · read-only · ${templatesListView.items.length} templates`
+        : `API mode · read-only · ${templatesHint ?? "…"}`;
+    }
+    if (view === "generated") {
+      return generatedListView.rowsValid
+        ? `API mode · read-only · ${generatedListView.items.length} documents`
+        : `API mode · read-only · ${generatedHint ?? "…"}`;
+    }
+    return base;
+  }, [
+    apiMode,
+    view,
+    templatesListView.items.length,
+    templatesListView.rowsValid,
+    templatesHint,
+    generatedListView.items.length,
+    generatedListView.rowsValid,
+    generatedHint,
+  ]);
 
   const goToView = (nextView: DocHubView) =>
     navigate({ to: "/documents", search: { view: nextView } });
 
   return (
-    <AppShell title={VIEW_TITLES[view]} subtitle={VIEW_SUBTITLES[view]}>
+    <AppShell title={VIEW_TITLES[view]} subtitle={subtitle}>
       <DocHubNav active={view} />
       <AdminPageTransition pageKey={view}>
         {view === "dashboard" && <DocDashboardView />}
         {view === "requests" && <DocRequestsView />}
         {view === "packages" && <DocPackagesView />}
-        {view === "templates" && <DocTemplatesView />}
+        {view === "templates" && (
+          <DocTemplatesView
+            templates={apiTemplatesForView}
+            writesEnabled={writesEnabled}
+            listBlocked={apiMode && !templatesListView.rowsValid}
+            listHint={templatesHint}
+          />
+        )}
         {view === "generate" && (
           <DocGenerateView onViewGenerated={() => goToView("generated")} />
         )}
-        {view === "generated" && <DocGeneratedView />}
+        {view === "generated" && (
+          <DocGeneratedView
+            documents={apiGeneratedForView}
+            writesEnabled={writesEnabled}
+            listBlocked={apiMode && !generatedListView.rowsValid}
+            listHint={generatedHint}
+          />
+        )}
         {view === "published" && <DocPublishedView />}
         {view === "signatures" && <DocSignaturesView />}
         {view === "categories" && <DocCategoriesView />}

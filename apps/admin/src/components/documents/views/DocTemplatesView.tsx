@@ -21,10 +21,17 @@ import {
   activateTemplate,
 } from "@/lib/template-management/store";
 import { categoryLabel } from "@/lib/template-management/categories";
-import type { TemplateStatus } from "@/lib/template-management/types";
+import type { TemplateRecord, TemplateStatus } from "@/lib/template-management/types";
 import { useTemplateStore } from "@/components/templates/useTemplateStore";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { FileText, ExternalLink, Power, Wand2, FileCheck } from "lucide-react";
+
+type DocTemplatesViewProps = {
+  templates?: TemplateRecord[];
+  writesEnabled?: boolean;
+  listBlocked?: boolean;
+  listHint?: string | null;
+};
 
 const KIND_LABEL = {
   certificate: "Certificate",
@@ -43,17 +50,24 @@ const STATUS_TONE: Record<TemplateStatus, "success" | "warning" | "neutral"> = {
  * Documents hub Templates tab — same store as Certificates module.
  * Edit / activate / issue live in /templates.
  */
-export function DocTemplatesView() {
+export function DocTemplatesView({
+  templates,
+  writesEnabled = true,
+  listBlocked = false,
+  listHint = null,
+}: DocTemplatesViewProps) {
   const revision = useTemplateStore();
   const notify = useAdminToast();
   const [source, setSource] = useState<"all" | "system" | "custom" | "imported">("all");
   const [status, setStatus] = useState<TemplateStatus | "all">("all");
   const [q, setQ] = useState("");
 
-  const list = useMemo(
-    () => getAllTemplates().filter((t) => t.kind === "document" || t.kind === "certificate"),
-    [revision],
-  );
+  const list = useMemo(() => {
+    const rows =
+      templates ??
+      getAllTemplates().filter((t) => t.kind === "document" || t.kind === "certificate");
+    return rows;
+  }, [templates, revision]);
 
   const filtered = useMemo(() => {
     return list.filter((t) => {
@@ -78,6 +92,14 @@ export function DocTemplatesView() {
     };
   }, [list]);
 
+  if (listBlocked) {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">
+        {listHint ?? "Loading document templates…"}
+      </div>
+    );
+  }
+
   return (
     <PageStack>
       <Card className="border-primary/20 bg-primary/5">
@@ -88,16 +110,22 @@ export function DocTemplatesView() {
               Same library as Certificates & Documents. Activate drafts there, then issue from either hub.
             </p>
           </div>
-          <Link to="/templates" search={{ view: "library" }}>
-            <Button size="sm" variant="primary">
-              <ExternalLink className="size-3.5" /> Open Library
-            </Button>
-          </Link>
-          <Link to="/templates" search={{ view: "builder" }}>
-            <Button size="sm">
-              <Wand2 className="size-3.5" /> Builder
-            </Button>
-          </Link>
+          {writesEnabled ? (
+            <>
+              <Link to="/templates" search={{ view: "library" }}>
+                <Button size="sm" variant="primary">
+                  <ExternalLink className="size-3.5" /> Open Library
+                </Button>
+              </Link>
+              <Link to="/templates" search={{ view: "builder" }}>
+                <Button size="sm">
+                  <Wand2 className="size-3.5" /> Builder
+                </Button>
+              </Link>
+            </>
+          ) : (
+            <Pill tone="neutral">Read-only · API mode</Pill>
+          )}
         </div>
       </Card>
 
@@ -179,31 +207,35 @@ export function DocTemplatesView() {
                     <Pill tone={STATUS_TONE[t.status]}>{t.status}</Pill>
                   </Td>
                   <Td>
-                    <div className="flex flex-wrap gap-1">
-                      {t.status === "draft" && t.source === "custom" && (
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            activateTemplate(t.id);
-                            notify(`Activated "${t.name}"`);
-                          }}
-                        >
-                          <Power className="size-3" /> Activate
-                        </Button>
-                      )}
-                      {t.status === "active" && (
-                        <Link to="/templates" search={{ view: "generate", templateId: t.id }}>
-                          <Button size="sm" variant="primary">
-                            <FileCheck className="size-3" /> Issue
+                    {writesEnabled ? (
+                      <div className="flex flex-wrap gap-1">
+                        {t.status === "draft" && t.source === "custom" && (
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              activateTemplate(t.id);
+                              notify(`Activated "${t.name}"`);
+                            }}
+                          >
+                            <Power className="size-3" /> Activate
+                          </Button>
+                        )}
+                        {t.status === "active" && (
+                          <Link to="/templates" search={{ view: "generate", templateId: t.id }}>
+                            <Button size="sm" variant="primary">
+                              <FileCheck className="size-3" /> Issue
+                            </Button>
+                          </Link>
+                        )}
+                        <Link to="/templates" search={{ view: "builder", templateId: t.id }}>
+                          <Button size="sm">
+                            <Wand2 className="size-3" /> Edit
                           </Button>
                         </Link>
-                      )}
-                      <Link to="/templates" search={{ view: "builder", templateId: t.id }}>
-                        <Button size="sm">
-                          <Wand2 className="size-3" /> Edit
-                        </Button>
-                      </Link>
-                    </div>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
                   </Td>
                 </Tr>
               ))}

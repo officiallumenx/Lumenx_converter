@@ -205,11 +205,13 @@ function DetailPanel({
   onAdvance,
   onReject,
   onClose,
+  writesEnabled = true,
 }: {
   doc: GeneratedDocument;
   onAdvance: () => void;
   onReject: () => void;
   onClose: () => void;
+  writesEnabled?: boolean;
 }) {
   const [visible, setVisible] = useState(false);
   useEffect(() => {
@@ -352,7 +354,9 @@ function DetailPanel({
         </div>
 
         {/* Footer actions */}
-        {doc.workflowState !== "published" && doc.workflowState !== "rejected" && (
+        {writesEnabled &&
+          doc.workflowState !== "published" &&
+          doc.workflowState !== "rejected" && (
           <div className="px-5 py-4 border-t border-border bg-surface/30 flex items-center gap-2">
             {hasNext && (
               <Button variant="primary" className="flex-1 justify-center" onClick={onAdvance}>
@@ -373,20 +377,20 @@ function DetailPanel({
   );
 }
 
-// ─── Pipeline column ──────────────────────────────────────────────────────────
-
 function PipelineColumn({
   state,
   docs,
   selected,
   onToggle,
   onSelect,
+  writesEnabled = true,
 }: {
   state: WorkflowState;
   docs: GeneratedDocument[];
   selected: Set<string>;
   onToggle: (id: string) => void;
   onSelect: (doc: GeneratedDocument) => void;
+  writesEnabled?: boolean;
 }) {
   const EmptyIcon = COL_EMPTY_ICON[state];
 
@@ -412,7 +416,7 @@ function PipelineColumn({
             <p className="text-[10px] text-muted-foreground/60 leading-snug max-w-[110px]">
               {COL_EMPTY_MSG[state]}
             </p>
-            {state === "draft" && (
+            {state === "draft" && writesEnabled && (
               <Link to="/documents" search={{ view: "generate" }}>
                 <button type="button" className="text-[10px] text-primary hover:underline font-medium mt-0.5">
                   Generate →
@@ -428,6 +432,7 @@ function PipelineColumn({
               selected={selected.has(doc.id)}
               onToggle={() => onToggle(doc.id)}
               onOpen={() => onSelect(doc)}
+              writesEnabled={writesEnabled}
             />
           ))
         )}
@@ -437,12 +442,13 @@ function PipelineColumn({
 }
 
 function PipelineCard({
-  doc, selected, onToggle, onOpen,
+  doc, selected, onToggle, onOpen, writesEnabled = true,
 }: {
   doc: GeneratedDocument;
   selected: boolean;
   onToggle: () => void;
   onOpen: () => void;
+  writesEnabled?: boolean;
 }) {
   return (
     <div
@@ -452,13 +458,15 @@ function PipelineCard({
       onClick={onOpen}
     >
       <div className="flex items-start gap-2">
-        <input
-          type="checkbox"
-          checked={selected}
-          onChange={(e) => { e.stopPropagation(); onToggle(); }}
-          className="mt-0.5 accent-primary shrink-0"
-          onClick={(e) => e.stopPropagation()}
-        />
+        {writesEnabled ? (
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={(e) => { e.stopPropagation(); onToggle(); }}
+            className="mt-0.5 accent-primary shrink-0"
+            onClick={(e) => e.stopPropagation()}
+          />
+        ) : null}
         <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold leading-tight truncate">{doc.templateName}</p>
           <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{doc.recipientName}</p>
@@ -562,8 +570,22 @@ function TableView({ docs, onSelect }: { docs: GeneratedDocument[]; onSelect: (d
 type ViewMode = "pipeline" | "table";
 type StateFilter = WorkflowState | "all" | "pending";
 
-export function DocGeneratedView() {
-  const [docs, setDocs] = useState<GeneratedDocument[]>(() => getGeneratedDocuments());
+type DocGeneratedViewProps = {
+  documents?: GeneratedDocument[];
+  writesEnabled?: boolean;
+  listBlocked?: boolean;
+  listHint?: string | null;
+};
+
+export function DocGeneratedView({
+  documents,
+  writesEnabled = true,
+  listBlocked = false,
+  listHint = null,
+}: DocGeneratedViewProps) {
+  const [docs, setDocs] = useState<GeneratedDocument[]>(
+    () => documents ?? getGeneratedDocuments(),
+  );
   const [viewMode, setViewMode] = useState<ViewMode>("pipeline");
   const [stateFilter, setStateFilter] = useState<StateFilter>("pending");
   const [q, setQ] = useState("");
@@ -571,7 +593,14 @@ export function DocGeneratedView() {
   const [detailDoc, setDetailDoc] = useState<GeneratedDocument | null>(null);
   const [rejectingDoc, setRejectingDoc] = useState<GeneratedDocument | null>(null);
 
-  const refresh = useCallback(() => setDocs(getGeneratedDocuments()), []);
+  const refresh = useCallback(
+    () => setDocs(documents ?? getGeneratedDocuments()),
+    [documents],
+  );
+
+  useEffect(() => {
+    if (documents) setDocs(documents);
+  }, [documents]);
 
   const kpis = useMemo(() => ({
     draft: docs.filter((d) => d.workflowState === "draft").length,
@@ -598,14 +627,18 @@ export function DocGeneratedView() {
   }, [docs, stateFilter, q]);
 
   const handleAdvance = (doc: GeneratedDocument) => {
+    if (!writesEnabled) return;
     advanceWorkflowState(doc.id, "Admin User");
     refresh();
     setDetailDoc((prev) =>
-      prev?.id === doc.id ? (getGeneratedDocuments().find((d) => d.id === doc.id) ?? null) : prev,
+      prev?.id === doc.id
+        ? ((documents ?? getGeneratedDocuments()).find((d) => d.id === doc.id) ?? null)
+        : prev,
     );
   };
 
   const handleReject = (doc: GeneratedDocument, reason: string) => {
+    if (!writesEnabled) return;
     rejectWorkflowDocument(doc.id, "Admin User", reason);
     refresh();
     setRejectingDoc(null);
@@ -613,6 +646,7 @@ export function DocGeneratedView() {
   };
 
   const handleBatchAdvance = () => {
+    if (!writesEnabled) return;
     batchAdvanceWorkflow([...selected], "Admin User");
     setSelected(new Set());
     refresh();
@@ -641,6 +675,14 @@ export function DocGeneratedView() {
     }
     return PIPELINE_STATES;
   }, [stateFilter]);
+
+  if (listBlocked) {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">
+        {listHint ?? "Loading generated documents…"}
+      </div>
+    );
+  }
 
   return (
     <PageStack>
@@ -692,14 +734,16 @@ export function DocGeneratedView() {
           </div>
 
           <Link to="/documents" search={{ view: "generate" }}>
-            <Button variant="primary" size="sm">
-              <Wand2 className="size-3.5" /> Generate new
-            </Button>
+            {writesEnabled ? (
+              <Button variant="primary" size="sm">
+                <Wand2 className="size-3.5" /> Generate new
+              </Button>
+            ) : null}
           </Link>
         </PageToolbar>
 
         {/* Batch action bar */}
-        {selected.size > 0 && (
+        {writesEnabled && selected.size > 0 && (
           <div className="px-4 py-2.5 bg-primary/5 border-b border-primary/15 flex items-center gap-3 flex-wrap">
             <div className="size-5 rounded-full bg-primary/15 flex items-center justify-center">
               <span className="text-[10px] font-bold text-primary">{selected.size}</span>
@@ -725,6 +769,7 @@ export function DocGeneratedView() {
                   selected={selected}
                   onToggle={toggleSelect}
                   onSelect={setDetailDoc}
+                  writesEnabled={writesEnabled}
                 />
               ))}
             </div>
@@ -737,15 +782,19 @@ export function DocGeneratedView() {
       {/* Detail panel */}
       {detailDoc && (
         <DetailPanel
-          doc={getGeneratedDocuments().find((d) => d.id === detailDoc.id) ?? detailDoc}
+          doc={
+            (documents ?? getGeneratedDocuments()).find((d) => d.id === detailDoc.id) ??
+            detailDoc
+          }
           onAdvance={() => handleAdvance(detailDoc)}
           onReject={() => setRejectingDoc(detailDoc)}
           onClose={() => setDetailDoc(null)}
+          writesEnabled={writesEnabled}
         />
       )}
 
       {/* Reject modal */}
-      {rejectingDoc && (
+      {writesEnabled && rejectingDoc && (
         <RejectModal
           doc={rejectingDoc}
           onConfirm={(reason) => handleReject(rejectingDoc, reason)}
