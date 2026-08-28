@@ -1,4 +1,40 @@
-/** Mirrors backend CareerApplicationDto — keep in sync with domains/careers/types.ts. */
+/** Mirrors backend careers DTOs — keep in sync with domains/careers/types.ts. */
+
+export type CareerJobStatus = "draft" | "open" | "closed";
+export type CareerEmploymentType = "full_time" | "part_time" | "contract";
+export type CareerWorkMode = "onsite" | "remote" | "hybrid";
+
+export type CareerJobDto = {
+  id: string;
+  instituteId: string;
+  title: string;
+  slug: string;
+  description: string | null;
+  category: string;
+  employmentType: CareerEmploymentType;
+  workMode: CareerWorkMode;
+  locationLabel: string | null;
+  openingsCount: number;
+  status: CareerJobStatus;
+  createdByUserId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CareerJobListItem = {
+  id: string;
+  title: string;
+  category: string;
+  status: CareerJobStatus;
+  employmentTypeLabel: string;
+  workModeLabel: string;
+  locationLabel: string;
+  openingsCount: number;
+};
+
+export type ListCareerJobsParams = {
+  instituteId: string;
+};
 
 export type CareerApplicationStatus =
   | "draft"

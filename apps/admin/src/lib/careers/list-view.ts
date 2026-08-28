@@ -1,5 +1,5 @@
-import type { CareerApplicationListItem } from "./types";
-import type { CareersListStatus } from "./load";
+import type { CareerApplicationListItem, CareerJobListItem } from "./types";
+import type { CareersJobsListStatus, CareersListStatus } from "./load";
 
 export type CareersInstituteGateStatus =
   | "demo"
@@ -10,27 +10,27 @@ export type CareersInstituteGateStatus =
   | "forbidden"
   | "error";
 
-export type ResolveCareersListViewInput = {
+type ResolveCareersResourceListViewInput<T> = {
   apiMode: boolean;
   instituteStatus: CareersInstituteGateStatus;
   activeInstituteId: string | null;
   resolvedForInstituteId: string | null;
-  storedItems: CareerApplicationListItem[];
+  storedItems: T[];
   storedStatus: CareersListStatus;
   storedErrorMessage: string | null;
   instituteErrorMessage: string | null;
 };
 
-export type CareersListView = {
+type CareersResourceListView<T> = {
   status: CareersListStatus;
-  items: CareerApplicationListItem[];
+  items: T[];
   errorMessage: string | null;
   rowsValid: boolean;
 };
 
-export function resolveCareersListView(
-  input: ResolveCareersListViewInput,
-): CareersListView {
+function resolveCareersResourceListView<T>(
+  input: ResolveCareersResourceListViewInput<T>,
+): CareersResourceListView<T> {
   if (!input.apiMode) {
     return {
       status: "demo",
@@ -91,6 +91,32 @@ export function resolveCareersListView(
   };
 }
 
+export type ResolveCareersListViewInput =
+  ResolveCareersResourceListViewInput<CareerApplicationListItem> & {
+    storedStatus: CareersListStatus;
+  };
+
+export type CareersListView = CareersResourceListView<CareerApplicationListItem>;
+
+export function resolveCareersListView(
+  input: ResolveCareersListViewInput,
+): CareersListView {
+  return resolveCareersResourceListView(input);
+}
+
+export type ResolveCareerJobsListViewInput =
+  ResolveCareersResourceListViewInput<CareerJobListItem> & {
+    storedStatus: CareersJobsListStatus;
+  };
+
+export type CareerJobsListView = CareersResourceListView<CareerJobListItem>;
+
+export function resolveCareerJobsListView(
+  input: ResolveCareerJobsListViewInput,
+): CareerJobsListView {
+  return resolveCareersResourceListView(input);
+}
+
 export function shouldCommitCareersLoad(opts: {
   cancelled: boolean;
   requestInstituteId: string;
@@ -99,4 +125,12 @@ export function shouldCommitCareersLoad(opts: {
   if (opts.cancelled) return false;
   if (!opts.activeInstituteId) return false;
   return opts.requestInstituteId === opts.activeInstituteId;
+}
+
+export function shouldCommitCareerJobsLoad(opts: {
+  cancelled: boolean;
+  requestInstituteId: string;
+  activeInstituteId: string | null;
+}): boolean {
+  return shouldCommitCareersLoad(opts);
 }

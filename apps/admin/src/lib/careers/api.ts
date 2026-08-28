@@ -5,7 +5,12 @@ import { getAdminApiClient } from "@/lib/admin-api";
 import type { AdminApiClient } from "@/lib/api";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { isInstituteUuid } from "@/lib/active-institute";
-import type { CareerApplicationDto, ListCareerApplicationsParams } from "./types";
+import type {
+  CareerApplicationDto,
+  CareerJobDto,
+  ListCareerApplicationsParams,
+  ListCareerJobsParams,
+} from "./types";
 
 function assertApiMode(): void {
   if (!isApiAuthMode()) {
@@ -27,5 +32,20 @@ export async function listCareerApplications(
   query.set("institute_id", params.instituteId.trim());
   return client.get<CareerApplicationDto[]>(
     `/api/v1/careers/applications?${query.toString()}`,
+  );
+}
+
+export async function listCareerJobs(
+  params: ListCareerJobsParams,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<CareerJobDto[]> {
+  assertApiMode();
+  if (!isInstituteUuid(params.instituteId)) {
+    throw new Error("institute_id must be a valid UUID");
+  }
+  const query = new URLSearchParams();
+  query.set("institute_id", params.instituteId.trim());
+  return client.get<CareerJobDto[]>(
+    `/api/v1/careers/jobs?${query.toString()}`,
   );
 }

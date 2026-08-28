@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   careerApplicationDtoToListItem,
+  careerJobDtoToListItem,
   mapCareerStatusToStage,
 } from "./map";
 import type { CareerApplicationDto } from "./types";
@@ -41,5 +42,28 @@ describe("careers DTO mapping", () => {
     expect(mapCareerStatusToStage("interview_scheduled")).toBe("interview");
     expect(mapCareerStatusToStage("on_hold")).toBe("waitlist");
     expect(mapCareerStatusToStage("rejected")).toBe("rejected");
+  });
+
+  it("maps job DTO to list item", () => {
+    const item = careerJobDtoToListItem({
+      id: "jj111111-1111-4111-8111-111111111111",
+      instituteId: INST,
+      title: "Math Teacher",
+      slug: "math-teacher",
+      description: null,
+      category: "Teaching",
+      employmentType: "full_time",
+      workMode: "hybrid",
+      locationLabel: "Campus A",
+      openingsCount: 2,
+      status: "open",
+      createdByUserId: "uu111111-1111-4111-8111-111111111111",
+      createdAt: "2026-06-01T10:00:00Z",
+      updatedAt: "2026-06-01T10:00:00Z",
+    });
+    expect(item.title).toBe("Math Teacher");
+    expect(item.employmentTypeLabel).toBe("Full time");
+    expect(item.workModeLabel).toBe("Hybrid");
+    expect(item.openingsCount).toBe(2);
   });
 });

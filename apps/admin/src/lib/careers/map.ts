@@ -3,7 +3,23 @@ import type {
   CareerApplicationListItem,
   CareerApplicationStage,
   CareerApplicationStatus,
+  CareerEmploymentType,
+  CareerJobDto,
+  CareerJobListItem,
+  CareerWorkMode,
 } from "./types";
+
+const EMPLOYMENT_LABELS: Record<CareerEmploymentType, string> = {
+  full_time: "Full time",
+  part_time: "Part time",
+  contract: "Contract",
+};
+
+const WORK_MODE_LABELS: Record<CareerWorkMode, string> = {
+  onsite: "On-site",
+  remote: "Remote",
+  hybrid: "Hybrid",
+};
 
 function shortRef(id: string, prefix: string): string {
   const token = id?.trim().slice(0, 8) || "—";
@@ -95,4 +111,24 @@ export function careerApplicationDtosToListItems(
     throw new TypeError("Careers API response must be an array");
   }
   return rows.map(careerApplicationDtoToListItem);
+}
+
+export function careerJobDtoToListItem(dto: CareerJobDto): CareerJobListItem {
+  return {
+    id: dto.id,
+    title: dto.title?.trim() || "Job",
+    category: dto.category?.trim() || "—",
+    status: dto.status,
+    employmentTypeLabel: EMPLOYMENT_LABELS[dto.employmentType] ?? dto.employmentType,
+    workModeLabel: WORK_MODE_LABELS[dto.workMode] ?? dto.workMode,
+    locationLabel: dto.locationLabel?.trim() || "—",
+    openingsCount: dto.openingsCount,
+  };
+}
+
+export function careerJobDtosToListItems(rows: CareerJobDto[]): CareerJobListItem[] {
+  if (!Array.isArray(rows)) {
+    throw new TypeError("Careers jobs API response must be an array");
+  }
+  return rows.map(careerJobDtoToListItem);
 }

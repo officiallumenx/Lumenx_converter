@@ -38,10 +38,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
 import {
+  loadCareerJobsList,
   loadCareersList,
+  resolveCareerJobsListView,
   resolveCareersListView,
+  shouldCommitCareerJobsLoad,
   shouldCommitCareersLoad,
   type CareerApplicationListItem,
+  type CareerJobListItem,
+  type CareerJobStatus,
+  type CareersJobsListStatus,
   type CareersListStatus,
 } from "@/lib/careers";
 
@@ -74,6 +80,26 @@ function writeAppsSnapshot(next: AdminCareerSyncRow[]) {
   }
 }
 
+function jobsListHint(
+  status: CareersJobsListStatus,
+  errorMessage: string | null,
+): string | null {
+  if (status === "loading") return "Loading career jobs…";
+  if (status === "needs_institute") return "Select an institute to load career jobs.";
+  if (status === "forbidden") {
+    return errorMessage ?? "You do not have access to career jobs for this institute.";
+  }
+  if (status === "error") return errorMessage ?? "Failed to load career jobs.";
+  if (status === "empty") return "No job postings found for this institute.";
+  return null;
+}
+
+function jobStatusTone(status: CareerJobStatus): "neutral" | "success" | "warning" {
+  if (status === "open") return "success";
+  if (status === "closed") return "warning";
+  return "neutral";
+}
+
 /**
  * Thin Admin bridge for Careers.
  * Job posting and applicant review live in Connect Careers (recruiter).
@@ -92,6 +118,14 @@ function CareersPage() {
     apiMode ? "loading" : "demo",
   );
   const [listError, setListError] = useState<string | null>(null);
+  const [apiJobs, setApiJobs] = useState<CareerJobListItem[]>([]);
+  const [jobsStatus, setJobsStatus] = useState<CareersJobsListStatus>(() =>
+    apiMode ? "loading" : "demo",
+  );
+  const [jobsError, setJobsError] = useState<string | null>(null);
+  const [jobsResolvedForInstituteId, setJobsResolvedForInstituteId] = useState<
+    string | null
+  >(null);
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
@@ -108,10 +142,22 @@ function CareersPage() {
     storedErrorMessage: listError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
+  const jobsListView = resolveCareerJobsListView({
+    apiMode,
+    instituteStatus: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+    resolvedForInstituteId: jobsResolvedForInstituteId,
+    storedItems: apiJobs,
+    storedStatus: jobsStatus,
+    storedErrorMessage: jobsError,
+    instituteErrorMessage: instituteCtx.errorMessage,
+  });
   type AppRow = AdminCareerSyncRow | CareerApplicationListItem;
   const displayApps: AppRow[] = apiMode ? listView.items : apps;
   const activeApps = listView.rowsValid ? displayApps : [];
-  const [jobs, setJobs] = useState<CareerJobPosting[]>(() => loadCareerJobs());
+  const [jobs, setJobs] = useState<CareerJobPosting[]>(() =>
+    apiMode ? [] : loadCareerJobs(),
+  );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [convertOpen, setConvertOpen] = useState(false);
 
@@ -169,6 +215,71 @@ function CareersPage() {
       setListStatus(next.status);
       setListError(next.errorMessage);
       setResolvedForInstituteId(requestInstituteId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    apiMode,
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    instituteCtx.errorMessage,
+  ]);
+
+  useEffect(() => {
+    if (!apiMode) return;
+
+    if (instituteCtx.status === "loading") {
+      setApiJobs([]);
+      setJobsStatus("loading");
+      setJobsError(null);
+      setJobsResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "error" ||
+      instituteCtx.status === "forbidden"
+    ) {
+      setApiJobs([]);
+      setJobsStatus(
+        instituteCtx.status === "forbidden" ? "forbidden" : "error",
+      );
+      setJobsError(instituteCtx.errorMessage);
+      setJobsResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "needs_selection" ||
+      instituteCtx.status === "empty" ||
+      !instituteCtx.activeInstituteId
+    ) {
+      setApiJobs([]);
+      setJobsStatus("needs_institute");
+      setJobsError(null);
+      setJobsResolvedForInstituteId(null);
+      return;
+    }
+
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    let cancelled = false;
+    setJobsStatus("loading");
+    setJobsError(null);
+    void loadCareerJobsList(requestInstituteId).then((next) => {
+      if (
+        !shouldCommitCareerJobsLoad({
+          cancelled,
+          requestInstituteId,
+          activeInstituteId: activeInstituteIdRef.current,
+        })
+      ) {
+        return;
+      }
+      setApiJobs(next.items);
+      setJobsStatus(next.status);
+      setJobsError(next.errorMessage);
+      setJobsResolvedForInstituteId(requestInstituteId);
     });
     return () => {
       cancelled = true;
@@ -287,7 +398,7 @@ function CareersPage() {
       title="Careers"
       subtitle={
         apiMode
-          ? `API mode · read-only · ${countLabel(activeApps.length)} applications`
+          ? `API mode · read-only · ${countLabel(activeApps.length)} applications · ${jobsListView.rowsValid ? jobsListView.items.length : "…"} jobs`
           : "Review applicants in Connect · hire approved teachers here"
       }
       actions={
@@ -316,7 +427,7 @@ function CareersPage() {
               </div>
               <p className="max-w-xl text-[12px] leading-relaxed text-muted-foreground">
                 {apiMode
-                  ? "Application pipeline counts from the API. Hire-as-teacher and Connect portal workflows remain demo-only in this cutover."
+                  ? "Job postings and application pipeline counts from the API. Hire-as-teacher and Connect portal workflows remain demo-only in this cutover."
                   : "Create vacancies, review documents, schedule interviews, waitlist or reject candidates in Connect. Come back to Admin only to hire an approved applicant as a teacher."}
               </p>
             </div>
@@ -329,6 +440,56 @@ function CareersPage() {
             ) : null}
           </div>
         </Card>
+
+        {apiMode ? (
+          <Card>
+            <CardHeader
+              title="Job postings"
+              hint="Read-only vacancies from the API"
+              action={
+                <Pill tone="neutral">
+                  {jobsListView.rowsValid
+                    ? `${jobsListView.items.length} job(s)`
+                    : "…"}
+                </Pill>
+              }
+            />
+            {!jobsListView.rowsValid ? (
+              <div className="px-5 pb-6 text-center text-sm text-muted-foreground">
+                {jobsListHint(jobsListView.status, jobsListView.errorMessage) ??
+                  "Loading career jobs…"}
+              </div>
+            ) : jobsListView.items.length === 0 ? (
+              <div className="px-5 pb-6 text-center text-sm text-muted-foreground">
+                {jobsListHint(jobsListView.status, jobsListView.errorMessage)}
+              </div>
+            ) : (
+              <div className="space-y-2 px-5 pb-5 pt-1 sm:px-6 sm:pb-6">
+                {jobsListView.items.map((job) => (
+                  <div
+                    key={job.id}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-background/40 px-3 py-2.5"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-xs font-medium">{job.title}</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {job.category} · {job.employmentTypeLabel} · {job.workModeLabel} ·{" "}
+                        {job.locationLabel}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                      <span className="rounded-md border border-border bg-background/60 px-2 py-1">
+                        <span className="text-muted-foreground">Openings </span>
+                        <span className="font-medium tabular-nums">{job.openingsCount}</span>
+                      </span>
+                      <Pill tone={jobStatusTone(job.status)}>{job.status}</Pill>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        ) : null}
 
         {!listView.rowsValid ? (
           <div className="py-12 text-center text-sm text-muted-foreground">

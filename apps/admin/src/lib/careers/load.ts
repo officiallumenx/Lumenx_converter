@@ -1,9 +1,12 @@
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/active-institute";
-import { listCareerApplications } from "./api";
-import { careerApplicationDtosToListItems } from "./map";
-import type { CareerApplicationListItem } from "./types";
+import { listCareerApplications, listCareerJobs } from "./api";
+import {
+  careerApplicationDtosToListItems,
+  careerJobDtosToListItems,
+} from "./map";
+import type { CareerApplicationListItem, CareerJobListItem } from "./types";
 
 export type CareersListStatus =
   | "demo"
@@ -14,15 +17,26 @@ export type CareersListStatus =
   | "forbidden"
   | "error";
 
+export type CareersJobsListStatus = CareersListStatus;
+
 export type CareersListState = {
   status: CareersListStatus;
   items: CareerApplicationListItem[];
   errorMessage: string | null;
 };
 
-export async function loadCareersList(
+export type CareersJobsListState = {
+  status: CareersJobsListStatus;
+  items: CareerJobListItem[];
+  errorMessage: string | null;
+};
+
+async function loadCareersResourceList<T>(
   activeInstituteId: string | null,
-): Promise<CareersListState> {
+  fetchRows: (instituteId: string) => Promise<unknown[]>,
+  mapRows: (rows: unknown[]) => T[],
+  errorLabel: string,
+): Promise<{ status: CareersListStatus; items: T[]; errorMessage: string | null }> {
   if (!isApiAuthMode()) {
     return { status: "demo", items: [], errorMessage: null };
   }
@@ -36,8 +50,8 @@ export async function loadCareersList(
   }
 
   try {
-    const rows = await listCareerApplications({ instituteId: activeInstituteId });
-    const items = careerApplicationDtosToListItems(rows);
+    const rows = await fetchRows(activeInstituteId);
+    const items = mapRows(rows);
     return {
       status: items.length === 0 ? "empty" : "ready",
       items,
@@ -53,8 +67,7 @@ export async function loadCareersList(
             typeof (err as { status: unknown }).status === "number"
           ? (err as { status: number }).status
           : null;
-    const message =
-      err instanceof Error ? err.message : "Failed to load career applications";
+    const message = err instanceof Error ? err.message : errorLabel;
 
     if (status === 403) {
       return {
@@ -69,4 +82,30 @@ export async function loadCareersList(
       errorMessage: message,
     };
   }
+}
+
+export async function loadCareersList(
+  activeInstituteId: string | null,
+): Promise<CareersListState> {
+  return loadCareersResourceList(
+    activeInstituteId,
+    (instituteId) => listCareerApplications({ instituteId }),
+    (rows) =>
+      careerApplicationDtosToListItems(
+        rows as Parameters<typeof careerApplicationDtosToListItems>[0],
+      ),
+    "Failed to load career applications",
+  );
+}
+
+export async function loadCareerJobsList(
+  activeInstituteId: string | null,
+): Promise<CareersJobsListState> {
+  return loadCareersResourceList(
+    activeInstituteId,
+    (instituteId) => listCareerJobs({ instituteId }),
+    (rows) =>
+      careerJobDtosToListItems(rows as Parameters<typeof careerJobDtosToListItems>[0]),
+    "Failed to load career jobs",
+  );
 }
