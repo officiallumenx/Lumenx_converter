@@ -35,8 +35,17 @@ import {
   Upload,
   Users,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { useInstituteContext } from "@/lib/institutes";
+import {
+  loadStudentsList,
+  resolveStudentsListView,
+  shouldCommitStudentsLoad,
+  type StudentListItem,
+  type StudentsListStatus,
+} from "@/lib/students";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { syncSubscriptionHeadcountAfterStudentChange } from "@/lib/subscription-headcount";
 import { useAuth } from "@/auth/AuthContext";
@@ -80,10 +89,15 @@ export const Route = createFileRoute("/students/")({
   component: StudentsPage,
 });
 
+type StudentRow = StudentDirectoryRecord | StudentListItem;
+
 function StudentsPage() {
   const notify = useAdminToast();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const apiMode = isApiAuthMode();
+  const instituteCtx = useInstituteContext();
+  const writesEnabled = !apiMode;
   const { profileId, profile } = useDemoProfile();
   const college = isCollegeMode();
   const classOptions = getClassFilterOptions();
@@ -91,7 +105,31 @@ function StudentsPage() {
   const departmentOptions = getDepartmentFilterOptions();
   const defaultDept = profile.academic.departments[0]?.code ?? "MPC";
 
-  const [rows, setRows] = useState<StudentDirectoryRecord[]>(() => loadStudentDirectory());
+  const [rows, setRows] = useState<StudentDirectoryRecord[]>(() =>
+    apiMode ? [] : loadStudentDirectory(),
+  );
+  const [apiItems, setApiItems] = useState<StudentListItem[]>([]);
+  const [listStatus, setListStatus] = useState<StudentsListStatus>(() =>
+    apiMode ? "loading" : "demo",
+  );
+  const [listError, setListError] = useState<string | null>(null);
+  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
+    string | null
+  >(null);
+  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
+  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
+
+  const listView = resolveStudentsListView({
+    apiMode,
+    instituteStatus: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+    resolvedForInstituteId,
+    storedItems: apiItems,
+    storedStatus: listStatus,
+    storedErrorMessage: listError,
+    instituteErrorMessage: instituteCtx.errorMessage,
+  });
+  const displayItems: StudentRow[] = apiMode ? listView.items : rows;
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState<"all" | StudentStatus>("all");
   const [sort, setSort] = useState<{ key: AdminStudentSortKey; dir: "asc" | "desc" }>({
@@ -139,22 +177,121 @@ function StudentsPage() {
   };
 
   useEffect(() => {
+    if (apiMode) return;
     const next = loadStudentDirectory();
     setRows(next);
     publishStudentIdCardSync(next);
     setClassFilter("all");
     setSectionFilter("all");
     setDepartmentFilter("all");
-  }, [profileId, profile.academic]);
+  }, [apiMode, profileId, profile.academic]);
+
+  useEffect(() => {
+    if (!apiMode) return;
+
+    if (instituteCtx.status === "loading") {
+      setApiItems([]);
+      setListStatus("loading");
+      setListError(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "error" ||
+      instituteCtx.status === "forbidden"
+    ) {
+      setApiItems([]);
+      setListStatus(
+        instituteCtx.status === "forbidden" ? "forbidden" : "error",
+      );
+      setListError(instituteCtx.errorMessage);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "needs_selection" ||
+      instituteCtx.status === "empty" ||
+      !instituteCtx.activeInstituteId
+    ) {
+      setApiItems([]);
+      setListStatus("needs_institute");
+      setListError(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    let cancelled = false;
+    setListStatus("loading");
+    setListError(null);
+    void loadStudentsList(requestInstituteId).then((next) => {
+      if (
+        !shouldCommitStudentsLoad({
+          cancelled,
+          requestInstituteId,
+          activeInstituteId: activeInstituteIdRef.current,
+        })
+      ) {
+        return;
+      }
+      setApiItems(next.items);
+      setListStatus(next.status);
+      setListError(next.errorMessage);
+      setResolvedForInstituteId(requestInstituteId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    apiMode,
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    instituteCtx.errorMessage,
+  ]);
+
+  useEffect(() => {
+    setSearchQuery("");
+    setFilter("all");
+    setSort({ key: "name", dir: "asc" });
+    setClassFilter("all");
+    setSectionFilter("all");
+    setDepartmentFilter("all");
+    setMinAttendancePct(0);
+    setPendingDelete(null);
+    setPage(0);
+    setFiltersOpen(false);
+  }, [instituteCtx.activeInstituteId]);
 
   const list = useMemo(() => {
-    let filtered = filterAdminStudents(rows, searchQuery, filter) as StudentDirectoryRecord[];
+    let filtered = filterAdminStudents(
+      displayItems as StudentDirectoryRecord[],
+      searchQuery,
+      filter,
+    ) as StudentRow[];
     filtered = filtered.filter((s) =>
       matchesClassSection(s.grade, classFilter, sectionFilter, departmentFilter),
     );
-    if (minAttendancePct > 0) filtered = filtered.filter((s) => s.attendance >= minAttendancePct);
-    return sortAdminStudents(filtered, sort.key, sort.dir) as StudentDirectoryRecord[];
-  }, [searchQuery, filter, sort, classFilter, sectionFilter, departmentFilter, minAttendancePct, rows]);
+    if (!apiMode && minAttendancePct > 0) {
+      filtered = filtered.filter((s) => s.attendance >= minAttendancePct);
+    }
+    return sortAdminStudents(
+      filtered as StudentDirectoryRecord[],
+      sort.key,
+      sort.dir,
+    ) as StudentRow[];
+  }, [
+    apiMode,
+    searchQuery,
+    filter,
+    sort,
+    classFilter,
+    sectionFilter,
+    departmentFilter,
+    minAttendancePct,
+    displayItems,
+  ]);
 
   useEffect(() => {
     setPage(0);
@@ -275,72 +412,111 @@ function StudentsPage() {
     { value: "inactive" as const, label: "Inactive" },
   ];
 
+  const countLabel = (count: number) =>
+    apiMode && !listView.rowsValid ? "…" : String(count);
+
+  const listHint =
+    listView.status === "loading"
+      ? "Loading students…"
+      : listView.status === "needs_institute"
+        ? "Select an active institute to load students"
+        : listView.status === "forbidden"
+          ? "You do not have access to students for this institute"
+          : listView.status === "error"
+            ? listView.errorMessage ?? "Failed to load students"
+            : listView.status === "empty"
+              ? "No students yet"
+              : null;
+
+  const openStudentDetail = (id: string) => {
+    if (!writesEnabled) {
+      notify("Student detail pages are not enabled in API read-only mode");
+      return;
+    }
+    void navigate({ to: "/students/$id", params: { id } });
+  };
+
   return (
     <AppShell
       title={M.students}
-      subtitle={`${list.length} students · ${scopeLabel}`}
+      subtitle={
+        apiMode
+          ? `API mode · read-only · ${countLabel(list.length)} students · ${scopeLabel}`
+          : `${list.length} students · ${scopeLabel}`
+      }
       actions={
-        <>
-          <Button onClick={() => setBulkImportOpen(true)}>
-            <Upload className="size-3.5" /> Bulk Import
-          </Button>
-          <Button
-            onClick={() => {
-              downloadStudentDirectoryCsv(list);
-              notify(`Saved to Downloads · ${list.length} students`);
-            }}
-          >
-            <Download className="size-3.5" /> Export CSV
-          </Button>
-          <Button onClick={() => setFiltersOpen(!filtersOpen)}>
-            <Filter className="size-3.5" /> Filters
-          </Button>
-          <Button variant="primary" onClick={() => setCreateOpen(true)}>
-            <Plus className="size-3.5" /> Add Student
-          </Button>
-        </>
+        writesEnabled ? (
+          <>
+            <Button onClick={() => setBulkImportOpen(true)}>
+              <Upload className="size-3.5" /> Bulk Import
+            </Button>
+            <Button
+              onClick={() => {
+                downloadStudentDirectoryCsv(list as StudentDirectoryRecord[]);
+                notify(`Saved to Downloads · ${list.length} students`);
+              }}
+            >
+              <Download className="size-3.5" /> Export CSV
+            </Button>
+            <Button onClick={() => setFiltersOpen(!filtersOpen)}>
+              <Filter className="size-3.5" /> Filters
+            </Button>
+            <Button variant="primary" onClick={() => setCreateOpen(true)}>
+              <Plus className="size-3.5" /> Add Student
+            </Button>
+          </>
+        ) : undefined
       }
       mobileActions={
-        <>
-          <Button
-            type="button"
-            aria-label="Bulk import"
-            onClick={() => setBulkImportOpen(true)}
-          >
-            <Upload />
-            Import
-          </Button>
-          <Button
-            type="button"
-            aria-label="Export CSV"
-            onClick={() => {
-              downloadStudentDirectoryCsv(list);
-              notify(`Saved to Downloads · ${list.length} students`);
-            }}
-          >
-            <Download />
-            Export
-          </Button>
-          <Button
-            type="button"
-            aria-label="Filters"
-            onClick={() => setFiltersOpen((open) => !open)}
-          >
-            <Filter />
-            Filters
-          </Button>
-          <Button
-            type="button"
-            variant="primary"
-            aria-label="Add student"
-            onClick={() => setCreateOpen(true)}
-          >
-            <Plus />
-            Add
-          </Button>
-        </>
+        writesEnabled ? (
+          <>
+            <Button
+              type="button"
+              aria-label="Bulk import"
+              onClick={() => setBulkImportOpen(true)}
+            >
+              <Upload />
+              Import
+            </Button>
+            <Button
+              type="button"
+              aria-label="Export CSV"
+              onClick={() => {
+                downloadStudentDirectoryCsv(list as StudentDirectoryRecord[]);
+                notify(`Saved to Downloads · ${list.length} students`);
+              }}
+            >
+              <Download />
+              Export
+            </Button>
+            <Button
+              type="button"
+              aria-label="Filters"
+              onClick={() => setFiltersOpen((open) => !open)}
+            >
+              <Filter />
+              Filters
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              aria-label="Add student"
+              onClick={() => setCreateOpen(true)}
+            >
+              <Plus />
+              Add
+            </Button>
+          </>
+        ) : undefined
       }
     >
+      {!listView.rowsValid ? (
+        <Card className="p-5">
+          <div className="py-12 text-sm text-muted-foreground text-center">
+            {listHint ?? "Loading students…"}
+          </div>
+        </Card>
+      ) : (
       <Card>
         <PageToolbar className="lx-people-toolbar">
           <SearchInput
@@ -402,9 +578,9 @@ function StudentsPage() {
             />
           </ToolbarGroup>
           <ToolbarSpacer />
-          <ToolbarMeta>{list.length} results</ToolbarMeta>
+          <ToolbarMeta>{countLabel(list.length)} results</ToolbarMeta>
         </PageToolbar>
-        {filtersOpen && (
+        {writesEnabled && filtersOpen && (
           <div className="px-4 sm:px-5 py-4 border-b border-border flex flex-wrap gap-4 bg-background/40">
             <Field label="Min attendance %">
               <TextInput
@@ -435,7 +611,10 @@ function StudentsPage() {
           <EmptyState
             icon={<Users className="size-5" />}
             title="No students found"
-            hint={`No students in ${scopeLabel}. Try another class, section, or search term.`}
+            hint={
+              listHint ??
+              `No students in ${scopeLabel}. Try another class, section, or search term.`
+            }
           />
         ) : (
           <>
@@ -449,22 +628,28 @@ function StudentsPage() {
                   meta={
                     <>
                       <span>{formatStudentGradeDisplay(s.grade)}</span>
-                      <span>{s.attendance}% att.</span>
-                      <span>GPA {s.gpa.toFixed(1)}</span>
-                      {s.parent ? <span>{s.parent}</span> : null}
+                      {!apiMode ? (
+                        <>
+                          <span>{s.attendance}% att.</span>
+                          <span>GPA {s.gpa.toFixed(1)}</span>
+                          {s.parent ? <span>{s.parent}</span> : null}
+                        </>
+                      ) : null}
                     </>
                   }
                   menu={
-                    <StudentRowMenu
-                      student={s}
-                      onView={() => navigate({ to: "/students/$id", params: { id: s.id } })}
-                      onHold={() => setAccessStatus(s.id, "hold")}
-                      onSuspend={() => setAccessStatus(s.id, "suspended")}
-                      onReactivate={() => setAccessStatus(s.id, "active")}
-                      onDelete={() => setPendingDelete(s)}
-                    />
+                    writesEnabled ? (
+                      <StudentRowMenu
+                        student={s as StudentDirectoryRecord}
+                        onView={() => openStudentDetail(s.id)}
+                        onHold={() => setAccessStatus(s.id, "hold")}
+                        onSuspend={() => setAccessStatus(s.id, "suspended")}
+                        onReactivate={() => setAccessStatus(s.id, "active")}
+                        onDelete={() => setPendingDelete(s as StudentDirectoryRecord)}
+                      />
+                    ) : null
                   }
-                  onOpen={() => navigate({ to: "/students/$id", params: { id: s.id } })}
+                  onOpen={() => openStudentDetail(s.id)}
                 />
               ))}
             </div>
@@ -474,29 +659,41 @@ function StudentsPage() {
               <tr>
                 <SortTh k="name" label="Student" />
                 <SortTh k="grade" label={college ? "Dept / Year / Sec" : "Class"} />
-                <SortTh k="attendance" label="Attendance" />
-                <SortTh k="gpa" label="GPA" />
-                <TableTh>Guardian</TableTh>
+                {!apiMode ? <SortTh k="attendance" label="Attendance" /> : null}
+                {!apiMode ? <SortTh k="gpa" label="GPA" /> : null}
+                {!apiMode ? <TableTh>Guardian</TableTh> : null}
                 <TableTh>Status</TableTh>
-                <TableTh className="w-12">
-                  <span className="sr-only">Actions</span>
-                </TableTh>
+                {writesEnabled ? (
+                  <TableTh className="w-12">
+                    <span className="sr-only">Actions</span>
+                  </TableTh>
+                ) : null}
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {paged.map((s) => (
                 <tr
                   key={s.id}
-                  role="link"
-                  tabIndex={0}
-                  className="cursor-pointer hover:bg-surface-hover transition-colors"
-                  onClick={() => navigate({ to: "/students/$id", params: { id: s.id } })}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      navigate({ to: "/students/$id", params: { id: s.id } });
-                    }
-                  }}
+                  role={writesEnabled ? "link" : undefined}
+                  tabIndex={writesEnabled ? 0 : undefined}
+                  className={
+                    writesEnabled
+                      ? "cursor-pointer hover:bg-surface-hover transition-colors"
+                      : "hover:bg-surface-hover transition-colors"
+                  }
+                  onClick={
+                    writesEnabled ? () => openStudentDetail(s.id) : undefined
+                  }
+                  onKeyDown={
+                    writesEnabled
+                      ? (event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            openStudentDetail(s.id);
+                          }
+                        }
+                      : undefined
+                  }
                 >
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-3 group">
@@ -513,38 +710,44 @@ function StudentsPage() {
                     </div>
                   </td>
                   <td className="px-5 py-3 text-xs">{formatStudentGradeDisplay(s.grade)}</td>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-16 h-1.5 rounded bg-muted overflow-hidden">
-                        <div
-                          className={`h-full ${s.attendance < 75 ? "bg-destructive" : s.attendance < 90 ? "bg-warning" : "bg-success"}`}
-                          style={{ width: `${s.attendance}%` }}
-                        />
+                  {!apiMode ? (
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 h-1.5 rounded bg-muted overflow-hidden">
+                          <div
+                            className={`h-full ${s.attendance < 75 ? "bg-destructive" : s.attendance < 90 ? "bg-warning" : "bg-success"}`}
+                            style={{ width: `${s.attendance}%` }}
+                          />
+                        </div>
+                        <span className="text-xs font-mono">{s.attendance}%</span>
                       </div>
-                      <span className="text-xs font-mono">{s.attendance}%</span>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3 text-xs font-mono">{s.gpa.toFixed(1)}</td>
-                  <td className="px-5 py-3 text-xs text-muted-foreground">{s.parent}</td>
+                    </td>
+                  ) : null}
+                  {!apiMode ? (
+                    <td className="px-5 py-3 text-xs font-mono">{s.gpa.toFixed(1)}</td>
+                  ) : null}
+                  {!apiMode ? (
+                    <td className="px-5 py-3 text-xs text-muted-foreground">{s.parent}</td>
+                  ) : null}
                   <td className="px-5 py-3">
                     <StudentStatusPill student={s} />
                   </td>
-                  <td
-                    className="px-5 py-3"
-                    onClick={(event) => event.stopPropagation()}
-                    onKeyDown={(event) => event.stopPropagation()}
-                  >
-                    <StudentRowMenu
-                      student={s}
-                      onView={() =>
-                        navigate({ to: "/students/$id", params: { id: s.id } })
-                      }
-                      onHold={() => setAccessStatus(s.id, "hold")}
-                      onSuspend={() => setAccessStatus(s.id, "suspended")}
-                      onReactivate={() => setAccessStatus(s.id, "active")}
-                      onDelete={() => setPendingDelete(s)}
-                    />
-                  </td>
+                  {writesEnabled ? (
+                    <td
+                      className="px-5 py-3"
+                      onClick={(event) => event.stopPropagation()}
+                      onKeyDown={(event) => event.stopPropagation()}
+                    >
+                      <StudentRowMenu
+                        student={s as StudentDirectoryRecord}
+                        onView={() => openStudentDetail(s.id)}
+                        onHold={() => setAccessStatus(s.id, "hold")}
+                        onSuspend={() => setAccessStatus(s.id, "suspended")}
+                        onReactivate={() => setAccessStatus(s.id, "active")}
+                        onDelete={() => setPendingDelete(s as StudentDirectoryRecord)}
+                      />
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>
@@ -556,7 +759,7 @@ function StudentsPage() {
           <span>
             {list.length === 0
               ? "No matches"
-              : `Showing ${pageIndex * PAGE_SIZE + 1}–${pageIndex * PAGE_SIZE + paged.length} of ${list.length}`}
+              : `Showing ${pageIndex * PAGE_SIZE + 1}–${pageIndex * PAGE_SIZE + paged.length} of ${countLabel(list.length)}`}
             {classFilter !== "all" || sectionFilter !== "all" ? ` · ${scopeLabel}` : ""}
           </span>
           <div className="flex gap-1 w-full sm:w-auto">
@@ -573,7 +776,9 @@ function StudentsPage() {
           </div>
         </div>
       </Card>
+      )}
 
+      {writesEnabled ? (
       <Modal
         open={pendingDelete !== null}
         onClose={() => setPendingDelete(null)}
@@ -604,24 +809,33 @@ function StudentsPage() {
           restored from Recycle Bin.
         </p>
       </Modal>
+      ) : null}
 
+      {writesEnabled ? (
       <StudentCreateDialog
         open={createOpen}
         academic={profile.academic}
         onClose={() => setCreateOpen(false)}
         onCreate={createStudent}
       />
+      ) : null}
 
+      {writesEnabled ? (
       <StudentBulkImportDialog
         open={bulkImportOpen}
         onClose={() => setBulkImportOpen(false)}
         onImport={importStudents}
       />
+      ) : null}
     </AppShell>
   );
 }
 
-function StudentStatusPill({ student }: { student: StudentDirectoryRecord }) {
+function StudentStatusPill({
+  student,
+}: {
+  student: Pick<StudentRow, "status" | "accessStatus">;
+}) {
   if (student.accessStatus === "hold") return <Pill tone="warning">Hold</Pill>;
   if (student.accessStatus === "suspended") return <Pill tone="danger">Suspended</Pill>;
   if (student.status === "graduated") return <Pill tone="info">Graduated</Pill>;
