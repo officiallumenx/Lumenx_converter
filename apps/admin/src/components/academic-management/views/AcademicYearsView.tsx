@@ -1,4 +1,13 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { useInstituteContext } from "@/lib/institutes";
+import {
+  loadAcademicYearsList,
+  resolveAcademicYearsListView,
+  shouldCommitAcademicYearsLoad,
+  type AcademicYearListItem,
+  type AcademicYearsListStatus,
+} from "@/lib/academic-years";
 import {
   Button,
   Card,
@@ -61,9 +70,38 @@ type YearForm = {
 
 const EMPTY_FORM: YearForm = { label: "", startDate: "", endDate: "" };
 
+type YearRow = AcademicYear | AcademicYearListItem;
+
 export function AcademicYearsView() {
   const notify = useAdminToast();
-  const [years, setYears] = useState<AcademicYear[]>(() => loadAcademicYears());
+  const apiMode = isApiAuthMode();
+  const instituteCtx = useInstituteContext();
+  const writesEnabled = !apiMode;
+  const [years, setYears] = useState<AcademicYear[]>(() =>
+    apiMode ? [] : loadAcademicYears(),
+  );
+  const [apiItems, setApiItems] = useState<AcademicYearListItem[]>([]);
+  const [listStatus, setListStatus] = useState<AcademicYearsListStatus>(() =>
+    apiMode ? "loading" : "demo",
+  );
+  const [listError, setListError] = useState<string | null>(null);
+  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
+    string | null
+  >(null);
+  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
+  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
+
+  const listView = resolveAcademicYearsListView({
+    apiMode,
+    instituteStatus: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+    resolvedForInstituteId,
+    storedItems: apiItems,
+    storedStatus: listStatus,
+    storedErrorMessage: listError,
+    instituteErrorMessage: instituteCtx.errorMessage,
+  });
+  const displayItems: YearRow[] = apiMode ? listView.items : years;
   const [activationMeta, setActivationMeta] = useState<AcademicYearActivationMeta | null>(null);
   const [viewYearId, setViewYearId] = useState<string>("ay-2026-27");
   const [viewClass, setViewClass] = useState<string>("all");
@@ -77,6 +115,97 @@ export function AcademicYearsView() {
   const [confirmText, setConfirmText] = useState("");
   const viewRecordsRef = useRef<HTMLDivElement>(null);
   const today = todayIsoDate();
+
+  useEffect(() => {
+    if (!apiMode) return;
+
+    if (instituteCtx.status === "loading") {
+      setApiItems([]);
+      setListStatus("loading");
+      setListError(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "error" ||
+      instituteCtx.status === "forbidden"
+    ) {
+      setApiItems([]);
+      setListStatus(
+        instituteCtx.status === "forbidden" ? "forbidden" : "error",
+      );
+      setListError(instituteCtx.errorMessage);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "needs_selection" ||
+      instituteCtx.status === "empty" ||
+      !instituteCtx.activeInstituteId
+    ) {
+      setApiItems([]);
+      setListStatus("needs_institute");
+      setListError(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    let cancelled = false;
+    setListStatus("loading");
+    setListError(null);
+    void loadAcademicYearsList(requestInstituteId).then((next) => {
+      if (
+        !shouldCommitAcademicYearsLoad({
+          cancelled,
+          requestInstituteId,
+          activeInstituteId: activeInstituteIdRef.current,
+        })
+      ) {
+        return;
+      }
+      setApiItems(next.items);
+      setListStatus(next.status);
+      setListError(next.errorMessage);
+      setResolvedForInstituteId(requestInstituteId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    apiMode,
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    instituteCtx.errorMessage,
+  ]);
+
+  useEffect(() => {
+    setModal(null);
+    setEditing(null);
+    setForm(EMPTY_FORM);
+    setDeleteTarget(null);
+    setActivateTarget(null);
+    setConfirmText("");
+  }, [instituteCtx.activeInstituteId]);
+
+  const listHint =
+    listView.status === "loading"
+      ? "Loading academic years…"
+      : listView.status === "needs_institute"
+        ? "Select an institute to load academic years."
+        : listView.status === "forbidden"
+          ? listView.errorMessage ??
+            "You do not have access to academic years for this institute."
+          : listView.status === "error"
+            ? listView.errorMessage ?? "Failed to load academic years."
+            : listView.status === "empty"
+              ? "No academic years found for this institute."
+              : null;
+
+  const countLabel = (count: number) =>
+    apiMode && !listView.rowsValid ? "…" : String(count);
 
   const updateYears = (fn: (prev: AcademicYear[]) => AcademicYear[]) => {
     setYears((prev) => {
@@ -100,13 +229,14 @@ export function AcademicYearsView() {
   };
 
   const counts = useMemo(() => {
+    const rows = listView.rowsValid ? displayItems : [];
     return {
-      total: years.length,
-      active: years.filter((y) => y.status === "active").length,
-      upcoming: years.filter((y) => y.status === "upcoming").length,
-      completed: years.filter((y) => y.status === "completed" || y.status === "archived").length,
+      total: rows.length,
+      active: rows.filter((y) => y.status === "active").length,
+      upcoming: rows.filter((y) => y.status === "upcoming").length,
+      completed: rows.filter((y) => y.status === "completed" || y.status === "archived").length,
     };
-  }, [years]);
+  }, [displayItems, listView.rowsValid]);
 
   const yearRecords = useMemo(
     () => getRecordsForAcademicYear(viewYearId),
@@ -297,12 +427,13 @@ export function AcademicYearsView() {
   return (
     <PageStack>
       <KpiGrid cols={4}>
-        <Kpi label="Total years" value={String(counts.total)} />
-        <Kpi label="Active" value={String(counts.active)} tone="up" />
-        <Kpi label="Upcoming" value={String(counts.upcoming)} />
-        <Kpi label="Completed / archived" value={String(counts.completed)} />
+        <Kpi label="Total years" value={countLabel(counts.total)} />
+        <Kpi label="Active" value={countLabel(counts.active)} tone="up" />
+        <Kpi label="Upcoming" value={countLabel(counts.upcoming)} />
+        <Kpi label="Completed / archived" value={countLabel(counts.completed)} />
       </KpiGrid>
 
+      {writesEnabled ? (
       <Card>
         <CardHeader
           title="Activation rules"
@@ -338,25 +469,42 @@ export function AcademicYearsView() {
           </p>
         </CardBody>
       </Card>
+      ) : null}
 
       <Card>
         <CardHeader
           title="Academic years"
-          hint="Create future years · Activate only after start date · type confirm · View opens records below"
+          hint={
+            apiMode
+              ? "API mode · read-only · institute academic sessions"
+              : "Create future years · Activate only after start date · type confirm · View opens records below"
+          }
           action={
-            <Button size="sm" onClick={openCreate}>
-              <Plus className="size-3.5" /> Create Academic Year
-            </Button>
+            writesEnabled ? (
+              <Button size="sm" onClick={openCreate}>
+                <Plus className="size-3.5" /> Create Academic Year
+              </Button>
+            ) : undefined
           }
         />
         <PageToolbar>
           <ToolbarGroup>
             <ToolbarMeta>
-              {years.length} year{years.length === 1 ? "" : "s"} · today {today}
+              {countLabel(displayItems.length)} year{displayItems.length === 1 ? "" : "s"}
+              {writesEnabled ? ` · today ${today}` : " · API read-only"}
             </ToolbarMeta>
           </ToolbarGroup>
         </PageToolbar>
         <CardBody className="p-0 overflow-x-auto">
+          {!listView.rowsValid ? (
+            <div className="py-12 text-center text-sm text-muted-foreground">
+              {listHint ?? "Loading academic years…"}
+            </div>
+          ) : displayItems.length === 0 ? (
+            <div className="py-12 text-center text-sm text-muted-foreground">
+              {listHint ?? "No academic years found."}
+            </div>
+          ) : (
           <DataTable>
             <thead>
               <Tr>
@@ -364,12 +512,14 @@ export function AcademicYearsView() {
                 <Th>Start</Th>
                 <Th>End</Th>
                 <Th>Status</Th>
-                <Th className="text-right">Actions</Th>
+                {writesEnabled ? <Th className="text-right">Actions</Th> : null}
               </Tr>
             </thead>
             <tbody>
-              {years.map((year) => {
-                const activateCheck = canActivateAcademicYear(year, activationMeta, today);
+              {displayItems.map((year) => {
+                const activateCheck = writesEnabled
+                  ? canActivateAcademicYear(year as AcademicYear, activationMeta, today)
+                  : { allowed: false as const };
                 return (
                   <Tr key={year.id}>
                     <Td className="font-medium">{year.label}</Td>
@@ -378,7 +528,8 @@ export function AcademicYearsView() {
                     <Td>
                       <div className="flex flex-col gap-1 items-start">
                         {statusPill(year.status)}
-                        {!activateCheck.allowed &&
+                        {writesEnabled &&
+                        !activateCheck.allowed &&
                         year.status !== "active" &&
                         year.status !== "archived" &&
                         activateCheck.reason ? (
@@ -386,36 +537,39 @@ export function AcademicYearsView() {
                             {activateCheck.reason}
                           </span>
                         ) : null}
-                        {activateCheck.allowed && year.status === "completed" ? (
+                        {writesEnabled &&
+                        activateCheck.allowed &&
+                        year.status === "completed" ? (
                           <span className="text-[10px] text-amber-600 dark:text-amber-400 max-w-[14rem]">
                             {activateCheck.reason}
                           </span>
                         ) : null}
                       </div>
                     </Td>
+                    {writesEnabled ? (
                     <Td>
                       <div className="flex flex-wrap justify-end gap-1.5">
                         {ACADEMIC_YEAR_VIEW_OPTIONS.some((y) => y.id === year.id) ? (
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => openYearRecords(year)}
+                            onClick={() => openYearRecords(year as AcademicYear)}
                           >
                             <Eye className="size-3.5" /> View
                           </Button>
                         ) : null}
                         {year.status === "upcoming" || year.status === "active" ? (
-                          <Button size="sm" variant="ghost" onClick={() => openEdit(year)}>
+                          <Button size="sm" variant="ghost" onClick={() => openEdit(year as AcademicYear)}>
                             <Pencil className="size-3.5" /> Edit
                           </Button>
                         ) : null}
                         {activateCheck.allowed ? (
-                          <Button size="sm" variant="outline" onClick={() => openActivate(year)}>
+                          <Button size="sm" variant="outline" onClick={() => openActivate(year as AcademicYear)}>
                             <Power className="size-3.5" /> Activate
                           </Button>
                         ) : null}
                         {year.status === "completed" || year.status === "active" ? (
-                          <Button size="sm" variant="outline" onClick={() => archive(year)}>
+                          <Button size="sm" variant="outline" onClick={() => archive(year as AcademicYear)}>
                             <Archive className="size-3.5" /> Archive
                           </Button>
                         ) : null}
@@ -423,21 +577,24 @@ export function AcademicYearsView() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => setDeleteTarget(year)}
+                            onClick={() => setDeleteTarget(year as AcademicYear)}
                           >
                             <Trash2 className="size-3.5 text-destructive" /> Delete
                           </Button>
                         ) : null}
                       </div>
                     </Td>
+                    ) : null}
                   </Tr>
                 );
               })}
             </tbody>
           </DataTable>
+          )}
         </CardBody>
       </Card>
 
+      {writesEnabled ? (
       <div ref={viewRecordsRef} id="academic-year-records">
         <Card>
           <CardHeader
@@ -578,7 +735,10 @@ export function AcademicYearsView() {
           </CardBody>
         </Card>
       </div>
+      ) : null}
 
+      {writesEnabled ? (
+      <>
       <Modal
         open={modal !== null}
         onClose={() => setModal(null)}
@@ -687,6 +847,8 @@ export function AcademicYearsView() {
           <span className="font-medium text-foreground">{deleteTarget?.label}</span>?
         </p>
       </Modal>
+      </>
+      ) : null}
     </PageStack>
   );
 }
