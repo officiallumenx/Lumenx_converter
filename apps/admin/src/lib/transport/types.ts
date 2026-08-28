@@ -35,3 +35,42 @@ export type DriverDto = {
 export type ListTransportDriversParams = {
   instituteId: string;
 };
+
+export type RouteConfigStatus = "not_configured" | "configured" | "locked";
+
+export type RouteDto = {
+  id: string;
+  instituteId: string;
+  name: string;
+  vehicleId: string | null;
+  driverId: string | null;
+  status: TransportAssetStatus;
+  configStatus: RouteConfigStatus;
+  lockedAt: string | null;
+  lockedByUserId: string | null;
+  setupFinishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type StopDto = {
+  id: string;
+  instituteId: string;
+  routeId: string;
+  name: string;
+  locationLabel: string;
+  latitude: number;
+  longitude: number;
+  routeOrder: number;
+  notificationRadiusM: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ListTransportRoutesParams = {
+  instituteId: string;
+};
+
+export type ListTransportStopsParams = {
+  routeId: string;
+};

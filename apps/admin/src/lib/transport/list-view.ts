@@ -1,5 +1,10 @@
-import type { TransportDriver, TransportVehicle } from "@/lib/transport-store";
-import type { TransportDriversListStatus, TransportListStatus, TransportVehiclesListStatus } from "./load";
+import type { TransportDriver, TransportRoute, TransportVehicle } from "@/lib/transport-store";
+import type {
+  TransportDriversListStatus,
+  TransportListStatus,
+  TransportRoutesListStatus,
+  TransportVehiclesListStatus,
+} from "./load";
 
 export type TransportInstituteGateStatus =
   | "demo"
@@ -115,6 +120,18 @@ export function resolveTransportDriversListView(
   return resolveTransportListView(input);
 }
 
+export type ResolveTransportRoutesListViewInput = ResolveTransportListViewInput<TransportRoute> & {
+  storedStatus: TransportRoutesListStatus;
+};
+
+export type TransportRoutesListView = TransportListView<TransportRoute>;
+
+export function resolveTransportRoutesListView(
+  input: ResolveTransportRoutesListViewInput,
+): TransportRoutesListView {
+  return resolveTransportListView(input);
+}
+
 export function shouldCommitTransportVehiclesLoad(opts: {
   cancelled: boolean;
   requestInstituteId: string;
@@ -126,6 +143,14 @@ export function shouldCommitTransportVehiclesLoad(opts: {
 }
 
 export function shouldCommitTransportDriversLoad(opts: {
+  cancelled: boolean;
+  requestInstituteId: string;
+  activeInstituteId: string | null;
+}): boolean {
+  return shouldCommitTransportVehiclesLoad(opts);
+}
+
+export function shouldCommitTransportRoutesLoad(opts: {
   cancelled: boolean;
   requestInstituteId: string;
   activeInstituteId: string | null;

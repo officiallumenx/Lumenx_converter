@@ -30,6 +30,9 @@ import {
 type Props = {
   snapshot: TransportSnapshot;
   onChange: (next: TransportSnapshot) => void;
+  writesEnabled?: boolean;
+  listBlocked?: boolean;
+  listHint?: string | null;
 };
 
 type StatusFilter = "all" | RouteConfigStatus;
@@ -43,7 +46,13 @@ const ROUTE_STATUS_META: Record<
   locked: { label: "Locked", tone: "warning" },
 };
 
-export function TransportRoutesView({ snapshot, onChange }: Props) {
+export function TransportRoutesView({
+  snapshot,
+  onChange,
+  writesEnabled = true,
+  listBlocked = false,
+  listHint = null,
+}: Props) {
   const notify = useAdminToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -98,6 +107,8 @@ export function TransportRoutesView({ snapshot, onChange }: Props) {
             {ROUTE_STATUS_META[selected.configStatus].label}
           </Pill>
           <div className="flex-1" />
+          {writesEnabled ? (
+          <>
           {selected.configStatus === "locked" ? (
             <Button size="sm" onClick={() => setUnlockConfirm(selected)}>
               <LockOpen className="size-3.5" /> Unlock Route
@@ -107,9 +118,13 @@ export function TransportRoutesView({ snapshot, onChange }: Props) {
               <Lock className="size-3.5" /> Lock Route
             </Button>
           ) : null}
+          </>
+          ) : null}
         </div>
 
+        {writesEnabled ? (
         <TransportApprovalPanel routeId={selected.id} />
+        ) : null}
 
         <TransportRouteDetail
           snapshot={snapshot}
@@ -119,6 +134,8 @@ export function TransportRoutesView({ snapshot, onChange }: Props) {
           }}
         />
 
+        {writesEnabled ? (
+        <>
         <Modal
           open={Boolean(lockConfirm)}
           onClose={() => setLockConfirm(null)}
@@ -173,16 +190,28 @@ export function TransportRoutesView({ snapshot, onChange }: Props) {
             Drivers can edit stops again from the Transport App.
           </p>
         </Modal>
+        </>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (listBlocked) {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">
+        {listHint ?? "Loading routes…"}
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
+      {writesEnabled ? (
       <TransportApprovalPanel
         title="Pending route setup requests"
         hint="All routes · open a route for lock/unlock and scoped review"
       />
+      ) : null}
 
       <PageToolbar>
         <SearchInput
@@ -256,14 +285,22 @@ export function TransportRoutesView({ snapshot, onChange }: Props) {
       <Card>
         <CardHeader
           title="Routes"
-          hint={`${rows.length} routes · review Transport App setup`}
+          hint={
+            writesEnabled
+              ? `${rows.length} routes · review Transport App setup`
+              : `${rows.length} routes · read-only`
+          }
         />
         {rows.length === 0 ? (
           <div className="px-5 pb-8">
             <EmptyState
               icon={<RouteIcon className="size-5" />}
               title="No routes match"
-              hint="Adjust search or filters to find a route."
+              hint={
+                writesEnabled
+                  ? "Adjust search or filters to find a route."
+                  : listHint ?? "No routes found for this institute."
+              }
             />
           </div>
         ) : (

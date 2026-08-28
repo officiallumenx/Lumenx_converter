@@ -23,15 +23,20 @@ import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
 import {
   loadTransportDriversList,
+  loadTransportRoutesList,
   loadTransportVehiclesList,
   resolveTransportDriversListView,
+  resolveTransportRoutesListView,
   resolveTransportVehiclesListView,
   shouldCommitTransportDriversLoad,
+  shouldCommitTransportRoutesLoad,
   shouldCommitTransportVehiclesLoad,
   type TransportDriversListStatus,
+  type TransportListStatus,
+  type TransportRoutesListStatus,
   type TransportVehiclesListStatus,
 } from "@/lib/transport";
-import type { TransportDriver, TransportVehicle } from "@/lib/transport-store";
+import type { TransportDriver, TransportRoute, TransportVehicle } from "@/lib/transport-store";
 
 export type TransportHubView =
   | "dashboard"
@@ -112,7 +117,7 @@ export const Route = createFileRoute("/transport")({
 });
 
 function transportListHint(
-  status: TransportVehiclesListStatus | TransportDriversListStatus,
+  status: TransportListStatus,
   errorMessage: string | null,
   entityLabel: string,
   forbiddenFallback: string,
@@ -149,6 +154,13 @@ function TransportPage() {
   const [driversResolvedForInstituteId, setDriversResolvedForInstituteId] =
     useState<string | null>(null);
 
+  const [apiRoutes, setApiRoutes] = useState<TransportRoute[]>([]);
+  const [routesListStatus, setRoutesListStatus] =
+    useState<TransportRoutesListStatus>(() => (apiMode ? "loading" : "demo"));
+  const [routesListError, setRoutesListError] = useState<string | null>(null);
+  const [routesResolvedForInstituteId, setRoutesResolvedForInstituteId] =
+    useState<string | null>(null);
+
   const vehiclesListView = resolveTransportVehiclesListView({
     apiMode,
     instituteStatus: instituteCtx.status,
@@ -171,6 +183,17 @@ function TransportPage() {
     instituteErrorMessage: instituteCtx.errorMessage,
   });
 
+  const routesListView = resolveTransportRoutesListView({
+    apiMode,
+    instituteStatus: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+    resolvedForInstituteId: routesResolvedForInstituteId,
+    storedItems: apiRoutes,
+    storedStatus: routesListStatus,
+    storedErrorMessage: routesListError,
+    instituteErrorMessage: instituteCtx.errorMessage,
+  });
+
   const vehiclesListHint = transportListHint(
     vehiclesListView.status,
     vehiclesListView.errorMessage,
@@ -183,6 +206,13 @@ function TransportPage() {
     driversListView.errorMessage,
     "drivers",
     "You do not have access to transport drivers for this institute.",
+  );
+
+  const routesListHint = transportListHint(
+    routesListView.status,
+    routesListView.errorMessage,
+    "routes",
+    "You do not have access to transport routes for this institute.",
   );
 
   useEffect(() => {
@@ -317,6 +347,72 @@ function TransportPage() {
     instituteCtx.errorMessage,
   ]);
 
+  useEffect(() => {
+    if (!apiMode || view !== "routes") return;
+
+    if (instituteCtx.status === "loading") {
+      setApiRoutes([]);
+      setRoutesListStatus("loading");
+      setRoutesListError(null);
+      setRoutesResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "error" ||
+      instituteCtx.status === "forbidden"
+    ) {
+      setApiRoutes([]);
+      setRoutesListStatus(
+        instituteCtx.status === "forbidden" ? "forbidden" : "error",
+      );
+      setRoutesListError(instituteCtx.errorMessage);
+      setRoutesResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "needs_selection" ||
+      instituteCtx.status === "empty" ||
+      !instituteCtx.activeInstituteId
+    ) {
+      setApiRoutes([]);
+      setRoutesListStatus("needs_institute");
+      setRoutesListError(null);
+      setRoutesResolvedForInstituteId(null);
+      return;
+    }
+
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    let cancelled = false;
+    setRoutesListStatus("loading");
+    setRoutesListError(null);
+    void loadTransportRoutesList(requestInstituteId).then((next) => {
+      if (
+        !shouldCommitTransportRoutesLoad({
+          cancelled,
+          requestInstituteId,
+          activeInstituteId: activeInstituteIdRef.current,
+        })
+      ) {
+        return;
+      }
+      setApiRoutes(next.items);
+      setRoutesListStatus(next.status);
+      setRoutesListError(next.errorMessage);
+      setRoutesResolvedForInstituteId(requestInstituteId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    apiMode,
+    view,
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    instituteCtx.errorMessage,
+  ]);
+
   const vehiclesSnapshot = useMemo(() => {
     if (!apiMode || view !== "vehicles" || !vehiclesListView.rowsValid) {
       return snapshot;
@@ -330,6 +426,13 @@ function TransportPage() {
     }
     return { ...snapshot, drivers: driversListView.items };
   }, [apiMode, view, snapshot, driversListView.items, driversListView.rowsValid]);
+
+  const routesSnapshot = useMemo(() => {
+    if (!apiMode || view !== "routes" || !routesListView.rowsValid) {
+      return snapshot;
+    }
+    return { ...snapshot, routes: routesListView.items };
+  }, [apiMode, view, snapshot, routesListView.items, routesListView.rowsValid]);
 
   useEffect(() => {
     startTransportAdminNotificationSync();
@@ -346,7 +449,9 @@ function TransportPage() {
           ? `API mode · read-only · ${vehiclesListView.rowsValid ? vehiclesListView.items.length : "…"} vehicles`
           : apiMode && view === "drivers"
             ? `API mode · read-only · ${driversListView.rowsValid ? driversListView.items.length : "…"} drivers`
-            : VIEW_SUBTITLES[view]
+            : apiMode && view === "routes"
+              ? `API mode · read-only · ${routesListView.rowsValid ? routesListView.items.length : "…"} routes`
+              : VIEW_SUBTITLES[view]
       }
     >
       <TransportHubNav active={view} />
@@ -373,7 +478,15 @@ function TransportPage() {
           />
         )}
         {view === "stops" && <TransportStopsView snapshot={snapshot} onChange={setSnapshot} />}
-        {view === "routes" && <TransportRoutesView snapshot={snapshot} onChange={setSnapshot} />}
+        {view === "routes" && (
+          <TransportRoutesView
+            snapshot={routesSnapshot}
+            onChange={setSnapshot}
+            writesEnabled={writesEnabled}
+            listBlocked={apiMode && !routesListView.rowsValid}
+            listHint={routesListHint}
+          />
+        )}
         {view === "students" && (
           <TransportStudentsView snapshot={snapshot} onChange={setSnapshot} />
         )}
