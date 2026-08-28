@@ -70,7 +70,16 @@ import {
   ListOrdered,
   ClipboardList,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { useInstituteContext } from "@/lib/institutes";
+import {
+  loadAdmissionsList,
+  resolveAdmissionsListView,
+  shouldCommitAdmissionsLoad,
+  type AdmissionApplicationListItem,
+  type AdmissionsListStatus,
+} from "@/lib/admissions";
 
 export const Route = createFileRoute("/admissions")({
   head: () => ({ meta: [{ title: "Admissions — LumenX Admin" }] }),
@@ -94,12 +103,41 @@ function parseDocsRatio(value: string): { verified: number; total: number } {
  */
 function AdmissionsPage() {
   const notify = useAdminToast();
+  const apiMode = isApiAuthMode();
+  const instituteCtx = useInstituteContext();
+  const writesEnabled = !apiMode;
   const { profile, profileId } = useDemoProfile();
   const college = isCollegeMode();
   const defaultDept = profile.academic.departments[0]?.code ?? "MPC";
   const fallback = ADMISSION_APPLICATIONS as AdminSyncRow[];
   const instituteId = admissionsInstituteIdForDemoProfile(profileId);
-  const [apps, setApps] = useState<AdminSyncRow[]>(() => ensureAdminSyncSeed(fallback));
+  const [apps, setApps] = useState<AdminSyncRow[]>(() =>
+    apiMode ? [] : ensureAdminSyncSeed(fallback),
+  );
+  const [apiItems, setApiItems] = useState<AdmissionApplicationListItem[]>([]);
+  const [listStatus, setListStatus] = useState<AdmissionsListStatus>(() =>
+    apiMode ? "loading" : "demo",
+  );
+  const [listError, setListError] = useState<string | null>(null);
+  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
+    string | null
+  >(null);
+  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
+  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
+
+  const listView = resolveAdmissionsListView({
+    apiMode,
+    instituteStatus: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+    resolvedForInstituteId,
+    storedItems: apiItems,
+    storedStatus: listStatus,
+    storedErrorMessage: listError,
+    instituteErrorMessage: instituteCtx.errorMessage,
+  });
+  type AppRow = AdminSyncRow | AdmissionApplicationListItem;
+  const displayApps: AppRow[] = apiMode ? listView.items : apps;
+  const activeApps = listView.rowsValid ? displayApps : [];
   const [seatRows, setSeatRows] = useState<ClassSeatAvailabilityRow[]>(() =>
     buildClassSeatAvailability(instituteId, profile.academic),
   );
@@ -115,6 +153,7 @@ function AdmissionsPage() {
   };
 
   const refreshApps = () => {
+    if (apiMode) return;
     setApps(ensureAdminSyncSeed(fallback));
     refreshSeatRows();
     const portal = getAdmissionsPortalWindow();
@@ -127,15 +166,106 @@ function AdmissionsPage() {
     }
   };
 
+  useEffect(() => {
+    if (!apiMode) return;
+
+    if (instituteCtx.status === "loading") {
+      setApiItems([]);
+      setListStatus("loading");
+      setListError(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "error" ||
+      instituteCtx.status === "forbidden"
+    ) {
+      setApiItems([]);
+      setListStatus(
+        instituteCtx.status === "forbidden" ? "forbidden" : "error",
+      );
+      setListError(instituteCtx.errorMessage);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "needs_selection" ||
+      instituteCtx.status === "empty" ||
+      !instituteCtx.activeInstituteId
+    ) {
+      setApiItems([]);
+      setListStatus("needs_institute");
+      setListError(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    let cancelled = false;
+    setListStatus("loading");
+    setListError(null);
+    void loadAdmissionsList(requestInstituteId).then((next) => {
+      if (
+        !shouldCommitAdmissionsLoad({
+          cancelled,
+          requestInstituteId,
+          activeInstituteId: activeInstituteIdRef.current,
+        })
+      ) {
+        return;
+      }
+      setApiItems(next.items);
+      setListStatus(next.status);
+      setListError(next.errorMessage);
+      setResolvedForInstituteId(requestInstituteId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    apiMode,
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    instituteCtx.errorMessage,
+  ]);
+
+  useEffect(() => {
+    setSearchQuery("");
+    setStageFilter("all");
+    setGradeFilter("all");
+    setDocsFilter("all");
+    setSelectedId(null);
+    setConvertOpen(false);
+  }, [instituteCtx.activeInstituteId]);
+
+  const listHint =
+    listView.status === "loading"
+      ? "Loading admissions applications…"
+      : listView.status === "needs_institute"
+        ? "Select an institute to load admissions."
+        : listView.status === "forbidden"
+          ? listView.errorMessage ??
+            "You do not have access to admissions for this institute."
+          : listView.status === "error"
+            ? listView.errorMessage ?? "Failed to load admissions."
+            : listView.status === "empty"
+              ? "No applications found for this institute."
+              : null;
+
+  const countLabel = (count: number) =>
+    apiMode && !listView.rowsValid ? "…" : String(count);
+
   const approved = useMemo(
-    () => apps.filter((a) => a.stage === "approved"),
-    [apps],
+    () => activeApps.filter((a) => a.stage === "approved"),
+    [activeApps],
   );
   const counts = useMemo(() => {
     const by = (stage: AdminSyncRow["stage"]) =>
-      apps.filter((a) => a.stage === stage).length;
+      activeApps.filter((a) => a.stage === stage).length;
     return {
-      total: apps.length,
+      total: activeApps.length,
       submitted: by("submitted"),
       review: by("review"),
       verification: by("verification"),
@@ -145,14 +275,14 @@ function AdmissionsPage() {
       rejected: by("rejected"),
       withdrawn: by("withdrawn"),
     };
-  }, [apps]);
+  }, [activeApps]);
 
   const reportRows = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    return apps.filter((row) => {
+    return activeApps.filter((row) => {
       if (stageFilter !== "all" && row.stage !== stageFilter) return false;
       if (gradeFilter !== "all" && row.grade !== gradeFilter) return false;
-      if (docsFilter !== "all") {
+      if (docsFilter !== "all" && !apiMode) {
         const ratio = parseDocsRatio(row.docs);
         const complete = ratio.total > 0 && ratio.verified >= ratio.total;
         if (docsFilter === "complete" && !complete) return false;
@@ -164,11 +294,11 @@ function AdmissionsPage() {
         .toLowerCase()
         .includes(q);
     });
-  }, [apps, docsFilter, gradeFilter, searchQuery, stageFilter]);
+  }, [activeApps, apiMode, docsFilter, gradeFilter, searchQuery, stageFilter]);
 
   const gradeOptions = useMemo(
-    () => [...new Set(apps.map((row) => row.grade))].sort((a, b) => a.localeCompare(b)),
-    [apps],
+    () => [...new Set(activeApps.map((row) => row.grade))].sort((a, b) => a.localeCompare(b)),
+    [activeApps],
   );
 
   const selected = useMemo(
@@ -181,6 +311,7 @@ function AdmissionsPage() {
   );
 
   useEffect(() => {
+    if (apiMode) return;
     purgeExpiredAdmissionDocumentCopies();
     refreshApps();
 
@@ -230,7 +361,7 @@ function AdmissionsPage() {
   };
 
   const convertToStudent = (draft: AdmissionConvertDraft) => {
-    if (!selected) return;
+    if (!writesEnabled || !selected) return;
     const directory = loadStudentDirectory();
     const id = nextStudentId(directory);
     const studentDraft = {
@@ -325,6 +456,10 @@ function AdmissionsPage() {
   };
 
   const openConvert = (id: string) => {
+    if (!writesEnabled) {
+      notify("Convert to student is not enabled in API read-only mode");
+      return;
+    }
     setSelectedId(id);
     setConvertOpen(true);
   };
@@ -332,21 +467,27 @@ function AdmissionsPage() {
   return (
     <AppShell
       title="Admissions"
-      subtitle="Review applications in Connect · add approved students here"
+      subtitle={
+        apiMode
+          ? `API mode · read-only · ${countLabel(activeApps.length)} applications · document counts not in list view`
+          : "Review applications in Connect · add approved students here"
+      }
       actions={
-        <>
-          <Button onClick={() => openAdmissionsFromAdmin("applications")}>
-            <ClipboardList className="size-3.5" /> Review applications
-            <ExternalLink className="size-3.5 opacity-70" />
-          </Button>
-          <Button
-            variant="primary"
-            onClick={() => openAdmissionsFromAdmin("institute")}
-          >
-            Open Admissions portal
-            <ExternalLink className="size-3.5 opacity-70" />
-          </Button>
-        </>
+        writesEnabled ? (
+          <>
+            <Button onClick={() => openAdmissionsFromAdmin("applications")}>
+              <ClipboardList className="size-3.5" /> Review applications
+              <ExternalLink className="size-3.5 opacity-70" />
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => openAdmissionsFromAdmin("institute")}
+            >
+              Open Admissions portal
+              <ExternalLink className="size-3.5 opacity-70" />
+            </Button>
+          </>
+        ) : undefined
       }
     >
       <div className="space-y-4">
@@ -354,15 +495,17 @@ function AdmissionsPage() {
           <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0 space-y-1.5">
               <div className="text-xs font-semibold text-foreground">
-                Check and decide on applications in the Admissions portal
+                {apiMode
+                  ? "Admissions applications (read-only)"
+                  : "Check and decide on applications in the Admissions portal"}
               </div>
               <p className="max-w-xl text-[12px] leading-relaxed text-muted-foreground">
-                Move applications through Submitted → Review → Verification → Parent
-                Confirmation → Approved (or Rejected / Withdrawn) in Connect. Come back to
-                Admin only to add an approved applicant as a student (and create a parent login
-                if needed).
+                {apiMode
+                  ? "Application pipeline counts and reporting from the API. Convert-to-student and Connect portal workflows remain demo-only in this cutover."
+                  : "Move applications through Submitted → Review → Verification → Parent Confirmation → Approved (or Rejected / Withdrawn) in Connect. Come back to Admin only to add an approved applicant as a student (and create a parent login if needed)."}
               </p>
             </div>
+            {writesEnabled ? (
             <div className="flex shrink-0 flex-wrap gap-2">
               <Button
                 variant="primary"
@@ -371,69 +514,77 @@ function AdmissionsPage() {
                 Go to Admissions portal <ArrowRight className="size-3.5" />
               </Button>
             </div>
+            ) : null}
           </div>
         </Card>
 
+        {!listView.rowsValid ? (
+          <div className="py-12 text-center text-sm text-muted-foreground">
+            {listHint ?? "Loading admissions applications…"}
+          </div>
+        ) : (
+        <>
         <KpiGrid cols={4}>
           <Kpi
             label="Total applications"
-            value={String(counts.total)}
+            value={countLabel(counts.total)}
             delta={`${counts.review + counts.verification + counts.parentConfirmation + counts.waitlisted} active pipeline`}
             icon={<ClipboardList className="size-3.5" />}
           />
           <Kpi
             label="Review"
-            value={String(counts.review)}
+            value={countLabel(counts.review)}
             delta="In review queue"
             icon={<ListOrdered className="size-3.5" />}
           />
           <Kpi
             label="Verification"
-            value={String(counts.verification)}
+            value={countLabel(counts.verification)}
             delta="Docs verification"
             icon={<ListOrdered className="size-3.5" />}
           />
           <Kpi
             label="Parent confirmation"
-            value={String(counts.parentConfirmation)}
+            value={countLabel(counts.parentConfirmation)}
             delta="Awaiting parent decision"
             icon={<ListOrdered className="size-3.5" />}
           />
           <Kpi
             label="Approved"
-            value={String(counts.approved)}
+            value={countLabel(counts.approved)}
             delta="Ready for conversion"
             tone="up"
             icon={<CheckCircle2 className="size-3.5" />}
           />
           <Kpi
             label="Rejected"
-            value={String(counts.rejected)}
+            value={countLabel(counts.rejected)}
             delta="Not selected"
             tone="down"
             icon={<ListOrdered className="size-3.5" />}
           />
           <Kpi
             label="Withdrawn"
-            value={String(counts.withdrawn)}
+            value={countLabel(counts.withdrawn)}
             delta="Closed by lifecycle/action"
             icon={<ListOrdered className="size-3.5" />}
           />
           <Kpi
             label="Waitlist"
-            value={String(counts.waitlisted)}
+            value={countLabel(counts.waitlisted)}
             delta="Seat dependent"
             icon={<ListOrdered className="size-3.5" />}
           />
           <Kpi
             label="Pending conversion"
-            value={String(counts.approved)}
+            value={countLabel(counts.approved)}
             delta={`${approved.length} approved not yet converted`}
             tone="up"
             icon={<UserPlus className="size-3.5" />}
           />
         </KpiGrid>
 
+        {writesEnabled ? (
         <Card>
           <CardHeader
             title="Available seats by class"
@@ -473,11 +624,16 @@ function AdmissionsPage() {
             ))}
           </div>
         </Card>
+        ) : null}
 
         <Card>
           <CardHeader
             title="Admissions reporting"
-            hint="Search and filter across all applications"
+            hint={
+              apiMode
+                ? "Read-only application list from API"
+                : "Search and filter across all applications"
+            }
             action={<Pill tone="neutral">{reportRows.length} result(s)</Pill>}
           />
           <div className="flex flex-wrap items-end gap-3 px-5 pb-4 sm:px-6">
@@ -528,8 +684,12 @@ function AdmissionsPage() {
                   onChange: (v) => setDocsFilter(v as "all" | "complete" | "incomplete"),
                   options: [
                     { value: "all", label: "All" },
-                    { value: "complete", label: "Complete" },
-                    { value: "incomplete", label: "Incomplete" },
+                    ...(apiMode
+                      ? []
+                      : [
+                          { value: "complete", label: "Complete" },
+                          { value: "incomplete", label: "Incomplete" },
+                        ]),
                   ],
                 },
               ]}
@@ -537,7 +697,7 @@ function AdmissionsPage() {
           </div>
           {reportRows.length === 0 ? (
             <div className="px-5 pb-6 text-xs text-muted-foreground sm:px-6">
-              No applications match your filters.
+              {listHint ?? "No applications match your filters."}
             </div>
           ) : (
             <ul className="divide-y divide-border px-2 pb-2 sm:px-3">
@@ -559,7 +719,7 @@ function AdmissionsPage() {
                     </div>
                   </div>
                   <Pill tone={stageTone(app.stage)}>{stageLabel(app.stage)}</Pill>
-                  {app.stage === "approved" ? (
+                  {writesEnabled && app.stage === "approved" ? (
                     <Button variant="primary" size="sm" onClick={() => openConvert(app.id)}>
                       <UserPlus className="size-3.5" /> Convert
                     </Button>
@@ -570,6 +730,7 @@ function AdmissionsPage() {
           )}
         </Card>
 
+        {writesEnabled ? (
         <Card>
           <CardHeader
             title="Add approved applicants as students"
@@ -633,8 +794,11 @@ function AdmissionsPage() {
             </ul>
           )}
         </Card>
+        ) : null}
 
         <p className="text-[11px] text-muted-foreground px-1">
+          {writesEnabled ? (
+            <>
           After you add them as a student, manage the record under{" "}
           <Link to="/students" className="text-primary font-medium hover:underline">
             Students
@@ -645,9 +809,16 @@ function AdmissionsPage() {
             Parents
           </Link>
           .
+            </>
+          ) : (
+            "Student conversion and parent account creation are not enabled in API read-only mode."
+          )}
         </p>
+        </>
+        )}
       </div>
 
+      {writesEnabled ? (
       <ConvertToStudentDialog
         open={convertOpen}
         row={selected}
@@ -659,6 +830,7 @@ function AdmissionsPage() {
         }}
         onConvert={convertToStudent}
       />
+      ) : null}
     </AppShell>
   );
 }
