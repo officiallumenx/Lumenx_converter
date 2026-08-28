@@ -21,9 +21,20 @@ import {
   Th,
 } from "@lumenx/ui-admin";
 import { BookOpen, MoreHorizontal, Plus, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { useInstituteContext } from "@/lib/institutes";
+import {
+  gradesDisplayLabel,
+  loadSubjectsList,
+  resolveSubjectsListView,
+  shouldCommitSubjectsLoad,
+  type SubjectListItem,
+  type SubjectsListStatus,
+} from "@/lib/subjects";
 import { useAuth } from "@/auth/AuthContext";
+import { useAdminToast } from "@/components/AdminActionToast";
 import { softDeleteToRecycleBin } from "@lumenx/utils";
 import {
   SUBJECT_CATEGORIES,
@@ -47,6 +58,8 @@ export const Route = createFileRoute("/subjects")({
 
 type FormMode = "create" | "edit";
 
+type SubjectRow = SubjectCatalogItem | SubjectListItem;
+
 const emptyForm = (defaultGrade: string) => ({
   name: "",
   code: "",
@@ -57,9 +70,13 @@ const emptyForm = (defaultGrade: string) => ({
 });
 
 function SubjectsPage() {
+  const notify = useAdminToast();
   const navigate = useNavigate();
   const { user } = useAuth();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const apiMode = isApiAuthMode();
+  const instituteCtx = useInstituteContext();
+  const writesEnabled = !apiMode;
   const { profileId, profile } = useDemoProfile();
   const { guardWriteAction, writesAllowed, reason } = useAdminWriteAccess();
   const college = isCollegeMode();
@@ -67,8 +84,35 @@ function SubjectsPage() {
   const subjectOptions = useMemo(() => adminDataFacade.subjects.listSubjectOptions(), [profileId]);
   const defaultGrade = grades[0] ?? "Grade 10";
 
-  const [catalog, setCatalog] = useState(() => adminDataFacade.subjects.listCatalog());
-  const teachers = useMemo(() => adminDataFacade.subjects.listTeachers(), [catalog]);
+  const [catalog, setCatalog] = useState(() =>
+    apiMode ? [] : adminDataFacade.subjects.listCatalog(),
+  );
+  const [apiItems, setApiItems] = useState<SubjectListItem[]>([]);
+  const [listStatus, setListStatus] = useState<SubjectsListStatus>(() =>
+    apiMode ? "loading" : "demo",
+  );
+  const [listError, setListError] = useState<string | null>(null);
+  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
+    string | null
+  >(null);
+  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
+  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
+
+  const listView = resolveSubjectsListView({
+    apiMode,
+    instituteStatus: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+    resolvedForInstituteId,
+    storedItems: apiItems,
+    storedStatus: listStatus,
+    storedErrorMessage: listError,
+    instituteErrorMessage: instituteCtx.errorMessage,
+  });
+  const displayItems: SubjectRow[] = apiMode ? listView.items : catalog;
+  const teachers = useMemo(
+    () => (apiMode ? [] : adminDataFacade.subjects.listTeachers()),
+    [apiMode, catalog],
+  );
 
   const [q, setQ] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -104,18 +148,106 @@ function SubjectsPage() {
   );
 
   useEffect(() => {
+    if (apiMode) return;
     refresh();
     setSelectedGrades([grades[0] ?? "Grade 10"]);
-  }, [profileId]);
+  }, [apiMode, profileId]);
+
+  useEffect(() => {
+    if (!apiMode) return;
+
+    if (instituteCtx.status === "loading") {
+      setApiItems([]);
+      setListStatus("loading");
+      setListError(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "error" ||
+      instituteCtx.status === "forbidden"
+    ) {
+      setApiItems([]);
+      setListStatus(
+        instituteCtx.status === "forbidden" ? "forbidden" : "error",
+      );
+      setListError(instituteCtx.errorMessage);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "needs_selection" ||
+      instituteCtx.status === "empty" ||
+      !instituteCtx.activeInstituteId
+    ) {
+      setApiItems([]);
+      setListStatus("needs_institute");
+      setListError(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    let cancelled = false;
+    setListStatus("loading");
+    setListError(null);
+    void loadSubjectsList(requestInstituteId).then((next) => {
+      if (
+        !shouldCommitSubjectsLoad({
+          cancelled,
+          requestInstituteId,
+          activeInstituteId: activeInstituteIdRef.current,
+        })
+      ) {
+        return;
+      }
+      setApiItems(next.items);
+      setListStatus(next.status);
+      setListError(next.errorMessage);
+      setResolvedForInstituteId(requestInstituteId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    apiMode,
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    instituteCtx.errorMessage,
+  ]);
+
+  useEffect(() => {
+    setQ("");
+    setCategoryFilter("all");
+    setFormOpen(false);
+    setAssignOpen(false);
+    setDeleteOpen(false);
+    setActiveSubject(null);
+  }, [instituteCtx.activeInstituteId]);
 
   const list = useMemo(() => {
+    const search = q.trim().toLowerCase();
+
+    if (apiMode) {
+      return displayItems.filter((s) => {
+        if (categoryFilter !== "all" && s.category !== categoryFilter) {
+          return false;
+        }
+        if (!search) return true;
+        const hay = `${s.name} ${s.code} ${s.category}`.toLowerCase();
+        return hay.includes(search);
+      });
+    }
+
     return catalog.filter((s) => {
       if (categoryFilter !== "all" && s.category !== categoryFilter) return false;
-      if (!q) return true;
+      if (!search) return true;
       const hay = `${s.name} ${s.code} ${s.category}`.toLowerCase();
-      return hay.includes(q.toLowerCase());
+      return hay.includes(search);
     });
-  }, [catalog, q, categoryFilter]);
+  }, [apiMode, displayItems, catalog, q, categoryFilter]);
 
   const resetForm = () => {
     const e = emptyForm(defaultGrade);
@@ -181,6 +313,10 @@ function SubjectsPage() {
   };
 
   const saveForm = () => {
+    if (!writesEnabled) {
+      notify("Subject writes are not enabled in API read-only mode");
+      return;
+    }
     if (!name.trim() || !code.trim() || selectedGrades.length === 0) return;
 
     const payload = {
@@ -204,6 +340,10 @@ function SubjectsPage() {
   };
 
   const confirmDelete = () => {
+    if (!writesEnabled) {
+      notify("Subject writes are not enabled in API read-only mode");
+      return;
+    }
     if (!activeSubject) return;
     softDeleteToRecycleBin({
       module: "Subjects",
@@ -226,6 +366,10 @@ function SubjectsPage() {
   };
 
   const saveAssignments = () => {
+    if (!writesEnabled) {
+      notify("Subject writes are not enabled in API read-only mode");
+      return;
+    }
     if (!activeSubject) return;
     assignTeachersToSubject(activeSubject.id, assignIds);
     refresh();
@@ -237,22 +381,52 @@ function SubjectsPage() {
     setAssignIds((prev) => (prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]));
   };
 
+  const countLabel = (count: number) =>
+    apiMode && !listView.rowsValid ? "…" : String(count);
+
+  const listHint =
+    listView.status === "loading"
+      ? "Loading subjects…"
+      : listView.status === "needs_institute"
+        ? "Select an active institute to load subjects"
+        : listView.status === "forbidden"
+          ? "You do not have access to subjects for this institute"
+          : listView.status === "error"
+            ? listView.errorMessage ?? "Failed to load subjects"
+            : listView.status === "empty"
+              ? "No subjects yet"
+              : null;
+
+  const openSubjectDetail = (id: string) => {
+    if (!writesEnabled) {
+      notify("Subject detail pages are not enabled in API read-only mode");
+      return;
+    }
+    void navigate({ to: "/subjects/$id", params: { id } });
+  };
+
   if (pathname.startsWith("/subjects/")) return <Outlet />;
 
   return (
     <AppShell
       title={profile.academic.subjectsPageTitle}
-      subtitle={`${catalog.length} subjects · create, edit, and assign teachers`}
+      subtitle={
+        apiMode
+          ? `${countLabel(displayItems.length)} subjects · read-only institute catalog`
+          : `${catalog.length} subjects · create, edit, and assign teachers`
+      }
       actions={
-        <Button
-          variant="primary"
-          data-admin-write
-          disabled={!writesAllowed}
-          title={!writesAllowed ? reason ?? undefined : undefined}
-          onClick={() => guardWriteAction(openCreate)}
-        >
-          <Plus className="size-3.5" /> New subject
-        </Button>
+        writesEnabled ? (
+          <Button
+            variant="primary"
+            data-admin-write
+            disabled={!writesAllowed}
+            title={!writesAllowed ? reason ?? undefined : undefined}
+            onClick={() => guardWriteAction(openCreate)}
+          >
+            <Plus className="size-3.5" /> New subject
+          </Button>
+        ) : null
       }
     >
       <Card>
@@ -284,18 +458,24 @@ function SubjectsPage() {
         {list.length === 0 ? (
           <EmptyState
             icon={<BookOpen className="size-5" />}
-            title="No subjects found"
-            hint="Try another search term or category filter."
+            title={listHint ?? "No subjects found"}
+            hint={
+              listHint
+                ? undefined
+                : "Try another search term or category filter."
+            }
             action={
-              <Button
-                variant="primary"
-                data-admin-write
-                disabled={!writesAllowed}
-                title={!writesAllowed ? reason ?? undefined : undefined}
-                onClick={() => guardWriteAction(openCreate)}
-              >
-                <Plus className="size-3.5" /> New subject
-              </Button>
+              writesEnabled ? (
+                <Button
+                  variant="primary"
+                  data-admin-write
+                  disabled={!writesAllowed}
+                  title={!writesAllowed ? reason ?? undefined : undefined}
+                  onClick={() => guardWriteAction(openCreate)}
+                >
+                  <Plus className="size-3.5" /> New subject
+                </Button>
+              ) : null
             }
           />
         ) : (
@@ -306,29 +486,43 @@ function SubjectsPage() {
                 <Th>Category</Th>
                 <Th>{college ? "Years" : "Grades"}</Th>
                 <Th>Periods/wk</Th>
-                <Th>Teachers</Th>
+                {writesEnabled ? <Th>Teachers</Th> : null}
                 <Th>Status</Th>
-                <Th className="w-12">
-                  <span className="sr-only">Actions</span>
-                </Th>
+                {writesEnabled ? (
+                  <Th className="w-12">
+                    <span className="sr-only">Actions</span>
+                  </Th>
+                ) : null}
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {list.map((s) => {
-                const assigned = teachers.filter((t) => s.assignedTeacherIds.includes(t.id));
+                const assigned = writesEnabled
+                  ? teachers.filter((t) => s.assignedTeacherIds.includes(t.id))
+                  : [];
                 return (
                   <tr
                     key={s.id}
-                    role="link"
-                    tabIndex={0}
-                    className="cursor-pointer hover:bg-surface-hover"
-                    onClick={() => navigate({ to: "/subjects/$id", params: { id: s.id } })}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        navigate({ to: "/subjects/$id", params: { id: s.id } });
-                      }
-                    }}
+                    role={writesEnabled ? "link" : undefined}
+                    tabIndex={writesEnabled ? 0 : undefined}
+                    className={
+                      writesEnabled
+                        ? "cursor-pointer hover:bg-surface-hover"
+                        : "hover:bg-surface-hover"
+                    }
+                    onClick={
+                      writesEnabled ? () => openSubjectDetail(s.id) : undefined
+                    }
+                    onKeyDown={
+                      writesEnabled
+                        ? (event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              openSubjectDetail(s.id);
+                            }
+                          }
+                        : undefined
+                    }
                   >
                     <td className="px-5 py-3">
                       <div className="text-xs font-medium">{s.name}</div>
@@ -336,42 +530,44 @@ function SubjectsPage() {
                     </td>
                     <td className="px-5 py-3 text-xs">{s.category}</td>
                     <td className="px-5 py-3 text-[11px] text-muted-foreground max-w-[180px]">
-                      {s.grades
-                        .map((g) => (college ? g : g.replace("Grade ", "G")))
-                        .join(", ")}
+                      {gradesDisplayLabel(s.grades, college)}
                     </td>
                     <td className="px-5 py-3 text-xs font-mono">{s.periodsPerWeek}</td>
-                    <td className="px-5 py-3">
-                      {assigned.length === 0 ? (
-                        <span className="text-[11px] text-warning">None assigned</span>
-                      ) : (
-                        <div className="flex flex-wrap gap-1">
-                          {assigned.slice(0, 3).map((t) => (
-                            <Pill key={t.id} tone="neutral">
-                              {t.name.split(" ")[0]}
-                            </Pill>
-                          ))}
-                          {assigned.length > 3 && (
-                            <Pill tone="neutral">+{assigned.length - 3}</Pill>
-                          )}
-                        </div>
-                      )}
-                    </td>
+                    {writesEnabled ? (
+                      <td className="px-5 py-3">
+                        {assigned.length === 0 ? (
+                          <span className="text-[11px] text-warning">None assigned</span>
+                        ) : (
+                          <div className="flex flex-wrap gap-1">
+                            {assigned.slice(0, 3).map((t) => (
+                              <Pill key={t.id} tone="neutral">
+                                {t.name.split(" ")[0]}
+                              </Pill>
+                            ))}
+                            {assigned.length > 3 && (
+                              <Pill tone="neutral">+{assigned.length - 3}</Pill>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    ) : null}
                     <td className="px-5 py-3">
                       <Pill tone={s.status === "active" ? "success" : "warning"}>{s.status}</Pill>
                     </td>
-                    <td
-                      className="px-5 py-3"
-                      onClick={(event) => event.stopPropagation()}
-                      onKeyDown={(event) => event.stopPropagation()}
-                    >
-                      <SubjectRowMenu
-                        onView={() => navigate({ to: "/subjects/$id", params: { id: s.id } })}
-                        onEdit={() => openEdit(s)}
-                        onAssignTeachers={() => openAssign(s)}
-                        onDelete={() => openDelete(s)}
-                      />
-                    </td>
+                    {writesEnabled ? (
+                      <td
+                        className="px-5 py-3"
+                        onClick={(event) => event.stopPropagation()}
+                        onKeyDown={(event) => event.stopPropagation()}
+                      >
+                        <SubjectRowMenu
+                          onView={() => openSubjectDetail(s.id)}
+                          onEdit={() => openEdit(s as SubjectCatalogItem)}
+                          onAssignTeachers={() => openAssign(s as SubjectCatalogItem)}
+                          onDelete={() => openDelete(s as SubjectCatalogItem)}
+                        />
+                      </td>
+                    ) : null}
                   </tr>
                 );
               })}
@@ -380,6 +576,8 @@ function SubjectsPage() {
         )}
       </Card>
 
+      {writesEnabled ? (
+      <>
       <Modal
         open={formOpen}
         onClose={() => {
@@ -598,6 +796,8 @@ function SubjectsPage() {
           </div>
         )}
       </Modal>
+      </>
+      ) : null}
     </AppShell>
   );
 }
