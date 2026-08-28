@@ -9,6 +9,8 @@ import { StudentStatusView } from "@/components/academic-management/views/Studen
 import { AcademicSettingsView } from "@/components/academic-management/views/AcademicSettingsView";
 import { validateHubViewSearch } from "@/lib/hub-view-search";
 import { adminPageTitle } from "@/lib/admin-module-labels";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { ApiReadUnavailablePanel } from "@/components/ApiReadUnavailablePanel";
 
 export type AcademicManagementView =
   | "years"
@@ -53,16 +55,58 @@ export const Route = createFileRoute("/academic-management")({
 
 function AcademicManagementPage() {
   const { view } = Route.useSearch();
+  const apiMode = isApiAuthMode();
+
+  const subtitle =
+    apiMode && view !== "years"
+      ? "API mode · read unavailable · no institute read API"
+      : VIEW_SUBTITLES[view];
 
   return (
-    <AppShell title={VIEW_TITLES[view]} subtitle={VIEW_SUBTITLES[view]}>
+    <AppShell title={VIEW_TITLES[view]} subtitle={subtitle}>
       <AcademicManagementHubNav active={view} />
       <AdminPageTransition pageKey={view}>
         {view === "years" && <AcademicYearsView />}
-        {view === "promotion" && <StudentPromotionView />}
-        {view === "graduation" && <GraduationView />}
-        {view === "status" && <StudentStatusView />}
-        {view === "settings" && <AcademicSettingsView />}
+        {view === "promotion" ? (
+          apiMode ? (
+            <ApiReadUnavailablePanel
+              title="Student promotion unavailable in API mode"
+              domainLabel="Student promotion workflow"
+            />
+          ) : (
+            <StudentPromotionView />
+          )
+        ) : null}
+        {view === "graduation" ? (
+          apiMode ? (
+            <ApiReadUnavailablePanel
+              title="Graduation unavailable in API mode"
+              domainLabel="Graduation workflow"
+            />
+          ) : (
+            <GraduationView />
+          )
+        ) : null}
+        {view === "status" ? (
+          apiMode ? (
+            <ApiReadUnavailablePanel
+              title="Student status catalogue unavailable in API mode"
+              domainLabel="Student status catalogue"
+            />
+          ) : (
+            <StudentStatusView />
+          )
+        ) : null}
+        {view === "settings" ? (
+          apiMode ? (
+            <ApiReadUnavailablePanel
+              title="Academic settings unavailable in API mode"
+              domainLabel="Academic settings"
+            />
+          ) : (
+            <AcademicSettingsView />
+          )
+        ) : null}
       </AdminPageTransition>
     </AppShell>
   );
