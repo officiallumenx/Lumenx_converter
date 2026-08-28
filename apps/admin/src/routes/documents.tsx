@@ -16,6 +16,7 @@ import { validateHubViewSearch } from "@/lib/hub-view-search";
 import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-labels";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
+import { ApiReadUnavailablePanel } from "@/components/ApiReadUnavailablePanel";
 import { useInstituteContext } from "@/lib/institutes";
 import type { GeneratedDocument, TemplateRecord } from "@/lib/template-management/types";
 import {
@@ -326,6 +327,18 @@ function DocumentsPage() {
         ? `API mode · read-only · ${generatedListView.items.length} documents`
         : `API mode · read-only · ${generatedHint ?? "…"}`;
     }
+    if (
+      view === "dashboard" ||
+      view === "requests" ||
+      view === "packages" ||
+      view === "generate" ||
+      view === "published" ||
+      view === "signatures" ||
+      view === "categories" ||
+      view === "settings"
+    ) {
+      return "API mode · read unavailable · no institute read API";
+    }
     return base;
   }, [
     apiMode,
@@ -345,9 +358,36 @@ function DocumentsPage() {
     <AppShell title={VIEW_TITLES[view]} subtitle={subtitle}>
       <DocHubNav active={view} />
       <AdminPageTransition pageKey={view}>
-        {view === "dashboard" && <DocDashboardView />}
-        {view === "requests" && <DocRequestsView />}
-        {view === "packages" && <DocPackagesView />}
+        {view === "dashboard" ? (
+          apiMode ? (
+            <ApiReadUnavailablePanel
+              title="Documents dashboard unavailable in API mode"
+              domainLabel="Documents dashboard"
+            />
+          ) : (
+            <DocDashboardView />
+          )
+        ) : null}
+        {view === "requests" ? (
+          apiMode ? (
+            <ApiReadUnavailablePanel
+              title="Document requests unavailable in API mode"
+              domainLabel="Document requests"
+            />
+          ) : (
+            <DocRequestsView />
+          )
+        ) : null}
+        {view === "packages" ? (
+          apiMode ? (
+            <ApiReadUnavailablePanel
+              title="Document packages unavailable in API mode"
+              domainLabel="Document packages"
+            />
+          ) : (
+            <DocPackagesView />
+          )
+        ) : null}
         {view === "templates" && (
           <DocTemplatesView
             templates={apiTemplatesForView}
@@ -356,9 +396,17 @@ function DocumentsPage() {
             listHint={templatesHint}
           />
         )}
-        {view === "generate" && (
-          <DocGenerateView onViewGenerated={() => goToView("generated")} />
-        )}
+        {view === "generate" ? (
+          apiMode ? (
+            <ApiReadUnavailablePanel
+              title="Document generation unavailable in API mode"
+              domainLabel="Document generation"
+              hint="Generation is a write workflow and there is no read-only API cutover for this tab yet. Demo generation is not available in API mode."
+            />
+          ) : (
+            <DocGenerateView onViewGenerated={() => goToView("generated")} />
+          )
+        ) : null}
         {view === "generated" && (
           <DocGeneratedView
             documents={apiGeneratedForView}
@@ -367,10 +415,47 @@ function DocumentsPage() {
             listHint={generatedHint}
           />
         )}
-        {view === "published" && <DocPublishedView />}
-        {view === "signatures" && <DocSignaturesView />}
-        {view === "categories" && <DocCategoriesView />}
-        {view === "settings" && <DocSettingsView />}
+        {view === "published" ? (
+          apiMode ? (
+            <ApiReadUnavailablePanel
+              title="Published documents unavailable in API mode"
+              domainLabel="Published documents catalog"
+              hint="Use Certificates or Documents → Generated for API-backed read views. This published hub tab has no institute read API yet."
+            />
+          ) : (
+            <DocPublishedView />
+          )
+        ) : null}
+        {view === "signatures" ? (
+          apiMode ? (
+            <ApiReadUnavailablePanel
+              title="Signatures unavailable in API mode"
+              domainLabel="Document signatures"
+            />
+          ) : (
+            <DocSignaturesView />
+          )
+        ) : null}
+        {view === "categories" ? (
+          apiMode ? (
+            <ApiReadUnavailablePanel
+              title="Categories unavailable in API mode"
+              domainLabel="Document categories"
+            />
+          ) : (
+            <DocCategoriesView />
+          )
+        ) : null}
+        {view === "settings" ? (
+          apiMode ? (
+            <ApiReadUnavailablePanel
+              title="Studio settings unavailable in API mode"
+              domainLabel="Document studio settings"
+            />
+          ) : (
+            <DocSettingsView />
+          )
+        ) : null}
       </AdminPageTransition>
     </AppShell>
   );
