@@ -19,6 +19,18 @@ import {
   shouldCommitFeesLoad,
   type FeesLoadStatus,
 } from "@/lib/fees";
+import {
+  loadStudentsList,
+  resolveStudentsListView,
+  shouldCommitStudentsLoad,
+  type StudentListItem,
+  type StudentsListStatus,
+} from "@/lib/students";
+import {
+  FEES_STUDENT_OPTIONS,
+  studentListItemsToFeesStudentOptions,
+  type FeesStudentOption,
+} from "@/lib/fees-students";
 import type { FeesSnapshot } from "@lumenx/module-fees";
 
 export type FeesHubView =
@@ -84,6 +96,20 @@ function feesLoadHint(
   return null;
 }
 
+function studentsPickerHint(
+  status: StudentsListStatus,
+  errorMessage: string | null,
+): string | null {
+  if (status === "loading") return "Loading students for fee picker…";
+  if (status === "needs_institute") return "Select an institute to load students.";
+  if (status === "forbidden") {
+    return errorMessage ?? "You do not have access to students for this institute.";
+  }
+  if (status === "error") return errorMessage ?? "Failed to load students.";
+  if (status === "empty") return "No students found for this institute.";
+  return null;
+}
+
 function FeesPage() {
   const { view } = Route.useSearch();
   const navigate = useNavigate();
@@ -102,6 +128,14 @@ function FeesPage() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(
     null,
   );
+  const [apiStudents, setApiStudents] = useState<StudentListItem[]>([]);
+  const [studentsListStatus, setStudentsListStatus] = useState<StudentsListStatus>(() =>
+    apiMode ? "loading" : "demo",
+  );
+  const [studentsListError, setStudentsListError] = useState<string | null>(null);
+  const [studentsResolvedForInstituteId, setStudentsResolvedForInstituteId] = useState<
+    string | null
+  >(null);
 
   const feesLoadView = resolveFeesLoadView({
     apiMode,
@@ -115,6 +149,32 @@ function FeesPage() {
   });
 
   const feesHint = feesLoadHint(feesLoadView.status, feesLoadView.errorMessage);
+
+  const studentsListView = resolveStudentsListView({
+    apiMode,
+    instituteStatus: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+    resolvedForInstituteId: studentsResolvedForInstituteId,
+    storedItems: apiStudents,
+    storedStatus: studentsListStatus,
+    storedErrorMessage: studentsListError,
+    instituteErrorMessage: instituteCtx.errorMessage,
+  });
+
+  const studentOptions: FeesStudentOption[] = useMemo(() => {
+    if (!apiMode) return FEES_STUDENT_OPTIONS;
+    if (!studentsListView.rowsValid) return [];
+    return studentListItemsToFeesStudentOptions(studentsListView.items);
+  }, [apiMode, studentsListView.items, studentsListView.rowsValid]);
+
+  const studentsPickerReady =
+    !apiMode ||
+    studentsListView.status === "ready" ||
+    studentsListView.status === "empty";
+  const studentsPickerHintText = studentsPickerHint(
+    studentsListView.status,
+    studentsListView.errorMessage,
+  );
 
   useEffect(() => {
     if (!apiMode) return;
@@ -181,6 +241,71 @@ function FeesPage() {
     instituteCtx.errorMessage,
   ]);
 
+  useEffect(() => {
+    if (!apiMode) return;
+
+    if (instituteCtx.status === "loading") {
+      setApiStudents([]);
+      setStudentsListStatus("loading");
+      setStudentsListError(null);
+      setStudentsResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "error" ||
+      instituteCtx.status === "forbidden"
+    ) {
+      setApiStudents([]);
+      setStudentsListStatus(
+        instituteCtx.status === "forbidden" ? "forbidden" : "error",
+      );
+      setStudentsListError(instituteCtx.errorMessage);
+      setStudentsResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "needs_selection" ||
+      instituteCtx.status === "empty" ||
+      !instituteCtx.activeInstituteId
+    ) {
+      setApiStudents([]);
+      setStudentsListStatus("needs_institute");
+      setStudentsListError(null);
+      setStudentsResolvedForInstituteId(null);
+      return;
+    }
+
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    let cancelled = false;
+    setStudentsListStatus("loading");
+    setStudentsListError(null);
+    void loadStudentsList(requestInstituteId).then((next) => {
+      if (
+        !shouldCommitStudentsLoad({
+          cancelled,
+          requestInstituteId,
+          activeInstituteId: activeInstituteIdRef.current,
+        })
+      ) {
+        return;
+      }
+      setApiStudents(next.items);
+      setStudentsListStatus(next.status);
+      setStudentsListError(next.errorMessage);
+      setStudentsResolvedForInstituteId(requestInstituteId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    apiMode,
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    instituteCtx.errorMessage,
+  ]);
+
   const displaySnapshot = useMemo(() => {
     if (!apiMode || !feesLoadView.rowsValid || !feesLoadView.snapshot) {
       return snapshot;
@@ -208,7 +333,12 @@ function FeesPage() {
         ) : (
           <>
             {view === "overview" && (
-              <FeesOverviewView snapshot={displaySnapshot} onNavigate={goToView} />
+              <FeesOverviewView
+                snapshot={displaySnapshot}
+                onNavigate={goToView}
+                studentOptions={studentOptions}
+                studentsPickerReady={studentsPickerReady}
+              />
             )}
             {view === "class-fees" && (
               <FeesClassFeesView
@@ -222,6 +352,9 @@ function FeesPage() {
                 snapshot={displaySnapshot}
                 onChange={setSnapshot}
                 writesEnabled={writesEnabled}
+                studentOptions={studentOptions}
+                studentsPickerReady={studentsPickerReady}
+                studentsPickerHint={studentsPickerHintText}
               />
             )}
             {view === "extra" && (
@@ -243,6 +376,9 @@ function FeesPage() {
                 snapshot={displaySnapshot}
                 onChange={setSnapshot}
                 writesEnabled={writesEnabled}
+                studentOptions={studentOptions}
+                studentsPickerReady={studentsPickerReady}
+                studentsPickerHint={studentsPickerHintText}
               />
             )}
           </>

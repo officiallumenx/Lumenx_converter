@@ -17,7 +17,7 @@ import {
   type FeesSnapshot,
 } from "@lumenx/module-fees";
 import type { FeesHubView } from "@/routes/fees";
-import { FEES_STUDENT_OPTIONS } from "@/lib/fees-students";
+import type { FeesStudentOption } from "@/lib/fees-students";
 
 function compactInr(amount: number): string {
   if (amount >= 10_000_000) return `₹${(amount / 10_000_000).toFixed(2)} Cr`;
@@ -28,9 +28,13 @@ function compactInr(amount: number): string {
 export function FeesOverviewView({
   snapshot,
   onNavigate,
+  studentOptions,
+  studentsPickerReady = true,
 }: {
   snapshot: FeesSnapshot;
   onNavigate: (v: FeesHubView) => void;
+  studentOptions: FeesStudentOption[];
+  studentsPickerReady?: boolean;
 }) {
   const published = isPublished(snapshot);
   const classKeys = listKnownClassKeys(snapshot);
@@ -39,40 +43,47 @@ export function FeesOverviewView({
 
   const totals = useMemo(
     () =>
-      summarizeFeesOverview(
-        snapshot,
-        FEES_STUDENT_OPTIONS.map((s) => ({
-          studentId: s.id,
-          classKey: s.classKey,
-        })),
-      ),
-    [snapshot],
+      studentsPickerReady
+        ? summarizeFeesOverview(
+            snapshot,
+            studentOptions.map((s) => ({
+              studentId: s.id,
+              classKey: s.classKey,
+            })),
+          )
+        : null,
+    [snapshot, studentOptions, studentsPickerReady],
   );
+
+  const countLabel = (value: number) =>
+    studentsPickerReady ? String(value) : "…";
+  const amountLabel = (value: number) =>
+    studentsPickerReady ? compactInr(value) : "…";
 
   return (
     <PageStack>
       <KpiGrid cols={4}>
         <Kpi
           label="Total fees"
-          value={compactInr(totals.totalFees)}
-          delta={`${totals.studentCount} students`}
+          value={totals ? amountLabel(totals.totalFees) : "…"}
+          delta={`${countLabel(totals?.studentCount ?? 0)} students`}
         />
         <Kpi
           label="Paid"
-          value={compactInr(totals.paid)}
+          value={totals ? amountLabel(totals.paid) : "…"}
           tone="up"
-          delta={`${totals.fullyPaidCount} cleared`}
+          delta={`${countLabel(totals?.fullyPaidCount ?? 0)} cleared`}
         />
         <Kpi
           label="Due"
-          value={compactInr(totals.due)}
-          tone={totals.due > 0 ? "down" : "neutral"}
-          delta={`${totals.unpaidCount + totals.partiallyPaidCount} pending`}
+          value={totals ? amountLabel(totals.due) : "…"}
+          tone={totals && totals.due > 0 ? "down" : "neutral"}
+          delta={`${countLabel((totals?.unpaidCount ?? 0) + (totals?.partiallyPaidCount ?? 0))} pending`}
         />
         <Kpi
           label="Collection rate"
-          value={`${totals.collectionRate}%`}
-          tone={totals.collectionRate >= 70 ? "up" : "neutral"}
+          value={totals ? `${totals.collectionRate}%` : "…"}
+          tone={totals && totals.collectionRate >= 70 ? "up" : "neutral"}
           delta={published ? "Published" : "Draft"}
         />
       </KpiGrid>
@@ -83,7 +94,7 @@ export function FeesOverviewView({
         <Kpi label="Concessions" value={String(overrideCount)} />
         <Kpi
           label="Partial payments"
-          value={String(totals.partiallyPaidCount)}
+          value={countLabel(totals?.partiallyPaidCount ?? 0)}
           delta="Office collections"
         />
       </KpiGrid>
@@ -123,19 +134,19 @@ export function FeesOverviewView({
             <div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
               <div className="text-muted-foreground">Billed</div>
               <div className="font-mono text-foreground mt-0.5">
-                {formatInr(totals.totalFees)}
+                {totals ? formatInr(totals.totalFees) : "…"}
               </div>
             </div>
             <div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
               <div className="text-muted-foreground">Collected</div>
               <div className="font-mono text-foreground mt-0.5">
-                {formatInr(totals.paid)}
+                {totals ? formatInr(totals.paid) : "…"}
               </div>
             </div>
             <div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
               <div className="text-muted-foreground">Outstanding</div>
               <div className="font-mono text-foreground mt-0.5">
-                {formatInr(totals.due)}
+                {totals ? formatInr(totals.due) : "…"}
               </div>
             </div>
           </div>

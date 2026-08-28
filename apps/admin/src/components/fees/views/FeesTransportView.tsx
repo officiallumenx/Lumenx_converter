@@ -32,11 +32,11 @@ import {
 } from "@lumenx/module-fees";
 import { useAdminToast } from "@/components/AdminActionToast";
 import {
-  FEES_STUDENT_OPTIONS,
   feesStudentClasses,
   feesStudentSections,
   feesStudentsFor,
   findFeesStudent,
+  type FeesStudentOption,
 } from "@/lib/fees-students";
 
 /**
@@ -47,10 +47,16 @@ export function FeesTransportView({
   snapshot,
   onChange,
   writesEnabled = true,
+  studentOptions,
+  studentsPickerReady = true,
+  studentsPickerHint = null,
 }: {
   snapshot: FeesSnapshot;
   onChange: (next: FeesSnapshot) => void;
   writesEnabled?: boolean;
+  studentOptions: FeesStudentOption[];
+  studentsPickerReady?: boolean;
+  studentsPickerHint?: string | null;
 }) {
   const notify = useAdminToast();
   const catId = CORE_CATEGORY_IDS.transport;
@@ -61,27 +67,32 @@ export function FeesTransportView({
   const [noteDraft, setNoteDraft] = useState("");
   const [classFilter, setClassFilter] = useState<string>("all");
 
+  useEffect(() => {
+    setClassFilter("all");
+    setSectionFilter("all");
+  }, [studentOptions]);
+
   const sectionOptions = useMemo(() => {
     if (classFilter === "all") {
-      return [...new Set(FEES_STUDENT_OPTIONS.map((s) => `${s.classKey}::${s.section}`))].map(
+      return [...new Set(studentOptions.map((s) => `${s.classKey}::${s.section}`))].map(
         (value) => {
           const [classKey, section] = value.split("::");
           return { value, classKey, section };
         },
       );
     }
-    return feesStudentSections(classFilter).map((section) => ({
+    return feesStudentSections(studentOptions, classFilter).map((section) => ({
       value: `${classFilter}::${section}`,
       classKey: classFilter,
       section,
     }));
-  }, [classFilter]);
+  }, [classFilter, studentOptions]);
 
   const activeSection = sectionFilter === "all" ? undefined : sectionOptions.find((s) => s.value === sectionFilter);
   const sectionStudents = useMemo(() => {
     if (!activeSection) return [];
-    return feesStudentsFor(activeSection.classKey, activeSection.section);
-  }, [activeSection]);
+    return feesStudentsFor(studentOptions, activeSection.classKey, activeSection.section);
+  }, [activeSection, studentOptions]);
 
   const existingOverride = useMemo(() => {
     if (!activeSection) return [];
@@ -165,6 +176,12 @@ export function FeesTransportView({
 
   return (
     <PageStack>
+      {!studentsPickerReady ? (
+        <div className="py-8 text-center text-sm text-muted-foreground">
+          {studentsPickerHint ?? "Loading students for transport fee picker…"}
+        </div>
+      ) : (
+      <>
       <KpiGrid cols={3}>
         <Kpi label="Students with negotiated fee" value={String(transportOverrides.length)} />
         <Kpi label="Class defaults" value={String(classKeys.length)} />
@@ -206,7 +223,7 @@ export function FeesTransportView({
                 }}
               >
                 <option value="all">All classes</option>
-                {feesStudentClasses().map((c) => (
+                {feesStudentClasses(studentOptions).map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
@@ -281,7 +298,7 @@ export function FeesTransportView({
             </thead>
             <tbody>
               {transportOverrides.map((o) => {
-                const s = findFeesStudent(o.studentId);
+                const s = findFeesStudent(studentOptions, o.studentId);
                 return (
                   <Tr key={`${o.studentId}-${o.categoryId}`}>
                     <Td className="font-medium">
@@ -366,6 +383,8 @@ export function FeesTransportView({
           </DataTable>
         </CardBody>
       </Card>
+      </>
+      )}
     </PageStack>
   );
 }

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Card,
   CardHeader,
@@ -69,17 +69,23 @@ export function FeesStudentsView({
   snapshot,
   onChange,
   writesEnabled = true,
+  studentOptions,
+  studentsPickerReady = true,
+  studentsPickerHint = null,
 }: {
   snapshot: FeesSnapshot;
   onChange: (next: FeesSnapshot) => void;
   writesEnabled?: boolean;
+  studentOptions: FeesStudentOption[];
+  studentsPickerReady?: boolean;
+  studentsPickerHint?: string | null;
 }) {
   const notify = useAdminToast();
-  const classes = useMemo(() => feesStudentClasses(), []);
+  const classes = useMemo(() => feesStudentClasses(studentOptions), [studentOptions]);
   const [classKey, setClassKey] = useState(classes[0] ?? "");
   const sections = useMemo(
-    () => (classKey ? feesStudentSections(classKey) : []),
-    [classKey],
+    () => (classKey ? feesStudentSections(studentOptions, classKey) : []),
+    [classKey, studentOptions],
   );
   const [section, setSection] = useState(sections[0] ?? "");
   const [studentId, setStudentId] = useState("");
@@ -92,23 +98,32 @@ export function FeesStudentsView({
   const [payNote, setPayNote] = useState("");
   const [payDate, setPayDate] = useState(() => new Date().toISOString().slice(0, 10));
 
+  useEffect(() => {
+    const nextClasses = feesStudentClasses(studentOptions);
+    const nextClass = nextClasses[0] ?? "";
+    setClassKey(nextClass);
+    setSection(feesStudentSections(studentOptions, nextClass)[0] ?? "");
+    setStudentId("");
+    setQ("");
+  }, [studentOptions]);
+
   const studentsInSection = useMemo(() => {
     if (!classKey || !section) return [];
-    return feesStudentsFor(classKey, section);
-  }, [classKey, section]);
+    return feesStudentsFor(studentOptions, classKey, section);
+  }, [classKey, section, studentOptions]);
 
   const searchHits = useMemo(() => {
     const query = q.trim().toLowerCase();
     if (!query) return [] as FeesStudentOption[];
-    return feesStudentsFor(classKey, section).filter(
+    return feesStudentsFor(studentOptions, classKey, section).filter(
       (s) =>
         s.name.toLowerCase().includes(query) ||
         s.rollNo.toLowerCase().includes(query) ||
         s.id.toLowerCase().includes(query),
     );
-  }, [q, classKey, section]);
+  }, [q, classKey, section, studentOptions]);
 
-  const student = studentId ? findFeesStudent(studentId) : undefined;
+  const student = studentId ? findFeesStudent(studentOptions, studentId) : undefined;
 
   const account = useMemo(() => {
     if (!student) return null;
@@ -151,7 +166,7 @@ export function FeesStudentsView({
 
   const onClassChange = (ck: string) => {
     setClassKey(ck);
-    const secs = feesStudentSections(ck);
+    const secs = feesStudentSections(studentOptions, ck);
     setSection(secs[0] ?? "");
     setStudentId("");
     setQ("");
@@ -249,6 +264,12 @@ export function FeesStudentsView({
 
   return (
     <PageStack>
+      {!studentsPickerReady ? (
+        <div className="py-8 text-center text-sm text-muted-foreground">
+          {studentsPickerHint ?? "Loading students for fee picker…"}
+        </div>
+      ) : (
+      <>
       <Card>
         <CardHeader
           title="Student fees"
@@ -290,7 +311,7 @@ export function FeesStudentsView({
                 className="w-full text-xs"
                 value={studentId}
                 onChange={(e) => {
-                  const s = findFeesStudent(e.target.value);
+                  const s = findFeesStudent(studentOptions, e.target.value);
                   if (s) selectStudent(s);
                 }}
               >
@@ -584,6 +605,8 @@ export function FeesStudentsView({
             </p>
           </CardBody>
         </Card>
+      )}
+      </>
       )}
     </PageStack>
   );
