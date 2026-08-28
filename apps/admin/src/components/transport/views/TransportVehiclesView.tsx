@@ -31,6 +31,9 @@ type Props = {
   onChange: (next: TransportSnapshot) => void;
   openCreate?: boolean;
   onOpenCreateConsumed?: () => void;
+  writesEnabled?: boolean;
+  listBlocked?: boolean;
+  listHint?: string | null;
 };
 
 const EMPTY: Omit<TransportVehicle, "id"> = {
@@ -42,7 +45,13 @@ const EMPTY: Omit<TransportVehicle, "id"> = {
   notes: "",
 };
 
-export function TransportVehiclesView({ snapshot, onChange }: Props) {
+export function TransportVehiclesView({
+  snapshot,
+  onChange,
+  writesEnabled = true,
+  listBlocked = false,
+  listHint = null,
+}: Props) {
   const notify = useAdminToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -99,6 +108,7 @@ export function TransportVehiclesView({ snapshot, onChange }: Props) {
   };
 
   const save = () => {
+    if (!writesEnabled) return;
     if (!draft.vehicleNumber.trim() || !draft.registrationNumber.trim()) {
       notify("Vehicle number and registration are required");
       return;
@@ -121,7 +131,7 @@ export function TransportVehiclesView({ snapshot, onChange }: Props) {
   };
 
   const confirmDelete = () => {
-    if (!deleteId) return;
+    if (!writesEnabled || !deleteId) return;
     onChange(deleteVehicle(snapshot, deleteId));
     if (selectedId === deleteId) setSelectedId(null);
     setDeleteId(null);
@@ -140,10 +150,11 @@ export function TransportVehiclesView({ snapshot, onChange }: Props) {
         <TransportVehicleDetail
           snapshot={snapshot}
           vehicleId={selected.id}
-          onEdit={(vehicle) => {
+          onEdit={writesEnabled ? (vehicle) => {
             startEdit(vehicle);
-          }}
+          } : undefined}
         />
+        {writesEnabled ? (
         <Modal
           open={open}
           onClose={() => setOpen(false)}
@@ -164,6 +175,15 @@ export function TransportVehiclesView({ snapshot, onChange }: Props) {
             driverOptions={driverOptions}
           />
         </Modal>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (listBlocked) {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">
+        {listHint ?? "Loading vehicles…"}
       </div>
     );
   }
@@ -178,23 +198,38 @@ export function TransportVehiclesView({ snapshot, onChange }: Props) {
           className="w-full max-w-xs"
         />
         <ToolbarSpacer />
+        {writesEnabled ? (
         <Button variant="primary" size="sm" onClick={startCreate}>
           <Plus className="size-3.5" /> Add Vehicle
         </Button>
+        ) : null}
       </PageToolbar>
 
       <Card>
-        <CardHeader title="Vehicles" hint={`${rows.length} in fleet`} />
+        <CardHeader
+          title="Vehicles"
+          hint={
+            writesEnabled
+              ? `${rows.length} in fleet`
+              : `${rows.length} in fleet · read-only`
+          }
+        />
         {rows.length === 0 ? (
           <div className="px-5 pb-8">
             <EmptyState
               icon={<Bus className="size-5" />}
               title="No vehicles"
-              hint="Add a bus or van to start building routes."
+              hint={
+                writesEnabled
+                  ? "Add a bus or van to start building routes."
+                  : listHint ?? "No vehicles found for this institute."
+              }
               action={
+                writesEnabled ? (
                 <Button variant="primary" size="sm" onClick={startCreate}>
                   <Plus className="size-3.5" /> Add Vehicle
                 </Button>
+                ) : undefined
               }
             />
           </div>
@@ -221,6 +256,7 @@ export function TransportVehiclesView({ snapshot, onChange }: Props) {
                     <td className="py-2.5 pr-3">
                       <Pill tone={ENTITY_STATUS_PILL_TONE[v.status]}>{v.status}</Pill>
                     </td>
+                    {writesEnabled ? (
                     <td className="py-2.5 text-right">
                       <div className="inline-flex gap-1">
                         <Button size="sm" onClick={() => setSelectedId(v.id)}>
@@ -234,6 +270,13 @@ export function TransportVehiclesView({ snapshot, onChange }: Props) {
                         </Button>
                       </div>
                     </td>
+                    ) : (
+                    <td className="py-2.5 text-right">
+                      <Button size="sm" onClick={() => setSelectedId(v.id)}>
+                        <Eye className="size-3" />
+                      </Button>
+                    </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -242,6 +285,8 @@ export function TransportVehiclesView({ snapshot, onChange }: Props) {
         )}
       </Card>
 
+      {writesEnabled ? (
+      <>
       <Modal
         open={open}
         onClose={() => setOpen(false)}
@@ -277,6 +322,8 @@ export function TransportVehiclesView({ snapshot, onChange }: Props) {
           Remove this vehicle from the fleet? Routes using it will be unassigned.
         </p>
       </Modal>
+      </>
+      ) : null}
     </div>
   );
 }

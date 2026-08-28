@@ -24,7 +24,7 @@ import {
 type Props = {
   snapshot: TransportSnapshot;
   vehicleId: string;
-  onEdit: (vehicle: TransportVehicle) => void;
+  onEdit?: (vehicle: TransportVehicle) => void;
 };
 
 const ROUTE_STATUS: Record<
@@ -59,9 +59,11 @@ export function TransportVehicleDetail({ snapshot, vehicleId, onEdit }: Props) {
           title={vehicle.vehicleNumber}
           hint={`${vehicle.registrationNumber} · capacity ${vehicle.capacity}`}
           action={
+            onEdit ? (
             <Button size="sm" onClick={() => onEdit(vehicle)}>
               <Pencil className="size-3.5" /> Edit bus
             </Button>
+            ) : undefined
           }
         />
         <div className="grid grid-cols-2 gap-3 px-5 pb-5 sm:grid-cols-3 lg:grid-cols-4">

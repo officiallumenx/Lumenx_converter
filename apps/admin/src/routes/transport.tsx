@@ -18,7 +18,16 @@ import { TransportReviewsView } from "@/components/transport/views/TransportRevi
 import { parseHubView, validateHubViewSearch } from "@/lib/hub-view-search";
 import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
 import { startTransportAdminNotificationSync } from "@/lib/transport-notification-sync";
-import { useEffect } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { useInstituteContext } from "@/lib/institutes";
+import {
+  loadTransportVehiclesList,
+  resolveTransportVehiclesListView,
+  shouldCommitTransportVehiclesLoad,
+  type TransportVehiclesListStatus,
+} from "@/lib/transport";
+import type { TransportVehicle } from "@/lib/transport-store";
 
 export type TransportHubView =
   | "dashboard"
@@ -102,6 +111,116 @@ function TransportPage() {
   const { view } = Route.useSearch();
   const navigate = useNavigate();
   const { snapshot, setSnapshot } = useTransportStore();
+  const apiMode = isApiAuthMode();
+  const writesEnabled = !apiMode;
+  const instituteCtx = useInstituteContext();
+  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
+  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
+
+  const [apiVehicles, setApiVehicles] = useState<TransportVehicle[]>([]);
+  const [vehiclesListStatus, setVehiclesListStatus] =
+    useState<TransportVehiclesListStatus>(() => (apiMode ? "loading" : "demo"));
+  const [vehiclesListError, setVehiclesListError] = useState<string | null>(null);
+  const [vehiclesResolvedForInstituteId, setVehiclesResolvedForInstituteId] =
+    useState<string | null>(null);
+
+  const vehiclesListView = resolveTransportVehiclesListView({
+    apiMode,
+    instituteStatus: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+    resolvedForInstituteId: vehiclesResolvedForInstituteId,
+    storedItems: apiVehicles,
+    storedStatus: vehiclesListStatus,
+    storedErrorMessage: vehiclesListError,
+    instituteErrorMessage: instituteCtx.errorMessage,
+  });
+
+  const vehiclesListHint =
+    vehiclesListView.status === "loading"
+      ? "Loading vehicles…"
+      : vehiclesListView.status === "needs_institute"
+        ? "Select an institute to load vehicles."
+        : vehiclesListView.status === "forbidden"
+          ? vehiclesListView.errorMessage ??
+            "You do not have access to transport vehicles for this institute."
+          : vehiclesListView.status === "error"
+            ? vehiclesListView.errorMessage ?? "Failed to load vehicles."
+            : vehiclesListView.status === "empty"
+              ? "No vehicles found for this institute."
+              : null;
+
+  useEffect(() => {
+    if (!apiMode || view !== "vehicles") return;
+
+    if (instituteCtx.status === "loading") {
+      setApiVehicles([]);
+      setVehiclesListStatus("loading");
+      setVehiclesListError(null);
+      setVehiclesResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "error" ||
+      instituteCtx.status === "forbidden"
+    ) {
+      setApiVehicles([]);
+      setVehiclesListStatus(
+        instituteCtx.status === "forbidden" ? "forbidden" : "error",
+      );
+      setVehiclesListError(instituteCtx.errorMessage);
+      setVehiclesResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "needs_selection" ||
+      instituteCtx.status === "empty" ||
+      !instituteCtx.activeInstituteId
+    ) {
+      setApiVehicles([]);
+      setVehiclesListStatus("needs_institute");
+      setVehiclesListError(null);
+      setVehiclesResolvedForInstituteId(null);
+      return;
+    }
+
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    let cancelled = false;
+    setVehiclesListStatus("loading");
+    setVehiclesListError(null);
+    void loadTransportVehiclesList(requestInstituteId).then((next) => {
+      if (
+        !shouldCommitTransportVehiclesLoad({
+          cancelled,
+          requestInstituteId,
+          activeInstituteId: activeInstituteIdRef.current,
+        })
+      ) {
+        return;
+      }
+      setApiVehicles(next.items);
+      setVehiclesListStatus(next.status);
+      setVehiclesListError(next.errorMessage);
+      setVehiclesResolvedForInstituteId(requestInstituteId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    apiMode,
+    view,
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    instituteCtx.errorMessage,
+  ]);
+
+  const vehiclesSnapshot = useMemo(() => {
+    if (!apiMode || view !== "vehicles" || !vehiclesListView.rowsValid) {
+      return snapshot;
+    }
+    return { ...snapshot, vehicles: vehiclesListView.items };
+  }, [apiMode, view, snapshot, vehiclesListView.items, vehiclesListView.rowsValid]);
 
   useEffect(() => {
     startTransportAdminNotificationSync();
@@ -111,14 +230,27 @@ function TransportPage() {
     navigate({ to: "/transport", search: { view: v } });
 
   return (
-    <AppShell title={VIEW_TITLES[view]} subtitle={VIEW_SUBTITLES[view]}>
+    <AppShell
+      title={VIEW_TITLES[view]}
+      subtitle={
+        apiMode && view === "vehicles"
+          ? `API mode · read-only · ${vehiclesListView.rowsValid ? vehiclesListView.items.length : "…"} vehicles`
+          : VIEW_SUBTITLES[view]
+      }
+    >
       <TransportHubNav active={view} />
       <AdminPageTransition pageKey={view}>
         {view === "dashboard" && (
           <TransportDashboardView snapshot={snapshot} onNavigate={goToView} />
         )}
         {view === "vehicles" && (
-          <TransportVehiclesView snapshot={snapshot} onChange={setSnapshot} />
+          <TransportVehiclesView
+            snapshot={vehiclesSnapshot}
+            onChange={setSnapshot}
+            writesEnabled={writesEnabled}
+            listBlocked={apiMode && !vehiclesListView.rowsValid}
+            listHint={vehiclesListHint}
+          />
         )}
         {view === "drivers" && (
           <TransportDriversView snapshot={snapshot} onChange={setSnapshot} />
