@@ -14,6 +14,7 @@ import {
   PageToolbar,
   ToolbarSpacer,
   ToolbarMeta,
+  EmptyState,
 } from "@lumenx/ui-admin";
 import {
   Plus,
@@ -26,7 +27,16 @@ import {
   Send,
 } from "lucide-react";
 import { useAdminToast } from "@/components/AdminActionToast";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { useInstituteContext } from "@/lib/institutes";
+import {
+  loadTeachersList,
+  resolveTeachersListView,
+  shouldCommitTeachersLoad,
+  type TeacherListItem,
+  type TeachersListStatus,
+} from "@/lib/teachers";
 import {
   assignSubjectsToTeacher,
   getAssignedSubjectIdsForTeacher,
@@ -36,6 +46,12 @@ import {
 import { TEACHERS_CHANGED_EVENT } from "@/lib/career-to-teacher";
 import {
   TEACHER_ROLES,
+  TeacherAvatar,
+  TeacherChip,
+  TeacherDetailRow,
+  TeacherRolePill,
+  TeacherStatTile,
+  TeacherStatusPill,
   teacherRoleLabel,
   type Teacher,
   type TeacherRole,
@@ -49,6 +65,15 @@ export const Route = createFileRoute("/teachers")({
   head: () => ({ meta: [{ title: "Teachers — LumenX Admin" }] }),
   component: TeachersPage,
 });
+
+type TeacherRow = Teacher | TeacherListItem;
+
+function teacherIdentityCode(teacher: TeacherRow): string {
+  if ("identityLabel" in teacher && teacher.identityLabel) {
+    return teacher.identityLabel;
+  }
+  return teacher.employeeId || teacher.id;
+}
 
 const INITIAL: Teacher[] = [
   {
@@ -315,7 +340,34 @@ type TeacherEditForm = Partial<Teacher> & {
 
 function TeachersPage() {
   const notify = useAdminToast();
-  const [rows, setRows] = useState<Teacher[]>(loadTeachers);
+  const apiMode = isApiAuthMode();
+  const instituteCtx = useInstituteContext();
+  const writesEnabled = !apiMode;
+  const [rows, setRows] = useState<Teacher[]>(() =>
+    apiMode ? [] : loadTeachers(),
+  );
+  const [apiItems, setApiItems] = useState<TeacherListItem[]>([]);
+  const [listStatus, setListStatus] = useState<TeachersListStatus>(() =>
+    apiMode ? "loading" : "demo",
+  );
+  const [listError, setListError] = useState<string | null>(null);
+  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
+    string | null
+  >(null);
+  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
+  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
+
+  const listView = resolveTeachersListView({
+    apiMode,
+    instituteStatus: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+    resolvedForInstituteId,
+    storedItems: apiItems,
+    storedStatus: listStatus,
+    storedErrorMessage: listError,
+    instituteErrorMessage: instituteCtx.errorMessage,
+  });
+  const displayItems: TeacherRow[] = apiMode ? listView.items : rows;
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]>("all");
@@ -344,19 +396,114 @@ function TeachersPage() {
     [],
   );
 
-  const selected = useMemo(() => rows.find((t) => t.id === selectedId) ?? null, [rows, selectedId]);
+  const selected = useMemo(
+    () => displayItems.find((t) => t.id === selectedId) ?? null,
+    [displayItems, selectedId],
+  );
 
   useEffect(() => {
+    if (apiMode) return;
     try {
       localStorage.setItem(TEACHERS_STORAGE_KEY, JSON.stringify(rows));
       window.dispatchEvent(new Event(TEACHERS_CHANGED_EVENT));
     } catch {
       // Keep current page state when storage is unavailable.
     }
-  }, [rows]);
+  }, [apiMode, rows]);
+
+  useEffect(() => {
+    if (!apiMode) return;
+
+    if (instituteCtx.status === "loading") {
+      setApiItems([]);
+      setListStatus("loading");
+      setListError(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "error" ||
+      instituteCtx.status === "forbidden"
+    ) {
+      setApiItems([]);
+      setListStatus(
+        instituteCtx.status === "forbidden" ? "forbidden" : "error",
+      );
+      setListError(instituteCtx.errorMessage);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "needs_selection" ||
+      instituteCtx.status === "empty" ||
+      !instituteCtx.activeInstituteId
+    ) {
+      setApiItems([]);
+      setListStatus("needs_institute");
+      setListError(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    let cancelled = false;
+    setListStatus("loading");
+    setListError(null);
+    void loadTeachersList(requestInstituteId).then((next) => {
+      if (
+        !shouldCommitTeachersLoad({
+          cancelled,
+          requestInstituteId,
+          activeInstituteId: activeInstituteIdRef.current,
+        })
+      ) {
+        return;
+      }
+      setApiItems(next.items);
+      setListStatus(next.status);
+      setListError(next.errorMessage);
+      setResolvedForInstituteId(requestInstituteId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    apiMode,
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    instituteCtx.errorMessage,
+  ]);
+
+  useEffect(() => {
+    setSearchQuery("");
+    setStatusFilter("all");
+    setRoleFilter("all");
+    setSelectedId(null);
+    setEditing(false);
+    setEditForm({});
+    setResetTarget(null);
+    setMessageTarget(null);
+    setCreateDialogOpen(false);
+    setShowProfilePassword(false);
+    setShowEditPassword(false);
+    setShowNewPassword(false);
+  }, [instituteCtx.activeInstituteId]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    if (!displayItems.some((teacher) => teacher.id === selectedId)) {
+      setSelectedId(null);
+      setEditing(false);
+      setEditForm({});
+      setShowProfilePassword(false);
+      setShowEditPassword(false);
+    }
+  }, [displayItems, selectedId]);
 
   const list = useMemo(() => {
-    return rows.filter((t) => {
+    return displayItems.filter((t) => {
       if (statusFilter !== "all" && t.status !== statusFilter) return false;
       if (roleFilter !== "all" && t.role !== roleFilter) return false;
       if (!searchQuery) return true;
@@ -368,9 +515,40 @@ function TeachersPage() {
         teacherRoleLabel(t.role).toLowerCase().includes(normalizedQuery)
       );
     });
-  }, [rows, searchQuery, statusFilter, roleFilter]);
+  }, [displayItems, searchQuery, statusFilter, roleFilter]);
 
-  const openDetail = useCallback((t: Teacher) => {
+  const departmentCount = useMemo(() => {
+    const departments = new Set(
+      displayItems.map((teacher) => teacher.dept).filter(Boolean),
+    );
+    return departments.size;
+  }, [displayItems]);
+
+  const countLabel = (count: number) =>
+    apiMode && !listView.rowsValid ? "…" : String(count);
+
+  const listHint =
+    listView.status === "loading"
+      ? "Loading teachers…"
+      : listView.status === "needs_institute"
+        ? "Select an active institute to load teachers"
+        : listView.status === "forbidden"
+          ? "You do not have access to teachers for this institute"
+          : listView.status === "error"
+            ? listView.errorMessage ?? "Failed to load teachers"
+            : listView.status === "empty"
+              ? "No teachers yet"
+              : null;
+
+  const guardWrite = (message = "Teacher writes are not enabled in API read-only mode") => {
+    if (!writesEnabled) {
+      notify(message);
+      return false;
+    }
+    return true;
+  };
+
+  const openDetail = useCallback((t: TeacherRow) => {
     setSelectedId(t.id);
     setEditing(false);
     setEditForm({});
@@ -384,7 +562,8 @@ function TeachersPage() {
     setShowEditPassword(false);
   };
 
-  const openMessage = useCallback((teacher: Teacher) => {
+  const openMessage = useCallback((teacher: TeacherRow) => {
+    if (!guardWrite()) return;
     setSelectedId(null);
     setEditing(false);
     setEditForm({});
@@ -404,6 +583,7 @@ function TeachersPage() {
   };
 
   const sendMessage = () => {
+    if (!guardWrite()) return;
     if (!messageTarget) return;
     if (messageSubject.trim().length < 3) {
       setMessageError("Subject must be at least 3 characters.");
@@ -418,6 +598,7 @@ function TeachersPage() {
   };
 
   const startEdit = () => {
+    if (!guardWrite()) return;
     if (!selected) return;
     setEditForm({
       ...selected,
@@ -429,6 +610,7 @@ function TeachersPage() {
   };
 
   const saveEdit = () => {
+    if (!guardWrite()) return;
     if (!selected || !editForm.name?.trim()) return;
     const nextRole = editForm.role ?? selected.role;
     const subjectIds =
@@ -472,6 +654,7 @@ function TeachersPage() {
   };
 
   const confirmReset = () => {
+    if (!guardWrite()) return;
     if (!resetTarget) return;
     const sentAt = new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" });
     setRows((prev) =>
@@ -482,6 +665,7 @@ function TeachersPage() {
   };
 
   const onboard = () => {
+    if (!guardWrite()) return;
     if (!newName.trim()) return;
     const id = `T-${String(rows.length + 1).padStart(3, "0")}`;
     setRows((p) => [
@@ -530,11 +714,17 @@ function TeachersPage() {
   return (
     <AppShell
       title="Academic Staff"
-      subtitle={`${rows.length} teachers · 12 departments`}
+      subtitle={
+        apiMode
+          ? `API mode · read-only · ${countLabel(list.length)} teachers · ${departmentCount} departments`
+          : `${list.length} teachers · ${departmentCount || 12} departments`
+      }
       actions={
-        <Button variant="primary" onClick={() => setCreateDialogOpen(true)}>
-          <Plus className="size-3.5" /> Add Teacher
-        </Button>
+        writesEnabled ? (
+          <Button variant="primary" onClick={() => setCreateDialogOpen(true)}>
+            <Plus className="size-3.5" /> Add Teacher
+          </Button>
+        ) : undefined
       }
     >
       <Card className="mb-4">
@@ -570,21 +760,49 @@ function TeachersPage() {
             ))}
           </Select>
           <ToolbarSpacer />
-          <ToolbarMeta>{list.length} results</ToolbarMeta>
+          <ToolbarMeta>{countLabel(list.length)} results</ToolbarMeta>
         </PageToolbar>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-        {list.map((t) => (
-          <TeacherStaffCard
-            key={t.id}
-            teacher={t}
-            onOpen={openDetail}
-            onMessage={openMessage}
-            onReset={setResetTarget}
-          />
-        ))}
-      </div>
+      {!listView.rowsValid ? (
+        <Card className="p-5">
+          <div className="py-12 text-sm text-muted-foreground text-center">
+            {listHint ?? "Loading teachers…"}
+          </div>
+        </Card>
+      ) : list.length === 0 ? (
+        <EmptyState
+          title="No teachers found"
+          hint={
+            apiMode
+              ? "Try another search or status filter."
+              : "Try another search, or onboard a teacher to get started."
+          }
+        />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          {list.map((t) =>
+            writesEnabled ? (
+              <TeacherStaffCard
+                key={t.id}
+                teacher={t as Teacher}
+                onOpen={(teacher) => openDetail(teacher)}
+                onMessage={(teacher) => openMessage(teacher)}
+                onReset={(teacher) => {
+                  if (!guardWrite()) return;
+                  setResetTarget(teacher as Teacher);
+                }}
+              />
+            ) : (
+              <TeacherDirectoryCard
+                key={t.id}
+                teacher={t}
+                onOpen={openDetail}
+              />
+            ),
+          )}
+        </div>
+      )}
 
       {/* Teacher detail / edit */}
       <Modal
@@ -592,7 +810,9 @@ function TeachersPage() {
         onClose={closeDetail}
         title={editing ? "Edit teacher profile" : "Teacher profile"}
         subtitle={
-          selected ? `${selected.name} · ${selected.id} · ${selected.employeeId}` : undefined
+          selected
+            ? `${selected.name} · ${teacherIdentityCode(selected)} · ${selected.employeeId}`
+            : undefined
         }
         size="lg"
         footer={
@@ -610,7 +830,7 @@ function TeachersPage() {
                 Save changes
               </Button>
             </>
-          ) : (
+          ) : writesEnabled ? (
             <>
               <Button onClick={closeDetail}>Close</Button>
               <Button
@@ -620,25 +840,30 @@ function TeachersPage() {
               >
                 <Mail className="size-3.5" /> Message
               </Button>
-              <Button onClick={() => selected && setResetTarget(selected)}>
+              <Button onClick={() => selected && setResetTarget(selected as Teacher)}>
                 <KeyRound className="size-3.5" /> Reset credentials
               </Button>
               <Button variant="primary" onClick={startEdit}>
                 <Edit3 className="size-3.5" /> Edit profile
               </Button>
             </>
+          ) : (
+            <Button onClick={closeDetail}>Close</Button>
           )
         }
       >
-        {selected && !editing && (
+        {selected && !editing && writesEnabled ? (
           <TeacherProfileReadonly
-            teacher={selected}
+            teacher={selected as Teacher}
             showPassword={showProfilePassword}
             onTogglePassword={() => setShowProfilePassword((visible) => !visible)}
           />
-        )}
+        ) : null}
+        {selected && !editing && !writesEnabled ? (
+          <ApiTeacherProfileSummary teacher={selected} />
+        ) : null}
 
-        {selected && editing && (
+        {selected && editing && writesEnabled ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Full name" required>
               <TextInput
@@ -821,9 +1046,10 @@ function TeachersPage() {
               Employee ID {selected.employeeId} · Teacher ID {selected.id} (read-only)
             </div>
           </div>
-        )}
+        ) : null}
       </Modal>
 
+      {writesEnabled ? (
       <Modal
         open={!!resetTarget}
         onClose={() => setResetTarget(null)}
@@ -854,7 +1080,9 @@ function TeachersPage() {
           </div>
         </div>
       </Modal>
+      ) : null}
 
+      {writesEnabled ? (
       <Modal
         open={!!messageTarget}
         onClose={closeMessage}
@@ -914,7 +1142,9 @@ function TeachersPage() {
           </div>
         )}
       </Modal>
+      ) : null}
 
+      {writesEnabled ? (
       <Modal
         open={createDialogOpen}
         onClose={() => setCreateDialogOpen(false)}
@@ -1063,6 +1293,140 @@ function TeachersPage() {
           </Field>
         </div>
       </Modal>
+      ) : null}
     </AppShell>
+  );
+}
+
+function TeacherDirectoryCard({
+  teacher,
+  onOpen,
+}: {
+  teacher: TeacherRow;
+  onOpen: (teacher: TeacherRow) => void;
+}) {
+  return (
+    <Card
+      interactive
+      role="button"
+      tabIndex={0}
+      aria-label={`View ${teacher.name} profile`}
+      onClick={() => onOpen(teacher)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpen(teacher);
+        }
+      }}
+      className="p-4 sm:p-5 hover:bg-surface-hover transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30"
+    >
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <TeacherAvatar name={teacher.name} />
+          <div>
+            <div className="text-sm font-medium">{teacher.name}</div>
+            <div className="text-[11px] text-muted-foreground">{teacher.dept}</div>
+            <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
+              {teacherIdentityCode(teacher)}
+            </div>
+          </div>
+        </div>
+        <TeacherStatusPill status={teacher.status} />
+      </div>
+      <div className="mt-3">
+        <TeacherRolePill role={teacher.role} />
+      </div>
+      <div className="mt-3 sm:mt-5">
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          Sections
+        </div>
+        <div className="text-base font-semibold mt-1">{teacher.classes}</div>
+      </div>
+      <div className="mt-3 sm:mt-4 flex flex-wrap gap-1">
+        {teacher.subjects.slice(0, 2).map((subject) => (
+          <span
+            key={subject}
+            className="px-2 py-0.5 rounded text-[10px] bg-accent border border-border"
+          >
+            {subject}
+          </span>
+        ))}
+        {teacher.subjects.length > 2 ? (
+          <span className="text-[10px] text-muted-foreground">
+            +{teacher.subjects.length - 2}
+          </span>
+        ) : null}
+      </div>
+    </Card>
+  );
+}
+
+function ApiTeacherProfileSummary({ teacher }: { teacher: TeacherRow }) {
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center gap-4">
+        <TeacherAvatar name={teacher.name} size="lg" />
+        <div className="flex-1 min-w-0">
+          <div className="text-base font-semibold">{teacher.name}</div>
+          <div className="text-sm text-muted-foreground">{teacher.dept}</div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <TeacherRolePill role={teacher.role} />
+            <TeacherStatusPill status={teacher.status} />
+          </div>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+        <TeacherDetailRow
+          label="Teacher role"
+          value={teacherRoleLabel(teacher.role)}
+        />
+        <TeacherDetailRow label="Email" value={teacher.email || "—"} />
+        <TeacherDetailRow label="Phone" value={teacher.phone || "—"} />
+        <TeacherDetailRow label="Employee ID" value={teacher.employeeId} />
+        <TeacherDetailRow label="Joined" value={teacher.joined} />
+        <TeacherDetailRow
+          label="Date of birth"
+          value={teacher.dateOfBirth || "—"}
+        />
+        <TeacherDetailRow label="Portal access" value={teacher.portalAccess} />
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <TeacherStatTile label="Sections" value={String(teacher.classes)} />
+      </div>
+      <div>
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
+          Qualification
+        </div>
+        <div className="text-xs">{teacher.qualification || "—"}</div>
+      </div>
+      <div>
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
+          Subjects
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {teacher.subjects.length > 0 ? (
+            teacher.subjects.map((subject) => (
+              <TeacherChip key={subject}>{subject}</TeacherChip>
+            ))
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
+        </div>
+      </div>
+      {teacher.assignedSections.length > 0 ? (
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
+            Assigned sections
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {teacher.assignedSections.map((section) => (
+              <TeacherChip key={section} mono>
+                {section}
+              </TeacherChip>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
