@@ -28,9 +28,32 @@ describe("loadTransportVehiclesList", () => {
         message: "No access",
       }),
     );
-    vi.doMock("./api", () => ({ listTransportVehicles }));
+    vi.doMock("./api", () => ({ listTransportVehicles, listTransportDrivers: vi.fn() }));
     const { loadTransportVehiclesList } = await import("./load");
     const result = await loadTransportVehiclesList(INST);
+    expect(result.status).toBe("forbidden");
+    expect(result.items).toEqual([]);
+  });
+});
+
+describe("loadTransportDriversList", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+  });
+
+  it("returns forbidden on 403 without demo fallback", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const listTransportDrivers = vi.fn().mockRejectedValue(
+      new ApiClientError({
+        status: 403,
+        code: "FORBIDDEN",
+        message: "No access",
+      }),
+    );
+    vi.doMock("./api", () => ({ listTransportVehicles: vi.fn(), listTransportDrivers }));
+    const { loadTransportDriversList } = await import("./load");
+    const result = await loadTransportDriversList(INST);
     expect(result.status).toBe("forbidden");
     expect(result.items).toEqual([]);
   });

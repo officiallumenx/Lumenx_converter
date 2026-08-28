@@ -1,5 +1,5 @@
-import type { TransportVehicle } from "@/lib/transport-store";
-import type { TransportVehiclesListStatus } from "./load";
+import type { TransportDriver, TransportVehicle } from "@/lib/transport-store";
+import type { TransportDriversListStatus, TransportListStatus, TransportVehiclesListStatus } from "./load";
 
 export type TransportInstituteGateStatus =
   | "demo"
@@ -10,27 +10,27 @@ export type TransportInstituteGateStatus =
   | "forbidden"
   | "error";
 
-export type ResolveTransportVehiclesListViewInput = {
+type ResolveTransportListViewInput<T> = {
   apiMode: boolean;
   instituteStatus: TransportInstituteGateStatus;
   activeInstituteId: string | null;
   resolvedForInstituteId: string | null;
-  storedItems: TransportVehicle[];
-  storedStatus: TransportVehiclesListStatus;
+  storedItems: T[];
+  storedStatus: TransportListStatus;
   storedErrorMessage: string | null;
   instituteErrorMessage: string | null;
 };
 
-export type TransportVehiclesListView = {
-  status: TransportVehiclesListStatus;
-  items: TransportVehicle[];
+type TransportListView<T> = {
+  status: TransportListStatus;
+  items: T[];
   errorMessage: string | null;
   rowsValid: boolean;
 };
 
-export function resolveTransportVehiclesListView(
-  input: ResolveTransportVehiclesListViewInput,
-): TransportVehiclesListView {
+function resolveTransportListView<T>(
+  input: ResolveTransportListViewInput<T>,
+): TransportListView<T> {
   if (!input.apiMode) {
     return {
       status: "demo",
@@ -91,6 +91,30 @@ export function resolveTransportVehiclesListView(
   };
 }
 
+export type ResolveTransportVehiclesListViewInput = ResolveTransportListViewInput<TransportVehicle> & {
+  storedStatus: TransportVehiclesListStatus;
+};
+
+export type TransportVehiclesListView = TransportListView<TransportVehicle>;
+
+export function resolveTransportVehiclesListView(
+  input: ResolveTransportVehiclesListViewInput,
+): TransportVehiclesListView {
+  return resolveTransportListView(input);
+}
+
+export type ResolveTransportDriversListViewInput = ResolveTransportListViewInput<TransportDriver> & {
+  storedStatus: TransportDriversListStatus;
+};
+
+export type TransportDriversListView = TransportListView<TransportDriver>;
+
+export function resolveTransportDriversListView(
+  input: ResolveTransportDriversListViewInput,
+): TransportDriversListView {
+  return resolveTransportListView(input);
+}
+
 export function shouldCommitTransportVehiclesLoad(opts: {
   cancelled: boolean;
   requestInstituteId: string;
@@ -99,4 +123,12 @@ export function shouldCommitTransportVehiclesLoad(opts: {
   if (opts.cancelled) return false;
   if (!opts.activeInstituteId) return false;
   return opts.requestInstituteId === opts.activeInstituteId;
+}
+
+export function shouldCommitTransportDriversLoad(opts: {
+  cancelled: boolean;
+  requestInstituteId: string;
+  activeInstituteId: string | null;
+}): boolean {
+  return shouldCommitTransportVehiclesLoad(opts);
 }

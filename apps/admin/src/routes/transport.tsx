@@ -22,12 +22,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
 import {
+  loadTransportDriversList,
   loadTransportVehiclesList,
+  resolveTransportDriversListView,
   resolveTransportVehiclesListView,
+  shouldCommitTransportDriversLoad,
   shouldCommitTransportVehiclesLoad,
+  type TransportDriversListStatus,
   type TransportVehiclesListStatus,
 } from "@/lib/transport";
-import type { TransportVehicle } from "@/lib/transport-store";
+import type { TransportDriver, TransportVehicle } from "@/lib/transport-store";
 
 export type TransportHubView =
   | "dashboard"
@@ -107,6 +111,20 @@ export const Route = createFileRoute("/transport")({
   component: TransportPage,
 });
 
+function transportListHint(
+  status: TransportVehiclesListStatus | TransportDriversListStatus,
+  errorMessage: string | null,
+  entityLabel: string,
+  forbiddenFallback: string,
+): string | null {
+  if (status === "loading") return `Loading ${entityLabel}…`;
+  if (status === "needs_institute") return `Select an institute to load ${entityLabel}.`;
+  if (status === "forbidden") return errorMessage ?? forbiddenFallback;
+  if (status === "error") return errorMessage ?? `Failed to load ${entityLabel}.`;
+  if (status === "empty") return `No ${entityLabel} found for this institute.`;
+  return null;
+}
+
 function TransportPage() {
   const { view } = Route.useSearch();
   const navigate = useNavigate();
@@ -124,6 +142,13 @@ function TransportPage() {
   const [vehiclesResolvedForInstituteId, setVehiclesResolvedForInstituteId] =
     useState<string | null>(null);
 
+  const [apiDrivers, setApiDrivers] = useState<TransportDriver[]>([]);
+  const [driversListStatus, setDriversListStatus] =
+    useState<TransportDriversListStatus>(() => (apiMode ? "loading" : "demo"));
+  const [driversListError, setDriversListError] = useState<string | null>(null);
+  const [driversResolvedForInstituteId, setDriversResolvedForInstituteId] =
+    useState<string | null>(null);
+
   const vehiclesListView = resolveTransportVehiclesListView({
     apiMode,
     instituteStatus: instituteCtx.status,
@@ -135,19 +160,30 @@ function TransportPage() {
     instituteErrorMessage: instituteCtx.errorMessage,
   });
 
-  const vehiclesListHint =
-    vehiclesListView.status === "loading"
-      ? "Loading vehicles…"
-      : vehiclesListView.status === "needs_institute"
-        ? "Select an institute to load vehicles."
-        : vehiclesListView.status === "forbidden"
-          ? vehiclesListView.errorMessage ??
-            "You do not have access to transport vehicles for this institute."
-          : vehiclesListView.status === "error"
-            ? vehiclesListView.errorMessage ?? "Failed to load vehicles."
-            : vehiclesListView.status === "empty"
-              ? "No vehicles found for this institute."
-              : null;
+  const driversListView = resolveTransportDriversListView({
+    apiMode,
+    instituteStatus: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+    resolvedForInstituteId: driversResolvedForInstituteId,
+    storedItems: apiDrivers,
+    storedStatus: driversListStatus,
+    storedErrorMessage: driversListError,
+    instituteErrorMessage: instituteCtx.errorMessage,
+  });
+
+  const vehiclesListHint = transportListHint(
+    vehiclesListView.status,
+    vehiclesListView.errorMessage,
+    "vehicles",
+    "You do not have access to transport vehicles for this institute.",
+  );
+
+  const driversListHint = transportListHint(
+    driversListView.status,
+    driversListView.errorMessage,
+    "drivers",
+    "You do not have access to transport drivers for this institute.",
+  );
 
   useEffect(() => {
     if (!apiMode || view !== "vehicles") return;
@@ -215,12 +251,85 @@ function TransportPage() {
     instituteCtx.errorMessage,
   ]);
 
+  useEffect(() => {
+    if (!apiMode || view !== "drivers") return;
+
+    if (instituteCtx.status === "loading") {
+      setApiDrivers([]);
+      setDriversListStatus("loading");
+      setDriversListError(null);
+      setDriversResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "error" ||
+      instituteCtx.status === "forbidden"
+    ) {
+      setApiDrivers([]);
+      setDriversListStatus(
+        instituteCtx.status === "forbidden" ? "forbidden" : "error",
+      );
+      setDriversListError(instituteCtx.errorMessage);
+      setDriversResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "needs_selection" ||
+      instituteCtx.status === "empty" ||
+      !instituteCtx.activeInstituteId
+    ) {
+      setApiDrivers([]);
+      setDriversListStatus("needs_institute");
+      setDriversListError(null);
+      setDriversResolvedForInstituteId(null);
+      return;
+    }
+
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    let cancelled = false;
+    setDriversListStatus("loading");
+    setDriversListError(null);
+    void loadTransportDriversList(requestInstituteId).then((next) => {
+      if (
+        !shouldCommitTransportDriversLoad({
+          cancelled,
+          requestInstituteId,
+          activeInstituteId: activeInstituteIdRef.current,
+        })
+      ) {
+        return;
+      }
+      setApiDrivers(next.items);
+      setDriversListStatus(next.status);
+      setDriversListError(next.errorMessage);
+      setDriversResolvedForInstituteId(requestInstituteId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    apiMode,
+    view,
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    instituteCtx.errorMessage,
+  ]);
+
   const vehiclesSnapshot = useMemo(() => {
     if (!apiMode || view !== "vehicles" || !vehiclesListView.rowsValid) {
       return snapshot;
     }
     return { ...snapshot, vehicles: vehiclesListView.items };
   }, [apiMode, view, snapshot, vehiclesListView.items, vehiclesListView.rowsValid]);
+
+  const driversSnapshot = useMemo(() => {
+    if (!apiMode || view !== "drivers" || !driversListView.rowsValid) {
+      return snapshot;
+    }
+    return { ...snapshot, drivers: driversListView.items };
+  }, [apiMode, view, snapshot, driversListView.items, driversListView.rowsValid]);
 
   useEffect(() => {
     startTransportAdminNotificationSync();
@@ -235,7 +344,9 @@ function TransportPage() {
       subtitle={
         apiMode && view === "vehicles"
           ? `API mode · read-only · ${vehiclesListView.rowsValid ? vehiclesListView.items.length : "…"} vehicles`
-          : VIEW_SUBTITLES[view]
+          : apiMode && view === "drivers"
+            ? `API mode · read-only · ${driversListView.rowsValid ? driversListView.items.length : "…"} drivers`
+            : VIEW_SUBTITLES[view]
       }
     >
       <TransportHubNav active={view} />
@@ -253,7 +364,13 @@ function TransportPage() {
           />
         )}
         {view === "drivers" && (
-          <TransportDriversView snapshot={snapshot} onChange={setSnapshot} />
+          <TransportDriversView
+            snapshot={driversSnapshot}
+            onChange={setSnapshot}
+            writesEnabled={writesEnabled}
+            listBlocked={apiMode && !driversListView.rowsValid}
+            listHint={driversListHint}
+          />
         )}
         {view === "stops" && <TransportStopsView snapshot={snapshot} onChange={setSnapshot} />}
         {view === "routes" && <TransportRoutesView snapshot={snapshot} onChange={setSnapshot} />}

@@ -17,3 +17,21 @@ export type VehicleDto = {
 export type ListTransportVehiclesParams = {
   instituteId: string;
 };
+
+export type DriverDto = {
+  id: string;
+  instituteId: string;
+  userProfileId: string | null;
+  displayName: string;
+  phone: string;
+  licenseNumber: string;
+  licenseExpiry: string | null;
+  status: TransportAssetStatus;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ListTransportDriversParams = {
+  instituteId: string;
+};

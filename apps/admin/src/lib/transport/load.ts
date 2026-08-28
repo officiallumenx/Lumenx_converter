@@ -1,11 +1,11 @@
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/active-institute";
-import type { TransportVehicle } from "@/lib/transport-store";
-import { listTransportVehicles } from "./api";
-import { vehicleDtosToTransportVehicles } from "./map";
+import type { TransportDriver, TransportVehicle } from "@/lib/transport-store";
+import { listTransportDrivers, listTransportVehicles } from "./api";
+import { driverDtosToTransportDrivers, vehicleDtosToTransportVehicles } from "./map";
 
-export type TransportVehiclesListStatus =
+export type TransportListStatus =
   | "demo"
   | "loading"
   | "ready"
@@ -14,15 +14,27 @@ export type TransportVehiclesListStatus =
   | "forbidden"
   | "error";
 
+export type TransportVehiclesListStatus = TransportListStatus;
+export type TransportDriversListStatus = TransportListStatus;
+
 export type TransportVehiclesListState = {
   status: TransportVehiclesListStatus;
   items: TransportVehicle[];
   errorMessage: string | null;
 };
 
-export async function loadTransportVehiclesList(
+export type TransportDriversListState = {
+  status: TransportDriversListStatus;
+  items: TransportDriver[];
+  errorMessage: string | null;
+};
+
+async function loadTransportResourceList<T>(
   activeInstituteId: string | null,
-): Promise<TransportVehiclesListState> {
+  fetchRows: (instituteId: string) => Promise<unknown[]>,
+  mapRows: (rows: unknown[]) => T[],
+  errorLabel: string,
+): Promise<{ status: TransportListStatus; items: T[]; errorMessage: string | null }> {
   if (!isApiAuthMode()) {
     return { status: "demo", items: [], errorMessage: null };
   }
@@ -36,8 +48,8 @@ export async function loadTransportVehiclesList(
   }
 
   try {
-    const rows = await listTransportVehicles({ instituteId: activeInstituteId });
-    const items = vehicleDtosToTransportVehicles(rows);
+    const rows = await fetchRows(activeInstituteId);
+    const items = mapRows(rows);
     return {
       status: items.length === 0 ? "empty" : "ready",
       items,
@@ -53,8 +65,7 @@ export async function loadTransportVehiclesList(
             typeof (err as { status: unknown }).status === "number"
           ? (err as { status: number }).status
           : null;
-    const message =
-      err instanceof Error ? err.message : "Failed to load transport vehicles";
+    const message = err instanceof Error ? err.message : errorLabel;
 
     if (status === 403) {
       return {
@@ -69,4 +80,26 @@ export async function loadTransportVehiclesList(
       errorMessage: message,
     };
   }
+}
+
+export async function loadTransportVehiclesList(
+  activeInstituteId: string | null,
+): Promise<TransportVehiclesListState> {
+  return loadTransportResourceList(
+    activeInstituteId,
+    (instituteId) => listTransportVehicles({ instituteId }),
+    (rows) => vehicleDtosToTransportVehicles(rows as Parameters<typeof vehicleDtosToTransportVehicles>[0]),
+    "Failed to load transport vehicles",
+  );
+}
+
+export async function loadTransportDriversList(
+  activeInstituteId: string | null,
+): Promise<TransportDriversListState> {
+  return loadTransportResourceList(
+    activeInstituteId,
+    (instituteId) => listTransportDrivers({ instituteId }),
+    (rows) => driverDtosToTransportDrivers(rows as Parameters<typeof driverDtosToTransportDrivers>[0]),
+    "Failed to load transport drivers",
+  );
 }

@@ -35,6 +35,9 @@ import { useAdminToast } from "@/components/AdminActionToast";
 type Props = {
   snapshot: TransportSnapshot;
   onChange: (next: TransportSnapshot) => void;
+  writesEnabled?: boolean;
+  listBlocked?: boolean;
+  listHint?: string | null;
 };
 
 const EMPTY: Omit<TransportDriver, "id"> = {
@@ -49,7 +52,13 @@ const EMPTY: Omit<TransportDriver, "id"> = {
 
 const OPS_EVENTS = [TRANSPORT_OPS_CHANGED_EVENT, "storage"] as const;
 
-export function TransportDriversView({ snapshot, onChange }: Props) {
+export function TransportDriversView({
+  snapshot,
+  onChange,
+  writesEnabled = true,
+  listBlocked = false,
+  listHint = null,
+}: Props) {
   const notify = useAdminToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -99,6 +108,7 @@ export function TransportDriversView({ snapshot, onChange }: Props) {
   const existingAccount = draft.id ? findDriverAccountByAdminDriverId(draft.id) : null;
 
   const save = () => {
+    if (!writesEnabled) return;
     if (!draft.name.trim() || !draft.phone.trim() || !draft.licenseNumber.trim()) {
       notify("Name, phone, and license number are required");
       return;
@@ -149,6 +159,12 @@ export function TransportDriversView({ snapshot, onChange }: Props) {
 
   return (
     <div className="space-y-4">
+      {listBlocked ? (
+        <div className="py-12 text-center text-sm text-muted-foreground">
+          {listHint ?? "Loading drivers…"}
+        </div>
+      ) : (
+      <>
       <PageToolbar>
         <SearchInput
           value={searchQuery}
@@ -157,23 +173,38 @@ export function TransportDriversView({ snapshot, onChange }: Props) {
           className="w-full max-w-xs"
         />
         <ToolbarSpacer />
+        {writesEnabled ? (
         <Button variant="primary" size="sm" onClick={startCreate}>
           <Plus className="size-3.5" /> Add Driver
         </Button>
+        ) : null}
       </PageToolbar>
 
       <Card>
-        <CardHeader title="Drivers" hint={`${rows.length} drivers`} />
+        <CardHeader
+          title="Drivers"
+          hint={
+            writesEnabled
+              ? `${rows.length} drivers`
+              : `${rows.length} drivers · read-only`
+          }
+        />
         {rows.length === 0 ? (
           <div className="px-5 pb-8">
             <EmptyState
               icon={<UserRound className="size-5" />}
               title="No drivers"
-              hint="Add a driver and assign them to a vehicle."
+              hint={
+                writesEnabled
+                  ? "Add a driver and assign them to a vehicle."
+                  : listHint ?? "No drivers found for this institute."
+              }
               action={
+                writesEnabled ? (
                 <Button variant="primary" size="sm" onClick={startCreate}>
                   <Plus className="size-3.5" /> Add Driver
                 </Button>
+                ) : undefined
               }
             />
           </div>
@@ -186,9 +217,15 @@ export function TransportDriversView({ snapshot, onChange }: Props) {
                   <th className="py-2 pr-3 font-medium">Phone</th>
                   <th className="py-2 pr-3 font-medium">License</th>
                   <th className="py-2 pr-3 font-medium">Vehicle</th>
+                  {writesEnabled ? (
+                  <>
                   <th className="py-2 pr-3 font-medium">App account</th>
                   <th className="py-2 pr-3 font-medium">Status</th>
                   <th className="py-2 font-medium text-right">Actions</th>
+                  </>
+                  ) : (
+                  <th className="py-2 pr-3 font-medium">Status</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -198,6 +235,8 @@ export function TransportDriversView({ snapshot, onChange }: Props) {
                     <td className="py-2.5 pr-3">{d.phone}</td>
                     <td className="py-2.5 pr-3 font-mono">{d.licenseNumber}</td>
                     <td className="py-2.5 pr-3">{vehicleLabel(d.assignedVehicleId)}</td>
+                    {writesEnabled ? (
+                    <>
                     <td className="py-2.5 pr-3">
                       <Pill
                         tone={
@@ -224,6 +263,12 @@ export function TransportDriversView({ snapshot, onChange }: Props) {
                         </Button>
                       </div>
                     </td>
+                    </>
+                    ) : (
+                    <td className="py-2.5 pr-3">
+                      <Pill tone={ENTITY_STATUS_PILL_TONE[d.status]}>{d.status}</Pill>
+                    </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -232,6 +277,8 @@ export function TransportDriversView({ snapshot, onChange }: Props) {
         )}
       </Card>
 
+      {writesEnabled ? (
+      <>
       <Modal
         open={open}
         onClose={() => setOpen(false)}
@@ -381,6 +428,10 @@ export function TransportDriversView({ snapshot, onChange }: Props) {
           Remove this driver from transport? Their Transport app account will also be removed.
         </p>
       </Modal>
+      </>
+      ) : null}
+      </>
+      )}
     </div>
   );
 }

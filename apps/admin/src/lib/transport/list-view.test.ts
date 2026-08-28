@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveTransportVehiclesListView } from "./list-view";
+import { resolveTransportDriversListView, resolveTransportVehiclesListView } from "./list-view";
 
 const INST = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
@@ -21,6 +21,21 @@ describe("resolveTransportVehiclesListView", () => {
 
   it("blocks rows while institute is loading in API mode", () => {
     const view = resolveTransportVehiclesListView({
+      apiMode: true,
+      instituteStatus: "loading",
+      activeInstituteId: INST,
+      resolvedForInstituteId: null,
+      storedItems: [],
+      storedStatus: "loading",
+      storedErrorMessage: null,
+      instituteErrorMessage: null,
+    });
+    expect(view.rowsValid).toBe(false);
+    expect(view.status).toBe("loading");
+  });
+
+  it("blocks driver rows while institute is loading in API mode", () => {
+    const view = resolveTransportDriversListView({
       apiMode: true,
       instituteStatus: "loading",
       activeInstituteId: INST,
