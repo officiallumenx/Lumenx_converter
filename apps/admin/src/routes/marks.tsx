@@ -35,7 +35,16 @@ import {
   notifyTeacherMarksDeadline,
 } from "@lumenx/module-notifications";
 import { BellRing, CheckCircle2, Clock, Eye, Lock, RotateCcw, Send, Siren, X } from "lucide-react";
-import { useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { useInstituteContext } from "@/lib/institutes";
+import {
+  loadMarksList,
+  resolveMarksListView,
+  shouldCommitMarksLoad,
+  type MarkEntryListItem,
+  type MarksListStatus,
+} from "@/lib/marks";
 import { adminDataFacade } from "@/lib/admin-data-facade";
 
 export const Route = createFileRoute("/marks")({
@@ -55,13 +64,40 @@ function isWaitingStatus(status: MarkEntryStatus): boolean {
   return status === "pending" || status === "returned" || status === "rejected";
 }
 
+type MarkRow = MarkEntry | MarkEntryListItem;
+
 function MarksPage() {
   const notify = useAdminToast();
-  const entries = useSyncExternalStore(
+  const apiMode = isApiAuthMode();
+  const instituteCtx = useInstituteContext();
+  const writesEnabled = !apiMode;
+  const demoEntries = useSyncExternalStore(
     adminDataFacade.marks.channel.subscribe,
     adminDataFacade.marks.channel.load,
     adminDataFacade.marks.channel.load,
   );
+  const [apiItems, setApiItems] = useState<MarkEntryListItem[]>([]);
+  const [listStatus, setListStatus] = useState<MarksListStatus>(() =>
+    apiMode ? "loading" : "demo",
+  );
+  const [listError, setListError] = useState<string | null>(null);
+  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
+    string | null
+  >(null);
+  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
+  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
+
+  const listView = resolveMarksListView({
+    apiMode,
+    instituteStatus: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+    resolvedForInstituteId,
+    storedItems: apiItems,
+    storedStatus: listStatus,
+    storedErrorMessage: listError,
+    instituteErrorMessage: instituteCtx.errorMessage,
+  });
+  const entries: MarkRow[] = apiMode ? listView.items : demoEntries;
   const [stage, setStage] = useState<Stage>("ready");
   const [teacherId, setTeacherId] = useState("all");
   const [subject, setSubject] = useState("all");
@@ -69,22 +105,144 @@ function MarksPage() {
   const [section, setSection] = useState("all");
   const [examId, setExamId] = useState("all");
   const [q, setQ] = useState("");
-  const [reviewEntry, setReviewEntry] = useState<MarkEntry | null>(null);
+  const [reviewEntry, setReviewEntry] = useState<MarkRow | null>(null);
   const [alertOpen, setAlertOpen] = useState(false);
 
-  const summary = useMemo(() => summarizeMarks(entries), [entries]);
-  const pendingTeachers = useMemo(() => teachersWithPendingMarks(entries), [entries]);
+  useEffect(() => {
+    if (!apiMode) return;
+
+    if (instituteCtx.status === "loading") {
+      setApiItems([]);
+      setListStatus("loading");
+      setListError(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "error" ||
+      instituteCtx.status === "forbidden"
+    ) {
+      setApiItems([]);
+      setListStatus(
+        instituteCtx.status === "forbidden" ? "forbidden" : "error",
+      );
+      setListError(instituteCtx.errorMessage);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "needs_selection" ||
+      instituteCtx.status === "empty" ||
+      !instituteCtx.activeInstituteId
+    ) {
+      setApiItems([]);
+      setListStatus("needs_institute");
+      setListError(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    let cancelled = false;
+    setListStatus("loading");
+    setListError(null);
+    void loadMarksList(requestInstituteId).then((next) => {
+      if (
+        !shouldCommitMarksLoad({
+          cancelled,
+          requestInstituteId,
+          activeInstituteId: activeInstituteIdRef.current,
+        })
+      ) {
+        return;
+      }
+      setApiItems(next.items);
+      setListStatus(next.status);
+      setListError(next.errorMessage);
+      setResolvedForInstituteId(requestInstituteId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    apiMode,
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    instituteCtx.errorMessage,
+  ]);
+
+  useEffect(() => {
+    setTeacherId("all");
+    setSubject("all");
+    setClassGrade("all");
+    setSection("all");
+    setExamId("all");
+    setQ("");
+    setReviewEntry(null);
+    setAlertOpen(false);
+  }, [instituteCtx.activeInstituteId]);
+
+  const listHint =
+    listView.status === "loading"
+      ? "Loading marks entries…"
+      : listView.status === "needs_institute"
+        ? "Select an institute to load marks."
+        : listView.status === "forbidden"
+          ? listView.errorMessage ??
+            "You do not have access to marks for this institute."
+          : listView.status === "error"
+            ? listView.errorMessage ?? "Failed to load marks."
+            : listView.status === "empty"
+              ? "No mark entries found for this institute."
+              : null;
+
+  const countLabel = (count: number) =>
+    apiMode && !listView.rowsValid ? "…" : String(count);
+
+  const activeEntries = listView.rowsValid ? entries : [];
+
+  const summary = useMemo(() => summarizeMarks(activeEntries), [activeEntries]);
+  const pendingTeachers = useMemo(
+    () => teachersWithPendingMarks(activeEntries),
+    [activeEntries],
+  );
 
   const teachers = useMemo(() => {
     const map = new Map<string, string>();
-    for (const e of entries) map.set(e.teacherId, e.teacherName);
+    for (const e of activeEntries) map.set(e.teacherId, e.teacherName);
     return [...map.entries()]
       .map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [entries]);
+  }, [activeEntries]);
+
+  const subjectOptions = useMemo(() => {
+    if (!apiMode) return ADMIN_SUBJECTS;
+    return [...new Set(activeEntries.map((e) => e.subject))].sort();
+  }, [apiMode, activeEntries]);
+
+  const classOptions = useMemo(() => {
+    if (!apiMode) return ADMIN_CLASSES;
+    return [...new Set(activeEntries.map((e) => e.classGrade))].sort();
+  }, [apiMode, activeEntries]);
+
+  const sectionOptions = useMemo(() => {
+    if (!apiMode) return ADMIN_SECTIONS;
+    return [...new Set(activeEntries.map((e) => e.section))].sort();
+  }, [apiMode, activeEntries]);
+
+  const examOptions = useMemo(() => {
+    if (!apiMode) return ADMIN_EXAMS;
+    const map = new Map<string, string>();
+    for (const e of activeEntries) map.set(e.examId, e.examName);
+    return [...map.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [apiMode, activeEntries]);
 
   const list = useMemo(() => {
-    const filtered = filterMarkEntries(entries, {
+    const filtered = filterMarkEntries(activeEntries, {
       teacherId,
       subject,
       classGrade,
@@ -103,52 +261,56 @@ function MarksPage() {
         a.subject.localeCompare(b.subject) ||
         a.classGrade.localeCompare(b.classGrade),
     );
-  }, [entries, teacherId, subject, classGrade, section, examId, stage, q]);
+  }, [activeEntries, teacherId, subject, classGrade, section, examId, stage, q]);
 
   const persist = (next: MarkEntry[]) => {
+    if (!writesEnabled) return;
     adminDataFacade.marks.channel.mutate(() => next);
   };
 
-  const openEntry = (entry: MarkEntry) => {
+  const openEntry = (entry: MarkRow) => {
     setReviewEntry(entry);
   };
 
   const approveOne = () => {
-    if (!reviewEntry || reviewEntry.status !== "submitted") return;
-    const next = approveMarkEntry(entries, reviewEntry.id);
+    if (!writesEnabled || !reviewEntry || reviewEntry.status !== "submitted") return;
+    const next = approveMarkEntry(demoEntries, reviewEntry.id);
     persist(next);
     setReviewEntry(next.find((e) => e.id === reviewEntry.id) ?? null);
     notify("Marks approved and published to students & parents");
   };
 
   const returnOne = () => {
-    if (!reviewEntry || reviewEntry.status !== "submitted") return;
-    const next = returnMarkEntry(entries, reviewEntry.id);
+    if (!writesEnabled || !reviewEntry || reviewEntry.status !== "submitted") return;
+    const next = returnMarkEntry(demoEntries, reviewEntry.id);
     persist(next);
     setReviewEntry(null);
     notify("Marks returned to teacher for correction");
   };
 
   const rejectOne = () => {
-    if (!reviewEntry || reviewEntry.status !== "submitted") return;
-    const next = rejectMarkEntry(entries, reviewEntry.id);
+    if (!writesEnabled || !reviewEntry || reviewEntry.status !== "submitted") return;
+    const next = rejectMarkEntry(demoEntries, reviewEntry.id);
     persist(next);
     setReviewEntry(null);
     notify("Marks rejected — teacher must resubmit");
   };
 
   const approveAllReady = () => {
+    if (!writesEnabled) return;
     const ids = list.filter((e) => e.status === "submitted").map((e) => e.id);
     if (ids.length === 0) return;
-    persist(publishAllSubmitted(entries, ids));
+    persist(publishAllSubmitted(demoEntries, ids));
     notify(`Approved ${ids.length} mark sheet${ids.length === 1 ? "" : "s"}`);
   };
 
   const sendPendingAlerts = () => {
-    if (pendingTeachers.length === 0) return;
+    if (!writesEnabled || pendingTeachers.length === 0) return;
     const alert = pushPrincipalMarkAlert({ recipients: pendingTeachers });
     for (const t of pendingTeachers) {
-      const sample = entries.find((e) => e.teacherId === t.teacherId && e.status === "pending");
+      const sample = activeEntries.find(
+        (e) => e.teacherId === t.teacherId && e.status === "pending",
+      );
       notifyTeacherMarksPending({
         examName: sample?.examName ?? "Exam",
         subject: sample?.subject ?? "subjects",
@@ -173,34 +335,40 @@ function MarksPage() {
     );
   };
 
-  const canReview = reviewEntry?.status === "submitted";
+  const canReview = writesEnabled && reviewEntry?.status === "submitted";
   const isLocked = reviewEntry?.status === "published";
 
   return (
     <AppShell
       title="Marks"
-      subtitle="Teacher enter → edit → submit → Admin approve / reject / return → publish to students & parents (Admin cannot edit scores)"
+      subtitle={
+        apiMode
+          ? `API mode · read-only · ${countLabel(activeEntries.length)} entries · names not resolved in list view`
+          : "Teacher enter → edit → submit → Admin approve / reject / return → publish to students & parents (Admin cannot edit scores)"
+      }
       actions={
-        <>
-          {summary.pending > 0 ? (
-            <Button variant="outline" onClick={() => setAlertOpen(true)}>
-              <Siren className="size-3.5" /> Alert pending teachers ({pendingTeachers.length})
-            </Button>
-          ) : null}
-          {stage === "ready" ? (
-            <Button variant="primary" onClick={approveAllReady} disabled={list.length === 0}>
-              <Send className="size-3.5" /> Approve all ready ({list.length})
-            </Button>
-          ) : null}
-        </>
+        writesEnabled ? (
+          <>
+            {summary.pending > 0 ? (
+              <Button variant="outline" onClick={() => setAlertOpen(true)}>
+                <Siren className="size-3.5" /> Alert pending teachers ({pendingTeachers.length})
+              </Button>
+            ) : null}
+            {stage === "ready" ? (
+              <Button variant="primary" onClick={approveAllReady} disabled={list.length === 0}>
+                <Send className="size-3.5" /> Approve all ready ({list.length})
+              </Button>
+            ) : null}
+          </>
+        ) : undefined
       }
     >
       {/* Institute snapshot */}
       <div className="mb-3 grid grid-cols-4 gap-1.5 sm:gap-2">
-        <Snapshot label="Classes" value={summary.classes} />
-        <Snapshot label="Sections" value={summary.sections} />
-        <Snapshot label="Subjects" value={summary.subjects} />
-        <Snapshot label="Teachers" value={summary.teachers} />
+        <Snapshot label="Classes" value={countLabel(summary.classes)} />
+        <Snapshot label="Sections" value={countLabel(summary.sections)} />
+        <Snapshot label="Subjects" value={countLabel(summary.subjects)} />
+        <Snapshot label="Teachers" value={countLabel(summary.teachers)} />
       </div>
 
       {/* Clear 3-step stages */}
@@ -210,11 +378,11 @@ function MarksPage() {
           onClick={() => setStage("waiting")}
           icon={<Clock className="size-3.5" />}
           title="Waiting"
-          count={summary.pending}
+          count={countLabel(summary.pending)}
           hint="Not submitted yet"
           tone="waiting"
           action={
-            summary.pending > 0 ? (
+            writesEnabled && summary.pending > 0 ? (
               <span
                 role="button"
                 tabIndex={0}
@@ -241,7 +409,7 @@ function MarksPage() {
           onClick={() => setStage("ready")}
           icon={<CheckCircle2 className="size-3.5" />}
           title="Ready"
-          count={summary.submitted}
+          count={countLabel(summary.submitted)}
           hint="Approve · Reject · Return"
           tone="ready"
         />
@@ -250,7 +418,7 @@ function MarksPage() {
           onClick={() => setStage("published")}
           icon={<Lock className="size-3.5" />}
           title="Published"
-          count={summary.published}
+          count={countLabel(summary.published)}
           hint="Locked for students"
           tone="published"
         />
@@ -260,7 +428,7 @@ function MarksPage() {
         <div className="border-b border-border bg-background/30 px-3 py-2.5 sm:px-4">
           <div className="mb-1.5 text-xs font-semibold">
             {stage === "waiting" && "Waiting for teachers"}
-            {stage === "ready" && "Ready for review — Approve, Reject, or Return"}
+            {stage === "ready" && (writesEnabled ? "Ready for review — Approve, Reject, or Return" : "Ready for review — read-only")}
             {stage === "published" && "Published marks (locked)"}
           </div>
           <div className="flex flex-wrap items-end gap-2 lx-filter-bar">
@@ -283,7 +451,7 @@ function MarksPage() {
                   onChange: setSubject,
                   options: [
                     { value: "all", label: "All subjects" },
-                    ...ADMIN_SUBJECTS.map((s) => ({ value: s, label: s })),
+                    ...subjectOptions.map((s) => ({ value: s, label: s })),
                   ],
                 },
                 {
@@ -293,7 +461,7 @@ function MarksPage() {
                   onChange: setClassGrade,
                   options: [
                     { value: "all", label: "All classes" },
-                    ...ADMIN_CLASSES.map((c) => ({ value: c, label: c })),
+                    ...classOptions.map((c) => ({ value: c, label: c })),
                   ],
                 },
                 {
@@ -303,7 +471,10 @@ function MarksPage() {
                   onChange: setSection,
                   options: [
                     { value: "all", label: "All sections" },
-                    ...ADMIN_SECTIONS.map((s) => ({ value: s, label: `Section ${s}` })),
+                    ...sectionOptions.map((s) => ({
+                      value: s,
+                      label: apiMode ? s : `Section ${s}`,
+                    })),
                   ],
                 },
                 {
@@ -313,7 +484,7 @@ function MarksPage() {
                   onChange: setExamId,
                   options: [
                     { value: "all", label: "All exams" },
-                    ...ADMIN_EXAMS.map((e) => ({ value: e.id, label: e.name })),
+                    ...examOptions.map((e) => ({ value: e.id, label: e.name })),
                   ],
                 },
               ]}
@@ -330,7 +501,11 @@ function MarksPage() {
           </div>
         </div>
 
-        {list.length === 0 ? (
+        {!listView.rowsValid ? (
+          <div className="px-5 py-12 text-center text-sm text-muted-foreground">
+            {listHint ?? "Loading marks entries…"}
+          </div>
+        ) : list.length === 0 ? (
           <EmptyState
             icon={
               stage === "waiting" ? (
@@ -349,11 +524,14 @@ function MarksPage() {
                   : "No published marks yet"
             }
             hint={
-              stage === "waiting"
+              listHint ??
+              (stage === "waiting"
                 ? "All teachers in this filter have submitted or been published."
                 : stage === "ready"
-                  ? "When teachers submit marks, they appear here for you to Approve, Reject, or Return."
-                  : "Approve from “Ready for review” to share with students and parents."
+                  ? writesEnabled
+                    ? "When teachers submit marks, they appear here for you to Approve, Reject, or Return."
+                    : "Submitted mark entries appear here in read-only mode."
+                  : "Approve from “Ready for review” to share with students and parents.")
             }
           />
         ) : (
@@ -523,6 +701,7 @@ function MarksPage() {
         ) : null}
       </Modal>
 
+      {writesEnabled ? (
       <Modal
         open={alertOpen}
         onClose={() => setAlertOpen(false)}
@@ -566,11 +745,12 @@ function MarksPage() {
           )}
         </div>
       </Modal>
+      ) : null}
     </AppShell>
   );
 }
 
-function Snapshot({ label, value }: { label: string; value: number }) {
+function Snapshot({ label, value }: { label: string; value: number | string }) {
   return (
     <div className="lx-kpi-card">
       <div className="lx-kpi-card__body">
@@ -595,7 +775,7 @@ function StageCard({
   onClick: () => void;
   icon: ReactNode;
   title: string;
-  count: number;
+  count: number | string;
   hint: string;
   tone: Stage;
   action?: ReactNode;
