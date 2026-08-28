@@ -4,6 +4,7 @@ import { AdminPageTransition } from "@/components/AdminPageTransition";
 import { TransportHubNav } from "@/components/transport/TransportHubNav";
 import { useTransportStore } from "@/components/transport/useTransportStore";
 import { TransportEnrollmentsApiView } from "@/components/transport/TransportEnrollmentsApiView";
+import { TransportDashboardApiView } from "@/components/transport/TransportDashboardApiView";
 import { TransportVehiclesView } from "@/components/transport/views/TransportVehiclesView";
 import { TransportDriversView } from "@/components/transport/views/TransportDriversView";
 import { TransportStopsView } from "@/components/transport/views/TransportStopsView";
@@ -292,7 +293,7 @@ function TransportPage() {
             : null;
 
   useEffect(() => {
-    if (!apiMode || view !== "vehicles") return;
+    if (!apiMode || (view !== "vehicles" && view !== "dashboard")) return;
 
     if (instituteCtx.status === "loading") {
       setApiVehicles([]);
@@ -358,7 +359,7 @@ function TransportPage() {
   ]);
 
   useEffect(() => {
-    if (!apiMode || view !== "drivers") return;
+    if (!apiMode || (view !== "drivers" && view !== "dashboard")) return;
 
     if (instituteCtx.status === "loading") {
       setApiDrivers([]);
@@ -424,7 +425,7 @@ function TransportPage() {
   ]);
 
   useEffect(() => {
-    if (!apiMode || (view !== "routes" && view !== "stops")) return;
+    if (!apiMode || (view !== "routes" && view !== "stops" && view !== "dashboard")) return;
 
     if (instituteCtx.status === "loading") {
       setApiRoutes([]);
@@ -490,7 +491,7 @@ function TransportPage() {
   ]);
 
   useEffect(() => {
-    if (!apiMode || view !== "students") return;
+    if (!apiMode || (view !== "students" && view !== "dashboard")) return;
 
     if (instituteCtx.status === "loading") {
       setApiEnrollments([]);
@@ -636,7 +637,11 @@ function TransportPage() {
   }, [apiMode, view, snapshot, driversListView.items, driversListView.rowsValid]);
 
   const routesSnapshot = useMemo(() => {
-    if (!apiMode || (view !== "routes" && view !== "stops") || !routesListView.rowsValid) {
+    if (
+      !apiMode ||
+      (view !== "routes" && view !== "stops" && view !== "dashboard") ||
+      !routesListView.rowsValid
+    ) {
       return snapshot;
     }
     return { ...snapshot, routes: routesListView.items };
@@ -689,7 +694,9 @@ function TransportPage() {
       subtitle={
         apiMode && view === "vehicles"
           ? `API mode · read-only · ${vehiclesListView.rowsValid ? vehiclesListView.items.length : "…"} vehicles`
-          : apiMode && view === "drivers"
+          : apiMode && view === "dashboard"
+            ? "API mode · read-only · fleet overview"
+            : apiMode && view === "drivers"
             ? `API mode · read-only · ${driversListView.rowsValid ? driversListView.items.length : "…"} drivers`
             : apiMode && view === "routes"
               ? `API mode · read-only · ${routesListView.rowsValid ? routesListView.items.length : "…"} routes`
@@ -704,9 +711,19 @@ function TransportPage() {
     >
       <TransportHubNav active={view} />
       <AdminPageTransition pageKey={view}>
-        {view === "dashboard" && (
-          <TransportDashboardView snapshot={snapshot} onNavigate={goToView} />
-        )}
+        {view === "dashboard" ? (
+          apiMode ? (
+            <TransportDashboardApiView
+              vehiclesView={vehiclesListView}
+              driversView={driversListView}
+              routesView={routesListView}
+              enrollmentsView={enrollmentsListView}
+              onNavigate={goToView}
+            />
+          ) : (
+            <TransportDashboardView snapshot={snapshot} onNavigate={goToView} />
+          )
+        ) : null}
         {view === "vehicles" && (
           <TransportVehiclesView
             snapshot={vehiclesSnapshot}
