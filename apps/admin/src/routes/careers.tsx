@@ -34,7 +34,16 @@ import {
   ClipboardList,
   Briefcase,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { useInstituteContext } from "@/lib/institutes";
+import {
+  loadCareersList,
+  resolveCareersListView,
+  shouldCommitCareersLoad,
+  type CareerApplicationListItem,
+  type CareersListStatus,
+} from "@/lib/careers";
 
 export const Route = createFileRoute("/careers")({
   head: () => ({ meta: [{ title: "Careers — LumenX Admin" }] }),
@@ -72,28 +81,142 @@ function writeAppsSnapshot(next: AdminCareerSyncRow[]) {
  */
 function CareersPage() {
   const notify = useAdminToast();
+  const apiMode = isApiAuthMode();
+  const instituteCtx = useInstituteContext();
+  const writesEnabled = !apiMode;
   const [apps, setApps] = useState<AdminCareerSyncRow[]>(() =>
-    ensureAdminCareerSyncSeed(FALLBACK),
+    apiMode ? [] : ensureAdminCareerSyncSeed(FALLBACK),
   );
+  const [apiItems, setApiItems] = useState<CareerApplicationListItem[]>([]);
+  const [listStatus, setListStatus] = useState<CareersListStatus>(() =>
+    apiMode ? "loading" : "demo",
+  );
+  const [listError, setListError] = useState<string | null>(null);
+  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
+    string | null
+  >(null);
+  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
+  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
+
+  const listView = resolveCareersListView({
+    apiMode,
+    instituteStatus: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+    resolvedForInstituteId,
+    storedItems: apiItems,
+    storedStatus: listStatus,
+    storedErrorMessage: listError,
+    instituteErrorMessage: instituteCtx.errorMessage,
+  });
+  type AppRow = AdminCareerSyncRow | CareerApplicationListItem;
+  const displayApps: AppRow[] = apiMode ? listView.items : apps;
+  const activeApps = listView.rowsValid ? displayApps : [];
   const [jobs, setJobs] = useState<CareerJobPosting[]>(() => loadCareerJobs());
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [convertOpen, setConvertOpen] = useState(false);
 
+  useEffect(() => {
+    if (!apiMode) return;
+
+    if (instituteCtx.status === "loading") {
+      setApiItems([]);
+      setListStatus("loading");
+      setListError(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "error" ||
+      instituteCtx.status === "forbidden"
+    ) {
+      setApiItems([]);
+      setListStatus(
+        instituteCtx.status === "forbidden" ? "forbidden" : "error",
+      );
+      setListError(instituteCtx.errorMessage);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "needs_selection" ||
+      instituteCtx.status === "empty" ||
+      !instituteCtx.activeInstituteId
+    ) {
+      setApiItems([]);
+      setListStatus("needs_institute");
+      setListError(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    let cancelled = false;
+    setListStatus("loading");
+    setListError(null);
+    void loadCareersList(requestInstituteId).then((next) => {
+      if (
+        !shouldCommitCareersLoad({
+          cancelled,
+          requestInstituteId,
+          activeInstituteId: activeInstituteIdRef.current,
+        })
+      ) {
+        return;
+      }
+      setApiItems(next.items);
+      setListStatus(next.status);
+      setListError(next.errorMessage);
+      setResolvedForInstituteId(requestInstituteId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    apiMode,
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    instituteCtx.errorMessage,
+  ]);
+
+  useEffect(() => {
+    setSelectedId(null);
+    setConvertOpen(false);
+  }, [instituteCtx.activeInstituteId]);
+
+  const listHint =
+    listView.status === "loading"
+      ? "Loading career applications…"
+      : listView.status === "needs_institute"
+        ? "Select an institute to load career applications."
+        : listView.status === "forbidden"
+          ? listView.errorMessage ??
+            "You do not have access to careers for this institute."
+          : listView.status === "error"
+            ? listView.errorMessage ?? "Failed to load career applications."
+            : listView.status === "empty"
+              ? "No career applications found for this institute."
+              : null;
+
+  const countLabel = (count: number) =>
+    apiMode && !listView.rowsValid ? "…" : String(count);
+
   const approved = useMemo(
-    () => apps.filter((a) => a.stage === "approved"),
-    [apps],
+    () => activeApps.filter((a) => a.stage === "approved"),
+    [activeApps],
   );
   const counts = useMemo(() => {
     const by = (stage: AdminCareerSyncRow["stage"]) =>
-      apps.filter((a) => a.stage === stage).length;
+      activeApps.filter((a) => a.stage === stage).length;
     return {
-      total: apps.length,
+      total: activeApps.length,
       review: by("review") + by("verification") + by("interview"),
       approved: by("approved"),
       waitlist: by("waitlist"),
       rejected: by("rejected"),
     };
-  }, [apps]);
+  }, [activeApps]);
 
   const selected = useMemo(
     () => (selectedId ? apps.find((a) => a.id === selectedId) ?? null : null),
@@ -111,13 +234,14 @@ function CareersPage() {
     (selectedJob ? selectedJob.hired < selectedJob.vacancies : true);
 
   useEffect(() => {
+    if (apiMode) return;
     const seeded = ensureAdminCareerSyncSeed(FALLBACK);
     setApps(seeded);
     setJobs(loadCareerJobs());
-  }, []);
+  }, [apiMode]);
 
   const convertToTeacher = (draft: CareerConvertDraft) => {
-    if (!selected || !canConvert) return;
+    if (!writesEnabled || !selected || !canConvert) return;
     const roleTitle = selected.role;
     const hiredId = selected.id;
     const record = appendTeacherFromCareer(draft);
@@ -150,6 +274,10 @@ function CareersPage() {
   };
 
   const openConvert = (id: string) => {
+    if (!writesEnabled) {
+      notify("Convert to teacher is not enabled in API read-only mode");
+      return;
+    }
     setSelectedId(id);
     setConvertOpen(true);
   };
@@ -157,18 +285,24 @@ function CareersPage() {
   return (
     <AppShell
       title="Careers"
-      subtitle="Review applicants in Connect · hire approved teachers here"
+      subtitle={
+        apiMode
+          ? `API mode · read-only · ${countLabel(activeApps.length)} applications`
+          : "Review applicants in Connect · hire approved teachers here"
+      }
       actions={
-        <>
-          <Button onClick={() => openCareersFromAdmin("applicants")}>
-            <ClipboardList className="size-3.5" /> Review applicants
-            <ExternalLink className="size-3.5 opacity-70" />
-          </Button>
-          <Button variant="primary" onClick={() => openCareersFromAdmin("recruiter")}>
-            Open Careers portal
-            <ExternalLink className="size-3.5 opacity-70" />
-          </Button>
-        </>
+        writesEnabled ? (
+          <>
+            <Button onClick={() => openCareersFromAdmin("applicants")}>
+              <ClipboardList className="size-3.5" /> Review applicants
+              <ExternalLink className="size-3.5 opacity-70" />
+            </Button>
+            <Button variant="primary" onClick={() => openCareersFromAdmin("recruiter")}>
+              Open Careers portal
+              <ExternalLink className="size-3.5 opacity-70" />
+            </Button>
+          </>
+        ) : undefined
       }
     >
       <div className="space-y-4">
@@ -176,45 +310,55 @@ function CareersPage() {
           <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0 space-y-1.5">
               <div className="text-xs font-semibold text-foreground">
-                Post roles and decide on applicants in the Careers portal
+                {apiMode
+                  ? "Career applications (read-only)"
+                  : "Post roles and decide on applicants in the Careers portal"}
               </div>
               <p className="max-w-xl text-[12px] leading-relaxed text-muted-foreground">
-                Create vacancies, review documents, schedule interviews, waitlist or reject
-                candidates in Connect. Come back to Admin only to hire an approved applicant as
-                a teacher.
+                {apiMode
+                  ? "Application pipeline counts from the API. Hire-as-teacher and Connect portal workflows remain demo-only in this cutover."
+                  : "Create vacancies, review documents, schedule interviews, waitlist or reject candidates in Connect. Come back to Admin only to hire an approved applicant as a teacher."}
               </p>
             </div>
+            {writesEnabled ? (
             <div className="flex shrink-0 flex-wrap gap-2">
               <Button variant="primary" onClick={() => openCareersFromAdmin("recruiter")}>
                 Go to Careers portal <ArrowRight className="size-3.5" />
               </Button>
             </div>
+            ) : null}
           </div>
         </Card>
 
+        {!listView.rowsValid ? (
+          <div className="py-12 text-center text-sm text-muted-foreground">
+            {listHint ?? "Loading career applications…"}
+          </div>
+        ) : (
+        <>
         <KpiGrid cols={4}>
           <Kpi
             label="Not decided yet"
-            value={String(counts.review)}
+            value={countLabel(counts.review)}
             delta="Still reviewing applicants"
             icon={<Users className="size-3.5" />}
           />
           <Kpi
             label="Approved — hire as teacher"
-            value={String(counts.approved)}
+            value={countLabel(counts.approved)}
             delta="Ready in Admin"
             tone="up"
             icon={<CheckCircle2 className="size-3.5" />}
           />
           <Kpi
             label="On waiting list"
-            value={String(counts.waitlist)}
+            value={countLabel(counts.waitlist)}
             delta="Update in portal"
             icon={<ListOrdered className="size-3.5" />}
           />
           <Kpi
             label="All applications"
-            value={String(counts.total)}
+            value={countLabel(counts.total)}
             delta={`${counts.rejected} not selected`}
             icon={<ClipboardList className="size-3.5" />}
           />
@@ -223,18 +367,26 @@ function CareersPage() {
         <Card>
           <CardHeader
             title="Hire approved applicants as teachers"
-            hint="Creates the teacher record · optional Connect login"
+            hint={
+              apiMode
+                ? "Read-only approved applicants from API"
+                : "Creates the teacher record · optional Connect login"
+            }
             action={
+              writesEnabled ? (
               <Button size="sm" onClick={() => openCareersFromAdmin("applicants")}>
                 Review applicants <ExternalLink className="size-3 opacity-70" />
               </Button>
+              ) : undefined
             }
           />
           {approved.length === 0 ? (
             <div className="px-5 pb-6 text-center">
               <p className="text-sm text-muted-foreground">
-                No approved applicants waiting to be hired as teachers.
+                {listHint ?? "No approved applicants waiting to be hired as teachers."}
               </p>
+              {writesEnabled ? (
+              <>
               <p className="mt-1 text-[11px] text-muted-foreground">
                 Approve an application in the Careers portal, then return here to create their
                 teacher record.
@@ -246,14 +398,16 @@ function CareersPage() {
               >
                 Review applicants <ExternalLink className="size-3.5 opacity-70" />
               </Button>
+              </>
+              ) : null}
             </div>
           ) : (
             <ul className="divide-y divide-border px-2 pb-2 sm:px-3">
               {approved.map((app) => {
-                const job = findJobForRole(jobs, app.role);
+                const job = writesEnabled ? findJobForRole(jobs, app.role) : null;
                 const closed = job?.status === "closed";
                 const full = job ? job.hired >= job.vacancies : false;
-                const hireDisabled = closed || full;
+                const hireDisabled = !writesEnabled || closed || full;
                 return (
                   <li
                     key={app.id}
@@ -277,6 +431,7 @@ function CareersPage() {
                     <Pill tone={careerStageTone(app.stage)}>
                       {careerStageLabel(app.stage)}
                     </Pill>
+                    {writesEnabled ? (
                     <Button
                       variant="primary"
                       size="sm"
@@ -285,6 +440,7 @@ function CareersPage() {
                     >
                       <UserPlus className="size-3.5" /> Convert to teacher
                     </Button>
+                    ) : null}
                   </li>
                 );
               })}
@@ -293,6 +449,8 @@ function CareersPage() {
         </Card>
 
         <p className="text-[11px] text-muted-foreground px-1">
+          {writesEnabled ? (
+            <>
           After you hire them, manage the record under{" "}
           <Link to="/teachers" className="text-primary font-medium hover:underline">
             Teachers
@@ -307,9 +465,16 @@ function CareersPage() {
             Careers <Briefcase className="size-3" />
           </button>
           .
+            </>
+          ) : (
+            "Teacher hiring and Connect portal workflows are not enabled in API read-only mode."
+          )}
         </p>
+        </>
+        )}
       </div>
 
+      {writesEnabled ? (
       <ConvertToTeacherDialog
         open={convertOpen}
         row={selected}
@@ -320,6 +485,7 @@ function CareersPage() {
         }}
         onConvert={convertToTeacher}
       />
+      ) : null}
     </AppShell>
   );
 }
