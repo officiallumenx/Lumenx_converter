@@ -42,6 +42,14 @@ export async function loadStudentDetail(
     return { status: "error", student: null, errorMessage: "Student id is required." };
   }
 
+  if (!isInstituteUuid(studentId.trim())) {
+    return {
+      status: "error",
+      student: null,
+      errorMessage: "Student id must be a valid UUID.",
+    };
+  }
+
   try {
     const dto = await getStudent(studentId.trim());
     return {

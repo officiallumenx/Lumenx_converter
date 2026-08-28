@@ -42,6 +42,14 @@ export async function loadParentDetail(
     return { status: "error", parent: null, errorMessage: "Parent id is required." };
   }
 
+  if (!isInstituteUuid(parentId.trim())) {
+    return {
+      status: "error",
+      parent: null,
+      errorMessage: "Parent id must be a valid UUID.",
+    };
+  }
+
   try {
     const dto = await getParent(parentId.trim());
     return {

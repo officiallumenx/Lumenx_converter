@@ -35,3 +35,8 @@ export {
   type ParentsListView,
   type ResolveParentsListViewInput,
 } from "./list-view";
+export {
+  resolveParentsDetailView,
+  type ParentsDetailView,
+  type ResolveParentsDetailViewInput,
+} from "./detail-view";

@@ -3,6 +3,7 @@ import { createApiClient } from "@/lib/api";
 import type { StudentDto } from "./types";
 
 const INST = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const STU = "ac111111-1111-4111-8111-111111111111";
 
 function dto(overrides: Partial<StudentDto> = {}): StudentDto {
   return {
@@ -120,7 +121,7 @@ describe("students api repository", () => {
   it("gets student by id in API mode", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const { getStudent } = await import("./api");
-    const payload = dto({ id: "stu-detail" });
+    const payload = dto({ id: STU });
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -131,8 +132,21 @@ describe("students api repository", () => {
       getAccessToken: async () => "tok",
       fetchImpl: fetchMock as unknown as typeof fetch,
     });
-    const result = await getStudent("stu-detail", client);
-    expect(result.id).toBe("stu-detail");
-    expect(fetchMock.mock.calls[0][0]).toContain("/api/v1/students/stu-detail");
+    const result = await getStudent(STU, client);
+    expect(result.id).toBe(STU);
+    expect(fetchMock.mock.calls[0][0]).toContain(`/api/v1/students/${STU}`);
+  });
+
+  it("rejects non-UUID student ids without calling fetch", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const { getStudent } = await import("./api");
+    const fetchMock = vi.fn();
+    const client = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => "tok",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    await expect(getStudent("stu-detail", client)).rejects.toThrow(/UUID/i);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

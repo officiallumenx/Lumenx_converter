@@ -150,4 +150,15 @@ describe("loadSubjectDetail", () => {
     expect(result.status).toBe("demo");
     expect(getSubject).not.toHaveBeenCalled();
   });
+
+  it("rejects invalid resource id without calling API", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const getSubject = vi.fn();
+    vi.doMock("./api", () => ({ getSubject }));
+    const { loadSubjectDetail } = await import("./load");
+    const result = await loadSubjectDetail("sub-1");
+    expect(result.status).toBe("error");
+    expect(result.subject).toBeNull();
+    expect(getSubject).not.toHaveBeenCalled();
+  });
 });

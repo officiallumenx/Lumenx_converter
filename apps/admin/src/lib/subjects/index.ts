@@ -27,3 +27,8 @@ export {
   type SubjectsListView,
   type ResolveSubjectsListViewInput,
 } from "./list-view";
+export {
+  resolveSubjectDetailView,
+  type ResolveSubjectDetailViewInput,
+  type SubjectDetailView,
+} from "./detail-view";

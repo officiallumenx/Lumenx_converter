@@ -42,6 +42,14 @@ export async function loadSubjectDetail(
     return { status: "error", subject: null, errorMessage: "Subject id is required." };
   }
 
+  if (!isInstituteUuid(subjectId.trim())) {
+    return {
+      status: "error",
+      subject: null,
+      errorMessage: "Subject id must be a valid UUID.",
+    };
+  }
+
   try {
     const dto = await getSubject(subjectId.trim());
     return {

@@ -1,12 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button, Card, CardHeader, PageStack, Pill } from "@lumenx/ui-admin";
-import { loadStudentDetail, type StudentDetailItem, type StudentsListStatus } from "@/lib/students";
+import { useInstituteContext } from "@/lib/institutes";
+import {
+  loadStudentDetail,
+  resolveStudentsDetailView,
+  shouldCommitStudentsLoad,
+  type StudentDetailItem,
+  type StudentsListStatus,
+} from "@/lib/students";
 
 function detailHint(status: StudentsListStatus, errorMessage: string | null): string | null {
   if (status === "loading") return "Loading student profile…";
+  if (status === "needs_institute") return "Select an institute to load this student profile.";
   if (status === "forbidden") {
     return errorMessage ?? "You do not have access to this student.";
   }
@@ -32,30 +40,86 @@ function statusTone(status: StudentDetailItem["status"]): "success" | "warning" 
 }
 
 export function StudentProfileApiPage({ studentId }: { studentId: string }) {
+  const instituteCtx = useInstituteContext();
+  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
+  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
+
   const [student, setStudent] = useState<StudentDetailItem | null>(null);
   const [status, setStatus] = useState<StudentsListStatus>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(null);
+
+  const detailView = resolveStudentsDetailView({
+    apiMode: true,
+    instituteStatus: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+    resolvedForInstituteId,
+    storedStudent: student,
+    storedStatus: status,
+    storedErrorMessage: errorMessage,
+    instituteErrorMessage: instituteCtx.errorMessage,
+  });
 
   useEffect(() => {
+    if (instituteCtx.status === "loading") {
+      setStudent(null);
+      setStatus("loading");
+      setErrorMessage(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    if (instituteCtx.status === "error" || instituteCtx.status === "forbidden") {
+      setStudent(null);
+      setStatus(instituteCtx.status === "forbidden" ? "forbidden" : "error");
+      setErrorMessage(instituteCtx.errorMessage);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "needs_selection" ||
+      instituteCtx.status === "empty" ||
+      !instituteCtx.activeInstituteId
+    ) {
+      setStudent(null);
+      setStatus("needs_institute");
+      setErrorMessage(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    const requestInstituteId = instituteCtx.activeInstituteId;
     let cancelled = false;
+    setStudent(null);
     setStatus("loading");
     setErrorMessage(null);
     void loadStudentDetail(studentId).then((next) => {
-      if (cancelled) return;
+      if (
+        !shouldCommitStudentsLoad({
+          cancelled,
+          requestInstituteId,
+          activeInstituteId: activeInstituteIdRef.current,
+        })
+      ) {
+        return;
+      }
       setStudent(next.student);
       setStatus(next.status);
       setErrorMessage(next.errorMessage);
+      setResolvedForInstituteId(requestInstituteId);
     });
     return () => {
       cancelled = true;
     };
-  }, [studentId]);
+  }, [instituteCtx.status, instituteCtx.activeInstituteId, instituteCtx.errorMessage, studentId]);
 
-  const hint = detailHint(status, errorMessage);
+  const hint = detailHint(detailView.status, detailView.errorMessage);
+  const displayStudent = detailView.detailValid ? detailView.student : null;
 
   return (
     <AppShell
-      title={student?.name ?? "Student profile"}
+      title={displayStudent?.name ?? "Student profile"}
       subtitle="API mode · read-only · student directory record"
       actions={
         <Link to="/students">
@@ -67,39 +131,39 @@ export function StudentProfileApiPage({ studentId }: { studentId: string }) {
     >
       <PageStack>
         <Pill tone="neutral">Read-only · API mode</Pill>
-        {status !== "ready" || !student ? (
+        {detailView.status !== "ready" || !displayStudent ? (
           <Card className="p-8 text-center text-sm text-muted-foreground">{hint ?? "Loading…"}</Card>
         ) : (
           <>
             <Card>
               <CardHeader
-                title={student.name}
-                hint={`${student.grade} · ${student.admissionNumber ?? "No admission no."}`}
+                title={displayStudent.name}
+                hint={`${displayStudent.grade} · ${displayStudent.admissionNumber ?? "No admission no."}`}
                 action={
                   <div className="flex flex-wrap gap-2">
-                    <Pill tone={statusTone(student.status)}>{student.status}</Pill>
-                    <Pill tone={student.accessStatus === "active" ? "success" : "warning"}>
-                      {student.accessStatus}
+                    <Pill tone={statusTone(displayStudent.status)}>{displayStudent.status}</Pill>
+                    <Pill tone={displayStudent.accessStatus === "active" ? "success" : "warning"}>
+                      {displayStudent.accessStatus}
                     </Pill>
                   </div>
                 }
               />
               <div className="grid gap-4 px-4 pb-5 sm:grid-cols-2 sm:px-5 lg:grid-cols-3">
-                <DetailField label="Roll no." value={student.rollNo} />
-                <DetailField label="Class" value={student.classLabel} />
-                <DetailField label="Section" value={student.sectionLabel} />
-                <DetailField label="Gender" value={student.gender.replace(/_/g, " ")} />
-                <DetailField label="Date of birth" value={student.dateOfBirth} />
-                <DetailField label="House" value={student.house} />
-                <DetailField label="Blood group" value={student.bloodGroup} />
-                <DetailField label="Emergency contact" value={student.emergencyContact} />
-                <DetailField label="Legacy code" value={student.legacyCode} />
+                <DetailField label="Roll no." value={displayStudent.rollNo} />
+                <DetailField label="Class" value={displayStudent.classLabel} />
+                <DetailField label="Section" value={displayStudent.sectionLabel} />
+                <DetailField label="Gender" value={displayStudent.gender.replace(/_/g, " ")} />
+                <DetailField label="Date of birth" value={displayStudent.dateOfBirth} />
+                <DetailField label="House" value={displayStudent.house} />
+                <DetailField label="Blood group" value={displayStudent.bloodGroup} />
+                <DetailField label="Emergency contact" value={displayStudent.emergencyContact} />
+                <DetailField label="Legacy code" value={displayStudent.legacyCode} />
               </div>
             </Card>
             <Card>
-              <CardHeader title="Contact & address" hint={`Last updated ${new Date(student.updatedAt).toLocaleString()}`} />
+              <CardHeader title="Contact & address" hint={`Last updated ${new Date(displayStudent.updatedAt).toLocaleString()}`} />
               <div className="px-4 pb-5 sm:px-5">
-                <DetailField label="Address" value={student.address} />
+                <DetailField label="Address" value={displayStudent.address} />
               </div>
             </Card>
           </>

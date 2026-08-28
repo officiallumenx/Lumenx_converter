@@ -160,4 +160,15 @@ describe("loadSectionDetail", () => {
     expect(result.status).toBe("demo");
     expect(getSection).not.toHaveBeenCalled();
   });
+
+  it("rejects invalid resource id without calling API", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const getSection = vi.fn();
+    vi.doMock("./api", () => ({ getSection, getClass: vi.fn() }));
+    const { loadSectionDetail } = await import("./load");
+    const result = await loadSectionDetail("sec-1");
+    expect(result.status).toBe("error");
+    expect(result.section).toBeNull();
+    expect(getSection).not.toHaveBeenCalled();
+  });
 });

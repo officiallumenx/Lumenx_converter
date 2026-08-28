@@ -35,3 +35,8 @@ export {
   type ClassesListView,
   type ResolveClassesListViewInput,
 } from "./list-view";
+export {
+  resolveSectionDetailView,
+  type ResolveSectionDetailViewInput,
+  type SectionDetailView,
+} from "./detail-view";

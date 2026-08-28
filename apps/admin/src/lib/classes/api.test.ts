@@ -144,34 +144,33 @@ describe("classes api repository", () => {
   it("gets section by id in API mode", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const { getSection } = await import("./api");
+    const secId = "ff111111-1111-4111-8111-111111111111";
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
-      text: async () =>
-        JSON.stringify({
-          data: {
-            id: "sec-1",
-            instituteId: INST,
-            academicYearId: "ay-1",
-            classId: "cls-1",
-            name: "A",
-            code: "A",
-            capacity: 40,
-            room: "101",
-            sortOrder: 0,
-            status: "active",
-            createdAt: "2026-06-01T10:00:00Z",
-            updatedAt: "2026-06-01T10:00:00Z",
-          },
-        }),
+      text: async () => JSON.stringify({ data: sectionDto({ id: secId }) }),
     });
     const client = createApiClient({
       getBaseUrl: () => "http://api.test",
       getAccessToken: async () => "tok",
       fetchImpl: fetchMock as unknown as typeof fetch,
     });
-    const result = await getSection("sec-1", client);
-    expect(result.id).toBe("sec-1");
-    expect(fetchMock.mock.calls[0][0]).toContain("/api/v1/sections/sec-1");
+    const result = await getSection(secId, client);
+    expect(result.id).toBe(secId);
+    expect(fetchMock.mock.calls[0][0]).toContain(`/api/v1/sections/${secId}`);
+  });
+
+  it("rejects non-UUID section ids without calling fetch", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const { getSection, getClass } = await import("./api");
+    const fetchMock = vi.fn();
+    const client = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => "tok",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    await expect(getSection("sec-1", client)).rejects.toThrow(/UUID/i);
+    await expect(getClass("cls-1", client)).rejects.toThrow(/UUID/i);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

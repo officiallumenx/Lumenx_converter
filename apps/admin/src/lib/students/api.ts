@@ -36,5 +36,8 @@ export async function getStudent(
   client: AdminApiClient = getAdminApiClient(),
 ): Promise<StudentDto> {
   assertApiMode();
-  return client.get<StudentDto>(`/api/v1/students/${studentId}`);
+  if (!isInstituteUuid(studentId)) {
+    throw new Error("student_id must be a valid UUID");
+  }
+  return client.get<StudentDto>(`/api/v1/students/${studentId.trim()}`);
 }

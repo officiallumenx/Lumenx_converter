@@ -117,4 +117,36 @@ describe("parents api repository", () => {
     expect(result).toHaveLength(1);
     expect(result[0]?.id).toBe("ba222222-2222-4222-8222-222222222222");
   });
+
+  it("gets parent by id in API mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const { getParent } = await import("./api");
+    const parentId = "ba111111-1111-4111-8111-111111111111";
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ data: dto({ id: parentId }) }),
+    });
+    const client = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => "tok",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    const result = await getParent(parentId, client);
+    expect(result.id).toBe(parentId);
+    expect(fetchMock.mock.calls[0][0]).toContain(`/api/v1/parents/${parentId}`);
+  });
+
+  it("rejects non-UUID parent ids without calling fetch", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const { getParent } = await import("./api");
+    const fetchMock = vi.fn();
+    const client = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => "tok",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    await expect(getParent("parent-1", client)).rejects.toThrow(/UUID/i);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });

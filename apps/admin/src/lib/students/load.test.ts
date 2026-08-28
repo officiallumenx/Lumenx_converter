@@ -3,6 +3,7 @@ import { ApiClientError } from "@/lib/api";
 import type { StudentDto } from "./types";
 
 const INST = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const STU = "ac111111-1111-4111-8111-111111111111";
 
 function dto(overrides: Partial<StudentDto> = {}): StudentDto {
   return {
@@ -168,11 +169,22 @@ describe("loadStudentDetail", () => {
 
   it("maps student detail on success", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
-    const getStudent = vi.fn().mockResolvedValue(dto({ id: "stu-1" }));
+    const getStudent = vi.fn().mockResolvedValue(dto({ id: STU }));
+    vi.doMock("./api", () => ({ getStudent }));
+    const { loadStudentDetail } = await import("./load");
+    const result = await loadStudentDetail(STU);
+    expect(result.status).toBe("ready");
+    expect(result.student?.id).toBe(STU);
+  });
+
+  it("rejects invalid resource id without calling API", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const getStudent = vi.fn();
     vi.doMock("./api", () => ({ getStudent }));
     const { loadStudentDetail } = await import("./load");
     const result = await loadStudentDetail("stu-1");
-    expect(result.status).toBe("ready");
-    expect(result.student?.id).toBe("stu-1");
+    expect(result.status).toBe("error");
+    expect(result.student).toBeNull();
+    expect(getStudent).not.toHaveBeenCalled();
   });
 });

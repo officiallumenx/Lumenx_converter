@@ -1,17 +1,21 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button, Card, CardHeader, PageStack, Pill } from "@lumenx/ui-admin";
+import { useInstituteContext } from "@/lib/institutes";
 import {
   loadParentDetail,
   relationshipToLabel,
+  resolveParentsDetailView,
+  shouldCommitParentsLoad,
   type ParentDetailItem,
   type ParentsListStatus,
 } from "@/lib/parents";
 
 function detailHint(status: ParentsListStatus, errorMessage: string | null): string | null {
   if (status === "loading") return "Loading parent profile…";
+  if (status === "needs_institute") return "Select an institute to load this parent profile.";
   if (status === "forbidden") {
     return errorMessage ?? "You do not have access to this parent.";
   }
@@ -30,30 +34,86 @@ function DetailField({ label, value }: { label: string; value: string | null | u
 }
 
 export function ParentProfileApiPage({ parentId }: { parentId: string }) {
+  const instituteCtx = useInstituteContext();
+  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
+  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
+
   const [parent, setParent] = useState<ParentDetailItem | null>(null);
   const [status, setStatus] = useState<ParentsListStatus>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(null);
+
+  const detailView = resolveParentsDetailView({
+    apiMode: true,
+    instituteStatus: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+    resolvedForInstituteId,
+    storedParent: parent,
+    storedStatus: status,
+    storedErrorMessage: errorMessage,
+    instituteErrorMessage: instituteCtx.errorMessage,
+  });
 
   useEffect(() => {
+    if (instituteCtx.status === "loading") {
+      setParent(null);
+      setStatus("loading");
+      setErrorMessage(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    if (instituteCtx.status === "error" || instituteCtx.status === "forbidden") {
+      setParent(null);
+      setStatus(instituteCtx.status === "forbidden" ? "forbidden" : "error");
+      setErrorMessage(instituteCtx.errorMessage);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "needs_selection" ||
+      instituteCtx.status === "empty" ||
+      !instituteCtx.activeInstituteId
+    ) {
+      setParent(null);
+      setStatus("needs_institute");
+      setErrorMessage(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    const requestInstituteId = instituteCtx.activeInstituteId;
     let cancelled = false;
+    setParent(null);
     setStatus("loading");
     setErrorMessage(null);
     void loadParentDetail(parentId).then((next) => {
-      if (cancelled) return;
+      if (
+        !shouldCommitParentsLoad({
+          cancelled,
+          requestInstituteId,
+          activeInstituteId: activeInstituteIdRef.current,
+        })
+      ) {
+        return;
+      }
       setParent(next.parent);
       setStatus(next.status);
       setErrorMessage(next.errorMessage);
+      setResolvedForInstituteId(requestInstituteId);
     });
     return () => {
       cancelled = true;
     };
-  }, [parentId]);
+  }, [instituteCtx.status, instituteCtx.activeInstituteId, instituteCtx.errorMessage, parentId]);
 
-  const hint = detailHint(status, errorMessage);
+  const hint = detailHint(detailView.status, detailView.errorMessage);
+  const displayParent = detailView.detailValid ? detailView.parent : null;
 
   return (
     <AppShell
-      title={parent?.name ?? "Parent profile"}
+      title={displayParent?.name ?? "Parent profile"}
       subtitle="API mode · read-only · guardian directory record"
       actions={
         <Link to="/parents">
@@ -65,44 +125,44 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
     >
       <PageStack>
         <Pill tone="neutral">Read-only · API mode</Pill>
-        {status !== "ready" || !parent ? (
+        {detailView.status !== "ready" || !displayParent ? (
           <Card className="p-8 text-center text-sm text-muted-foreground">{hint ?? "Loading…"}</Card>
         ) : (
           <>
             <Card>
               <CardHeader
-                title={parent.name}
-                hint={parent.identityLabel}
+                title={displayParent.name}
+                hint={displayParent.identityLabel}
                 action={
                   <div className="flex flex-wrap gap-2">
-                    <Pill tone="info">{parent.relationship}</Pill>
-                    <Pill tone={parent.accessStatus === "active" ? "success" : "warning"}>
-                      {parent.accessStatus}
+                    <Pill tone="info">{displayParent.relationship}</Pill>
+                    <Pill tone={displayParent.accessStatus === "active" ? "success" : "warning"}>
+                      {displayParent.accessStatus}
                     </Pill>
-                    <Pill tone={parent.inviteStatus === "accepted" ? "success" : "neutral"}>
-                      {parent.inviteStatus}
+                    <Pill tone={displayParent.inviteStatus === "active" ? "success" : "neutral"}>
+                      {displayParent.inviteStatus}
                     </Pill>
                   </div>
                 }
               />
               <div className="grid gap-4 px-4 pb-5 sm:grid-cols-2 sm:px-5 lg:grid-cols-3">
-                <DetailField label="Phone" value={parent.phone} />
-                <DetailField label="Email" value={parent.email} />
-                <DetailField label="Address" value={parent.address} />
-                <DetailField label="Legacy code" value={parent.legacyCode} />
-                <DetailField label="Linked children" value={parent.linkedChildrenLabel} />
+                <DetailField label="Phone" value={displayParent.phone} />
+                <DetailField label="Email" value={displayParent.email} />
+                <DetailField label="Address" value={displayParent.address} />
+                <DetailField label="Legacy code" value={displayParent.legacyCode} />
+                <DetailField label="Linked children" value={displayParent.linkedChildrenLabel} />
               </div>
             </Card>
             <Card>
               <CardHeader
                 title="Student links"
-                hint={`Last updated ${new Date(parent.updatedAt).toLocaleString()}`}
+                hint={`Last updated ${new Date(displayParent.updatedAt).toLocaleString()}`}
               />
-              {parent.links.length === 0 ? (
+              {displayParent.links.length === 0 ? (
                 <div className="px-5 pb-5 text-sm text-muted-foreground">No active student links.</div>
               ) : (
                 <ul className="divide-y divide-border px-4 pb-4 sm:px-5">
-                  {parent.links.map((link) => (
+                  {displayParent.links.map((link) => (
                     <li key={link.id} className="flex items-center justify-between gap-3 py-3">
                       <div>
                         <div className="text-sm font-medium">

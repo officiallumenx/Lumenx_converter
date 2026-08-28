@@ -36,5 +36,8 @@ export async function getParent(
   client: AdminApiClient = getAdminApiClient(),
 ): Promise<ParentDto> {
   assertApiMode();
-  return client.get<ParentDto>(`/api/v1/parents/${parentId}`);
+  if (!isInstituteUuid(parentId)) {
+    throw new Error("parent_id must be a valid UUID");
+  }
+  return client.get<ParentDto>(`/api/v1/parents/${parentId.trim()}`);
 }

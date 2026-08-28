@@ -42,6 +42,14 @@ export async function loadSectionDetail(
     return { status: "error", section: null, errorMessage: "Section id is required." };
   }
 
+  if (!isInstituteUuid(sectionId.trim())) {
+    return {
+      status: "error",
+      section: null,
+      errorMessage: "Section id must be a valid UUID.",
+    };
+  }
+
   try {
     const section = await getSection(sectionId.trim());
     const cls = await getClass(section.classId);

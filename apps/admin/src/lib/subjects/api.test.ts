@@ -105,32 +105,32 @@ describe("subjects api repository", () => {
   it("gets subject by id in API mode", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const { getSubject } = await import("./api");
+    const subId = "cc111111-1111-4111-8111-111111111111";
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
-      text: async () =>
-        JSON.stringify({
-          data: {
-            id: "sub-1",
-            instituteId: INST,
-            name: "Math",
-            code: "MATH",
-            category: "Core",
-            periodsPerWeek: 5,
-            applicableClassCodes: ["10"],
-            status: "active",
-            createdAt: "2026-06-01T10:00:00Z",
-            updatedAt: "2026-06-01T10:00:00Z",
-          },
-        }),
+      text: async () => JSON.stringify({ data: dto({ id: subId }) }),
     });
     const client = createApiClient({
       getBaseUrl: () => "http://api.test",
       getAccessToken: async () => "tok",
       fetchImpl: fetchMock as unknown as typeof fetch,
     });
-    const result = await getSubject("sub-1", client);
-    expect(result.id).toBe("sub-1");
-    expect(fetchMock.mock.calls[0][0]).toContain("/api/v1/subjects/sub-1");
+    const result = await getSubject(subId, client);
+    expect(result.id).toBe(subId);
+    expect(fetchMock.mock.calls[0][0]).toContain(`/api/v1/subjects/${subId}`);
+  });
+
+  it("rejects non-UUID subject ids without calling fetch", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const { getSubject } = await import("./api");
+    const fetchMock = vi.fn();
+    const client = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => "tok",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    await expect(getSubject("sub-1", client)).rejects.toThrow(/UUID/i);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

@@ -152,4 +152,15 @@ describe("loadParentDetail", () => {
     expect(result.status).toBe("demo");
     expect(getParent).not.toHaveBeenCalled();
   });
+
+  it("rejects invalid resource id without calling API", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const getParent = vi.fn();
+    vi.doMock("./api", () => ({ getParent }));
+    const { loadParentDetail } = await import("./load");
+    const result = await loadParentDetail("parent-1");
+    expect(result.status).toBe("error");
+    expect(result.parent).toBeNull();
+    expect(getParent).not.toHaveBeenCalled();
+  });
 });

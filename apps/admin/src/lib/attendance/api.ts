@@ -39,5 +39,10 @@ export async function getAttendanceRegister(
   client: AdminApiClient = getAdminApiClient(),
 ): Promise<AttendanceRegisterDto> {
   assertApiMode();
-  return client.get<AttendanceRegisterDto>(`/api/v1/attendance/registers/${registerId}`);
+  if (!isInstituteUuid(registerId)) {
+    throw new Error("register_id must be a valid UUID");
+  }
+  return client.get<AttendanceRegisterDto>(
+    `/api/v1/attendance/registers/${registerId.trim()}`,
+  );
 }

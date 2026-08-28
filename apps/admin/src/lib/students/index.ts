@@ -28,3 +28,8 @@ export {
   type StudentsInstituteGateStatus,
   type StudentsListView,
 } from "./list-view";
+export {
+  resolveStudentsDetailView,
+  type ResolveStudentsDetailViewInput,
+  type StudentsDetailView,
+} from "./detail-view";

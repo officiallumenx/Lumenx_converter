@@ -36,5 +36,8 @@ export async function getSubject(
   client: AdminApiClient = getAdminApiClient(),
 ): Promise<SubjectDto> {
   assertApiMode();
-  return client.get<SubjectDto>(`/api/v1/subjects/${subjectId}`);
+  if (!isInstituteUuid(subjectId)) {
+    throw new Error("subject_id must be a valid UUID");
+  }
+  return client.get<SubjectDto>(`/api/v1/subjects/${subjectId.trim()}`);
 }

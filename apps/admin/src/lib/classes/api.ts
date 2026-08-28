@@ -49,7 +49,10 @@ export async function getClass(
   client: AdminApiClient = getAdminApiClient(),
 ): Promise<ClassDto> {
   assertApiMode();
-  return client.get<ClassDto>(`/api/v1/classes/${classId}`);
+  if (!isInstituteUuid(classId)) {
+    throw new Error("class_id must be a valid UUID");
+  }
+  return client.get<ClassDto>(`/api/v1/classes/${classId.trim()}`);
 }
 
 export async function getSection(
@@ -57,7 +60,10 @@ export async function getSection(
   client: AdminApiClient = getAdminApiClient(),
 ): Promise<SectionDto> {
   assertApiMode();
-  return client.get<SectionDto>(`/api/v1/sections/${sectionId}`);
+  if (!isInstituteUuid(sectionId)) {
+    throw new Error("section_id must be a valid UUID");
+  }
+  return client.get<SectionDto>(`/api/v1/sections/${sectionId.trim()}`);
 }
 
 export async function listClassesCatalog(
