@@ -179,4 +179,23 @@ describe("transport vehicles api repository", () => {
     expect(url).toContain("/api/v1/transport/settings?");
     expect(url).toContain(`institute_id=${INST}`);
   });
+
+  it("lists enrollments with institute_id in API mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const { listTransportEnrollments } = await import("./api");
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ data: [] }),
+    });
+    const client = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => "tok",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    await listTransportEnrollments({ instituteId: INST }, client);
+    const url = fetchMock.mock.calls[0][0] as string;
+    expect(url).toContain("/api/v1/transport/enrollments?");
+    expect(url).toContain(`institute_id=${INST}`);
+  });
 });

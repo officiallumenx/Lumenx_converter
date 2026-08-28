@@ -122,3 +122,20 @@ describe("loadTransportSettings", () => {
     expect(result.settings).toBeNull();
   });
 });
+
+describe("loadTransportEnrollmentsList", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+  });
+
+  it("returns demo status without calling API in demo mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
+    const listTransportEnrollments = vi.fn();
+    vi.doMock("./api", () => ({ listTransportEnrollments }));
+    const { loadTransportEnrollmentsList } = await import("./load");
+    const result = await loadTransportEnrollmentsList(INST);
+    expect(result.status).toBe("demo");
+    expect(listTransportEnrollments).not.toHaveBeenCalled();
+  });
+});

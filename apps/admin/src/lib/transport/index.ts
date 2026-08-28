@@ -1,6 +1,7 @@
 export {
   getTransportSettings,
   listTransportDrivers,
+  listTransportEnrollments,
   listTransportRoutes,
   listTransportStops,
   listTransportVehicles,
@@ -8,11 +9,14 @@ export {
 } from "./api";
 export {
   loadTransportDriversList,
+  loadTransportEnrollmentsList,
   loadTransportRoutesList,
   loadTransportSettings,
   loadTransportVehiclesList,
   type TransportDriversListState,
   type TransportDriversListStatus,
+  type TransportEnrollmentsListState,
+  type TransportEnrollmentsListStatus,
   type TransportListStatus,
   type TransportRoutesListState,
   type TransportRoutesListStatus,
@@ -23,12 +27,15 @@ export {
 } from "./load";
 export {
   resolveTransportDriversListView,
+  resolveTransportEnrollmentsListView,
   resolveTransportRoutesListView,
   resolveTransportVehiclesListView,
   shouldCommitTransportDriversLoad,
+  shouldCommitTransportEnrollmentsLoad,
   shouldCommitTransportRoutesLoad,
   shouldCommitTransportVehiclesLoad,
   type TransportDriversListView,
+  type TransportEnrollmentsListView,
   type TransportRoutesListView,
   type TransportVehiclesListView,
 } from "./list-view";
@@ -40,6 +47,8 @@ export {
 export {
   driverDtoToTransportDriver,
   driverDtosToTransportDrivers,
+  enrollmentDtoToListItem,
+  enrollmentDtosToListItems,
   routeDtoToTransportRoute,
   routeDtosToTransportRoutes,
   stopDtoToAdminRouteStop,
@@ -50,8 +59,10 @@ export {
 } from "./map";
 export type {
   DriverDto,
+  EnrollmentStatus,
   GetTransportSettingsParams,
   ListTransportDriversParams,
+  ListTransportEnrollmentsParams,
   ListTransportRoutesParams,
   ListTransportStopsParams,
   ListTransportVehiclesParams,
@@ -59,6 +70,8 @@ export type {
   RouteDto,
   StopDto,
   TransportAssetStatus,
+  TransportEnrollmentDto,
+  TransportEnrollmentListItem,
   TransportSettingsDto,
   VehicleDto,
 } from "./types";

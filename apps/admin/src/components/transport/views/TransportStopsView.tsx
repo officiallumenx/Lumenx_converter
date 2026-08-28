@@ -10,6 +10,7 @@ import {
   SearchInput,
   PageToolbar,
   ToolbarSpacer,
+  Pill,
 } from "@lumenx/ui-admin";
 import { Plus, Pencil, Trash2, MapPin, ExternalLink } from "lucide-react";
 import {
@@ -28,9 +29,18 @@ import { mapsUrlForCoords } from "@/lib/parse-location-paste";
 type Props = {
   snapshot: TransportSnapshot;
   onChange: (next: TransportSnapshot) => void;
+  writesEnabled?: boolean;
+  listBlocked?: boolean;
+  listHint?: string | null;
 };
 
-export function TransportStopsView({ snapshot, onChange }: Props) {
+export function TransportStopsView({
+  snapshot,
+  onChange,
+  writesEnabled = true,
+  listBlocked = false,
+  listHint = null,
+}: Props) {
   const notify = useAdminToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -99,26 +109,40 @@ export function TransportStopsView({ snapshot, onChange }: Props) {
           className="w-full max-w-xs"
         />
         <ToolbarSpacer />
-        <Button variant="primary" size="sm" onClick={startCreate}>
-          <Plus className="size-3.5" /> Add Stop
-        </Button>
+        {writesEnabled ? (
+          <Button variant="primary" size="sm" onClick={startCreate}>
+            <Plus className="size-3.5" /> Add Stop
+          </Button>
+        ) : (
+          <Pill tone="neutral">Read-only · API mode</Pill>
+        )}
       </PageToolbar>
 
       <Card>
         <CardHeader
           title="Stops"
-          hint={`${rows.length} stops · paste from Google Maps or OSM`}
+          hint={
+            listBlocked
+              ? listHint ?? "Loading stops…"
+              : `${rows.length} stops · ${writesEnabled ? "paste from Google Maps or OSM" : "route stops from API"}`
+          }
         />
-        {rows.length === 0 ? (
+        {listBlocked ? (
+          <div className="px-5 py-12 text-center text-sm text-muted-foreground">
+            {listHint ?? "Loading…"}
+          </div>
+        ) : rows.length === 0 ? (
           <div className="px-5 pb-8">
             <EmptyState
               icon={<MapPin className="size-5" />}
               title="No stops yet"
               hint="Open a map site, copy the link or coordinates, and paste here."
               action={
-                <Button variant="primary" size="sm" onClick={startCreate}>
-                  <Plus className="size-3.5" /> Add Stop
-                </Button>
+                writesEnabled ? (
+                  <Button variant="primary" size="sm" onClick={startCreate}>
+                    <Plus className="size-3.5" /> Add Stop
+                  </Button>
+                ) : undefined
               }
             />
           </div>
@@ -152,12 +176,16 @@ export function TransportStopsView({ snapshot, onChange }: Props) {
                   >
                     <ExternalLink className="size-3" />
                   </Button>
-                  <Button size="sm" onClick={() => startEdit(s)}>
-                    <Pencil className="size-3" />
-                  </Button>
-                  <Button size="sm" variant="danger" onClick={() => setDeleteId(s.id)}>
-                    <Trash2 className="size-3" />
-                  </Button>
+                  {writesEnabled ? (
+                    <>
+                      <Button size="sm" onClick={() => startEdit(s)}>
+                        <Pencil className="size-3" />
+                      </Button>
+                      <Button size="sm" variant="danger" onClick={() => setDeleteId(s.id)}>
+                        <Trash2 className="size-3" />
+                      </Button>
+                    </>
+                  ) : null}
                 </div>
               </div>
             ))}
@@ -165,73 +193,77 @@ export function TransportStopsView({ snapshot, onChange }: Props) {
         )}
       </Card>
 
-      <Modal
-        open={open}
-        onClose={() => setOpen(false)}
-        title={editId ? "Edit stop" : "Add stop"}
-        subtitle="Pick the place in Google Maps or OSM, then paste the link here"
-        size="lg"
-        footer={
-          <>
-            <Button onClick={() => setOpen(false)}>Cancel</Button>
-            <Button variant="primary" onClick={save}>
-              Save stop
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-3">
-          <Field label="Stop name" required>
-            <TextInput
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Green Park Gate"
-            />
-          </Field>
-          <Field label="Location" required hint="Open map → copy link or coordinates → paste">
-            <LocationPastePicker
-              value={location}
-              onChange={setLocation}
-              searchHint={name}
-            />
-          </Field>
-          <Field label="Notification radius (m)" hint="Default 100m">
-            <TextInput
-              type="number"
-              min={20}
-              value={radius}
-              onChange={(e) => setRadius(Number(e.target.value) || 100)}
-            />
-          </Field>
-        </div>
-      </Modal>
+      {writesEnabled ? (
+        <>
+          <Modal
+            open={open}
+            onClose={() => setOpen(false)}
+            title={editId ? "Edit stop" : "Add stop"}
+            subtitle="Pick the place in Google Maps or OSM, then paste the link here"
+            size="lg"
+            footer={
+              <>
+                <Button onClick={() => setOpen(false)}>Cancel</Button>
+                <Button variant="primary" onClick={save}>
+                  Save stop
+                </Button>
+              </>
+            }
+          >
+            <div className="space-y-3">
+              <Field label="Stop name" required>
+                <TextInput
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Green Park Gate"
+                />
+              </Field>
+              <Field label="Location" required hint="Open map → copy link or coordinates → paste">
+                <LocationPastePicker
+                  value={location}
+                  onChange={setLocation}
+                  searchHint={name}
+                />
+              </Field>
+              <Field label="Notification radius (m)" hint="Default 100m">
+                <TextInput
+                  type="number"
+                  min={20}
+                  value={radius}
+                  onChange={(e) => setRadius(Number(e.target.value) || 100)}
+                />
+              </Field>
+            </div>
+          </Modal>
 
-      <Modal
-        open={Boolean(deleteId)}
-        onClose={() => setDeleteId(null)}
-        title="Delete stop"
-        size="sm"
-        footer={
-          <>
-            <Button onClick={() => setDeleteId(null)}>Cancel</Button>
-            <Button
-              variant="danger"
-              onClick={() => {
-                if (!deleteId) return;
-                onChange(deleteStop(snapshot, deleteId));
-                setDeleteId(null);
-                notify("Stop deleted");
-              }}
-            >
-              Delete
-            </Button>
-          </>
-        }
-      >
-        <p className="text-xs text-muted-foreground">
-          Removing this stop also clears it from routes and students.
-        </p>
-      </Modal>
+          <Modal
+            open={Boolean(deleteId)}
+            onClose={() => setDeleteId(null)}
+            title="Delete stop"
+            size="sm"
+            footer={
+              <>
+                <Button onClick={() => setDeleteId(null)}>Cancel</Button>
+                <Button
+                  variant="danger"
+                  onClick={() => {
+                    if (!deleteId) return;
+                    onChange(deleteStop(snapshot, deleteId));
+                    setDeleteId(null);
+                    notify("Stop deleted");
+                  }}
+                >
+                  Delete
+                </Button>
+              </>
+            }
+          >
+            <p className="text-xs text-muted-foreground">
+              Removing this stop also clears it from routes and students.
+            </p>
+          </Modal>
+        </>
+      ) : null}
     </div>
   );
 }

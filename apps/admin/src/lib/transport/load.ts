@@ -2,13 +2,18 @@ import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/active-institute";
 import type { TransportDriver, TransportRoute, TransportSettings, TransportVehicle } from "@/lib/transport-store";
-import { getTransportSettings, listTransportDrivers, listTransportRoutes, listTransportStops, listTransportVehicles } from "./api";
+import { getTransportSettings, listTransportDrivers, listTransportEnrollments, listTransportRoutes, listTransportStops, listTransportVehicles } from "./api";
 import {
   driverDtosToTransportDrivers,
+  enrollmentDtosToListItems,
   routeDtosToTransportRoutes,
   transportSettingsDtoToTransportSettings,
   vehicleDtosToTransportVehicles,
 } from "./map";
+import type { TransportEnrollmentListItem } from "./types";
+import { listStudents } from "@/lib/students/api";
+import { studentDtosToListItems } from "@/lib/students/map";
+import type { StudentListItem } from "@/lib/students/types";
 
 export type TransportListStatus =
   | "demo"
@@ -22,6 +27,7 @@ export type TransportListStatus =
 export type TransportVehiclesListStatus = TransportListStatus;
 export type TransportDriversListStatus = TransportListStatus;
 export type TransportRoutesListStatus = TransportListStatus;
+export type TransportEnrollmentsListStatus = TransportListStatus;
 export type TransportSettingsLoadStatus = TransportListStatus;
 
 export type TransportVehiclesListState = {
@@ -39,6 +45,12 @@ export type TransportDriversListState = {
 export type TransportRoutesListState = {
   status: TransportRoutesListStatus;
   items: TransportRoute[];
+  errorMessage: string | null;
+};
+
+export type TransportEnrollmentsListState = {
+  status: TransportEnrollmentsListStatus;
+  items: TransportEnrollmentListItem[];
   errorMessage: string | null;
 };
 
@@ -173,6 +185,61 @@ export async function loadTransportRoutesList(
       items: [],
       errorMessage: message,
     };
+  }
+}
+
+async function loadTransportRoutesForInstitute(
+  activeInstituteId: string,
+): Promise<TransportRoute[]> {
+  const rows = await listTransportRoutes({ instituteId: activeInstituteId });
+  return routeDtosToTransportRoutes(rows, (routeId) =>
+    listTransportStops({ routeId }),
+  );
+}
+
+export async function loadTransportEnrollmentsList(
+  activeInstituteId: string | null,
+): Promise<TransportEnrollmentsListState> {
+  if (!isApiAuthMode()) {
+    return { status: "demo", items: [], errorMessage: null };
+  }
+
+  if (!activeInstituteId || !isInstituteUuid(activeInstituteId)) {
+    return { status: "needs_institute", items: [], errorMessage: null };
+  }
+
+  try {
+    const [rows, routes, students] = await Promise.all([
+      listTransportEnrollments({ instituteId: activeInstituteId }),
+      loadTransportRoutesForInstitute(activeInstituteId),
+      studentDtosToListItems(await listStudents({ instituteId: activeInstituteId })),
+    ]);
+    const studentsById = new Map<string, StudentListItem>(
+      students.map((student) => [student.id, student]),
+    );
+    const items = enrollmentDtosToListItems(rows, studentsById, routes);
+    return {
+      status: items.length === 0 ? "empty" : "ready",
+      items,
+      errorMessage: null,
+    };
+  } catch (err) {
+    const status =
+      err instanceof ApiClientError
+        ? err.status
+        : err &&
+            typeof err === "object" &&
+            "status" in err &&
+            typeof (err as { status: unknown }).status === "number"
+          ? (err as { status: number }).status
+          : null;
+    const message =
+      err instanceof Error ? err.message : "Failed to load transport enrollments";
+
+    if (status === 403) {
+      return { status: "forbidden", items: [], errorMessage: message };
+    }
+    return { status: "error", items: [], errorMessage: message };
   }
 }
 

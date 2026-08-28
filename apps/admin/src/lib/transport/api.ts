@@ -8,12 +8,14 @@ import { isInstituteUuid } from "@/lib/active-institute";
 import type {
   DriverDto,
   ListTransportDriversParams,
+  ListTransportEnrollmentsParams,
   ListTransportRoutesParams,
   ListTransportStopsParams,
   ListTransportVehiclesParams,
   RouteDto,
   StopDto,
   GetTransportSettingsParams,
+  TransportEnrollmentDto,
   TransportSettingsDto,
   VehicleDto,
 } from "./types";
@@ -83,6 +85,21 @@ export async function listTransportStops(
   query.set("route_id", params.routeId.trim());
   return client.get<StopDto[]>(
     `/api/v1/transport/stops?${query.toString()}`,
+  );
+}
+
+export async function listTransportEnrollments(
+  params: ListTransportEnrollmentsParams,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<TransportEnrollmentDto[]> {
+  assertApiMode();
+  if (!isInstituteUuid(params.instituteId)) {
+    throw new Error("institute_id must be a valid UUID");
+  }
+  const query = new URLSearchParams();
+  query.set("institute_id", params.instituteId.trim());
+  return client.get<TransportEnrollmentDto[]>(
+    `/api/v1/transport/enrollments?${query.toString()}`,
   );
 }
 

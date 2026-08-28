@@ -5,7 +5,9 @@ import type {
   TransportSettings,
   TransportVehicle,
 } from "@/lib/transport-store";
-import type { DriverDto, RouteDto, StopDto, TransportSettingsDto, VehicleDto } from "./types";
+import type { DriverDto, RouteDto, StopDto, TransportEnrollmentDto, TransportSettingsDto, VehicleDto } from "./types";
+import type { StudentListItem } from "@/lib/students/types";
+import type { TransportEnrollmentListItem } from "./types";
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
@@ -124,4 +126,50 @@ export function transportSettingsDtoToTransportSettings(
     defaultPickupBufferMins: dto.defaultPickupBufferMins,
     workingDays: workingDayNumbersToLabels(dto.workingDays),
   };
+}
+
+function shortRef(id: string, prefix: string): string {
+  const token = id?.trim().slice(0, 8) || "—";
+  return `${prefix} · ${token}`;
+}
+
+function stopNameById(
+  routes: TransportRoute[],
+  stopId: string,
+): string {
+  for (const route of routes) {
+    const stop = route.setupStops.find((item) => item.id === stopId);
+    if (stop) return stop.name;
+  }
+  return shortRef(stopId, "Stop");
+}
+
+export function enrollmentDtoToListItem(
+  dto: TransportEnrollmentDto,
+  studentsById: Map<string, StudentListItem>,
+  routesById: Map<string, TransportRoute>,
+): TransportEnrollmentListItem {
+  const student = studentsById.get(dto.studentId);
+  const route = routesById.get(dto.routeId);
+  return {
+    id: dto.id,
+    studentName: student?.name ?? shortRef(dto.studentId, "Student"),
+    studentClass: student?.grade ?? "—",
+    routeName: route?.name ?? shortRef(dto.routeId, "Route"),
+    pickupStopName: route ? stopNameById([route], dto.pickupStopId) : shortRef(dto.pickupStopId, "Stop"),
+    dropStopName: route ? stopNameById([route], dto.dropStopId) : shortRef(dto.dropStopId, "Stop"),
+    status: dto.status,
+  };
+}
+
+export function enrollmentDtosToListItems(
+  rows: TransportEnrollmentDto[],
+  studentsById: Map<string, StudentListItem>,
+  routes: TransportRoute[],
+): TransportEnrollmentListItem[] {
+  if (!Array.isArray(rows)) {
+    throw new TypeError("Transport enrollments API response must be an array");
+  }
+  const routesById = new Map(routes.map((route) => [route.id, route]));
+  return rows.map((dto) => enrollmentDtoToListItem(dto, studentsById, routesById));
 }

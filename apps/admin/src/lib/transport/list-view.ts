@@ -1,10 +1,12 @@
 import type { TransportDriver, TransportRoute, TransportVehicle } from "@/lib/transport-store";
 import type {
   TransportDriversListStatus,
+  TransportEnrollmentsListStatus,
   TransportListStatus,
   TransportRoutesListStatus,
   TransportVehiclesListStatus,
 } from "./load";
+import type { TransportEnrollmentListItem } from "./types";
 
 export type TransportInstituteGateStatus =
   | "demo"
@@ -132,6 +134,19 @@ export function resolveTransportRoutesListView(
   return resolveTransportListView(input);
 }
 
+export type ResolveTransportEnrollmentsListViewInput =
+  ResolveTransportListViewInput<TransportEnrollmentListItem> & {
+    storedStatus: TransportEnrollmentsListStatus;
+  };
+
+export type TransportEnrollmentsListView = TransportListView<TransportEnrollmentListItem>;
+
+export function resolveTransportEnrollmentsListView(
+  input: ResolveTransportEnrollmentsListViewInput,
+): TransportEnrollmentsListView {
+  return resolveTransportListView(input);
+}
+
 export function shouldCommitTransportVehiclesLoad(opts: {
   cancelled: boolean;
   requestInstituteId: string;
@@ -151,6 +166,14 @@ export function shouldCommitTransportDriversLoad(opts: {
 }
 
 export function shouldCommitTransportRoutesLoad(opts: {
+  cancelled: boolean;
+  requestInstituteId: string;
+  activeInstituteId: string | null;
+}): boolean {
+  return shouldCommitTransportVehiclesLoad(opts);
+}
+
+export function shouldCommitTransportEnrollmentsLoad(opts: {
   cancelled: boolean;
   requestInstituteId: string;
   activeInstituteId: string | null;

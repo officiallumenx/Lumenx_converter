@@ -87,3 +87,31 @@ export type TransportSettingsDto = {
 export type GetTransportSettingsParams = {
   instituteId: string;
 };
+
+export type EnrollmentStatus = "active" | "inactive" | "ended";
+
+export type TransportEnrollmentDto = {
+  id: string;
+  instituteId: string;
+  studentId: string;
+  routeId: string;
+  pickupStopId: string;
+  dropStopId: string;
+  status: EnrollmentStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ListTransportEnrollmentsParams = {
+  instituteId: string;
+};
+
+export type TransportEnrollmentListItem = {
+  id: string;
+  studentName: string;
+  studentClass: string;
+  routeName: string;
+  pickupStopName: string;
+  dropStopName: string;
+  status: EnrollmentStatus;
+};

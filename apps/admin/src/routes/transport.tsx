@@ -3,7 +3,7 @@ import { AppShell } from "@/components/AppShell";
 import { AdminPageTransition } from "@/components/AdminPageTransition";
 import { TransportHubNav } from "@/components/transport/TransportHubNav";
 import { useTransportStore } from "@/components/transport/useTransportStore";
-import { TransportDashboardView } from "@/components/transport/views/TransportDashboardView";
+import { TransportEnrollmentsApiView } from "@/components/transport/TransportEnrollmentsApiView";
 import { TransportVehiclesView } from "@/components/transport/views/TransportVehiclesView";
 import { TransportDriversView } from "@/components/transport/views/TransportDriversView";
 import { TransportStopsView } from "@/components/transport/views/TransportStopsView";
@@ -23,18 +23,22 @@ import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
 import {
   loadTransportDriversList,
+  loadTransportEnrollmentsList,
   loadTransportRoutesList,
   loadTransportSettings,
   loadTransportVehiclesList,
   resolveTransportDriversListView,
+  resolveTransportEnrollmentsListView,
   resolveTransportRoutesListView,
   resolveTransportSettingsView,
   resolveTransportVehiclesListView,
   shouldCommitTransportDriversLoad,
+  shouldCommitTransportEnrollmentsLoad,
   shouldCommitTransportRoutesLoad,
   shouldCommitTransportSettingsLoad,
   shouldCommitTransportVehiclesLoad,
   type TransportDriversListStatus,
+  type TransportEnrollmentsListStatus,
   type TransportListStatus,
   type TransportRoutesListStatus,
   type TransportSettingsLoadStatus,
@@ -46,6 +50,7 @@ import type {
   TransportSettings,
   TransportVehicle,
 } from "@/lib/transport-store";
+import type { TransportEnrollmentListItem } from "@/lib/transport";
 
 export type TransportHubView =
   | "dashboard"
@@ -177,6 +182,13 @@ function TransportPage() {
   const [settingsResolvedForInstituteId, setSettingsResolvedForInstituteId] =
     useState<string | null>(null);
 
+  const [apiEnrollments, setApiEnrollments] = useState<TransportEnrollmentListItem[]>([]);
+  const [enrollmentsListStatus, setEnrollmentsListStatus] =
+    useState<TransportEnrollmentsListStatus>(() => (apiMode ? "loading" : "demo"));
+  const [enrollmentsListError, setEnrollmentsListError] = useState<string | null>(null);
+  const [enrollmentsResolvedForInstituteId, setEnrollmentsResolvedForInstituteId] =
+    useState<string | null>(null);
+
   const vehiclesListView = resolveTransportVehiclesListView({
     apiMode,
     instituteStatus: instituteCtx.status,
@@ -210,6 +222,17 @@ function TransportPage() {
     instituteErrorMessage: instituteCtx.errorMessage,
   });
 
+  const enrollmentsListView = resolveTransportEnrollmentsListView({
+    apiMode,
+    instituteStatus: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+    resolvedForInstituteId: enrollmentsResolvedForInstituteId,
+    storedItems: apiEnrollments,
+    storedStatus: enrollmentsListStatus,
+    storedErrorMessage: enrollmentsListError,
+    instituteErrorMessage: instituteCtx.errorMessage,
+  });
+
   const settingsView = resolveTransportSettingsView({
     apiMode,
     instituteStatus: instituteCtx.status,
@@ -240,6 +263,20 @@ function TransportPage() {
     routesListView.errorMessage,
     "routes",
     "You do not have access to transport routes for this institute.",
+  );
+
+  const stopsListHint = transportListHint(
+    routesListView.status,
+    routesListView.errorMessage,
+    "route stops",
+    "You do not have access to transport stops for this institute.",
+  );
+
+  const enrollmentsListHint = transportListHint(
+    enrollmentsListView.status,
+    enrollmentsListView.errorMessage,
+    "transport enrollments",
+    "You do not have access to transport enrollments for this institute.",
   );
 
   const settingsHint =
@@ -387,7 +424,7 @@ function TransportPage() {
   ]);
 
   useEffect(() => {
-    if (!apiMode || view !== "routes") return;
+    if (!apiMode || (view !== "routes" && view !== "stops")) return;
 
     if (instituteCtx.status === "loading") {
       setApiRoutes([]);
@@ -440,6 +477,72 @@ function TransportPage() {
       setRoutesListStatus(next.status);
       setRoutesListError(next.errorMessage);
       setRoutesResolvedForInstituteId(requestInstituteId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    apiMode,
+    view,
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    instituteCtx.errorMessage,
+  ]);
+
+  useEffect(() => {
+    if (!apiMode || view !== "students") return;
+
+    if (instituteCtx.status === "loading") {
+      setApiEnrollments([]);
+      setEnrollmentsListStatus("loading");
+      setEnrollmentsListError(null);
+      setEnrollmentsResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "error" ||
+      instituteCtx.status === "forbidden"
+    ) {
+      setApiEnrollments([]);
+      setEnrollmentsListStatus(
+        instituteCtx.status === "forbidden" ? "forbidden" : "error",
+      );
+      setEnrollmentsListError(instituteCtx.errorMessage);
+      setEnrollmentsResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "needs_selection" ||
+      instituteCtx.status === "empty" ||
+      !instituteCtx.activeInstituteId
+    ) {
+      setApiEnrollments([]);
+      setEnrollmentsListStatus("needs_institute");
+      setEnrollmentsListError(null);
+      setEnrollmentsResolvedForInstituteId(null);
+      return;
+    }
+
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    let cancelled = false;
+    setEnrollmentsListStatus("loading");
+    setEnrollmentsListError(null);
+    void loadTransportEnrollmentsList(requestInstituteId).then((next) => {
+      if (
+        !shouldCommitTransportEnrollmentsLoad({
+          cancelled,
+          requestInstituteId,
+          activeInstituteId: activeInstituteIdRef.current,
+        })
+      ) {
+        return;
+      }
+      setApiEnrollments(next.items);
+      setEnrollmentsListStatus(next.status);
+      setEnrollmentsListError(next.errorMessage);
+      setEnrollmentsResolvedForInstituteId(requestInstituteId);
     });
     return () => {
       cancelled = true;
@@ -533,7 +636,7 @@ function TransportPage() {
   }, [apiMode, view, snapshot, driversListView.items, driversListView.rowsValid]);
 
   const routesSnapshot = useMemo(() => {
-    if (!apiMode || view !== "routes" || !routesListView.rowsValid) {
+    if (!apiMode || (view !== "routes" && view !== "stops") || !routesListView.rowsValid) {
       return snapshot;
     }
     return { ...snapshot, routes: routesListView.items };
@@ -545,6 +648,33 @@ function TransportPage() {
     }
     return { ...snapshot, settings: settingsView.settings };
   }, [apiMode, view, snapshot, settingsView.settings, settingsView.rowsValid]);
+
+  const stopsSnapshot = useMemo(() => {
+    if (!apiMode || view !== "stops" || !routesListView.rowsValid) {
+      return snapshot;
+    }
+    const defaultRadius =
+      settingsView.settings?.defaultNotificationRadiusM ??
+      snapshot.settings.defaultNotificationRadiusM;
+    const stops = routesListView.items.flatMap((route) =>
+      route.setupStops.map((stop) => ({
+        id: stop.id,
+        name: route.name ? `${route.name} · ${stop.name}` : stop.name,
+        locationLabel: stop.locationLabel,
+        lat: stop.latitude,
+        lng: stop.longitude,
+        notificationRadiusM: defaultRadius,
+      })),
+    );
+    return { ...snapshot, stops };
+  }, [
+    apiMode,
+    view,
+    snapshot,
+    routesListView.items,
+    routesListView.rowsValid,
+    settingsView.settings?.defaultNotificationRadiusM,
+  ]);
 
   useEffect(() => {
     startTransportAdminNotificationSync();
@@ -563,7 +693,11 @@ function TransportPage() {
             ? `API mode · read-only · ${driversListView.rowsValid ? driversListView.items.length : "…"} drivers`
             : apiMode && view === "routes"
               ? `API mode · read-only · ${routesListView.rowsValid ? routesListView.items.length : "…"} routes`
-              : apiMode && view === "settings"
+              : apiMode && view === "stops"
+                ? `API mode · read-only · route stops`
+                : apiMode && view === "students"
+                  ? `API mode · read-only · ${enrollmentsListView.rowsValid ? enrollmentsListView.items.length : "…"} enrollments`
+                  : apiMode && view === "settings"
                 ? "API mode · read-only · transport settings"
                 : VIEW_SUBTITLES[view]
       }
@@ -591,7 +725,15 @@ function TransportPage() {
             listHint={driversListHint}
           />
         )}
-        {view === "stops" && <TransportStopsView snapshot={snapshot} onChange={setSnapshot} />}
+        {view === "stops" && (
+          <TransportStopsView
+            snapshot={stopsSnapshot}
+            onChange={setSnapshot}
+            writesEnabled={writesEnabled}
+            listBlocked={apiMode && !routesListView.rowsValid}
+            listHint={stopsListHint}
+          />
+        )}
         {view === "routes" && (
           <TransportRoutesView
             snapshot={routesSnapshot}
@@ -601,9 +743,17 @@ function TransportPage() {
             listHint={routesListHint}
           />
         )}
-        {view === "students" && (
-          <TransportStudentsView snapshot={snapshot} onChange={setSnapshot} />
-        )}
+        {view === "students" ? (
+          apiMode ? (
+            <TransportEnrollmentsApiView
+              items={enrollmentsListView.items}
+              listBlocked={!enrollmentsListView.rowsValid}
+              listHint={enrollmentsListHint}
+            />
+          ) : (
+            <TransportStudentsView snapshot={snapshot} onChange={setSnapshot} />
+          )
+        ) : null}
         {view === "reviews" && <TransportReviewsView />}
         {view === "trips" && <TransportTripsView snapshot={snapshot} />}
         {view === "attendance" && <TransportAttendanceView />}
