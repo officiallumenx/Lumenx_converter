@@ -18,6 +18,18 @@ import {
   subscribeCertificateNumbering,
   type IssuedCertificateRecord,
 } from "@/lib/certificate-numbering-store";
+import type { IssuedCertificateHistoryItem } from "@/lib/certificates";
+
+type HistoryRow = IssuedCertificateRecord | IssuedCertificateHistoryItem;
+
+function statusTone(
+  status: HistoryRow["status"],
+): "success" | "warning" | "neutral" | "danger" {
+  if (status === "issued") return "success";
+  if (status === "superseded") return "warning";
+  if (status === "revoked") return "danger";
+  return "neutral";
+}
 
 function formatIssuedDate(iso: string): string {
   const date = new Date(iso);
@@ -29,12 +41,14 @@ function formatIssuedDate(iso: string): string {
   });
 }
 
-function fileReference(row: IssuedCertificateRecord): string {
-  if (row.bundleFileName && row.fileName) return `${row.fileName} · ${row.bundleFileName}`;
-  return row.fileName || row.bundleFileName || "—";
+function fileReference(row: HistoryRow): string {
+  if ("bundleFileName" in row && row.bundleFileName && row.fileName) {
+    return `${row.fileName} · ${row.bundleFileName}`;
+  }
+  return row.fileName || ("bundleFileName" in row ? row.bundleFileName : undefined) || "—";
 }
 
-function matchesQuery(row: IssuedCertificateRecord, query: string): boolean {
+function matchesQuery(row: HistoryRow, query: string): boolean {
   if (!query) return true;
   const hay = [
     row.studentName,
@@ -53,15 +67,42 @@ function matchesQuery(row: IssuedCertificateRecord, query: string): boolean {
   return hay.includes(query);
 }
 
-export function CertificateHistoryPanel() {
-  const [rows, setRows] = useState<IssuedCertificateRecord[]>([]);
+type CertificateHistoryPanelProps = {
+  records?: IssuedCertificateHistoryItem[];
+  listBlocked?: boolean;
+  listHint?: string | null;
+};
+
+export function CertificateHistoryPanel({
+  records,
+  listBlocked = false,
+  listHint = null,
+}: CertificateHistoryPanelProps) {
+  const [rows, setRows] = useState<HistoryRow[]>(() => records ?? listIssuedCertificates());
   const [query, setQuery] = useState("");
 
   useEffect(() => {
+    if (records) {
+      setRows(records);
+      return;
+    }
     const refresh = () => setRows(listIssuedCertificates());
     refresh();
     return subscribeCertificateNumbering(refresh);
-  }, []);
+  }, [records]);
+
+  if (listBlocked) {
+    return (
+      <Card>
+        <CardHeader title="Issued history" hint="Permanent records from the institute ledger" />
+        <CardBody>
+          <div className="py-8 text-center text-sm text-muted-foreground">
+            {listHint ?? "Loading issued certificates…"}
+          </div>
+        </CardBody>
+      </Card>
+    );
+  }
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -114,13 +155,17 @@ export function CertificateHistoryPanel() {
               {visible.map((row) => (
                 <Tr key={row.id}>
                   <Td>
-                    <Link
-                      to="/students/$id"
-                      params={{ id: row.studentId }}
-                      className="text-sm font-medium text-primary hover:underline"
-                    >
-                      {row.studentName}
-                    </Link>
+                    {row.studentId ? (
+                      <Link
+                        to="/students/$id"
+                        params={{ id: row.studentId }}
+                        className="text-sm font-medium text-primary hover:underline"
+                      >
+                        {row.studentName}
+                      </Link>
+                    ) : (
+                      <span className="text-sm font-medium">{row.studentName}</span>
+                    )}
                     {row.admissionNumber ? (
                       <div className="text-[11px] text-muted-foreground">{row.admissionNumber}</div>
                     ) : null}
@@ -143,7 +188,7 @@ export function CertificateHistoryPanel() {
                     </span>
                   </Td>
                   <Td>
-                    <Pill tone="success">{row.status}</Pill>
+                    <Pill tone={statusTone(row.status)}>{row.status}</Pill>
                   </Td>
                 </Tr>
               ))}
