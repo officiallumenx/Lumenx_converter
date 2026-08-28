@@ -1,6 +1,15 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { createPortal } from "react-dom";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { useInstituteContext } from "@/lib/institutes";
+import {
+  loadParentsList,
+  resolveParentsListView,
+  shouldCommitParentsLoad,
+  type ParentListItem,
+  type ParentsListStatus,
+} from "@/lib/parents";
 import { Mail, MoreHorizontal, Phone, Plus, Users } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
@@ -46,13 +55,43 @@ import {
   type ParentDirectoryRecord,
   type ParentRelationship,
 } from "@/lib/parent-directory-store";
-import { loadStudentDirectory } from "@/lib/student-directory-store";
+import {
+  loadStudentDirectory,
+  type StudentDirectoryRecord,
+} from "@/lib/student-directory-store";
 import { PeopleDirectoryCard } from "@/components/people/PeopleDirectoryCard";
 
 export const Route = createFileRoute("/parents/")({
   head: () => ({ meta: [{ title: "Parents — LumenX Admin" }] }),
   component: ParentsPage,
 });
+
+type ParentRow = ParentDirectoryRecord | ParentListItem;
+
+type ParentListEntry = {
+  parent: ParentRow;
+  visibleChildren: StudentDirectoryRecord[];
+};
+
+function parentIdentityCode(parent: ParentRow): string {
+  if ("identityLabel" in parent && parent.identityLabel) {
+    return parent.identityLabel;
+  }
+  return parent.id;
+}
+
+function parentLinkedChildrenText(
+  parent: ParentRow,
+  visibleChildren: StudentDirectoryRecord[],
+): string {
+  if ("linkedChildrenLabel" in parent) {
+    return parent.linkedChildrenLabel;
+  }
+  if (visibleChildren.length === 0) return "No linked children";
+  return visibleChildren
+    .map((student) => `${student.name} (${formatStudentGradeDisplay(student.grade)})`)
+    .join(" · ");
+}
 
 type ParentFilter = "all" | "active" | "pending" | "hold" | "suspended";
 
@@ -80,8 +119,35 @@ function ParentsPage() {
   const notify = useAdminToast();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const apiMode = isApiAuthMode();
+  const instituteCtx = useInstituteContext();
+  const writesEnabled = !apiMode;
   const { profileId } = useDemoProfile();
-  const [rows, setRows] = useState<ParentDirectoryRecord[]>(() => loadParentDirectory());
+  const [rows, setRows] = useState<ParentDirectoryRecord[]>(() =>
+    apiMode ? [] : loadParentDirectory(),
+  );
+  const [apiItems, setApiItems] = useState<ParentListItem[]>([]);
+  const [listStatus, setListStatus] = useState<ParentsListStatus>(() =>
+    apiMode ? "loading" : "demo",
+  );
+  const [listError, setListError] = useState<string | null>(null);
+  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
+    string | null
+  >(null);
+  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
+  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
+
+  const listView = resolveParentsListView({
+    apiMode,
+    instituteStatus: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+    resolvedForInstituteId,
+    storedItems: apiItems,
+    storedStatus: listStatus,
+    storedErrorMessage: listError,
+    instituteErrorMessage: instituteCtx.errorMessage,
+  });
+  const displayItems: ParentRow[] = apiMode ? listView.items : rows;
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<ParentFilter>("all");
   const [classFilter, setClassFilter] = useState<ClassFilter>("all");
@@ -90,17 +156,96 @@ function ParentsPage() {
   const [draft, setDraft] = useState<NewParentDraft>(EMPTY_DRAFT);
   const [error, setError] = useState("");
   const [pendingDelete, setPendingDelete] = useState<ParentDirectoryRecord | null>(null);
-  const students = useMemo(() => loadStudentDirectory(), [profileId, rows]);
+  const students = useMemo(
+    () => (apiMode ? [] : loadStudentDirectory()),
+    [apiMode, profileId, rows],
+  );
   const studentById = useMemo(
     () => new Map(students.map((student) => [student.id, student])),
     [students],
   );
 
   useEffect(() => {
+    if (apiMode) return;
     setRows(loadParentDirectory());
     setClassFilter("all");
     setSectionFilter("all");
-  }, [profileId]);
+  }, [apiMode, profileId]);
+
+  useEffect(() => {
+    if (!apiMode) return;
+
+    if (instituteCtx.status === "loading") {
+      setApiItems([]);
+      setListStatus("loading");
+      setListError(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "error" ||
+      instituteCtx.status === "forbidden"
+    ) {
+      setApiItems([]);
+      setListStatus(
+        instituteCtx.status === "forbidden" ? "forbidden" : "error",
+      );
+      setListError(instituteCtx.errorMessage);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "needs_selection" ||
+      instituteCtx.status === "empty" ||
+      !instituteCtx.activeInstituteId
+    ) {
+      setApiItems([]);
+      setListStatus("needs_institute");
+      setListError(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    let cancelled = false;
+    setListStatus("loading");
+    setListError(null);
+    void loadParentsList(requestInstituteId).then((next) => {
+      if (
+        !shouldCommitParentsLoad({
+          cancelled,
+          requestInstituteId,
+          activeInstituteId: activeInstituteIdRef.current,
+        })
+      ) {
+        return;
+      }
+      setApiItems(next.items);
+      setListStatus(next.status);
+      setListError(next.errorMessage);
+      setResolvedForInstituteId(requestInstituteId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    apiMode,
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    instituteCtx.errorMessage,
+  ]);
+
+  useEffect(() => {
+    setQ("");
+    setStatusFilter("all");
+    setClassFilter("all");
+    setSectionFilter("all");
+    setOpen(false);
+    setError("");
+    setPendingDelete(null);
+  }, [instituteCtx.activeInstituteId]);
 
   const persist = (next: ParentDirectoryRecord[]) => {
     setRows(next);
@@ -108,6 +253,10 @@ function ParentsPage() {
   };
 
   const setAccessStatus = (id: string, accessStatus: ParentAccessStatus) => {
+    if (!writesEnabled) {
+      notify("Parent writes are not enabled in API read-only mode");
+      return;
+    }
     const target = rows.find((row) => row.id === id);
     persist(rows.map((row) => (row.id === id ? { ...row, accessStatus } : row)));
     const action =
@@ -116,6 +265,10 @@ function ParentsPage() {
   };
 
   const removeParent = (id: string) => {
+    if (!writesEnabled) {
+      notify("Parent writes are not enabled in API read-only mode");
+      return;
+    }
     const target = rows.find((row) => row.id === id);
     if (target) {
       softDeleteToRecycleBin({
@@ -132,6 +285,10 @@ function ParentsPage() {
   };
 
   const resendInvite = (id: string) => {
+    if (!writesEnabled) {
+      notify("Parent writes are not enabled in API read-only mode");
+      return;
+    }
     const target = rows.find((row) => row.id === id);
     persist(
       rows.map((row) => (row.id === id ? { ...row, inviteStatus: "active" as const } : row)),
@@ -141,15 +298,49 @@ function ParentsPage() {
 
   const list = useMemo(() => {
     const search = q.trim().toLowerCase();
+
+    if (apiMode) {
+      return displayItems
+        .filter((parent) => {
+          if (statusFilter === "pending" && parent.inviteStatus !== "pending") {
+            return false;
+          }
+          if (
+            statusFilter === "active" &&
+            (parent.accessStatus !== "active" || parent.inviteStatus !== "active")
+          ) {
+            return false;
+          }
+          if (
+            statusFilter !== "all" &&
+            statusFilter !== "pending" &&
+            statusFilter !== "active" &&
+            parent.accessStatus !== statusFilter
+          ) {
+            return false;
+          }
+          if (!search) return true;
+          const identity = parentIdentityCode(parent).toLowerCase();
+          return (
+            parent.name.toLowerCase().includes(search) ||
+            parent.email.toLowerCase().includes(search) ||
+            parent.phone.includes(search) ||
+            identity.includes(search)
+          );
+        })
+        .map((parent) => ({
+          parent,
+          visibleChildren: [] as StudentDirectoryRecord[],
+        }));
+    }
+
     return rows
       .map((parent) => {
         const children = parent.linkedStudentIds
           .map((id) => studentById.get(id))
-          .filter((student) => Boolean(student));
+          .filter((student): student is StudentDirectoryRecord => Boolean(student));
         const matchingChildren = children.filter((student) =>
-          student
-            ? matchesClassSection(student.grade, classFilter, sectionFilter)
-            : false,
+          matchesClassSection(student.grade, classFilter, sectionFilter),
         );
         const classScoped = classFilter !== "all" || sectionFilter !== "all";
         return {
@@ -162,7 +353,9 @@ function ParentsPage() {
       .filter(({ parent, children, matchingChildren }) => {
         const classScoped = classFilter !== "all" || sectionFilter !== "all";
         if (classScoped && matchingChildren.length === 0) return false;
-        if (statusFilter === "pending" && parent.inviteStatus !== "pending") return false;
+        if (statusFilter === "pending" && parent.inviteStatus !== "pending") {
+          return false;
+        }
         if (
           statusFilter === "active" &&
           (parent.accessStatus !== "active" || parent.inviteStatus !== "active")
@@ -185,14 +378,28 @@ function ParentsPage() {
           parent.id.toLowerCase().includes(search) ||
           children.some(
             (student) =>
-              student?.name.toLowerCase().includes(search) ||
-              student?.id.toLowerCase().includes(search),
+              student.name.toLowerCase().includes(search) ||
+              student.id.toLowerCase().includes(search),
           )
         );
-      });
-  }, [rows, q, statusFilter, classFilter, sectionFilter, studentById]);
+      })
+      .map(({ parent, visibleChildren }) => ({ parent, visibleChildren }));
+  }, [
+    apiMode,
+    displayItems,
+    rows,
+    q,
+    statusFilter,
+    classFilter,
+    sectionFilter,
+    studentById,
+  ]);
 
   const createParent = () => {
+    if (!writesEnabled) {
+      notify("Parent writes are not enabled in API read-only mode");
+      return;
+    }
     const email = draft.email.trim().toLowerCase();
     const phone = normalizeParentPhone(draft.phone);
     const linkedStudentIds = draft.linkedStudentIds
@@ -227,17 +434,87 @@ function ParentsPage() {
     notify(`${created.name} created · invite pending`);
   };
 
-  const classScoped = classFilter !== "all" || sectionFilter !== "all";
+  const classScoped = !apiMode && (classFilter !== "all" || sectionFilter !== "all");
   const scopeLabel = classSectionLabel(classFilter, sectionFilter);
+
+  const countLabel = (count: number) =>
+    apiMode && !listView.rowsValid ? "…" : String(count);
+
+  const listHint =
+    listView.status === "loading"
+      ? "Loading guardians…"
+      : listView.status === "needs_institute"
+        ? "Select an active institute to load guardians"
+        : listView.status === "forbidden"
+          ? "You do not have access to guardians for this institute"
+          : listView.status === "error"
+            ? listView.errorMessage ?? "Failed to load guardians"
+            : listView.status === "empty"
+              ? "No guardians yet"
+              : null;
+
+  const openParentDetail = (id: string) => {
+    if (!writesEnabled) {
+      notify("Parent detail pages are not enabled in API read-only mode");
+      return;
+    }
+    void navigate({ to: "/parents/$id", params: { id } });
+  };
+
+  const filterGroups = [
+    {
+      id: "status",
+      label: "Status",
+      value: statusFilter,
+      onChange: (v: string) => setStatusFilter(v as typeof statusFilter),
+      options: [
+        { value: "all", label: "All" },
+        { value: "active", label: "Active" },
+        { value: "pending", label: "Pending" },
+        { value: "hold", label: "Hold" },
+        { value: "suspended", label: "Suspended" },
+      ],
+    },
+    ...(writesEnabled
+      ? [
+          {
+            id: "class",
+            label: "Class",
+            value: classFilter,
+            onChange: (v: string) => setClassFilter(v as ClassFilter),
+            options: [
+              { value: "all", label: "All classes" },
+              ...getClassFilterOptions().map((grade) => ({ value: grade, label: grade })),
+            ],
+          },
+          {
+            id: "section",
+            label: "Section",
+            value: sectionFilter,
+            onChange: (v: string) => setSectionFilter(v as SectionFilter),
+            options: [
+              { value: "all", label: "All" },
+              ...getSectionFilterOptions().map((section) => ({ value: section, label: section })),
+            ],
+          },
+        ]
+      : []),
+  ];
 
   return (
     <AppShell
       title="Parent Directory"
-      subtitle={`${list.length} guardians · ${scopeLabel}`}
+      subtitle={
+        apiMode
+          ? `API mode · read-only · ${countLabel(list.length)} guardians`
+          : `${list.length} guardians · ${scopeLabel}`
+      }
       actions={
-        <Button variant="primary" onClick={() => setOpen(true)}>
-          <Plus className="size-3.5" /> Add Parent
-        </Button>
+        writesEnabled ? (
+          <Button variant="primary" onClick={() => setOpen(true)}>
+            <Plus className="size-3.5" /> Add Parent
+          </Button>
+        ) : undefined
       }
     >
       <Card>
@@ -245,57 +522,34 @@ function ParentsPage() {
           <SearchInput
             value={q}
             onChange={(event) => setQ(event.target.value)}
-            placeholder="Search parent, ID, email, phone, or child…"
+            placeholder={
+              apiMode
+                ? "Search guardian, email, phone, or ID…"
+                : "Search parent, ID, email, phone, or child…"
+            }
             className="w-full min-w-0 flex-1"
           />
           <ToolbarGroup className="lx-people-filters">
-            <CascadingFiltersMenu
-              groups={[
-                {
-                  id: "status",
-                  label: "Status",
-                  value: statusFilter,
-                  onChange: (v) => setStatusFilter(v as typeof statusFilter),
-                  options: [
-                    { value: "all", label: "All" },
-                    { value: "active", label: "Active" },
-                    { value: "pending", label: "Pending" },
-                    { value: "hold", label: "Hold" },
-                    { value: "suspended", label: "Suspended" },
-                  ],
-                },
-                {
-                  id: "class",
-                  label: "Class",
-                  value: classFilter,
-                  onChange: (v) => setClassFilter(v as ClassFilter),
-                  options: [
-                    { value: "all", label: "All classes" },
-                    ...getClassFilterOptions().map((grade) => ({ value: grade, label: grade })),
-                  ],
-                },
-                {
-                  id: "section",
-                  label: "Section",
-                  value: sectionFilter,
-                  onChange: (v) => setSectionFilter(v as SectionFilter),
-                  options: [
-                    { value: "all", label: "All" },
-                    ...getSectionFilterOptions().map((section) => ({ value: section, label: section })),
-                  ],
-                },
-              ]}
-            />
+            <CascadingFiltersMenu groups={filterGroups} />
           </ToolbarGroup>
           <ToolbarSpacer />
-          <ToolbarMeta>{list.length} results</ToolbarMeta>
+          <ToolbarMeta>{countLabel(list.length)} results</ToolbarMeta>
         </PageToolbar>
 
-        {list.length === 0 ? (
+        {!listView.rowsValid ? (
+          <div className="py-12 text-sm text-muted-foreground text-center">
+            {listHint ?? "Loading guardians…"}
+          </div>
+        ) : list.length === 0 ? (
           <EmptyState
             icon={<Users className="size-5" />}
             title="No guardians found"
-            hint="Try another search, class, section, or status."
+            hint={
+              listHint ??
+              (apiMode
+                ? "Try another search or status filter."
+                : "Try another search, class, section, or status.")
+            }
           />
         ) : (
           <>
@@ -304,40 +558,33 @@ function ParentsPage() {
                 <PeopleDirectoryCard
                   key={parent.id}
                   name={parent.name}
-                  id={`${parent.id} · ${parent.relationship}`}
+                  id={`${parentIdentityCode(parent)} · ${parent.relationship}`}
                   status={<ParentStatusPill parent={parent} />}
                   meta={
                     <>
                       {parent.phone ? <span>{parent.phone}</span> : null}
-                      {parent.email ? <span className="truncate max-w-[12rem]">{parent.email}</span> : null}
-                      {visibleChildren.length > 0 ? (
-                        <span>
-                          {visibleChildren
-                            .map((student) =>
-                              student
-                                ? `${student.name} (${formatStudentGradeDisplay(student.grade)})`
-                                : null,
-                            )
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </span>
-                      ) : (
-                        <span>No linked children</span>
-                      )}
+                      {parent.email ? (
+                        <span className="truncate max-w-[12rem]">{parent.email}</span>
+                      ) : null}
+                      <span>{parentLinkedChildrenText(parent, visibleChildren)}</span>
                     </>
                   }
                   menu={
-                    <ParentRowMenu
-                      parent={parent}
-                      onView={() => navigate({ to: "/parents/$id", params: { id: parent.id } })}
-                      onResendInvite={() => resendInvite(parent.id)}
-                      onHold={() => setAccessStatus(parent.id, "hold")}
-                      onSuspend={() => setAccessStatus(parent.id, "suspended")}
-                      onReactivate={() => setAccessStatus(parent.id, "active")}
-                      onDelete={() => setPendingDelete(parent)}
-                    />
+                    writesEnabled ? (
+                      <ParentRowMenu
+                        parent={parent as ParentDirectoryRecord}
+                        onView={() => openParentDetail(parent.id)}
+                        onResendInvite={() => resendInvite(parent.id)}
+                        onHold={() => setAccessStatus(parent.id, "hold")}
+                        onSuspend={() => setAccessStatus(parent.id, "suspended")}
+                        onReactivate={() => setAccessStatus(parent.id, "active")}
+                        onDelete={() =>
+                          setPendingDelete(parent as ParentDirectoryRecord)
+                        }
+                      />
+                    ) : null
                   }
-                  onOpen={() => navigate({ to: "/parents/$id", params: { id: parent.id } })}
+                  onOpen={() => openParentDetail(parent.id)}
                 />
               ))}
             </div>
@@ -349,28 +596,40 @@ function ParentsPage() {
                 <Th>Contact</Th>
                 <Th>Linked children{classScoped ? ` · ${scopeLabel}` : ""}</Th>
                 <Th>Status</Th>
-                <Th className="w-12"><span className="sr-only">Actions</span></Th>
+                {writesEnabled ? (
+                  <Th className="w-12"><span className="sr-only">Actions</span></Th>
+                ) : null}
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {list.map(({ parent, visibleChildren }) => (
                 <tr
                   key={parent.id}
-                  role="link"
-                  tabIndex={0}
-                  className="cursor-pointer transition-colors hover:bg-surface-hover"
-                  onClick={() => navigate({ to: "/parents/$id", params: { id: parent.id } })}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      navigate({ to: "/parents/$id", params: { id: parent.id } });
-                    }
-                  }}
+                  role={writesEnabled ? "link" : undefined}
+                  tabIndex={writesEnabled ? 0 : undefined}
+                  className={
+                    writesEnabled
+                      ? "cursor-pointer transition-colors hover:bg-surface-hover"
+                      : "transition-colors hover:bg-surface-hover"
+                  }
+                  onClick={
+                    writesEnabled ? () => openParentDetail(parent.id) : undefined
+                  }
+                  onKeyDown={
+                    writesEnabled
+                      ? (event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            openParentDetail(parent.id);
+                          }
+                        }
+                      : undefined
+                  }
                 >
                   <td className="px-5 py-3">
                     <div className="text-xs font-medium">{parent.name}</div>
                     <div className="font-mono text-[10px] text-muted-foreground">
-                      {parent.id} · {parent.relationship}
+                      {parentIdentityCode(parent)} · {parent.relationship}
                     </div>
                   </td>
                   <td className="px-5 py-3 text-xs">
@@ -381,15 +640,15 @@ function ParentsPage() {
                       <Phone className="size-3" /> {parent.phone || "No phone"}
                     </div>
                   </td>
-                  <td
-                    className="px-5 py-3"
-                    onClick={(event) => event.stopPropagation()}
-                    onKeyDown={(event) => event.stopPropagation()}
-                  >
-                    <div className="flex flex-wrap gap-1.5">
-                      {visibleChildren.length > 0 ? (
-                        visibleChildren.map((student) =>
-                          student ? (
+                  <td className="px-5 py-3">
+                    {writesEnabled ? (
+                      <div
+                        className="flex flex-wrap gap-1.5"
+                        onClick={(event) => event.stopPropagation()}
+                        onKeyDown={(event) => event.stopPropagation()}
+                      >
+                        {visibleChildren.length > 0 ? (
+                          visibleChildren.map((student) => (
                             <Link
                               key={student.id}
                               to="/students/$id"
@@ -401,29 +660,39 @@ function ParentsPage() {
                                 ({formatStudentGradeDisplay(student.grade)})
                               </span>
                             </Link>
-                          ) : null,
-                        )
-                      ) : (
-                        <span className="text-[10px] text-muted-foreground">No linked children</span>
-                      )}
-                    </div>
+                          ))
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground">
+                            No linked children
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        {parentLinkedChildrenText(parent, visibleChildren)}
+                      </span>
+                    )}
                   </td>
                   <td className="px-5 py-3"><ParentStatusPill parent={parent} /></td>
-                  <td
-                    className="px-5 py-3"
-                    onClick={(event) => event.stopPropagation()}
-                    onKeyDown={(event) => event.stopPropagation()}
-                  >
-                    <ParentRowMenu
-                      parent={parent}
-                      onView={() => navigate({ to: "/parents/$id", params: { id: parent.id } })}
-                      onResendInvite={() => resendInvite(parent.id)}
-                      onHold={() => setAccessStatus(parent.id, "hold")}
-                      onSuspend={() => setAccessStatus(parent.id, "suspended")}
-                      onReactivate={() => setAccessStatus(parent.id, "active")}
-                      onDelete={() => setPendingDelete(parent)}
-                    />
-                  </td>
+                  {writesEnabled ? (
+                    <td
+                      className="px-5 py-3"
+                      onClick={(event) => event.stopPropagation()}
+                      onKeyDown={(event) => event.stopPropagation()}
+                    >
+                      <ParentRowMenu
+                        parent={parent as ParentDirectoryRecord}
+                        onView={() => openParentDetail(parent.id)}
+                        onResendInvite={() => resendInvite(parent.id)}
+                        onHold={() => setAccessStatus(parent.id, "hold")}
+                        onSuspend={() => setAccessStatus(parent.id, "suspended")}
+                        onReactivate={() => setAccessStatus(parent.id, "active")}
+                        onDelete={() =>
+                          setPendingDelete(parent as ParentDirectoryRecord)
+                        }
+                      />
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>
@@ -433,6 +702,7 @@ function ParentsPage() {
         )}
       </Card>
 
+      {writesEnabled ? (
       <Modal
         open={pendingDelete !== null}
         onClose={() => setPendingDelete(null)}
@@ -461,7 +731,9 @@ function ParentsPage() {
           removed. This action cannot be undone.
         </p>
       </Modal>
+      ) : null}
 
+      {writesEnabled ? (
       <Modal
         open={open}
         onClose={() => {
@@ -544,11 +816,16 @@ function ParentsPage() {
           </div>
         </div>
       </Modal>
+      ) : null}
     </AppShell>
   );
 }
 
-function ParentStatusPill({ parent }: { parent: ParentDirectoryRecord }) {
+function ParentStatusPill({
+  parent,
+}: {
+  parent: Pick<ParentRow, "accessStatus" | "inviteStatus">;
+}) {
   if (parent.accessStatus === "hold") return <Pill tone="warning">Hold</Pill>;
   if (parent.accessStatus === "suspended") return <Pill tone="danger">Suspended</Pill>;
   if (parent.inviteStatus === "pending") return <Pill tone="warning">Pending invite</Pill>;
