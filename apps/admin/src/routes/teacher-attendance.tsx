@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
+import { TeacherAttendanceApiPage } from "@/components/teacher-attendance/TeacherAttendanceApiPage";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { useAdminToast } from "@/components/AdminActionToast";
 import {
   Button,
@@ -62,6 +64,21 @@ export const Route = createFileRoute("/teacher-attendance")({
 type PageTab = "overview" | "mark" | "history";
 
 function TeacherAttendancePage() {
+  if (isApiAuthMode()) {
+    return (
+      <AppShell
+        title="Teacher Attendance"
+        subtitle="API mode · read-only · view staff attendance marks by date"
+      >
+        <TeacherAttendanceApiPage />
+      </AppShell>
+    );
+  }
+
+  return <TeacherAttendanceDemoPage />;
+}
+
+function TeacherAttendanceDemoPage() {
   const notify = useAdminToast();
   const [tab, setTab] = useState<PageTab>("mark");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
