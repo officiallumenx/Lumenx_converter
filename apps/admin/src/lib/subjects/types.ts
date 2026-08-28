@@ -31,6 +31,11 @@ export type SubjectListItem = {
   status: SubjectStatus;
 };
 
+export type SubjectDetailItem = SubjectListItem & {
+  instituteId: string;
+  updatedAt: string;
+};
+
 export type ListSubjectsParams = {
   instituteId: string;
 };

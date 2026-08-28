@@ -30,3 +30,11 @@ export async function listSubjects(
 
   return client.get<SubjectDto[]>(`/api/v1/subjects?${query.toString()}`);
 }
+
+export async function getSubject(
+  subjectId: string,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<SubjectDto> {
+  assertApiMode();
+  return client.get<SubjectDto>(`/api/v1/subjects/${subjectId}`);
+}

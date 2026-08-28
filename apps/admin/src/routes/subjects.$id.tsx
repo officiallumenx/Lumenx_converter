@@ -42,6 +42,8 @@ import {
   type InstituteTeacher,
   type SubjectCatalogItem,
 } from "@/lib/subjects-data";
+import { SubjectProfileApiPage } from "@/components/subjects/SubjectProfileApiPage";
+import { isApiAuthMode } from "@/auth/auth-mode";
 
 export const Route = createFileRoute("/subjects/$id")({
   head: ({ params }) => ({ meta: [{ title: `${params.id} — LumenX Admin` }] }),
@@ -53,6 +55,13 @@ type ClassAssignments = Record<string, string>;
 
 function SubjectDetailPage() {
   const { id } = Route.useParams();
+  if (isApiAuthMode()) {
+    return <SubjectProfileApiPage subjectId={id} />;
+  }
+  return <SubjectDetailDemo id={id} />;
+}
+
+function SubjectDetailDemo({ id }: { id: string }) {
   const navigate = useNavigate();
   const notify = useAdminToast();
   const { profileId, profile } = useDemoProfile();

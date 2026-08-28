@@ -398,10 +398,6 @@ function SubjectsPage() {
               : null;
 
   const openSubjectDetail = (id: string) => {
-    if (!writesEnabled) {
-      notify("Subject detail pages are not enabled in API read-only mode");
-      return;
-    }
     void navigate({ to: "/subjects/$id", params: { id } });
   };
 

@@ -101,4 +101,36 @@ describe("subjects api repository", () => {
     expect(result).toHaveLength(1);
     expect(result[0]?.id).toBe("cc222222-2222-4222-8222-222222222222");
   });
+
+  it("gets subject by id in API mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const { getSubject } = await import("./api");
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          data: {
+            id: "sub-1",
+            instituteId: INST,
+            name: "Math",
+            code: "MATH",
+            category: "Core",
+            periodsPerWeek: 5,
+            applicableClassCodes: ["10"],
+            status: "active",
+            createdAt: "2026-06-01T10:00:00Z",
+            updatedAt: "2026-06-01T10:00:00Z",
+          },
+        }),
+    });
+    const client = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => "tok",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    const result = await getSubject("sub-1", client);
+    expect(result.id).toBe("sub-1");
+    expect(fetchMock.mock.calls[0][0]).toContain("/api/v1/subjects/sub-1");
+  });
 });

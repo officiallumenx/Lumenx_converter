@@ -1,4 +1,4 @@
-import type { SubjectDto, SubjectListItem } from "./types";
+import type { SubjectDetailItem, SubjectDto, SubjectListItem } from "./types";
 
 export function applicableClassCodesToGrades(codes: string[] | null | undefined): string[] {
   if (!Array.isArray(codes)) return [];
@@ -33,4 +33,13 @@ export function subjectDtosToListItems(dtos: SubjectDto[]): SubjectListItem[] {
     throw new TypeError("Subjects API response must be an array");
   }
   return dtos.map(subjectDtoToListItem);
+}
+
+export function subjectDtoToDetailItem(dto: SubjectDto): SubjectDetailItem {
+  const base = subjectDtoToListItem(dto);
+  return {
+    ...base,
+    instituteId: dto.instituteId,
+    updatedAt: dto.updatedAt,
+  };
 }

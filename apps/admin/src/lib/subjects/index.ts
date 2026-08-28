@@ -1,18 +1,22 @@
 export type {
   ListSubjectsParams,
+  SubjectDetailItem,
   SubjectDto,
   SubjectListItem,
   SubjectStatus,
 } from "./types";
-export { assertApiMode, listSubjects } from "./api";
+export { assertApiMode, getSubject, listSubjects } from "./api";
 export {
   applicableClassCodesToGrades,
   gradesDisplayLabel,
+  subjectDtoToDetailItem,
   subjectDtoToListItem,
   subjectDtosToListItems,
 } from "./map";
 export {
+  loadSubjectDetail,
   loadSubjectsList,
+  type SubjectDetailState,
   type SubjectsListState,
   type SubjectsListStatus,
 } from "./load";

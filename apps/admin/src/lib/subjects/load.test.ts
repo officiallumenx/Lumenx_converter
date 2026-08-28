@@ -134,3 +134,20 @@ describe("loadSubjectsList", () => {
     expect(result.items).toEqual([]);
   });
 });
+
+describe("loadSubjectDetail", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+  });
+
+  it("returns demo status in demo mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
+    const getSubject = vi.fn();
+    vi.doMock("./api", () => ({ getSubject }));
+    const { loadSubjectDetail } = await import("./load");
+    const result = await loadSubjectDetail("sub-1");
+    expect(result.status).toBe("demo");
+    expect(getSubject).not.toHaveBeenCalled();
+  });
+});
