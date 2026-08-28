@@ -20,7 +20,17 @@ import {
   Trash2,
   Send,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { useInstituteContext } from "@/lib/institutes";
+import {
+  loadExamsList,
+  resolveExamsListView,
+  shouldCommitExamsLoad,
+  type ExamListItem,
+  type ExamTimetableListItem,
+  type ExamsListStatus,
+} from "@/lib/exams";
 import { useDemoProfile } from "@/lib/demo-profile-context";
 import { isCollegeMode } from "@/lib/academic-data";
 import { ExamScheduleWizard } from "@/components/exams/ExamScheduleWizard";
@@ -58,17 +68,50 @@ export const Route = createFileRoute("/exams")({
 
 const SECTION_OPTIONS = ["All", "A", "B", "C", "D"];
 
+type ExamRow = ExamRecord | ExamListItem;
+type TimetableRow = ExamTimetable | ExamTimetableListItem;
+
 function ExamsPage() {
   const notify = useAdminToast();
+  const apiMode = isApiAuthMode();
+  const instituteCtx = useInstituteContext();
+  const writesEnabled = !apiMode;
   const { profileId } = useDemoProfile();
   const college = isCollegeMode();
   const gradeOptions = useMemo(() => getGradeScopeOptions(), [profileId]);
   const subjectOptions = useMemo(() => getSubjectNameOptions(), [profileId]);
 
-  const [exams, setExams] = useState<ExamRecord[]>(() => getInitialExams());
-  const [timetables, setTimetables] = useState<ExamTimetable[]>(() =>
-    getInitialExamTimetables(getInitialExams()),
+  const [exams, setExams] = useState<ExamRecord[]>(() =>
+    apiMode ? [] : getInitialExams(),
   );
+  const [timetables, setTimetables] = useState<ExamTimetable[]>(() =>
+    apiMode ? [] : getInitialExamTimetables(getInitialExams()),
+  );
+  const [apiItems, setApiItems] = useState<ExamListItem[]>([]);
+  const [apiTimetables, setApiTimetables] = useState<ExamTimetableListItem[]>([]);
+  const [listStatus, setListStatus] = useState<ExamsListStatus>(() =>
+    apiMode ? "loading" : "demo",
+  );
+  const [listError, setListError] = useState<string | null>(null);
+  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
+    string | null
+  >(null);
+  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
+  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
+
+  const listView = resolveExamsListView({
+    apiMode,
+    instituteStatus: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+    resolvedForInstituteId,
+    storedItems: apiItems,
+    storedTimetables: apiTimetables,
+    storedStatus: listStatus,
+    storedErrorMessage: listError,
+    instituteErrorMessage: instituteCtx.errorMessage,
+  });
+  const displayExams: ExamRow[] = apiMode ? listView.items : exams;
+  const displayTimetables: TimetableRow[] = apiMode ? listView.timetables : timetables;
   const [selectedTtId, setSelectedTtId] = useState<string | null>(null);
 
   const [scheduleOpen, setScheduleOpen] = useState(false);
@@ -81,15 +124,118 @@ function ExamsPage() {
   const [paperStart, setPaperStart] = useState("09:00");
   const [paperEnd, setPaperEnd] = useState("12:00");
   useEffect(() => {
+    if (apiMode) return;
     const initial = getInitialExams();
     setExams(initial);
     setTimetables(getInitialExamTimetables(initial));
     setSelectedTtId(null);
     setPaperGrade(gradeOptions[0] ?? "Grade 10");
     setPaperSubject(subjectOptions[0] ?? "Mathematics");
-  }, [profileId]);
+  }, [apiMode, profileId, gradeOptions, subjectOptions]);
 
-  const selectedTt = timetables.find((t) => t.id === selectedTtId) ?? null;
+  useEffect(() => {
+    if (!apiMode) return;
+
+    if (instituteCtx.status === "loading") {
+      setApiItems([]);
+      setApiTimetables([]);
+      setListStatus("loading");
+      setListError(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "error" ||
+      instituteCtx.status === "forbidden"
+    ) {
+      setApiItems([]);
+      setApiTimetables([]);
+      setListStatus(
+        instituteCtx.status === "forbidden" ? "forbidden" : "error",
+      );
+      setListError(instituteCtx.errorMessage);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "needs_selection" ||
+      instituteCtx.status === "empty" ||
+      !instituteCtx.activeInstituteId
+    ) {
+      setApiItems([]);
+      setApiTimetables([]);
+      setListStatus("needs_institute");
+      setListError(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    let cancelled = false;
+    setListStatus("loading");
+    setListError(null);
+    void loadExamsList(requestInstituteId).then((next) => {
+      if (
+        !shouldCommitExamsLoad({
+          cancelled,
+          requestInstituteId,
+          activeInstituteId: activeInstituteIdRef.current,
+        })
+      ) {
+        return;
+      }
+      setApiItems(next.items);
+      setApiTimetables(next.timetables);
+      setListStatus(next.status);
+      setListError(next.errorMessage);
+      setResolvedForInstituteId(requestInstituteId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    apiMode,
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    instituteCtx.errorMessage,
+  ]);
+
+  useEffect(() => {
+    setSelectedTtId(null);
+    setScheduleOpen(false);
+    setAddPaperOpen(false);
+  }, [instituteCtx.activeInstituteId]);
+
+  const listHint =
+    listView.status === "loading"
+      ? "Loading exams…"
+      : listView.status === "needs_institute"
+        ? "Select an institute to load exams."
+        : listView.status === "forbidden"
+          ? listView.errorMessage ??
+            "You do not have access to exams for this institute."
+          : listView.status === "error"
+            ? listView.errorMessage ?? "Failed to load exams."
+            : listView.status === "empty"
+              ? "No exams found for this institute."
+              : null;
+
+  const countLabel = (count: number) =>
+    apiMode && !listView.rowsValid ? "…" : String(count);
+
+  const openTimetable = (id: string) => {
+    if (!writesEnabled) {
+      notify("Exam timetable editing is not enabled in API read-only mode");
+      return;
+    }
+    setSelectedTtId(id);
+  };
+
+  const selectedTt = writesEnabled
+    ? timetables.find((t) => t.id === selectedTtId) ?? null
+    : null;
   const selectedTtOutdated = selectedTt ? isTimetableOutdated(selectedTt, exams) : false;
 
   const updateTimetable = useCallback(
@@ -243,12 +389,15 @@ function ExamsPage() {
     );
   };
 
-  const upcoming = exams.filter(
+  const kpiExams = listView.rowsValid ? displayExams : [];
+  const kpiTimetables = listView.rowsValid ? displayTimetables : [];
+
+  const upcoming = kpiExams.filter(
     (e) => !isExamOutdated(e) && (e.status === "scheduled" || e.status === "in-progress"),
   ).length;
-  const grading = exams.filter((e) => !isExamOutdated(e) && e.status === "grading").length;
-  const published = exams.filter((e) => e.status === "published").length;
-  const ttPublished = timetables.filter((t) => t.status === "published").length;
+  const grading = kpiExams.filter((e) => !isExamOutdated(e) && e.status === "grading").length;
+  const published = kpiExams.filter((e) => e.status === "published").length;
+  const ttPublished = kpiTimetables.filter((t) => t.status === "published").length;
 
   if (selectedTt) {
     return (
@@ -357,51 +506,69 @@ function ExamsPage() {
   return (
     <AppShell
       title="Exams"
-      subtitle="Exam pipeline, exam timetables, and grading · marks in Marks module"
+      subtitle={
+        apiMode
+          ? `API mode · read-only · ${countLabel(displayExams.length)} exams`
+          : "Exam pipeline, exam timetables, and grading · marks in Marks module"
+      }
       actions={
-        <Button variant="primary" onClick={() => setScheduleOpen(true)}>
-          <Plus className="size-3.5" /> Create exam
-        </Button>
+        writesEnabled ? (
+          <Button variant="primary" onClick={() => setScheduleOpen(true)}>
+            <Plus className="size-3.5" /> Create exam
+          </Button>
+        ) : undefined
       }
     >
       <div className="lx-kpi-grid">
-        <Kpi label="Upcoming" value={String(upcoming)} delta="Next 30 days" />
-        <Kpi label="Exam timetables" value={String(timetables.length)} delta={`${ttPublished} published`} />
-        <Kpi label="Pending grading" value={String(grading)} tone="down" />
-        <Kpi label="Published results" value={String(published)} delta="This term" />
+        <Kpi label="Upcoming" value={countLabel(upcoming)} delta="Next 30 days" />
+        <Kpi label="Exam timetables" value={countLabel(kpiTimetables.length)} delta={`${countLabel(ttPublished)} published`} />
+        <Kpi label="Pending grading" value={countLabel(grading)} tone="down" />
+        <Kpi label="Published results" value={countLabel(published)} delta="This term" />
       </div>
 
       <Card className="mt-6">
         <CardHeader
           title="Exam timetables"
-          hint="Created with each exam · publish to share with students & parents"
+          hint={
+            apiMode
+              ? "Read-only schedules from API · subject names not resolved in list view"
+              : "Created with each exam · publish to share with students & parents"
+          }
         />
-        {timetables.length === 0 ? (
+        {!listView.rowsValid ? (
+          <div className="px-5 pb-5 py-12 text-center text-sm text-muted-foreground">
+            {listHint ?? "Loading exams…"}
+          </div>
+        ) : displayTimetables.length === 0 ? (
           <div className="px-5 pb-5">
             <EmptyState
               icon={<CalendarDays className="size-6 text-primary" />}
               title="No exam timetables yet"
-              hint="Create an exam to generate its timetable automatically."
+              hint={listHint ?? "Create an exam to generate its timetable automatically."}
               action={
-                <Button variant="primary" onClick={() => setScheduleOpen(true)}>
-                  <Plus className="size-3.5" /> Create exam
-                </Button>
+                writesEnabled ? (
+                  <Button variant="primary" onClick={() => setScheduleOpen(true)}>
+                    <Plus className="size-3.5" /> Create exam
+                  </Button>
+                ) : undefined
               }
             />
           </div>
         ) : (
           <div className="px-5 pb-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {timetables.map((tt) => {
-              const outdated = isTimetableOutdated(tt, exams);
+            {displayTimetables.map((tt) => {
+              const outdated = isTimetableOutdated(tt, displayExams);
               return (
                 <div key={tt.id} className="relative group">
                   <button
                     type="button"
-                    onClick={() => setSelectedTtId(tt.id)}
+                    onClick={() => openTimetable(tt.id)}
                     className={`w-full text-left p-4 rounded-xl border transition-colors ${
                       outdated
                         ? "border-border/60 bg-muted/30 text-muted-foreground opacity-60 hover:opacity-70"
-                        : "border-border bg-surface hover:bg-surface-hover hover:border-border-strong"
+                        : writesEnabled
+                          ? "border-border bg-surface hover:bg-surface-hover hover:border-border-strong"
+                          : "border-border bg-surface"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -443,7 +610,7 @@ function ExamsPage() {
                       </div>
                     )}
                   </button>
-                  {outdated && (
+                  {writesEnabled && outdated && (
                     <button
                       type="button"
                       onClick={(e) => {
@@ -474,8 +641,17 @@ function ExamsPage() {
             </Link>
           }
         />
+        {!listView.rowsValid ? (
+          <div className="px-5 pb-5 py-12 text-center text-sm text-muted-foreground">
+            {listHint ?? "Loading exams…"}
+          </div>
+        ) : displayExams.length === 0 ? (
+          <div className="px-5 pb-5 py-8 text-center text-sm text-muted-foreground">
+            {listHint ?? "No exams in the pipeline yet."}
+          </div>
+        ) : (
         <div className="px-5 pb-5 divide-y divide-border">
-          {exams.map((e) => {
+          {displayExams.map((e) => {
             const outdated = isExamOutdated(e);
             return (
               <div
@@ -505,7 +681,7 @@ function ExamsPage() {
                     {examMarksLabel(e)}
                   </div>
                 </div>
-                {!outdated && (
+                {!outdated && writesEnabled && (
                   <div className="w-48 hidden md:block">
                     <div className="h-1.5 rounded bg-muted overflow-hidden">
                       <div className="h-full bg-primary" style={{ width: `${e.progress}%` }} />
@@ -515,7 +691,7 @@ function ExamsPage() {
                     </div>
                   </div>
                 )}
-                {outdated && (
+                {writesEnabled && outdated && (
                   <Button
                     size="sm"
                     onClick={() => deleteExam(e.id)}
@@ -528,8 +704,10 @@ function ExamsPage() {
             );
           })}
         </div>
+        )}
       </Card>
 
+      {writesEnabled ? (
       <ExamScheduleWizard
         open={scheduleOpen}
         onClose={() => setScheduleOpen(false)}
@@ -537,6 +715,7 @@ function ExamsPage() {
         college={college}
         subjectOptions={subjectOptions}
       />
+      ) : null}
     </AppShell>
   );
 }
