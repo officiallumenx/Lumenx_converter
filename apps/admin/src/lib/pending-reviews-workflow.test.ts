@@ -142,8 +142,8 @@ describe("Admin Home Pending Reviews workflow", () => {
       expect(row.count).toBeGreaterThan(0);
     }
 
-    expect(rows.find((r) => r.id === "transport-stops")?.search).toEqual({ view: "routes" });
-    expect(rows.find((r) => r.id === "transport-assignments")?.search).toEqual({ view: "routes" });
+    expect(rows.find((r) => r.id === "transport-stops")?.search).toEqual({ view: "reviews" });
+    expect(rows.find((r) => r.id === "transport-assignments")?.search).toEqual({ view: "reviews" });
   });
 
   it("5: no pending items when all counts are zero", () => {
@@ -202,7 +202,7 @@ describe("Admin Home Pending Reviews workflow", () => {
       view: "emergencies",
     });
     expect(pendingRows.find((r) => r.id === "transport-stops")?.search).toEqual({
-      view: "routes",
+      view: "reviews",
     });
 
     const submittedForReview = countSubmittedMarks([

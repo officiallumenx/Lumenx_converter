@@ -58,7 +58,10 @@ describe("pending reviews aggregation", () => {
       "transport-assignments",
     ]);
     expect(rows.find((r) => r.id === "marks-review")?.count).toBe(2);
-    expect(rows.find((r) => r.id === "transport-stops")?.search).toEqual({ view: "routes" });
+    expect(rows.find((r) => r.id === "transport-stops")?.search).toEqual({ view: "reviews" });
+    expect(rows.find((r) => r.id === "transport-assignments")?.search).toEqual({
+      view: "reviews",
+    });
   });
 
   it("omits rows with zero counts", () => {

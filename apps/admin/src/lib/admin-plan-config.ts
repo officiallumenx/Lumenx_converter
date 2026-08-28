@@ -365,6 +365,14 @@ export const MODULE_CATALOG: ModuleDef[] = [
     description: "Certificate designs, student records, and issuance",
   },
   {
+    id: "documents",
+    label: M.documents,
+    route: "/documents",
+    minPlan: "plus",
+    group: "Institute",
+    description: "Document templates, generation, and publishing",
+  },
+  {
     id: "calendar",
     label: M.calendar,
     route: "/calendar",

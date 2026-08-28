@@ -327,7 +327,7 @@ export function evaluateAttendanceDropAlerts(): number {
         rule,
         severity: "mandatory",
         category: "attendance",
-        href: "/attendance",
+        href: "/student-attendance",
         broadcastPriority: "high",
         detail: [
           `Student: ${student.name}`,
