@@ -1,9 +1,21 @@
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/active-institute";
-import { listAdmissionApplications } from "./api";
-import { admissionApplicationDtosToListItems } from "./map";
-import type { AdmissionApplicationListItem } from "./types";
+import {
+  listAdmissionApplications,
+  listAdmissionOpenings,
+  listAdmissionPrograms,
+} from "./api";
+import {
+  admissionApplicationDtosToListItems,
+  admissionOpeningDtosToListItems,
+  admissionProgramDtosToListItems,
+} from "./map";
+import type {
+  AdmissionApplicationListItem,
+  AdmissionOpeningListItem,
+  AdmissionProgramListItem,
+} from "./types";
 
 export type AdmissionsListStatus =
   | "demo"
@@ -14,15 +26,33 @@ export type AdmissionsListStatus =
   | "forbidden"
   | "error";
 
+export type AdmissionsProgramsListStatus = AdmissionsListStatus;
+export type AdmissionsOpeningsListStatus = AdmissionsListStatus;
+
 export type AdmissionsListState = {
   status: AdmissionsListStatus;
   items: AdmissionApplicationListItem[];
   errorMessage: string | null;
 };
 
-export async function loadAdmissionsList(
+export type AdmissionsProgramsListState = {
+  status: AdmissionsProgramsListStatus;
+  items: AdmissionProgramListItem[];
+  errorMessage: string | null;
+};
+
+export type AdmissionsOpeningsListState = {
+  status: AdmissionsOpeningsListStatus;
+  items: AdmissionOpeningListItem[];
+  errorMessage: string | null;
+};
+
+async function loadAdmissionsResourceList<T>(
   activeInstituteId: string | null,
-): Promise<AdmissionsListState> {
+  fetchRows: (instituteId: string) => Promise<unknown[]>,
+  mapRows: (rows: unknown[]) => T[],
+  errorLabel: string,
+): Promise<{ status: AdmissionsListStatus; items: T[]; errorMessage: string | null }> {
   if (!isApiAuthMode()) {
     return { status: "demo", items: [], errorMessage: null };
   }
@@ -36,8 +66,8 @@ export async function loadAdmissionsList(
   }
 
   try {
-    const rows = await listAdmissionApplications({ instituteId: activeInstituteId });
-    const items = admissionApplicationDtosToListItems(rows);
+    const rows = await fetchRows(activeInstituteId);
+    const items = mapRows(rows);
     return {
       status: items.length === 0 ? "empty" : "ready",
       items,
@@ -53,8 +83,7 @@ export async function loadAdmissionsList(
             typeof (err as { status: unknown }).status === "number"
           ? (err as { status: number }).status
           : null;
-    const message =
-      err instanceof Error ? err.message : "Failed to load admissions applications";
+    const message = err instanceof Error ? err.message : errorLabel;
 
     if (status === 403) {
       return {
@@ -69,4 +98,47 @@ export async function loadAdmissionsList(
       errorMessage: message,
     };
   }
+}
+
+export async function loadAdmissionsList(
+  activeInstituteId: string | null,
+): Promise<AdmissionsListState> {
+  const result = await loadAdmissionsResourceList(
+    activeInstituteId,
+    (instituteId) => listAdmissionApplications({ instituteId }),
+    (rows) =>
+      admissionApplicationDtosToListItems(
+        rows as Parameters<typeof admissionApplicationDtosToListItems>[0],
+      ),
+    "Failed to load admissions applications",
+  );
+  return result;
+}
+
+export async function loadAdmissionsProgramsList(
+  activeInstituteId: string | null,
+): Promise<AdmissionsProgramsListState> {
+  return loadAdmissionsResourceList(
+    activeInstituteId,
+    (instituteId) => listAdmissionPrograms({ instituteId }),
+    (rows) =>
+      admissionProgramDtosToListItems(
+        rows as Parameters<typeof admissionProgramDtosToListItems>[0],
+      ),
+    "Failed to load admission programs",
+  );
+}
+
+export async function loadAdmissionsOpeningsList(
+  activeInstituteId: string | null,
+): Promise<AdmissionsOpeningsListState> {
+  return loadAdmissionsResourceList(
+    activeInstituteId,
+    (instituteId) => listAdmissionOpenings({ instituteId }),
+    (rows) =>
+      admissionOpeningDtosToListItems(
+        rows as Parameters<typeof admissionOpeningDtosToListItems>[0],
+      ),
+    "Failed to load admission openings",
+  );
 }

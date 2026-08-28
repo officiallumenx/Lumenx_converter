@@ -5,7 +5,14 @@ import { getAdminApiClient } from "@/lib/admin-api";
 import type { AdminApiClient } from "@/lib/api";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { isInstituteUuid } from "@/lib/active-institute";
-import type { AdmissionApplicationDto, ListAdmissionApplicationsParams } from "./types";
+import type {
+  AdmissionApplicationDto,
+  AdmissionOpeningDto,
+  AdmissionProgramDto,
+  ListAdmissionApplicationsParams,
+  ListAdmissionOpeningsParams,
+  ListAdmissionProgramsParams,
+} from "./types";
 
 function assertApiMode(): void {
   if (!isApiAuthMode()) {
@@ -27,5 +34,35 @@ export async function listAdmissionApplications(
   query.set("institute_id", params.instituteId.trim());
   return client.get<AdmissionApplicationDto[]>(
     `/api/v1/admissions/applications?${query.toString()}`,
+  );
+}
+
+export async function listAdmissionPrograms(
+  params: ListAdmissionProgramsParams,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<AdmissionProgramDto[]> {
+  assertApiMode();
+  if (!isInstituteUuid(params.instituteId)) {
+    throw new Error("institute_id must be a valid UUID");
+  }
+  const query = new URLSearchParams();
+  query.set("institute_id", params.instituteId.trim());
+  return client.get<AdmissionProgramDto[]>(
+    `/api/v1/admissions/programs?${query.toString()}`,
+  );
+}
+
+export async function listAdmissionOpenings(
+  params: ListAdmissionOpeningsParams,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<AdmissionOpeningDto[]> {
+  assertApiMode();
+  if (!isInstituteUuid(params.instituteId)) {
+    throw new Error("institute_id must be a valid UUID");
+  }
+  const query = new URLSearchParams();
+  query.set("institute_id", params.instituteId.trim());
+  return client.get<AdmissionOpeningDto[]>(
+    `/api/v1/admissions/openings?${query.toString()}`,
   );
 }

@@ -1,5 +1,13 @@
-import type { AdmissionApplicationListItem } from "./types";
-import type { AdmissionsListStatus } from "./load";
+import type {
+  AdmissionApplicationListItem,
+  AdmissionOpeningListItem,
+  AdmissionProgramListItem,
+} from "./types";
+import type {
+  AdmissionsListStatus,
+  AdmissionsOpeningsListStatus,
+  AdmissionsProgramsListStatus,
+} from "./load";
 
 export type AdmissionsInstituteGateStatus =
   | "demo"
@@ -10,27 +18,27 @@ export type AdmissionsInstituteGateStatus =
   | "forbidden"
   | "error";
 
-export type ResolveAdmissionsListViewInput = {
+type ResolveAdmissionsResourceListViewInput<T> = {
   apiMode: boolean;
   instituteStatus: AdmissionsInstituteGateStatus;
   activeInstituteId: string | null;
   resolvedForInstituteId: string | null;
-  storedItems: AdmissionApplicationListItem[];
+  storedItems: T[];
   storedStatus: AdmissionsListStatus;
   storedErrorMessage: string | null;
   instituteErrorMessage: string | null;
 };
 
-export type AdmissionsListView = {
+type AdmissionsResourceListView<T> = {
   status: AdmissionsListStatus;
-  items: AdmissionApplicationListItem[];
+  items: T[];
   errorMessage: string | null;
   rowsValid: boolean;
 };
 
-export function resolveAdmissionsListView(
-  input: ResolveAdmissionsListViewInput,
-): AdmissionsListView {
+function resolveAdmissionsResourceListView<T>(
+  input: ResolveAdmissionsResourceListViewInput<T>,
+): AdmissionsResourceListView<T> {
   if (!input.apiMode) {
     return {
       status: "demo",
@@ -91,6 +99,47 @@ export function resolveAdmissionsListView(
   };
 }
 
+export type ResolveAdmissionsListViewInput =
+  ResolveAdmissionsResourceListViewInput<AdmissionApplicationListItem> & {
+    storedStatus: AdmissionsListStatus;
+  };
+
+export type AdmissionsListView = AdmissionsResourceListView<AdmissionApplicationListItem>;
+
+export function resolveAdmissionsListView(
+  input: ResolveAdmissionsListViewInput,
+): AdmissionsListView {
+  return resolveAdmissionsResourceListView(input);
+}
+
+export type ResolveAdmissionsProgramsListViewInput =
+  ResolveAdmissionsResourceListViewInput<AdmissionProgramListItem> & {
+    storedStatus: AdmissionsProgramsListStatus;
+  };
+
+export type AdmissionsProgramsListView =
+  AdmissionsResourceListView<AdmissionProgramListItem>;
+
+export function resolveAdmissionsProgramsListView(
+  input: ResolveAdmissionsProgramsListViewInput,
+): AdmissionsProgramsListView {
+  return resolveAdmissionsResourceListView(input);
+}
+
+export type ResolveAdmissionsOpeningsListViewInput =
+  ResolveAdmissionsResourceListViewInput<AdmissionOpeningListItem> & {
+    storedStatus: AdmissionsOpeningsListStatus;
+  };
+
+export type AdmissionsOpeningsListView =
+  AdmissionsResourceListView<AdmissionOpeningListItem>;
+
+export function resolveAdmissionsOpeningsListView(
+  input: ResolveAdmissionsOpeningsListViewInput,
+): AdmissionsOpeningsListView {
+  return resolveAdmissionsResourceListView(input);
+}
+
 export function shouldCommitAdmissionsLoad(opts: {
   cancelled: boolean;
   requestInstituteId: string;
@@ -99,4 +148,20 @@ export function shouldCommitAdmissionsLoad(opts: {
   if (opts.cancelled) return false;
   if (!opts.activeInstituteId) return false;
   return opts.requestInstituteId === opts.activeInstituteId;
+}
+
+export function shouldCommitAdmissionsProgramsLoad(opts: {
+  cancelled: boolean;
+  requestInstituteId: string;
+  activeInstituteId: string | null;
+}): boolean {
+  return shouldCommitAdmissionsLoad(opts);
+}
+
+export function shouldCommitAdmissionsOpeningsLoad(opts: {
+  cancelled: boolean;
+  requestInstituteId: string;
+  activeInstituteId: string | null;
+}): boolean {
+  return shouldCommitAdmissionsLoad(opts);
 }

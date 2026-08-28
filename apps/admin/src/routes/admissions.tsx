@@ -75,10 +75,22 @@ import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
 import {
   loadAdmissionsList,
+  loadAdmissionsOpeningsList,
+  loadAdmissionsProgramsList,
   resolveAdmissionsListView,
+  resolveAdmissionsOpeningsListView,
+  resolveAdmissionsProgramsListView,
   shouldCommitAdmissionsLoad,
+  shouldCommitAdmissionsOpeningsLoad,
+  shouldCommitAdmissionsProgramsLoad,
   type AdmissionApplicationListItem,
+  type AdmissionOpeningListItem,
+  type AdmissionOpeningStatus,
+  type AdmissionProgramListItem,
+  type AdmissionProgramStatus,
   type AdmissionsListStatus,
+  type AdmissionsOpeningsListStatus,
+  type AdmissionsProgramsListStatus,
 } from "@/lib/admissions";
 
 export const Route = createFileRoute("/admissions")({
@@ -94,6 +106,37 @@ function parseDocsRatio(value: string): { verified: number; total: number } {
     verified: Number.isFinite(verified) ? verified : 0,
     total: Number.isFinite(total) && total > 0 ? total : 0,
   };
+}
+
+function catalogListHint(
+  resourceLabel: string,
+  status: AdmissionsListStatus,
+  errorMessage: string | null,
+): string | null {
+  if (status === "loading") return `Loading ${resourceLabel}…`;
+  if (status === "needs_institute") return `Select an institute to load ${resourceLabel}.`;
+  if (status === "forbidden") {
+    return errorMessage ?? `You do not have access to ${resourceLabel} for this institute.`;
+  }
+  if (status === "error") return errorMessage ?? `Failed to load ${resourceLabel}.`;
+  if (status === "empty") return `No ${resourceLabel} found for this institute.`;
+  return null;
+}
+
+function programStatusTone(
+  status: AdmissionProgramStatus,
+): "neutral" | "success" | "warning" {
+  if (status === "published") return "success";
+  if (status === "archived") return "warning";
+  return "neutral";
+}
+
+function openingStatusTone(
+  status: AdmissionOpeningStatus,
+): "neutral" | "success" | "warning" {
+  if (status === "open") return "success";
+  if (status === "closed") return "warning";
+  return "neutral";
 }
 
 /**
@@ -119,6 +162,22 @@ function AdmissionsPage() {
     apiMode ? "loading" : "demo",
   );
   const [listError, setListError] = useState<string | null>(null);
+  const [apiPrograms, setApiPrograms] = useState<AdmissionProgramListItem[]>([]);
+  const [programsStatus, setProgramsStatus] = useState<AdmissionsProgramsListStatus>(() =>
+    apiMode ? "loading" : "demo",
+  );
+  const [programsError, setProgramsError] = useState<string | null>(null);
+  const [programsResolvedForInstituteId, setProgramsResolvedForInstituteId] = useState<
+    string | null
+  >(null);
+  const [apiOpenings, setApiOpenings] = useState<AdmissionOpeningListItem[]>([]);
+  const [openingsStatus, setOpeningsStatus] = useState<AdmissionsOpeningsListStatus>(() =>
+    apiMode ? "loading" : "demo",
+  );
+  const [openingsError, setOpeningsError] = useState<string | null>(null);
+  const [openingsResolvedForInstituteId, setOpeningsResolvedForInstituteId] = useState<
+    string | null
+  >(null);
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
@@ -135,6 +194,30 @@ function AdmissionsPage() {
     storedErrorMessage: listError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
+  const programsListView = resolveAdmissionsProgramsListView({
+    apiMode,
+    instituteStatus: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+    resolvedForInstituteId: programsResolvedForInstituteId,
+    storedItems: apiPrograms,
+    storedStatus: programsStatus,
+    storedErrorMessage: programsError,
+    instituteErrorMessage: instituteCtx.errorMessage,
+  });
+  const openingsListView = resolveAdmissionsOpeningsListView({
+    apiMode,
+    instituteStatus: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+    resolvedForInstituteId: openingsResolvedForInstituteId,
+    storedItems: apiOpenings,
+    storedStatus: openingsStatus,
+    storedErrorMessage: openingsError,
+    instituteErrorMessage: instituteCtx.errorMessage,
+  });
+  const programNameById = useMemo(
+    () => new Map(programsListView.items.map((program) => [program.id, program.name])),
+    [programsListView.items],
+  );
   type AppRow = AdminSyncRow | AdmissionApplicationListItem;
   const displayApps: AppRow[] = apiMode ? listView.items : apps;
   const activeApps = listView.rowsValid ? displayApps : [];
@@ -220,6 +303,136 @@ function AdmissionsPage() {
       setListStatus(next.status);
       setListError(next.errorMessage);
       setResolvedForInstituteId(requestInstituteId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    apiMode,
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    instituteCtx.errorMessage,
+  ]);
+
+  useEffect(() => {
+    if (!apiMode) return;
+
+    if (instituteCtx.status === "loading") {
+      setApiPrograms([]);
+      setProgramsStatus("loading");
+      setProgramsError(null);
+      setProgramsResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "error" ||
+      instituteCtx.status === "forbidden"
+    ) {
+      setApiPrograms([]);
+      setProgramsStatus(
+        instituteCtx.status === "forbidden" ? "forbidden" : "error",
+      );
+      setProgramsError(instituteCtx.errorMessage);
+      setProgramsResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "needs_selection" ||
+      instituteCtx.status === "empty" ||
+      !instituteCtx.activeInstituteId
+    ) {
+      setApiPrograms([]);
+      setProgramsStatus("needs_institute");
+      setProgramsError(null);
+      setProgramsResolvedForInstituteId(null);
+      return;
+    }
+
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    let cancelled = false;
+    setProgramsStatus("loading");
+    setProgramsError(null);
+    void loadAdmissionsProgramsList(requestInstituteId).then((next) => {
+      if (
+        !shouldCommitAdmissionsProgramsLoad({
+          cancelled,
+          requestInstituteId,
+          activeInstituteId: activeInstituteIdRef.current,
+        })
+      ) {
+        return;
+      }
+      setApiPrograms(next.items);
+      setProgramsStatus(next.status);
+      setProgramsError(next.errorMessage);
+      setProgramsResolvedForInstituteId(requestInstituteId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    apiMode,
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    instituteCtx.errorMessage,
+  ]);
+
+  useEffect(() => {
+    if (!apiMode) return;
+
+    if (instituteCtx.status === "loading") {
+      setApiOpenings([]);
+      setOpeningsStatus("loading");
+      setOpeningsError(null);
+      setOpeningsResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "error" ||
+      instituteCtx.status === "forbidden"
+    ) {
+      setApiOpenings([]);
+      setOpeningsStatus(
+        instituteCtx.status === "forbidden" ? "forbidden" : "error",
+      );
+      setOpeningsError(instituteCtx.errorMessage);
+      setOpeningsResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "needs_selection" ||
+      instituteCtx.status === "empty" ||
+      !instituteCtx.activeInstituteId
+    ) {
+      setApiOpenings([]);
+      setOpeningsStatus("needs_institute");
+      setOpeningsError(null);
+      setOpeningsResolvedForInstituteId(null);
+      return;
+    }
+
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    let cancelled = false;
+    setOpeningsStatus("loading");
+    setOpeningsError(null);
+    void loadAdmissionsOpeningsList(requestInstituteId).then((next) => {
+      if (
+        !shouldCommitAdmissionsOpeningsLoad({
+          cancelled,
+          requestInstituteId,
+          activeInstituteId: activeInstituteIdRef.current,
+        })
+      ) {
+        return;
+      }
+      setApiOpenings(next.items);
+      setOpeningsStatus(next.status);
+      setOpeningsError(next.errorMessage);
+      setOpeningsResolvedForInstituteId(requestInstituteId);
     });
     return () => {
       cancelled = true;
@@ -469,7 +682,7 @@ function AdmissionsPage() {
       title="Admissions"
       subtitle={
         apiMode
-          ? `API mode · read-only · ${countLabel(activeApps.length)} applications · document counts not in list view`
+          ? `API mode · read-only · ${countLabel(activeApps.length)} applications · ${programsListView.rowsValid ? programsListView.items.length : "…"} programs · ${openingsListView.rowsValid ? openingsListView.items.length : "…"} openings · document counts not in list view`
           : "Review applications in Connect · add approved students here"
       }
       actions={
@@ -501,7 +714,7 @@ function AdmissionsPage() {
               </div>
               <p className="max-w-xl text-[12px] leading-relaxed text-muted-foreground">
                 {apiMode
-                  ? "Application pipeline counts and reporting from the API. Convert-to-student and Connect portal workflows remain demo-only in this cutover."
+                  ? "Application pipeline, programs, and openings from the API. Convert-to-student and Connect portal workflows remain demo-only in this cutover."
                   : "Move applications through Submitted → Review → Verification → Parent Confirmation → Approved (or Rejected / Withdrawn) in Connect. Come back to Admin only to add an approved applicant as a student (and create a parent login if needed)."}
               </p>
             </div>
@@ -517,6 +730,127 @@ function AdmissionsPage() {
             ) : null}
           </div>
         </Card>
+
+        {apiMode ? (
+          <>
+            <Card>
+              <CardHeader
+                title="Admission programs"
+                hint="Read-only program catalog from the API"
+                action={
+                  <Pill tone="neutral">
+                    {programsListView.rowsValid
+                      ? `${programsListView.items.length} program(s)`
+                      : "…"}
+                  </Pill>
+                }
+              />
+              {!programsListView.rowsValid ? (
+                <div className="px-5 pb-6 text-center text-sm text-muted-foreground">
+                  {catalogListHint(
+                    "admission programs",
+                    programsListView.status,
+                    programsListView.errorMessage,
+                  ) ?? "Loading admission programs…"}
+                </div>
+              ) : programsListView.items.length === 0 ? (
+                <div className="px-5 pb-6 text-center text-sm text-muted-foreground">
+                  {catalogListHint(
+                    "admission programs",
+                    programsListView.status,
+                    programsListView.errorMessage,
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2 px-5 pb-5 pt-1 sm:px-6 sm:pb-6">
+                  {programsListView.items.map((program) => (
+                    <div
+                      key={program.id}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-background/40 px-3 py-2.5"
+                    >
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium">{program.name}</div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {program.academicYearLabel} · Deadline {program.applicationDeadline}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                        <span className="rounded-md border border-border bg-background/60 px-2 py-1">
+                          <span className="text-muted-foreground">Seats </span>
+                          <span className="font-medium tabular-nums">
+                            {program.seatsAvailable}
+                          </span>
+                        </span>
+                        <Pill tone={programStatusTone(program.status)}>
+                          {program.status.replace("_", " ")}
+                        </Pill>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            <Card>
+              <CardHeader
+                title="Admission openings"
+                hint="Read-only openings linked to programs"
+                action={
+                  <Pill tone="neutral">
+                    {openingsListView.rowsValid
+                      ? `${openingsListView.items.length} opening(s)`
+                      : "…"}
+                  </Pill>
+                }
+              />
+              {!openingsListView.rowsValid ? (
+                <div className="px-5 pb-6 text-center text-sm text-muted-foreground">
+                  {catalogListHint(
+                    "admission openings",
+                    openingsListView.status,
+                    openingsListView.errorMessage,
+                  ) ?? "Loading admission openings…"}
+                </div>
+              ) : openingsListView.items.length === 0 ? (
+                <div className="px-5 pb-6 text-center text-sm text-muted-foreground">
+                  {catalogListHint(
+                    "admission openings",
+                    openingsListView.status,
+                    openingsListView.errorMessage,
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2 px-5 pb-5 pt-1 sm:px-6 sm:pb-6">
+                  {openingsListView.items.map((opening) => (
+                    <div
+                      key={opening.id}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-background/40 px-3 py-2.5"
+                    >
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium">{opening.name}</div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {programNameById.get(opening.programId) ?? "Program"} ·{" "}
+                          {opening.academicYearLabel} · Deadline {opening.applicationDeadline}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                        <span className="rounded-md border border-border bg-background/60 px-2 py-1">
+                          <span className="text-muted-foreground">Seats </span>
+                          <span className="font-medium tabular-nums">
+                            {opening.seatsAvailable}
+                          </span>
+                        </span>
+                        <Pill tone={openingStatusTone(opening.status)}>
+                          {opening.status}
+                        </Pill>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </>
+        ) : null}
 
         {!listView.rowsValid ? (
           <div className="py-12 text-center text-sm text-muted-foreground">

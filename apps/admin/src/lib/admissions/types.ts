@@ -1,4 +1,71 @@
-/** Mirrors backend AdmissionApplicationDto — keep in sync with domains/admissions/types.ts. */
+/** Mirrors backend admissions DTOs — keep in sync with domains/admissions/types.ts. */
+
+export type AdmissionProgramStatus = "draft" | "published" | "archived";
+export type AdmissionOpeningStatus = "draft" | "open" | "closed";
+
+export type AdmissionProgramDto = {
+  id: string;
+  instituteId: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  duration: string | null;
+  eligibility: string | null;
+  ageCriteria: string | null;
+  seatsAvailable: number;
+  grades: unknown;
+  academicYearLabel: string | null;
+  applicationDeadline: string | null;
+  status: AdmissionProgramStatus;
+  createdByUserId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AdmissionOpeningDto = {
+  id: string;
+  instituteId: string;
+  programId: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  seatsAvailable: number;
+  academicYearLabel: string | null;
+  applicationDeadline: string | null;
+  status: AdmissionOpeningStatus;
+  createdByUserId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AdmissionProgramListItem = {
+  id: string;
+  name: string;
+  slug: string;
+  status: AdmissionProgramStatus;
+  seatsAvailable: number;
+  academicYearLabel: string;
+  applicationDeadline: string;
+};
+
+export type AdmissionOpeningListItem = {
+  id: string;
+  programId: string;
+  name: string;
+  slug: string;
+  status: AdmissionOpeningStatus;
+  seatsAvailable: number;
+  academicYearLabel: string;
+  applicationDeadline: string;
+};
+
+export type ListAdmissionProgramsParams = {
+  instituteId: string;
+};
+
+export type ListAdmissionOpeningsParams = {
+  instituteId: string;
+};
 
 export type AdmissionApplicationStatus =
   | "draft"

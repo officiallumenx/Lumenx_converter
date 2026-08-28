@@ -34,4 +34,20 @@ describe("loadAdmissionsList", () => {
     expect(result.status).toBe("forbidden");
     expect(result.items).toEqual([]);
   });
+
+  it("loads programs without demo fallback on 403", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const listAdmissionPrograms = vi.fn().mockRejectedValue(
+      new ApiClientError({
+        status: 403,
+        code: "FORBIDDEN",
+        message: "No access",
+      }),
+    );
+    vi.doMock("./api", () => ({ listAdmissionPrograms }));
+    const { loadAdmissionsProgramsList } = await import("./load");
+    const result = await loadAdmissionsProgramsList(INST);
+    expect(result.status).toBe("forbidden");
+    expect(result.items).toEqual([]);
+  });
 });
