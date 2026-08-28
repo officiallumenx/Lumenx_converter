@@ -10,6 +10,16 @@ import { FeesExtraView } from "@/components/fees/views/FeesExtraView";
 import { FeesPublishView } from "@/components/fees/views/FeesPublishView";
 import { FeesStudentsView } from "@/components/fees/views/FeesStudentsView";
 import { validateHubViewSearch } from "@/lib/hub-view-search";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { useInstituteContext } from "@/lib/institutes";
+import {
+  loadFeesSnapshot,
+  resolveFeesLoadView,
+  shouldCommitFeesLoad,
+  type FeesLoadStatus,
+} from "@/lib/fees";
+import type { FeesSnapshot } from "@lumenx/module-fees";
 
 export type FeesHubView =
   | "overview"
@@ -60,32 +70,182 @@ export const Route = createFileRoute("/fees")({
   component: FeesPage,
 });
 
+function feesLoadHint(
+  status: FeesLoadStatus,
+  errorMessage: string | null,
+): string | null {
+  if (status === "loading") return "Loading fees…";
+  if (status === "needs_institute") return "Select an institute to load fees.";
+  if (status === "forbidden") {
+    return errorMessage ?? "You do not have access to fees for this institute.";
+  }
+  if (status === "error") return errorMessage ?? "Failed to load fees.";
+  if (status === "empty") return "No fee plans found for this institute.";
+  return null;
+}
+
 function FeesPage() {
   const { view } = Route.useSearch();
   const navigate = useNavigate();
   const { snapshot, setSnapshot } = useFeesStore();
+  const apiMode = isApiAuthMode();
+  const writesEnabled = !apiMode;
+  const instituteCtx = useInstituteContext();
+  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
+  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
+
+  const [apiSnapshot, setApiSnapshot] = useState<FeesSnapshot | null>(null);
+  const [feesLoadStatus, setFeesLoadStatus] = useState<FeesLoadStatus>(() =>
+    apiMode ? "loading" : "demo",
+  );
+  const [feesLoadError, setFeesLoadError] = useState<string | null>(null);
+  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(
+    null,
+  );
+
+  const feesLoadView = resolveFeesLoadView({
+    apiMode,
+    instituteStatus: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+    resolvedForInstituteId,
+    storedSnapshot: apiSnapshot,
+    storedStatus: feesLoadStatus,
+    storedErrorMessage: feesLoadError,
+    instituteErrorMessage: instituteCtx.errorMessage,
+  });
+
+  const feesHint = feesLoadHint(feesLoadView.status, feesLoadView.errorMessage);
+
+  useEffect(() => {
+    if (!apiMode) return;
+
+    if (instituteCtx.status === "loading") {
+      setApiSnapshot(null);
+      setFeesLoadStatus("loading");
+      setFeesLoadError(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "error" ||
+      instituteCtx.status === "forbidden"
+    ) {
+      setApiSnapshot(null);
+      setFeesLoadStatus(
+        instituteCtx.status === "forbidden" ? "forbidden" : "error",
+      );
+      setFeesLoadError(instituteCtx.errorMessage);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "needs_selection" ||
+      instituteCtx.status === "empty" ||
+      !instituteCtx.activeInstituteId
+    ) {
+      setApiSnapshot(null);
+      setFeesLoadStatus("needs_institute");
+      setFeesLoadError(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    let cancelled = false;
+    setFeesLoadStatus("loading");
+    setFeesLoadError(null);
+    void loadFeesSnapshot(requestInstituteId).then((next) => {
+      if (
+        !shouldCommitFeesLoad({
+          cancelled,
+          requestInstituteId,
+          activeInstituteId: activeInstituteIdRef.current,
+        })
+      ) {
+        return;
+      }
+      setApiSnapshot(next.snapshot);
+      setFeesLoadStatus(next.status);
+      setFeesLoadError(next.errorMessage);
+      setResolvedForInstituteId(requestInstituteId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    apiMode,
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    instituteCtx.errorMessage,
+  ]);
+
+  const displaySnapshot = useMemo(() => {
+    if (!apiMode || !feesLoadView.rowsValid || !feesLoadView.snapshot) {
+      return snapshot;
+    }
+    return feesLoadView.snapshot;
+  }, [apiMode, snapshot, feesLoadView.rowsValid, feesLoadView.snapshot]);
 
   const goToView = (v: FeesHubView) => navigate({ to: "/fees", search: { view: v } });
 
   return (
-    <AppShell title={VIEW_TITLES[view]} subtitle={VIEW_SUBTITLES[view]}>
+    <AppShell
+      title={VIEW_TITLES[view]}
+      subtitle={
+        apiMode
+          ? `API mode · read-only · ${feesLoadView.rowsValid ? feesLoadView.snapshot?.publish.status ?? "…" : "…"} plan`
+          : VIEW_SUBTITLES[view]
+      }
+    >
       <FeesHubNav active={view} />
       <AdminPageTransition pageKey={view}>
-        {view === "overview" && (
-          <FeesOverviewView snapshot={snapshot} onNavigate={goToView} />
-        )}
-        {view === "class-fees" && (
-          <FeesClassFeesView snapshot={snapshot} onChange={setSnapshot} />
-        )}
-        {view === "transport" && (
-          <FeesTransportView snapshot={snapshot} onChange={setSnapshot} />
-        )}
-        {view === "extra" && <FeesExtraView snapshot={snapshot} onChange={setSnapshot} />}
-        {view === "publish" && (
-          <FeesPublishView snapshot={snapshot} onChange={setSnapshot} />
-        )}
-        {view === "students" && (
-          <FeesStudentsView snapshot={snapshot} onChange={setSnapshot} />
+        {apiMode && !feesLoadView.rowsValid ? (
+          <div className="py-12 text-center text-sm text-muted-foreground">
+            {feesHint ?? "Loading fees…"}
+          </div>
+        ) : (
+          <>
+            {view === "overview" && (
+              <FeesOverviewView snapshot={displaySnapshot} onNavigate={goToView} />
+            )}
+            {view === "class-fees" && (
+              <FeesClassFeesView
+                snapshot={displaySnapshot}
+                onChange={setSnapshot}
+                writesEnabled={writesEnabled}
+              />
+            )}
+            {view === "transport" && (
+              <FeesTransportView
+                snapshot={displaySnapshot}
+                onChange={setSnapshot}
+                writesEnabled={writesEnabled}
+              />
+            )}
+            {view === "extra" && (
+              <FeesExtraView
+                snapshot={displaySnapshot}
+                onChange={setSnapshot}
+                writesEnabled={writesEnabled}
+              />
+            )}
+            {view === "publish" && (
+              <FeesPublishView
+                snapshot={displaySnapshot}
+                onChange={setSnapshot}
+                writesEnabled={writesEnabled}
+              />
+            )}
+            {view === "students" && (
+              <FeesStudentsView
+                snapshot={displaySnapshot}
+                onChange={setSnapshot}
+                writesEnabled={writesEnabled}
+              />
+            )}
+          </>
         )}
       </AdminPageTransition>
     </AppShell>

@@ -43,9 +43,11 @@ function buildDraft(
 export function FeesClassFeesView({
   snapshot,
   onChange,
+  writesEnabled = true,
 }: {
   snapshot: FeesSnapshot;
   onChange: (next: FeesSnapshot) => void;
+  writesEnabled?: boolean;
 }) {
   const notify = useAdminToast();
   const classKeys = useMemo(() => listKnownClassKeys(snapshot), [snapshot]);
@@ -63,6 +65,7 @@ export function FeesClassFeesView({
   };
 
   const saveRow = (classKey: string) => {
+    if (!writesEnabled) return;
     let next = snapshot;
     for (const col of CLASS_FEE_COLS) {
       const raw = draft[classKey]?.[col.id] ?? "0";
@@ -74,6 +77,7 @@ export function FeesClassFeesView({
   };
 
   const saveAll = () => {
+    if (!writesEnabled) return;
     let next = snapshot;
     for (const ck of classKeys) {
       for (const col of CLASS_FEE_COLS) {
@@ -91,11 +95,17 @@ export function FeesClassFeesView({
       <Card>
         <CardHeader
           title="Class fees"
-          hint="Default tuition and books per class · transport is set in Transport fees"
+          hint={
+            writesEnabled
+              ? "Default tuition and books per class · transport is set in Transport fees"
+              : "Read-only tuition and books from API"
+          }
           action={
+            writesEnabled ? (
             <Button size="sm" variant="primary" onClick={saveAll}>
               Save all
             </Button>
+            ) : undefined
           }
         />
         <CardBody className="p-0">
@@ -106,7 +116,7 @@ export function FeesClassFeesView({
                 {CLASS_FEE_COLS.map((c) => (
                   <Th key={c.id}>{c.label}</Th>
                 ))}
-                <Th align="right">Actions</Th>
+                {writesEnabled ? <Th align="right">Actions</Th> : null}
               </tr>
             </thead>
             <tbody>
@@ -117,17 +127,20 @@ export function FeesClassFeesView({
                     <Td key={col.id}>
                       <TextInput
                         className="w-[7.5rem] font-mono text-xs"
+                        disabled={!writesEnabled}
                         value={draft[ck]?.[col.id] ?? "0"}
                         onChange={(e) => setCell(ck, col.id, e.target.value)}
                         aria-label={`${ck} ${col.label}`}
                       />
                     </Td>
                   ))}
+                  {writesEnabled ? (
                   <Td align="right">
                     <Button size="sm" onClick={() => saveRow(ck)}>
                       Save
                     </Button>
                   </Td>
+                  ) : null}
                 </Tr>
               ))}
             </tbody>

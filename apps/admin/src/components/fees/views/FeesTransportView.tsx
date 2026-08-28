@@ -46,9 +46,11 @@ import {
 export function FeesTransportView({
   snapshot,
   onChange,
+  writesEnabled = true,
 }: {
   snapshot: FeesSnapshot;
   onChange: (next: FeesSnapshot) => void;
+  writesEnabled?: boolean;
 }) {
   const notify = useAdminToast();
   const catId = CORE_CATEGORY_IDS.transport;
@@ -116,6 +118,7 @@ export function FeesTransportView({
   );
 
   const saveSectionFee = () => {
+    if (!writesEnabled) return;
     if (!activeSection || sectionStudents.length === 0) {
       notify("Select a section");
       return;
@@ -135,7 +138,7 @@ export function FeesTransportView({
   };
 
   const clearSectionFee = () => {
-    if (!activeSection) return;
+    if (!writesEnabled || !activeSection) return;
     let next = snapshot;
     for (const student of sectionStudents) {
       next = clearStudentOverride(next, student.id, catId);
@@ -154,6 +157,7 @@ export function FeesTransportView({
   }, [snapshot, classKeys, catId]);
 
   const saveClassRow = (classKey: string) => {
+    if (!writesEnabled) return;
     const amount = Number((classDraft[classKey] ?? "0").replace(/,/g, "")) || 0;
     onChange(setClassDefaultAmount(snapshot, classKey, catId, amount));
     notify(`Class transport default saved for ${classKey}`);
@@ -176,6 +180,7 @@ export function FeesTransportView({
           title="Transport fee · section"
           hint="Set one transport fee for a class section · not linked to bus stops"
           action={
+            writesEnabled ? (
             <div className="flex flex-wrap gap-2">
               {activeSection && existingOverride.length > 0 ? (
                 <Button size="sm" variant="outline" onClick={clearSectionFee}>
@@ -186,6 +191,7 @@ export function FeesTransportView({
                 Save fee
               </Button>
             </div>
+            ) : undefined
           }
         />
         <CardBody className="border-b border-border">
@@ -221,6 +227,7 @@ export function FeesTransportView({
               <TextInput
                 className="font-mono"
                 value={feeDraft}
+                disabled={!writesEnabled}
                 onChange={(e) => setFeeDraft(e.target.value)}
                 placeholder="Amount for this section"
               />
@@ -228,6 +235,7 @@ export function FeesTransportView({
             <Field label="Note">
               <TextInput
                 value={noteDraft}
+                disabled={!writesEnabled}
                 onChange={(e) => setNoteDraft(e.target.value)}
                 placeholder="e.g. Section B · Jul 2026"
               />
@@ -327,7 +335,7 @@ export function FeesTransportView({
               <tr>
                 <Th>Class</Th>
                 <Th>Transport (₹)</Th>
-                <Th align="right">Actions</Th>
+                {writesEnabled ? <Th align="right">Actions</Th> : null}
               </tr>
             </thead>
             <tbody>
@@ -337,6 +345,7 @@ export function FeesTransportView({
                   <Td>
                     <TextInput
                       className="w-[7.5rem] font-mono text-xs"
+                      disabled={!writesEnabled}
                       value={classDraft[ck] ?? "0"}
                       onChange={(e) =>
                         setClassDraft((prev) => ({ ...prev, [ck]: e.target.value }))
@@ -344,11 +353,13 @@ export function FeesTransportView({
                       aria-label={`${ck} transport`}
                     />
                   </Td>
+                  {writesEnabled ? (
                   <Td align="right">
                     <Button size="sm" onClick={() => saveClassRow(ck)}>
                       Save
                     </Button>
                   </Td>
+                  ) : null}
                 </Tr>
               ))}
             </tbody>

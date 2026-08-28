@@ -29,9 +29,11 @@ import { Plus, Trash2 } from "lucide-react";
 export function FeesExtraView({
   snapshot,
   onChange,
+  writesEnabled = true,
 }: {
   snapshot: FeesSnapshot;
   onChange: (next: FeesSnapshot) => void;
+  writesEnabled?: boolean;
 }) {
   const notify = useAdminToast();
   const classKeys = useMemo(() => listKnownClassKeys(snapshot), [snapshot]);
@@ -52,6 +54,7 @@ export function FeesExtraView({
   };
 
   const save = () => {
+    if (!writesEnabled) return;
     if (!name.trim()) {
       notify("Enter a fee name");
       return;
@@ -86,6 +89,7 @@ export function FeesExtraView({
   };
 
   const remove = (id: string, label: string) => {
+    if (!writesEnabled) return;
     onChange(removeCategory(snapshot, id));
     notify(`Removed ${label}`);
   };
@@ -97,9 +101,11 @@ export function FeesExtraView({
           title="Extra fee fields"
           hint="Add custom categories · assign amount and classes"
           action={
+            writesEnabled ? (
             <Button size="sm" variant="primary" onClick={openAdd}>
               <Plus className="size-3.5" /> Add field
             </Button>
+            ) : undefined
           }
         />
         <CardBody className="p-0">
@@ -114,7 +120,7 @@ export function FeesExtraView({
                   <Th>Name</Th>
                   <Th>Assigned classes</Th>
                   <Th>Sample amount</Th>
-                  <Th align="right">Actions</Th>
+                  {writesEnabled ? <Th align="right">Actions</Th> : null}
                 </tr>
               </thead>
               <tbody>
@@ -145,6 +151,7 @@ export function FeesExtraView({
                         )}
                       </Td>
                       <Td mono>{sample != null ? formatInr(sample) : "—"}</Td>
+                      {writesEnabled ? (
                       <Td align="right">
                         <Button
                           size="sm"
@@ -155,6 +162,7 @@ export function FeesExtraView({
                           <Trash2 className="size-3.5" />
                         </Button>
                       </Td>
+                      ) : null}
                     </Tr>
                   );
                 })}
@@ -164,6 +172,7 @@ export function FeesExtraView({
         </CardBody>
       </Card>
 
+      {writesEnabled ? (
       <Modal
         open={open}
         onClose={() => setOpen(false)}
@@ -261,6 +270,7 @@ export function FeesExtraView({
           </p>
         </div>
       </Modal>
+      ) : null}
     </PageStack>
   );
 }

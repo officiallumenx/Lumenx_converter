@@ -27,9 +27,11 @@ import { FeesClassChecklist } from "@/components/fees/FeesClassChecklist";
 export function FeesPublishView({
   snapshot,
   onChange,
+  writesEnabled = true,
 }: {
   snapshot: FeesSnapshot;
   onChange: (next: FeesSnapshot) => void;
+  writesEnabled?: boolean;
 }) {
   const notify = useAdminToast();
   const classKeys = useMemo(() => listKnownClassKeys(snapshot), [snapshot]);
@@ -44,6 +46,7 @@ export function FeesPublishView({
   );
 
   const doPublish = () => {
+    if (!writesEnabled) return;
     if (!scopeAll && selected.length === 0) {
       notify("Select at least one class");
       return;
@@ -98,6 +101,7 @@ export function FeesPublishView({
   };
 
   const doUnpublish = () => {
+    if (!writesEnabled) return;
     onChange(unpublishFees(snapshot));
     notify("Fees set to draft — parents will not see dues until republished");
   };
@@ -124,7 +128,9 @@ export function FeesPublishView({
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
+                disabled={!writesEnabled}
                 onMouseDown={(e) => {
+                  if (!writesEnabled) return;
                   e.preventDefault();
                   setScopeAll(true);
                 }}
@@ -139,7 +145,9 @@ export function FeesPublishView({
               </button>
               <button
                 type="button"
+                disabled={!writesEnabled}
                 onMouseDown={(e) => {
+                  if (!writesEnabled) return;
                   e.preventDefault();
                   setScopeAll(false);
                   setSelected([]);
@@ -182,6 +190,8 @@ export function FeesPublishView({
           </div>
 
           <div className="flex flex-wrap gap-2">
+            {writesEnabled ? (
+            <>
             <Button size="sm" variant="primary" onClick={doPublish}>
               Publish
             </Button>
@@ -190,6 +200,12 @@ export function FeesPublishView({
                 Revert to draft
               </Button>
             ) : null}
+            </>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Publish and unpublish are not enabled in API read-only mode.
+              </p>
+            )}
           </div>
         </CardBody>
       </Card>

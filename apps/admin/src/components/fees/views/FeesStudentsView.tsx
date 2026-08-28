@@ -68,9 +68,11 @@ const STATUS_PILL: Record<
 export function FeesStudentsView({
   snapshot,
   onChange,
+  writesEnabled = true,
 }: {
   snapshot: FeesSnapshot;
   onChange: (next: FeesSnapshot) => void;
+  writesEnabled?: boolean;
 }) {
   const notify = useAdminToast();
   const classes = useMemo(() => feesStudentClasses(), []);
@@ -162,7 +164,7 @@ export function FeesStudentsView({
   };
 
   const saveConcession = (categoryId: string, name: string) => {
-    if (!student) return;
+    if (!writesEnabled || !student) return;
     const amount = Number((editAmounts[categoryId] ?? "0").replace(/,/g, "")) || 0;
     const next = setStudentOverride(snapshot, {
       studentId: student.id,
@@ -175,7 +177,7 @@ export function FeesStudentsView({
   };
 
   const resetLine = (categoryId: string, name: string) => {
-    if (!student) return;
+    if (!writesEnabled || !student) return;
     const next = clearStudentOverride(snapshot, student.id, categoryId);
     onChange(next);
     const resolved = resolveChildFeeLines(
@@ -196,6 +198,7 @@ export function FeesStudentsView({
   };
 
   const recordPayment = () => {
+    if (!writesEnabled) return;
     if (!student || !account) return;
     const amount = Number(payAmount.replace(/,/g, "")) || 0;
     if (amount <= 0) {
@@ -373,6 +376,7 @@ export function FeesStudentsView({
                 </div>
               </div>
 
+              {writesEnabled ? (
               <div className="rounded-lg border border-border p-4 space-y-3">
                 <div>
                   <div className="text-sm font-semibold">Record offline payment</div>
@@ -425,6 +429,7 @@ export function FeesStudentsView({
                   Record payment
                 </Button>
               </div>
+              ) : null}
             </CardBody>
           </Card>
 
@@ -518,6 +523,7 @@ export function FeesStudentsView({
                         <Td>
                           <TextInput
                             className="w-28 font-mono text-xs"
+                            disabled={!writesEnabled}
                             value={editAmounts[line.categoryId] ?? String(line.amount)}
                             onChange={(e) =>
                               setEditAmounts((prev) => ({
@@ -530,6 +536,7 @@ export function FeesStudentsView({
                         <Td>
                           <TextInput
                             className="min-w-[8rem] text-xs"
+                            disabled={!writesEnabled}
                             placeholder="Optional"
                             value={notes[line.categoryId] ?? ""}
                             onChange={(e) =>
@@ -540,6 +547,7 @@ export function FeesStudentsView({
                             }
                           />
                         </Td>
+                        {writesEnabled ? (
                         <Td align="right">
                           <div className="inline-flex gap-1">
                             <Button
@@ -559,6 +567,7 @@ export function FeesStudentsView({
                             ) : null}
                           </div>
                         </Td>
+                        ) : null}
                       </Tr>
                     ))}
                   </tbody>
