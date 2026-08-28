@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { StudentAttendanceWorkspace } from "@/components/student-attendance";
+import { StudentAttendanceApiPage } from "@/components/student-attendance/StudentAttendanceApiPage";
+import { isApiAuthMode } from "@/auth/auth-mode";
 
 import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-labels";
 
@@ -10,12 +12,18 @@ export const Route = createFileRoute("/student-attendance")({
 });
 
 function StudentAttendancePage() {
+  const apiMode = isApiAuthMode();
+
   return (
     <AppShell
       title={M.attendance}
-      subtitle="Select class · section · date · mark via Attendance Engine"
+      subtitle={
+        apiMode
+          ? "API mode · read-only · view attendance registers by class · section · date"
+          : "Select class · section · date · mark via Attendance Engine"
+      }
     >
-      <StudentAttendanceWorkspace />
+      {apiMode ? <StudentAttendanceApiPage /> : <StudentAttendanceWorkspace />}
     </AppShell>
   );
 }
