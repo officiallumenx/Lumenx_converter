@@ -30,3 +30,11 @@ export async function listParents(
 
   return client.get<ParentDto[]>(`/api/v1/parents?${query.toString()}`);
 }
+
+export async function getParent(
+  parentId: string,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<ParentDto> {
+  assertApiMode();
+  return client.get<ParentDto>(`/api/v1/parents/${parentId}`);
+}

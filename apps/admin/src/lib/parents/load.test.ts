@@ -136,3 +136,20 @@ describe("loadParentsList", () => {
     expect(result.items).toEqual([]);
   });
 });
+
+describe("loadParentDetail", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+  });
+
+  it("returns demo status in demo mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
+    const getParent = vi.fn();
+    vi.doMock("./api", () => ({ getParent }));
+    const { loadParentDetail } = await import("./load");
+    const result = await loadParentDetail("parent-1");
+    expect(result.status).toBe("demo");
+    expect(getParent).not.toHaveBeenCalled();
+  });
+});

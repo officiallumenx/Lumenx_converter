@@ -6,9 +6,9 @@
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/active-institute";
-import { listParents } from "./api";
-import { parentDtosToListItems } from "./map";
-import type { ParentListItem } from "./types";
+import { listParents, getParent } from "./api";
+import { parentDtosToListItems, parentDtoToDetailItem } from "./map";
+import type { ParentDetailItem, ParentListItem } from "./types";
 
 export type ParentsListStatus =
   | "demo"
@@ -24,6 +24,52 @@ export type ParentsListState = {
   items: ParentListItem[];
   errorMessage: string | null;
 };
+
+export type ParentDetailState = {
+  status: ParentsListStatus;
+  parent: ParentDetailItem | null;
+  errorMessage: string | null;
+};
+
+export async function loadParentDetail(
+  parentId: string,
+): Promise<ParentDetailState> {
+  if (!isApiAuthMode()) {
+    return { status: "demo", parent: null, errorMessage: null };
+  }
+
+  if (!parentId?.trim()) {
+    return { status: "error", parent: null, errorMessage: "Parent id is required." };
+  }
+
+  try {
+    const dto = await getParent(parentId.trim());
+    return {
+      status: "ready",
+      parent: parentDtoToDetailItem(dto),
+      errorMessage: null,
+    };
+  } catch (err) {
+    const status =
+      err instanceof ApiClientError
+        ? err.status
+        : err &&
+            typeof err === "object" &&
+            "status" in err &&
+            typeof (err as { status: unknown }).status === "number"
+          ? (err as { status: number }).status
+          : null;
+    const message = err instanceof Error ? err.message : "Failed to load parent";
+
+    if (status === 403) {
+      return { status: "forbidden", parent: null, errorMessage: message };
+    }
+    if (status === 404) {
+      return { status: "empty", parent: null, errorMessage: "Parent not found." };
+    }
+    return { status: "error", parent: null, errorMessage: message };
+  }
+}
 
 export async function loadParentsList(
   activeInstituteId: string | null,

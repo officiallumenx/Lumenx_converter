@@ -1,6 +1,7 @@
 import type {
   GuardianLinkDto,
   GuardianRelationship,
+  ParentDetailItem,
   ParentDto,
   ParentListItem,
   ParentRelationshipLabel,
@@ -63,6 +64,16 @@ export function parentDtoToListItem(dto: ParentDto): ParentListItem {
     linkedChildrenLabel: linkedChildrenLabel(count),
     password: "",
     identityLabel: parentIdentityLabel(dto),
+  };
+}
+
+export function parentDtoToDetailItem(dto: ParentDto): ParentDetailItem {
+  const base = parentDtoToListItem(dto);
+  return {
+    ...base,
+    legacyCode: dto.legacyCode?.trim() || null,
+    updatedAt: dto.updatedAt,
+    links: activeLinks(dto.links),
   };
 }
 

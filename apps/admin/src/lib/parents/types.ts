@@ -59,6 +59,12 @@ export type ParentListItem = {
   identityLabel: string;
 };
 
+export type ParentDetailItem = ParentListItem & {
+  legacyCode: string | null;
+  updatedAt: string;
+  links: GuardianLinkDto[];
+};
+
 export type ListParentsParams = {
   instituteId: string;
 };

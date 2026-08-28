@@ -40,6 +40,8 @@ import {
   type ParentRelationship,
 } from "@/lib/parent-directory-store";
 import { loadStudentDirectory } from "@/lib/student-directory-store";
+import { ParentProfileApiPage } from "@/components/parents/ParentProfileApiPage";
+import { isApiAuthMode } from "@/auth/auth-mode";
 
 export const Route = createFileRoute("/parents/$id")({
   head: ({ params }) => ({ meta: [{ title: `${params.id} — LumenX Admin` }] }),
@@ -57,6 +59,13 @@ function Detail({ label, value }: { label: string; value?: string }) {
 
 function ParentProfile() {
   const { id } = Route.useParams();
+  if (isApiAuthMode()) {
+    return <ParentProfileApiPage parentId={id} />;
+  }
+  return <ParentProfileDemo id={id} />;
+}
+
+function ParentProfileDemo({ id }: { id: string }) {
   const notify = useAdminToast();
   const [parent, setParent] = useState<ParentDirectoryRecord | null>(() => findParentRecord(id));
   const [editing, setEditing] = useState(false);
