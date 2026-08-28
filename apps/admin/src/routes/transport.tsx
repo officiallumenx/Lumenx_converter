@@ -24,19 +24,28 @@ import { useInstituteContext } from "@/lib/institutes";
 import {
   loadTransportDriversList,
   loadTransportRoutesList,
+  loadTransportSettings,
   loadTransportVehiclesList,
   resolveTransportDriversListView,
   resolveTransportRoutesListView,
+  resolveTransportSettingsView,
   resolveTransportVehiclesListView,
   shouldCommitTransportDriversLoad,
   shouldCommitTransportRoutesLoad,
+  shouldCommitTransportSettingsLoad,
   shouldCommitTransportVehiclesLoad,
   type TransportDriversListStatus,
   type TransportListStatus,
   type TransportRoutesListStatus,
+  type TransportSettingsLoadStatus,
   type TransportVehiclesListStatus,
 } from "@/lib/transport";
-import type { TransportDriver, TransportRoute, TransportVehicle } from "@/lib/transport-store";
+import type {
+  TransportDriver,
+  TransportRoute,
+  TransportSettings,
+  TransportVehicle,
+} from "@/lib/transport-store";
 
 export type TransportHubView =
   | "dashboard"
@@ -161,6 +170,13 @@ function TransportPage() {
   const [routesResolvedForInstituteId, setRoutesResolvedForInstituteId] =
     useState<string | null>(null);
 
+  const [apiSettings, setApiSettings] = useState<TransportSettings | null>(null);
+  const [settingsLoadStatus, setSettingsLoadStatus] =
+    useState<TransportSettingsLoadStatus>(() => (apiMode ? "loading" : "demo"));
+  const [settingsLoadError, setSettingsLoadError] = useState<string | null>(null);
+  const [settingsResolvedForInstituteId, setSettingsResolvedForInstituteId] =
+    useState<string | null>(null);
+
   const vehiclesListView = resolveTransportVehiclesListView({
     apiMode,
     instituteStatus: instituteCtx.status,
@@ -194,6 +210,17 @@ function TransportPage() {
     instituteErrorMessage: instituteCtx.errorMessage,
   });
 
+  const settingsView = resolveTransportSettingsView({
+    apiMode,
+    instituteStatus: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+    resolvedForInstituteId: settingsResolvedForInstituteId,
+    storedSettings: apiSettings,
+    storedStatus: settingsLoadStatus,
+    storedErrorMessage: settingsLoadError,
+    instituteErrorMessage: instituteCtx.errorMessage,
+  });
+
   const vehiclesListHint = transportListHint(
     vehiclesListView.status,
     vehiclesListView.errorMessage,
@@ -214,6 +241,18 @@ function TransportPage() {
     "routes",
     "You do not have access to transport routes for this institute.",
   );
+
+  const settingsHint =
+    settingsView.status === "loading"
+      ? "Loading transport settings…"
+      : settingsView.status === "needs_institute"
+        ? "Select an institute to load transport settings."
+        : settingsView.status === "forbidden"
+          ? settingsView.errorMessage ??
+            "You do not have access to transport settings for this institute."
+          : settingsView.status === "error"
+            ? settingsView.errorMessage ?? "Failed to load transport settings."
+            : null;
 
   useEffect(() => {
     if (!apiMode || view !== "vehicles") return;
@@ -413,6 +452,72 @@ function TransportPage() {
     instituteCtx.errorMessage,
   ]);
 
+  useEffect(() => {
+    if (!apiMode || view !== "settings") return;
+
+    if (instituteCtx.status === "loading") {
+      setApiSettings(null);
+      setSettingsLoadStatus("loading");
+      setSettingsLoadError(null);
+      setSettingsResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "error" ||
+      instituteCtx.status === "forbidden"
+    ) {
+      setApiSettings(null);
+      setSettingsLoadStatus(
+        instituteCtx.status === "forbidden" ? "forbidden" : "error",
+      );
+      setSettingsLoadError(instituteCtx.errorMessage);
+      setSettingsResolvedForInstituteId(null);
+      return;
+    }
+
+    if (
+      instituteCtx.status === "needs_selection" ||
+      instituteCtx.status === "empty" ||
+      !instituteCtx.activeInstituteId
+    ) {
+      setApiSettings(null);
+      setSettingsLoadStatus("needs_institute");
+      setSettingsLoadError(null);
+      setSettingsResolvedForInstituteId(null);
+      return;
+    }
+
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    let cancelled = false;
+    setSettingsLoadStatus("loading");
+    setSettingsLoadError(null);
+    void loadTransportSettings(requestInstituteId).then((next) => {
+      if (
+        !shouldCommitTransportSettingsLoad({
+          cancelled,
+          requestInstituteId,
+          activeInstituteId: activeInstituteIdRef.current,
+        })
+      ) {
+        return;
+      }
+      setApiSettings(next.settings);
+      setSettingsLoadStatus(next.status);
+      setSettingsLoadError(next.errorMessage);
+      setSettingsResolvedForInstituteId(requestInstituteId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    apiMode,
+    view,
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    instituteCtx.errorMessage,
+  ]);
+
   const vehiclesSnapshot = useMemo(() => {
     if (!apiMode || view !== "vehicles" || !vehiclesListView.rowsValid) {
       return snapshot;
@@ -434,6 +539,13 @@ function TransportPage() {
     return { ...snapshot, routes: routesListView.items };
   }, [apiMode, view, snapshot, routesListView.items, routesListView.rowsValid]);
 
+  const settingsSnapshot = useMemo(() => {
+    if (!apiMode || view !== "settings" || !settingsView.rowsValid || !settingsView.settings) {
+      return snapshot;
+    }
+    return { ...snapshot, settings: settingsView.settings };
+  }, [apiMode, view, snapshot, settingsView.settings, settingsView.rowsValid]);
+
   useEffect(() => {
     startTransportAdminNotificationSync();
   }, []);
@@ -451,7 +563,9 @@ function TransportPage() {
             ? `API mode · read-only · ${driversListView.rowsValid ? driversListView.items.length : "…"} drivers`
             : apiMode && view === "routes"
               ? `API mode · read-only · ${routesListView.rowsValid ? routesListView.items.length : "…"} routes`
-              : VIEW_SUBTITLES[view]
+              : apiMode && view === "settings"
+                ? "API mode · read-only · transport settings"
+                : VIEW_SUBTITLES[view]
       }
     >
       <TransportHubNav active={view} />
@@ -496,7 +610,13 @@ function TransportPage() {
         {view === "emergencies" && <TransportEmergenciesView />}
         {view === "analytics" && <TransportAnalyticsView snapshot={snapshot} />}
         {view === "settings" && (
-          <TransportSettingsView snapshot={snapshot} onChange={setSnapshot} />
+          <TransportSettingsView
+            snapshot={settingsSnapshot}
+            onChange={setSnapshot}
+            writesEnabled={writesEnabled}
+            listBlocked={apiMode && !settingsView.rowsValid}
+            listHint={settingsHint}
+          />
         )}
       </AdminPageTransition>
     </AppShell>

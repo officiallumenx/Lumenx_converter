@@ -74,3 +74,16 @@ export type ListTransportRoutesParams = {
 export type ListTransportStopsParams = {
   routeId: string;
 };
+
+export type TransportSettingsDto = {
+  instituteId: string;
+  defaultNotificationRadiusM: number;
+  defaultPickupBufferMins: number;
+  workingDays: number[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type GetTransportSettingsParams = {
+  instituteId: string;
+};

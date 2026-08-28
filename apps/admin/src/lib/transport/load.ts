@@ -1,11 +1,12 @@
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/active-institute";
-import type { TransportDriver, TransportRoute, TransportVehicle } from "@/lib/transport-store";
-import { listTransportDrivers, listTransportRoutes, listTransportStops, listTransportVehicles } from "./api";
+import type { TransportDriver, TransportRoute, TransportSettings, TransportVehicle } from "@/lib/transport-store";
+import { getTransportSettings, listTransportDrivers, listTransportRoutes, listTransportStops, listTransportVehicles } from "./api";
 import {
   driverDtosToTransportDrivers,
   routeDtosToTransportRoutes,
+  transportSettingsDtoToTransportSettings,
   vehicleDtosToTransportVehicles,
 } from "./map";
 
@@ -21,6 +22,7 @@ export type TransportListStatus =
 export type TransportVehiclesListStatus = TransportListStatus;
 export type TransportDriversListStatus = TransportListStatus;
 export type TransportRoutesListStatus = TransportListStatus;
+export type TransportSettingsLoadStatus = TransportListStatus;
 
 export type TransportVehiclesListState = {
   status: TransportVehiclesListStatus;
@@ -37,6 +39,12 @@ export type TransportDriversListState = {
 export type TransportRoutesListState = {
   status: TransportRoutesListStatus;
   items: TransportRoute[];
+  errorMessage: string | null;
+};
+
+export type TransportSettingsLoadState = {
+  status: TransportSettingsLoadStatus;
+  settings: TransportSettings | null;
   errorMessage: string | null;
 };
 
@@ -163,6 +171,56 @@ export async function loadTransportRoutesList(
     return {
       status: "error",
       items: [],
+      errorMessage: message,
+    };
+  }
+}
+
+export async function loadTransportSettings(
+  activeInstituteId: string | null,
+): Promise<TransportSettingsLoadState> {
+  if (!isApiAuthMode()) {
+    return { status: "demo", settings: null, errorMessage: null };
+  }
+
+  if (!activeInstituteId || !isInstituteUuid(activeInstituteId)) {
+    return {
+      status: "needs_institute",
+      settings: null,
+      errorMessage: null,
+    };
+  }
+
+  try {
+    const dto = await getTransportSettings({ instituteId: activeInstituteId });
+    return {
+      status: "ready",
+      settings: transportSettingsDtoToTransportSettings(dto),
+      errorMessage: null,
+    };
+  } catch (err) {
+    const status =
+      err instanceof ApiClientError
+        ? err.status
+        : err &&
+            typeof err === "object" &&
+            "status" in err &&
+            typeof (err as { status: unknown }).status === "number"
+          ? (err as { status: number }).status
+          : null;
+    const message =
+      err instanceof Error ? err.message : "Failed to load transport settings";
+
+    if (status === 403) {
+      return {
+        status: "forbidden",
+        settings: null,
+        errorMessage: message,
+      };
+    }
+    return {
+      status: "error",
+      settings: null,
       errorMessage: message,
     };
   }

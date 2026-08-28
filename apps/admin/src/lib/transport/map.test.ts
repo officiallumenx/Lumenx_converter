@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   driverDtoToTransportDriver,
   routeDtoToTransportRoute,
+  transportSettingsDtoToTransportSettings,
   vehicleDtoToTransportVehicle,
 } from "./map";
-import type { DriverDto, RouteDto, StopDto, VehicleDto } from "./types";
+import type { DriverDto, RouteDto, StopDto, TransportSettingsDto, VehicleDto } from "./types";
 
 const dto: VehicleDto = {
   id: "vv111111-1111-4111-8111-111111111111",
@@ -123,5 +124,24 @@ describe("routeDtoToTransportRoute", () => {
       "ss222222-2222-4222-8222-222222222222",
     ]);
     expect(mapped.lockedBy).toBe(route.lockedByUserId);
+  });
+});
+
+describe("transportSettingsDtoToTransportSettings", () => {
+  const dto: TransportSettingsDto = {
+    instituteId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    defaultNotificationRadiusM: 200,
+    defaultPickupBufferMins: 10,
+    workingDays: [1, 2, 3, 4, 5],
+    createdAt: "2026-06-01T10:00:00Z",
+    updatedAt: "2026-06-01T10:00:00Z",
+  };
+
+  it("maps working day numbers to weekday labels", () => {
+    expect(transportSettingsDtoToTransportSettings(dto)).toEqual({
+      defaultNotificationRadiusM: 200,
+      defaultPickupBufferMins: 10,
+      workingDays: ["Mon", "Tue", "Wed", "Thu", "Fri"],
+    });
   });
 });

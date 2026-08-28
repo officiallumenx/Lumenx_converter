@@ -2,9 +2,19 @@ import type {
   AdminRouteStop,
   TransportDriver,
   TransportRoute,
+  TransportSettings,
   TransportVehicle,
 } from "@/lib/transport-store";
-import type { DriverDto, RouteDto, StopDto, VehicleDto } from "./types";
+import type { DriverDto, RouteDto, StopDto, TransportSettingsDto, VehicleDto } from "./types";
+
+const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+
+function workingDayNumbersToLabels(days: number[]): string[] {
+  return days
+    .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)
+    .map((day) => WEEKDAY_LABELS[day]!)
+    .filter(Boolean);
+}
 
 function formatLicenseExpiry(iso: string | null): string {
   if (!iso) return "";
@@ -104,4 +114,14 @@ export async function routeDtosToTransportRoutes(
   return Promise.all(
     rows.map(async (route) => routeDtoToTransportRoute(route, await fetchStops(route.id))),
   );
+}
+
+export function transportSettingsDtoToTransportSettings(
+  dto: TransportSettingsDto,
+): TransportSettings {
+  return {
+    defaultNotificationRadiusM: dto.defaultNotificationRadiusM,
+    defaultPickupBufferMins: dto.defaultPickupBufferMins,
+    workingDays: workingDayNumbersToLabels(dto.workingDays),
+  };
 }

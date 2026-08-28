@@ -13,6 +13,8 @@ import type {
   ListTransportVehiclesParams,
   RouteDto,
   StopDto,
+  GetTransportSettingsParams,
+  TransportSettingsDto,
   VehicleDto,
 } from "./types";
 
@@ -81,5 +83,20 @@ export async function listTransportStops(
   query.set("route_id", params.routeId.trim());
   return client.get<StopDto[]>(
     `/api/v1/transport/stops?${query.toString()}`,
+  );
+}
+
+export async function getTransportSettings(
+  params: GetTransportSettingsParams,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<TransportSettingsDto> {
+  assertApiMode();
+  if (!isInstituteUuid(params.instituteId)) {
+    throw new Error("institute_id must be a valid UUID");
+  }
+  const query = new URLSearchParams();
+  query.set("institute_id", params.instituteId.trim());
+  return client.get<TransportSettingsDto>(
+    `/api/v1/transport/settings?${query.toString()}`,
   );
 }
