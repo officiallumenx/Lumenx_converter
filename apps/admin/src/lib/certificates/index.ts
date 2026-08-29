@@ -3,6 +3,12 @@ export {
   assertApiMode as assertCertificatesApiMode,
 } from "./api";
 export {
+  issueCertificate,
+  revokeCertificate,
+  type IssueCertificateInput,
+  type RevokeCertificateInput,
+} from "./mutations";
+export {
   loadIssuedCertificatesList,
   type CertificatesListStatus,
   type IssuedCertificatesListState,

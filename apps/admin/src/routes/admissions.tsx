@@ -73,6 +73,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
+import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
   loadAdmissionsList,
   loadAdmissionsOpeningsList,
@@ -83,6 +84,9 @@ import {
   shouldCommitAdmissionsLoad,
   shouldCommitAdmissionsOpeningsLoad,
   shouldCommitAdmissionsProgramsLoad,
+  transitionAdmissionApplication,
+  updateAdmissionOpening,
+  updateAdmissionProgram,
   type AdmissionApplicationListItem,
   type AdmissionOpeningListItem,
   type AdmissionOpeningStatus,
@@ -148,7 +152,7 @@ function AdmissionsPage() {
   const notify = useAdminToast();
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
-  const writesEnabled = !apiMode;
+  const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
   const { profile, profileId } = useDemoProfile();
   const college = isCollegeMode();
   const defaultDept = profile.academic.departments[0]?.code ?? "MPC";
@@ -181,6 +185,7 @@ function AdmissionsPage() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
@@ -312,6 +317,7 @@ function AdmissionsPage() {
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
+    reloadKey,
   ]);
 
   useEffect(() => {
@@ -377,6 +383,7 @@ function AdmissionsPage() {
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
+    reloadKey,
   ]);
 
   useEffect(() => {
@@ -442,6 +449,7 @@ function AdmissionsPage() {
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
+    reloadKey,
   ]);
 
   useEffect(() => {
@@ -575,6 +583,12 @@ function AdmissionsPage() {
 
   const convertToStudent = (draft: AdmissionConvertDraft) => {
     if (!writesEnabled || !selected) return;
+    if (apiMode) {
+      notify(
+        "Convert to student is not available via Admissions API yet — use Students create after approving in portal",
+      );
+      return;
+    }
     const directory = loadStudentDirectory();
     const id = nextStudentId(directory);
     const studentDraft = {
@@ -669,6 +683,12 @@ function AdmissionsPage() {
   };
 
   const openConvert = (id: string) => {
+    if (apiMode) {
+      notify(
+        "Convert to student is not available via Admissions API yet — approve in portal, then create the student in Students",
+      );
+      return;
+    }
     if (!writesEnabled) {
       notify("Convert to student is not enabled in API read-only mode");
       return;
@@ -682,7 +702,7 @@ function AdmissionsPage() {
       title="Admissions"
       subtitle={
         apiMode
-          ? `API mode · read-only · ${countLabel(activeApps.length)} applications · ${programsListView.rowsValid ? programsListView.items.length : "…"} programs · ${openingsListView.rowsValid ? openingsListView.items.length : "…"} openings · document counts not in list view`
+          ? `API mode · ${countLabel(activeApps.length)} applications · ${programsListView.rowsValid ? programsListView.items.length : "…"} programs · ${openingsListView.rowsValid ? openingsListView.items.length : "…"} openings · document counts not in list view`
           : "Review applications in Connect · add approved students here"
       }
       actions={
@@ -709,12 +729,12 @@ function AdmissionsPage() {
             <div className="min-w-0 space-y-1.5">
               <div className="text-xs font-semibold text-foreground">
                 {apiMode
-                  ? "Admissions applications (read-only)"
+                  ? "Admissions applications"
                   : "Check and decide on applications in the Admissions portal"}
               </div>
               <p className="max-w-xl text-[12px] leading-relaxed text-muted-foreground">
                 {apiMode
-                  ? "Application pipeline, programs, and openings from the API. Convert-to-student and Connect portal workflows remain demo-only in this cutover."
+                  ? "Programs, openings, and application pipeline from the API. Catalog status updates are writable; convert-to-student remains portal/Students-side."
                   : "Move applications through Submitted → Review → Verification → Parent Confirmation → Approved (or Rejected / Withdrawn) in Connect. Come back to Admin only to add an approved applicant as a student (and create a parent login if needed)."}
               </p>
             </div>
@@ -736,7 +756,7 @@ function AdmissionsPage() {
             <Card>
               <CardHeader
                 title="Admission programs"
-                hint="Read-only program catalog from the API"
+                hint="Program catalog from the API"
                 action={
                   <Pill tone="neutral">
                     {programsListView.rowsValid
@@ -784,6 +804,29 @@ function AdmissionsPage() {
                         <Pill tone={programStatusTone(program.status)}>
                           {program.status.replace("_", " ")}
                         </Pill>
+                        {writesEnabled && program.status !== "archived" ? (
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              void updateAdmissionProgram(program.id, {
+                                status: "archived",
+                              })
+                                .then(() => {
+                                  setReloadKey((k) => k + 1);
+                                  notify(`Archived ${program.name}`);
+                                })
+                                .catch((err) => {
+                                  notify(
+                                    err instanceof Error
+                                      ? err.message
+                                      : "Failed to archive program",
+                                  );
+                                });
+                            }}
+                          >
+                            Archive
+                          </Button>
+                        ) : null}
                       </div>
                     </div>
                   ))}
@@ -794,7 +837,7 @@ function AdmissionsPage() {
             <Card>
               <CardHeader
                 title="Admission openings"
-                hint="Read-only openings linked to programs"
+                hint="Openings linked to programs"
                 action={
                   <Pill tone="neutral">
                     {openingsListView.rowsValid
@@ -843,6 +886,29 @@ function AdmissionsPage() {
                         <Pill tone={openingStatusTone(opening.status)}>
                           {opening.status}
                         </Pill>
+                        {writesEnabled && opening.status === "open" ? (
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              void updateAdmissionOpening(opening.id, {
+                                status: "closed",
+                              })
+                                .then(() => {
+                                  setReloadKey((k) => k + 1);
+                                  notify(`Closed ${opening.name}`);
+                                })
+                                .catch((err) => {
+                                  notify(
+                                    err instanceof Error
+                                      ? err.message
+                                      : "Failed to close opening",
+                                  );
+                                });
+                            }}
+                          >
+                            Close
+                          </Button>
+                        ) : null}
                       </div>
                     </div>
                   ))}
@@ -1053,9 +1119,59 @@ function AdmissionsPage() {
                     </div>
                   </div>
                   <Pill tone={stageTone(app.stage)}>{stageLabel(app.stage)}</Pill>
-                  {writesEnabled && app.stage === "approved" ? (
+                  {!apiMode && writesEnabled && app.stage === "approved" ? (
                     <Button variant="primary" size="sm" onClick={() => openConvert(app.id)}>
                       <UserPlus className="size-3.5" /> Convert
+                    </Button>
+                  ) : null}
+                  {apiMode && writesEnabled && app.stage === "review" ? (
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={() => {
+                        void transitionAdmissionApplication(app.id, {
+                          status: "approved",
+                        })
+                          .then(() => {
+                            setReloadKey((k) => k + 1);
+                            notify(`${app.name} approved`);
+                          })
+                          .catch((err) => {
+                            notify(
+                              err instanceof Error
+                                ? err.message
+                                : "Failed to transition application",
+                            );
+                          });
+                      }}
+                    >
+                      Approve
+                    </Button>
+                  ) : null}
+                  {apiMode &&
+                  writesEnabled &&
+                  (app.stage === "review" || app.stage === "verification") ? (
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        void transitionAdmissionApplication(app.id, {
+                          status: "rejected",
+                          decisionNote: "Rejected from Admin",
+                        })
+                          .then(() => {
+                            setReloadKey((k) => k + 1);
+                            notify(`${app.name} rejected`);
+                          })
+                          .catch((err) => {
+                            notify(
+                              err instanceof Error
+                                ? err.message
+                                : "Failed to transition application",
+                            );
+                          });
+                      }}
+                    >
+                      Reject
                     </Button>
                   ) : null}
                 </li>

@@ -18,18 +18,23 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiReadUnavailablePanel } from "@/components/ApiReadUnavailablePanel";
 import { useInstituteContext } from "@/lib/institutes";
-import type { GeneratedDocument, TemplateRecord } from "@/lib/template-management/types";
+import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
+  activateDocumentTemplate,
   loadDocumentsGeneratedList,
   loadDocumentsTemplatesList,
   resolveDocumentsGeneratedListView,
   resolveDocumentsTemplatesListView,
   shouldCommitDocumentsGeneratedLoad,
   shouldCommitDocumentsTemplatesLoad,
+  transitionGeneratedDocument,
   type DocumentsGeneratedListStatus,
   type DocumentsListStatus,
   type DocumentsTemplatesListStatus,
 } from "@/lib/documents";
+import { useAdminToast } from "@/components/AdminActionToast";
+import { getNextWorkflowState } from "@/lib/template-management/store";
+import type { GeneratedDocument, TemplateRecord } from "@/lib/template-management/types";
 
 /** Kept for legacy document components that still reference this type. */
 export type DocHubView =
@@ -110,11 +115,13 @@ function documentsListHint(
 function DocumentsPage() {
   const { view } = Route.useSearch();
   const navigate = useNavigate();
+  const notify = useAdminToast();
   const apiMode = isApiAuthMode();
-  const writesEnabled = !apiMode;
   const instituteCtx = useInstituteContext();
+  const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
+  const [reloadKey, setReloadKey] = useState(0);
 
   const [apiTemplates, setApiTemplates] = useState<TemplateRecord[]>([]);
   const [templatesListStatus, setTemplatesListStatus] =
@@ -230,6 +237,7 @@ function DocumentsPage() {
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
+    reloadKey,
   ]);
 
   useEffect(() => {
@@ -296,6 +304,7 @@ function DocumentsPage() {
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
+    reloadKey,
   ]);
 
   const apiTemplatesForView = useMemo(() => {
@@ -319,13 +328,13 @@ function DocumentsPage() {
     if (!apiMode) return base;
     if (view === "templates") {
       return templatesListView.rowsValid
-        ? `API mode · read-only · ${templatesListView.items.length} templates`
-        : `API mode · read-only · ${templatesHint ?? "…"}`;
+        ? `API mode · ${templatesListView.items.length} templates`
+        : `API mode · ${templatesHint ?? "…"}`;
     }
     if (view === "generated") {
       return generatedListView.rowsValid
-        ? `API mode · read-only · ${generatedListView.items.length} documents`
-        : `API mode · read-only · ${generatedHint ?? "…"}`;
+        ? `API mode · ${generatedListView.items.length} documents`
+        : `API mode · ${generatedHint ?? "…"}`;
     }
     if (
       view === "dashboard" ||
@@ -394,6 +403,14 @@ function DocumentsPage() {
             writesEnabled={writesEnabled}
             listBlocked={apiMode && !templatesListView.rowsValid}
             listHint={templatesHint}
+            onActivateTemplate={
+              apiMode
+                ? async (id) => {
+                    await activateDocumentTemplate(id);
+                    setReloadKey((k) => k + 1);
+                  }
+                : undefined
+            }
           />
         )}
         {view === "generate" ? (
@@ -413,6 +430,46 @@ function DocumentsPage() {
             writesEnabled={writesEnabled}
             listBlocked={apiMode && !generatedListView.rowsValid}
             listHint={generatedHint}
+            onAdvanceDocument={
+              apiMode
+                ? async (doc) => {
+                    const next = getNextWorkflowState(doc.kind, doc.workflowState);
+                    if (!next) {
+                      notify("Document is already in a terminal workflow state");
+                      return;
+                    }
+                    try {
+                      await transitionGeneratedDocument(doc.id, {
+                        workflowState: next,
+                      });
+                      setReloadKey((k) => k + 1);
+                      notify(`Advanced to ${next.replace(/_/g, " ")}`);
+                    } catch (err) {
+                      notify(
+                        err instanceof Error ? err.message : "Failed to advance document",
+                      );
+                    }
+                  }
+                : undefined
+            }
+            onRejectDocument={
+              apiMode
+                ? async (doc, reason) => {
+                    try {
+                      await transitionGeneratedDocument(doc.id, {
+                        workflowState: "rejected",
+                        rejectionReason: reason,
+                      });
+                      setReloadKey((k) => k + 1);
+                      notify("Document rejected");
+                    } catch (err) {
+                      notify(
+                        err instanceof Error ? err.message : "Failed to reject document",
+                      );
+                    }
+                  }
+                : undefined
+            }
           />
         )}
         {view === "published" ? (

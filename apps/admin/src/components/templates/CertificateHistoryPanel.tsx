@@ -6,8 +6,12 @@ import {
   CardHeader,
   DataTable,
   EmptyState,
+  Button,
+  Field,
+  Modal,
   Pill,
   SearchInput,
+  TextInput,
   Th,
   Td,
   Tr,
@@ -71,15 +75,21 @@ type CertificateHistoryPanelProps = {
   records?: IssuedCertificateHistoryItem[];
   listBlocked?: boolean;
   listHint?: string | null;
+  writesEnabled?: boolean;
+  onRevokeCertificate?: (id: string, reason: string) => void | Promise<void>;
 };
 
 export function CertificateHistoryPanel({
   records,
   listBlocked = false,
   listHint = null,
+  writesEnabled = false,
+  onRevokeCertificate,
 }: CertificateHistoryPanelProps) {
   const [rows, setRows] = useState<HistoryRow[]>(() => records ?? listIssuedCertificates());
   const [query, setQuery] = useState("");
+  const [revokeId, setRevokeId] = useState<string | null>(null);
+  const [revokeReason, setRevokeReason] = useState("Issued in error");
 
   useEffect(() => {
     if (records) {
@@ -149,6 +159,7 @@ export function CertificateHistoryPanel({
                 <Th>Issued by</Th>
                 <Th>File</Th>
                 <Th>Status</Th>
+                {writesEnabled && onRevokeCertificate ? <Th>Actions</Th> : null}
               </tr>
             </thead>
             <tbody>
@@ -190,12 +201,57 @@ export function CertificateHistoryPanel({
                   <Td>
                     <Pill tone={statusTone(row.status)}>{row.status}</Pill>
                   </Td>
+                  {writesEnabled && onRevokeCertificate ? (
+                    <Td>
+                      {row.status === "issued" ? (
+                        <Button size="sm" onClick={() => setRevokeId(row.id)}>
+                          Revoke
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </Td>
+                  ) : null}
                 </Tr>
               ))}
             </tbody>
           </DataTable>
         </CardBody>
       )}
+      {writesEnabled && onRevokeCertificate ? (
+        <Modal
+          open={Boolean(revokeId)}
+          onClose={() => setRevokeId(null)}
+          title="Revoke certificate"
+          size="sm"
+          footer={
+            <>
+              <Button onClick={() => setRevokeId(null)}>Cancel</Button>
+              <Button
+                variant="danger"
+                onClick={() => {
+                  if (!revokeId) return;
+                  void Promise.resolve(
+                    onRevokeCertificate(revokeId, revokeReason.trim() || "Revoked"),
+                  ).then(() => {
+                    setRevokeId(null);
+                    setRevokeReason("Issued in error");
+                  });
+                }}
+              >
+                Revoke
+              </Button>
+            </>
+          }
+        >
+          <Field label="Reason">
+            <TextInput
+              value={revokeReason}
+              onChange={(e) => setRevokeReason(e.target.value)}
+            />
+          </Field>
+        </Modal>
+      ) : null}
     </Card>
   );
 }

@@ -37,6 +37,7 @@ type PublishedCertificateCatalogViewProps = {
   issuedRecords?: IssuedCertificateHistoryItem[];
   issuedListBlocked?: boolean;
   issuedListHint?: string | null;
+  onRevokeCertificate?: (id: string, reason: string) => void | Promise<void>;
 };
 
 const STATUS_TONE: Record<TemplateStatus, "success" | "warning" | "neutral"> = {
@@ -104,6 +105,7 @@ export function PublishedCertificateCatalogView({
   issuedRecords,
   issuedListBlocked = false,
   issuedListHint = null,
+  onRevokeCertificate,
 }: PublishedCertificateCatalogViewProps) {
   const { instituteProfile, profile } = useDemoProfile();
   const [templates, setTemplates] = useState<CertificateTemplate[]>([]);
@@ -190,6 +192,8 @@ export function PublishedCertificateCatalogView({
           records={issuedRecords}
           listBlocked={issuedListBlocked}
           listHint={issuedListHint}
+          writesEnabled={writesEnabled}
+          onRevokeCertificate={onRevokeCertificate}
         />
       </PageStack>
     );
@@ -341,7 +345,7 @@ export function PublishedCertificateCatalogView({
         )}
       </Card>
 
-      {writesEnabled ? <CertificateNumberingConfig /> : null}
+      {!apiCatalogMode && writesEnabled ? <CertificateNumberingConfig /> : null}
 
       {!apiCatalogMode && writesEnabled && selected ? (
         <CertificateStudentPopulatePanel
@@ -370,6 +374,8 @@ export function PublishedCertificateCatalogView({
         records={issuedRecords}
         listBlocked={issuedListBlocked}
         listHint={issuedListHint}
+        writesEnabled={writesEnabled}
+        onRevokeCertificate={onRevokeCertificate}
       />
 
       {!apiCatalogMode ? (

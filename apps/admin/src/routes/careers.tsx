@@ -37,6 +37,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
+import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
   loadCareerJobsList,
   loadCareersList,
@@ -44,6 +45,8 @@ import {
   resolveCareersListView,
   shouldCommitCareerJobsLoad,
   shouldCommitCareersLoad,
+  transitionCareerApplication,
+  updateCareerJob,
   type CareerApplicationListItem,
   type CareerJobListItem,
   type CareerJobStatus,
@@ -109,7 +112,7 @@ function CareersPage() {
   const notify = useAdminToast();
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
-  const writesEnabled = !apiMode;
+  const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
   const [apps, setApps] = useState<AdminCareerSyncRow[]>(() =>
     apiMode ? [] : ensureAdminCareerSyncSeed(FALLBACK),
   );
@@ -129,6 +132,7 @@ function CareersPage() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
@@ -224,6 +228,7 @@ function CareersPage() {
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
+    reloadKey,
   ]);
 
   useEffect(() => {
@@ -289,6 +294,7 @@ function CareersPage() {
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
+    reloadKey,
   ]);
 
   useEffect(() => {
@@ -353,6 +359,12 @@ function CareersPage() {
 
   const convertToTeacher = (draft: CareerConvertDraft) => {
     if (!writesEnabled || !selected || !canConvert) return;
+    if (apiMode) {
+      notify(
+        "Hire as teacher is not available via Careers API yet — use Teachers create after selecting in portal",
+      );
+      return;
+    }
     const roleTitle = selected.role;
     const hiredId = selected.id;
     const record = appendTeacherFromCareer(draft);
@@ -385,6 +397,12 @@ function CareersPage() {
   };
 
   const openConvert = (id: string) => {
+    if (apiMode) {
+      notify(
+        "Hire as teacher is not available via Careers API yet — select in portal, then create the teacher in Teachers",
+      );
+      return;
+    }
     if (!writesEnabled) {
       notify("Convert to teacher is not enabled in API read-only mode");
       return;
@@ -398,7 +416,7 @@ function CareersPage() {
       title="Careers"
       subtitle={
         apiMode
-          ? `API mode · read-only · ${countLabel(activeApps.length)} applications · ${jobsListView.rowsValid ? jobsListView.items.length : "…"} jobs`
+          ? `API mode · ${countLabel(activeApps.length)} applications · ${jobsListView.rowsValid ? jobsListView.items.length : "…"} jobs`
           : "Review applicants in Connect · hire approved teachers here"
       }
       actions={
@@ -422,12 +440,12 @@ function CareersPage() {
             <div className="min-w-0 space-y-1.5">
               <div className="text-xs font-semibold text-foreground">
                 {apiMode
-                  ? "Career applications (read-only)"
+                  ? "Career applications"
                   : "Post roles and decide on applicants in the Careers portal"}
               </div>
               <p className="max-w-xl text-[12px] leading-relaxed text-muted-foreground">
                 {apiMode
-                  ? "Job postings and application pipeline counts from the API. Hire-as-teacher and Connect portal workflows remain demo-only in this cutover."
+                  ? "Job postings and application pipeline from the API. Job status and application transitions are writable; hire-as-teacher remains Teachers-side."
                   : "Create vacancies, review documents, schedule interviews, waitlist or reject candidates in Connect. Come back to Admin only to hire an approved applicant as a teacher."}
               </p>
             </div>
@@ -445,7 +463,7 @@ function CareersPage() {
           <Card>
             <CardHeader
               title="Job postings"
-              hint="Read-only vacancies from the API"
+              hint="Vacancies from the API"
               action={
                 <Pill tone="neutral">
                   {jobsListView.rowsValid
@@ -483,6 +501,27 @@ function CareersPage() {
                         <span className="font-medium tabular-nums">{job.openingsCount}</span>
                       </span>
                       <Pill tone={jobStatusTone(job.status)}>{job.status}</Pill>
+                      {writesEnabled && job.status === "open" ? (
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            void updateCareerJob(job.id, { status: "closed" })
+                              .then(() => {
+                                setReloadKey((k) => k + 1);
+                                notify(`Closed ${job.title}`);
+                              })
+                              .catch((err) => {
+                                notify(
+                                  err instanceof Error
+                                    ? err.message
+                                    : "Failed to close job",
+                                );
+                              });
+                          }}
+                        >
+                          Close
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
                 ))}
@@ -530,7 +569,7 @@ function CareersPage() {
             title="Hire approved applicants as teachers"
             hint={
               apiMode
-                ? "Read-only approved applicants from API"
+                ? "Approved applicants from API · hire remains Teachers-side"
                 : "Creates the teacher record · optional Connect login"
             }
             action={
@@ -592,7 +631,7 @@ function CareersPage() {
                     <Pill tone={careerStageTone(app.stage)}>
                       {careerStageLabel(app.stage)}
                     </Pill>
-                    {writesEnabled ? (
+                    {!apiMode && writesEnabled ? (
                     <Button
                       variant="primary"
                       size="sm"
@@ -601,6 +640,30 @@ function CareersPage() {
                     >
                       <UserPlus className="size-3.5" /> Convert to teacher
                     </Button>
+                    ) : null}
+                    {apiMode && writesEnabled ? (
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        onClick={() => {
+                          void transitionCareerApplication(app.id, {
+                            status: "selected",
+                          })
+                            .then(() => {
+                              setReloadKey((k) => k + 1);
+                              notify(`${app.name} marked selected`);
+                            })
+                            .catch((err) => {
+                              notify(
+                                err instanceof Error
+                                  ? err.message
+                                  : "Failed to transition application",
+                              );
+                            });
+                        }}
+                      >
+                        Mark selected
+                      </Button>
                     ) : null}
                   </li>
                 );

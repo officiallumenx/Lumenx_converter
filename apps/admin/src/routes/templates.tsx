@@ -4,14 +4,17 @@ import { PublishedCertificateCatalogView } from "@/components/templates/views/Pu
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
+import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import type { TemplateRecord } from "@/lib/template-management/types";
 import {
   loadIssuedCertificatesList,
   resolveIssuedCertificatesListView,
+  revokeCertificate,
   shouldCommitIssuedCertificatesLoad,
   type CertificatesListStatus,
   type IssuedCertificateHistoryItem,
 } from "@/lib/certificates";
+import { useAdminToast } from "@/components/AdminActionToast";
 import {
   loadDocumentsTemplatesList,
   resolveDocumentsTemplatesListView,
@@ -48,11 +51,13 @@ function listHint(
 }
 
 function CertificatesPage() {
+  const notify = useAdminToast();
   const apiMode = isApiAuthMode();
-  const writesEnabled = !apiMode;
   const instituteCtx = useInstituteContext();
+  const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
+  const [reloadKey, setReloadKey] = useState(0);
 
   const [apiCatalogTemplates, setApiCatalogTemplates] = useState<TemplateRecord[]>([]);
   const [catalogListStatus, setCatalogListStatus] =
@@ -169,6 +174,7 @@ function CertificatesPage() {
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
+    reloadKey,
   ]);
 
   useEffect(() => {
@@ -234,6 +240,7 @@ function CertificatesPage() {
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
+    reloadKey,
   ]);
 
   const catalogTemplatesForView = useMemo(() => {
@@ -256,7 +263,7 @@ function CertificatesPage() {
     const issuedPart = issuedListView.rowsValid
       ? `${issuedListView.items.length} issued`
       : issuedHint ?? "…";
-    return `API mode · read-only · ${catalogPart} · ${issuedPart}`;
+    return `API mode · ${catalogPart} · ${issuedPart}`;
   }, [
     apiMode,
     catalogListView.items.length,
@@ -277,6 +284,21 @@ function CertificatesPage() {
         issuedRecords={issuedRecordsForView}
         issuedListBlocked={apiMode && !issuedListView.rowsValid}
         issuedListHint={issuedHint}
+        onRevokeCertificate={
+          apiMode
+            ? async (id, reason) => {
+                try {
+                  await revokeCertificate(id, { reason });
+                  setReloadKey((k) => k + 1);
+                  notify("Certificate revoked");
+                } catch (err) {
+                  notify(
+                    err instanceof Error ? err.message : "Failed to revoke certificate",
+                  );
+                }
+              }
+            : undefined
+        }
       />
     </AppShell>
   );

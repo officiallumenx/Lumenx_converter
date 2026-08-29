@@ -575,6 +575,8 @@ type DocGeneratedViewProps = {
   writesEnabled?: boolean;
   listBlocked?: boolean;
   listHint?: string | null;
+  onAdvanceDocument?: (doc: GeneratedDocument) => void | Promise<void>;
+  onRejectDocument?: (doc: GeneratedDocument, reason: string) => void | Promise<void>;
 };
 
 export function DocGeneratedView({
@@ -582,6 +584,8 @@ export function DocGeneratedView({
   writesEnabled = true,
   listBlocked = false,
   listHint = null,
+  onAdvanceDocument,
+  onRejectDocument,
 }: DocGeneratedViewProps) {
   const [docs, setDocs] = useState<GeneratedDocument[]>(
     () => documents ?? getGeneratedDocuments(),
@@ -628,6 +632,12 @@ export function DocGeneratedView({
 
   const handleAdvance = (doc: GeneratedDocument) => {
     if (!writesEnabled) return;
+    if (onAdvanceDocument) {
+      void Promise.resolve(onAdvanceDocument(doc)).then(() => {
+        setDetailDoc(null);
+      });
+      return;
+    }
     advanceWorkflowState(doc.id, "Admin User");
     refresh();
     setDetailDoc((prev) =>
@@ -639,6 +649,13 @@ export function DocGeneratedView({
 
   const handleReject = (doc: GeneratedDocument, reason: string) => {
     if (!writesEnabled) return;
+    if (onRejectDocument) {
+      void Promise.resolve(onRejectDocument(doc, reason)).then(() => {
+        setRejectingDoc(null);
+        setDetailDoc(null);
+      });
+      return;
+    }
     rejectWorkflowDocument(doc.id, "Admin User", reason);
     refresh();
     setRejectingDoc(null);
@@ -647,6 +664,13 @@ export function DocGeneratedView({
 
   const handleBatchAdvance = () => {
     if (!writesEnabled) return;
+    if (onAdvanceDocument) {
+      const selectedDocs = docs.filter((d) => selected.has(d.id));
+      void Promise.all(selectedDocs.map((doc) => onAdvanceDocument(doc))).then(() => {
+        setSelected(new Set());
+      });
+      return;
+    }
     batchAdvanceWorkflow([...selected], "Admin User");
     setSelected(new Set());
     refresh();

@@ -31,6 +31,7 @@ type DocTemplatesViewProps = {
   writesEnabled?: boolean;
   listBlocked?: boolean;
   listHint?: string | null;
+  onActivateTemplate?: (id: string) => void | Promise<void>;
 };
 
 const KIND_LABEL = {
@@ -55,6 +56,7 @@ export function DocTemplatesView({
   writesEnabled = true,
   listBlocked = false,
   listHint = null,
+  onActivateTemplate,
 }: DocTemplatesViewProps) {
   const revision = useTemplateStore();
   const notify = useAdminToast();
@@ -213,6 +215,18 @@ export function DocTemplatesView({
                           <Button
                             size="sm"
                             onClick={() => {
+                              if (onActivateTemplate) {
+                                void Promise.resolve(onActivateTemplate(t.id))
+                                  .then(() => notify(`Activated "${t.name}"`))
+                                  .catch((err) => {
+                                    notify(
+                                      err instanceof Error
+                                        ? err.message
+                                        : "Failed to activate template",
+                                    );
+                                  });
+                                return;
+                              }
                               activateTemplate(t.id);
                               notify(`Activated "${t.name}"`);
                             }}

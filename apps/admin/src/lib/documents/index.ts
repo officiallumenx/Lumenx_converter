@@ -4,6 +4,20 @@ export {
   assertApiMode as assertDocumentsApiMode,
 } from "./api";
 export {
+  createDocumentTemplate,
+  updateDocumentTemplate,
+  activateDocumentTemplate,
+  archiveDocumentTemplate,
+  deleteDocumentTemplate,
+  createGeneratedDocument,
+  transitionGeneratedDocument,
+  deleteGeneratedDocument,
+  type CreateDocumentTemplateInput,
+  type UpdateDocumentTemplateInput,
+  type CreateGeneratedDocumentInput,
+  type TransitionGeneratedDocumentInput,
+} from "./mutations";
+export {
   loadDocumentsGeneratedList,
   loadDocumentsTemplatesList,
   type DocumentsGeneratedListState,

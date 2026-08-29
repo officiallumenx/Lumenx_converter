@@ -13,6 +13,29 @@ export type {
 } from "./types";
 export { assertApiMode, listCareerApplications, listCareerJobs } from "./api";
 export {
+  createCareerJob,
+  updateCareerJob,
+  deleteCareerJob,
+  upsertCandidateProfile,
+  createCareerApplication,
+  transitionCareerApplication,
+  createCareerInquiry,
+  respondCareerInquiry,
+  createTalentPoolEntry,
+  deleteTalentPoolEntry,
+  createSavedItem,
+  deleteSavedItem,
+  type CreateCareerJobInput,
+  type UpdateCareerJobInput,
+  type UpsertCandidateProfileInput,
+  type CreateCareerApplicationInput,
+  type TransitionCareerApplicationInput,
+  type CreateCareerInquiryInput,
+  type RespondCareerInquiryInput,
+  type CreateTalentPoolEntryInput,
+  type CreateSavedItemInput,
+} from "./mutations";
+export {
   careerApplicationDtoToListItem,
   careerApplicationDtosToListItems,
   careerJobDtoToListItem,
