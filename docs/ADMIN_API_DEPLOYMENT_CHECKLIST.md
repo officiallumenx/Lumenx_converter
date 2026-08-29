@@ -1,6 +1,6 @@
 # Admin ↔ Backend API deployment checklist
 
-Verified requirements from the current LumenX monorepo (`apps/admin`, `backend`).  
+Verified requirements from the current LumenX monorepo (`apps/admin`, `backend`).
 Do not paste real secrets or production hostnames into this file.
 
 ## Backend (`@lumenx/api`)
