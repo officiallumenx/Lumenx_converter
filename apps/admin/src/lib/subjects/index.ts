@@ -7,6 +7,13 @@ export type {
 } from "./types";
 export { assertApiMode, getSubject, listSubjects } from "./api";
 export {
+  createSubject,
+  updateSubject,
+  deleteSubject,
+  type CreateSubjectInput,
+  type UpdateSubjectInput,
+} from "./mutations";
+export {
   applicableClassCodesToGrades,
   gradesDisplayLabel,
   subjectDtoToDetailItem,

@@ -6,6 +6,13 @@ export type {
 } from "./types";
 export { assertApiMode, listAcademicYears } from "./api";
 export {
+  createAcademicYear,
+  updateAcademicYear,
+  deleteAcademicYear,
+  type CreateAcademicYearInput,
+  type UpdateAcademicYearInput,
+} from "./mutations";
+export {
   academicYearDtoToListItem,
   academicYearDtosToListItems,
 } from "./map";

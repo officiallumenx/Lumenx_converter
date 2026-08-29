@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
+import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
+  createAcademicYear,
+  updateAcademicYear,
+  deleteAcademicYear,
   loadAcademicYearsList,
   resolveAcademicYearsListView,
   shouldCommitAcademicYearsLoad,
@@ -76,7 +80,7 @@ export function AcademicYearsView() {
   const notify = useAdminToast();
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
-  const writesEnabled = !apiMode;
+  const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
   const [years, setYears] = useState<AcademicYear[]>(() =>
     apiMode ? [] : loadAcademicYears(),
   );
@@ -88,6 +92,7 @@ export function AcademicYearsView() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
@@ -108,14 +113,14 @@ export function AcademicYearsView() {
   const [viewSection, setViewSection] = useState<string>("all");
   const [viewStatus, setViewStatus] = useState<"all" | AcademicYearRecordStatus>("all");
   const [modal, setModal] = useState<"create" | "edit" | null>(null);
-  const [editing, setEditing] = useState<AcademicYear | null>(null);
+  const [editing, setEditing] = useState<YearRow | null>(null);
   const [form, setForm] = useState<YearForm>(EMPTY_FORM);
-  const [deleteTarget, setDeleteTarget] = useState<AcademicYear | null>(null);
-  const [activateTarget, setActivateTarget] = useState<AcademicYear | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<YearRow | null>(null);
+  const [activateTarget, setActivateTarget] = useState<YearRow | null>(null);
   const [confirmText, setConfirmText] = useState("");
   const viewRecordsRef = useRef<HTMLDivElement>(null);
   const today = todayIsoDate();
-
+  const demoRecordsEnabled = !apiMode;
   useEffect(() => {
     if (!apiMode) return;
 
@@ -179,6 +184,7 @@ export function AcademicYearsView() {
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
+    reloadKey,
   ]);
 
   useEffect(() => {
@@ -321,7 +327,7 @@ export function AcademicYearsView() {
     setModal("create");
   };
 
-  const openEdit = (year: AcademicYear) => {
+  const openEdit = (year: YearRow) => {
     setEditing(year);
     setForm({
       label: year.label,
@@ -341,6 +347,46 @@ export function AcademicYearsView() {
       notify("End date must be on or after start date");
       return;
     }
+
+    if (apiMode) {
+      const instituteId = instituteCtx.activeInstituteId;
+      if (!instituteId) {
+        notify("Select an institute first");
+        return;
+      }
+      const code =
+        ("code" in (editing ?? {}) && editing && "code" in editing && editing.code
+          ? editing.code
+          : label.replace(/\s+/g, "-").slice(0, 50)) || "AY";
+      const request =
+        modal === "edit" && editing
+          ? updateAcademicYear(editing.id, {
+              name: label,
+              startsOn: form.startDate,
+              endsOn: form.endDate,
+            })
+          : createAcademicYear({
+              instituteId,
+              name: label,
+              code,
+              startsOn: form.startDate,
+              endsOn: form.endDate,
+              status: "upcoming",
+            });
+      void request
+        .then(() => {
+          setModal(null);
+          setEditing(null);
+          setForm(EMPTY_FORM);
+          setReloadKey((k) => k + 1);
+          notify(modal === "edit" ? "Academic year updated" : "Academic year created");
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to save academic year");
+        });
+      return;
+    }
+
     if (modal === "create") {
       updateYears((prev) => [
         ...prev,
@@ -368,8 +414,17 @@ export function AcademicYearsView() {
     setForm(EMPTY_FORM);
   };
 
-  const openActivate = (year: AcademicYear) => {
-    const check = canActivateAcademicYear(year, activationMeta, today);
+  const openActivate = (year: YearRow) => {
+    if (apiMode) {
+      if (year.status === "active") {
+        notify("This year is already active");
+        return;
+      }
+      setActivateTarget(year);
+      setConfirmText("");
+      return;
+    }
+    const check = canActivateAcademicYear(year as AcademicYear, activationMeta, today);
     if (!check.allowed) {
       notify(check.reason ?? "Cannot activate this year");
       return;
@@ -384,7 +439,27 @@ export function AcademicYearsView() {
       notify('Type "confirm" to continue');
       return;
     }
-    const check = canActivateAcademicYear(activateTarget, activationMeta, today);
+
+    if (apiMode) {
+      void (async () => {
+        try {
+          const previous = displayItems.find((y) => y.status === "active");
+          if (previous && previous.id !== activateTarget.id) {
+            await updateAcademicYear(previous.id, { status: "completed" });
+          }
+          await updateAcademicYear(activateTarget.id, { status: "active" });
+          notify(`${activateTarget.label} activated`);
+          setActivateTarget(null);
+          setConfirmText("");
+          setReloadKey((k) => k + 1);
+        } catch (err) {
+          notify(err instanceof Error ? err.message : "Failed to activate academic year");
+        }
+      })();
+      return;
+    }
+
+    const check = canActivateAcademicYear(activateTarget as AcademicYear, activationMeta, today);
     if (!check.allowed) {
       notify(check.reason ?? "Cannot activate this year");
       setActivateTarget(null);
@@ -410,7 +485,18 @@ export function AcademicYearsView() {
     setConfirmText("");
   };
 
-  const archive = (year: AcademicYear) => {
+  const archive = (year: YearRow) => {
+    if (apiMode) {
+      void updateAcademicYear(year.id, { status: "archived" })
+        .then(() => {
+          setReloadKey((k) => k + 1);
+          notify(`${year.label} archived`);
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to archive academic year");
+        });
+      return;
+    }
     updateYears((prev) =>
       prev.map((y) => (y.id === year.id ? { ...y, status: "archived" as const } : y)),
     );
@@ -419,11 +505,22 @@ export function AcademicYearsView() {
 
   const confirmDelete = () => {
     if (!deleteTarget || deleteTarget.status !== "upcoming") return;
+    if (apiMode) {
+      void deleteAcademicYear(deleteTarget.id)
+        .then(() => {
+          setDeleteTarget(null);
+          setReloadKey((k) => k + 1);
+          notify(`${deleteTarget.label} deleted`);
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to delete academic year");
+        });
+      return;
+    }
     updateYears((prev) => prev.filter((y) => y.id !== deleteTarget.id));
     notify(`${deleteTarget.label} deleted`);
     setDeleteTarget(null);
   };
-
   return (
     <PageStack>
       <KpiGrid cols={4}>
@@ -433,7 +530,7 @@ export function AcademicYearsView() {
         <Kpi label="Completed / archived" value={countLabel(counts.completed)} />
       </KpiGrid>
 
-      {writesEnabled ? (
+      {demoRecordsEnabled ? (
       <Card>
         <CardHeader
           title="Activation rules"
@@ -476,7 +573,7 @@ export function AcademicYearsView() {
           title="Academic years"
           hint={
             apiMode
-              ? "API mode · read-only · institute academic sessions"
+              ? "API mode · create, activate, archive, and delete academic years"
               : "Create future years · Activate only after start date · type confirm · View opens records below"
           }
           action={
@@ -491,7 +588,7 @@ export function AcademicYearsView() {
           <ToolbarGroup>
             <ToolbarMeta>
               {countLabel(displayItems.length)} year{displayItems.length === 1 ? "" : "s"}
-              {writesEnabled ? ` · today ${today}` : " · API read-only"}
+              {` · today ${today}`}
             </ToolbarMeta>
           </ToolbarGroup>
         </PageToolbar>
@@ -517,9 +614,17 @@ export function AcademicYearsView() {
             </thead>
             <tbody>
               {displayItems.map((year) => {
-                const activateCheck = writesEnabled
-                  ? canActivateAcademicYear(year as AcademicYear, activationMeta, today)
-                  : { allowed: false as const };
+                const activateCheck = apiMode
+                  ? {
+                      allowed: year.status !== "active" && year.status !== "archived",
+                      reason:
+                        year.status === "active"
+                          ? "Already active"
+                          : year.status === "archived"
+                            ? "Archived years cannot be activated"
+                            : undefined,
+                    }
+                  : canActivateAcademicYear(year as AcademicYear, activationMeta, today);
                 return (
                   <Tr key={year.id}>
                     <Td className="font-medium">{year.label}</Td>
@@ -528,7 +633,8 @@ export function AcademicYearsView() {
                     <Td>
                       <div className="flex flex-col gap-1 items-start">
                         {statusPill(year.status)}
-                        {writesEnabled &&
+                        {!apiMode &&
+                        writesEnabled &&
                         !activateCheck.allowed &&
                         year.status !== "active" &&
                         year.status !== "archived" &&
@@ -537,7 +643,8 @@ export function AcademicYearsView() {
                             {activateCheck.reason}
                           </span>
                         ) : null}
-                        {writesEnabled &&
+                        {!apiMode &&
+                        writesEnabled &&
                         activateCheck.allowed &&
                         year.status === "completed" ? (
                           <span className="text-[10px] text-amber-600 dark:text-amber-400 max-w-[14rem]">
@@ -549,7 +656,8 @@ export function AcademicYearsView() {
                     {writesEnabled ? (
                     <Td>
                       <div className="flex flex-wrap justify-end gap-1.5">
-                        {ACADEMIC_YEAR_VIEW_OPTIONS.some((y) => y.id === year.id) ? (
+                        {demoRecordsEnabled &&
+                        ACADEMIC_YEAR_VIEW_OPTIONS.some((y) => y.id === year.id) ? (
                           <Button
                             size="sm"
                             variant="outline"
@@ -559,17 +667,17 @@ export function AcademicYearsView() {
                           </Button>
                         ) : null}
                         {year.status === "upcoming" || year.status === "active" ? (
-                          <Button size="sm" variant="ghost" onClick={() => openEdit(year as AcademicYear)}>
+                          <Button size="sm" variant="ghost" onClick={() => openEdit(year)}>
                             <Pencil className="size-3.5" /> Edit
                           </Button>
                         ) : null}
                         {activateCheck.allowed ? (
-                          <Button size="sm" variant="outline" onClick={() => openActivate(year as AcademicYear)}>
+                          <Button size="sm" variant="outline" onClick={() => openActivate(year)}>
                             <Power className="size-3.5" /> Activate
                           </Button>
                         ) : null}
                         {year.status === "completed" || year.status === "active" ? (
-                          <Button size="sm" variant="outline" onClick={() => archive(year as AcademicYear)}>
+                          <Button size="sm" variant="outline" onClick={() => archive(year)}>
                             <Archive className="size-3.5" /> Archive
                           </Button>
                         ) : null}
@@ -577,7 +685,7 @@ export function AcademicYearsView() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => setDeleteTarget(year as AcademicYear)}
+                            onClick={() => setDeleteTarget(year)}
                           >
                             <Trash2 className="size-3.5 text-destructive" /> Delete
                           </Button>
@@ -594,7 +702,7 @@ export function AcademicYearsView() {
         </CardBody>
       </Card>
 
-      {writesEnabled ? (
+      {demoRecordsEnabled ? (
       <div ref={viewRecordsRef} id="academic-year-records">
         <Card>
           <CardHeader

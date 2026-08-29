@@ -6,13 +6,18 @@ import { AppShell } from "@/components/AppShell";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
+import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
+  createClass,
+  createSection,
+  listClasses,
   loadClassesList,
   resolveClassesListView,
   shouldCommitClassesLoad,
   type ClassListItem,
   type ClassesListStatus,
 } from "@/lib/classes";
+import { listAcademicYears } from "@/lib/academic-years";
 import { Button, Card, EmptyState, Field, Modal, Pill, Select, TextInput } from "@lumenx/ui-admin";
 import { useDemoProfile } from "@/lib/demo-profile-context";
 import {
@@ -38,7 +43,7 @@ function ClassesPage() {
   const navigate = useNavigate();
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
-  const writesEnabled = !apiMode;
+  const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
   const { profileId, profile } = useDemoProfile();
   const academic = profile.academic;
   const college = isCollegeMode();
@@ -53,6 +58,8 @@ function ClassesPage() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [creating, setCreating] = useState(false);
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
@@ -153,6 +160,7 @@ function ClassesPage() {
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
+    reloadKey,
   ]);
 
   useEffect(() => {
@@ -178,6 +186,65 @@ function ClassesPage() {
     const levelMeta = academic.levels.find((item) => item.label === level);
     const department = academic.departments.find((item) => item.id === departmentId);
     if (!levelMeta) return;
+
+    if (apiMode) {
+      const instituteId = instituteCtx.activeInstituteId;
+      if (!instituteId) {
+        notify("Select an institute first");
+        return;
+      }
+      const className =
+        college && department ? `${department.code} · ${level}` : level;
+      const classCode =
+        college && department
+          ? `${department.code}-${levelMeta.shortLabel}`.slice(0, 50)
+          : levelMeta.shortLabel.slice(0, 50);
+      setCreating(true);
+      void (async () => {
+        try {
+          const years = await listAcademicYears({ instituteId });
+          const year =
+            years.find((item) => item.status === "active") ?? years[0];
+          if (!year) {
+            notify("Create an academic year before adding classes");
+            return;
+          }
+          const existing = await listClasses({ instituteId });
+          let cls = existing.find(
+            (item) =>
+              item.academicYearId === year.id &&
+              item.code.toLowerCase() === classCode.toLowerCase(),
+          );
+          if (!cls) {
+            cls = await createClass({
+              instituteId,
+              academicYearId: year.id,
+              name: className,
+              code: classCode,
+            });
+          }
+          await createSection({
+            instituteId,
+            academicYearId: year.id,
+            classId: cls.id,
+            name: section,
+            code: section.slice(0, 50),
+            capacity: cap,
+            room: room.trim() || null,
+          });
+          setOpen(false);
+          setRoom("");
+          setStudents("0");
+          setReloadKey((k) => k + 1);
+          notify("Class section created");
+        } catch (err) {
+          notify(err instanceof Error ? err.message : "Failed to create class section");
+        } finally {
+          setCreating(false);
+        }
+      })();
+      return;
+    }
 
     const created: ClassSection =
       college && department
@@ -242,7 +309,7 @@ function ClassesPage() {
       title={academic.classPageTitle}
       subtitle={
         apiMode
-          ? `API mode · read-only · ${countLabel(displayItems.length)} sections`
+          ? `API mode · ${countLabel(displayItems.length)} sections`
           : academic.classPageSubtitle
       }
       actions={
@@ -396,7 +463,9 @@ function ClassesPage() {
           footer={
             <>
               <Button onClick={() => setOpen(false)}>Cancel</Button>
-              <Button variant="primary" onClick={addClass}>Create</Button>
+              <Button variant="primary" onClick={addClass} disabled={creating}>
+                {creating ? "Creating…" : "Create"}
+              </Button>
             </>
           }
         >

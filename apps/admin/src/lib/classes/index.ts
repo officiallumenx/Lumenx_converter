@@ -16,6 +16,18 @@ export {
   listSections,
 } from "./api";
 export {
+  createClass,
+  updateClass,
+  deleteClass,
+  createSection,
+  updateSection,
+  deleteSection,
+  type CreateClassInput,
+  type UpdateClassInput,
+  type CreateSectionInput,
+  type UpdateSectionInput,
+} from "./mutations";
+export {
   classLabelForSection,
   sectionDtoToDetailItem,
   sectionDtoToListItem,

@@ -1,6 +1,12 @@
 export type { InstituteDto, InstituteKind, InstituteStatus, InstituteSettingsDto } from "./types";
 export { listInstitutes, getInstitute, getInstituteSettings } from "./api";
 export {
+  updateInstitute,
+  updateInstituteSettings,
+  type UpdateInstituteInput,
+  type UpdateInstituteSettingsInput,
+} from "./mutations";
+export {
   loadInstituteProfile,
   type InstituteProfileState,
   type InstituteProfileStatus,

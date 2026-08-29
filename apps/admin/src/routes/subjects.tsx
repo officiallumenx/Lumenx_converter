@@ -25,11 +25,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
+import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
   gradesDisplayLabel,
   loadSubjectsList,
   resolveSubjectsListView,
   shouldCommitSubjectsLoad,
+  createSubject as createSubjectApi,
+  updateSubject as updateSubjectApi,
+  deleteSubject as deleteSubjectApi,
   type SubjectListItem,
   type SubjectsListStatus,
 } from "@/lib/subjects";
@@ -76,7 +80,8 @@ function SubjectsPage() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
-  const writesEnabled = !apiMode;
+  const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
+  const teacherAssignEnabled = !apiMode;
   const { profileId, profile } = useDemoProfile();
   const { guardWriteAction, writesAllowed, reason } = useAdminWriteAccess();
   const college = isCollegeMode();
@@ -95,6 +100,7 @@ function SubjectsPage() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
@@ -216,6 +222,7 @@ function SubjectsPage() {
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
+    reloadKey,
   ]);
 
   useEffect(() => {
@@ -313,10 +320,6 @@ function SubjectsPage() {
   };
 
   const saveForm = () => {
-    if (!writesEnabled) {
-      notify("Subject writes are not enabled in API read-only mode");
-      return;
-    }
     if (!name.trim() || !code.trim() || selectedGrades.length === 0) return;
 
     const payload = {
@@ -327,6 +330,44 @@ function SubjectsPage() {
       grades: selectedGrades,
       status,
     };
+
+    if (apiMode) {
+      const instituteId = instituteCtx.activeInstituteId;
+      if (!instituteId) {
+        notify("Select an institute first");
+        return;
+      }
+      const request =
+        formMode === "edit" && editingId
+          ? updateSubjectApi(editingId, {
+              name: payload.name,
+              code: payload.code,
+              category: payload.category,
+              periodsPerWeek: payload.periodsPerWeek,
+              applicableClassCodes: payload.grades,
+              status: payload.status,
+            })
+          : createSubjectApi({
+              instituteId,
+              name: payload.name,
+              code: payload.code,
+              category: payload.category,
+              periodsPerWeek: payload.periodsPerWeek,
+              applicableClassCodes: payload.grades,
+              status: payload.status,
+            });
+      void request
+        .then(() => {
+          setFormOpen(false);
+          resetForm();
+          setReloadKey((k) => k + 1);
+          notify(formMode === "edit" ? "Subject updated" : "Subject created");
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to save subject");
+        });
+      return;
+    }
 
     if (formMode === "edit" && editingId) {
       updateSubject(editingId, payload);
@@ -340,11 +381,22 @@ function SubjectsPage() {
   };
 
   const confirmDelete = () => {
-    if (!writesEnabled) {
-      notify("Subject writes are not enabled in API read-only mode");
+    if (!activeSubject) return;
+
+    if (apiMode) {
+      void deleteSubjectApi(activeSubject.id)
+        .then(() => {
+          setDeleteOpen(false);
+          setActiveSubject(null);
+          setReloadKey((k) => k + 1);
+          notify("Subject deleted");
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to delete subject");
+        });
       return;
     }
-    if (!activeSubject) return;
+
     softDeleteToRecycleBin({
       module: "Subjects",
       title: activeSubject.name,
@@ -366,8 +418,8 @@ function SubjectsPage() {
   };
 
   const saveAssignments = () => {
-    if (!writesEnabled) {
-      notify("Subject writes are not enabled in API read-only mode");
+    if (!teacherAssignEnabled) {
+      notify("Teacher assignment is not available via API yet");
       return;
     }
     if (!activeSubject) return;
@@ -408,7 +460,7 @@ function SubjectsPage() {
       title={profile.academic.subjectsPageTitle}
       subtitle={
         apiMode
-          ? `${countLabel(displayItems.length)} subjects · read-only institute catalog`
+          ? `${countLabel(displayItems.length)} subjects · institute catalog`
           : `${catalog.length} subjects · create, edit, and assign teachers`
       }
       actions={
@@ -482,7 +534,7 @@ function SubjectsPage() {
                 <Th>Category</Th>
                 <Th>{college ? "Years" : "Grades"}</Th>
                 <Th>Periods/wk</Th>
-                {writesEnabled ? <Th>Teachers</Th> : null}
+                {teacherAssignEnabled ? <Th>Teachers</Th> : null}
                 <Th>Status</Th>
                 {writesEnabled ? (
                   <Th className="w-12">
@@ -493,7 +545,7 @@ function SubjectsPage() {
             </thead>
             <tbody className="divide-y divide-border">
               {list.map((s) => {
-                const assigned = writesEnabled
+                const assigned = teacherAssignEnabled
                   ? teachers.filter((t) => s.assignedTeacherIds.includes(t.id))
                   : [];
                 return (
@@ -529,7 +581,7 @@ function SubjectsPage() {
                       {gradesDisplayLabel(s.grades, college)}
                     </td>
                     <td className="px-5 py-3 text-xs font-mono">{s.periodsPerWeek}</td>
-                    {writesEnabled ? (
+                    {teacherAssignEnabled ? (
                       <td className="px-5 py-3">
                         {assigned.length === 0 ? (
                           <span className="text-[11px] text-warning">None assigned</span>
@@ -559,7 +611,11 @@ function SubjectsPage() {
                         <SubjectRowMenu
                           onView={() => openSubjectDetail(s.id)}
                           onEdit={() => openEdit(s as SubjectCatalogItem)}
-                          onAssignTeachers={() => openAssign(s as SubjectCatalogItem)}
+                          onAssignTeachers={
+                            teacherAssignEnabled
+                              ? () => openAssign(s as SubjectCatalogItem)
+                              : undefined
+                          }
                           onDelete={() => openDelete(s as SubjectCatalogItem)}
                         />
                       </td>
@@ -610,23 +666,34 @@ function SubjectsPage() {
         }
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Institute subject" required hint="Choose from approved subjects">
-            <Select value={code} onChange={(e) => selectInstituteSubject(e.target.value)}>
-              <option value="" disabled>
-                Select subject
-              </option>
-              {availableSubjectOptions.map((option) => (
-                <option key={option.code} value={option.code}>
-                  {option.name} · {option.code}
+          {apiMode ? (
+            <Field label="Subject name" required>
+              <TextInput
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Mathematics"
+              />
+            </Field>
+          ) : (
+            <Field label="Institute subject" required hint="Choose from approved subjects">
+              <Select value={code} onChange={(e) => selectInstituteSubject(e.target.value)}>
+                <option value="" disabled>
+                  Select subject
                 </option>
-              ))}
-            </Select>
-          </Field>
+                {availableSubjectOptions.map((option) => (
+                  <option key={option.code} value={option.code}>
+                    {option.name} · {option.code}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
           <Field label="Subject code" required>
             <TextInput
               value={code}
-              readOnly
-              className="bg-muted/30"
+              readOnly={!apiMode}
+              className={apiMode ? undefined : "bg-muted/30"}
+              onChange={(e) => setCode(e.target.value)}
             />
           </Field>
           <Field label="Category">
@@ -806,7 +873,7 @@ function SubjectRowMenu({
 }: {
   onView: () => void;
   onEdit: () => void;
-  onAssignTeachers: () => void;
+  onAssignTeachers?: () => void;
   onDelete: () => void;
 }) {
   const { open, coords, buttonRef, menuRef, run, toggle } = useAnchoredRowMenu({
@@ -831,9 +898,11 @@ function SubjectRowMenu({
             <button type="button" className={itemClass} onClick={() => run(onEdit)}>
               Edit
             </button>
-            <button type="button" className={itemClass} onClick={() => run(onAssignTeachers)}>
-              Assign teachers
-            </button>
+            {onAssignTeachers ? (
+              <button type="button" className={itemClass} onClick={() => run(onAssignTeachers)}>
+                Assign teachers
+              </button>
+            ) : null}
             <div className="border-t border-border" />
             <button
               type="button"

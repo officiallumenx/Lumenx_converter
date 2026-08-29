@@ -28,6 +28,7 @@ import { AdminPlatformReadOnlyBanner } from "@/components/AdminPlatformReadOnlyB
 import { OfflineSyncStatusBar } from "@/components/OfflineSyncStatusBar";
 import { RouteOutletErrorBoundary } from "@/components/RouteOutletErrorBoundary";
 import { loadAcademicYears } from "@/lib/academic-management-data";
+import { loadAcademicYearsList } from "@/lib/academic-years";
 import {
   adminWriteBlockReason,
   canAdminMutate,
@@ -72,7 +73,7 @@ import {
 import { startTransportAdminNotificationSync } from "@/lib/transport-notification-sync";
 import { ApiInstituteSwitcher } from "@/components/ApiInstituteSwitcher";
 import { isApiAuthMode } from "@/auth/auth-mode";
-import { InstituteContextProvider } from "@/lib/institutes";
+import { InstituteContextProvider, useInstituteContext } from "@/lib/institutes";
 import { warnAdminNavContractIfNeeded } from "@/lib/admin-navigation-contract";
 import { useAdminMountTrace, useAdminRouteTransitionTrace } from "@/hooks/useAdminPerformanceTrace";
 import { AdminWriteAccessProvider } from "@/components/admin-write/AdminWriteAccessContext";
@@ -81,6 +82,45 @@ import {
   getAdminSectionItems,
   isRouteActive,
 } from "@/lib/admin-section-nav";
+
+function AcademicYearLockSync() {
+  const { profile } = useDemoProfile();
+  const instituteCtx = useInstituteContext();
+  const apiMode = isApiAuthMode();
+
+  useEffect(() => {
+    try {
+      syncAdminSubscriptionAccess();
+      if (apiMode) {
+        if (instituteCtx.status !== "ready" || !instituteCtx.activeInstituteId) {
+          syncAcademicYearLocked({ locked: true, yearLabel: undefined });
+          return;
+        }
+        let cancelled = false;
+        void loadAcademicYearsList(instituteCtx.activeInstituteId).then((next) => {
+          if (cancelled) return;
+          const active = next.items.find((y) => y.status === "active");
+          syncAcademicYearLocked({
+            locked: !active,
+            yearLabel: active?.label,
+          });
+        });
+        return () => {
+          cancelled = true;
+        };
+      }
+      const active = loadAcademicYears().find((y) => y.status === "active");
+      syncAcademicYearLocked({
+        locked: !active,
+        yearLabel: active?.label,
+      });
+    } catch {
+      // Never let subscription sync freeze Admin chrome after unlock.
+    }
+  }, [apiMode, instituteCtx.status, instituteCtx.activeInstituteId, profile]);
+
+  return null;
+}
 
 export function AdminChrome() {
   const path = useRouterState({ select: (s) => s.location.pathname });
@@ -129,21 +169,6 @@ export function AdminChrome() {
       document.documentElement.classList.remove("lx-keyboard-open");
     };
   }, []);
-
-  useEffect(() => {
-    // Subscription SoT → existing platform-readonly write-gate (no duplicate lock).
-    try {
-      syncAdminSubscriptionAccess();
-      const active = loadAcademicYears().find((y) => y.status === "active");
-      // Locked when there is no active academic year (completed/archived only).
-      syncAcademicYearLocked({
-        locked: !active,
-        yearLabel: active?.label,
-      });
-    } catch {
-      // Never let subscription sync freeze Admin chrome after unlock.
-    }
-  }, [profile]);
 
   useEffect(() => {
     return subscribeSubscriptions(() => {
@@ -478,6 +503,7 @@ export function AdminChrome() {
 
   return (
     <InstituteContextProvider>
+    <AcademicYearLockSync />
     <AdminWriteAccessProvider writesAllowed={writesAllowed} reason={writeBlockReason}>
       <div
       className="flex h-screen-svh max-h-screen-svh w-full overflow-hidden bg-background text-foreground"

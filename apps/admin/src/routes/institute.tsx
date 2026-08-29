@@ -27,6 +27,8 @@ import {
   Upload,
 } from "lucide-react";
 import { useState, useCallback, useEffect, useRef, type ReactNode, type ChangeEvent } from "react";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { InstituteApiProfilePage } from "@/components/institute/InstituteApiProfilePage";
 import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-labels";
 
 export const Route = createFileRoute("/institute")({
@@ -46,7 +48,7 @@ function newSectionEntry(): DemoInstituteSectionEntry {
   return { id: newId("entry"), heading: "", year: "", subheading: "", fields: [] };
 }
 
-function InstitutePage() {
+function InstituteDemoPage() {
   const { instituteProfile, profileId, profile, saveInstituteProfile } = useDemoProfile();
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<DemoInstituteProfile>(() =>
@@ -672,6 +674,11 @@ function InstitutePage() {
       </div>
     </AppShell>
   );
+}
+
+function InstitutePage() {
+  if (isApiAuthMode()) return <InstituteApiProfilePage />;
+  return <InstituteDemoPage />;
 }
 
 function CustomSectionCard({
