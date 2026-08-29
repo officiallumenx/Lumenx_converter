@@ -25,6 +25,11 @@ import {
   type NotificationReadFilter,
 } from "@/lib/notification-center-store";
 import type { NotificationInboxListItem } from "@/lib/notification-inbox";
+import {
+  deleteInboxItem,
+  updateInboxItem,
+} from "@/lib/notification-inbox/mutations";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { useAdminToast } from "@/components/AdminActionToast";
 import {
   AlertTriangle,
@@ -75,6 +80,7 @@ export function NotificationCenterInbox({
 }) {
   const notify = useAdminToast();
   const navigate = useNavigate();
+  const apiMode = isApiAuthMode();
   const [read, setRead] = useState<NotificationReadFilter>("all");
   const [date, setDate] = useState<NotificationDateFilter>("all");
   const [category, setCategory] = useState<NotificationCategory | "all">("all");
@@ -108,21 +114,30 @@ export function NotificationCenterInbox({
   const countLabel = (count: number) =>
     !rowsValid ? "…" : String(count);
 
+  const markRead = (id: string) => {
+    if (apiMode) {
+      return updateInboxItem(id, { read: true }).then(() => onChange());
+    }
+    markAdminNotificationRead(id);
+    onChange();
+    return Promise.resolve();
+  };
+
   const openDetails = (n: InboxRow) => {
     if (!writesEnabled) {
       setSelected(n);
       return;
     }
     if (n.unread) {
-      markAdminNotificationRead(n.id);
-      onChange();
+      void markRead(n.id).catch((err) => {
+        notify(err instanceof Error ? err.message : "Failed to mark read");
+      });
     }
     setSelected(n.unread ? { ...n, unread: false } : n);
   };
 
   const openDeepLink = (n: InboxRow) => {
     if (!writesEnabled) {
-      notify("Notification writes via API are not enabled in this cutover");
       if (n.href) {
         setSelected(null);
         void navigate({ to: n.href as "/" });
@@ -130,8 +145,9 @@ export function NotificationCenterInbox({
       return;
     }
     if (n.unread) {
-      markAdminNotificationRead(n.id);
-      onChange();
+      void markRead(n.id).catch((err) => {
+        notify(err instanceof Error ? err.message : "Failed to mark read");
+      });
     }
     if (n.href) {
       setSelected(null);
@@ -163,6 +179,24 @@ export function NotificationCenterInbox({
                   variant="outline"
                   disabled={unreadCount === 0}
                   onClick={() => {
+                    if (apiMode) {
+                      const unread = items.filter((n) => n.unread);
+                      void Promise.all(
+                        unread.map((n) => updateInboxItem(n.id, { read: true })),
+                      )
+                        .then(() => {
+                          onChange();
+                          notify("All notifications marked read");
+                        })
+                        .catch((err) => {
+                          notify(
+                            err instanceof Error
+                              ? err.message
+                              : "Failed to mark notifications read",
+                          );
+                        });
+                      return;
+                    }
                     markAllAdminNotificationsRead();
                     onChange();
                     notify("All notifications marked read");
@@ -176,6 +210,22 @@ export function NotificationCenterInbox({
                   disabled={items.length === 0}
                   onClick={() => {
                     if (!window.confirm("Delete all notifications from the center?")) return;
+                    if (apiMode) {
+                      void Promise.all(items.map((n) => deleteInboxItem(n.id)))
+                        .then(() => {
+                          setSelected(null);
+                          onChange();
+                          notify("All notifications deleted");
+                        })
+                        .catch((err) => {
+                          notify(
+                            err instanceof Error
+                              ? err.message
+                              : "Failed to delete notifications",
+                          );
+                        });
+                      return;
+                    }
                     deleteAllAdminNotifications();
                     setSelected(null);
                     onChange();
@@ -316,6 +366,22 @@ export function NotificationCenterInbox({
                   size="sm"
                   variant="outline"
                   onClick={() => {
+                    if (apiMode) {
+                      void deleteInboxItem(selected.id)
+                        .then(() => {
+                          setSelected(null);
+                          onChange();
+                          notify("Notification deleted");
+                        })
+                        .catch((err) => {
+                          notify(
+                            err instanceof Error
+                              ? err.message
+                              : "Failed to delete notification",
+                          );
+                        });
+                      return;
+                    }
                     deleteAdminNotification(selected.id);
                     setSelected(null);
                     onChange();

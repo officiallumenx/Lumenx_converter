@@ -20,10 +20,14 @@ import { useAdminToast } from "@/components/AdminActionToast";
 import { examClassDisplayLabel } from "@/lib/exam-timetable-data";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
+import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
+  createAnnouncement,
   loadAnnouncementsList,
   resolveAnnouncementsListView,
   shouldCommitAnnouncementsLoad,
+  updateAnnouncement,
+  type AnnouncementAudienceScope,
   type AnnouncementListItem,
   type AnnouncementsListStatus,
 } from "@/lib/announcements";
@@ -106,6 +110,7 @@ function AnnouncementsPage() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
@@ -201,12 +206,28 @@ function AnnouncementsPage() {
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
+    reloadKey,
   ]);
 
   const classesValid =
     visibility !== "Classes" || classScope === "all" || classSectionKeys.length > 0;
   const willSchedule = scheduleAt.trim().length > 0;
-  const writesEnabled = !apiMode;
+  const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
+
+  const mapAudienceScope = (): AnnouncementAudienceScope => {
+    switch (visibility) {
+      case "Students":
+        return "students";
+      case "Parents":
+        return "parents";
+      case "Teachers":
+        return "teachers";
+      case "Classes":
+        return "classes";
+      default:
+        return "all";
+    }
+  };
 
   const audienceLabel = () => {
     if (visibility !== "Classes") return visibility;
@@ -225,13 +246,62 @@ function AnnouncementsPage() {
   };
 
   const publish = (asDraft = false) => {
-    if (!writesEnabled) {
-      notify("Announcement writes via API are not enabled in this cutover");
-      return;
-    }
+    if (!writesEnabled) return;
     if (!title.trim() || !classesValid) return;
     const audience = audienceLabel();
     const scheduled = !asDraft && willSchedule;
+    if (apiMode) {
+      const instituteId = instituteCtx.activeInstituteId;
+      if (!instituteId) {
+        notify("Select an institute before publishing");
+        return;
+      }
+      const scheduledAt =
+        scheduled && scheduleAt.trim()
+          ? new Date(scheduleAt).toISOString()
+          : null;
+      const done = () => {
+        resetForm();
+        setOpen(false);
+        setReloadKey((k) => k + 1);
+      };
+      if (editingId) {
+        void updateAnnouncement(editingId, {
+          title: title.trim(),
+          body: body.trim() || null,
+          audienceScope: mapAudienceScope(),
+          audienceLabel: audience,
+          scheduledAt,
+        })
+          .then(() => {
+            done();
+            notify("Announcement updated");
+          })
+          .catch((err) => {
+            notify(err instanceof Error ? err.message : "Failed to update announcement");
+          });
+        return;
+      }
+      void createAnnouncement({
+        instituteId,
+        title: title.trim(),
+        body: body.trim() || null,
+        audienceScope: mapAudienceScope(),
+        audienceLabel: audience,
+        scheduledAt,
+        publishNow: !asDraft && !scheduled,
+      })
+        .then((created) => {
+          done();
+          if (asDraft) notify("Announcement saved as draft");
+          else if (scheduled) notify(`"${created.title}" scheduled · ${audience}`);
+          else notify(`"${created.title}" published immediately · ${audience}`);
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to create announcement");
+        });
+      return;
+    }
     if (editingId) {
       setItems((prev) =>
         prev.map((a) =>
@@ -275,8 +345,17 @@ function AnnouncementsPage() {
   };
 
   const togglePin = (id: string) => {
-    if (!writesEnabled) {
-      notify("Announcement writes via API are not enabled in this cutover");
+    if (!writesEnabled) return;
+    if (apiMode) {
+      const current = displayItems.find((a) => a.id === id);
+      void updateAnnouncement(id, { pinned: !current?.pinned })
+        .then(() => {
+          setReloadKey((k) => k + 1);
+          notify("Pin status updated");
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to update pin");
+        });
       return;
     }
     setItems((prev) => prev.map((a) => (a.id === id ? { ...a, pinned: !a.pinned } : a)));
@@ -305,11 +384,7 @@ function AnnouncementsPage() {
           <Button variant="primary" onClick={() => setOpen(true)}>
             <Plus className="size-3.5" /> New announcement
           </Button>
-        ) : (
-          <span className="text-[11px] text-muted-foreground">
-            API mode · read-only list
-          </span>
-        )
+        ) : null
       }
     >
       <Card>

@@ -21,3 +21,12 @@ export {
   type AnnouncementsListView,
   type ResolveAnnouncementsListViewInput,
 } from "./list-view";
+export {
+  createAnnouncement,
+  updateAnnouncement,
+  publishAnnouncement,
+  archiveAnnouncement,
+  deleteAnnouncement,
+  type CreateAnnouncementInput,
+  type UpdateAnnouncementInput,
+} from "./mutations";

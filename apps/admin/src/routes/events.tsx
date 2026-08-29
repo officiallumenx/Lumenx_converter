@@ -37,10 +37,18 @@ import {
 import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-labels";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
+import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
+  cancelEvent,
+  createEvent,
+  deleteEvent,
   loadEventsList,
+  publishEvent,
   resolveEventsListView,
   shouldCommitEventsLoad,
+  updateEvent,
+  type EventKind,
+  type EventReminder,
   type EventsListItem,
   type EventsListStatus,
 } from "@/lib/events";
@@ -98,7 +106,7 @@ function EventsPage() {
   const navigate = useNavigate();
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
-  const writesEnabled = !apiMode;
+  const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
 
   const allCalendarItems = useCalendarEvents();
   const calendarItems = useMemo(
@@ -118,6 +126,7 @@ function EventsPage() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
@@ -198,6 +207,7 @@ function EventsPage() {
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
+    reloadKey,
   ]);
 
   const listHint =
@@ -261,8 +271,48 @@ function EventsPage() {
     setEditingId(null);
   };
 
+  const mapReminder = (label: string): EventReminder => {
+    if (label === "1 hour before") return "one_hour";
+    if (label === "1 week + 1 day") return "one_week_one_day";
+    if (label === "No reminder") return "none";
+    return "one_day";
+  };
+
+  const mapEventKind = (raw: string): { kind: EventKind; customKindLabel?: string | null } => {
+    if (
+      raw === "holiday" ||
+      raw === "exam" ||
+      raw === "meeting" ||
+      raw === "function"
+    ) {
+      return { kind: raw };
+    }
+    return { kind: "custom", customKindLabel: raw };
+  };
+
   const openEdit = (id: string) => {
     if (!writesEnabled) return;
+    if (apiMode) {
+      const item = displayItems.find((e) => e.id === id);
+      if (!item) return;
+      setEditingId(item.id);
+      setNewTitle(item.title);
+      const preset = EVENT_TYPE_PRESETS.some((opt) => opt.value === item.type);
+      if (preset) {
+        setNewTypeChoice(item.type);
+        setCustomType("");
+      } else {
+        setNewTypeChoice("custom");
+        setCustomType(item.type);
+      }
+      setNewLocation(item.location && item.location !== "—" ? item.location : "");
+      setNewDescription(item.description ?? "");
+      setNewReminder(item.reminder ?? "1 day before");
+      setBannerDataUrl(item.bannerDataUrl ?? "");
+      setAudience("All");
+      setOpen(true);
+      return;
+    }
     const item = getCalendarEventById(id);
     if (!item) return;
     setEditingId(item.id);
@@ -291,10 +341,79 @@ function EventsPage() {
     if (!date) return;
     const endParsed = newEnd.trim() ? parseDateTimeLocal(newEnd) : null;
     const endDate = endParsed?.date && endParsed.date !== date ? endParsed.date : undefined;
+    const title = newTitle.trim();
+    const { kind, customKindLabel } = mapEventKind(resolvedType);
+
+    if (apiMode) {
+      const instituteId = instituteCtx.activeInstituteId;
+      if (!instituteId) {
+        notify("Select an institute before scheduling an event");
+        return;
+      }
+      const audienceScope =
+        audience === "Students"
+          ? "students"
+          : audience === "Parents"
+            ? "parents"
+            : audience === "Teachers"
+              ? "teachers"
+              : audience === "Classes"
+                ? "classes"
+                : "all";
+      const payload = {
+        title,
+        kind,
+        customKindLabel: customKindLabel ?? null,
+        startsOn: date,
+        endsOn: endDate ?? null,
+        startTime: time || null,
+        audienceScope: audienceScope as
+          | "all"
+          | "students"
+          | "parents"
+          | "teachers"
+          | "classes",
+        audienceLabel: audienceLabel(),
+        location: newLocation.trim() || null,
+        description: newDescription.trim() || null,
+        reminder: mapReminder(newReminder),
+      };
+      const done = () => {
+        resetForm();
+        setOpen(false);
+        setReloadKey((k) => k + 1);
+      };
+      if (editingId) {
+        void updateEvent(editingId, payload)
+          .then(() => {
+            done();
+            notify(`Event "${title}" updated`);
+          })
+          .catch((err) => {
+            notify(err instanceof Error ? err.message : "Failed to update event");
+          });
+        return;
+      }
+      void createEvent({
+        instituteId,
+        source: "events",
+        published: false,
+        ...payload,
+      })
+        .then(() => {
+          done();
+          notify(`Event "${title}" scheduled`);
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to schedule event");
+        });
+      return;
+    }
+
     const existing = editingId ? getCalendarEventById(editingId) : undefined;
     const nextItem: InstituteCalendarItem = {
       id: editingId ?? createCalendarEventId("evt"),
-      title: newTitle.trim(),
+      title,
       date,
       endDate,
       time: time || undefined,
@@ -315,7 +434,6 @@ function EventsPage() {
       cancellationReason: undefined,
     };
     upsertCalendarEvent(nextItem);
-    const title = newTitle.trim();
     const wasEdit = Boolean(editingId);
     if (wasEdit && existing?.published) {
       const changes: string[] = [];
@@ -339,6 +457,17 @@ function EventsPage() {
 
   const publish = (id: string) => {
     if (!writesEnabled) return;
+    if (apiMode) {
+      void publishEvent(id)
+        .then(() => {
+          setReloadKey((k) => k + 1);
+          notify("Event published to all portals");
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to publish event");
+        });
+      return;
+    }
     publishCalendarEvent(id);
     const item = getCalendarEventById(id);
     if (item) {
@@ -357,6 +486,34 @@ function EventsPage() {
 
   const removeEvent = (id: string) => {
     if (!writesEnabled) return;
+    if (apiMode) {
+      const item = displayItems.find((e) => e.id === id);
+      if (item?.published) {
+        const reason = window.prompt("Cancellation reason (shown to recipients):", "") ?? "";
+        void cancelEvent(id, { cancellationReason: reason })
+          .then(() => {
+            setReloadKey((k) => k + 1);
+            notify("Event cancelled — recipients notified");
+          })
+          .catch((err) => {
+            notify(err instanceof Error ? err.message : "Failed to cancel event");
+          });
+      } else {
+        void deleteEvent(id)
+          .then(() => {
+            setReloadKey((k) => k + 1);
+            notify("Event removed");
+          })
+          .catch((err) => {
+            notify(err instanceof Error ? err.message : "Failed to delete event");
+          });
+      }
+      if (editingId === id) {
+        resetForm();
+        setOpen(false);
+      }
+      return;
+    }
     const item = getCalendarEventById(id);
     if (item?.published) {
       const reason = window.prompt("Cancellation reason (shown to recipients):", "") ?? "";
@@ -383,7 +540,7 @@ function EventsPage() {
       title={M.events}
       subtitle={
         apiMode
-          ? "API mode · read-only · Admin-owned institute events"
+          ? "API mode · create / publish / cancel via events API"
           : "Institute events owned by Admin · Activity events stay with Activity Teacher"
       }
       actions={

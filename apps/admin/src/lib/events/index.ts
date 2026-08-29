@@ -25,3 +25,12 @@ export {
   type EventsListView,
   type ResolveEventsListViewInput,
 } from "./list-view";
+export {
+  createEvent,
+  updateEvent,
+  publishEvent,
+  cancelEvent,
+  deleteEvent,
+  type CreateEventInput,
+  type UpdateEventInput,
+} from "./mutations";

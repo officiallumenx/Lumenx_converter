@@ -23,3 +23,10 @@ export {
   type NotificationInboxListView,
   type ResolveNotificationInboxListViewInput,
 } from "./list-view";
+export {
+  updateInboxItem,
+  deleteInboxItem,
+  emitNotification,
+  type UpdateInboxItemInput,
+  type EmitNotificationInput,
+} from "./mutations";

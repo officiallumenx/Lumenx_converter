@@ -27,10 +27,14 @@ import {
 import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-labels";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
+import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
+  createEvent,
+  deleteEvent,
   loadCalendarList,
   resolveCalendarListView,
   shouldCommitCalendarLoad,
+  updateEvent,
   type CalendarListItem,
   type CalendarListStatus,
 } from "@/lib/calendar";
@@ -74,7 +78,7 @@ function CalendarPage() {
   const notify = useAdminToast();
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
-  const writesEnabled = !apiMode;
+  const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
 
   const [view, setView] = useState<"month" | "year">("year");
   const [selectedMonth, setSelectedMonth] = useState<string>(MONTHS[2]!);
@@ -94,6 +98,7 @@ function CalendarPage() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
@@ -184,6 +189,7 @@ function CalendarPage() {
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
+    reloadKey,
   ]);
 
   useEffect(() => {
@@ -192,8 +198,15 @@ function CalendarPage() {
   }, [instituteCtx.activeInstituteId]);
 
   const openEdit = (id: string) => {
-    if (!writesEnabled) {
-      notify("Calendar writes via API are not enabled in this cutover");
+    if (!writesEnabled) return;
+    if (apiMode) {
+      const item = displayItems.find((d) => d.id === id);
+      if (!item) return;
+      setEditingId(item.id);
+      setNewTitle(item.title);
+      setNewType(toCalKind(item.kind));
+      setNewDateTime(toDateTimeLocal(item.date, item.time || "09:00"));
+      setOpen(true);
       return;
     }
     const item = getCalendarEventById(id);
@@ -206,8 +219,17 @@ function CalendarPage() {
   };
 
   const removeDate = (id: string) => {
-    if (!writesEnabled) {
-      notify("Calendar writes via API are not enabled in this cutover");
+    if (!writesEnabled) return;
+    if (apiMode) {
+      void deleteEvent(id)
+        .then(() => {
+          if (editingId === id) resetForm();
+          setReloadKey((k) => k + 1);
+          notify("Calendar date deleted");
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to delete date");
+        });
       return;
     }
     deleteCalendarEvent(id);
@@ -233,13 +255,56 @@ function CalendarPage() {
   );
 
   const saveDate = () => {
-    if (!writesEnabled) {
-      notify("Calendar writes via API are not enabled in this cutover");
-      return;
-    }
+    if (!writesEnabled) return;
     if (!newTitle.trim() || !newDateTime) return;
     const { date, time } = parseDateTimeLocal(newDateTime);
     if (!date) return;
+    if (apiMode) {
+      const instituteId = instituteCtx.activeInstituteId;
+      if (!instituteId) {
+        notify("Select an institute before saving a calendar date");
+        return;
+      }
+      const done = () => {
+        resetForm();
+        setOpen(false);
+        setReloadKey((k) => k + 1);
+      };
+      if (editingId) {
+        void updateEvent(editingId, {
+          title: newTitle.trim(),
+          kind: newType,
+          startsOn: date,
+          startTime: newType === "holiday" ? null : time || null,
+          source: "calendar",
+        })
+          .then(() => {
+            done();
+            notify("Calendar date updated");
+          })
+          .catch((err) => {
+            notify(err instanceof Error ? err.message : "Failed to update date");
+          });
+        return;
+      }
+      void createEvent({
+        instituteId,
+        title: newTitle.trim(),
+        kind: newType,
+        source: "calendar",
+        startsOn: date,
+        startTime: newType === "holiday" ? null : time || null,
+        published: true,
+      })
+        .then(() => {
+          done();
+          notify("Calendar date added");
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to add date");
+        });
+      return;
+    }
     const existing = editingId ? getCalendarEventById(editingId) : undefined;
     upsertCalendarEvent({
       id: editingId ?? createCalendarEventId("cal"),
@@ -285,7 +350,7 @@ function CalendarPage() {
       title={M.calendar}
       subtitle={
         apiMode
-          ? "API mode · read-only · Academic calendar dates"
+          ? "API mode · create / update / delete via events API"
           : `Session ${ACADEMIC_YEAR.label} · drives attendance holidays & exam windows`
       }
       actions={

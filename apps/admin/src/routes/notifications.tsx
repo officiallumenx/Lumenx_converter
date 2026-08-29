@@ -12,6 +12,7 @@ import { startTransportAdminNotificationSync } from "@/lib/transport-notificatio
 import { SegmentedControl } from "@lumenx/ui-admin";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
+import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
   loadNotificationInboxList,
   resolveNotificationInboxListView,
@@ -38,7 +39,7 @@ export const Route = createFileRoute("/notifications")({
 function NotificationsPage() {
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
-  const writesEnabled = !apiMode;
+  const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
 
   const { tab: tabFromSearch } = Route.useSearch();
   const navigate = Route.useNavigate();
@@ -58,6 +59,7 @@ function NotificationsPage() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
@@ -164,6 +166,7 @@ function NotificationsPage() {
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
+    reloadKey,
   ]);
 
   const onTabChange = (next: Tab) => {
@@ -171,6 +174,14 @@ function NotificationsPage() {
     setTab(next);
     void navigate({ search: { tab: next } });
   };
+
+  const refreshList = useCallback(() => {
+    if (apiMode) {
+      setReloadKey((k) => k + 1);
+      return;
+    }
+    refreshDemo();
+  }, [apiMode, refreshDemo]);
 
   const unreadLabel =
     apiMode && !listView.rowsValid
@@ -197,7 +208,7 @@ function NotificationsPage() {
       title="Notification Center"
       subtitle={
         apiMode
-          ? "API mode · read-only · Institute notification inbox"
+          ? "API mode · mark read / delete via notifications API"
           : tab === "inbox"
             ? `${unreadLabel} unread · Read, search, filter, and open linked pages`
             : "Targeted announcements & emergency alerts"
@@ -223,7 +234,7 @@ function NotificationsPage() {
       {tab === "inbox" || apiMode ? (
         <NotificationCenterInbox
           items={displayItems}
-          onChange={refreshDemo}
+          onChange={refreshList}
           writesEnabled={writesEnabled}
           rowsValid={listView.rowsValid}
           listHint={listHint}

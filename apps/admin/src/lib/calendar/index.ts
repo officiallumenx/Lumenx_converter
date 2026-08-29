@@ -20,3 +20,12 @@ export {
   type CalendarListView,
   type ResolveCalendarListViewInput,
 } from "./list-view";
+export {
+  createEvent,
+  updateEvent,
+  publishEvent,
+  cancelEvent,
+  deleteEvent,
+  type CreateEventInput,
+  type UpdateEventInput,
+} from "@/lib/events/mutations";
