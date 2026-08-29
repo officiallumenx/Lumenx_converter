@@ -29,6 +29,12 @@ jobs:
       - name: Test Connect
         run: npm run test:connect
 
+      - name: Test Admin
+        run: npm run test --workspace=@lumenx/app-admin
+
+      - name: Test Backend API
+        run: npm run test --workspace=@lumenx/api
+
       - name: Build Connect
         run: npm run build:connect
 

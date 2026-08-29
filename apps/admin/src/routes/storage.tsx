@@ -19,11 +19,13 @@ import {
 } from "lucide-react";
 import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-labels";
 import { isApiAuthMode } from "@/auth/auth-mode";
+import { ApiReadUnavailablePanel } from "@/components/ApiReadUnavailablePanel";
 import { StorageApiUsagePanel } from "@/components/storage/StorageApiUsagePanel";
 import { useMemo, useState } from "react";
 import { DocumentsRegistryPanel } from "@/components/DocumentsRegistryPanel";
 import { RecycleBinPanel } from "@/components/RecycleBinPanel";
 import { OfflineSyncStatusBar } from "@/components/OfflineSyncStatusBar";
+import { resolveStorageDocumentsTabMode } from "@/lib/storage/documents-tab-view";
 
 export const Route = createFileRoute("/storage")({
   head: () => ({ meta: [{ title: adminPageTitle("/storage") }] }),
@@ -235,7 +237,15 @@ function StoragePage() {
       </div>
 
       {view === "documents" ? (
-        <DocumentsRegistryPanel />
+        resolveStorageDocumentsTabMode(apiMode) === "api_unavailable" ? (
+          <ApiReadUnavailablePanel
+            title="Storage documents registry unavailable in API mode"
+            domainLabel="Storage documents registry"
+            hint="There is no institute-scoped storage documents-registry read API. Demo registry data is not shown in API mode."
+          />
+        ) : (
+          <DocumentsRegistryPanel />
+        )
       ) : view === "recycle" ? (
         <RecycleBinPanel />
       ) : apiMode ? (
