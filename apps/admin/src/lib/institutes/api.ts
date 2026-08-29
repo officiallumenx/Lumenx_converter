@@ -5,7 +5,8 @@
 import { getAdminApiClient } from "@/lib/admin-api";
 import type { AdminApiClient } from "@/lib/api";
 import { isApiAuthMode } from "@/auth/auth-mode";
-import type { InstituteDto } from "./types";
+import { isInstituteUuid } from "@/lib/active-institute";
+import type { InstituteDto, InstituteSettingsDto } from "./types";
 
 function assertApiMode(): void {
   if (!isApiAuthMode()) {
@@ -25,5 +26,21 @@ export async function getInstitute(
   client: AdminApiClient = getAdminApiClient(),
 ): Promise<InstituteDto> {
   assertApiMode();
-  return client.get<InstituteDto>(`/api/v1/institutes/${instituteId}`);
+  if (!isInstituteUuid(instituteId)) {
+    throw new Error("institute_id must be a valid UUID");
+  }
+  return client.get<InstituteDto>(`/api/v1/institutes/${instituteId.trim()}`);
+}
+
+export async function getInstituteSettings(
+  instituteId: string,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<InstituteSettingsDto> {
+  assertApiMode();
+  if (!isInstituteUuid(instituteId)) {
+    throw new Error("institute_id must be a valid UUID");
+  }
+  return client.get<InstituteSettingsDto>(
+    `/api/v1/institutes/${instituteId.trim()}/settings`,
+  );
 }

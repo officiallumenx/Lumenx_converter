@@ -24,6 +24,8 @@ export type FeesLoadStatus =
 export type FeesLoadState = {
   status: FeesLoadStatus;
   snapshot: FeesSnapshot | null;
+  planId: string | null;
+  classIdByLabel: Record<string, string>;
   errorMessage: string | null;
 };
 
@@ -36,13 +38,21 @@ export async function loadFeesSnapshot(
   activeInstituteId: string | null,
 ): Promise<FeesLoadState> {
   if (!isApiAuthMode()) {
-    return { status: "demo", snapshot: null, errorMessage: null };
+    return {
+      status: "demo",
+      snapshot: null,
+      planId: null,
+      classIdByLabel: {},
+      errorMessage: null,
+    };
   }
 
   if (!activeInstituteId || !isInstituteUuid(activeInstituteId)) {
     return {
       status: "needs_institute",
       snapshot: null,
+      planId: null,
+      classIdByLabel: {},
       errorMessage: null,
     };
   }
@@ -54,7 +64,19 @@ export async function loadFeesSnapshot(
     ]);
     const plan = pickActiveFeePlan(plans);
     if (!plan) {
-      return { status: "empty", snapshot: null, errorMessage: null };
+      return {
+        status: "empty",
+        snapshot: null,
+        planId: null,
+        classIdByLabel: {},
+        errorMessage: null,
+      };
+    }
+
+    const classIdByLabel: Record<string, string> = {};
+    for (const cls of classes) {
+      const label = cls.name?.trim() || cls.code?.trim() || cls.id;
+      classIdByLabel[label] = cls.id;
     }
 
     const [components, concessions, payments] = await Promise.all([
@@ -75,6 +97,8 @@ export async function loadFeesSnapshot(
     return {
       status: "ready",
       snapshot,
+      planId: plan.id,
+      classIdByLabel,
       errorMessage: null,
     };
   } catch (err) {
@@ -93,12 +117,16 @@ export async function loadFeesSnapshot(
       return {
         status: "forbidden",
         snapshot: null,
+        planId: null,
+        classIdByLabel: {},
         errorMessage: message,
       };
     }
     return {
       status: "error",
       snapshot: null,
+      planId: null,
+      classIdByLabel: {},
       errorMessage: message,
     };
   }

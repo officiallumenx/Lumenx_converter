@@ -18,6 +18,8 @@ import {
   Trash2,
 } from "lucide-react";
 import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-labels";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { StorageApiUsagePanel } from "@/components/storage/StorageApiUsagePanel";
 import { useMemo, useState } from "react";
 import { DocumentsRegistryPanel } from "@/components/DocumentsRegistryPanel";
 import { RecycleBinPanel } from "@/components/RecycleBinPanel";
@@ -165,6 +167,7 @@ function fmtSize(gb: number): string {
 }
 
 function StoragePage() {
+  const apiMode = isApiAuthMode();
   const [view, setView] = useState<"overview" | "documents" | "recycle">("overview");
   const [rows] = useState(loadCategories);
 
@@ -235,6 +238,8 @@ function StoragePage() {
         <DocumentsRegistryPanel />
       ) : view === "recycle" ? (
         <RecycleBinPanel />
+      ) : apiMode ? (
+        <StorageApiUsagePanel />
       ) : (
         <PageStack>
           <div className="lx-kpi-grid">

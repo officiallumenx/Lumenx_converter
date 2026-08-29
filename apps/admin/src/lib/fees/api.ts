@@ -10,10 +10,12 @@ import type {
   FeeComponentDto,
   FeePaymentDto,
   FeePlanDto,
+  GetStudentFeeAccountParams,
   ListFeeComponentsParams,
   ListFeeConcessionsParams,
   ListFeePaymentsParams,
   ListFeePlansParams,
+  StudentFeeAccountDto,
 } from "./types";
 
 function assertApiMode(): void {
@@ -86,4 +88,26 @@ export async function listFeePayments(
     query.set("student_id", params.studentId.trim());
   }
   return client.get<FeePaymentDto[]>(`/api/v1/fees/payments?${query.toString()}`);
+}
+
+export async function getStudentFeeAccount(
+  params: GetStudentFeeAccountParams,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<StudentFeeAccountDto> {
+  assertApiMode();
+  if (!isInstituteUuid(params.planId)) {
+    throw new Error("plan_id must be a valid UUID");
+  }
+  if (!isInstituteUuid(params.studentId)) {
+    throw new Error("student_id must be a valid UUID");
+  }
+  if (!isInstituteUuid(params.classId)) {
+    throw new Error("class_id must be a valid UUID");
+  }
+  const query = new URLSearchParams();
+  query.set("plan_id", params.planId.trim());
+  query.set("class_id", params.classId.trim());
+  return client.get<StudentFeeAccountDto>(
+    `/api/v1/fees/accounts/${params.studentId.trim()}?${query.toString()}`,
+  );
 }

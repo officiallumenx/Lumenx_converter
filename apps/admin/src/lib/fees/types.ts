@@ -86,3 +86,34 @@ export type ClassLabelDto = {
   id: string;
   label: string;
 };
+
+export type StudentFeeStatus = "due" | "partial" | "paid";
+
+export type FeeLineDto = {
+  feeComponentId: string;
+  kind: FeeComponentKind;
+  name: string;
+  defaultAmount: number;
+  amount: number;
+  overridden: boolean;
+  note?: string;
+};
+
+export type StudentFeeAccountDto = {
+  feePlanId: string;
+  studentId: string;
+  classId: string;
+  published: boolean;
+  lines: FeeLineDto[];
+  billedAmount: number;
+  paidAmount: number;
+  dueAmount: number;
+  status: StudentFeeStatus;
+  studentFeeId: string | null;
+};
+
+export type GetStudentFeeAccountParams = {
+  planId: string;
+  studentId: string;
+  classId: string;
+};

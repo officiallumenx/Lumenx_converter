@@ -27,6 +27,8 @@ import {
 
 import { AppShell } from "@/components/AppShell";
 import { ClassSectionAudienceField } from "@/components/ClassSectionMultiPicker";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { RolesCatalogApiPanel } from "@/components/permissions/RolesCatalogApiPanel";
 import { getAttendanceClassSectionOptions } from "@/lib/attendance-coordinator-access";
 import { SEARCH_TEACHERS } from "@/lib/admin-search-data";
 import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
@@ -57,6 +59,20 @@ function nextId(prefix: string): string {
 }
 
 export function RolesAccessPage() {
+  if (isApiAuthMode()) {
+    return (
+      <AppShell
+        title={M.roles}
+        subtitle="Backend roles catalog · role assignment editing is demo-only in API mode"
+      >
+        <RolesCatalogApiPanel />
+      </AppShell>
+    );
+  }
+  return <RolesAccessDemoPage />;
+}
+
+function RolesAccessDemoPage() {
   const { roles, assignees } = useRolesAccess();
   const [roleEditorOpen, setRoleEditorOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<AccessRole | null>(null);

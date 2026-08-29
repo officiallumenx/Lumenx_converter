@@ -38,6 +38,9 @@ import {
   BarChart3,
 } from "lucide-react";
 import { useMemo, useSyncExternalStore } from "react";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { useInstituteContext } from "@/lib/institutes";
+import { HomeApiSummaryPanel } from "@/components/home/HomeApiSummaryPanel";
 import {
   DashboardCustomizeActions,
   DashboardLayoutProvider,
@@ -98,9 +101,28 @@ function todayLabel(): string {
   });
 }
 
-function HomePage() {
-  const { instituteSummary } = useDemoProfile();
+function HomeApiPage() {
+  const instituteCtx = useInstituteContext();
+  const instituteLabel =
+    instituteCtx.status === "ready" && instituteCtx.activeInstitute
+      ? instituteCtx.activeInstitute.name
+      : "Institute";
+  return (
+    <DashboardLayoutProvider storageKey="admin.home.api" widgets={[{ id: "summary", label: "Overview" }]}>
+      <AppShell
+        title="Home"
+        subtitle={`What should I do today? · ${instituteLabel} · ${todayLabel()}`}
+      >
+        <PageStack>
+          <HomeApiSummaryPanel />
+        </PageStack>
+      </AppShell>
+    </DashboardLayoutProvider>
+  );
+}
 
+function HomeDemoPage() {
+  const { instituteSummary } = useDemoProfile();
   const attendancePending = useMemo(() => loadAttendancePending(), []);
   const attendanceDash = useMemo(
     () =>
@@ -390,4 +412,9 @@ function HomePage() {
       </AppShell>
     </DashboardLayoutProvider>
   );
+}
+
+function HomePage() {
+  if (isApiAuthMode()) return <HomeApiPage />;
+  return <HomeDemoPage />;
 }
