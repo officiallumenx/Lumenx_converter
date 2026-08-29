@@ -29,6 +29,7 @@ import type { NotificationCategory } from "@lumenx/types";
 import { appendBroadcastInbox, loadBroadcastInbox, loadDemoComplaints } from "@lumenx/utils";
 import { notifyAttendancePercentageWarning, toAttendanceStudentId } from "@lumenx/module-attendance";
 import { createLocalStorageStore } from "@/lib/client-data-store";
+import { isApiAuthMode } from "@/auth/auth-mode";
 
 export type AlertRuleIconKey =
   | "attendance"
@@ -478,6 +479,7 @@ let evaluateInFlight = false;
 
 /** Run all evaluators backed by existing local/demo data. Security and manual rules are skipped. */
 export function evaluateAllAlertRules(): number {
+  if (isApiAuthMode()) return 0;
   if (evaluateInFlight) return 0;
   evaluateInFlight = true;
   try {

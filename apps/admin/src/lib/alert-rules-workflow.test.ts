@@ -222,3 +222,17 @@ describe("admin alerts workflow", () => {
     expect(loadAlertRulesState().fired.length).toBe(count);
   });
 });
+
+describe("alert rules API mode guard", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    store.clear();
+  });
+
+  it("evaluateAllAlertRules returns 0 in API auth mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const { evaluateAllAlertRules } = await import("./alert-rules-store");
+    expect(evaluateAllAlertRules()).toBe(0);
+  });
+});

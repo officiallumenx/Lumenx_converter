@@ -2,6 +2,7 @@ import { adminNav } from "./admin-nav";
 import { getRolePermission } from "./roles-access";
 import { CURRENT_INSTITUTE_ID } from "./institute-billing-store";
 import { loadStudentDirectory } from "./student-directory-store";
+import { isApiAuthMode } from "@/auth/auth-mode";
 
 export type AdminSearchItem = {
   id: string;
@@ -97,30 +98,34 @@ export function buildAdminSearchIndex(scope: AdminSearchScope): AdminSearchItem[
       })),
   );
 
-  const students: AdminSearchItem[] = loadStudentDirectory().map((s) => {
-    const classLabel = s.grade || "";
-    const parentLabel = s.parentName || s.parent || "";
-    return {
-      id: `student-${s.id}`,
-      label: s.name,
-      hint: `${classLabel} · ${s.id}`,
-      value: `${s.name} ${classLabel} ${s.id} ${parentLabel} student ${instituteId}`,
-      to: "/students/$id",
-      params: { id: s.id },
-      group: "students" as const,
-      instituteId,
-    };
-  });
+  const students: AdminSearchItem[] = isApiAuthMode()
+    ? []
+    : loadStudentDirectory().map((s) => {
+        const classLabel = s.grade || "";
+        const parentLabel = s.parentName || s.parent || "";
+        return {
+          id: `student-${s.id}`,
+          label: s.name,
+          hint: `${classLabel} · ${s.id}`,
+          value: `${s.name} ${classLabel} ${s.id} ${parentLabel} student ${instituteId}`,
+          to: "/students/$id",
+          params: { id: s.id },
+          group: "students" as const,
+          instituteId,
+        };
+      });
 
-  const teachers: AdminSearchItem[] = SEARCH_TEACHERS.map((t) => ({
-    id: `teacher-${t.id}`,
-    label: t.name,
-    hint: `${t.dept} · ${t.employeeId}`,
-    value: `${t.name} ${t.dept} ${t.email} ${t.phone} ${t.employeeId} teacher faculty ${instituteId}`,
-    to: "/teachers",
-    group: "teachers" as const,
-    instituteId,
-  }));
+  const teachers: AdminSearchItem[] = isApiAuthMode()
+    ? []
+    : SEARCH_TEACHERS.map((t) => ({
+        id: `teacher-${t.id}`,
+        label: t.name,
+        hint: `${t.dept} · ${t.employeeId}`,
+        value: `${t.name} ${t.dept} ${t.email} ${t.phone} ${t.employeeId} teacher faculty ${instituteId}`,
+        to: "/teachers",
+        group: "teachers" as const,
+        instituteId,
+      }));
 
   const canSeeStudents =
     !accessRoleId || getRolePermission(accessRoleId, "/students") !== "none";
