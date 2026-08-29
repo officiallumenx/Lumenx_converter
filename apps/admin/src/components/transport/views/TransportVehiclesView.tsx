@@ -34,6 +34,11 @@ type Props = {
   writesEnabled?: boolean;
   listBlocked?: boolean;
   listHint?: string | null;
+  /** When set, save/delete call API instead of local transport store. */
+  onPersistVehicle?: (
+    draft: Omit<TransportVehicle, "id"> & { id?: string },
+  ) => void | Promise<void>;
+  onRemoveVehicle?: (id: string) => void | Promise<void>;
 };
 
 const EMPTY: Omit<TransportVehicle, "id"> = {
@@ -51,6 +56,8 @@ export function TransportVehiclesView({
   writesEnabled = true,
   listBlocked = false,
   listHint = null,
+  onPersistVehicle,
+  onRemoveVehicle,
 }: Props) {
   const notify = useAdminToast();
   const [searchQuery, setSearchQuery] = useState("");
@@ -113,6 +120,17 @@ export function TransportVehiclesView({
       notify("Vehicle number and registration are required");
       return;
     }
+    if (onPersistVehicle) {
+      void Promise.resolve(onPersistVehicle(draft))
+        .then(() => {
+          setOpen(false);
+          notify(draft.id ? "Vehicle updated" : "Vehicle added");
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to save vehicle");
+        });
+      return;
+    }
     if (!draft.assignedDriverId) {
       notify("Assign a driver to this bus");
       return;
@@ -132,6 +150,18 @@ export function TransportVehiclesView({
 
   const confirmDelete = () => {
     if (!writesEnabled || !deleteId) return;
+    if (onRemoveVehicle) {
+      void Promise.resolve(onRemoveVehicle(deleteId))
+        .then(() => {
+          if (selectedId === deleteId) setSelectedId(null);
+          setDeleteId(null);
+          notify("Vehicle deleted");
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to delete vehicle");
+        });
+      return;
+    }
     onChange(deleteVehicle(snapshot, deleteId));
     if (selectedId === deleteId) setSelectedId(null);
     setDeleteId(null);

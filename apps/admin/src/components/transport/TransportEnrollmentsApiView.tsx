@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import {
+  Button,
   Card,
   CardHeader,
   DataTable,
@@ -12,13 +13,16 @@ import {
   ToolbarSpacer,
   Tr,
 } from "@lumenx/ui-admin";
-import { Users } from "lucide-react";
+import { Trash2, Users } from "lucide-react";
 import type { TransportEnrollmentListItem } from "@/lib/transport";
 
 type Props = {
   items: TransportEnrollmentListItem[];
   listBlocked?: boolean;
   listHint?: string | null;
+  writesEnabled?: boolean;
+  onRemoveEnrollment?: (id: string) => void | Promise<void>;
+  onEndEnrollment?: (id: string) => void | Promise<void>;
 };
 
 function statusTone(
@@ -33,8 +37,12 @@ export function TransportEnrollmentsApiView({
   items,
   listBlocked = false,
   listHint = null,
+  writesEnabled = false,
+  onRemoveEnrollment,
+  onEndEnrollment,
 }: Props) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const rows = useMemo(() => {
     const needle = searchQuery.trim().toLowerCase();
@@ -59,7 +67,9 @@ export function TransportEnrollmentsApiView({
           className="w-full max-w-xs"
         />
         <ToolbarSpacer />
-        <Pill tone="neutral">Read-only · API mode</Pill>
+        <Pill tone="neutral">
+          {writesEnabled ? "API mode · writable" : "Read-only · API mode"}
+        </Pill>
       </PageToolbar>
 
       <Card>
@@ -93,6 +103,7 @@ export function TransportEnrollmentsApiView({
                 <Th>Pickup</Th>
                 <Th>Drop</Th>
                 <Th>Status</Th>
+                {writesEnabled ? <Th>Actions</Th> : null}
               </tr>
             </thead>
             <tbody>
@@ -106,6 +117,41 @@ export function TransportEnrollmentsApiView({
                   <Td>
                     <Pill tone={statusTone(row.status)}>{row.status}</Pill>
                   </Td>
+                  {writesEnabled ? (
+                    <Td>
+                      <div className="flex flex-wrap gap-1">
+                        {row.status === "active" && onEndEnrollment ? (
+                          <Button
+                            size="sm"
+                            disabled={busyId === row.id}
+                            onClick={() => {
+                              setBusyId(row.id);
+                              void Promise.resolve(onEndEnrollment(row.id)).finally(() =>
+                                setBusyId(null),
+                              );
+                            }}
+                          >
+                            End
+                          </Button>
+                        ) : null}
+                        {onRemoveEnrollment ? (
+                          <Button
+                            size="sm"
+                            variant="danger"
+                            disabled={busyId === row.id}
+                            onClick={() => {
+                              setBusyId(row.id);
+                              void Promise.resolve(onRemoveEnrollment(row.id)).finally(() =>
+                                setBusyId(null),
+                              );
+                            }}
+                          >
+                            <Trash2 className="size-3" />
+                          </Button>
+                        ) : null}
+                      </div>
+                    </Td>
+                  ) : null}
                 </Tr>
               ))}
             </tbody>

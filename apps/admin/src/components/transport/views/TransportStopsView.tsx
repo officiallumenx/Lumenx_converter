@@ -11,6 +11,7 @@ import {
   PageToolbar,
   ToolbarSpacer,
   Pill,
+  Select,
 } from "@lumenx/ui-admin";
 import { Plus, Pencil, Trash2, MapPin, ExternalLink } from "lucide-react";
 import {
@@ -32,6 +33,17 @@ type Props = {
   writesEnabled?: boolean;
   listBlocked?: boolean;
   listHint?: string | null;
+  routeOptions?: Array<{ id: string; name: string }>;
+  onPersistStop?: (input: {
+    id?: string;
+    routeId?: string;
+    name: string;
+    locationLabel: string;
+    lat: number;
+    lng: number;
+    notificationRadiusM: number;
+  }) => void | Promise<void>;
+  onRemoveStop?: (id: string) => void | Promise<void>;
 };
 
 export function TransportStopsView({
@@ -40,6 +52,9 @@ export function TransportStopsView({
   writesEnabled = true,
   listBlocked = false,
   listHint = null,
+  routeOptions,
+  onPersistStop,
+  onRemoveStop,
 }: Props) {
   const notify = useAdminToast();
   const [searchQuery, setSearchQuery] = useState("");
@@ -49,6 +64,8 @@ export function TransportStopsView({
   const [radius, setRadius] = useState(snapshot.settings.defaultNotificationRadiusM);
   const [location, setLocation] = useState<LocationPasteValue | null>(null);
   const [editId, setEditId] = useState<string | undefined>();
+  const [routeId, setRouteId] = useState("");
+  const [editRouteId, setEditRouteId] = useState<string | undefined>();
 
   const rows = useMemo(() => {
     const needle = searchQuery.trim().toLowerCase();
@@ -62,17 +79,21 @@ export function TransportStopsView({
 
   const startCreate = () => {
     setEditId(undefined);
+    setEditRouteId(undefined);
     setName("");
     setRadius(snapshot.settings.defaultNotificationRadiusM);
     setLocation(null);
+    setRouteId(routeOptions?.[0]?.id ?? "");
     setOpen(true);
   };
 
   const startEdit = (s: TransportStop) => {
     setEditId(s.id);
-    setName(s.name);
+    setEditRouteId(s.routeId);
+    setName(s.name.includes(" · ") ? s.name.split(" · ").slice(1).join(" · ") : s.name);
     setRadius(s.notificationRadiusM);
     setLocation({ lat: s.lat, lng: s.lng, locationLabel: s.locationLabel });
+    setRouteId(s.routeId ?? "");
     setOpen(true);
   };
 
@@ -83,6 +104,32 @@ export function TransportStopsView({
     }
     if (!location) {
       notify("Paste a location from Google Maps or OpenStreetMap");
+      return;
+    }
+    if (onPersistStop) {
+      const resolvedRouteId = editId ? editRouteId ?? routeId : routeId;
+      if (!resolvedRouteId) {
+        notify("Select a route for this stop");
+        return;
+      }
+      void Promise.resolve(
+        onPersistStop({
+          id: editId,
+          routeId: resolvedRouteId,
+          name: name.trim(),
+          locationLabel: location.locationLabel,
+          lat: location.lat,
+          lng: location.lng,
+          notificationRadiusM: radius || 100,
+        }),
+      )
+        .then(() => {
+          setOpen(false);
+          notify(editId ? "Stop updated" : "Stop added");
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to save stop");
+        });
       return;
     }
     onChange(
@@ -211,6 +258,17 @@ export function TransportStopsView({
             }
           >
             <div className="space-y-3">
+              {onPersistStop && !editId && routeOptions && routeOptions.length > 0 ? (
+                <Field label="Route" required>
+                  <Select value={routeId} onChange={(e) => setRouteId(e.target.value)}>
+                    {routeOptions.map((route) => (
+                      <option key={route.id} value={route.id}>
+                        {route.name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              ) : null}
               <Field label="Stop name" required>
                 <TextInput
                   value={name}
@@ -248,6 +306,19 @@ export function TransportStopsView({
                   variant="danger"
                   onClick={() => {
                     if (!deleteId) return;
+                    if (onRemoveStop) {
+                      void Promise.resolve(onRemoveStop(deleteId))
+                        .then(() => {
+                          setDeleteId(null);
+                          notify("Stop deleted");
+                        })
+                        .catch((err) => {
+                          notify(
+                            err instanceof Error ? err.message : "Failed to delete stop",
+                          );
+                        });
+                      return;
+                    }
                     onChange(deleteStop(snapshot, deleteId));
                     setDeleteId(null);
                     notify("Stop deleted");

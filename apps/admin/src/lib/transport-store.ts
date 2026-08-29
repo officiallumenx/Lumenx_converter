@@ -57,6 +57,8 @@ export type TransportStop = {
   lat: number;
   lng: number;
   notificationRadiusM: number;
+  /** Present when stop is loaded from a transport route (API mode). */
+  routeId?: string;
 };
 
 /**

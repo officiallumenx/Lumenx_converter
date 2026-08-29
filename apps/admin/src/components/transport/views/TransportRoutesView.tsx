@@ -33,6 +33,8 @@ type Props = {
   writesEnabled?: boolean;
   listBlocked?: boolean;
   listHint?: string | null;
+  onLockRoute?: (routeId: string) => void | Promise<void>;
+  onUnlockRoute?: (routeId: string) => void | Promise<void>;
 };
 
 type StatusFilter = "all" | RouteConfigStatus;
@@ -52,6 +54,8 @@ export function TransportRoutesView({
   writesEnabled = true,
   listBlocked = false,
   listHint = null,
+  onLockRoute,
+  onUnlockRoute,
 }: Props) {
   const notify = useAdminToast();
   const [searchQuery, setSearchQuery] = useState("");
@@ -148,6 +152,19 @@ export function TransportRoutesView({
                 variant="primary"
                 onClick={() => {
                   if (!lockConfirm) return;
+                  if (onLockRoute) {
+                    void Promise.resolve(onLockRoute(lockConfirm.id))
+                      .then(() => {
+                        setLockConfirm(null);
+                        notify("Route locked — driver edits disabled");
+                      })
+                      .catch((err) => {
+                        notify(
+                          err instanceof Error ? err.message : "Failed to lock route",
+                        );
+                      });
+                    return;
+                  }
                   onChange(lockRoute(snapshot, lockConfirm.id, "Admin"));
                   setLockConfirm(null);
                   notify("Route locked — driver edits disabled");
@@ -176,6 +193,19 @@ export function TransportRoutesView({
                 variant="primary"
                 onClick={() => {
                   if (!unlockConfirm) return;
+                  if (onUnlockRoute) {
+                    void Promise.resolve(onUnlockRoute(unlockConfirm.id))
+                      .then(() => {
+                        setUnlockConfirm(null);
+                        notify("Route unlocked");
+                      })
+                      .catch((err) => {
+                        notify(
+                          err instanceof Error ? err.message : "Failed to unlock route",
+                        );
+                      });
+                    return;
+                  }
                   onChange(unlockRoute(snapshot, unlockConfirm.id));
                   setUnlockConfirm(null);
                   notify("Route unlocked");

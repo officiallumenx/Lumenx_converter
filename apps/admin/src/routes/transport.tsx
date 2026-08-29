@@ -5,6 +5,7 @@ import { TransportHubNav } from "@/components/transport/TransportHubNav";
 import { useTransportStore } from "@/components/transport/useTransportStore";
 import { TransportEnrollmentsApiView } from "@/components/transport/TransportEnrollmentsApiView";
 import { TransportDashboardApiView } from "@/components/transport/TransportDashboardApiView";
+import { TransportDashboardView } from "@/components/transport/views/TransportDashboardView";
 import { ApiReadUnavailablePanel } from "@/components/ApiReadUnavailablePanel";
 import { TransportVehiclesView } from "@/components/transport/views/TransportVehiclesView";
 import { TransportDriversView } from "@/components/transport/views/TransportDriversView";
@@ -23,7 +24,15 @@ import { startTransportAdminNotificationSync } from "@/lib/transport-notificatio
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
+import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
+  createDriver,
+  createStop,
+  createVehicle,
+  deleteDriver,
+  deleteEnrollment,
+  deleteStop,
+  deleteVehicle,
   loadTransportDriversList,
   loadTransportEnrollmentsList,
   loadTransportRoutesList,
@@ -39,6 +48,12 @@ import {
   shouldCommitTransportRoutesLoad,
   shouldCommitTransportSettingsLoad,
   shouldCommitTransportVehiclesLoad,
+  updateDriver,
+  updateEnrollment,
+  updateRoute,
+  updateStop,
+  updateVehicle,
+  upsertTransportSettings,
   type TransportDriversListStatus,
   type TransportEnrollmentsListStatus,
   type TransportListStatus,
@@ -53,6 +68,15 @@ import type {
   TransportVehicle,
 } from "@/lib/transport-store";
 import type { TransportEnrollmentListItem } from "@/lib/transport";
+import { useAdminToast } from "@/components/AdminActionToast";
+
+const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+
+function workingDayLabelsToNumbers(days: string[]): number[] {
+  return days
+    .map((label) => WEEKDAY_LABELS.indexOf(label as (typeof WEEKDAY_LABELS)[number]))
+    .filter((index) => index >= 0);
+}
 
 export type TransportHubView =
   | "dashboard"
@@ -149,12 +173,14 @@ function transportListHint(
 function TransportPage() {
   const { view } = Route.useSearch();
   const navigate = useNavigate();
+  const notify = useAdminToast();
   const { snapshot, setSnapshot } = useTransportStore();
   const apiMode = isApiAuthMode();
-  const writesEnabled = !apiMode;
   const instituteCtx = useInstituteContext();
+  const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
+  const [reloadKey, setReloadKey] = useState(0);
 
   const [apiVehicles, setApiVehicles] = useState<TransportVehicle[]>([]);
   const [vehiclesListStatus, setVehiclesListStatus] =
@@ -357,6 +383,7 @@ function TransportPage() {
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
+    reloadKey,
   ]);
 
   useEffect(() => {
@@ -423,6 +450,7 @@ function TransportPage() {
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
+    reloadKey,
   ]);
 
   useEffect(() => {
@@ -489,6 +517,7 @@ function TransportPage() {
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
+    reloadKey,
   ]);
 
   useEffect(() => {
@@ -555,6 +584,7 @@ function TransportPage() {
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
+    reloadKey,
   ]);
 
   useEffect(() => {
@@ -621,6 +651,7 @@ function TransportPage() {
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
+    reloadKey,
   ]);
 
   const vehiclesSnapshot = useMemo(() => {
@@ -670,6 +701,7 @@ function TransportPage() {
         lat: stop.latitude,
         lng: stop.longitude,
         notificationRadiusM: defaultRadius,
+        routeId: route.id,
       })),
     );
     return { ...snapshot, stops };
@@ -694,19 +726,19 @@ function TransportPage() {
       title={VIEW_TITLES[view]}
       subtitle={
         apiMode && view === "vehicles"
-          ? `API mode · read-only · ${vehiclesListView.rowsValid ? vehiclesListView.items.length : "…"} vehicles`
+          ? `API mode · ${vehiclesListView.rowsValid ? vehiclesListView.items.length : "…"} vehicles`
           : apiMode && view === "dashboard"
-            ? "API mode · read-only · fleet overview"
+            ? "API mode · fleet overview"
             : apiMode && view === "drivers"
-            ? `API mode · read-only · ${driversListView.rowsValid ? driversListView.items.length : "…"} drivers`
+            ? `API mode · ${driversListView.rowsValid ? driversListView.items.length : "…"} drivers`
             : apiMode && view === "routes"
-              ? `API mode · read-only · ${routesListView.rowsValid ? routesListView.items.length : "…"} routes`
+              ? `API mode · ${routesListView.rowsValid ? routesListView.items.length : "…"} routes`
               : apiMode && view === "stops"
-                ? `API mode · read-only · route stops`
+                ? `API mode · route stops`
                 : apiMode && view === "students"
-                  ? `API mode · read-only · ${enrollmentsListView.rowsValid ? enrollmentsListView.items.length : "…"} enrollments`
+                  ? `API mode · ${enrollmentsListView.rowsValid ? enrollmentsListView.items.length : "…"} enrollments`
                   : apiMode && view === "settings"
-                ? "API mode · read-only · transport settings"
+                ? "API mode · transport settings"
                 : apiMode &&
                     (view === "reviews" ||
                       view === "trips" ||
@@ -739,6 +771,43 @@ function TransportPage() {
             writesEnabled={writesEnabled}
             listBlocked={apiMode && !vehiclesListView.rowsValid}
             listHint={vehiclesListHint}
+            onPersistVehicle={
+              apiMode
+                ? async (draft) => {
+                    const instituteId = instituteCtx.activeInstituteId;
+                    if (!instituteId) {
+                      throw new Error("Select an institute before saving a vehicle");
+                    }
+                    if (draft.id) {
+                      await updateVehicle(draft.id, {
+                        vehicleNumber: draft.vehicleNumber,
+                        registrationNumber: draft.registrationNumber,
+                        capacity: draft.capacity,
+                        status: draft.status,
+                        notes: draft.notes || null,
+                      });
+                    } else {
+                      await createVehicle({
+                        instituteId,
+                        vehicleNumber: draft.vehicleNumber,
+                        registrationNumber: draft.registrationNumber,
+                        capacity: draft.capacity,
+                        status: draft.status,
+                        notes: draft.notes || null,
+                      });
+                    }
+                    setReloadKey((k) => k + 1);
+                  }
+                : undefined
+            }
+            onRemoveVehicle={
+              apiMode
+                ? async (id) => {
+                    await deleteVehicle(id);
+                    setReloadKey((k) => k + 1);
+                  }
+                : undefined
+            }
           />
         )}
         {view === "drivers" && (
@@ -748,6 +817,45 @@ function TransportPage() {
             writesEnabled={writesEnabled}
             listBlocked={apiMode && !driversListView.rowsValid}
             listHint={driversListHint}
+            onPersistDriver={
+              apiMode
+                ? async (draft) => {
+                    const instituteId = instituteCtx.activeInstituteId;
+                    if (!instituteId) {
+                      throw new Error("Select an institute before saving a driver");
+                    }
+                    if (draft.id) {
+                      await updateDriver(draft.id, {
+                        displayName: draft.name,
+                        phone: draft.phone,
+                        licenseNumber: draft.licenseNumber,
+                        licenseExpiry: draft.licenseExpiry.trim() || null,
+                        status: draft.status,
+                        notes: draft.notes || null,
+                      });
+                    } else {
+                      await createDriver({
+                        instituteId,
+                        displayName: draft.name,
+                        phone: draft.phone,
+                        licenseNumber: draft.licenseNumber,
+                        licenseExpiry: draft.licenseExpiry.trim() || null,
+                        status: draft.status,
+                        notes: draft.notes || null,
+                      });
+                    }
+                    setReloadKey((k) => k + 1);
+                  }
+                : undefined
+            }
+            onRemoveDriver={
+              apiMode
+                ? async (id) => {
+                    await deleteDriver(id);
+                    setReloadKey((k) => k + 1);
+                  }
+                : undefined
+            }
           />
         )}
         {view === "stops" && (
@@ -757,6 +865,57 @@ function TransportPage() {
             writesEnabled={writesEnabled}
             listBlocked={apiMode && !routesListView.rowsValid}
             listHint={stopsListHint}
+            routeOptions={
+              apiMode && routesListView.rowsValid
+                ? routesListView.items.map((route) => ({
+                    id: route.id,
+                    name: route.name,
+                  }))
+                : undefined
+            }
+            onPersistStop={
+              apiMode
+                ? async (input) => {
+                    const instituteId = instituteCtx.activeInstituteId;
+                    if (!instituteId) {
+                      throw new Error("Select an institute before saving a stop");
+                    }
+                    if (!input.routeId) {
+                      throw new Error("Select a route for this stop");
+                    }
+                    if (input.id) {
+                      await updateStop(input.id, {
+                        name: input.name,
+                        locationLabel: input.locationLabel,
+                        latitude: input.lat,
+                        longitude: input.lng,
+                        notificationRadiusM: input.notificationRadiusM,
+                      });
+                    } else {
+                      const route = routesListView.items.find((r) => r.id === input.routeId);
+                      await createStop({
+                        instituteId,
+                        routeId: input.routeId,
+                        name: input.name,
+                        locationLabel: input.locationLabel,
+                        latitude: input.lat,
+                        longitude: input.lng,
+                        routeOrder: route?.setupStops.length ?? 0,
+                        notificationRadiusM: input.notificationRadiusM,
+                      });
+                    }
+                    setReloadKey((k) => k + 1);
+                  }
+                : undefined
+            }
+            onRemoveStop={
+              apiMode
+                ? async (id) => {
+                    await deleteStop(id);
+                    setReloadKey((k) => k + 1);
+                  }
+                : undefined
+            }
           />
         )}
         {view === "routes" && (
@@ -766,6 +925,22 @@ function TransportPage() {
             writesEnabled={writesEnabled}
             listBlocked={apiMode && !routesListView.rowsValid}
             listHint={routesListHint}
+            onLockRoute={
+              apiMode
+                ? async (routeId) => {
+                    await updateRoute(routeId, { configStatus: "locked" });
+                    setReloadKey((k) => k + 1);
+                  }
+                : undefined
+            }
+            onUnlockRoute={
+              apiMode
+                ? async (routeId) => {
+                    await updateRoute(routeId, { configStatus: "configured" });
+                    setReloadKey((k) => k + 1);
+                  }
+                : undefined
+            }
           />
         )}
         {view === "students" ? (
@@ -774,6 +949,25 @@ function TransportPage() {
               items={enrollmentsListView.items}
               listBlocked={!enrollmentsListView.rowsValid}
               listHint={enrollmentsListHint}
+              writesEnabled={writesEnabled}
+              onEndEnrollment={async (id) => {
+                try {
+                  await updateEnrollment(id, { status: "ended" });
+                  setReloadKey((k) => k + 1);
+                  notify("Enrollment ended");
+                } catch (err) {
+                  notify(err instanceof Error ? err.message : "Failed to update enrollment");
+                }
+              }}
+              onRemoveEnrollment={async (id) => {
+                try {
+                  await deleteEnrollment(id);
+                  setReloadKey((k) => k + 1);
+                  notify("Enrollment deleted");
+                } catch (err) {
+                  notify(err instanceof Error ? err.message : "Failed to delete enrollment");
+                }
+              }}
             />
           ) : (
             <TransportStudentsView snapshot={snapshot} onChange={setSnapshot} />
@@ -841,6 +1035,23 @@ function TransportPage() {
             writesEnabled={writesEnabled}
             listBlocked={apiMode && !settingsView.rowsValid}
             listHint={settingsHint}
+            onSaveSettings={
+              apiMode
+                ? async (settings) => {
+                    const instituteId = instituteCtx.activeInstituteId;
+                    if (!instituteId) {
+                      throw new Error("Select an institute before saving settings");
+                    }
+                    await upsertTransportSettings({
+                      instituteId,
+                      defaultNotificationRadiusM: settings.defaultNotificationRadiusM,
+                      defaultPickupBufferMins: settings.defaultPickupBufferMins,
+                      workingDays: workingDayLabelsToNumbers(settings.workingDays),
+                    });
+                    setReloadKey((k) => k + 1);
+                  }
+                : undefined
+            }
           />
         )}
       </AdminPageTransition>

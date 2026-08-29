@@ -13,6 +13,7 @@ type Props = {
   writesEnabled?: boolean;
   listBlocked?: boolean;
   listHint?: string | null;
+  onSaveSettings?: (settings: TransportSettings) => void | Promise<void>;
 };
 
 const WEEKDAYS = [
@@ -31,6 +32,7 @@ export function TransportSettingsView({
   writesEnabled = true,
   listBlocked = false,
   listHint = null,
+  onSaveSettings,
 }: Props) {
   const notify = useAdminToast();
   const [draft, setDraft] = useState<TransportSettings>(() => ({ ...snapshot.settings }));
@@ -54,6 +56,14 @@ export function TransportSettingsView({
     if (!writesEnabled) return;
     if (draft.defaultNotificationRadiusM < 20) {
       notify("Notification radius should be at least 20m");
+      return;
+    }
+    if (onSaveSettings) {
+      void Promise.resolve(onSaveSettings(draft))
+        .then(() => notify("Transport settings saved"))
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to save settings");
+        });
       return;
     }
     onChange(saveTransportSettings(snapshot, draft));

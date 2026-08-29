@@ -38,6 +38,10 @@ type Props = {
   writesEnabled?: boolean;
   listBlocked?: boolean;
   listHint?: string | null;
+  onPersistDriver?: (
+    draft: Omit<TransportDriver, "id"> & { id?: string },
+  ) => void | Promise<void>;
+  onRemoveDriver?: (id: string) => void | Promise<void>;
 };
 
 const EMPTY: Omit<TransportDriver, "id"> = {
@@ -58,6 +62,8 @@ export function TransportDriversView({
   writesEnabled = true,
   listBlocked = false,
   listHint = null,
+  onPersistDriver,
+  onRemoveDriver,
 }: Props) {
   const notify = useAdminToast();
   const [searchQuery, setSearchQuery] = useState("");
@@ -111,6 +117,18 @@ export function TransportDriversView({
     if (!writesEnabled) return;
     if (!draft.name.trim() || !draft.phone.trim() || !draft.licenseNumber.trim()) {
       notify("Name, phone, and license number are required");
+      return;
+    }
+
+    if (onPersistDriver) {
+      void Promise.resolve(onPersistDriver(draft))
+        .then(() => {
+          setOpen(false);
+          notify(draft.id ? "Driver updated" : "Driver added");
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to save driver");
+        });
       return;
     }
 
@@ -413,6 +431,19 @@ export function TransportDriversView({
               variant="danger"
               onClick={() => {
                 if (!deleteId) return;
+                if (onRemoveDriver) {
+                  void Promise.resolve(onRemoveDriver(deleteId))
+                    .then(() => {
+                      setDeleteId(null);
+                      notify("Driver deleted");
+                    })
+                    .catch((err) => {
+                      notify(
+                        err instanceof Error ? err.message : "Failed to delete driver",
+                      );
+                    });
+                  return;
+                }
                 onChange(deleteDriver(snapshot, deleteId));
                 setDeleteId(null);
                 refreshAccounts();
