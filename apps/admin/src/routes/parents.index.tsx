@@ -3,10 +3,17 @@ import { createPortal } from "react-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
+import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
+import { isInstituteUuid } from "@/lib/active-institute";
 import {
   loadParentsList,
   resolveParentsListView,
   shouldCommitParentsLoad,
+  createParent as createParentApi,
+  updateParent as updateParentApi,
+  deleteParent as deleteParentApi,
+  createParentLink as createParentLinkApi,
+  type GuardianRelationship,
   type ParentListItem,
   type ParentsListStatus,
 } from "@/lib/parents";
@@ -121,7 +128,7 @@ function ParentsPage() {
   const navigate = useNavigate();
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
-  const writesEnabled = !apiMode;
+  const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
   const { profileId } = useDemoProfile();
   const [rows, setRows] = useState<ParentDirectoryRecord[]>(() =>
     apiMode ? [] : loadParentDirectory(),
@@ -134,6 +141,7 @@ function ParentsPage() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
@@ -155,7 +163,7 @@ function ParentsPage() {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<NewParentDraft>(EMPTY_DRAFT);
   const [error, setError] = useState("");
-  const [pendingDelete, setPendingDelete] = useState<ParentDirectoryRecord | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<ParentRow | null>(null);
   const students = useMemo(
     () => (apiMode ? [] : loadStudentDirectory()),
     [apiMode, profileId, rows],
@@ -235,6 +243,7 @@ function ParentsPage() {
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
+    reloadKey,
   ]);
 
   useEffect(() => {
@@ -252,9 +261,30 @@ function ParentsPage() {
     saveParentDirectory(next);
   };
 
+  const relationshipToApi = (
+    label: ParentRelationship,
+  ): GuardianRelationship => {
+    if (label === "Mother") return "mother";
+    if (label === "Father") return "father";
+    return "guardian";
+  };
+
   const setAccessStatus = (id: string, accessStatus: ParentAccessStatus) => {
-    if (!writesEnabled) {
-      notify("Parent writes are not enabled in API read-only mode");
+    if (apiMode) {
+      void updateParentApi(id, { accessStatus })
+        .then(() => {
+          setReloadKey((k) => k + 1);
+          const action =
+            accessStatus === "hold"
+              ? "placed on hold"
+              : accessStatus === "suspended"
+                ? "suspended"
+                : "reactivated";
+          notify(`Parent ${action}`);
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to update parent");
+        });
       return;
     }
     const target = rows.find((row) => row.id === id);
@@ -265,8 +295,16 @@ function ParentsPage() {
   };
 
   const removeParent = (id: string) => {
-    if (!writesEnabled) {
-      notify("Parent writes are not enabled in API read-only mode");
+    if (apiMode) {
+      void deleteParentApi(id)
+        .then(() => {
+          setPendingDelete(null);
+          setReloadKey((k) => k + 1);
+          notify("Parent deleted");
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to delete parent");
+        });
       return;
     }
     const target = rows.find((row) => row.id === id);
@@ -285,8 +323,15 @@ function ParentsPage() {
   };
 
   const resendInvite = (id: string) => {
-    if (!writesEnabled) {
-      notify("Parent writes are not enabled in API read-only mode");
+    if (apiMode) {
+      void updateParentApi(id, { inviteStatus: "active" })
+        .then(() => {
+          setReloadKey((k) => k + 1);
+          notify("Invite marked active");
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to update invite");
+        });
       return;
     }
     const target = rows.find((row) => row.id === id);
@@ -396,21 +441,64 @@ function ParentsPage() {
   ]);
 
   const createParent = () => {
-    if (!writesEnabled) {
-      notify("Parent writes are not enabled in API read-only mode");
-      return;
-    }
     const email = draft.email.trim().toLowerCase();
     const phone = normalizeParentPhone(draft.phone);
-    const linkedStudentIds = draft.linkedStudentIds
-      .split(",")
-      .map((id) => id.trim().toUpperCase())
-      .filter(Boolean);
     if (!draft.name.trim()) return setError("Full name is required.");
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return setError("Enter a valid email address.");
     }
     if (!/^\d{10}$/.test(phone)) return setError("Phone must contain exactly 10 digits.");
+
+    if (apiMode) {
+      const instituteId = instituteCtx.activeInstituteId;
+      if (!instituteId) {
+        notify("Select an institute before creating a parent");
+        return;
+      }
+      const linkIds = draft.linkedStudentIds
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean);
+      const invalidLinks = linkIds.filter((id) => !isInstituteUuid(id));
+      if (invalidLinks.length > 0) {
+        return setError(
+          `Student IDs must be UUIDs in API mode: ${invalidLinks.join(", ")}`,
+        );
+      }
+      void createParentApi({
+        instituteId,
+        name: draft.name.trim(),
+        phone,
+        email: email || null,
+        address: draft.address.trim() || null,
+        inviteStatus: "pending",
+        accessStatus: "active",
+      })
+        .then(async (created) => {
+          const relationship = relationshipToApi(draft.relationship);
+          for (const studentId of linkIds) {
+            await createParentLinkApi(created.id, {
+              studentId,
+              relationship,
+              isPrimary: true,
+            });
+          }
+          setDraft(EMPTY_DRAFT);
+          setError("");
+          setOpen(false);
+          setReloadKey((k) => k + 1);
+          notify(`${created.name} created · invite pending`);
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to create parent");
+        });
+      return;
+    }
+
+    const linkedStudentIds = draft.linkedStudentIds
+      .split(",")
+      .map((id) => id.trim().toUpperCase())
+      .filter(Boolean);
     if (draft.password.length < 8) return setError("Password must contain at least 8 characters.");
     const unknown = linkedStudentIds.filter((id) => !studentById.has(id));
     if (unknown.length > 0) return setError(`Student not found: ${unknown.join(", ")}`);
@@ -454,10 +542,6 @@ function ParentsPage() {
               : null;
 
   const openParentDetail = (id: string) => {
-    if (!writesEnabled) {
-      notify("Parent detail pages are not enabled in API read-only mode");
-      return;
-    }
     void navigate({ to: "/parents/$id", params: { id } });
   };
 
@@ -475,7 +559,7 @@ function ParentsPage() {
         { value: "suspended", label: "Suspended" },
       ],
     },
-    ...(writesEnabled
+    ...(!apiMode
       ? [
           {
             id: "class",
@@ -506,7 +590,7 @@ function ParentsPage() {
       title="Parent Directory"
       subtitle={
         apiMode
-          ? `API mode · read-only · ${countLabel(list.length)} guardians`
+          ? `API mode · ${countLabel(list.length)} guardians`
           : `${list.length} guardians · ${scopeLabel}`
       }
       actions={
@@ -572,15 +656,13 @@ function ParentsPage() {
                   menu={
                     writesEnabled ? (
                       <ParentRowMenu
-                        parent={parent as ParentDirectoryRecord}
+                        parent={parent}
                         onView={() => openParentDetail(parent.id)}
                         onResendInvite={() => resendInvite(parent.id)}
                         onHold={() => setAccessStatus(parent.id, "hold")}
                         onSuspend={() => setAccessStatus(parent.id, "suspended")}
                         onReactivate={() => setAccessStatus(parent.id, "active")}
-                        onDelete={() =>
-                          setPendingDelete(parent as ParentDirectoryRecord)
-                        }
+                        onDelete={() => setPendingDelete(parent)}
                       />
                     ) : null
                   }
@@ -641,7 +723,7 @@ function ParentsPage() {
                     </div>
                   </td>
                   <td className="px-5 py-3">
-                    {writesEnabled ? (
+                    {!apiMode ? (
                       <div
                         className="flex flex-wrap gap-1.5"
                         onClick={(event) => event.stopPropagation()}
@@ -681,15 +763,13 @@ function ParentsPage() {
                       onKeyDown={(event) => event.stopPropagation()}
                     >
                       <ParentRowMenu
-                        parent={parent as ParentDirectoryRecord}
+                        parent={parent}
                         onView={() => openParentDetail(parent.id)}
                         onResendInvite={() => resendInvite(parent.id)}
                         onHold={() => setAccessStatus(parent.id, "hold")}
                         onSuspend={() => setAccessStatus(parent.id, "suspended")}
                         onReactivate={() => setAccessStatus(parent.id, "active")}
-                        onDelete={() =>
-                          setPendingDelete(parent as ParentDirectoryRecord)
-                        }
+                        onDelete={() => setPendingDelete(parent)}
                       />
                     </td>
                   ) : null}
@@ -793,17 +873,22 @@ function ParentsPage() {
               maxLength={10}
             />
           </Field>
-          <Field label="Account password" required hint="At least 8 characters">
-            <TextInput
-              value={draft.password}
-              onChange={(event) => setDraft({ ...draft, password: event.target.value })}
-            />
-          </Field>
-          <Field label="Link child IDs" hint="Comma-separated student IDs">
+          {!apiMode ? (
+            <Field label="Account password" required hint="At least 8 characters">
+              <TextInput
+                value={draft.password}
+                onChange={(event) => setDraft({ ...draft, password: event.target.value })}
+              />
+            </Field>
+          ) : null}
+          <Field
+            label="Link child IDs"
+            hint={apiMode ? "Comma-separated student UUIDs" : "Comma-separated student IDs"}
+          >
             <TextInput
               value={draft.linkedStudentIds}
               onChange={(event) => setDraft({ ...draft, linkedStudentIds: event.target.value })}
-              placeholder="STU-1042, STU-1099"
+              placeholder={apiMode ? "uuid, uuid…" : "STU-1042, STU-1099"}
             />
           </Field>
           <div className="sm:col-span-2">
@@ -841,7 +926,7 @@ function ParentRowMenu({
   onReactivate,
   onDelete,
 }: {
-  parent: ParentDirectoryRecord;
+  parent: Pick<ParentRow, "inviteStatus" | "accessStatus">;
   onView: () => void;
   onResendInvite: () => void;
   onHold: () => void;

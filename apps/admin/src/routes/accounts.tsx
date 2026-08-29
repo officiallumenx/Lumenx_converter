@@ -33,6 +33,8 @@ import {
   type SectionFilter,
 } from "@/lib/class-section-filter";
 import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-labels";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { AccountsApiMembershipsPanel } from "@/components/accounts/AccountsApiMembershipsPanel";
 
 export const Route = createFileRoute("/accounts")({
   head: () => ({ meta: [{ title: adminPageTitle("/accounts") }] }),
@@ -425,6 +427,17 @@ function AccountsPage() {
 
   const activeToday = rows.filter((a) => a.status === "active").length;
   const suspended = rows.filter((a) => a.status === "suspended").length;
+
+  if (isApiAuthMode()) {
+    return (
+      <AppShell
+        title={M.accounts}
+        subtitle="Institute memberships from backend · account provisioning is demo-only in API mode"
+      >
+        <AccountsApiMembershipsPanel />
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell

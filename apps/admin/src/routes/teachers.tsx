@@ -30,10 +30,17 @@ import { useAdminToast } from "@/components/AdminActionToast";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
+import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
   loadTeachersList,
   resolveTeachersListView,
   shouldCommitTeachersLoad,
+  createTeacher as createTeacherApi,
+  updateTeacher as updateTeacherApi,
+  deleteTeacher as deleteTeacherApi,
+  roleToTeachingScope,
+  portalAccessLabelToLevel,
+  teacherStatusToApi,
   type TeacherListItem,
   type TeachersListStatus,
 } from "@/lib/teachers";
@@ -342,7 +349,7 @@ function TeachersPage() {
   const notify = useAdminToast();
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
-  const writesEnabled = !apiMode;
+  const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
   const [rows, setRows] = useState<Teacher[]>(() =>
     apiMode ? [] : loadTeachers(),
   );
@@ -354,6 +361,8 @@ function TeachersPage() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [pendingDelete, setPendingDelete] = useState<TeacherRow | null>(null);
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
@@ -474,6 +483,7 @@ function TeachersPage() {
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
+    reloadKey,
   ]);
 
   useEffect(() => {
@@ -489,6 +499,7 @@ function TeachersPage() {
     setShowProfilePassword(false);
     setShowEditPassword(false);
     setShowNewPassword(false);
+    setPendingDelete(null);
   }, [instituteCtx.activeInstituteId]);
 
   useEffect(() => {
@@ -540,7 +551,7 @@ function TeachersPage() {
               ? "No teachers yet"
               : null;
 
-  const guardWrite = (message = "Teacher writes are not enabled in API read-only mode") => {
+  const guardWrite = (message = "Teacher write failed") => {
     if (!writesEnabled) {
       notify(message);
       return false;
@@ -563,6 +574,10 @@ function TeachersPage() {
   };
 
   const openMessage = useCallback((teacher: TeacherRow) => {
+    if (apiMode) {
+      notify("Messaging is not available in API mode");
+      return;
+    }
     if (!guardWrite()) return;
     setSelectedId(null);
     setEditing(false);
@@ -573,7 +588,7 @@ function TeachersPage() {
     setMessageSubject("");
     setMessageBody("");
     setMessageError("");
-  }, []);
+  }, [apiMode, writesEnabled]);
 
   const closeMessage = () => {
     setMessageTarget(null);
@@ -602,7 +617,8 @@ function TeachersPage() {
     if (!selected) return;
     setEditForm({
       ...selected,
-      subjectIds: getAssignedSubjectIdsForTeacher(selected.id),
+      subjectIds: apiMode ? [] : getAssignedSubjectIdsForTeacher(selected.id),
+      subjects: selected.subjects,
       sectionsText: selected.assignedSections.join(", "),
     });
     setShowEditPassword(false);
@@ -613,18 +629,50 @@ function TeachersPage() {
     if (!guardWrite()) return;
     if (!selected || !editForm.name?.trim()) return;
     const nextRole = editForm.role ?? selected.role;
-    const subjectIds =
-      nextRole === "activity-coordinator"
-        ? []
-        : (editForm.subjectIds ?? getAssignedSubjectIdsForTeacher(selected.id));
-    assignSubjectsToTeacher(selected.id, subjectIds);
-    const subjects = getAssignedSubjectNamesForTeacher(selected.id);
     const assignedSections = editForm.sectionsText
       ? editForm.sectionsText
           .split(",")
           .map((s) => s.trim())
           .filter(Boolean)
       : selected.assignedSections;
+
+    if (apiMode) {
+      void updateTeacherApi(selected.id, {
+        displayName: editForm.name.trim(),
+        department: editForm.dept ?? selected.dept,
+        teachingScope: roleToTeachingScope(nextRole),
+        portalAccessLevel: portalAccessLabelToLevel(
+          editForm.portalAccess ?? selected.portalAccess,
+        ),
+        status: teacherStatusToApi(editForm.status ?? selected.status),
+        email: (editForm.email ?? selected.email) || null,
+        phone: (editForm.phone ?? selected.phone) || null,
+        qualification: (editForm.qualification ?? selected.qualification) || null,
+        dateOfBirth: editForm.dateOfBirth?.trim() || null,
+        assignedSectionLabels: assignedSections,
+        subjects:
+          nextRole === "activity-coordinator"
+            ? []
+            : editForm.subjects ?? selected.subjects,
+      })
+        .then((updated) => {
+          setEditing(false);
+          setEditForm({});
+          setReloadKey((k) => k + 1);
+          notify(`${updated.displayName} updated successfully`);
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to update teacher");
+        });
+      return;
+    }
+
+    const subjectIds =
+      nextRole === "activity-coordinator"
+        ? []
+        : (editForm.subjectIds ?? getAssignedSubjectIdsForTeacher(selected.id));
+    assignSubjectsToTeacher(selected.id, subjectIds);
+    const subjects = getAssignedSubjectNamesForTeacher(selected.id);
 
     setRows((prev) =>
       prev.map((t) =>
@@ -654,6 +702,11 @@ function TeachersPage() {
   };
 
   const confirmReset = () => {
+    if (apiMode) {
+      notify("Credential reset is not available in API mode");
+      setResetTarget(null);
+      return;
+    }
     if (!guardWrite()) return;
     if (!resetTarget) return;
     const sentAt = new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" });
@@ -664,9 +717,71 @@ function TeachersPage() {
     setResetTarget(null);
   };
 
+  const removeTeacher = (id: string) => {
+    if (apiMode) {
+      void deleteTeacherApi(id)
+        .then(() => {
+          setPendingDelete(null);
+          closeDetail();
+          setReloadKey((k) => k + 1);
+          notify("Teacher deleted");
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to delete teacher");
+        });
+      return;
+    }
+    setRows((prev) => prev.filter((t) => t.id !== id));
+    setPendingDelete(null);
+    closeDetail();
+    notify("Teacher removed");
+  };
+
   const onboard = () => {
     if (!guardWrite()) return;
     if (!newName.trim()) return;
+
+    if (apiMode) {
+      const instituteId = instituteCtx.activeInstituteId;
+      if (!instituteId) {
+        notify("Select an institute before creating a teacher");
+        return;
+      }
+      const subjects =
+        newRole === "activity-coordinator"
+          ? []
+          : subjectCatalog
+              .filter((subject) => newSubjectIds.includes(subject.id))
+              .map((subject) => subject.name);
+      void createTeacherApi({
+        instituteId,
+        displayName: newName.trim(),
+        department: newDept,
+        teachingScope: roleToTeachingScope(newRole),
+        portalAccessLevel: "faculty_grading",
+        status: "pending",
+        email: newEmail.trim() || null,
+        dateOfBirth: newDateOfBirth.trim() || null,
+        subjects,
+      })
+        .then((created) => {
+          setNewName("");
+          setNewRole("subject-teacher");
+          setNewEmail("");
+          setNewDateOfBirth("");
+          setNewPassword("Teacher@123");
+          setNewSubjectIds([]);
+          setShowNewPassword(false);
+          setCreateDialogOpen(false);
+          setReloadKey((k) => k + 1);
+          notify(`${created.displayName} onboarded`);
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to create teacher");
+        });
+      return;
+    }
+
     const id = `T-${String(rows.length + 1).padStart(3, "0")}`;
     setRows((p) => [
       ...p,
@@ -716,7 +831,7 @@ function TeachersPage() {
       title="Academic Staff"
       subtitle={
         apiMode
-          ? `API mode · read-only · ${countLabel(list.length)} teachers · ${departmentCount} departments`
+          ? `API mode · ${countLabel(list.length)} teachers · ${departmentCount} departments`
           : `${list.length} teachers · ${departmentCount || 12} departments`
       }
       actions={
@@ -781,26 +896,22 @@ function TeachersPage() {
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-          {list.map((t) =>
-            writesEnabled ? (
+          {list.map((t) => (
               <TeacherStaffCard
                 key={t.id}
                 teacher={t as Teacher}
                 onOpen={(teacher) => openDetail(teacher)}
                 onMessage={(teacher) => openMessage(teacher)}
                 onReset={(teacher) => {
+                  if (apiMode) {
+                    notify("Credential reset is not available in API mode");
+                    return;
+                  }
                   if (!guardWrite()) return;
                   setResetTarget(teacher as Teacher);
                 }}
               />
-            ) : (
-              <TeacherDirectoryCard
-                key={t.id}
-                teacher={t}
-                onOpen={openDetail}
-              />
-            ),
-          )}
+            ))}
         </div>
       )}
 
@@ -833,15 +944,25 @@ function TeachersPage() {
           ) : writesEnabled ? (
             <>
               <Button onClick={closeDetail}>Close</Button>
+              {!apiMode ? (
+                <Button
+                  onClick={() => {
+                    if (selected) openMessage(selected);
+                  }}
+                >
+                  <Mail className="size-3.5" /> Message
+                </Button>
+              ) : null}
+              {!apiMode ? (
+                <Button onClick={() => selected && setResetTarget(selected as Teacher)}>
+                  <KeyRound className="size-3.5" /> Reset credentials
+                </Button>
+              ) : null}
               <Button
-                onClick={() => {
-                  if (selected) openMessage(selected);
-                }}
+                onClick={() => selected && setPendingDelete(selected)}
+                className="text-destructive hover:bg-destructive/10"
               >
-                <Mail className="size-3.5" /> Message
-              </Button>
-              <Button onClick={() => selected && setResetTarget(selected as Teacher)}>
-                <KeyRound className="size-3.5" /> Reset credentials
+                Delete
               </Button>
               <Button variant="primary" onClick={startEdit}>
                 <Edit3 className="size-3.5" /> Edit profile
@@ -853,11 +974,15 @@ function TeachersPage() {
         }
       >
         {selected && !editing && writesEnabled ? (
-          <TeacherProfileReadonly
-            teacher={selected as Teacher}
-            showPassword={showProfilePassword}
-            onTogglePassword={() => setShowProfilePassword((visible) => !visible)}
-          />
+          apiMode ? (
+            <ApiTeacherProfileSummary teacher={selected} />
+          ) : (
+            <TeacherProfileReadonly
+              teacher={selected as Teacher}
+              showPassword={showProfilePassword}
+              onTogglePassword={() => setShowProfilePassword((visible) => !visible)}
+            />
+          )
         ) : null}
         {selected && !editing && !writesEnabled ? (
           <ApiTeacherProfileSummary teacher={selected} />
@@ -922,6 +1047,7 @@ function TeachersPage() {
                 onChange={(e) => setEditForm((d) => ({ ...d, dateOfBirth: e.target.value }))}
               />
             </Field>
+            {!apiMode ? (
             <Field label="Account password" required hint="Admin can always view this password">
               <div className="relative">
                 <TextInput
@@ -944,6 +1070,7 @@ function TeachersPage() {
                 </button>
               </div>
             </Field>
+            ) : null}
             <Field label="Status">
               <Select
                 value={editForm.status ?? "active"}
@@ -987,13 +1114,29 @@ function TeachersPage() {
                 hint={
                   (editForm.role ?? selected.role) === "activity-coordinator"
                     ? "Subject assignment is available for Subject Teacher or Both Roles"
-                    : "Select subjects from the institute catalog"
+                    : apiMode
+                      ? "Comma-separated subject names"
+                      : "Select subjects from the institute catalog"
                 }
               >
                 {(editForm.role ?? selected.role) === "activity-coordinator" ? (
                   <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
                     Change the teacher role to Subject Teacher or Both Roles to assign subjects.
                   </div>
+                ) : apiMode ? (
+                  <TextInput
+                    value={(editForm.subjects ?? []).join(", ")}
+                    onChange={(e) =>
+                      setEditForm((d) => ({
+                        ...d,
+                        subjects: e.target.value
+                          .split(",")
+                          .map((s) => s.trim())
+                          .filter(Boolean),
+                      }))
+                    }
+                    placeholder="Mathematics, Algebra"
+                  />
                 ) : (
                   <div className="mt-1 grid gap-2 sm:grid-cols-2">
                     {subjectCatalog.map((subject) => {
@@ -1079,6 +1222,36 @@ function TeachersPage() {
             </div>
           </div>
         </div>
+      </Modal>
+      ) : null}
+
+      {writesEnabled ? (
+      <Modal
+        open={pendingDelete !== null}
+        onClose={() => setPendingDelete(null)}
+        title="Delete teacher?"
+        subtitle={
+          pendingDelete
+            ? `This will permanently remove ${pendingDelete.name}.`
+            : undefined
+        }
+        size="sm"
+        footer={
+          <>
+            <Button onClick={() => setPendingDelete(null)}>Cancel</Button>
+            <Button
+              variant="primary"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => pendingDelete && removeTeacher(pendingDelete.id)}
+            >
+              Delete teacher
+            </Button>
+          </>
+        }
+      >
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          This removes the teacher directory record. Related assignments may need separate cleanup.
+        </p>
       </Modal>
       ) : null}
 
@@ -1208,6 +1381,7 @@ function TeachersPage() {
               onChange={(e) => setNewDateOfBirth(e.target.value)}
             />
           </Field>
+          {!apiMode ? (
           <Field label="Account password" required hint="Admin can always view this password">
             <div className="relative">
               <TextInput
@@ -1231,6 +1405,7 @@ function TeachersPage() {
               </button>
             </div>
           </Field>
+          ) : null}
           <div className="sm:col-span-2">
             <Field
               label="Assigned subjects"

@@ -6,6 +6,13 @@ export type {
   RoleCatalogItem,
 } from "./types";
 export { assertApiMode, listMemberships, listRoles } from "./api";
+export {
+  createMembership,
+  updateMembership,
+  deleteMembership,
+  type CreateMembershipInput,
+  type UpdateMembershipInput,
+} from "./mutations";
 export { membershipDtoToListItem, membershipDtosToListItems } from "./map";
 export {
   loadMembershipsList,

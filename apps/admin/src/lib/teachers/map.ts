@@ -15,10 +15,28 @@ export function teachingScopeToRole(scope: TeachingScope): TeacherRole {
   return "subject-teacher";
 }
 
+export function roleToTeachingScope(role: TeacherRole): TeachingScope {
+  if (role === "activity-coordinator") return "activity_coordinator";
+  if (role === "both") return "dual_role";
+  return "subject_teacher";
+}
+
 export function portalAccessLevelToLabel(level: PortalAccessLevel): string {
   if (level === "faculty_grading") return "Faculty + Grading";
   if (level === "faculty_only") return "Faculty only";
   return "Read-only";
+}
+
+export function portalAccessLabelToLevel(label: string): PortalAccessLevel {
+  if (label === "Faculty only") return "faculty_only";
+  if (label === "Read-only") return "read_only";
+  return "faculty_grading";
+}
+
+export function teacherStatusToApi(status: TeacherStatus): ApiTeacherStatus {
+  if (status === "on-leave") return "on_leave";
+  if (status === "pending") return "pending";
+  return "active";
 }
 
 export function apiStatusToTeacherStatus(status: string): TeacherStatus {

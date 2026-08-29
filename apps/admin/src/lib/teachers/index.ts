@@ -10,12 +10,22 @@ export type {
 } from "./types";
 export { assertApiMode, listTeachers } from "./api";
 export {
+  createTeacher,
+  updateTeacher,
+  deleteTeacher,
+  type CreateTeacherInput,
+  type UpdateTeacherInput,
+} from "./mutations";
+export {
   apiStatusToTeacherStatus,
   formatJoinedLabel,
+  portalAccessLabelToLevel,
   portalAccessLevelToLabel,
+  roleToTeachingScope,
   teacherDtoToListItem,
   teacherDtosToListItems,
   teacherIdentityLabel,
+  teacherStatusToApi,
   teachingScopeToRole,
 } from "./map";
 export {

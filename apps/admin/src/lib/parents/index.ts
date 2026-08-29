@@ -12,6 +12,18 @@ export type {
 } from "./types";
 export { assertApiMode, getParent, listParents } from "./api";
 export {
+  createParent,
+  updateParent,
+  deleteParent,
+  createParentLink,
+  updateParentLink,
+  deleteParentLink,
+  type CreateParentInput,
+  type UpdateParentInput,
+  type CreateGuardianLinkInput,
+  type UpdateGuardianLinkInput,
+} from "./mutations";
+export {
   activeLinks,
   linkedChildrenLabel,
   parentDtoToDetailItem,

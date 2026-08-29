@@ -39,10 +39,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
+import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
   loadStudentsList,
   resolveStudentsListView,
   shouldCommitStudentsLoad,
+  createStudent as createStudentApi,
+  deleteStudent as deleteStudentApi,
   type StudentListItem,
   type StudentsListStatus,
 } from "@/lib/students";
@@ -97,7 +100,7 @@ function StudentsPage() {
   const navigate = useNavigate();
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
-  const writesEnabled = !apiMode;
+  const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
   const { profileId, profile } = useDemoProfile();
   const college = isCollegeMode();
   const classOptions = getClassFilterOptions();
@@ -116,6 +119,7 @@ function StudentsPage() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
@@ -143,7 +147,7 @@ function StudentsPage() {
   const [sectionFilter, setSectionFilter] = useState<SectionFilter>("all");
   const [departmentFilter, setDepartmentFilter] = useState<DepartmentFilter>("all");
   const [minAttendancePct, setMinAttendancePct] = useState(0);
-  const [pendingDelete, setPendingDelete] = useState<StudentDirectoryRecord | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<StudentRow | null>(null);
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 25;
 
@@ -153,27 +157,30 @@ function StudentsPage() {
   };
 
   const setAccessStatus = (id: string, accessStatus: StudentAccessStatus) => {
+    if (apiMode) {
+      void import("@/lib/students").then(({ updateStudent }) =>
+        updateStudent(id, { accessStatus })
+          .then(() => {
+            setReloadKey((k) => k + 1);
+            const label =
+              accessStatus === "hold"
+                ? "held"
+                : accessStatus === "suspended"
+                  ? "suspended"
+                  : "reactivated";
+            notify(`Student ${label}`);
+          })
+          .catch((err) => {
+            notify(err instanceof Error ? err.message : "Failed to update student");
+          }),
+      );
+      return;
+    }
     const next = rows.map((row) => (row.id === id ? { ...row, accessStatus } : row));
     persist(next);
     const label =
       accessStatus === "hold" ? "held" : accessStatus === "suspended" ? "suspended" : "reactivated";
     notify(`Student ${label}`);
-  };
-
-  const removeStudent = (id: string) => {
-    const target = rows.find((row) => row.id === id);
-    if (target) {
-      softDeleteToRecycleBin({
-        module: "Students",
-        title: target.name,
-        subtitle: target.id,
-        deletedBy: user?.name ?? "Admin",
-        snapshot: { ...target } as unknown as Record<string, unknown>,
-      });
-    }
-    persist(rows.filter((row) => row.id !== id));
-    setPendingDelete(null);
-    notify(target ? `${target.name} moved to Recycle Bin` : "Student moved to Recycle Bin");
   };
 
   useEffect(() => {
@@ -249,6 +256,7 @@ function StudentsPage() {
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
+    reloadKey,
   ]);
 
   useEffect(() => {
@@ -310,7 +318,75 @@ function StudentsPage() {
       : `${className.replace("Grade ", "")}${section ? `-${section}` : ""}`;
   };
 
+  const mapDraftGender = (
+    gender: StudentDraft["gender"],
+  ): "female" | "male" | "other" | "prefer_not_to_say" => {
+    const g = gender.trim().toLowerCase();
+    if (g === "female") return "female";
+    if (g === "male") return "male";
+    if (g === "other") return "other";
+    return "prefer_not_to_say";
+  };
+
+  const removeStudent = (id: string) => {
+    if (apiMode) {
+      void deleteStudentApi(id)
+        .then(() => {
+          setPendingDelete(null);
+          setReloadKey((k) => k + 1);
+          notify("Student deleted");
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to delete student");
+        });
+      return;
+    }
+    const target = rows.find((row) => row.id === id);
+    if (target) {
+      softDeleteToRecycleBin({
+        module: "Students",
+        title: target.name,
+        subtitle: target.id,
+        deletedBy: user?.name ?? "Admin",
+        snapshot: { ...target } as unknown as Record<string, unknown>,
+      });
+    }
+    persist(rows.filter((row) => row.id !== id));
+    setPendingDelete(null);
+    notify(target ? `${target.name} moved to Recycle Bin` : "Student moved to Recycle Bin");
+  };
+
   const createStudent = (draft: StudentDraft, addSibling: boolean) => {
+    if (apiMode) {
+      const instituteId = instituteCtx.activeInstituteId;
+      if (!instituteId) {
+        notify("Select an institute before creating a student");
+        return;
+      }
+      void createStudentApi({
+        instituteId,
+        firstName: draft.firstName.trim(),
+        surname: draft.surname.trim(),
+        gender: mapDraftGender(draft.gender),
+        address: draft.address.trim() || "—",
+        dateOfBirth: draft.dateOfBirth.trim() || null,
+        classLabel: draft.className.trim() || null,
+        sectionLabel: draft.section.trim() || null,
+        rollNo: draft.rollNo.trim() || null,
+        admissionNumber: draft.admissionNumber.trim() || null,
+        status: "active",
+        accessStatus: "active",
+      })
+        .then((created) => {
+          setReloadKey((k) => k + 1);
+          notify(`${created.displayName || created.firstName} created`);
+          if (!addSibling) setCreateOpen(false);
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to create student");
+        });
+      return;
+    }
     const id = nextStudentId(rows);
     const record = studentFromDraft(draft, id, gradeKeyFor(draft.className, draft.section));
     const next = [...rows, record];
@@ -429,10 +505,6 @@ function StudentsPage() {
               : null;
 
   const openStudentDetail = (id: string) => {
-    if (!writesEnabled) {
-      notify("Student detail pages are not enabled in API read-only mode");
-      return;
-    }
     void navigate({ to: "/students/$id", params: { id } });
   };
 
@@ -441,15 +513,18 @@ function StudentsPage() {
       title={M.students}
       subtitle={
         apiMode
-          ? `API mode · read-only · ${countLabel(list.length)} students · ${scopeLabel}`
+          ? `API mode · ${countLabel(list.length)} students · ${scopeLabel}`
           : `${list.length} students · ${scopeLabel}`
       }
       actions={
         writesEnabled ? (
           <>
-            <Button onClick={() => setBulkImportOpen(true)}>
-              <Upload className="size-3.5" /> Bulk Import
-            </Button>
+            {!apiMode ? (
+              <Button onClick={() => setBulkImportOpen(true)}>
+                <Upload className="size-3.5" /> Bulk Import
+              </Button>
+            ) : null}
+            {!apiMode ? (
             <Button
               onClick={() => {
                 downloadStudentDirectoryCsv(list as StudentDirectoryRecord[]);
@@ -458,6 +533,7 @@ function StudentsPage() {
             >
               <Download className="size-3.5" /> Export CSV
             </Button>
+            ) : null}
             <Button onClick={() => setFiltersOpen(!filtersOpen)}>
               <Filter className="size-3.5" /> Filters
             </Button>

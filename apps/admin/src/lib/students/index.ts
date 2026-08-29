@@ -9,6 +9,13 @@ export type {
 } from "./types";
 export { assertApiMode, getStudent, listStudents } from "./api";
 export {
+  createStudent,
+  updateStudent,
+  deleteStudent,
+  type CreateStudentInput,
+  type UpdateStudentInput,
+} from "./mutations";
+export {
   buildStudentGradeLabel,
   studentDtoToDetailItem,
   studentDtoToListItem,
