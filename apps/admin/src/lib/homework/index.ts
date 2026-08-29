@@ -17,3 +17,12 @@ export type {
   HomeworkStatus,
   ListHomeworkParams,
 } from "./types";
+export {
+  createHomework,
+  updateHomework,
+  publishHomework,
+  expireHomework,
+  deleteHomework,
+  type CreateHomeworkInput,
+  type UpdateHomeworkInput,
+} from "./mutations";

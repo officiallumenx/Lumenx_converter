@@ -30,3 +30,12 @@ export {
   type ExamsListView,
   type ResolveExamsListViewInput,
 } from "./list-view";
+export {
+  createExam,
+  updateExam,
+  deleteExam,
+  type CreateExamInput,
+  type UpdateExamInput,
+  type ExamTargetSectionInput,
+  type ExamSubjectScheduleInput,
+} from "./mutations";

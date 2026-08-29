@@ -23,3 +23,10 @@ export type {
   TimetableSlotListItem,
   TimetableSlotStatus,
 } from "./types";
+export {
+  createTimetableSlot,
+  updateTimetableSlot,
+  deleteTimetableSlot,
+  type CreateTimetableSlotInput,
+  type UpdateTimetableSlotInput,
+} from "./mutations";

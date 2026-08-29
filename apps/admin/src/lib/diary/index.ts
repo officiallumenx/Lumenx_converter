@@ -19,3 +19,12 @@ export {
   type DiaryListView,
   type ResolveDiaryListViewInput,
 } from "./list-view";
+export {
+  createDiaryDay,
+  updateDiaryDay,
+  submitDiaryDay,
+  deleteDiaryDay,
+  type CreateDiaryDayInput,
+  type UpdateDiaryDayInput,
+  type DiaryRowInput,
+} from "./mutations";

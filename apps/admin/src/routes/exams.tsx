@@ -23,10 +23,13 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
+import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
+  deleteExam as deleteExamApi,
   loadExamsList,
   resolveExamsListView,
   shouldCommitExamsLoad,
+  updateExam,
   type ExamListItem,
   type ExamTimetableListItem,
   type ExamsListStatus,
@@ -75,7 +78,7 @@ function ExamsPage() {
   const notify = useAdminToast();
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
-  const writesEnabled = !apiMode;
+  const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
   const { profileId } = useDemoProfile();
   const college = isCollegeMode();
   const gradeOptions = useMemo(() => getGradeScopeOptions(), [profileId]);
@@ -96,6 +99,7 @@ function ExamsPage() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
@@ -200,6 +204,7 @@ function ExamsPage() {
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
+    reloadKey,
   ]);
 
   useEffect(() => {
@@ -226,17 +231,17 @@ function ExamsPage() {
     apiMode && !listView.rowsValid ? "…" : String(count);
 
   const openTimetable = (id: string) => {
-    if (!writesEnabled) {
-      notify("Exam timetable editing is not enabled in API read-only mode");
-      return;
-    }
     setSelectedTtId(id);
   };
 
-  const selectedTt = writesEnabled
-    ? timetables.find((t) => t.id === selectedTtId) ?? null
+  const selectedTt: TimetableRow | null = selectedTtId
+    ? (displayTimetables.find((t) => t.id === selectedTtId) ?? null)
     : null;
-  const selectedTtOutdated = selectedTt ? isTimetableOutdated(selectedTt, exams) : false;
+  const selectedTtOutdated = selectedTt
+    ? apiMode
+      ? false
+      : isTimetableOutdated(selectedTt as ExamTimetable, exams)
+    : false;
 
   const updateTimetable = useCallback(
     (id: string, updater: (t: ExamTimetable) => ExamTimetable) => {
@@ -308,6 +313,10 @@ function ExamsPage() {
     exam: ExamRecord;
     timetable: ExamTimetable;
   }) => {
+    if (apiMode) {
+      notify("Exam wizard create is demo-only; use Connect or API with academic year UUIDs");
+      return;
+    }
     setExams((p) => [...p, exam]);
     setTimetables((p) => [...p, timetable]);
     setSelectedTtId(timetable.id);
@@ -317,6 +326,21 @@ function ExamsPage() {
   };
 
   const deleteExam = (id: string) => {
+    if (apiMode) {
+      void deleteExamApi(id)
+        .then(() => {
+          setSelectedTtId((cur) => {
+            const curTt = displayTimetables.find((t) => t.id === cur);
+            return curTt?.examId === id ? null : cur;
+          });
+          setReloadKey((k) => k + 1);
+          notify("Exam deleted");
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to delete exam");
+        });
+      return;
+    }
     setExams((p) => p.filter((e) => e.id !== id));
     setTimetables((p) => p.filter((t) => t.examId !== id));
     unpublishExamFromLearners(id);
@@ -327,6 +351,20 @@ function ExamsPage() {
   };
 
   const deleteTimetable = (id: string) => {
+    if (apiMode) {
+      const tt = displayTimetables.find((t) => t.id === id);
+      if (!tt) return;
+      void deleteExamApi(tt.examId)
+        .then(() => {
+          setSelectedTtId(null);
+          setReloadKey((k) => k + 1);
+          notify("Exam timetable deleted");
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to delete timetable");
+        });
+      return;
+    }
     const tt = timetables.find((t) => t.id === id);
     setTimetables((p) => p.filter((t) => t.id !== id));
     if (tt) {
@@ -338,6 +376,10 @@ function ExamsPage() {
   };
 
   const handleAddPaper = () => {
+    if (apiMode) {
+      notify("Adding papers via API requires subject schedule UUIDs");
+      return;
+    }
     if (!selectedTt || selectedTtOutdated || !paperDate || !paperSubject) return;
     const dayNumber = selectedTt.slots.length + 1;
     updateTimetable(selectedTt.id, (t) =>
@@ -357,8 +399,19 @@ function ExamsPage() {
   };
 
   const publishTimetable = (id: string) => {
-    const tt = timetables.find((t) => t.id === id);
+    const tt = displayTimetables.find((t) => t.id === id);
     if (!tt) return;
+    if (apiMode) {
+      void updateExam(tt.examId, { scheduleStatus: "published" })
+        .then(() => {
+          setReloadKey((k) => k + 1);
+          notify("Timetable published to students & parents");
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to publish timetable");
+        });
+      return;
+    }
     const exam = exams.find((e) => e.id === tt.examId);
     setTimetables((prev) =>
       prev.map((t) => {
@@ -423,9 +476,11 @@ function ExamsPage() {
                     <Send className="size-3.5" /> Publish timetable
                   </Button>
                 )}
-                <Button variant="primary" onClick={() => setAddPaperOpen(true)}>
-                  <Plus className="size-3.5" /> Add paper
-                </Button>
+                {!apiMode ? (
+                  <Button variant="primary" onClick={() => setAddPaperOpen(true)}>
+                    <Plus className="size-3.5" /> Add paper
+                  </Button>
+                ) : null}
               </>
             )}
           </>
@@ -440,17 +495,17 @@ function ExamsPage() {
 
         <div className={`mb-4 ${selectedTtOutdated ? "opacity-60" : ""}`}>
           <ExamTimetableTable
-            timetable={selectedTt}
+            timetable={selectedTt as ExamTimetable}
             college={college}
-            readOnly={selectedTtOutdated}
+            readOnly={selectedTtOutdated || apiMode}
             onRemoveSlot={
-              selectedTtOutdated
+              selectedTtOutdated || apiMode
                 ? undefined
                 : (slotId) =>
                     updateTimetable(selectedTt.id, (t) => removeSlotFromTimetable(t, slotId))
             }
             onQuickEdit={
-              selectedTtOutdated
+              selectedTtOutdated || apiMode
                 ? undefined
                 : (patch) => {
                     setExams((prev) =>

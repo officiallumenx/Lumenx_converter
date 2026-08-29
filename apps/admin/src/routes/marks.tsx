@@ -38,9 +38,13 @@ import { BellRing, CheckCircle2, Clock, Eye, Lock, RotateCcw, Send, Siren, X } f
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
+import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
   loadMarksList,
+  publishMarkEntry as publishMarkEntryApi,
+  rejectMarkEntry as rejectMarkEntryApi,
   resolveMarksListView,
+  returnMarkEntry as returnMarkEntryApi,
   shouldCommitMarksLoad,
   type MarkEntryListItem,
   type MarksListStatus,
@@ -70,7 +74,7 @@ function MarksPage() {
   const notify = useAdminToast();
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
-  const writesEnabled = !apiMode;
+  const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
   const demoEntries = useSyncExternalStore(
     adminDataFacade.marks.channel.subscribe,
     adminDataFacade.marks.channel.load,
@@ -84,6 +88,7 @@ function MarksPage() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
@@ -171,6 +176,7 @@ function MarksPage() {
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
+    reloadKey,
   ]);
 
   useEffect(() => {
@@ -274,6 +280,18 @@ function MarksPage() {
 
   const approveOne = () => {
     if (!writesEnabled || !reviewEntry || reviewEntry.status !== "submitted") return;
+    if (apiMode) {
+      void publishMarkEntryApi(reviewEntry.id)
+        .then(() => {
+          setReviewEntry(null);
+          setReloadKey((k) => k + 1);
+          notify("Marks approved and published to students & parents");
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to publish marks");
+        });
+      return;
+    }
     const next = approveMarkEntry(demoEntries, reviewEntry.id);
     persist(next);
     setReviewEntry(next.find((e) => e.id === reviewEntry.id) ?? null);
@@ -282,6 +300,18 @@ function MarksPage() {
 
   const returnOne = () => {
     if (!writesEnabled || !reviewEntry || reviewEntry.status !== "submitted") return;
+    if (apiMode) {
+      void returnMarkEntryApi(reviewEntry.id)
+        .then(() => {
+          setReviewEntry(null);
+          setReloadKey((k) => k + 1);
+          notify("Marks returned to teacher for correction");
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to return marks");
+        });
+      return;
+    }
     const next = returnMarkEntry(demoEntries, reviewEntry.id);
     persist(next);
     setReviewEntry(null);
@@ -290,6 +320,18 @@ function MarksPage() {
 
   const rejectOne = () => {
     if (!writesEnabled || !reviewEntry || reviewEntry.status !== "submitted") return;
+    if (apiMode) {
+      void rejectMarkEntryApi(reviewEntry.id)
+        .then(() => {
+          setReviewEntry(null);
+          setReloadKey((k) => k + 1);
+          notify("Marks rejected — teacher must resubmit");
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to reject marks");
+        });
+      return;
+    }
     const next = rejectMarkEntry(demoEntries, reviewEntry.id);
     persist(next);
     setReviewEntry(null);
@@ -300,6 +342,17 @@ function MarksPage() {
     if (!writesEnabled) return;
     const ids = list.filter((e) => e.status === "submitted").map((e) => e.id);
     if (ids.length === 0) return;
+    if (apiMode) {
+      void Promise.all(ids.map((id) => publishMarkEntryApi(id)))
+        .then(() => {
+          setReloadKey((k) => k + 1);
+          notify(`Approved ${ids.length} mark sheet${ids.length === 1 ? "" : "s"}`);
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to approve mark sheets");
+        });
+      return;
+    }
     persist(publishAllSubmitted(demoEntries, ids));
     notify(`Approved ${ids.length} mark sheet${ids.length === 1 ? "" : "s"}`);
   };
@@ -343,7 +396,7 @@ function MarksPage() {
       title="Marks"
       subtitle={
         apiMode
-          ? `API mode · read-only · ${countLabel(activeEntries.length)} entries · names not resolved in list view`
+          ? `API mode · approve / return / reject · ${countLabel(activeEntries.length)} entries · names not resolved in list view`
           : "Teacher enter → edit → submit → Admin approve / reject / return → publish to students & parents (Admin cannot edit scores)"
       }
       actions={

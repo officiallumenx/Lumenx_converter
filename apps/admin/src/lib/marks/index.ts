@@ -23,3 +23,15 @@ export {
   type MarksListView,
   type ResolveMarksListViewInput,
 } from "./list-view";
+export {
+  createMarkEntry,
+  updateMarkEntry,
+  submitMarkEntry,
+  publishMarkEntry,
+  returnMarkEntry,
+  rejectMarkEntry,
+  deleteMarkEntry,
+  type CreateMarkEntryInput,
+  type UpdateMarkEntryInput,
+  type MarkScoreInput,
+} from "./mutations";
