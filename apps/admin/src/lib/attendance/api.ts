@@ -5,6 +5,8 @@ import { isInstituteUuid } from "@/lib/active-institute";
 import type {
   AttendanceRegisterDto,
   ListAttendanceRegistersParams,
+  ListAttendanceConfigParams,
+  AttendanceConfigDto,
 } from "./types";
 
 function assertApiMode(): void {
@@ -44,5 +46,20 @@ export async function getAttendanceRegister(
   }
   return client.get<AttendanceRegisterDto>(
     `/api/v1/attendance/registers/${registerId.trim()}`,
+  );
+}
+
+export async function listAttendanceConfig(
+  params: ListAttendanceConfigParams,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<AttendanceConfigDto[]> {
+  assertApiMode();
+  if (!isInstituteUuid(params.instituteId)) {
+    throw new Error("institute_id must be a valid UUID");
+  }
+  const query = new URLSearchParams();
+  query.set("institute_id", params.instituteId.trim());
+  return client.get<AttendanceConfigDto[]>(
+    `/api/v1/attendance/config?${query.toString()}`,
   );
 }

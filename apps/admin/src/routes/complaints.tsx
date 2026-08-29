@@ -17,10 +17,12 @@ import {
 } from "@lumenx/module-notifications";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
+import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
   loadComplaintsList,
   resolveComplaintsListView,
   shouldCommitComplaintsLoad,
+  transitionComplaint,
   type ComplaintListItem,
   type ComplaintsListStatus,
 } from "@/lib/complaints";
@@ -54,11 +56,12 @@ function ComplaintsPage() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
   const [detailId, setDetailId] = useState<string | null>(null);
-  const writesEnabled = !apiMode;
+  const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
 
   const listView = resolveComplaintsListView({
     apiMode,
@@ -138,6 +141,7 @@ function ComplaintsPage() {
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
+    reloadKey,
   ]);
 
   useEffect(() => {
@@ -153,8 +157,18 @@ function ComplaintsPage() {
   );
 
   const setStatus = (id: string, status: ComplaintStatus, reason?: string) => {
-    if (!writesEnabled) {
-      notify("Complaint writes via API are not enabled in this cutover");
+    if (apiMode) {
+      void transitionComplaint(id, {
+        status,
+        responseNote: reason?.trim() || null,
+      })
+        .then(() => {
+          setReloadKey((k) => k + 1);
+          notify(`Complaint ${id} moved to ${status.replace("_", " ")}`);
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to update complaint");
+        });
       return;
     }
     const current = items.find((c) => c.id === id);
@@ -209,7 +223,7 @@ function ComplaintsPage() {
       title="Complaint Triage"
       subtitle={
         apiMode
-          ? "API mode · read-only list"
+          ? "API mode · transition status"
           : "Destination required (Class Teacher or Principal/Admin) · Priority Low / Medium / High · No automatic routing"
       }
       actions={
@@ -359,7 +373,7 @@ function ComplaintsPage() {
                 </>
               ) : (
                 <span className="text-[11px] text-muted-foreground self-center">
-                  API mode · read-only
+                  API mode
                 </span>
               )}
             </>

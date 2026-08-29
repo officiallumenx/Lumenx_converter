@@ -81,3 +81,23 @@ export type AttendanceMarkListItem = {
 export type AttendanceRegisterDetail = AttendanceRegisterListItem & {
   marks: AttendanceMarkListItem[];
 };
+
+export type AttendanceConfigScope = "institute" | "class" | "section";
+
+export type AttendanceConfigDto = {
+  id: string;
+  instituteId: string;
+  effectiveFrom: string;
+  method: AttendanceMethod;
+  owner: AttendanceOwner;
+  scope: AttendanceConfigScope;
+  classCodes: string[];
+  sectionCodes: string[];
+  createdByUserProfileId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ListAttendanceConfigParams = {
+  instituteId: string;
+};

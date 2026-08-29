@@ -39,7 +39,9 @@ import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-lab
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
+import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
+  decideLeave,
   loadLeaveRequestsList,
   resolveLeaveListView,
   shouldCommitLeaveLoad,
@@ -98,7 +100,7 @@ function LeavePage() {
   const notify = useAdminToast();
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
-  const writesEnabled = !apiMode;
+  const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
 
   const [kind, setKind] = useState<LeaveKind>("teacher");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -116,6 +118,7 @@ function LeavePage() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
   const [q, setQ] = useState("");
@@ -202,6 +205,7 @@ function LeavePage() {
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
+    reloadKey,
   ]);
 
   const apiStudentRows = useMemo(
@@ -259,8 +263,20 @@ function LeavePage() {
   );
 
   const openDecision = (row: TeacherLeave, action: DecisionAction) => {
-    if (!writesEnabled) {
-      notify("Leave writes via API are not enabled in this cutover");
+    if (apiMode) {
+      if (action === "approved") {
+        void decideLeave(row.id, { outcome: "approved", note: "Accepted." })
+          .then(() => {
+            setReloadKey((k) => k + 1);
+            notify("Leave accepted");
+          })
+          .catch((err) => {
+            notify(err instanceof Error ? err.message : "Failed to decide leave");
+          });
+        return;
+      }
+      setDecision({ row, action });
+      setNote("");
       return;
     }
     if (action === "approved") {
@@ -295,16 +311,32 @@ function LeavePage() {
 
   const confirmDecision = () => {
     if (!decision || decision.action === "approved") return;
-    if (!writesEnabled) {
-      notify("Leave writes via API are not enabled in this cutover");
-      setDecision(null);
-      setNote("");
-      return;
-    }
     const decidedAt = new Date().toISOString().slice(0, 10);
     const trimmed = note.trim();
     const status: LeaveStatus =
       decision.action === "rejected" ? "rejected" : "ignored";
+
+    if (apiMode) {
+      void decideLeave(decision.row.id, {
+        outcome: status,
+        note: trimmed || null,
+      })
+        .then(() => {
+          if (status === "rejected") {
+            notify(trimmed ? "Leave rejected with note" : "Leave rejected");
+          } else {
+            notify(trimmed ? "Leave ignored with note" : "Leave ignored");
+          }
+          setDecision(null);
+          setNote("");
+          setReloadKey((k) => k + 1);
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to decide leave");
+        });
+      return;
+    }
+
     setDemoTeacherRows((prev) => {
       const next = prev.map((r) =>
         r.id === decision.row.id
@@ -345,13 +377,12 @@ function LeavePage() {
     setDecision(null);
     setNote("");
   };
-
   return (
     <AppShell
       title={M.leave}
       subtitle={
         apiMode
-          ? "API mode · read-only list"
+          ? "API mode · approve / reject / ignore"
           : "Student leave: Parent apply → Class Teacher approve · Teacher leave: Teacher apply → Admin Approve / Reject / Ignore"
       }
       actions={

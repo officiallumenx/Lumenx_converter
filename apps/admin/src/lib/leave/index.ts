@@ -10,6 +10,12 @@ export type {
   ListLeaveRequestsParams,
 } from "./types";
 export { listLeaveRequests } from "./api";
+export {
+  decideLeave,
+  cancelLeave,
+  type DecideLeaveInput,
+  type LeaveDecisionOutcome,
+} from "./mutations";
 export { leaveDtoToListItem, leaveDtosToListItems, daysBetween } from "./map";
 export {
   loadLeaveRequestsList,

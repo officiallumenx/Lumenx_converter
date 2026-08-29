@@ -15,6 +15,9 @@ import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { AuditActivityPanel } from "@/components/AuditActivityPanel";
 import { OfflineSyncStatusBar } from "@/components/OfflineSyncStatusBar";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { ApiReadUnavailablePanel } from "@/components/ApiReadUnavailablePanel";
+import { AttendanceConfigApiPanel } from "@/components/settings/AttendanceConfigApiPanel";
 import { AttendanceConfigurationPanel } from "@/components/academic-management/views/AttendanceConfigurationPanel";
 import { AttendanceNotificationConfigPanel } from "@/components/academic-management/views/AttendanceNotificationConfigPanel";
 import { PlatformReadOnlyBanner, TextSizeControl, LumenXFeedbackForm } from "@lumenx/ui";
@@ -151,6 +154,7 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 ═══════════════════════════════════════════════════════════════════ */
 
 function AcademicSettingsTab() {
+  const apiMode = isApiAuthMode();
   return (
     <div className="space-y-4">
       <Card>
@@ -169,8 +173,21 @@ function AcademicSettingsTab() {
           }
         />
       </Card>
-      <AttendanceConfigurationPanel />
-      <AttendanceNotificationConfigPanel />
+      {apiMode ? (
+        <>
+          <AttendanceConfigApiPanel />
+          <ApiReadUnavailablePanel
+            title="Attendance notifications unavailable"
+            domainLabel="Attendance notification configuration"
+            hint="Notification routing for attendance has no institute-scoped read API. Demo configuration is not shown in API mode."
+          />
+        </>
+      ) : (
+        <>
+          <AttendanceConfigurationPanel />
+          <AttendanceNotificationConfigPanel />
+        </>
+      )}
     </div>
   );
 }
@@ -418,7 +435,7 @@ function AppearanceTab() {
               <Icon className="size-5 mx-auto text-muted-foreground mb-2" />
               <div className="text-xs font-medium">{label}</div>
               <div className="text-[10px] text-muted-foreground font-mono">{desc}</div>
-              <Pill tone="success" className="mt-2">Responsive</Pill>
+              <Pill tone="success">Responsive</Pill>
             </div>
           ))}
         </div>

@@ -7,6 +7,12 @@ export type {
   ListComplaintsParams,
 } from "./types";
 export { listComplaints } from "./api";
+export {
+  updateComplaint,
+  transitionComplaint,
+  type UpdateComplaintInput,
+  type TransitionComplaintInput,
+} from "./mutations";
 export { complaintDtoToListItem, complaintDtosToListItems } from "./map";
 export {
   loadComplaintsList,
