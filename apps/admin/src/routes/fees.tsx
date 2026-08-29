@@ -13,6 +13,7 @@ import { validateHubViewSearch } from "@/lib/hub-view-search";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
+import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
   loadFeesSnapshot,
   resolveFeesLoadView,
@@ -115,12 +116,17 @@ function FeesPage() {
   const navigate = useNavigate();
   const { snapshot, setSnapshot } = useFeesStore();
   const apiMode = isApiAuthMode();
-  const writesEnabled = !apiMode;
   const instituteCtx = useInstituteContext();
+  const writesEnabled = resolveWritesEnabled(apiMode, {
+    status: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+  });
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
   const [apiSnapshot, setApiSnapshot] = useState<FeesSnapshot | null>(null);
+  const [apiPlanId, setApiPlanId] = useState<string | null>(null);
+  const [apiClassIdByLabel, setApiClassIdByLabel] = useState<Record<string, string>>({});
   const [feesLoadStatus, setFeesLoadStatus] = useState<FeesLoadStatus>(() =>
     apiMode ? "loading" : "demo",
   );
@@ -181,6 +187,8 @@ function FeesPage() {
 
     if (instituteCtx.status === "loading") {
       setApiSnapshot(null);
+      setApiPlanId(null);
+      setApiClassIdByLabel({});
       setFeesLoadStatus("loading");
       setFeesLoadError(null);
       setResolvedForInstituteId(null);
@@ -192,6 +200,8 @@ function FeesPage() {
       instituteCtx.status === "forbidden"
     ) {
       setApiSnapshot(null);
+      setApiPlanId(null);
+      setApiClassIdByLabel({});
       setFeesLoadStatus(
         instituteCtx.status === "forbidden" ? "forbidden" : "error",
       );
@@ -206,6 +216,8 @@ function FeesPage() {
       !instituteCtx.activeInstituteId
     ) {
       setApiSnapshot(null);
+      setApiPlanId(null);
+      setApiClassIdByLabel({});
       setFeesLoadStatus("needs_institute");
       setFeesLoadError(null);
       setResolvedForInstituteId(null);
@@ -227,6 +239,8 @@ function FeesPage() {
         return;
       }
       setApiSnapshot(next.snapshot);
+      setApiPlanId(next.planId);
+      setApiClassIdByLabel(next.classIdByLabel);
       setFeesLoadStatus(next.status);
       setFeesLoadError(next.errorMessage);
       setResolvedForInstituteId(requestInstituteId);
@@ -375,10 +389,12 @@ function FeesPage() {
               <FeesStudentsView
                 snapshot={displaySnapshot}
                 onChange={setSnapshot}
-                writesEnabled={writesEnabled}
+                writesEnabled
                 studentOptions={studentOptions}
                 studentsPickerReady={studentsPickerReady}
                 studentsPickerHint={studentsPickerHintText}
+                feePlanId={apiPlanId}
+                classIdByLabel={apiClassIdByLabel}
               />
             )}
           </>

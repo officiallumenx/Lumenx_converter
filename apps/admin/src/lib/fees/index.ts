@@ -37,3 +37,20 @@ export type {
   ListFeePaymentsParams,
   ListFeePlansParams,
 } from "./types";
+export {
+  createFeePlan,
+  publishFeePlan,
+  unpublishFeePlan,
+  createFeeComponent,
+  updateFeeComponent,
+  deleteFeeComponent,
+  upsertConcession,
+  deleteConcession,
+  recordPayment,
+  type CreateFeePlanInput,
+  type PublishFeePlanInput,
+  type CreateFeeComponentInput,
+  type UpdateFeeComponentInput,
+  type UpsertConcessionInput,
+  type RecordPaymentInput,
+} from "./mutations";

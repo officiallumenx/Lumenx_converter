@@ -20,3 +20,9 @@ export {
   type RecycleListView,
   type ResolveRecycleListViewInput,
 } from "./list-view";
+export {
+  createRecycleItem,
+  restoreRecycleItem,
+  purgeRecycleItem,
+  type CreateRecycleItemInput,
+} from "./mutations";

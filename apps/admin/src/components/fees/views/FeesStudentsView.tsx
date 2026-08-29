@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Card,
   CardHeader,
@@ -19,13 +19,23 @@ import {
   clearStudentOverride,
   downloadFeeReceipt,
   formatInr,
-  getStudentFeeAccount,
+  getStudentFeeAccount as getDemoStudentFeeAccount,
   recordOfficePayment,
   resolveChildFeeLines,
   setStudentOverride,
   type FeePaymentMethod,
   type FeesSnapshot,
 } from "@lumenx/module-fees";
+import {
+  loadStudentFeeAccountView,
+  shouldCommitStudentFeeAccountLoad,
+} from "@/lib/fees/account-load";
+import {
+  recordPayment as recordPaymentApi,
+  upsertConcession,
+} from "@/lib/fees/mutations";
+import type { StudentFeeAccountDto } from "@/lib/fees/types";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import {
   notifyFeePaymentReceived,
   notifyFeeReceiptAvailable,
@@ -72,6 +82,8 @@ export function FeesStudentsView({
   studentOptions,
   studentsPickerReady = true,
   studentsPickerHint = null,
+  feePlanId = null,
+  classIdByLabel = {},
 }: {
   snapshot: FeesSnapshot;
   onChange: (next: FeesSnapshot) => void;
@@ -79,7 +91,11 @@ export function FeesStudentsView({
   studentOptions: FeesStudentOption[];
   studentsPickerReady?: boolean;
   studentsPickerHint?: string | null;
+  feePlanId?: string | null;
+  classIdByLabel?: Record<string, string>;
 }) {
+  const apiMode = isApiAuthMode();
+  const useApiFeeAccount = apiMode && Boolean(feePlanId);
   const notify = useAdminToast();
   const classes = useMemo(() => feesStudentClasses(studentOptions), [studentOptions]);
   const [classKey, setClassKey] = useState(classes[0] ?? "");
@@ -97,6 +113,51 @@ export function FeesStudentsView({
   const [payMethod, setPayMethod] = useState<FeePaymentMethod>("cash");
   const [payNote, setPayNote] = useState("");
   const [payDate, setPayDate] = useState(() => new Date().toISOString().slice(0, 10));
+
+  const [apiAccount, setApiAccount] = useState<StudentFeeAccountDto | null>(null);
+  const [apiAccountStatus, setApiAccountStatus] = useState<
+    "idle" | "loading" | "ready" | "invalid" | "forbidden" | "error" | "demo"
+  >("idle");
+  const [apiAccountError, setApiAccountError] = useState<string | null>(null);
+  const [accountReloadKey, setAccountReloadKey] = useState(0);
+  const feeAccountKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!useApiFeeAccount || !studentId) {
+      setApiAccount(null);
+      setApiAccountStatus("idle");
+      setApiAccountError(null);
+      feeAccountKeyRef.current = null;
+      return;
+    }
+    const classId = classIdByLabel[classKey] ?? null;
+    const requestKey = `${feePlanId}:${studentId}:${classId ?? ""}`;
+    feeAccountKeyRef.current = requestKey;
+    let cancelled = false;
+    setApiAccountStatus("loading");
+    setApiAccountError(null);
+    void loadStudentFeeAccountView({
+      planId: feePlanId,
+      studentId,
+      classId,
+    }).then((next) => {
+      if (
+        !shouldCommitStudentFeeAccountLoad({
+          cancelled,
+          requestKey,
+          activeKey: feeAccountKeyRef.current,
+        })
+      ) {
+        return;
+      }
+      setApiAccount(next.account);
+      setApiAccountStatus(next.status);
+      setApiAccountError(next.errorMessage);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [useApiFeeAccount, studentId, classKey, feePlanId, classIdByLabel, accountReloadKey]);
 
   useEffect(() => {
     const nextClasses = feesStudentClasses(studentOptions);
@@ -127,12 +188,30 @@ export function FeesStudentsView({
 
   const account = useMemo(() => {
     if (!student) return null;
-    return getStudentFeeAccount(
+    if (useApiFeeAccount) {
+      if (!apiAccount || apiAccountStatus !== "ready") return null;
+      return {
+        billed: apiAccount.billedAmount,
+        paid: apiAccount.paidAmount,
+        due: apiAccount.dueAmount,
+        status: apiAccount.status,
+        lines: apiAccount.lines.map((line) => ({
+          categoryId: line.feeComponentId,
+          name: line.name,
+          defaultAmount: line.defaultAmount,
+          amount: line.amount,
+          overridden: line.overridden,
+          note: line.note,
+        })),
+        payments: snapshot.payments.filter((p) => p.studentId === student.id),
+      };
+    }
+    return getDemoStudentFeeAccount(
       snapshot,
       { studentId: student.id, classKey: student.classKey },
       { requirePublished: false },
     );
-  }, [snapshot, student]);
+  }, [snapshot, student, useApiFeeAccount, apiAccount, apiAccountStatus]);
 
   const lines = account?.lines ?? [];
 
@@ -140,6 +219,15 @@ export function FeesStudentsView({
     setStudentId(s.id);
     setClassKey(s.classKey);
     setSection(s.section);
+    if (useApiFeeAccount) {
+      setEditAmounts({});
+      setNotes({});
+      setPayAmount("");
+      setPayNote("");
+      setPayMethod("cash");
+      setPayDate(new Date().toISOString().slice(0, 10));
+      return;
+    }
     const resolved = resolveChildFeeLines(
       snapshot,
       { studentId: s.id, classKey: s.classKey },
@@ -153,7 +241,7 @@ export function FeesStudentsView({
     }
     setEditAmounts(amounts);
     setNotes(noteMap);
-    const acc = getStudentFeeAccount(
+    const acc = getDemoStudentFeeAccount(
       snapshot,
       { studentId: s.id, classKey: s.classKey },
       { requirePublished: false },
@@ -180,7 +268,31 @@ export function FeesStudentsView({
 
   const saveConcession = (categoryId: string, name: string) => {
     if (!writesEnabled || !student) return;
-    const amount = Number((editAmounts[categoryId] ?? "0").replace(/,/g, "")) || 0;
+    const raw =
+      editAmounts[categoryId] ??
+      String(lines.find((l) => l.categoryId === categoryId)?.amount ?? 0);
+    const amount = Number(raw.replace(/,/g, "")) || 0;
+    if (apiMode) {
+      if (!feePlanId) {
+        notify("No fee plan available for concessions");
+        return;
+      }
+      void upsertConcession({
+        feePlanId,
+        studentId: student.id,
+        feeComponentId: categoryId,
+        amount,
+        note: notes[categoryId]?.trim() || null,
+      })
+        .then(() => {
+          setAccountReloadKey((k) => k + 1);
+          notify(`${name} updated for ${student.name} only`);
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to save concession");
+        });
+      return;
+    }
     const next = setStudentOverride(snapshot, {
       studentId: student.id,
       categoryId,
@@ -193,6 +305,10 @@ export function FeesStudentsView({
 
   const resetLine = (categoryId: string, name: string) => {
     if (!writesEnabled || !student) return;
+    if (apiMode) {
+      notify("Reset to class default is not available via API in this cutover");
+      return;
+    }
     const next = clearStudentOverride(snapshot, student.id, categoryId);
     onChange(next);
     const resolved = resolveChildFeeLines(
@@ -220,6 +336,35 @@ export function FeesStudentsView({
       notify("Enter a payment amount greater than zero");
       return;
     }
+    if (apiMode) {
+      if (!feePlanId) {
+        notify("No fee plan available for payments");
+        return;
+      }
+      const classId = classIdByLabel[student.classKey] ?? classIdByLabel[classKey];
+      if (!classId) {
+        notify("Select a class with a valid class id before recording payment");
+        return;
+      }
+      void recordPaymentApi({
+        feePlanId,
+        studentId: student.id,
+        classId,
+        amount,
+        method: payMethod,
+        paidOn: payDate,
+        note: payNote.trim() || null,
+      })
+        .then((payment) => {
+          setAccountReloadKey((k) => k + 1);
+          setPayNote("");
+          notify(`Recorded ${formatInr(payment.amount)} · ${payment.receiptNo}`);
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Could not record payment");
+        });
+      return;
+    }
     try {
       const { snapshot: next, payment } = recordOfficePayment(snapshot, {
         studentId: student.id,
@@ -231,7 +376,7 @@ export function FeesStudentsView({
         paidAt: payDate,
       });
       onChange(next);
-      const updated = getStudentFeeAccount(
+      const updated = getDemoStudentFeeAccount(
         next,
         { studentId: student.id, classKey: student.classKey },
         { requirePublished: false },
@@ -360,6 +505,29 @@ export function FeesStudentsView({
           </Field>
         </CardBody>
       </Card>
+
+      {student && useApiFeeAccount && apiAccountStatus === "loading" ? (
+        <Card>
+          <CardBody>
+            <p className="text-sm text-muted-foreground text-center py-6">
+              Loading fee account from API…
+            </p>
+          </CardBody>
+        </Card>
+      ) : null}
+
+      {student && useApiFeeAccount && apiAccountStatus !== "loading" && apiAccountStatus !== "ready" ? (
+        <Card>
+          <CardBody>
+            <p className="text-sm text-muted-foreground text-center py-6">
+              {apiAccountError ??
+                (apiAccountStatus === "invalid"
+                  ? "Could not resolve class for this student."
+                  : "Fee account unavailable.")}
+            </p>
+          </CardBody>
+        </Card>
+      ) : null}
 
       {student && account ? (
         <>

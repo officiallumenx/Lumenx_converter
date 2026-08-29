@@ -10,3 +10,10 @@ export {
   resolveStorageUsageView,
   shouldCommitAssetsLoad,
 } from "./list-view";
+export {
+  createAsset,
+  updateAsset,
+  deleteAsset,
+  type CreateAssetInput,
+  type UpdateAssetInput,
+} from "./mutations";

@@ -15,9 +15,12 @@ import { useAdminToast } from "@/components/AdminActionToast";
 import { useAuth } from "@/auth/AuthContext";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
+import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
   loadRecycleItemsList,
+  purgeRecycleItem,
   resolveRecycleListView,
+  restoreRecycleItem,
   shouldCommitRecycleLoad,
   type RecycleListItem,
   type RecycleListStatus,
@@ -30,7 +33,7 @@ export function RecycleBinPanel() {
   const { user } = useAuth();
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
-  const writesEnabled = !apiMode;
+  const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
 
   const [demoItems, setDemoItems] = useState<RecycleBinItem[]>(() => {
     if (apiMode) return [];
@@ -46,6 +49,7 @@ export function RecycleBinPanel() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
@@ -126,6 +130,7 @@ export function RecycleBinPanel() {
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
+    reloadKey,
   ]);
 
   const refreshDemo = () => setDemoItems(loadRecycleBin());
@@ -148,9 +153,27 @@ export function RecycleBinPanel() {
               ? "Recycle bin is empty"
               : null;
 
-  const restore = (item: RecycleBinItem) => {
+  const restore = (item: RecycleRow) => {
     if (!writesEnabled) return;
-    restoreRecycleBinEntity(item);
+    if (apiMode) {
+      void restoreRecycleItem(item.id)
+        .then(() => {
+          appendAdminAuditEntry({
+            user: user?.name ?? "Admin",
+            action: "Restored from recycle bin",
+            target: item.title,
+            module: "Storage",
+            status: "info",
+          });
+          setReloadKey((k) => k + 1);
+          notify(`Restored “${item.title}” to ${item.module}`);
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to restore item");
+        });
+      return;
+    }
+    restoreRecycleBinEntity(item as RecycleBinItem);
     appendAdminAuditEntry({
       user: user?.name ?? "Admin",
       action: "Restored from recycle bin",
@@ -162,8 +185,26 @@ export function RecycleBinPanel() {
     notify(`Restored “${item.title}” to ${item.module}`);
   };
 
-  const purge = (item: RecycleBinItem) => {
+  const purge = (item: RecycleRow) => {
     if (!writesEnabled) return;
+    if (apiMode) {
+      void purgeRecycleItem(item.id)
+        .then(() => {
+          appendAdminAuditEntry({
+            user: user?.name ?? "Admin",
+            action: "Permanently deleted from recycle bin",
+            target: item.title,
+            module: "Storage",
+            status: "warning",
+          });
+          setReloadKey((k) => k + 1);
+          notify(`Permanently deleted “${item.title}”`);
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to purge item");
+        });
+      return;
+    }
     permanentlyDeleteFromRecycleBin(item.id);
     appendAdminAuditEntry({
       user: user?.name ?? "Admin",
@@ -182,7 +223,7 @@ export function RecycleBinPanel() {
         title="Recycle Bin"
         hint={
           apiMode
-            ? "API mode · read-only list"
+            ? "API mode · restore and purge via recycle API"
             : `Soft-deleted items · auto-purge after ${RECYCLE_BIN_RETENTION_DAYS} days`
         }
         action={
@@ -222,7 +263,7 @@ export function RecycleBinPanel() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => restore(item as RecycleBinItem)}
+                        onClick={() => restore(item)}
                       >
                         <RotateCcw className="size-3.5" /> Restore
                       </Button>
@@ -230,7 +271,7 @@ export function RecycleBinPanel() {
                         size="sm"
                         variant="outline"
                         className="!text-destructive !border-destructive/40"
-                        onClick={() => purge(item as RecycleBinItem)}
+                        onClick={() => purge(item)}
                       >
                         <Trash2 className="size-3.5" /> Delete forever
                       </Button>
