@@ -8,11 +8,14 @@ import {
   syncAdminReadOnlyFromSubscription,
 } from "@lumenx/utils";
 import type { AuthUser } from "@/auth/types";
+import { isApiAuthMode } from "@/auth/auth-mode";
 
 /**
  * Bind empty registered-tenant data after Nexus approval, or restore demo scope for demo users.
+ * API mode uses memberships / activeInstituteId — never localStorage demo tenant as authority.
  */
 export function syncAdminTenantForUser(user: AuthUser | null): void {
+  if (isApiAuthMode()) return;
   if (!user?.email) return;
   const app = findInstituteRegistrationByEmail(user.email);
   if (app?.status === "approved" && app.approvedInstituteId) {

@@ -78,7 +78,7 @@ const STATUS_PILL: Record<
 export function FeesStudentsView({
   snapshot,
   onChange,
-  writesEnabled = true,
+  writesEnabled = false,
   studentOptions,
   studentsPickerReady = true,
   studentsPickerHint = null,

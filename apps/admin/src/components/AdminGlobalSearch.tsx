@@ -19,6 +19,8 @@ import { CURRENT_INSTITUTE_ID } from "@/lib/institute-billing-store";
 import { useDemoProfile } from "@/lib/demo-profile-context";
 import { useAuth } from "@/auth/AuthContext";
 import { getRolePermission, useRolesAccessRevision } from "@/lib/roles-access";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { useInstituteContext } from "@/lib/institutes";
 
 interface AdminGlobalSearchProps {
   open: boolean;
@@ -34,10 +36,14 @@ export function AdminGlobalSearch({ open, onOpenChange }: AdminGlobalSearchProps
   const { profileId } = useDemoProfile();
   const { user } = useAuth();
   const rolesRevision = useRolesAccessRevision();
-  const instituteId = user?.instituteId || CURRENT_INSTITUTE_ID;
+  const instituteCtx = useInstituteContext();
+  const instituteId = isApiAuthMode()
+    ? instituteCtx.activeInstituteId || ""
+    : user?.instituteId || CURRENT_INSTITUTE_ID;
 
   const index = useMemo(() => {
     void profileId;
+    if (!instituteId) return [];
     return buildAdminSearchIndex({
       instituteId,
       accessRoleId: user?.accessRoleId,

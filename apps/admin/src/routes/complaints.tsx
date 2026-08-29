@@ -158,6 +158,7 @@ function ComplaintsPage() {
 
   const setStatus = (id: string, status: ComplaintStatus, reason?: string) => {
     if (apiMode) {
+      if (!writesEnabled) return;
       void transitionComplaint(id, {
         status,
         responseNote: reason?.trim() || null,

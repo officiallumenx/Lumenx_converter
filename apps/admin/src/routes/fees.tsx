@@ -389,7 +389,7 @@ function FeesPage() {
               <FeesStudentsView
                 snapshot={displaySnapshot}
                 onChange={setSnapshot}
-                writesEnabled
+                writesEnabled={writesEnabled}
                 studentOptions={studentOptions}
                 studentsPickerReady={studentsPickerReady}
                 studentsPickerHint={studentsPickerHintText}

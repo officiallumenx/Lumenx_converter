@@ -81,6 +81,8 @@ export function StudentAttendanceApiPage() {
   const [registersResolvedKey, setRegistersResolvedKey] = useState<string | null>(null);
 
   const [activeRegisterId, setActiveRegisterId] = useState("");
+  const activeRegisterIdRef = useRef(activeRegisterId);
+  activeRegisterIdRef.current = activeRegisterId;
   const [detail, setDetail] = useState<AttendanceRegisterDetail | null>(null);
   const [detailStatus, setDetailStatus] = useState<AttendanceListStatus>("loading");
   const [detailError, setDetailError] = useState<string | null>(null);
@@ -110,13 +112,27 @@ export function StudentAttendanceApiPage() {
       setSectionOptions([]);
       setCatalogReady(false);
       setCatalogError(null);
+      setRegisters([]);
+      setRegistersStatus("empty");
+      setRegistersError(null);
+      setRegistersResolvedKey(null);
+      setActiveRegisterId("");
+      setDetail(null);
+      setDetailStatus("empty");
+      setDetailError(null);
       return;
     }
 
+    const requestInstituteId = instituteCtx.activeInstituteId;
     let cancelled = false;
-    void listClassesCatalog({ instituteId: instituteCtx.activeInstituteId }).then(
+    setActiveRegisterId("");
+    setDetail(null);
+    setDetailStatus("empty");
+    setDetailError(null);
+    void listClassesCatalog({ instituteId: requestInstituteId }).then(
       (catalog) => {
         if (cancelled) return;
+        if (activeInstituteIdRef.current !== requestInstituteId) return;
         setClassOptions(buildStudentAttendanceApiClassOptions(catalog.classes));
         const classesById = new Map(catalog.classes.map((cls) => [cls.id, cls]));
         setSectionOptions(
@@ -127,6 +143,7 @@ export function StudentAttendanceApiPage() {
       },
       (err) => {
         if (cancelled) return;
+        if (activeInstituteIdRef.current !== requestInstituteId) return;
         setCatalogReady(false);
         setCatalogError(err instanceof Error ? err.message : "Failed to load classes.");
       },
@@ -198,18 +215,21 @@ export function StudentAttendanceApiPage() {
       return;
     }
 
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    const requestRegisterId = activeRegisterId;
     let cancelled = false;
     setDetailStatus("loading");
     setDetailError(null);
-    void loadAttendanceRegisterDetail(
-      instituteCtx.activeInstituteId,
-      activeRegisterId,
-    ).then((next) => {
-      if (cancelled) return;
-      setDetail(next.detail);
-      setDetailStatus(next.status);
-      setDetailError(next.errorMessage);
-    });
+    void loadAttendanceRegisterDetail(requestInstituteId, requestRegisterId).then(
+      (next) => {
+        if (cancelled) return;
+        if (activeInstituteIdRef.current !== requestInstituteId) return;
+        if (activeRegisterIdRef.current !== requestRegisterId) return;
+        setDetail(next.detail);
+        setDetailStatus(next.status);
+        setDetailError(next.errorMessage);
+      },
+    );
     return () => {
       cancelled = true;
     };

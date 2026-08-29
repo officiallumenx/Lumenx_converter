@@ -271,6 +271,7 @@ function ParentsPage() {
 
   const setAccessStatus = (id: string, accessStatus: ParentAccessStatus) => {
     if (apiMode) {
+      if (!writesEnabled) return;
       void updateParentApi(id, { accessStatus })
         .then(() => {
           setReloadKey((k) => k + 1);
@@ -296,6 +297,7 @@ function ParentsPage() {
 
   const removeParent = (id: string) => {
     if (apiMode) {
+      if (!writesEnabled) return;
       void deleteParentApi(id)
         .then(() => {
           setPendingDelete(null);
