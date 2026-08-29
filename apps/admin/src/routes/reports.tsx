@@ -13,6 +13,8 @@ import {
   type ReportId,
 } from "@/lib/report-exports";
 import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-labels";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { ReportsApiCatalogPanel } from "@/components/reports/ReportsApiCatalogPanel";
 import { Download, FileText, Info } from "lucide-react";
 import { useCallback, useState } from "react";
 
@@ -21,7 +23,7 @@ export const Route = createFileRoute("/reports")({
   component: ReportsPage,
 });
 
-function ReportsPage() {
+function ReportsDemoPage() {
   const notify = useAdminToast();
   const [module, setModule] = useState<string>("all");
   const [recent, setRecent] = useState<RecentExport[]>(() => loadRecentExports());
@@ -189,6 +191,17 @@ function ReportsPage() {
       </PageStack>
     </AppShell>
   );
+}
+
+function ReportsPage() {
+  if (isApiAuthMode()) {
+    return (
+      <AppShell title={adminPageTitle("/reports")} subtitle="Report exports and catalog">
+        <ReportsApiCatalogPanel />
+      </AppShell>
+    );
+  }
+  return <ReportsDemoPage />;
 }
 
 function formatWhen(iso: string) {

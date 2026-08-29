@@ -34,6 +34,8 @@ import {
 } from "lucide-react";
 import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
 import { useEffect, useMemo, useState } from "react";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { AlertsApiRulesPanel } from "@/components/alerts/AlertsApiRulesPanel";
 import { useAdminToast } from "@/components/AdminActionToast";
 import {
   addAlertRule,
@@ -62,6 +64,17 @@ const RULE_ICONS: Record<AlertRuleIconKey, typeof ClipboardCheck> = {
 };
 
 function AlertsPage() {
+  if (isApiAuthMode()) {
+    return (
+      <AppShell title={M.alerts} subtitle="Operational and emergency alert rules">
+        <AlertsApiRulesPanel />
+      </AppShell>
+    );
+  }
+  return <AlertsDemoPage />;
+}
+
+function AlertsDemoPage() {
   const notify = useAdminToast();
   const { rules, fired } = useAlertRulesState();
   const fired24h = fired.filter((row) => Date.now() - Date.parse(row.at) <= 24 * 60 * 60 * 1000).length;

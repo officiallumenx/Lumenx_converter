@@ -4,6 +4,8 @@ import { Card, CardHeader, Button, Pill, Kpi } from "@lumenx/ui-admin";
 import { TEACHER_PERFORMANCE } from "@/lib/admin-module-data";
 import { TrendingUp, Award, FileDown } from "lucide-react";
 import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-labels";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { TeacherPerformanceApiPanel } from "@/components/teacher-performance/TeacherPerformanceApiPanel";
 import { useMemo } from "react";
 
 export const Route = createFileRoute("/teacher-performance")({
@@ -11,7 +13,7 @@ export const Route = createFileRoute("/teacher-performance")({
   component: TeacherPerformancePage,
 });
 
-function TeacherPerformancePage() {
+function TeacherPerformanceDemoPage() {
   const top = TEACHER_PERFORMANCE[0]!;
   const depts = [...new Set(TEACHER_PERFORMANCE.map((t) => t.dept))];
 
@@ -136,4 +138,15 @@ function TeacherPerformancePage() {
       </Card>
     </AppShell>
   );
+}
+
+function TeacherPerformancePage() {
+  if (isApiAuthMode()) {
+    return (
+      <AppShell title={M.performance} subtitle="Teacher performance analytics">
+        <TeacherPerformanceApiPanel />
+      </AppShell>
+    );
+  }
+  return <TeacherPerformanceDemoPage />;
 }

@@ -35,6 +35,11 @@ import activity from "./activity.js";
 import messages from "./messages.js";
 import assets from "./assets.js";
 import recycle from "./recycle.js";
+import analytics from "./analytics.js";
+import reports from "./reports.js";
+import teacherPerformance from "./teacher-performance.js";
+import alertRules from "./alert-rules.js";
+import subscriptions from "./subscriptions.js";
 import type { AppBindings } from "../../types/app.js";
 
 /**
@@ -117,5 +122,10 @@ v1.route("/activity", activity);
 v1.route("/messages", messages);
 v1.route("/assets", assets);
 v1.route("/recycle", recycle);
+v1.route("/analytics", analytics);
+v1.route("/reports", reports);
+v1.route("/teacher-performance", teacherPerformance);
+v1.route("/alert-rules", alertRules);
+v1.route("/subscriptions", subscriptions);
 
 export default v1;

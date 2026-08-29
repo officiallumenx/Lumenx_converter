@@ -53,6 +53,8 @@ import {
   Download,
 } from "lucide-react";
 import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-labels";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { ModulesApiSubscriptionPanel } from "@/components/modules/ModulesApiSubscriptionPanel";
 import { useMemo, useState } from "react";
 import { useAdminWriteAccess } from "@/components/admin-write/AdminWriteAccessContext";
 import { MODULE_CATALOG, inferPlanFromStudentCount, isModuleToggleable, planMeetsMin, saveEnabledModules, useEnabledModules } from "@/lib/admin-plan-config";
@@ -118,7 +120,7 @@ const iconMap: Record<string, typeof Users> = {
   "teacher-performance": Award,
 };
 
-function ModulesPage() {
+function ModulesDemoPage() {
   const notify = useAdminToast();
   const { guardWriteAction, writesAllowed, reason } = useAdminWriteAccess();
   const { user } = useAuth();
@@ -687,6 +689,17 @@ function ModulesPage() {
       </Modal>
     </AppShell>
   );
+}
+
+function ModulesPage() {
+  if (isApiAuthMode()) {
+    return (
+      <AppShell title={adminPageTitle("/modules")} subtitle="Module subscription and billing">
+        <ModulesApiSubscriptionPanel />
+      </AppShell>
+    );
+  }
+  return <ModulesDemoPage />;
 }
 
 function Toggle({ on, onChange }: { on: boolean; onChange: () => void }) {

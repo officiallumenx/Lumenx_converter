@@ -29,6 +29,8 @@ import {
 } from "@/lib/attendance-report-demo";
 import { useMemo, useState } from "react";
 import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { AnalyticsApiSummaryPanel } from "@/components/analytics/AnalyticsApiSummaryPanel";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -64,7 +66,7 @@ export const Route = createFileRoute("/analytics")({
 
 type Range = "term" | "year";
 
-function AnalyticsPage() {
+function AnalyticsDemoPage() {
   const [range, setRange] = useState<Range>("year");
 
   const enrollment = useMemo(() => sliceByRange(ENROLLMENT_MONTHLY, range), [range]);
@@ -649,4 +651,15 @@ function AnalyticsPage() {
       </PageStack>
     </AppShell>
   );
+}
+
+function AnalyticsPage() {
+  if (isApiAuthMode()) {
+    return (
+      <AppShell title="Analytics" subtitle="Institute analytics dashboards">
+        <AnalyticsApiSummaryPanel />
+      </AppShell>
+    );
+  }
+  return <AnalyticsDemoPage />;
 }
