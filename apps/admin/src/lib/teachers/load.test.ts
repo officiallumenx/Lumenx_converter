@@ -144,3 +144,48 @@ describe("loadTeachersList", () => {
     expect(result.items).toEqual([]);
   });
 });
+
+describe("loadTeacherDetail", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+  });
+
+  it("maps teacher detail on success", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const getTeacher = vi.fn().mockResolvedValue(dto());
+    vi.doMock("./api", () => ({ getTeacher }));
+    const { loadTeacherDetail } = await import("./load");
+    const result = await loadTeacherDetail(dto().id, INST);
+    expect(result.status).toBe("ready");
+    expect(result.teacher?.instituteId).toBe(INST);
+    expect(result.teacher?.name).toBe("Sarah Jenkins");
+  });
+
+  it("rejects detail when institute does not match", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const OTHER = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const getTeacher = vi.fn().mockResolvedValue(dto({ instituteId: OTHER }));
+    vi.doMock("./api", () => ({ getTeacher }));
+    const { loadTeacherDetail } = await import("./load");
+    const result = await loadTeacherDetail(dto().id, INST);
+    expect(result.status).toBe("empty");
+    expect(result.teacher).toBeNull();
+  });
+
+  it("returns forbidden without demo fallback", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const getTeacher = vi.fn().mockRejectedValue(
+      new ApiClientError({
+        status: 403,
+        code: "FORBIDDEN",
+        message: "No access",
+      }),
+    );
+    vi.doMock("./api", () => ({ getTeacher }));
+    const { loadTeacherDetail } = await import("./load");
+    const result = await loadTeacherDetail(dto().id, INST);
+    expect(result.status).toBe("forbidden");
+    expect(result.teacher).toBeNull();
+  });
+});

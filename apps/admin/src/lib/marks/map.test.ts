@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { markEntryDtoToListItem, markEntryDtosToListItems } from "./map";
+import {
+  isMarksEntryEditable,
+  markEntryDtoToListItem,
+  markEntryDtosToListItems,
+} from "./map";
 import type { MarkEntryDto } from "./types";
 
 const INST = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -36,16 +40,17 @@ describe("marks DTO mapping", () => {
     expect(item.examName).toContain("Exam ·");
     expect(item.status).toBe("submitted");
     expect(item.maxMarks).toBe(100);
+    expect(item.sectionId).toBe("ss111111-1111-4111-8111-111111111111");
     expect(item.students).toEqual([]);
   });
 
-  it("maps embedded scores when present", () => {
+  it("joins lookup labels and enrollment roster names", () => {
     const item = markEntryDtoToListItem(
       dto({
         scores: [
           {
             id: "sc-1",
-            enrollmentId: "en-1",
+            enrollmentId: "en111111-1111-4111-8111-111111111111",
             studentId: "st111111-1111-4111-8111-111111111111",
             marks: 88,
             createdAt: "",
@@ -53,16 +58,67 @@ describe("marks DTO mapping", () => {
           },
         ],
       }),
+      {
+        examsById: new Map([
+          ["ee111111-1111-4111-8111-111111111111", { id: "ee", name: "Midterm" }],
+        ]),
+        subjectsById: new Map([
+          [
+            "subj-math-1111-4111-8111-111111111111",
+            { id: "subj", name: "Mathematics" },
+          ],
+        ]),
+        teachersById: new Map([
+          ["tt111111-1111-4111-8111-111111111111", { id: "tt", name: "Ada" }],
+        ]),
+        classesById: new Map([
+          ["cc111111-1111-4111-8111-111111111111", { id: "cc", name: "Grade 10" }],
+        ]),
+        sectionsById: new Map([
+          [
+            "ss111111-1111-4111-8111-111111111111",
+            { id: "ss", name: "A", code: "A", classId: "cc111111-1111-4111-8111-111111111111" },
+          ],
+        ]),
+        enrollmentsById: new Map([
+          [
+            "en111111-1111-4111-8111-111111111111",
+            {
+              id: "en",
+              studentId: "st",
+              studentName: "Aanya",
+              rollNo: "12",
+            },
+          ],
+        ]),
+      },
     );
-    expect(item.students).toHaveLength(1);
-    expect(item.students[0]?.marks).toBe(88);
+    expect(item.examName).toBe("Midterm");
+    expect(item.subject).toBe("Mathematics");
+    expect(item.teacherName).toBe("Ada");
+    expect(item.classGrade).toBe("Grade 10");
+    expect(item.section).toBe("A");
+    expect(item.students[0]).toMatchObject({
+      enrollmentId: "en111111-1111-4111-8111-111111111111",
+      name: "Aanya",
+      rollNo: "12",
+      marks: 88,
+    });
   });
 
   it("maps multiple DTOs and rejects malformed payload", () => {
-    const items = markEntryDtosToListItems([dto(), dto({ id: "mm-2" })]);
+    const items = markEntryDtosToListItems([dto(), dto({ id: "mm222222-2222-4222-8222-222222222222" })]);
     expect(items).toHaveLength(2);
     expect(() => markEntryDtosToListItems({ not: "array" } as never)).toThrow(
       /array/i,
     );
+  });
+
+  it("marks pending/returned/rejected as editable", () => {
+    expect(isMarksEntryEditable("pending")).toBe(true);
+    expect(isMarksEntryEditable("returned")).toBe(true);
+    expect(isMarksEntryEditable("rejected")).toBe(true);
+    expect(isMarksEntryEditable("submitted")).toBe(false);
+    expect(isMarksEntryEditable("published")).toBe(false);
   });
 });

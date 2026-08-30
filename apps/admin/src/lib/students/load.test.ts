@@ -172,9 +172,37 @@ describe("loadStudentDetail", () => {
     const getStudent = vi.fn().mockResolvedValue(dto({ id: STU }));
     vi.doMock("./api", () => ({ getStudent }));
     const { loadStudentDetail } = await import("./load");
-    const result = await loadStudentDetail(STU);
+    const result = await loadStudentDetail(STU, INST);
     expect(result.status).toBe("ready");
     expect(result.student?.id).toBe(STU);
+    expect(result.student?.instituteId).toBe(INST);
+  });
+
+  it("rejects detail when institute does not match active institute", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const OTHER = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const getStudent = vi.fn().mockResolvedValue(dto({ id: STU, instituteId: OTHER }));
+    vi.doMock("./api", () => ({ getStudent }));
+    const { loadStudentDetail } = await import("./load");
+    const result = await loadStudentDetail(STU, INST);
+    expect(result.status).toBe("empty");
+    expect(result.student).toBeNull();
+  });
+
+  it("returns forbidden on detail 403 without demo fallback", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const getStudent = vi.fn().mockRejectedValue(
+      new ApiClientError({
+        status: 403,
+        code: "FORBIDDEN",
+        message: "No access",
+      }),
+    );
+    vi.doMock("./api", () => ({ getStudent }));
+    const { loadStudentDetail } = await import("./load");
+    const result = await loadStudentDetail(STU, INST);
+    expect(result.status).toBe("forbidden");
+    expect(result.student).toBeNull();
   });
 
   it("rejects invalid resource id without calling API", async () => {

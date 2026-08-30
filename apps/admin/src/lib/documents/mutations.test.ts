@@ -58,4 +58,29 @@ describe("documents mutations", () => {
       expect.objectContaining({ workflow_state: "published" }),
     );
   });
+
+  it("posts create generated document in API mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const post = vi.fn().mockResolvedValue({ id: ID });
+    const client = { post } as never;
+    const { createGeneratedDocument } = await import("./mutations");
+    await createGeneratedDocument(
+      {
+        instituteId: INST,
+        templateId: ID,
+        recipientName: "Ada Lovelace",
+        studentId: ID,
+      },
+      client,
+    );
+    expect(post).toHaveBeenCalledWith(
+      "/api/v1/documents/generated",
+      expect.objectContaining({
+        institute_id: INST,
+        template_id: ID,
+        recipient_name: "Ada Lovelace",
+        student_id: ID,
+      }),
+    );
+  });
 });

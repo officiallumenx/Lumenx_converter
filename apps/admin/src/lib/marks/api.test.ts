@@ -3,10 +3,11 @@ import { createApiClient } from "@/lib/api";
 import type { MarkEntryDto } from "./types";
 
 const INST = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const ENTRY = "11111111-1111-4111-8111-111111111111";
 
 function dto(overrides: Partial<MarkEntryDto> = {}): MarkEntryDto {
   return {
-    id: "mm111111-1111-4111-8111-111111111111",
+    id: ENTRY,
     instituteId: INST,
     academicYearId: "yyyyyyyy-yyyy-4yyy-8yyy-yyyyyyyyyyyy",
     classId: "cc111111-1111-4111-8111-111111111111",
@@ -45,6 +46,22 @@ describe("marks api repository", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("rejects non-UUID institute ids without calling fetch", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const { listMarkEntries, getMarkEntry } = await import("./api");
+    const fetchMock = vi.fn();
+    const client = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => "tok",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    await expect(
+      listMarkEntries({ instituteId: "admin-tenant" }, client),
+    ).rejects.toThrow(/UUID/i);
+    await expect(getMarkEntry("not-a-uuid", client)).rejects.toThrow(/UUID/i);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("lists mark entries with institute_id in API mode", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const { listMarkEntries } = await import("./api");
@@ -64,5 +81,38 @@ describe("marks api repository", () => {
     const url = fetchMock.mock.calls[0][0] as string;
     expect(url).toContain(`institute_id=${INST}`);
     expect(url).toContain("/api/v1/marks/entries?");
+  });
+
+  it("gets a mark entry by id in API mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const { getMarkEntry } = await import("./api");
+    const payload = dto({
+      scores: [
+        {
+          id: "sc-1",
+          enrollmentId: "en111111-1111-4111-8111-111111111111",
+          studentId: "st111111-1111-4111-8111-111111111111",
+          marks: 90,
+          createdAt: "",
+          updatedAt: "",
+        },
+      ],
+    });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ data: payload }),
+    });
+    const client = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => "tok",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    const result = await getMarkEntry(ENTRY, client);
+    expect(result).toEqual(payload);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining(`/api/v1/marks/entries/${ENTRY}`),
+      expect.objectContaining({ method: "GET" }),
+    );
   });
 });

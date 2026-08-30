@@ -1,51 +1,48 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createApiClient } from "@/lib/api";
-import type { DiaryDayDto } from "./types";
+import type { EnrollmentDto } from "./types";
 
 const INST = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-const DAY = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+const SECTION = "ce111111-1111-4111-8111-111111111111";
+const YEAR = "cc111111-1111-4111-8111-111111111111";
+const CLASS = "cd111111-1111-4111-8111-111111111111";
+const STUDENT = "ac111111-1111-4111-8111-111111111111";
+const ENROLL = "e1111111-1111-4111-8111-111111111111";
 
-function dto(overrides: Partial<DiaryDayDto> = {}): DiaryDayDto {
+function dto(overrides: Partial<EnrollmentDto> = {}): EnrollmentDto {
   return {
-    id: DAY,
+    id: ENROLL,
     instituteId: INST,
-    academicYearId: null,
-    teacherId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-    diaryDate: "2026-06-01",
-    scope: "subject",
-    submittedAt: "2026-06-01T10:00:00Z",
-    createdAt: "2026-06-01T09:00:00Z",
-    updatedAt: "2026-06-01T10:00:00Z",
-    rows: [
-      {
-        id: "row-1",
-        sectionId: null,
-        classLabel: "10-A",
-        description: "Algebra practice",
-        sortOrder: 0,
-        createdAt: "2026-06-01T09:00:00Z",
-        updatedAt: "2026-06-01T09:00:00Z",
-      },
-    ],
+    academicYearId: YEAR,
+    studentId: STUDENT,
+    studentName: "Ada Lovelace",
+    classId: CLASS,
+    sectionId: SECTION,
+    rollNo: "1",
+    status: "active",
+    enrolledOn: "2026-04-01",
+    withdrawnOn: null,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
     ...overrides,
   };
 }
 
-describe("diary api repository", () => {
+describe("enrollments api repository", () => {
   beforeEach(() => {
     vi.resetModules();
   });
 
   it("refuses to call backend in demo mode", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const { listDiaryDays } = await import("./api");
+    const { listEnrollments } = await import("./api");
     const fetchMock = vi.fn();
     const client = createApiClient({
       getBaseUrl: () => "http://api.test",
       getAccessToken: async () => "tok",
       fetchImpl: fetchMock as unknown as typeof fetch,
     });
-    await expect(listDiaryDays({ instituteId: INST }, client)).rejects.toThrow(
+    await expect(listEnrollments({ instituteId: INST }, client)).rejects.toThrow(
       /API auth mode/i,
     );
     expect(fetchMock).not.toHaveBeenCalled();
@@ -53,7 +50,7 @@ describe("diary api repository", () => {
 
   it("rejects non-UUID institute ids without calling fetch", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
-    const { listDiaryDays } = await import("./api");
+    const { listEnrollments } = await import("./api");
     const fetchMock = vi.fn();
     const client = createApiClient({
       getBaseUrl: () => "http://api.test",
@@ -61,14 +58,14 @@ describe("diary api repository", () => {
       fetchImpl: fetchMock as unknown as typeof fetch,
     });
     await expect(
-      listDiaryDays({ instituteId: "admin-tenant" }, client),
+      listEnrollments({ instituteId: "admin-tenant" }, client),
     ).rejects.toThrow(/UUID/i);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("lists diary days with institute_id in API mode", async () => {
+  it("lists enrollments with institute_id and section_id in API mode", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
-    const { listDiaryDays } = await import("./api");
+    const { listEnrollments } = await import("./api");
     const payload = [dto()];
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -80,52 +77,28 @@ describe("diary api repository", () => {
       getAccessToken: async () => "tok",
       fetchImpl: fetchMock as unknown as typeof fetch,
     });
-    const result = await listDiaryDays({ instituteId: INST }, client);
+    const result = await listEnrollments(
+      { instituteId: INST, sectionId: SECTION, status: "active" },
+      client,
+    );
     expect(result).toEqual(payload);
     const url = fetchMock.mock.calls[0][0] as string;
     expect(url).toContain(`institute_id=${INST}`);
-    expect(url).not.toContain("submitted=");
+    expect(url).toContain(`section_id=${SECTION}`);
+    expect(url).toContain("status=active");
     expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining("/api/v1/diary?"),
+      expect.stringContaining("/api/v1/enrollments?"),
       expect.objectContaining({ method: "GET" }),
     );
   });
 
-  it("forwards optional filters including submitted to the backend", async () => {
+  it("creates enrollment in API mode", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
-    const { listDiaryDays } = await import("./api");
+    const { createEnrollment } = await import("./api");
+    const payload = dto({ rollNo: "12" });
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      status: 200,
-      text: async () => JSON.stringify({ data: [] }),
-    });
-    const client = createApiClient({
-      getBaseUrl: () => "http://api.test",
-      getAccessToken: async () => "tok",
-      fetchImpl: fetchMock as unknown as typeof fetch,
-    });
-    await listDiaryDays(
-      {
-        instituteId: INST,
-        submitted: true,
-        scope: "activity",
-        teacherId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-      },
-      client,
-    );
-    const url = fetchMock.mock.calls[0][0] as string;
-    expect(url).toContain("submitted=true");
-    expect(url).toContain("scope=activity");
-    expect(url).toContain("teacher_id=cccccccc-cccc-4ccc-8ccc-cccccccccccc");
-  });
-
-  it("gets a diary day by id in API mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
-    const { getDiaryDay } = await import("./api");
-    const payload = dto();
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
+      status: 201,
       text: async () => JSON.stringify({ data: payload }),
     });
     const client = createApiClient({
@@ -133,11 +106,35 @@ describe("diary api repository", () => {
       getAccessToken: async () => "tok",
       fetchImpl: fetchMock as unknown as typeof fetch,
     });
-    const result = await getDiaryDay(payload.id, client);
-    expect(result).toEqual(payload);
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining(`/api/v1/diary/${payload.id}`),
-      expect.objectContaining({ method: "GET" }),
+    const result = await createEnrollment(
+      {
+        instituteId: INST,
+        academicYearId: YEAR,
+        studentId: STUDENT,
+        classId: CLASS,
+        sectionId: SECTION,
+        rollNo: "12",
+        enrolledOn: "2026-04-15",
+      },
+      client,
     );
+    expect(result.rollNo).toBe("12");
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/v1/enrollments"),
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("does not call network for invalid enrollment UUID on get", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const { getEnrollment } = await import("./api");
+    const fetchMock = vi.fn();
+    const client = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => "tok",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    await expect(getEnrollment("not-a-uuid", client)).rejects.toThrow(/UUID/i);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

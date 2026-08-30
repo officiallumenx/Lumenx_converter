@@ -45,6 +45,7 @@ describe("teachers DTO mapping", () => {
     expect(item.role).toBe("subject-teacher");
     expect(item.status).toBe("active");
     expect(item.dept).toBe("Mathematics");
+    expect(item.instituteId).toBe(INST);
     expect(item.assignedSections).toEqual(["10-A", "10-B", "11-A"]);
     expect(item.classes).toBe(3);
     expect(item.subjects).toEqual(["Mathematics", "Algebra"]);

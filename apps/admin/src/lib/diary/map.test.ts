@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { diaryDtoToListItem, diaryDtosToListItems } from "./map";
 import type { DiaryDayDto } from "./types";
+import type { TeacherListItem } from "@/lib/teachers/types";
 
 const INST = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const TEACHER = "22222222-2222-4222-8222-222222222222";
@@ -19,7 +20,7 @@ function dto(overrides: Partial<DiaryDayDto> = {}): DiaryDayDto {
     rows: [
       {
         id: "row-b",
-        sectionId: null,
+        sectionId: "sec-b",
         classLabel: "10-B",
         description: "Second",
         sortOrder: 1,
@@ -28,7 +29,7 @@ function dto(overrides: Partial<DiaryDayDto> = {}): DiaryDayDto {
       },
       {
         id: "row-a",
-        sectionId: null,
+        sectionId: "sec-a",
         classLabel: "10-A",
         description: "First",
         sortOrder: 0,
@@ -45,6 +46,9 @@ describe("diary DTO mapping", () => {
     const item = diaryDtoToListItem(dto());
     expect(item).toMatchObject({
       id: "diary-1",
+      instituteId: INST,
+      teacherId: TEACHER,
+      academicYearId: null,
       date: "2026-06-01",
       submittedAt: "2026-06-01T10:00:00Z",
       scope: "subject",
@@ -52,11 +56,24 @@ describe("diary DTO mapping", () => {
     expect(item.teacherName).toMatch(/^Teacher 22222222/);
   });
 
-  it("maps nested rows with classLabel and description", () => {
+  it("joins teacher display name when provided", () => {
+    const teachers = new Map<string, TeacherListItem>([
+      [
+        TEACHER,
+        {
+          id: TEACHER,
+          name: "Ada Lovelace",
+        } as TeacherListItem,
+      ],
+    ]);
+    expect(diaryDtoToListItem(dto(), teachers).teacherName).toBe("Ada Lovelace");
+  });
+
+  it("maps nested rows with sectionId, classLabel and description", () => {
     const item = diaryDtoToListItem(dto());
     expect(item.rows).toEqual([
-      { className: "10-A", description: "First" },
-      { className: "10-B", description: "Second" },
+      { sectionId: "sec-a", className: "10-A", description: "First" },
+      { sectionId: "sec-b", className: "10-B", description: "Second" },
     ]);
   });
 

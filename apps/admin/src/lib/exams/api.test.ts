@@ -82,4 +82,26 @@ describe("exams api repository", () => {
     expect(url).toContain(`institute_id=${INST}`);
     expect(url).toContain("/api/v1/exams?");
   });
+
+  it("gets exam by id in API mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const { getExam } = await import("./api");
+    const exam = dto();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ data: exam }),
+    });
+    const client = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => "tok",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    const result = await getExam(exam.id, client);
+    expect(result.id).toBe(exam.id);
+    expect(fetchMock).toHaveBeenCalledWith(
+      `http://api.test/api/v1/exams/${exam.id}`,
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
 });

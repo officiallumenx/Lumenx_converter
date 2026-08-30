@@ -54,4 +54,39 @@ describe("institutes mutations", () => {
       expect.objectContaining({ timezone: "Asia/Kolkata", locale: "en-IN" }),
     );
   });
+
+  it("refuses createInstitute in demo mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
+    const { createInstitute } = await import("./mutations");
+    await expect(
+      createInstitute({ code: "LX", name: "School", kind: "school" }),
+    ).rejects.toThrow(/API auth mode/);
+  });
+
+  it("posts createInstitute in API mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const post = vi.fn().mockResolvedValue({ id: INST });
+    const client = { post } as never;
+    const { createInstitute } = await import("./mutations");
+    await createInstitute(
+      {
+        code: "LX-DEMO",
+        name: "Lumen School",
+        kind: "school",
+        status: "active",
+        timezone: "Asia/Kolkata",
+      },
+      client,
+    );
+    expect(post).toHaveBeenCalledWith(
+      "/api/v1/institutes",
+      expect.objectContaining({
+        code: "LX-DEMO",
+        name: "Lumen School",
+        kind: "school",
+        status: "active",
+        timezone: "Asia/Kolkata",
+      }),
+    );
+  });
 });

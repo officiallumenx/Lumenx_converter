@@ -31,6 +31,8 @@ export type StudentFeeOverride = {
   amount: number;
   note?: string;
   updatedAt: string;
+  /** Backend concession UUID when loaded from fees API (optional). */
+  id?: string;
 };
 
 export type FeeLineItem = {

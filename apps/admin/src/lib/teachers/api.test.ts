@@ -112,4 +112,26 @@ describe("teachers api repository", () => {
     expect(result).toHaveLength(1);
     expect(result[0]?.id).toBe("bb222222-2222-4222-8222-222222222222");
   });
+
+  it("gets teacher by id in API mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const { getTeacher } = await import("./api");
+    const teacher = dto();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ data: teacher }),
+    });
+    const client = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => "tok",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    const result = await getTeacher(teacher.id, client);
+    expect(result.id).toBe(teacher.id);
+    expect(fetchMock).toHaveBeenCalledWith(
+      `http://api.test/api/v1/teachers/${teacher.id}`,
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
 });

@@ -251,6 +251,35 @@ describe("loadInstituteContext mode branching", () => {
     expect(state.errorMessage).toMatch(/Invalid or expired/i);
     expect(state.displayLabel).toBeNull();
   });
+
+  it("platform operator can select institutes without memberships", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    vi.doMock("@/auth/me-bridge", () => ({
+      fetchMe: vi.fn(async () => ({
+        user: { id: "u1" },
+        profile: {
+          id: "p1",
+          displayName: "Root",
+          email: "root@b.edu",
+          status: "active",
+        },
+        institutes: [],
+        platformOperator: { active: true, roleCode: "nexus_root" },
+        identities: { teachers: [], students: [], parents: [], staff: [] },
+      })),
+    }));
+    vi.doMock("./api", () => ({
+      listInstitutes: vi.fn(async () => [institute(A, "Alpha School")]),
+      getInstitute: vi.fn(),
+    }));
+
+    const { loadInstituteContext } = await import("./context");
+    const state = await loadInstituteContext();
+    expect(state.isPlatformOperator).toBe(true);
+    expect(state.status).toBe("ready");
+    expect(state.activeInstituteId).toBe(A);
+    expect(state.institutes.map((i) => i.id)).toEqual([A]);
+  });
 });
 
 describe("chooseActiveInstitute + resolve helpers", () => {
@@ -331,5 +360,19 @@ describe("chooseActiveInstitute + resolve helpers", () => {
     );
     expect(chosen.id).toBe(B);
     expect(store.get(ACTIVE_INSTITUTE_STORAGE_KEY)).toBe(B);
+  });
+
+  it("platform operator chooseActiveInstitute persists without membership", async () => {
+    vi.resetModules();
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const { chooseActiveInstitute } = await import("./context");
+    const chosen = chooseActiveInstitute(
+      A,
+      [],
+      [institute(A, "Alpha")],
+      { isPlatformOperator: true },
+    );
+    expect(chosen.id).toBe(A);
+    expect(store.get(ACTIVE_INSTITUTE_STORAGE_KEY)).toBe(A);
   });
 });

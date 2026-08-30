@@ -7,6 +7,7 @@ const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
 const detailA: StudentDetailItem = {
   id: "ac111111-1111-4111-8111-111111111111",
+  instituteId: A,
   name: "Student A",
   firstName: "Student",
   surname: "A",
@@ -105,4 +106,20 @@ describe("resolveStudentsDetailView", () => {
       expect(view.student).toBeNull();
     },
   );
+
+  it("rejects ready detail whose instituteId mismatches active institute", () => {
+    const view = resolveStudentsDetailView({
+      apiMode: true,
+      instituteStatus: "ready",
+      activeInstituteId: A,
+      resolvedForInstituteId: A,
+      storedStudent: { ...detailA, instituteId: B },
+      storedStatus: "ready",
+      storedErrorMessage: null,
+      instituteErrorMessage: null,
+    });
+    expect(view.detailValid).toBe(true);
+    expect(view.status).toBe("empty");
+    expect(view.student).toBeNull();
+  });
 });

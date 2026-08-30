@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import { resolveMarksListView, shouldCommitMarksLoad } from "./list-view";
 import type { MarkEntryListItem } from "./types";
 
@@ -34,15 +35,64 @@ describe("resolveMarksListView", () => {
     expect(view.rowsValid).toBe(false);
     expect(view.items).toEqual([]);
   });
+
+  it("surfaces API errors without demo fallback", () => {
+    const view = resolveMarksListView({
+      apiMode: true,
+      instituteStatus: "ready",
+      activeInstituteId: A,
+      resolvedForInstituteId: A,
+      storedItems: [],
+      storedStatus: "error",
+      storedErrorMessage: "boom",
+      instituteErrorMessage: null,
+    });
+    expect(view.rowsValid).toBe(true);
+    expect(view.status).toBe("error");
+    expect(view.errorMessage).toBe("boom");
+  });
 });
 
 describe("shouldCommitMarksLoad", () => {
+  it("rejects late response for A after switch to B", () => {
+    expect(
+      shouldCommitMarksLoad({
+        cancelled: false,
+        requestInstituteId: A,
+        activeInstituteId: B,
+      }),
+    ).toBe(false);
+  });
+
   it("accepts matching in-flight response", () => {
     expect(
       shouldCommitMarksLoad({
         cancelled: false,
         requestInstituteId: B,
         activeInstituteId: B,
+      }),
+    ).toBe(true);
+  });
+});
+
+describe("marks write gate", () => {
+  it("disables writes outside valid writable institute context", () => {
+    expect(
+      resolveWritesEnabled(true, {
+        status: "loading",
+        activeInstituteId: A,
+      }),
+    ).toBe(false);
+    expect(
+      resolveWritesEnabled(true, {
+        status: "ready",
+        activeInstituteId: null,
+      }),
+    ).toBe(false);
+    expect(
+      resolveWritesEnabled(true, {
+        status: "ready",
+        activeInstituteId: A,
       }),
     ).toBe(true);
   });

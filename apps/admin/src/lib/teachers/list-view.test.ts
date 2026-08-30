@@ -10,6 +10,7 @@ const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
 const rowA: TeacherListItem = {
   id: "teacher-a",
+  instituteId: A,
   name: "Teacher A",
   role: "subject-teacher",
   dept: "Mathematics",

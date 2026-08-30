@@ -35,3 +35,30 @@ describe("loadDocumentsTemplatesList", () => {
     expect(result.items).toEqual([]);
   });
 });
+
+describe("loadDocumentsPublishedList", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+  });
+
+  it("requests published workflow filter in API mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const listGeneratedDocuments = vi.fn().mockResolvedValue([]);
+    vi.doMock("./api", () => ({
+      listDocumentTemplates: vi.fn(),
+      listGeneratedDocuments,
+    }));
+    vi.doMock("./map", () => ({
+      documentTemplateDtosToTemplateRecords: (rows: unknown[]) => rows,
+      generatedDocumentDtosToGeneratedDocuments: (rows: unknown[]) => rows,
+    }));
+    const { loadDocumentsPublishedList } = await import("./load");
+    const result = await loadDocumentsPublishedList(INST);
+    expect(result.status).toBe("empty");
+    expect(listGeneratedDocuments).toHaveBeenCalledWith({
+      instituteId: INST,
+      workflowState: "published",
+    });
+  });
+});

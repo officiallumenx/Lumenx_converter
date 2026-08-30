@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   activeLinks,
   linkedChildrenLabel,
+  parentDtoToDetailItem,
   parentDtoToListItem,
   parentDtosToListItems,
   parentIdentityLabel,
@@ -116,5 +117,28 @@ describe("parents DTO mapping", () => {
     expect(() => parentDtosToListItems({ not: "array" } as never)).toThrow(
       /array/i,
     );
+  });
+
+  it("detail mapping keeps instituteId and inactive links for management", () => {
+    const detail = parentDtoToDetailItem(
+      dto({
+        links: [
+          ...(dto().links ?? []),
+          {
+            id: "link-inactive",
+            studentId: "ac222222-2222-4222-8222-222222222222",
+            parentId: "ba111111-1111-4111-8111-111111111111",
+            relationship: "guardian",
+            isPrimary: false,
+            isEmergencyContact: false,
+            status: "inactive",
+            createdAt: "2026-06-01T10:00:00Z",
+            updatedAt: "2026-06-01T10:00:00Z",
+          },
+        ],
+      }),
+    );
+    expect(detail.instituteId).toBe(INST);
+    expect(detail.links).toHaveLength(2);
   });
 });

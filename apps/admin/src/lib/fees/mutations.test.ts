@@ -92,4 +92,26 @@ describe("fees mutations", () => {
       }),
     );
   });
+
+  it("deletes concession in API mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const CONCESSION = "99999999-9999-4999-8999-999999999999";
+    const del = vi.fn().mockResolvedValue(undefined);
+    const client = { delete: del } as never;
+    const { deleteConcession } = await import("./mutations");
+    await deleteConcession(CONCESSION, client);
+    expect(del).toHaveBeenCalledWith(`/api/v1/fees/concessions/${CONCESSION}`);
+  });
+
+  it("publishes fee plan in API mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const post = vi.fn().mockResolvedValue({ id: PLAN, status: "published" });
+    const client = { post } as never;
+    const { publishFeePlan } = await import("./mutations");
+    await publishFeePlan(PLAN, { publishScope: "institute" }, client);
+    expect(post).toHaveBeenCalledWith(
+      `/api/v1/fees/plans/${PLAN}/publish`,
+      expect.objectContaining({ publish_scope: "institute" }),
+    );
+  });
 });

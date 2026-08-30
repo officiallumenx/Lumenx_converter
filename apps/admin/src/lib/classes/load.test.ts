@@ -6,7 +6,7 @@ const INST = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 function sectionDto(overrides: Partial<SectionDto> = {}): SectionDto {
   return {
-    id: "ss111111-1111-4111-8111-111111111111",
+    id: "11111111-1111-4111-8111-111111111111",
     instituteId: INST,
     academicYearId: "yyyyyyyy-yyyy-4yyy-8yyy-yyyyyyyyyyyy",
     classId: "cc111111-1111-4111-8111-111111111111",
@@ -170,5 +170,51 @@ describe("loadSectionDetail", () => {
     expect(result.status).toBe("error");
     expect(result.section).toBeNull();
     expect(getSection).not.toHaveBeenCalled();
+  });
+
+  it("maps section detail on success", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const section = sectionDto();
+    const cls = classDto();
+    const getSection = vi.fn().mockResolvedValue(section);
+    const getClass = vi.fn().mockResolvedValue(cls);
+    vi.doMock("./api", () => ({ getSection, getClass }));
+    const { loadSectionDetail } = await import("./load");
+    const result = await loadSectionDetail(section.id, INST);
+    expect(result.errorMessage).toBeNull();
+    expect(result.status).toBe("ready");
+    expect(result.section?.instituteId).toBe(INST);
+    expect(result.section?.classId).toBe(cls.id);
+  });
+
+  it("rejects detail when institute does not match", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const OTHER = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const section = sectionDto({ instituteId: OTHER });
+    const getSection = vi.fn().mockResolvedValue(section);
+    const getClass = vi.fn();
+    vi.doMock("./api", () => ({ getSection, getClass }));
+    const { loadSectionDetail } = await import("./load");
+    const result = await loadSectionDetail(section.id, INST);
+    expect(result.status).toBe("empty");
+    expect(result.section).toBeNull();
+    expect(getClass).not.toHaveBeenCalled();
+  });
+
+  it("returns forbidden without demo fallback", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const section = sectionDto();
+    const getSection = vi.fn().mockRejectedValue(
+      new ApiClientError({
+        status: 403,
+        code: "FORBIDDEN",
+        message: "No access",
+      }),
+    );
+    vi.doMock("./api", () => ({ getSection, getClass: vi.fn() }));
+    const { loadSectionDetail } = await import("./load");
+    const result = await loadSectionDetail(section.id, INST);
+    expect(result.status).toBe("forbidden");
+    expect(result.section).toBeNull();
   });
 });

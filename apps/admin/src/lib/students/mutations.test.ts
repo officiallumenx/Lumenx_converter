@@ -56,4 +56,20 @@ describe("students mutations", () => {
       }),
     );
   });
+
+  it("patches update payload in API mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const patch = vi.fn().mockResolvedValue({ id: STUDENT });
+    const client = { patch } as never;
+    const { updateStudent } = await import("./mutations");
+    await updateStudent(
+      STUDENT,
+      { accessStatus: "hold", classLabel: "Grade 10" },
+      client,
+    );
+    expect(patch).toHaveBeenCalledWith(`/api/v1/students/${STUDENT}`, {
+      access_status: "hold",
+      class_label: "Grade 10",
+    });
+  });
 });

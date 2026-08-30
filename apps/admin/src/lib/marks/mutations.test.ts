@@ -7,6 +7,8 @@ const CLASS = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 const SECTION = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
 const EXAM = "ffffffff-ffff-4fff-8fff-ffffffffffff";
 const SUBJECT = "11111111-1111-4111-8111-111111111111";
+const TEACHER = "22222222-2222-4222-8222-222222222222";
+const ENROLL = "33333333-3333-4333-8333-333333333333";
 
 describe("marks mutations", () => {
   beforeEach(() => {
@@ -39,6 +41,68 @@ describe("marks mutations", () => {
     expect(post).not.toHaveBeenCalled();
   });
 
+  it("posts create payload in API mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const post = vi.fn().mockResolvedValue({ id: ENTRY });
+    const client = { post } as never;
+    const { createMarkEntry } = await import("./mutations");
+    await createMarkEntry(
+      {
+        instituteId: INST,
+        academicYearId: YEAR,
+        classId: CLASS,
+        sectionId: SECTION,
+        examId: EXAM,
+        subjectId: SUBJECT,
+        teacherId: TEACHER,
+        maxMarks: 100,
+        scores: [{ enrollmentId: ENROLL, marks: 88 }],
+      },
+      client,
+    );
+    expect(post).toHaveBeenCalledWith(
+      "/api/v1/marks/entries",
+      expect.objectContaining({
+        institute_id: INST,
+        teacher_id: TEACHER,
+        exam_id: EXAM,
+        max_marks: 100,
+        scores: [{ enrollment_id: ENROLL, marks: 88 }],
+      }),
+    );
+  });
+
+  it("patches update payload in API mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const patch = vi.fn().mockResolvedValue({ id: ENTRY });
+    const client = { patch } as never;
+    const { updateMarkEntry } = await import("./mutations");
+    await updateMarkEntry(
+      ENTRY,
+      {
+        maxMarks: 50,
+        scores: [{ enrollmentId: ENROLL, marks: 40 }],
+      },
+      client,
+    );
+    expect(patch).toHaveBeenCalledWith(
+      `/api/v1/marks/entries/${ENTRY}`,
+      expect.objectContaining({
+        max_marks: 50,
+        scores: [{ enrollment_id: ENROLL, marks: 40 }],
+      }),
+    );
+  });
+
+  it("posts submit in API mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const post = vi.fn().mockResolvedValue({ id: ENTRY, status: "submitted" });
+    const client = { post } as never;
+    const { submitMarkEntry } = await import("./mutations");
+    await submitMarkEntry(ENTRY, client);
+    expect(post).toHaveBeenCalledWith(`/api/v1/marks/entries/${ENTRY}/submit`);
+  });
+
   it("posts publish in API mode", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const post = vi.fn().mockResolvedValue({ id: ENTRY, status: "published" });
@@ -57,6 +121,18 @@ describe("marks mutations", () => {
     expect(post).toHaveBeenCalledWith(
       `/api/v1/marks/entries/${ENTRY}/return`,
       expect.objectContaining({ admin_note: "Fix totals" }),
+    );
+  });
+
+  it("posts reject in API mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const post = vi.fn().mockResolvedValue({ id: ENTRY, status: "rejected" });
+    const client = { post } as never;
+    const { rejectMarkEntry } = await import("./mutations");
+    await rejectMarkEntry(ENTRY, { adminNote: "Invalid" }, client);
+    expect(post).toHaveBeenCalledWith(
+      `/api/v1/marks/entries/${ENTRY}/reject`,
+      expect.objectContaining({ admin_note: "Invalid" }),
     );
   });
 });

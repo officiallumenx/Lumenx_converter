@@ -163,4 +163,74 @@ describe("loadParentDetail", () => {
     expect(result.parent).toBeNull();
     expect(getParent).not.toHaveBeenCalled();
   });
+
+  it("maps parent detail on success", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const parentId = "ba111111-1111-4111-8111-111111111111";
+    const getParent = vi.fn().mockResolvedValue({
+      id: parentId,
+      instituteId: INST,
+      userProfileId: null,
+      legacyCode: "PAR-1",
+      name: "Rohan",
+      phone: null,
+      email: null,
+      address: null,
+      inviteStatus: "active",
+      accessStatus: "active",
+      createdAt: "2026-06-01T10:00:00Z",
+      updatedAt: "2026-06-01T10:00:00Z",
+      links: [],
+    });
+    vi.doMock("./api", () => ({ getParent }));
+    const { loadParentDetail } = await import("./load");
+    const result = await loadParentDetail(parentId, INST);
+    expect(result.status).toBe("ready");
+    expect(result.parent?.instituteId).toBe(INST);
+  });
+
+  it("rejects detail when institute does not match", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const OTHER = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const parentId = "ba111111-1111-4111-8111-111111111111";
+    const getParent = vi.fn().mockResolvedValue({
+      id: parentId,
+      instituteId: OTHER,
+      userProfileId: null,
+      legacyCode: null,
+      name: "Rohan",
+      phone: null,
+      email: null,
+      address: null,
+      inviteStatus: "active",
+      accessStatus: "active",
+      createdAt: "2026-06-01T10:00:00Z",
+      updatedAt: "2026-06-01T10:00:00Z",
+      links: [],
+    });
+    vi.doMock("./api", () => ({ getParent }));
+    const { loadParentDetail } = await import("./load");
+    const result = await loadParentDetail(parentId, INST);
+    expect(result.status).toBe("empty");
+    expect(result.parent).toBeNull();
+  });
+
+  it("returns forbidden without demo fallback", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const getParent = vi.fn().mockRejectedValue(
+      new ApiClientError({
+        status: 403,
+        code: "FORBIDDEN",
+        message: "No access",
+      }),
+    );
+    vi.doMock("./api", () => ({ getParent }));
+    const { loadParentDetail } = await import("./load");
+    const result = await loadParentDetail(
+      "ba111111-1111-4111-8111-111111111111",
+      INST,
+    );
+    expect(result.status).toBe("forbidden");
+    expect(result.parent).toBeNull();
+  });
 });

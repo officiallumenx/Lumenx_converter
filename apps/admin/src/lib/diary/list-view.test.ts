@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import { resolveDiaryListView, shouldCommitDiaryLoad } from "./list-view";
 import type { DiaryListItem } from "./types";
 
@@ -7,11 +8,14 @@ const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
 const rowA: DiaryListItem = {
   id: "diary-a",
+  instituteId: A,
+  teacherId: "11111111-1111-4111-8111-111111111111",
+  academicYearId: null,
   date: "2026-06-01",
   submittedAt: "2026-06-01T10:00:00Z",
   teacherName: "Teacher 11111111",
   scope: "subject",
-  rows: [{ className: "10-A", description: "Algebra" }],
+  rows: [{ sectionId: null, className: "10-A", description: "Algebra" }],
 };
 
 describe("resolveDiaryListView", () => {
@@ -127,6 +131,29 @@ describe("shouldCommitDiaryLoad", () => {
         cancelled: false,
         requestInstituteId: B,
         activeInstituteId: B,
+      }),
+    ).toBe(true);
+  });
+});
+
+describe("diary write gate", () => {
+  it("disables writes outside valid writable institute context", () => {
+    expect(
+      resolveWritesEnabled(true, {
+        status: "loading",
+        activeInstituteId: A,
+      }),
+    ).toBe(false);
+    expect(
+      resolveWritesEnabled(true, {
+        status: "ready",
+        activeInstituteId: null,
+      }),
+    ).toBe(false);
+    expect(
+      resolveWritesEnabled(true, {
+        status: "ready",
+        activeInstituteId: A,
       }),
     ).toBe(true);
   });

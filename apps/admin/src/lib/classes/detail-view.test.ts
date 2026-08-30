@@ -7,8 +7,10 @@ const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
 const detailA: SectionDetailItem = {
   id: "ff111111-1111-4111-8111-111111111111",
+  instituteId: A,
+  classId: "ee111111-1111-4111-8111-111111111111",
   name: "Grade 10 · A",
-  levelId: "G10",
+  levelId: "ee111111-1111-4111-8111-111111111111",
   timetableGrade: "10",
   section: "A",
   teacher: "Teacher A",
@@ -37,6 +39,22 @@ describe("resolveSectionDetailView", () => {
     });
     expect(view.detailValid).toBe(false);
     expect(view.status).toBe("loading");
+    expect(view.section).toBeNull();
+  });
+
+  it("rejects ready detail whose instituteId mismatches active institute", () => {
+    const view = resolveSectionDetailView({
+      apiMode: true,
+      instituteStatus: "ready",
+      activeInstituteId: A,
+      resolvedForInstituteId: A,
+      storedSection: { ...detailA, instituteId: B },
+      storedStatus: "ready",
+      storedErrorMessage: null,
+      instituteErrorMessage: null,
+    });
+    expect(view.detailValid).toBe(true);
+    expect(view.status).toBe("empty");
     expect(view.section).toBeNull();
   });
 });

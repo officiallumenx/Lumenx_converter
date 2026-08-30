@@ -57,4 +57,43 @@ describe("complaints mutations", () => {
       expect.objectContaining({ priority: "high" }),
     );
   });
+
+  it("posts create payload in API mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const INSTITUTE = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const post = vi.fn().mockResolvedValue({ id: COMPLAINT });
+    const client = { post } as never;
+    const { createComplaint } = await import("./mutations");
+    await createComplaint(
+      {
+        instituteId: INSTITUTE,
+        title: "Noise",
+        body: "Too loud",
+        category: "general",
+        priority: "medium",
+        destination: "principal_admin",
+      },
+      client,
+    );
+    expect(post).toHaveBeenCalledWith(
+      "/api/v1/complaints",
+      expect.objectContaining({
+        institute_id: INSTITUTE,
+        title: "Noise",
+        body: "Too loud",
+        category: "general",
+        priority: "medium",
+        destination: "principal_admin",
+      }),
+    );
+  });
+
+  it("deletes complaint in API mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const del = vi.fn().mockResolvedValue(undefined);
+    const client = { delete: del } as never;
+    const { deleteComplaint } = await import("./mutations");
+    await deleteComplaint(COMPLAINT, client);
+    expect(del).toHaveBeenCalledWith(`/api/v1/complaints/${COMPLAINT}`);
+  });
 });

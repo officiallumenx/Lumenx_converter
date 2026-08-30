@@ -72,4 +72,30 @@ describe("feeBundleToFeesSnapshot", () => {
     expect(snapshot.classDefaults["Grade 10"]?.[COMP]).toBe(10000);
     expect(snapshot.publish.status).toBe("published");
   });
+
+  it("preserves concession ids on overrides for delete wiring", () => {
+    const concessionId = "aa111111-1111-4111-8111-111111111111";
+    const studentId = "bb111111-1111-4111-8111-111111111111";
+    const snapshot = feeBundleToFeesSnapshot({
+      plan,
+      components,
+      concessions: [
+        {
+          id: concessionId,
+          feePlanId: PLAN,
+          instituteId: INST,
+          studentId,
+          feeComponentId: COMP,
+          amount: 500,
+          note: "Sibling",
+          createdAt: "2026-06-01T10:00:00Z",
+          updatedAt: "2026-06-01T10:00:00Z",
+        },
+      ],
+      payments: [],
+      classLabels: [{ id: CLASS, label: "Grade 10" }],
+    });
+    expect(snapshot.overrides[0]?.id).toBe(concessionId);
+    expect(snapshot.overrides[0]?.categoryId).toBe(COMP);
+  });
 });

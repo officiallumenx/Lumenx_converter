@@ -3,13 +3,14 @@ import { ApiClientError } from "@/lib/api";
 import type { DiaryDayDto } from "./types";
 
 const INST = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const TEACHER = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
 function dto(overrides: Partial<DiaryDayDto> = {}): DiaryDayDto {
   return {
     id: "diary-1",
     instituteId: INST,
     academicYearId: null,
-    teacherId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    teacherId: TEACHER,
     diaryDate: "2026-06-01",
     scope: "subject",
     submittedAt: "2026-06-01T10:00:00Z",
@@ -29,17 +30,22 @@ describe("loadDiaryDaysList", () => {
   it("returns demo status without calling API in demo mode", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
     const listDiaryDays = vi.fn();
+    const listTeachers = vi.fn();
     vi.doMock("./api", () => ({ listDiaryDays }));
+    vi.doMock("@/lib/teachers/api", () => ({ listTeachers }));
     const { loadDiaryDaysList } = await import("./load");
     const result = await loadDiaryDaysList(INST);
     expect(result).toEqual({ status: "demo", items: [], errorMessage: null });
     expect(listDiaryDays).not.toHaveBeenCalled();
+    expect(listTeachers).not.toHaveBeenCalled();
   });
 
   it("requires a valid active institute UUID in API mode", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const listDiaryDays = vi.fn();
+    const listTeachers = vi.fn();
     vi.doMock("./api", () => ({ listDiaryDays }));
+    vi.doMock("@/lib/teachers/api", () => ({ listTeachers }));
     const { loadDiaryDaysList } = await import("./load");
     await expect(loadDiaryDaysList(null)).resolves.toMatchObject({
       status: "needs_institute",
@@ -50,27 +56,48 @@ describe("loadDiaryDaysList", () => {
       items: [],
     });
     expect(listDiaryDays).not.toHaveBeenCalled();
+    expect(listTeachers).not.toHaveBeenCalled();
   });
 
-  it("maps successful API list with submitted=true and does not invent demo rows", async () => {
+  it("maps successful API list for all days without demo fallback", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const listDiaryDays = vi.fn().mockResolvedValue([dto()]);
+    const listTeachers = vi.fn().mockResolvedValue([
+      {
+        id: TEACHER,
+        instituteId: INST,
+        fullName: "Ada Teacher",
+        displayName: "Ada Teacher",
+      },
+    ]);
     vi.doMock("./api", () => ({ listDiaryDays }));
+    vi.doMock("@/lib/teachers/api", () => ({ listTeachers }));
+    vi.doMock("@/lib/teachers/map", () => ({
+      teacherDtosToListItems: (rows: { id: string; fullName?: string }[]) =>
+        rows.map((row) => ({
+          id: row.id,
+          name: row.fullName ?? "Teacher",
+        })),
+    }));
     const { loadDiaryDaysList } = await import("./load");
     const result = await loadDiaryDaysList(INST);
     expect(result.status).toBe("ready");
     expect(result.items).toHaveLength(1);
     expect(result.items[0]?.id).toBe("diary-1");
-    expect(listDiaryDays).toHaveBeenCalledWith({
-      instituteId: INST,
-      submitted: true,
-    });
+    expect(result.items[0]?.teacherName).toBe("Ada Teacher");
+    expect(listDiaryDays).toHaveBeenCalledWith({ instituteId: INST });
+    expect(listTeachers).toHaveBeenCalledWith({ instituteId: INST });
   });
 
   it("returns empty status when API returns no rows", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const listDiaryDays = vi.fn().mockResolvedValue([]);
+    const listTeachers = vi.fn().mockResolvedValue([]);
     vi.doMock("./api", () => ({ listDiaryDays }));
+    vi.doMock("@/lib/teachers/api", () => ({ listTeachers }));
+    vi.doMock("@/lib/teachers/map", () => ({
+      teacherDtosToListItems: () => [],
+    }));
     const { loadDiaryDaysList } = await import("./load");
     await expect(loadDiaryDaysList(INST)).resolves.toEqual({
       status: "empty",
@@ -88,7 +115,9 @@ describe("loadDiaryDaysList", () => {
         message: "No access",
       }),
     );
+    const listTeachers = vi.fn().mockResolvedValue([]);
     vi.doMock("./api", () => ({ listDiaryDays }));
+    vi.doMock("@/lib/teachers/api", () => ({ listTeachers }));
     const { loadDiaryDaysList } = await import("./load");
     const result = await loadDiaryDaysList(INST);
     expect(result.status).toBe("forbidden");
@@ -105,6 +134,7 @@ describe("loadDiaryDaysList", () => {
       }),
     );
     vi.doMock("./api", () => ({ listDiaryDays }));
+    vi.doMock("@/lib/teachers/api", () => ({ listTeachers: vi.fn() }));
     const { loadDiaryDaysList } = await import("./load");
     const result = await loadDiaryDaysList(INST);
     expect(result.status).toBe("error");
@@ -121,6 +151,7 @@ describe("loadDiaryDaysList", () => {
       }),
     );
     vi.doMock("./api", () => ({ listDiaryDays }));
+    vi.doMock("@/lib/teachers/api", () => ({ listTeachers: vi.fn() }));
     const { loadDiaryDaysList } = await import("./load");
     const result = await loadDiaryDaysList(INST);
     expect(result.status).toBe("error");
@@ -130,7 +161,12 @@ describe("loadDiaryDaysList", () => {
   it("returns error when mapping throws on malformed payload", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const listDiaryDays = vi.fn().mockResolvedValue({ not: "an array" });
+    const listTeachers = vi.fn().mockResolvedValue([]);
     vi.doMock("./api", () => ({ listDiaryDays }));
+    vi.doMock("@/lib/teachers/api", () => ({ listTeachers }));
+    vi.doMock("@/lib/teachers/map", () => ({
+      teacherDtosToListItems: () => [],
+    }));
     const { loadDiaryDaysList } = await import("./load");
     const result = await loadDiaryDaysList(INST);
     expect(result.status).toBe("error");

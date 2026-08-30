@@ -51,4 +51,34 @@ describe("documents api repository", () => {
     expect(url).toContain("/api/v1/documents/templates?");
     expect(url).toContain(`institute_id=${INST}`);
   });
+
+  it("lists generated with workflow_state filter", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const { listGeneratedDocuments } = await import("./api");
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ data: [] }),
+    });
+    const client = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => "tok",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    await listGeneratedDocuments(
+      { instituteId: INST, workflowState: "published" },
+      client,
+    );
+    const url = fetchMock.mock.calls[0][0] as string;
+    expect(url).toContain("workflow_state=published");
+    expect(url).toContain(`institute_id=${INST}`);
+  });
+
+  it("refuses list in demo mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
+    const { listGeneratedDocuments } = await import("./api");
+    await expect(
+      listGeneratedDocuments({ instituteId: INST }),
+    ).rejects.toThrow(/API auth mode/);
+  });
 });

@@ -63,4 +63,83 @@ describe("notification-inbox mutations", () => {
       }),
     );
   });
+
+  it("posts audience emit without recipient_user_ids", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const post = vi.fn().mockResolvedValue([]);
+    const client = { post } as never;
+    const { emitNotification } = await import("./mutations");
+    await emitNotification(
+      {
+        instituteId: INST,
+        category: "announcements",
+        title: "Hello",
+        body: "World",
+        audience: "students",
+      },
+      client,
+    );
+    expect(post).toHaveBeenCalledWith(
+      "/api/v1/notifications",
+      expect.objectContaining({
+        institute_id: INST,
+        audience: "students",
+      }),
+    );
+    const payload = post.mock.calls[0][1] as Record<string, unknown>;
+    expect(payload.recipient_user_ids).toBeUndefined();
+  });
+
+  it("rejects emit with neither audience nor recipients", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const post = vi.fn();
+    const client = { post } as never;
+    const { emitNotification } = await import("./mutations");
+    await expect(
+      emitNotification(
+        {
+          instituteId: INST,
+          category: "system",
+          title: "Hello",
+          body: "World",
+        },
+        client,
+      ),
+    ).rejects.toThrow(/audience/);
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it("rejects emit with invalid recipient UUID without network", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const post = vi.fn();
+    const client = { post } as never;
+    const { emitNotification } = await import("./mutations");
+    await expect(
+      emitNotification(
+        {
+          instituteId: INST,
+          category: "system",
+          title: "Hello",
+          body: "World",
+          recipientUserIds: ["not-a-uuid"],
+        },
+        client,
+      ),
+    ).rejects.toThrow(/UUID/);
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it("refuses emit in demo mode (no demo fallback)", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
+    const { emitNotification } = await import("./mutations");
+    await expect(
+      emitNotification({
+        instituteId: INST,
+        category: "system",
+        title: "Hello",
+        body: "World",
+        audience: "everyone",
+      }),
+    ).rejects.toThrow(/API auth mode/);
+  });
 });

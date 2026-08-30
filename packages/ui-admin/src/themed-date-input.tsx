@@ -2,7 +2,6 @@ import {
   useEffect,
   useId,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
   type ChangeEvent,
@@ -10,7 +9,12 @@ import {
   type CSSProperties,
 } from "react";
 import { createPortal } from "react-dom";
-import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarDays } from "lucide-react";
+import {
+  MonthCalendar,
+  parseIsoDateLocal,
+  resolveCalendarMonthBounds,
+} from "@lumenx/ui";
 
 const inputBase =
   "w-full px-2.5 sm:px-3 rounded-md bg-background text-foreground border border-border text-xs sm:text-sm placeholder:text-muted-foreground/70 focus:outline-none focus:border-primary/60 focus:ring-2 focus:ring-ring/30 hover:border-border-strong transition-colors appearance-none";
@@ -20,137 +24,13 @@ const inputSizes = {
 } as const;
 type FieldSize = keyof typeof inputSizes;
 
-const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"] as const;
-
-function toIsoDate(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function parseIso(iso: string): Date | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
-  const d = new Date(`${iso}T12:00:00`);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
 function formatDisplay(iso: string): string {
-  const d = parseIso(iso);
+  const d = parseIsoDateLocal(iso);
   if (!d) return iso;
   return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 }
 
-export function MonthCalendar({
-  month,
-  selectedIso,
-  min,
-  max,
-  onMonthChange,
-  onSelect,
-}: {
-  month: Date;
-  selectedIso?: string;
-  min?: string;
-  max?: string;
-  onMonthChange: (d: Date) => void;
-  onSelect: (iso: string) => void;
-}) {
-  const year = month.getFullYear();
-  const monthIndex = month.getMonth();
-  const todayIso = toIsoDate(new Date());
-
-  const cells = useMemo(() => {
-    const first = new Date(year, monthIndex, 1);
-    const lead = (first.getDay() + 6) % 7;
-    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
-    const total = Math.ceil((lead + daysInMonth) / 7) * 7;
-    const list: ({ iso: string; day: number } | null)[] = [];
-    for (let i = 0; i < total; i++) {
-      const dayNum = i - lead + 1;
-      if (dayNum < 1 || dayNum > daysInMonth) {
-        list.push(null);
-        continue;
-      }
-      list.push({
-        day: dayNum,
-        iso: toIsoDate(new Date(year, monthIndex, dayNum)),
-      });
-    }
-    return list;
-  }, [year, monthIndex]);
-
-  const label = month.toLocaleDateString(undefined, { month: "long", year: "numeric" });
-
-  return (
-    <div className="w-[272px] select-none p-3">
-      <div className="mb-3 flex items-center gap-1">
-        <button
-          type="button"
-          aria-label="Previous month"
-          onClick={() => onMonthChange(new Date(year, monthIndex - 1, 1))}
-          className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          <ChevronLeft className="size-4" />
-        </button>
-        <div className="min-w-0 flex-1 text-center text-sm font-semibold tracking-tight text-foreground">
-          {label}
-        </div>
-        <button
-          type="button"
-          aria-label="Next month"
-          onClick={() => onMonthChange(new Date(year, monthIndex + 1, 1))}
-          className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          <ChevronRight className="size-4" />
-        </button>
-      </div>
-
-      <div className="mb-1.5 grid grid-cols-7 gap-1">
-        {WEEKDAYS.map((d) => (
-          <div
-            key={d}
-            className="flex h-7 items-center justify-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
-          >
-            {d}
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-7 gap-1">
-        {cells.map((cell, i) => {
-          if (!cell) return <div key={`e-${i}`} className="size-8" aria-hidden />;
-          const isSelected = cell.iso === selectedIso;
-          const isToday = cell.iso === todayIso;
-          const disabled =
-            (min != null && cell.iso < min) || (max != null && cell.iso > max);
-
-          return (
-            <button
-              key={cell.iso}
-              type="button"
-              disabled={disabled}
-              onClick={() => onSelect(cell.iso)}
-              className={[
-                "flex size-8 items-center justify-center rounded-md text-sm tabular-nums transition-colors",
-                disabled ? "cursor-not-allowed text-muted-foreground/30" : "",
-                !disabled && !isSelected ? "text-foreground hover:bg-muted" : "",
-                !disabled && !isSelected && isToday
-                  ? "font-semibold text-primary ring-1 ring-primary/35"
-                  : "",
-                isSelected ? "bg-primary font-semibold text-primary-foreground hover:bg-primary" : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-            >
-              {cell.day}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+export { MonthCalendar } from "@lumenx/ui";
 
 export function ThemedDateInput({
   fieldSize = "md",
@@ -179,12 +59,25 @@ export function ThemedDateInput({
 
   const controlled = value !== undefined;
   const current = controlled ? String(value ?? "") : uncontrolled;
-  const [month, setMonth] = useState<Date>(() => parseIso(current) ?? new Date());
+  const minIso = typeof min === "string" ? min : undefined;
+  const maxIso = typeof max === "string" ? max : undefined;
+  const [month, setMonth] = useState<Date>(() => {
+    const parsed = parseIsoDateLocal(current);
+    if (parsed) return parsed;
+    const { endMonth } = resolveCalendarMonthBounds(minIso, maxIso);
+    return maxIso ? parseIsoDateLocal(maxIso) ?? endMonth : new Date();
+  });
 
   useEffect(() => {
     if (!open) return;
-    setMonth(parseIso(current) ?? new Date());
-  }, [open, current]);
+    const parsed = parseIsoDateLocal(current);
+    if (parsed) {
+      setMonth(parsed);
+      return;
+    }
+    const { endMonth } = resolveCalendarMonthBounds(minIso, maxIso);
+    setMonth(maxIso ? parseIsoDateLocal(maxIso) ?? endMonth : new Date());
+  }, [open, current, minIso, maxIso]);
 
   const commit = (iso: string) => {
     if (!controlled) setUncontrolled(iso);
@@ -203,12 +96,12 @@ export function ThemedDateInput({
     if (!el) return;
     const rect = el.getBoundingClientRect();
     const gap = 4;
-    const panelH = 320;
+    const panelH = 360;
     const spaceBelow = window.innerHeight - rect.bottom - gap - 8;
     const placeAbove = spaceBelow < panelH && rect.top > spaceBelow;
     setMenuStyle({
       position: "fixed",
-      left: Math.max(8, Math.min(rect.left, window.innerWidth - 288)),
+      left: Math.max(8, Math.min(rect.left, window.innerWidth - 300)),
       zIndex: 10050,
       ...(placeAbove
         ? { bottom: window.innerHeight - rect.top + gap, top: "auto" }
@@ -262,7 +155,7 @@ export function ThemedDateInput({
           if (disabled) return;
           setOpen((v) => !v);
         }}
-        className={`${inputBase} ${inputSizes[fieldSize]} relative flex w-full min-w-0 items-center gap-2 text-left ${className}`}
+        className={`${inputBase} ${inputSizes[fieldSize]} relative flex w-full min-w-0 items-center gap-2 text-left touch-manipulation ${className}`}
       >
         <CalendarDays className="size-3.5 shrink-0 text-primary" aria-hidden />
         <span className={`min-w-0 truncate ${!display ? "text-muted-foreground" : ""}`}>
@@ -277,7 +170,7 @@ export function ThemedDateInput({
               role="dialog"
               aria-label="Choose date"
               style={menuStyle}
-              className="lx-themed-menu overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-pop"
+              className="lx-themed-menu max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-pop"
             >
               <div className="border-b border-border bg-muted/30 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Calendar
@@ -285,8 +178,8 @@ export function ThemedDateInput({
               <MonthCalendar
                 month={month}
                 selectedIso={current || undefined}
-                min={typeof min === "string" ? min : undefined}
-                max={typeof max === "string" ? max : undefined}
+                min={minIso}
+                max={maxIso}
                 onMonthChange={setMonth}
                 onSelect={commit}
               />

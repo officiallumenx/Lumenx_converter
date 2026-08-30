@@ -7,6 +7,7 @@ const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
 const detailA: ParentDetailItem = {
   id: "ba111111-1111-4111-8111-111111111111",
+  instituteId: A,
   name: "Parent A",
   phone: "9876543210",
   email: "a@example.com",
@@ -38,6 +39,22 @@ describe("resolveParentsDetailView", () => {
     });
     expect(view.detailValid).toBe(false);
     expect(view.status).toBe("loading");
+    expect(view.parent).toBeNull();
+  });
+
+  it("rejects ready detail whose instituteId mismatches active institute", () => {
+    const view = resolveParentsDetailView({
+      apiMode: true,
+      instituteStatus: "ready",
+      activeInstituteId: A,
+      resolvedForInstituteId: A,
+      storedParent: { ...detailA, instituteId: B },
+      storedStatus: "ready",
+      storedErrorMessage: null,
+      instituteErrorMessage: null,
+    });
+    expect(view.detailValid).toBe(true);
+    expect(view.status).toBe("empty");
     expect(view.parent).toBeNull();
   });
 });

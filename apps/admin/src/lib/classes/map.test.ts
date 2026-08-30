@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   classLabelForSection,
+  sectionDtoToDetailItem,
   sectionDtoToListItem,
   sectionsToListItems,
 } from "./map";
@@ -92,5 +93,13 @@ describe("classes DTO mapping", () => {
     expect(() =>
       sectionsToListItems([], { not: "array" } as never),
     ).toThrow(/array/i);
+  });
+
+  it("detail mapping keeps instituteId and classId for tenant writes", () => {
+    const detail = sectionDtoToDetailItem(sectionDto(), classDto());
+    expect(detail.instituteId).toBe(INST);
+    expect(detail.classId).toBe(CLASS_ID);
+    expect(detail.classStatus).toBe("active");
+    expect(detail.sectionStatus).toBe("active");
   });
 });

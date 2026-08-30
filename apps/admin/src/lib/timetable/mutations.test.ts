@@ -42,6 +42,30 @@ describe("timetable mutations", () => {
     expect(del).not.toHaveBeenCalled();
   });
 
+  it("does not call network for invalid assignment UUID on create", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const post = vi.fn();
+    const client = { post } as never;
+    const { createTimetableSlot } = await import("./mutations");
+    await expect(
+      createTimetableSlot(
+        {
+          instituteId: INST,
+          academicYearId: YEAR,
+          classId: CLASS,
+          sectionId: SECTION,
+          teacherAssignmentId: "bad",
+          dayOfWeek: 1,
+          periodIndex: 1,
+          startsAt: "09:00",
+          endsAt: "09:45",
+        },
+        client,
+      ),
+    ).rejects.toThrow(/UUID/);
+    expect(post).not.toHaveBeenCalled();
+  });
+
   it("posts create payload in API mode", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const post = vi.fn().mockResolvedValue({ id: SLOT });
@@ -71,5 +95,55 @@ describe("timetable mutations", () => {
         period_index: 3,
       }),
     );
+  });
+
+  it("patches update payload in API mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const patch = vi.fn().mockResolvedValue({ id: SLOT });
+    const client = { patch } as never;
+    const { updateTimetableSlot } = await import("./mutations");
+    await updateTimetableSlot(
+      SLOT,
+      {
+        room: "Lab-2",
+        status: "inactive",
+        dayOfWeek: 4,
+        periodIndex: 2,
+        startsAt: "11:00",
+        endsAt: "11:45",
+        teacherAssignmentId: ASSIGN,
+      },
+      client,
+    );
+    expect(patch).toHaveBeenCalledWith(
+      `/api/v1/timetable/${SLOT}`,
+      expect.objectContaining({
+        room: "Lab-2",
+        status: "inactive",
+        day_of_week: 4,
+        period_index: 2,
+        teacher_assignment_id: ASSIGN,
+      }),
+    );
+  });
+
+  it("rejects empty update payload without calling network", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const patch = vi.fn();
+    const client = { patch } as never;
+    const { updateTimetableSlot } = await import("./mutations");
+    await expect(updateTimetableSlot(SLOT, {}, client)).rejects.toThrow(
+      /At least one field/,
+    );
+    expect(patch).not.toHaveBeenCalled();
+  });
+
+  it("deletes slot in API mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const del = vi.fn().mockResolvedValue(undefined);
+    const client = { delete: del } as never;
+    const { deleteTimetableSlot } = await import("./mutations");
+    await deleteTimetableSlot(SLOT, client);
+    expect(del).toHaveBeenCalledWith(`/api/v1/timetable/${SLOT}`);
   });
 });

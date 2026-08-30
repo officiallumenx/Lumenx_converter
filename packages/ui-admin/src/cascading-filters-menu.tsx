@@ -10,7 +10,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronRight, Filter, X } from "lucide-react";
-import { MonthCalendar } from "./themed-date-input";
+import { MonthCalendar } from "@lumenx/ui";
 
 export type CascadingFilterOption = {
   value: string;

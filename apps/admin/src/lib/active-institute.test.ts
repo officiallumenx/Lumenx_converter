@@ -106,4 +106,13 @@ describe("active institute", () => {
     clearStoredActiveInstituteId();
     expect(store.get(ACTIVE_INSTITUTE_STORAGE_KEY)).toBeUndefined();
   });
+
+  it("allowInstituteIds lets platform-style selection without memberships", () => {
+    const result = resolveActiveInstitute([], null, {
+      allowInstituteIds: [A, B],
+    });
+    expect(result).toEqual({ instituteId: null, reason: "needs_selection" });
+    selectActiveInstitute(A, [], { allowInstituteIds: [A, B] });
+    expect(store.get(ACTIVE_INSTITUTE_STORAGE_KEY)).toBe(A);
+  });
 });

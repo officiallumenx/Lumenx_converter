@@ -55,4 +55,13 @@ describe("assets mutations", () => {
       }),
     );
   });
+
+  it("deletes asset by UUID in API mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const del = vi.fn().mockResolvedValue(undefined);
+    const client = { delete: del } as never;
+    const { deleteAsset } = await import("./mutations");
+    await deleteAsset(ASSET, client);
+    expect(del).toHaveBeenCalledWith(`/api/v1/assets/${ASSET}`);
+  });
 });

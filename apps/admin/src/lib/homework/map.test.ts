@@ -46,5 +46,7 @@ describe("homework map", () => {
     expect(row.classLabel).toContain("Class 10");
     expect(row.subjectLabel).toBe("Math");
     expect(row.status).toBe("published");
+    expect(row.description).toBe("Complete all questions");
+    expect(row.instituteId).toBe(INST);
   });
 });

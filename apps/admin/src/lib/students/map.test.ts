@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildStudentGradeLabel,
+  studentDtoToDetailItem,
   studentDtoToListItem,
   studentDtosToListItems,
 } from "./map";
@@ -81,5 +82,11 @@ describe("students DTO mapping", () => {
     expect(() => studentDtosToListItems({ not: "array" } as never)).toThrow(
       /array/i,
     );
+  });
+
+  it("detail mapping keeps instituteId for tenant checks", () => {
+    const detail = studentDtoToDetailItem(dto());
+    expect(detail.instituteId).toBe(INST);
+    expect(detail.address).toBe("12 Park Lane");
   });
 });

@@ -69,6 +69,30 @@ describe("homework mutations", () => {
     );
   });
 
+  it("patches update payload in API mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const patch = vi.fn().mockResolvedValue({ id: HW });
+    const client = { patch } as never;
+    const { updateHomework } = await import("./mutations");
+    await updateHomework(HW, { title: "Revised", dueDate: "2026-09-15" }, client);
+    expect(patch).toHaveBeenCalledWith(
+      `/api/v1/homework/${HW}`,
+      expect.objectContaining({
+        title: "Revised",
+        due_date: "2026-09-15",
+      }),
+    );
+  });
+
+  it("does not call network for invalid UUID on update", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const patch = vi.fn();
+    const client = { patch } as never;
+    const { updateHomework } = await import("./mutations");
+    await expect(updateHomework("bad", { title: "X" }, client)).rejects.toThrow(/UUID/);
+    expect(patch).not.toHaveBeenCalled();
+  });
+
   it("posts publish in API mode", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const post = vi.fn().mockResolvedValue({ id: HW });
@@ -76,5 +100,23 @@ describe("homework mutations", () => {
     const { publishHomework } = await import("./mutations");
     await publishHomework(HW, client);
     expect(post).toHaveBeenCalledWith(`/api/v1/homework/${HW}/publish`);
+  });
+
+  it("posts expire in API mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const post = vi.fn().mockResolvedValue({ id: HW });
+    const client = { post } as never;
+    const { expireHomework } = await import("./mutations");
+    await expireHomework(HW, client);
+    expect(post).toHaveBeenCalledWith(`/api/v1/homework/${HW}/expire`);
+  });
+
+  it("deletes homework in API mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const del = vi.fn().mockResolvedValue(undefined);
+    const client = { delete: del } as never;
+    const { deleteHomework } = await import("./mutations");
+    await deleteHomework(HW, client);
+    expect(del).toHaveBeenCalledWith(`/api/v1/homework/${HW}`);
   });
 });

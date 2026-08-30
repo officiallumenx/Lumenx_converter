@@ -1,27 +1,51 @@
 import { describe, expect, it } from "vitest";
-import { staffAttendanceDtosToDaySummary } from "./map";
+import {
+  mergeTeachersIntoDaySummary,
+  staffAttendanceDtosToDaySummary,
+} from "./map";
 import type { StaffAttendanceDto } from "./types";
 import type { TeacherListItem } from "@/lib/teachers/types";
 
 const INST = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const TEACHER_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const TEACHER_2 = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+
+function teacherStub(
+  partial: Pick<TeacherListItem, "id" | "name"> & Partial<TeacherListItem>,
+): TeacherListItem {
+  return {
+    instituteId: INST,
+    role: "subject-teacher",
+    dept: "Science",
+    email: "",
+    phone: "",
+    password: "",
+    employeeId: "",
+    joined: "",
+    classes: 0,
+    assignedSections: [],
+    status: "active",
+    subjects: [],
+    portalAccess: "",
+    qualification: "",
+    lastLogin: "",
+    credentialsSentAt: null,
+    identityLabel: partial.name,
+    ...partial,
+  };
+}
 
 describe("staff-attendance map", () => {
   it("summarizes mark counts and resolves teacher names", () => {
     const teachersById = new Map<string, TeacherListItem>([
       [
         TEACHER_ID,
-        {
+        teacherStub({
           id: TEACHER_ID,
           name: "Jane Doe",
           email: "jane@example.com",
-          phone: null,
-          status: "active",
-          department: "Science",
           employeeId: "T-001",
-          joinedOn: "2024-01-01",
-          subjects: [],
-        },
+        }),
       ],
     ]);
     const rows: StaffAttendanceDto[] = [
@@ -65,5 +89,43 @@ describe("staff-attendance map", () => {
     expect(summary.dayStatus).toBe("submitted");
     expect(summary.marks[0]?.teacherName).toBe("Jane Doe");
     expect(summary.marks[0]?.checkIn).toBe("08:15");
+  });
+
+  it("fills unmarked teachers as draft absent placeholders", () => {
+    const teachers = [
+      teacherStub({ id: TEACHER_ID, name: "Jane Doe" }),
+      teacherStub({ id: TEACHER_2, name: "Bob" }),
+    ];
+    const byId = new Map(teachers.map((t) => [t.id, t]));
+    const rows: StaffAttendanceDto[] = [
+      {
+        id: "m1",
+        instituteId: INST,
+        teacherId: TEACHER_ID,
+        attendanceDate: "2026-06-01",
+        status: "present",
+        checkIn: "09:00:00",
+        checkOut: null,
+        note: null,
+        dayStatus: "draft",
+        markedByUserId: "u1",
+        submittedAt: null,
+        submittedByUserId: null,
+        createdAt: "2026-06-01T10:00:00Z",
+        updatedAt: "2026-06-01T10:00:00Z",
+      },
+    ];
+    const summary = staffAttendanceDtosToDaySummary(rows, byId, "2026-06-01");
+    const merged = mergeTeachersIntoDaySummary(summary, teachers);
+    expect(merged.total).toBe(2);
+    expect(merged.marks.find((m) => m.teacherId === TEACHER_ID)?.status).toBe(
+      "present",
+    );
+    expect(merged.marks.find((m) => m.teacherId === TEACHER_2)?.id).toBe(
+      `pending:${TEACHER_2}`,
+    );
+    expect(merged.marks.find((m) => m.teacherId === TEACHER_2)?.status).toBe(
+      "absent",
+    );
   });
 });
