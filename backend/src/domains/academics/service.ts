@@ -14,11 +14,14 @@ import {
   findSubjectById,
   insertAcademicYear,
   insertClass,
+  insertEnrollment,
   insertSection,
   insertSubject,
   listAcademicYears,
   listClasses,
+  listEnrollments,
   listEnrollmentsForStudents,
+  findEnrollmentById,
   listGuardianStudentIds,
   listSections,
   listSubjects,
@@ -35,6 +38,7 @@ import {
   updateSectionFields,
   updateSubjectFields,
 } from "./repository.js";
+import { findStudentById } from "../students/repository.js";
 import type {
   AcademicYearDto,
   AcademicYearRow,
@@ -42,10 +46,14 @@ import type {
   ClassRow,
   CreateAcademicYearInput,
   CreateClassInput,
+  CreateEnrollmentInput,
   CreateSectionInput,
   CreateSubjectInput,
+  EnrollmentDto,
+  EnrollmentRow,
   ListAcademicYearsFilter,
   ListClassesFilter,
+  ListEnrollmentsFilter,
   ListSectionsFilter,
   ListSubjectsFilter,
   SectionDto,
@@ -143,6 +151,52 @@ export function toSubjectDto(row: SubjectRow): SubjectDto {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+export function toEnrollmentDto(
+  row: EnrollmentRow,
+  studentName = "",
+): EnrollmentDto {
+  return {
+    id: row.id,
+    instituteId: row.institute_id,
+    academicYearId: row.academic_year_id,
+    studentId: row.student_id,
+    studentName: studentName || shortStudentRef(row.student_id),
+    classId: row.class_id,
+    sectionId: row.section_id,
+    rollNo: row.roll_no,
+    status: row.status,
+    enrolledOn: row.enrolled_on,
+    withdrawnOn: row.withdrawn_on,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function shortStudentRef(studentId: string): string {
+  return `Student · ${studentId.slice(0, 8)}`;
+}
+
+async function studentNamesByIds(
+  admin: SupabaseClient,
+  studentIds: string[],
+): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  await Promise.all(
+    studentIds.map(async (id) => {
+      const student = await findStudentById(admin, id);
+      if (student) {
+        map.set(
+          id,
+          student.display_name?.trim() ||
+            `${student.first_name} ${student.surname}`.trim() ||
+            shortStudentRef(id),
+        );
+      }
+    }),
+  );
+  return map;
 }
 
 function isStaffReader(actor: Actor, instituteId: string): boolean {
@@ -641,4 +695,114 @@ export async function deleteSubjectForActor(
 
   const deleted = await softDeleteSubject(admin, subjectId);
   if (!deleted) throw AppError.conflict("Subject was already deleted");
+}
+
+// ── Enrollments ──────────────────────────────────────────────────
+
+export async function listEnrollmentsForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  filter: ListEnrollmentsFilter,
+): Promise<EnrollmentDto[]> {
+  const instituteId = requireInstituteId(actor, filter.instituteId);
+  const learnerScope = await requireReadAccess(admin, actor, instituteId);
+
+  const rows = await listEnrollments(admin, { ...filter, instituteId });
+  let visible = rows;
+  if (learnerScope) {
+    const accessibleStudents = new Set(
+      await resolveAccessibleStudentIds(admin, actor, instituteId),
+    );
+    visible = rows.filter(
+      (row) =>
+        learnerScope.sectionIds.has(row.section_id) &&
+        accessibleStudents.has(row.student_id),
+    );
+  }
+
+  const names = await studentNamesByIds(
+    admin,
+    [...new Set(visible.map((r) => r.student_id))],
+  );
+  return visible.map((row) => toEnrollmentDto(row, names.get(row.student_id)));
+}
+
+export async function getEnrollmentForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  enrollmentId: string,
+): Promise<EnrollmentDto> {
+  const row = await findEnrollmentById(admin, enrollmentId);
+  if (!row) throw AppError.notFound("Enrollment not found");
+
+  const learnerScope = await requireReadAccess(admin, actor, row.institute_id);
+  if (learnerScope) {
+    const accessibleStudents = new Set(
+      await resolveAccessibleStudentIds(admin, actor, row.institute_id),
+    );
+    if (
+      !learnerScope.sectionIds.has(row.section_id) ||
+      !accessibleStudents.has(row.student_id)
+    ) {
+      throw AppError.forbidden("Insufficient permissions");
+    }
+  }
+
+  const names = await studentNamesByIds(admin, [row.student_id]);
+  return toEnrollmentDto(row, names.get(row.student_id));
+}
+
+export async function createEnrollmentForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  input: CreateEnrollmentInput,
+): Promise<EnrollmentDto> {
+  const instituteId = requireInstituteId(actor, input.instituteId);
+  assertStaffWriter(actor, instituteId);
+
+  const section = await findSectionById(admin, input.sectionId);
+  if (
+    !section ||
+    section.institute_id !== instituteId ||
+    section.academic_year_id !== input.academicYearId ||
+    section.class_id !== input.classId
+  ) {
+    throw AppError.validation("Referenced resource is invalid", {
+      section_id: ["Section does not match institute / year / class"],
+    });
+  }
+
+  const year = await findAcademicYearById(admin, input.academicYearId);
+  if (!year || year.institute_id !== instituteId) {
+    throw AppError.validation("Referenced resource is invalid", {
+      academic_year_id: ["Academic year not found in this institute"],
+    });
+  }
+
+  const student = await findStudentById(admin, input.studentId);
+  if (!student || student.institute_id !== instituteId) {
+    throw AppError.validation("Referenced resource is invalid", {
+      student_id: ["Student not found in this institute"],
+    });
+  }
+
+  const rollNo = input.rollNo.trim();
+  if (!rollNo) {
+    throw AppError.validation("roll_no is required", {
+      roll_no: ["Required"],
+    });
+  }
+
+  const row = await insertEnrollment(admin, {
+    ...input,
+    instituteId,
+    rollNo,
+    status: input.status ?? "active",
+  });
+
+  const name =
+    student.display_name?.trim() ||
+    `${student.first_name} ${student.surname}`.trim() ||
+    shortStudentRef(student.id);
+  return toEnrollmentDto(row, name);
 }

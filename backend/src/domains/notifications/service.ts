@@ -16,6 +16,7 @@ import {
   insertInAppDeliveryAttempts,
   insertNotification,
   insertRecipients,
+  listActiveMemberUserIdsForAudience,
   listDeviceTokensForUser,
   listNotificationsByIds,
   listRecipientsForUser,
@@ -263,12 +264,35 @@ export async function emitNotificationForActor(
     });
   }
 
-  const recipientIds = [...new Set(input.recipientUserIds)];
-  if (recipientIds.length === 0) {
-    throw AppError.validation("At least one recipient is required", {
-      recipient_user_ids: ["Required"],
-    });
+  const explicitIds = input.recipientUserIds ?? [];
+  const hasExplicit = explicitIds.length > 0;
+  const hasAudience = Boolean(input.audience);
+  if (hasExplicit === hasAudience) {
+    throw AppError.validation(
+      "Provide either recipient_user_ids or audience (not both, not neither)",
+      {
+        recipient_user_ids: ["XOR audience"],
+        audience: ["XOR recipient_user_ids"],
+      },
+    );
   }
+
+  let recipientIds: string[];
+  if (input.audience) {
+    recipientIds = await listActiveMemberUserIdsForAudience(
+      admin,
+      instituteId,
+      input.audience,
+    );
+    if (recipientIds.length === 0) {
+      throw AppError.validation("No active members matched audience", {
+        audience: ["No recipients"],
+      });
+    }
+  } else {
+    recipientIds = [...new Set(explicitIds)];
+  }
+
   if (recipientIds.length > 500) {
     throw AppError.validation("Too many recipients", {
       recipient_user_ids: ["Max 500"],
@@ -283,6 +307,7 @@ export async function emitNotificationForActor(
     });
   }
 
+  // Audience resolution already scoped to active members; re-check for explicit IDs.
   const members = await findActiveMemberUserIds(admin, instituteId, recipientIds);
   const nonMembers = recipientIds.filter((id) => !members.has(id));
   if (nonMembers.length > 0) {

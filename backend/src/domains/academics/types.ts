@@ -77,6 +77,65 @@ export type EnrollmentScopeRow = {
   deleted_at: string | null;
 };
 
+export type EnrollmentStatus =
+  | "active"
+  | "completed"
+  | "transferred"
+  | "dropped_out"
+  | "graduated";
+
+export type EnrollmentRow = {
+  id: string;
+  institute_id: string;
+  academic_year_id: string;
+  student_id: string;
+  class_id: string;
+  section_id: string;
+  roll_no: string;
+  status: EnrollmentStatus;
+  enrolled_on: string;
+  withdrawn_on: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+};
+
+export type EnrollmentDto = {
+  id: string;
+  instituteId: string;
+  academicYearId: string;
+  studentId: string;
+  studentName: string;
+  classId: string;
+  sectionId: string;
+  rollNo: string;
+  status: EnrollmentStatus;
+  enrolledOn: string;
+  withdrawnOn: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ListEnrollmentsFilter = {
+  instituteId: string;
+  academicYearId?: string;
+  classId?: string;
+  sectionId?: string;
+  studentId?: string;
+  status?: EnrollmentStatus;
+};
+
+export type CreateEnrollmentInput = {
+  instituteId: string;
+  academicYearId: string;
+  studentId: string;
+  classId: string;
+  sectionId: string;
+  rollNo: string;
+  enrolledOn: string;
+  status?: EnrollmentStatus;
+};
+
 export type AcademicYearDto = {
   id: string;
   instituteId: string;

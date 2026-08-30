@@ -116,6 +116,41 @@ export async function findActiveAssignmentById(
   return (result.data as AssignmentGraphRow | null) ?? null;
 }
 
+export async function listTeacherAssignments(
+  admin: SupabaseClient,
+  filter: {
+    instituteId: string;
+    academicYearId?: string;
+    sectionId?: string;
+    classId?: string;
+    status?: "active" | "inactive";
+  },
+): Promise<AssignmentGraphRow[]> {
+  let query = admin
+    .from("teacher_assignment")
+    .select(
+      "id, institute_id, academic_year_id, class_id, section_id, subject_id, teacher_id, status, deleted_at",
+    )
+    .eq("institute_id", filter.instituteId)
+    .is("deleted_at", null);
+
+  if (filter.academicYearId) {
+    query = query.eq("academic_year_id", filter.academicYearId);
+  }
+  if (filter.sectionId) {
+    query = query.eq("section_id", filter.sectionId);
+  }
+  if (filter.classId) {
+    query = query.eq("class_id", filter.classId);
+  }
+  if (filter.status) {
+    query = query.eq("status", filter.status);
+  }
+
+  const result = await query;
+  return ensureDbOk(result) as AssignmentGraphRow[];
+}
+
 export async function findSectionById(
   admin: SupabaseClient,
   sectionId: string,

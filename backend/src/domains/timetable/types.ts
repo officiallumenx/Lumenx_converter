@@ -69,3 +69,23 @@ export type ListTimetableSlotsFilter = {
   /** Resolved via teacher_assignment — not a column on timetable_slot. */
   teacherId?: string;
 };
+
+/** Public teacher_assignment shape for timetable slot create/edit pickers. */
+export type TeacherAssignmentDto = {
+  id: string;
+  instituteId: string;
+  academicYearId: string;
+  classId: string;
+  sectionId: string;
+  subjectId: string;
+  teacherId: string;
+  status: "active" | "inactive";
+};
+
+export type ListTeacherAssignmentsFilter = {
+  instituteId: string;
+  academicYearId?: string;
+  sectionId?: string;
+  classId?: string;
+  status?: "active" | "inactive";
+};

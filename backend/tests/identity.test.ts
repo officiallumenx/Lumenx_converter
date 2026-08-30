@@ -288,7 +288,12 @@ describe("identity — memberships RBAC", () => {
       headers: auth("token-admin"),
     });
     expect(listed.status).toBe(200);
-    expect(((await json(listed)).data as unknown[]).length).toBe(2);
+    const listedBody = await json(listed);
+    expect((listedBody.data as unknown[]).length).toBe(2);
+    const adminRow = (listedBody.data as Array<{ userId: string; displayName: string | null }>).find(
+      (r) => r.userId === USER_ADMIN,
+    );
+    expect(adminRow?.displayName).toBe("Admin");
 
     const created = await app.request("/api/v1/memberships", {
       method: "POST",
@@ -303,6 +308,7 @@ describe("identity — memberships RBAC", () => {
     const createdBody = await json(created);
     expect(createdBody.data.roles).toEqual(["teacher"]);
     expect(createdBody.data.userId).toBe(USER_NEW);
+    expect(createdBody.data.displayName).toBe("New User");
 
     expect(
       (

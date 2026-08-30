@@ -366,6 +366,30 @@ export async function upsertStudentFeeLedger(
   return ensureDbOk(result) as StudentFeeRow;
 }
 
+export async function listStudentFeesForInstitute(
+  admin: SupabaseClient,
+  instituteId: string,
+): Promise<StudentFeeRow[]> {
+  const result = await admin
+    .from("student_fee")
+    .select(STUDENT_FEE_COLS)
+    .eq("institute_id", instituteId)
+    .is("deleted_at", null);
+  return ensureDbOk(result) as StudentFeeRow[];
+}
+
+export async function listPaymentsForInstitute(
+  admin: SupabaseClient,
+  instituteId: string,
+): Promise<FeePaymentRow[]> {
+  const result = await admin
+    .from("fee_payment")
+    .select(PAYMENT_COLS)
+    .eq("institute_id", instituteId)
+    .is("deleted_at", null);
+  return ensureDbOk(result) as FeePaymentRow[];
+}
+
 export async function listPaymentsForPlan(
   admin: SupabaseClient,
   feePlanId: string,

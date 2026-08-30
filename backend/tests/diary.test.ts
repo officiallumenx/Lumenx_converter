@@ -331,7 +331,7 @@ describe("diary — tenant isolation", () => {
 });
 
 describe("diary — RBAC", () => {
-  it("allows teacher create and blocks learner/parent/staff content writes", async () => {
+  it("allows teacher create and blocks learner/parent; admin needs teacher_id", async () => {
     const app = appWithDb(baseDb());
     const created = await app.request("/api/v1/diary", {
       method: "POST",
@@ -344,7 +344,7 @@ describe("diary — RBAC", () => {
     expect(body.data.teacherId).toBe(TEACHER_A);
     expect(body.data.rows).toHaveLength(1);
 
-    for (const token of ["token-student", "token-parent", "token-admin"]) {
+    for (const token of ["token-student", "token-parent"]) {
       expect(
         (
           await app.request("/api/v1/diary", {
@@ -358,13 +358,43 @@ describe("diary — RBAC", () => {
 
     expect(
       (
+        await app.request("/api/v1/diary", {
+          method: "POST",
+          headers: jsonHeaders("token-admin"),
+          body: JSON.stringify(createBody),
+        })
+      ).status,
+    ).toBe(400);
+
+    const adminCreated = await app.request("/api/v1/diary", {
+      method: "POST",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify({
+        ...createBody,
+        diary_date: "2026-08-28",
+        teacher_id: TEACHER_A,
+      }),
+    });
+    expect(adminCreated.status).toBe(201);
+    expect((await json(adminCreated)).data.teacherId).toBe(TEACHER_A);
+
+    expect(
+      (
         await app.request(`/api/v1/diary/${DAY_DRAFT}`, {
           method: "PATCH",
           headers: jsonHeaders("token-admin"),
-          body: JSON.stringify({ rows: createBody.rows }),
+          body: JSON.stringify({
+            rows: [
+              {
+                section_id: SECTION_A,
+                class_label: "10-A",
+                description: "Admin updated entry",
+              },
+            ],
+          }),
         })
       ).status,
-    ).toBe(403);
+    ).toBe(200);
 
     expect(
       (
@@ -373,7 +403,7 @@ describe("diary — RBAC", () => {
           headers: auth("token-admin"),
         })
       ).status,
-    ).toBe(403);
+    ).toBe(200);
   });
 
   it("allows staff governance soft-delete", async () => {

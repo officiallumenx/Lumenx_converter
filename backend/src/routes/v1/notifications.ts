@@ -134,19 +134,39 @@ notifications.get("/", async (c) => {
 notifications.post("/", async (c) => {
   const actor = assertAuthenticated(c);
   const admin = requireAdmin(c);
+  const audienceSchema = z.enum([
+    "everyone",
+    "students",
+    "parents",
+    "teachers",
+  ]);
   const body = validateBody(
-    z.object({
-      institute_id: uuid,
-      template_id: uuid.nullable().optional(),
-      category: categorySchema,
-      priority: prioritySchema.optional(),
-      title: z.string().min(1).max(300),
-      body: z.string().min(1).max(4000),
-      payload: z.record(z.unknown()).optional(),
-      deep_link: z.string().max(500).nullable().optional(),
-      dedupe_key: z.string().max(200).nullable().optional(),
-      recipient_user_ids: z.array(uuid).min(1).max(500),
-    }),
+    z
+      .object({
+        institute_id: uuid,
+        template_id: uuid.nullable().optional(),
+        category: categorySchema,
+        priority: prioritySchema.optional(),
+        title: z.string().min(1).max(300),
+        body: z.string().min(1).max(4000),
+        payload: z.record(z.unknown()).optional(),
+        deep_link: z.string().max(500).nullable().optional(),
+        dedupe_key: z.string().max(200).nullable().optional(),
+        recipient_user_ids: z.array(uuid).min(1).max(500).optional(),
+        audience: audienceSchema.optional(),
+      })
+      .superRefine((val, ctx) => {
+        const hasIds = Boolean(val.recipient_user_ids?.length);
+        const hasAudience = Boolean(val.audience);
+        if (hasIds === hasAudience) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message:
+              "Provide either recipient_user_ids or audience (not both, not neither)",
+            path: ["recipient_user_ids"],
+          });
+        }
+      }),
     await c.req.json(),
   );
   const data = await emitNotificationForActor(admin, actor, {
@@ -160,6 +180,7 @@ notifications.post("/", async (c) => {
     deepLink: body.deep_link,
     dedupeKey: body.dedupe_key,
     recipientUserIds: body.recipient_user_ids,
+    audience: body.audience,
   });
   return c.json({ data }, 201);
 });

@@ -223,6 +223,18 @@ export async function listMarksForRegister(
   return ensureDbOk(result) as AttendanceMarkRow[];
 }
 
+export async function listMarksForInstitute(
+  admin: SupabaseClient,
+  instituteId: string,
+): Promise<AttendanceMarkRow[]> {
+  const result = await admin
+    .from("attendance_mark")
+    .select(MARK_COLS)
+    .eq("institute_id", instituteId)
+    .is("deleted_at", null);
+  return ensureDbOk(result) as AttendanceMarkRow[];
+}
+
 export async function softDeleteMarksForRegister(
   admin: SupabaseClient,
   registerId: string,

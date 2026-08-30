@@ -99,6 +99,8 @@ export type MockDb = {
   support_message: Row[];
   policy_rule: Row[];
   storage_quota: Row[];
+  alert_rule: Row[];
+  report_job: Row[];
 };
 
 export type MockDbError = { code: string; message?: string };
@@ -192,6 +194,10 @@ class QueryBuilder {
   }
 
   order(_column: string, _opts?: { ascending?: boolean }) {
+    return this;
+  }
+
+  limit(_count: number) {
     return this;
   }
 
@@ -308,6 +314,36 @@ export function createMockSupabaseClients(options: {
     from(table: string) {
       return new QueryBuilder(table, options.db, errorQueue);
     },
+    storage: {
+      from(_bucket: string) {
+        return {
+          async upload() {
+            return { data: { path: "mock-path" }, error: null };
+          },
+          async remove() {
+            return { data: [], error: null };
+          },
+          async createSignedUrl() {
+            return {
+              data: { signedUrl: "https://storage.example/signed-object" },
+              error: null,
+            };
+          },
+        };
+      },
+      async listBuckets() {
+        return {
+          data: [
+            {
+              id: "institute-branding",
+              name: "institute-branding",
+              public: false,
+            },
+          ],
+          error: null,
+        };
+      },
+    },
   };
 
   return {
@@ -406,5 +442,7 @@ export function emptyMockDb(): MockDb {
     support_message: [],
     policy_rule: [],
     storage_quota: [],
+    alert_rule: [],
+    report_job: [],
   };
 }

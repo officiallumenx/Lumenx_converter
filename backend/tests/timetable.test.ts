@@ -306,6 +306,20 @@ describe("timetable — read authorization", () => {
     expect(res.status).toBe(200);
     expect((await json(res)).data.id).toBe(SLOT_A);
   });
+
+  it("lists teacher assignments for slot pickers", async () => {
+    const app = appWithDb(baseDb());
+    const res = await app.request(
+      `/api/v1/timetable/assignments?institute_id=${INST_A}&section_id=${SECTION_A}`,
+      { headers: auth("token-admin") },
+    );
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0].id).toBe(ASSIGN_A);
+    expect(body.data[0].sectionId).toBe(SECTION_A);
+    expect(body.data[0].teacherId).toBe(TEACHER_A);
+  });
 });
 
 describe("timetable — write authorization", () => {

@@ -14,6 +14,7 @@ import {
   listIssuedCertificatesForActor,
   lookupIssuedCertificateForActor,
   revokeIssuedCertificateForActor,
+  getIssuedCertificateSignedUrlForActor,
 } from "../../domains/certificates/service.js";
 
 const certificates = new Hono<AppBindings>();
@@ -119,6 +120,23 @@ certificates.get("/:id", async (c) => {
   const admin = requireAdmin(c);
   const { id } = validateParams(idParamsSchema, c.req.param());
   const data = await getIssuedCertificateForActor(admin, actor, id);
+  return c.json({ data });
+});
+
+certificates.get("/:id/signed-url", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const query = validateQuery(
+    z.object({ expires_in: z.coerce.number().int().min(60).max(86_400).optional() }),
+    c.req.query(),
+  );
+  const data = await getIssuedCertificateSignedUrlForActor(
+    admin,
+    actor,
+    id,
+    query.expires_in,
+  );
   return c.json({ data });
 });
 

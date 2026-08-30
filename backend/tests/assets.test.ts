@@ -345,4 +345,49 @@ describe("assets api", () => {
     expect(meta.status).toBe(200);
     expect((await json(meta)).data.fileName).toBe("renamed.pdf");
   });
+
+  it("uploads multipart file and mints signed URL; isolates cross-tenant", async () => {
+    const app = appWithDb(baseDb());
+    const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+    const form = new FormData();
+    form.set("institute_id", INST_A);
+    form.set("bucket", "institute-branding");
+    form.set("category", "logo");
+    form.set("file", new File([png], "logo.png", { type: "image/png" }));
+
+    const uploaded = await app.request("/api/v1/assets/upload", {
+      method: "POST",
+      headers: { Authorization: "Bearer token-admin" },
+      body: form,
+    });
+    expect(uploaded.status).toBe(201);
+    const asset = (await json(uploaded)).data;
+    expect(asset.bucket).toBe("institute-branding");
+    expect(asset.objectPath).toContain(INST_A);
+
+    const signed = await app.request(
+      `/api/v1/assets/${asset.id}/signed-url`,
+      { headers: { Authorization: "Bearer token-admin" } },
+    );
+    expect(signed.status).toBe(200);
+    expect((await json(signed)).data.signedUrl).toContain("https://");
+
+    expect(
+      (
+        await app.request(`/api/v1/assets/${ASSET_CROSS}/signed-url`, {
+          headers: { Authorization: "Bearer token-admin" },
+        })
+      ).status,
+    ).toBe(404);
+
+    expect(
+      (
+        await app.request("/api/v1/assets/upload", {
+          method: "POST",
+          headers: { Authorization: "Bearer token-other" },
+          body: form,
+        })
+      ).status,
+    ).toBe(403);
+  });
 });

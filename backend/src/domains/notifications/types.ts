@@ -141,6 +141,13 @@ export type DeviceTokenDto = {
   updatedAt: string;
 };
 
+/** Role-based broadcast audiences resolved from active institute memberships. */
+export type NotificationAudience =
+  | "everyone"
+  | "students"
+  | "parents"
+  | "teachers";
+
 export type EmitNotificationInput = {
   instituteId: string;
   templateId?: string | null;
@@ -151,7 +158,9 @@ export type EmitNotificationInput = {
   payload?: Record<string, unknown>;
   deepLink?: string | null;
   dedupeKey?: string | null;
-  recipientUserIds: string[];
+  /** Explicit recipients XOR audience (server resolves memberships). */
+  recipientUserIds?: string[];
+  audience?: NotificationAudience;
 };
 
 export type UpdateRecipientInput = {

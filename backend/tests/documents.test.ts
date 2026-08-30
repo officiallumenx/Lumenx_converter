@@ -496,6 +496,9 @@ describe("documents api", () => {
     const pubBody = await json(published);
     expect(pubBody.data.workflowState).toBe("published");
     expect(pubBody.data.portalVisibility.parent).toBe(true);
+    expect(pubBody.data.assetPath).toMatch(
+      new RegExp(`^${INST_A}/[0-9a-f-]+/${doc.id}\\.pdf$`),
+    );
   });
 
   it("parent reads published generated docs only", async () => {

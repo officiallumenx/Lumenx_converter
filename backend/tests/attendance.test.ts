@@ -36,6 +36,8 @@ const STUDENT_A = "ac111111-1111-4111-8111-111111111111";
 const STUDENT_B = "ac222222-2222-4222-8222-222222222222";
 const ENROLL_A = "ad111111-1111-4111-8111-111111111111";
 const ENROLL_B = "ad222222-2222-4222-8222-222222222222";
+const ENROLL_OTHER_INST = "ad333333-3333-4333-8333-333333333333";
+const STUDENT_OTHER = "ac333333-3333-4333-8333-333333333333";
 const CONFIG_A = "ae111111-1111-4111-8111-111111111111";
 const REGISTER_A = "af111111-1111-4111-8111-111111111111";
 const MARK_A = "b0111111-1111-4111-8111-111111111111";
@@ -171,6 +173,7 @@ function baseDb(): MockDb {
   db.student = [
     { id: STUDENT_A, institute_id: INST_A, user_profile_id: USER_STUDENT, deleted_at: null },
     { id: STUDENT_B, institute_id: INST_A, user_profile_id: null, deleted_at: null },
+    { id: STUDENT_OTHER, institute_id: INST_B, user_profile_id: null, deleted_at: null },
   ];
   db.section = [
     {
@@ -219,6 +222,16 @@ function baseDb(): MockDb {
       student_id: STUDENT_B,
       class_id: CLASS_A,
       section_id: SECTION_A,
+      status: "active",
+      deleted_at: null,
+    },
+    {
+      id: ENROLL_OTHER_INST,
+      institute_id: INST_B,
+      academic_year_id: YEAR_B,
+      student_id: STUDENT_OTHER,
+      class_id: CLASS_B,
+      section_id: SECTION_B,
       status: "active",
       deleted_at: null,
     },
@@ -374,6 +387,19 @@ describe("attendance — tenant isolation", () => {
       body: JSON.stringify({
         ...validCreateBody,
         section_id: SECTION_B,
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects marks using another institute enrollment", async () => {
+    const app = appWithDb(baseDb());
+    const res = await app.request("/api/v1/attendance/registers", {
+      method: "POST",
+      headers: { ...auth("token-admin"), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...validCreateBody,
+        marks: [{ enrollment_id: ENROLL_OTHER_INST, status: "present" }],
       }),
     });
     expect(res.status).toBe(400);

@@ -73,6 +73,7 @@ export async function findAssetByBucketPath(
 export async function insertAsset(
   admin: SupabaseClient,
   input: CreateAssetInput & {
+    id?: string;
     createdByUserId: string;
     ownerUserId: string | null;
     visibility: AssetVisibility;
@@ -83,6 +84,7 @@ export async function insertAsset(
   const result = await admin
     .from("stored_asset")
     .insert({
+      ...(input.id ? { id: input.id } : {}),
       institute_id: input.instituteId,
       bucket: input.bucket,
       object_path: input.objectPath,

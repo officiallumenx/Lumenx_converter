@@ -102,6 +102,9 @@ export type MembershipDto = {
   instituteId: string;
   status: MembershipStatus;
   roles: string[];
+  /** Present when profile row exists for the membership user. */
+  displayName: string | null;
+  email: string | null;
   createdAt: string;
   updatedAt: string;
 };

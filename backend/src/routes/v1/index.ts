@@ -17,6 +17,7 @@ import {
   sections,
   subjects,
 } from "./academics.js";
+import enrollments from "./enrollments.js";
 import { institutes, profiles, memberships, roles } from "./identity.js";
 import notifications from "./notifications.js";
 import audit from "./audit.js";
@@ -105,6 +106,7 @@ v1.route("/academic-years", academicYears);
 v1.route("/classes", classes);
 v1.route("/sections", sections);
 v1.route("/subjects", subjects);
+v1.route("/enrollments", enrollments);
 v1.route("/notifications", notifications);
 v1.route("/audit", audit);
 v1.route("/fees", fees);

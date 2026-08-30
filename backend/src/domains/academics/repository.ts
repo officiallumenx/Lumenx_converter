@@ -5,11 +5,14 @@ import type {
   ClassRow,
   CreateAcademicYearInput,
   CreateClassInput,
+  CreateEnrollmentInput,
   CreateSectionInput,
   CreateSubjectInput,
+  EnrollmentRow,
   EnrollmentScopeRow,
   ListAcademicYearsFilter,
   ListClassesFilter,
+  ListEnrollmentsFilter,
   ListSectionsFilter,
   ListSubjectsFilter,
   SectionRow,
@@ -34,6 +37,9 @@ const SUBJECT_COLS =
 
 const ENROLLMENT_SCOPE_COLS =
   "id, institute_id, academic_year_id, student_id, class_id, section_id, status, deleted_at";
+
+const ENROLLMENT_COLS =
+  "id, institute_id, academic_year_id, student_id, class_id, section_id, roll_no, status, enrolled_on, withdrawn_on, created_at, updated_at, deleted_at";
 
 // ── Academic years ───────────────────────────────────────────────
 
@@ -443,6 +449,63 @@ export async function listEnrollmentsForStudents(
     .eq("status", "active")
     .is("deleted_at", null);
   return ensureDbOk(result) as EnrollmentScopeRow[];
+}
+
+export async function listEnrollments(
+  admin: SupabaseClient,
+  filter: ListEnrollmentsFilter,
+): Promise<EnrollmentRow[]> {
+  let query = admin
+    .from("enrollment")
+    .select(ENROLLMENT_COLS)
+    .eq("institute_id", filter.instituteId)
+    .is("deleted_at", null);
+
+  if (filter.academicYearId) {
+    query = query.eq("academic_year_id", filter.academicYearId);
+  }
+  if (filter.classId) query = query.eq("class_id", filter.classId);
+  if (filter.sectionId) query = query.eq("section_id", filter.sectionId);
+  if (filter.studentId) query = query.eq("student_id", filter.studentId);
+  if (filter.status) query = query.eq("status", filter.status);
+
+  const result = await query.order("roll_no", { ascending: true });
+  return ensureDbOk(result) as EnrollmentRow[];
+}
+
+export async function findEnrollmentById(
+  admin: SupabaseClient,
+  id: string,
+): Promise<EnrollmentRow | null> {
+  const result = await admin
+    .from("enrollment")
+    .select(ENROLLMENT_COLS)
+    .eq("id", id)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (result.data as EnrollmentRow | null) ?? null;
+}
+
+export async function insertEnrollment(
+  admin: SupabaseClient,
+  input: CreateEnrollmentInput,
+): Promise<EnrollmentRow> {
+  const result = await admin
+    .from("enrollment")
+    .insert({
+      institute_id: input.instituteId,
+      academic_year_id: input.academicYearId,
+      student_id: input.studentId,
+      class_id: input.classId,
+      section_id: input.sectionId,
+      roll_no: input.rollNo,
+      status: input.status ?? "active",
+      enrolled_on: input.enrolledOn,
+    })
+    .select(ENROLLMENT_COLS)
+    .single();
+  return ensureDbOk(result) as EnrollmentRow;
 }
 
 export async function listGuardianStudentIds(

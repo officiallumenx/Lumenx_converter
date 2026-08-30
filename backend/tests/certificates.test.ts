@@ -316,6 +316,10 @@ describe("certificates api", () => {
     expect(body.data.certificateNumber).toBe("CERT/2026/0002");
     expect(body.data.sequence).toBe(2);
     expect(body.data.generatedDocumentId).toBe(GEN_PUBLISHED);
+    expect(body.data.fileKind).toBe("pdf");
+    expect(body.data.assetPath).toMatch(
+      new RegExp(`^${INST_A}/[0-9a-f-]+/CERT-2026-0002\\.pdf$`),
+    );
 
     const gen = db.generated_document.find((g) => g.id === GEN_PUBLISHED);
     expect(gen?.certificate_number).toBe("CERT/2026/0002");

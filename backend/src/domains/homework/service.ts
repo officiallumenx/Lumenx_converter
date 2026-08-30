@@ -77,7 +77,7 @@ export function toHomeworkDto(row: HomeworkRow): HomeworkDto {
 }
 
 function isGovernanceWriter(actor: Actor, instituteId: string): boolean {
-  if (actor.isPlatformOperator) return false;
+  if (actor.isPlatformOperator) return true;
   return HOMEWORK_STAFF_GOVERNANCE_ROLES.some((role) =>
     actorHasInstituteRole(actor, instituteId, role),
   );

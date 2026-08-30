@@ -7,6 +7,7 @@ import {
   requireTeacherIdentity,
   actorHasInstituteRole,
 } from "../../authorization/index.js";
+import { findTeacherById } from "../teachers/repository.js";
 import {
   findAcademicYearById,
   findDiaryDayById,
@@ -31,7 +32,7 @@ import type {
   UpdateDiaryDayInput,
 } from "./types.js";
 
-/** Governance: soft-delete only (Admin view-only for content). */
+/** Governance: create/update/submit on behalf of a teacher + soft-delete. */
 export const DIARY_STAFF_GOVERNANCE_ROLES = [
   "institute_admin",
   "principal",
@@ -85,7 +86,7 @@ export function toDayDto(
 }
 
 function isGovernanceWriter(actor: Actor, instituteId: string): boolean {
-  if (actor.isPlatformOperator) return false;
+  if (actor.isPlatformOperator) return true;
   return DIARY_STAFF_GOVERNANCE_ROLES.some((role) =>
     actorHasInstituteRole(actor, instituteId, role),
   );
@@ -109,6 +110,43 @@ async function assertTeacherOwner(
   if (identity.teacherId !== day.teacher_id) {
     throw AppError.forbidden("Cannot modify another teacher's diary");
   }
+}
+
+async function assertCanWriteDiaryContent(
+  actor: Actor,
+  day: DiaryDayRecord,
+): Promise<void> {
+  if (isGovernanceWriter(actor, day.institute_id)) return;
+  await assertTeacherOwner(actor, day);
+}
+
+async function resolveTeacherIdForWrite(
+  admin: SupabaseClient,
+  actor: Actor,
+  instituteId: string,
+  clientTeacherId: string | undefined,
+): Promise<string> {
+  if (actorHasInstituteRole(actor, instituteId, "teacher")) {
+    return requireTeacherIdentity(actor, instituteId).teacherId;
+  }
+
+  if (!isGovernanceWriter(actor, instituteId)) {
+    throw AppError.forbidden("Insufficient institute role");
+  }
+
+  if (!clientTeacherId) {
+    throw AppError.validation("teacher_id is required", {
+      teacher_id: ["Required when creating diary as institute staff"],
+    });
+  }
+
+  const teacher = await findTeacherById(admin, clientTeacherId);
+  if (!teacher || teacher.institute_id !== instituteId) {
+    throw AppError.validation("Referenced resource is invalid", {
+      teacher_id: ["Teacher not found in this institute"],
+    });
+  }
+  return teacher.id;
 }
 
 async function assertCanReadDiary(
@@ -294,24 +332,24 @@ export async function createDiaryDayForActor(
   input: CreateDiaryDayInput,
 ): Promise<DiaryDayDto> {
   const instituteId = requireInstituteId(actor, input.instituteId);
-
-  if (!actorHasInstituteRole(actor, instituteId, "teacher")) {
-    throw AppError.forbidden("Insufficient institute role");
-  }
-
-  const identity = requireTeacherIdentity(actor, instituteId);
+  const teacherId = await resolveTeacherIdForWrite(
+    admin,
+    actor,
+    instituteId,
+    input.teacherId,
+  );
   await validateAcademicYear(admin, instituteId, input.academicYearId);
 
   const rowInputs = await validateAndNormalizeRows(admin, {
     instituteId,
     scope: input.scope,
-    teacherId: identity.teacherId,
+    teacherId,
     rows: input.rows ?? [],
   });
 
   const existingLive = await listDiaryDays(admin, {
     instituteId,
-    teacherId: identity.teacherId,
+    teacherId,
     diaryDate: input.diaryDate,
     scope: input.scope,
   });
@@ -326,7 +364,7 @@ export async function createDiaryDayForActor(
     day = await insertDiaryDay(admin, {
       ...input,
       instituteId,
-      teacherId: identity.teacherId,
+      teacherId,
     });
   } catch (err) {
     if (err instanceof AppError && err.code === "CONFLICT") {
@@ -351,7 +389,7 @@ export async function updateDiaryDayForActor(
   if (!existing) throw AppError.notFound("Diary day not found");
 
   assertInstituteAccess(actor, existing.institute_id);
-  await assertTeacherOwner(actor, existing);
+  await assertCanWriteDiaryContent(actor, existing);
 
   if (patch.academicYearId !== undefined) {
     await validateAcademicYear(
@@ -393,7 +431,7 @@ export async function submitDiaryDayForActor(
   if (!existing) throw AppError.notFound("Diary day not found");
 
   assertInstituteAccess(actor, existing.institute_id);
-  await assertTeacherOwner(actor, existing);
+  await assertCanWriteDiaryContent(actor, existing);
 
   const rows = await listRowsForDay(admin, dayId);
   assertReadyToSubmit(rows);

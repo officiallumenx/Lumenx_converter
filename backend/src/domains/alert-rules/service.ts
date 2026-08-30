@@ -7,10 +7,20 @@ import {
 } from "../../authorization/index.js";
 import { listComplaintsForActor } from "../complaints/service.js";
 import { STUDENT_STAFF_READ_ROLES } from "../students/service.js";
+import {
+  configFromJson,
+  findAlertRuleById,
+  insertAlertRule,
+  listAlertRules,
+  softDeleteAlertRule,
+  toAlertRuleUpdatePatch,
+  updateAlertRuleFields,
+} from "./repository.js";
 import type {
   AlertEvaluateResultDto,
   AlertFireDto,
   AlertRuleDto,
+  AlertRuleRow,
   CreateAlertRuleInput,
   UpdateAlertRuleInput,
 } from "./types.js";
@@ -23,49 +33,23 @@ const WRITE_ROLES = [
   "it_admin",
 ] as const;
 
-/** In-memory rules keyed by institute (Stage 9 stub). */
-const rulesByInstitute = new Map<string, AlertRuleDto[]>();
-
-function seedDefaults(instituteId: string): AlertRuleDto[] {
-  const now = new Date().toISOString();
-  return [
-    {
-      id: crypto.randomUUID(),
-      instituteId,
-      name: "Attendance drop",
-      iconKey: "attendance",
-      desc: "Triggers when a student's monthly attendance falls below threshold.",
-      priority: "P2",
-      channels: ["Email", "Parent app"],
-      audience: "Class teacher · Parent",
-      active: true,
-      config: { thresholdPct: 75 },
-      createdAt: now,
-      updatedAt: now,
-    },
-    {
-      id: crypto.randomUUID(),
-      instituteId,
-      name: "Complaint escalation",
-      iconKey: "complaint",
-      desc: "Triggers when a high-priority complaint sits unresolved.",
-      priority: "P0",
-      channels: ["SMS", "Push", "Email"],
-      audience: "Principal · Admin",
-      active: true,
-      createdAt: now,
-      updatedAt: now,
-    },
-  ];
-}
-
-function getOrSeed(instituteId: string): AlertRuleDto[] {
-  let list = rulesByInstitute.get(instituteId);
-  if (!list) {
-    list = seedDefaults(instituteId);
-    rulesByInstitute.set(instituteId, list);
-  }
-  return list;
+export function toAlertRuleDto(row: AlertRuleRow): AlertRuleDto {
+  const channels = Array.isArray(row.channels) ? [...row.channels] : ["Email"];
+  const config = configFromJson(row.config ?? undefined);
+  return {
+    id: row.id,
+    instituteId: row.institute_id,
+    name: row.name,
+    iconKey: row.icon_key,
+    desc: row.description,
+    priority: row.priority,
+    channels,
+    audience: row.audience,
+    active: row.active,
+    ...(config ? { config } : {}),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
 }
 
 function assertReader(actor: Actor, instituteId: string): void {
@@ -80,19 +64,22 @@ function assertWriter(actor: Actor, instituteId: string): void {
   assertInstituteRoles(actor, instituteId, [...WRITE_ROLES]);
 }
 
-export function listAlertRulesForActor(
+export async function listAlertRulesForActor(
+  admin: SupabaseClient,
   actor: Actor,
   instituteIdRaw: string,
-): AlertRuleDto[] {
+): Promise<AlertRuleDto[]> {
   const instituteId = requireInstituteId(actor, instituteIdRaw);
   assertReader(actor, instituteId);
-  return getOrSeed(instituteId).map((r) => ({ ...r, channels: [...r.channels] }));
+  const rows = await listAlertRules(admin, instituteId);
+  return rows.map(toAlertRuleDto);
 }
 
-export function createAlertRuleForActor(
+export async function createAlertRuleForActor(
+  admin: SupabaseClient,
   actor: Actor,
   input: CreateAlertRuleInput,
-): AlertRuleDto {
+): Promise<AlertRuleDto> {
   const instituteId = requireInstituteId(actor, input.instituteId);
   assertWriter(actor, instituteId);
 
@@ -101,73 +88,86 @@ export function createAlertRuleForActor(
     throw AppError.validation("name is required", { name: ["Required"] });
   }
 
-  const now = new Date().toISOString();
-  const rule: AlertRuleDto = {
-    id: crypto.randomUUID(),
+  const channels =
+    input.channels?.length && input.channels.every((c) => c.trim())
+      ? input.channels.map((c) => c.trim())
+      : ["Email"];
+  const audience =
+    (input.audience ?? "Institute admin").trim() || "Institute admin";
+  const description =
+    (input.desc ?? "").trim() || "Custom alert rule";
+
+  const row = await insertAlertRule(admin, {
+    ...input,
     instituteId,
     name,
-    iconKey: input.iconKey ?? "warning",
-    desc: (input.desc ?? "").trim() || "Custom alert rule",
-    priority: input.priority ?? "P2",
-    channels: input.channels?.length ? [...input.channels] : ["Email"],
-    audience: (input.audience ?? "Institute admin").trim() || "Institute admin",
-    active: input.active ?? true,
-    config: input.config,
-    createdAt: now,
-    updatedAt: now,
-  };
-
-  const list = getOrSeed(instituteId);
-  list.unshift(rule);
-  rulesByInstitute.set(instituteId, list);
-  return { ...rule, channels: [...rule.channels] };
+    description,
+    audience,
+    channels,
+  });
+  return toAlertRuleDto(row);
 }
 
-export function updateAlertRuleForActor(
+export async function updateAlertRuleForActor(
+  admin: SupabaseClient,
   actor: Actor,
   ruleId: string,
   input: UpdateAlertRuleInput,
-): AlertRuleDto {
-  // Find across institutes the actor can access — rule carries instituteId.
-  let found: AlertRuleDto | undefined;
-  let foundInstitute: string | undefined;
-  for (const [instituteId, list] of rulesByInstitute) {
-    const hit = list.find((r) => r.id === ruleId);
-    if (hit) {
-      found = hit;
-      foundInstitute = instituteId;
-      break;
-    }
-  }
-  if (!found || !foundInstitute) {
-    throw AppError.notFound("Alert rule not found");
-  }
+): Promise<AlertRuleDto> {
+  const existing = await findAlertRuleById(admin, ruleId);
+  if (!existing) throw AppError.notFound("Alert rule not found");
 
-  assertWriter(actor, foundInstitute);
+  assertWriter(actor, existing.institute_id);
 
-  const now = new Date().toISOString();
   if (input.name !== undefined) {
     const name = input.name.trim();
     if (!name) {
       throw AppError.validation("name is required", { name: ["Required"] });
     }
-    found.name = name;
   }
-  if (input.iconKey !== undefined) found.iconKey = input.iconKey;
-  if (input.desc !== undefined) found.desc = input.desc.trim();
-  if (input.priority !== undefined) found.priority = input.priority;
-  if (input.channels !== undefined) found.channels = [...input.channels];
-  if (input.audience !== undefined) found.audience = input.audience.trim();
-  if (input.active !== undefined) found.active = input.active;
-  if (input.config !== undefined) found.config = input.config;
-  found.updatedAt = now;
+  if (input.channels !== undefined && input.channels.length === 0) {
+    throw AppError.validation("channels must not be empty", {
+      channels: ["Min 1"],
+    });
+  }
+  if (input.audience !== undefined && !input.audience.trim()) {
+    throw AppError.validation("audience is required", {
+      audience: ["Required"],
+    });
+  }
 
-  return { ...found, channels: [...found.channels] };
+  const patch = toAlertRuleUpdatePatch({
+    ...input,
+    name: input.name !== undefined ? input.name.trim() : undefined,
+    channels: input.channels?.map((c) => c.trim()),
+    audience: input.audience !== undefined ? input.audience.trim() : undefined,
+  });
+  if (Object.keys(patch).length === 0) {
+    return toAlertRuleDto(existing);
+  }
+
+  const updated = await updateAlertRuleFields(admin, ruleId, patch);
+  if (!updated) throw AppError.notFound("Alert rule not found");
+  return toAlertRuleDto(updated);
+}
+
+export async function deleteAlertRuleForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  ruleId: string,
+): Promise<void> {
+  const existing = await findAlertRuleById(admin, ruleId);
+  if (!existing) throw AppError.notFound("Alert rule not found");
+
+  assertWriter(actor, existing.institute_id);
+
+  const deleted = await softDeleteAlertRule(admin, ruleId);
+  if (!deleted) throw AppError.conflict("Alert rule was already deleted");
 }
 
 /**
- * Evaluate active rules. Stage 9 stub: fires from open high-priority complaints
- * when a complaint-type rule is active; otherwise returns { fired: [] }.
+ * Evaluate active rules. Fires from open high-priority complaints when a
+ * complaint-type rule is active; otherwise returns { fired: [] }.
  */
 export async function evaluateAlertRulesForActor(
   admin: SupabaseClient,
@@ -177,8 +177,10 @@ export async function evaluateAlertRulesForActor(
   const instituteId = requireInstituteId(actor, instituteIdRaw);
   assertReader(actor, instituteId);
 
-  const rules = getOrSeed(instituteId).filter((r) => r.active);
-  const complaintRules = rules.filter((r) => r.iconKey === "complaint");
+  const rules = (await listAlertRules(admin, instituteId)).filter(
+    (r) => r.active,
+  );
+  const complaintRules = rules.filter((r) => r.icon_key === "complaint");
   if (complaintRules.length === 0) {
     return { fired: [] };
   }
@@ -213,9 +215,4 @@ export async function evaluateAlertRulesForActor(
   }
 
   return { fired };
-}
-
-/** Test helper. */
-export function resetAlertRulesForTests(): void {
-  rulesByInstitute.clear();
 }

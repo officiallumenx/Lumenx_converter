@@ -7,8 +7,6 @@ import {
   emptyMockDb,
   type MockDb,
 } from "./helpers/mock-supabase.js";
-import { resetReportJobsForTests } from "../src/domains/reports/service.js";
-import { resetAlertRulesForTests } from "../src/domains/alert-rules/service.js";
 
 const silentLogger = createLogger("error");
 
@@ -22,8 +20,6 @@ const TEACHER_A = "t0111111-1111-4111-8111-111111111111";
 
 beforeEach(() => {
   resetEnvCache();
-  resetReportJobsForTests();
-  resetAlertRulesForTests();
   vi.spyOn(process.stdout, "write").mockImplementation(() => true);
   vi.spyOn(process.stderr, "write").mockImplementation(() => true);
 });
@@ -181,6 +177,33 @@ describe("stage 9 admin aggregates", () => {
     expect(res.status).toBe(403);
   });
 
+  it("GET /analytics/series returns institute-scoped chart series", async () => {
+    const app = testApp();
+    const res = await app.request(
+      `/api/v1/analytics/series?institute_id=${INST_A}&range=term`,
+      { headers: authHeaders() },
+    );
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(body.data.instituteId).toBe(INST_A);
+    expect(body.data.range).toBe("term");
+    expect(Array.isArray(body.data.enrollmentMonthly)).toBe(true);
+    expect(body.data.enrollmentMonthly.length).toBe(4);
+    expect(Array.isArray(body.data.attendanceMonthly)).toBe(true);
+    expect(Array.isArray(body.data.feePaymentsMonthly)).toBe(true);
+    expect(Array.isArray(body.data.subjectAverages)).toBe(true);
+    expect(Array.isArray(body.data.studentStatus)).toBe(true);
+  });
+
+  it("rejects analytics series for foreign institute", async () => {
+    const app = testApp();
+    const res = await app.request(
+      `/api/v1/analytics/series?institute_id=${INST_B}&range=year`,
+      { headers: authHeaders() },
+    );
+    expect(res.status).toBe(403);
+  });
+
   it("lists report catalog and creates a job", async () => {
     const app = testApp();
     const catalog = await app.request(
@@ -196,13 +219,13 @@ describe("stage 9 admin aggregates", () => {
       headers: { ...authHeaders(), "Content-Type": "application/json" },
       body: JSON.stringify({
         institute_id: INST_A,
-        report_id: catalogBody.data[0].id,
+        report_id: "students",
       }),
     });
     expect(created.status).toBe(201);
     const job = (await json(created)).data;
-    expect(job.status).toBe("queued");
-    expect(job.downloadUrl).toBeNull();
+    expect(job.status).toBe("ready");
+    expect(job.downloadUrl).toBe(`/api/v1/reports/jobs/${job.id}/download`);
 
     const jobs = await app.request(
       `/api/v1/reports/jobs?institute_id=${INST_A}`,
@@ -228,13 +251,12 @@ describe("stage 9 admin aggregates", () => {
 
   it("manages alert rules and evaluate stub", async () => {
     const app = testApp();
-    const list = await app.request(
+    const listEmpty = await app.request(
       `/api/v1/alert-rules?institute_id=${INST_A}`,
       { headers: authHeaders() },
     );
-    expect(list.status).toBe(200);
-    const rules = (await json(list)).data;
-    expect(rules.length).toBeGreaterThan(0);
+    expect(listEmpty.status).toBe(200);
+    expect((await json(listEmpty)).data).toHaveLength(0);
 
     const created = await app.request("/api/v1/alert-rules", {
       method: "POST",
@@ -248,6 +270,13 @@ describe("stage 9 admin aggregates", () => {
     });
     expect(created.status).toBe(201);
     const rule = (await json(created)).data;
+
+    const list = await app.request(
+      `/api/v1/alert-rules?institute_id=${INST_A}`,
+      { headers: authHeaders() },
+    );
+    expect(list.status).toBe(200);
+    expect((await json(list)).data.length).toBeGreaterThan(0);
 
     const patched = await app.request(`/api/v1/alert-rules/${rule.id}`, {
       method: "PATCH",

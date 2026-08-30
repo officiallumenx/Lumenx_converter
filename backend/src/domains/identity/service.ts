@@ -19,6 +19,7 @@ import {
   listAssignableRoles,
   listInstitutes,
   listMemberships,
+  listProfilesByIds,
   listRolesForMemberships,
   replaceMembershipRoles,
   softDeleteInstitute,
@@ -108,6 +109,7 @@ export function toProfileDto(row: UserProfileRow): ProfileDto {
 export function toMembershipDto(
   row: MembershipRow,
   roles: string[],
+  profile?: UserProfileRow | null,
 ): MembershipDto {
   return {
     id: row.id,
@@ -115,6 +117,8 @@ export function toMembershipDto(
     instituteId: row.institute_id,
     status: row.status,
     roles,
+    displayName: profile?.display_name ?? null,
+    email: profile?.email ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -148,7 +152,20 @@ async function attachRoles(
     list.push(r.role_code);
     byMembership.set(r.membership_id, list);
   }
-  return rows.map((row) => toMembershipDto(row, byMembership.get(row.id) ?? []));
+
+  const profiles = await listProfilesByIds(
+    admin,
+    rows.map((r) => r.user_id),
+  );
+  const byUser = new Map(profiles.map((p) => [p.id, p]));
+
+  return rows.map((row) =>
+    toMembershipDto(
+      row,
+      byMembership.get(row.id) ?? [],
+      byUser.get(row.user_id) ?? null,
+    ),
+  );
 }
 
 async function assertValidRoles(

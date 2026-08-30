@@ -61,7 +61,10 @@ export type DiaryDayDto = {
 export type CreateDiaryDayInput = {
   instituteId: string;
   academicYearId?: string | null;
-  /** Ignored for authorization. */
+  /**
+   * Teachers: ignored (JWT teacher identity wins).
+   * Governance staff: required — target teacher in the institute.
+   */
   teacherId?: string;
   diaryDate: string;
   scope: DiaryScope;

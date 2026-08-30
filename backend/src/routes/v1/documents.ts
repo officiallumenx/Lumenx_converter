@@ -21,6 +21,7 @@ import {
   listTemplatesForActor,
   transitionGeneratedForActor,
   updateTemplateForActor,
+  getGeneratedDocumentSignedUrlForActor,
 } from "../../domains/documents/service.js";
 
 const documents = new Hono<AppBindings>();
@@ -244,6 +245,23 @@ documents.get("/generated/:id", async (c) => {
   const admin = requireAdmin(c);
   const { id } = validateParams(idParamsSchema, c.req.param());
   const data = await getGeneratedForActor(admin, actor, id);
+  return c.json({ data });
+});
+
+documents.get("/generated/:id/signed-url", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const query = validateQuery(
+    z.object({ expires_in: z.coerce.number().int().min(60).max(86_400).optional() }),
+    c.req.query(),
+  );
+  const data = await getGeneratedDocumentSignedUrlForActor(
+    admin,
+    actor,
+    id,
+    query.expires_in,
+  );
   return c.json({ data });
 });
 

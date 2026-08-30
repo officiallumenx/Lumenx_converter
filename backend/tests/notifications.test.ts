@@ -312,3 +312,103 @@ describe("notifications — auth and validation", () => {
     ).toBe(400);
   });
 });
+
+describe("notifications — role audience broadcast", () => {
+  it("emits to students only within institute; excludes other institute", async () => {
+    const app = appWithDb(baseDb());
+
+    const emitted = await app.request("/api/v1/notifications", {
+      method: "POST",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify({
+        institute_id: INST_A,
+        category: "announcements",
+        title: "Students only",
+        body: "Role audience",
+        audience: "students",
+      }),
+    });
+    expect(emitted.status).toBe(201);
+    const data = (await json(emitted)).data as Array<{
+      userProfileId: string;
+      instituteId: string;
+    }>;
+    expect(data).toHaveLength(1);
+    expect(data[0].userProfileId).toBe(USER_STUDENT);
+    expect(data[0].instituteId).toBe(INST_A);
+
+    const everyone = await app.request("/api/v1/notifications", {
+      method: "POST",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify({
+        institute_id: INST_A,
+        category: "announcements",
+        title: "All members",
+        body: "Everyone",
+        audience: "everyone",
+      }),
+    });
+    expect(everyone.status).toBe(201);
+    const allRecipients = (await json(everyone)).data as Array<{
+      userProfileId: string;
+    }>;
+    const ids = allRecipients.map((r) => r.userProfileId).sort();
+    expect(ids).toEqual([USER_ADMIN, USER_STUDENT, USER_TEACHER].sort());
+    expect(ids).not.toContain(USER_OTHER);
+  });
+
+  it("rejects both audience and recipient_user_ids; rejects unauthorized emit", async () => {
+    const app = appWithDb(baseDb());
+    expect(
+      (
+        await app.request("/api/v1/notifications", {
+          method: "POST",
+          headers: jsonHeaders("token-admin"),
+          body: JSON.stringify({
+            institute_id: INST_A,
+            category: "system",
+            title: "X",
+            body: "Y",
+            audience: "teachers",
+            recipient_user_ids: [USER_TEACHER],
+          }),
+        })
+      ).status,
+    ).toBe(400);
+
+    expect(
+      (
+        await app.request("/api/v1/notifications", {
+          method: "POST",
+          headers: jsonHeaders("token-teacher"),
+          body: JSON.stringify({
+            institute_id: INST_A,
+            category: "system",
+            title: "X",
+            body: "Y",
+            audience: "students",
+          }),
+        })
+      ).status,
+    ).toBe(403);
+  });
+
+  it("rejects invalid UUID recipients", async () => {
+    const app = appWithDb(baseDb());
+    expect(
+      (
+        await app.request("/api/v1/notifications", {
+          method: "POST",
+          headers: jsonHeaders("token-admin"),
+          body: JSON.stringify({
+            institute_id: INST_A,
+            category: "system",
+            title: "X",
+            body: "Y",
+            recipient_user_ids: ["not-a-uuid"],
+          }),
+        })
+      ).status,
+    ).toBe(400);
+  });
+});

@@ -4,7 +4,10 @@ import { requireAuth, assertAuthenticated } from "../../auth/require-auth.js";
 import type { AppBindings } from "../../types/app.js";
 import { AppError } from "../../errors/app-error.js";
 import { validateQuery } from "../../validation/validate.js";
-import { getAnalyticsSummaryForActor } from "../../domains/analytics/service.js";
+import {
+  getAnalyticsSeriesForActor,
+  getAnalyticsSummaryForActor,
+} from "../../domains/analytics/service.js";
 
 const analytics = new Hono<AppBindings>();
 analytics.use("*", requireAuth);
@@ -30,6 +33,23 @@ analytics.get("/", async (c) => {
   );
   const data = await getAnalyticsSummaryForActor(admin, actor, {
     instituteId: query.institute_id,
+  });
+  return c.json({ data });
+});
+
+analytics.get("/series", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(
+    z.object({
+      institute_id: uuid,
+      range: z.enum(["term", "year"]).optional().default("year"),
+    }),
+    c.req.query(),
+  );
+  const data = await getAnalyticsSeriesForActor(admin, actor, {
+    instituteId: query.institute_id,
+    range: query.range ?? "year",
   });
   return c.json({ data });
 });

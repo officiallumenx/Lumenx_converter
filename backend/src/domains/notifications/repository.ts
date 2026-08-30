@@ -5,6 +5,7 @@ import type {
   EmitNotificationInput,
   ListInboxFilter,
   ListTemplatesFilter,
+  NotificationAudience,
   NotificationRow,
   RecipientRow,
   RegisterDeviceTokenInput,
@@ -341,4 +342,57 @@ export async function findActiveMemberUserIds(
     .is("deleted_at", null);
   const rows = ensureDbOk(result) as Array<{ user_id: string }>;
   return new Set(rows.map((r) => r.user_id));
+}
+
+const AUDIENCE_ROLE_CODES: Record<
+  Exclude<NotificationAudience, "everyone">,
+  string
+> = {
+  students: "student",
+  parents: "parent",
+  teachers: "teacher",
+};
+
+/**
+ * Active institute members for a role audience.
+ * Scoped strictly to institute_id + status=active; never crosses tenants.
+ */
+export async function listActiveMemberUserIdsForAudience(
+  admin: SupabaseClient,
+  instituteId: string,
+  audience: NotificationAudience,
+): Promise<string[]> {
+  const membershipResult = await admin
+    .from("membership")
+    .select("id, user_id")
+    .eq("institute_id", instituteId)
+    .eq("status", "active")
+    .is("deleted_at", null);
+  const memberships = ensureDbOk(membershipResult) as Array<{
+    id: string;
+    user_id: string;
+  }>;
+  if (memberships.length === 0) return [];
+
+  if (audience === "everyone") {
+    return [...new Set(memberships.map((m) => m.user_id))];
+  }
+
+  const roleCode = AUDIENCE_ROLE_CODES[audience];
+  const membershipIds = memberships.map((m) => m.id);
+  const rolesResult = await admin
+    .from("membership_role")
+    .select("membership_id, role_code")
+    .in("membership_id", membershipIds)
+    .eq("role_code", roleCode);
+  const roleRows = ensureDbOk(rolesResult) as Array<{
+    membership_id: string;
+    role_code: string;
+  }>;
+  const matched = new Set(roleRows.map((r) => r.membership_id));
+  return [
+    ...new Set(
+      memberships.filter((m) => matched.has(m.id)).map((m) => m.user_id),
+    ),
+  ];
 }

@@ -186,6 +186,27 @@ export async function findProfileById(
   return (result.data as UserProfileRow | null) ?? null;
 }
 
+/** Batch-load profiles for membership enrichment (ids already institute-scoped). */
+export async function listProfilesByIds(
+  admin: SupabaseClient,
+  ids: string[],
+): Promise<UserProfileRow[]> {
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (unique.length === 0) return [];
+  const chunkSize = 100;
+  const out: UserProfileRow[] = [];
+  for (let i = 0; i < unique.length; i += chunkSize) {
+    const chunk = unique.slice(i, i + chunkSize);
+    const result = await admin
+      .from("user_profile")
+      .select(PROFILE_COLS)
+      .in("id", chunk)
+      .is("deleted_at", null);
+    out.push(...(ensureDbOk(result) as UserProfileRow[]));
+  }
+  return out;
+}
+
 export async function updateProfileFields(
   admin: SupabaseClient,
   id: string,

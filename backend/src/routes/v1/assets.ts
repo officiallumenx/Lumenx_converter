@@ -12,8 +12,10 @@ import {
   createAssetForActor,
   deleteAssetForActor,
   getAssetForActor,
+  getAssetSignedUrlForActor,
   listAssetsForActor,
   updateAssetForActor,
+  uploadAssetForActor,
 } from "../../domains/assets/service.js";
 
 const assets = new Hono<AppBindings>();
@@ -129,6 +131,103 @@ assets.post("/", async (c) => {
     ownerUserId: body.owner_user_id,
   });
   return c.json({ data }, 201);
+});
+
+assets.post("/upload", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const form = await c.req.parseBody({ all: true });
+  const instituteIdRaw = form["institute_id"];
+  const bucketRaw = form["bucket"];
+  const categoryRaw = form["category"];
+  const fileRaw = form["file"];
+  if (
+    typeof instituteIdRaw !== "string" ||
+    typeof bucketRaw !== "string" ||
+    typeof categoryRaw !== "string" ||
+    !(fileRaw instanceof File)
+  ) {
+    throw AppError.validation("Invalid multipart upload", {
+      file: ["institute_id, bucket, category, and file are required"],
+    });
+  }
+
+  const visibilityRaw = form["visibility"];
+  const linkedKindRaw = form["linked_entity_kind"];
+  const linkedIdRaw = form["linked_entity_id"];
+  const ownerRaw = form["owner_user_id"];
+
+  const arrayBuffer = await fileRaw.arrayBuffer();
+  const data = await uploadAssetForActor(admin, actor, {
+    instituteId: validateBody(
+      z.object({ institute_id: uuid }),
+      { institute_id: instituteIdRaw },
+    ).institute_id,
+    bucket: validateBody(
+      z.object({ bucket: bucketSchema }),
+      { bucket: bucketRaw },
+    ).bucket,
+    category: validateBody(
+      z.object({ category: categorySchema }),
+      { category: categoryRaw },
+    ).category,
+    fileName: fileRaw.name,
+    contentType: fileRaw.type || "application/octet-stream",
+    byteSize: fileRaw.size,
+    body: arrayBuffer,
+    visibility:
+      typeof visibilityRaw === "string"
+        ? validateBody(
+            z.object({ visibility: visibilitySchema }),
+            { visibility: visibilityRaw },
+          ).visibility
+        : undefined,
+    linkedEntityKind:
+      linkedKindRaw === undefined || linkedKindRaw === null
+        ? undefined
+        : linkedKindRaw === ""
+          ? null
+          : validateBody(
+              z.object({ linked_entity_kind: linkedKindSchema.nullable() }),
+              { linked_entity_kind: String(linkedKindRaw) },
+            ).linked_entity_kind,
+    linkedEntityId:
+      linkedIdRaw === undefined || linkedIdRaw === null
+        ? undefined
+        : linkedIdRaw === ""
+          ? null
+          : validateBody(
+              z.object({ linked_entity_id: uuid.nullable() }),
+              { linked_entity_id: String(linkedIdRaw) },
+            ).linked_entity_id,
+    ownerUserId:
+      typeof ownerRaw === "string" && ownerRaw.trim()
+        ? validateBody(
+            z.object({ owner_user_id: uuid }),
+            { owner_user_id: ownerRaw.trim() },
+          ).owner_user_id
+        : undefined,
+  });
+  return c.json({ data }, 201);
+});
+
+assets.get("/:id/signed-url", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const query = validateQuery(
+    z.object({
+      expires_in: z.coerce.number().int().min(60).max(86_400).optional(),
+    }),
+    c.req.query(),
+  );
+  const data = await getAssetSignedUrlForActor(
+    admin,
+    actor,
+    id,
+    query.expires_in,
+  );
+  return c.json({ data });
 });
 
 assets.get("/:id", async (c) => {

@@ -12,6 +12,7 @@ import {
   createSlotForActor,
   deleteSlotForActor,
   getSlotForActor,
+  listAssignmentsForActor,
   listSlotsForActor,
   updateSlotForActor,
 } from "../../domains/timetable/service.js";
@@ -90,6 +91,14 @@ const updateBodySchema = z
     }
   });
 
+const assignmentsQuerySchema = z.object({
+  institute_id: uuid,
+  academic_year_id: uuid.optional(),
+  section_id: uuid.optional(),
+  class_id: uuid.optional(),
+  status: z.enum(["active", "inactive"]).optional(),
+});
+
 /**
  * GET /api/v1/timetable
  * List slots for an authorized institute (optional section / year / teacher filters).
@@ -104,6 +113,27 @@ timetable.get("/", async (c) => {
     academicYearId: query.academic_year_id,
     sectionId: query.section_id,
     teacherId: query.teacher_id,
+  });
+
+  return c.json({ data });
+});
+
+/**
+ * GET /api/v1/timetable/assignments
+ * List teacher_assignment rows for slot create/edit pickers (read roles).
+ * Must be registered before /:id.
+ */
+timetable.get("/assignments", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(assignmentsQuerySchema, c.req.query());
+
+  const data = await listAssignmentsForActor(admin, actor, {
+    instituteId: query.institute_id,
+    academicYearId: query.academic_year_id,
+    sectionId: query.section_id,
+    classId: query.class_id,
+    status: query.status,
   });
 
   return c.json({ data });

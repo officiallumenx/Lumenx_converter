@@ -94,6 +94,7 @@ export async function nextCertificateSequence(
 export async function insertIssuedCertificate(
   admin: SupabaseClient,
   input: {
+    id?: string;
     instituteId: string;
     generatedDocumentId: string | null;
     templateId: string;
@@ -111,11 +112,13 @@ export async function insertIssuedCertificate(
     issuedByUserId: string;
     assetPath: string | null;
     fileKind: IssuedCertificateFileKind | null;
+    issuedAt?: string;
   },
 ): Promise<IssuedCertificateRow> {
   const result = await admin
     .from("issued_certificate")
     .insert({
+      ...(input.id ? { id: input.id } : {}),
       institute_id: input.instituteId,
       generated_document_id: input.generatedDocumentId,
       template_id: input.templateId,
@@ -131,7 +134,7 @@ export async function insertIssuedCertificate(
       recipient_name: input.recipientName.trim(),
       recipient_ref: input.recipientRef?.trim() || null,
       status: "issued" satisfies IssuedCertificateStatus,
-      issued_at: new Date().toISOString(),
+      issued_at: input.issuedAt ?? new Date().toISOString(),
       issued_by_user_id: input.issuedByUserId,
       revoked_at: null,
       revoked_by_user_id: null,

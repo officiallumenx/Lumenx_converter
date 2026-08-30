@@ -13,8 +13,23 @@ import {
   softDeleteAsset,
   updateAssetFields,
 } from "./repository.js";
+import {
+  assertAssetBucket,
+  buildInstituteObjectPath,
+  createStorageSignedUrl,
+  DEFAULT_SIGNED_URL_TTL_SEC,
+  MAX_SIGNED_URL_TTL_SEC,
+  MAX_UPLOAD_BYTES,
+  removeFromStorage,
+  sanitizeFileName,
+  uploadToStorage,
+} from "./storage.js";
 import type {
   AssetLinkedEntityKind,
+  AssetBucket,
+  AssetCategory,
+  AssetStatus,
+  AssetVisibility,
   CreateAssetInput,
   ListAssetsFilter,
   StoredAssetDto,
@@ -195,6 +210,130 @@ export async function createAssetForActor(
   return toAssetDto(row);
 }
 
+export type UploadAssetFileInput = {
+  instituteId: string;
+  bucket: AssetBucket;
+  category: AssetCategory;
+  fileName: string;
+  contentType: string;
+  byteSize: number;
+  body: ArrayBuffer;
+  visibility?: AssetVisibility;
+  status?: AssetStatus;
+  linkedEntityKind?: AssetLinkedEntityKind | null;
+  linkedEntityId?: string | null;
+  ownerUserId?: string | null;
+};
+
+export async function uploadAssetForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  input: UploadAssetFileInput,
+): Promise<StoredAssetDto> {
+  const instituteId = requireInstituteId(actor, input.instituteId);
+  if (!isWriter(actor, instituteId)) {
+    throw AppError.forbidden("Insufficient assets write access");
+  }
+
+  const bucket = assertAssetBucket(input.bucket);
+  const fileName = sanitizeFileName(input.fileName);
+  const contentType = input.contentType.trim() || "application/octet-stream";
+
+  if (input.byteSize <= 0) {
+    throw AppError.validation("File is empty", { file: ["Required"] });
+  }
+  if (input.byteSize > MAX_UPLOAD_BYTES) {
+    throw AppError.validation("File exceeds upload limit", {
+      file: [`Max ${MAX_UPLOAD_BYTES} bytes`],
+    });
+  }
+
+  const linked = assertLinkedPair(
+    input.linkedEntityKind,
+    input.linkedEntityId,
+  );
+
+  const assetId = crypto.randomUUID();
+  const objectPath = buildInstituteObjectPath(instituteId, assetId, fileName);
+
+  const existing = await findAssetByBucketPath(
+    admin,
+    instituteId,
+    bucket,
+    objectPath,
+  );
+  if (existing) {
+    throw AppError.conflict("Asset already exists for this bucket and path");
+  }
+
+  await uploadToStorage(admin, bucket, objectPath, input.body, contentType);
+
+  try {
+    const row = await insertAsset(admin, {
+      id: assetId,
+      instituteId,
+      bucket,
+      objectPath,
+      category: input.category,
+      fileName,
+      contentType,
+      byteSize: input.byteSize,
+      checksum: null,
+      linkedEntityKind: linked.kind,
+      linkedEntityId: linked.id,
+      createdByUserId: actor.userId,
+      ownerUserId:
+        input.ownerUserId !== undefined ? input.ownerUserId : actor.userId,
+      visibility: input.visibility ?? "institute",
+      status: input.status ?? "active",
+    });
+    return toAssetDto(row);
+  } catch (err) {
+    await removeFromStorage(admin, bucket, objectPath).catch(() => undefined);
+    throw err;
+  }
+}
+
+export type AssetSignedUrlDto = {
+  signedUrl: string;
+  expiresAt: string;
+  assetId: string;
+  bucket: AssetBucket;
+  objectPath: string;
+};
+
+export async function getAssetSignedUrlForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  assetId: string,
+  expiresInSecRaw?: number,
+): Promise<AssetSignedUrlDto> {
+  const row = await findAssetById(admin, assetId);
+  if (!row || !canReadAsset(actor, row)) {
+    throw AppError.notFound("Asset not found");
+  }
+
+  const expiresInSec = Math.min(
+    Math.max(expiresInSecRaw ?? DEFAULT_SIGNED_URL_TTL_SEC, 60),
+    MAX_SIGNED_URL_TTL_SEC,
+  );
+
+  const { signedUrl, expiresAt } = await createStorageSignedUrl(
+    admin,
+    row.bucket,
+    row.object_path,
+    expiresInSec,
+  );
+
+  return {
+    signedUrl,
+    expiresAt,
+    assetId: row.id,
+    bucket: row.bucket,
+    objectPath: row.object_path,
+  };
+}
+
 export async function updateAssetForActor(
   admin: SupabaseClient,
   actor: Actor,
@@ -268,4 +407,7 @@ export async function deleteAssetForActor(
   }
   const deleted = await softDeleteAsset(admin, id);
   if (!deleted) throw AppError.notFound("Asset not found");
+  await removeFromStorage(admin, existing.bucket, existing.object_path).catch(
+    () => undefined,
+  );
 }

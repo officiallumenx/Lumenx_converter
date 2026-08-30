@@ -16,6 +16,12 @@ import {
   updateGeneratedDocumentFields,
 } from "../documents/repository.js";
 import {
+  persistInstitutePdfAsset,
+  resolveLinkedAssetSignedUrl,
+} from "../documents/persist-file.js";
+import { renderDocumentPdf } from "../documents/render-pdf.js";
+import type { AssetSignedUrlDto } from "../assets/service.js";
+import {
   findIssuedByGeneratedDocumentId,
   findIssuedCertificateById,
   findIssuedCertificateByNumber,
@@ -207,6 +213,8 @@ export async function issueCertificateForActor(
   let templateName = "";
   let templateVersion = 1;
   let assetPath = input.assetPath ?? null;
+  let fileKind = input.fileKind ?? null;
+  let payload: unknown = {};
 
   if (generatedDocumentId) {
     const doc = await findGeneratedDocumentById(admin, generatedDocumentId);
@@ -236,7 +244,7 @@ export async function issueCertificateForActor(
     title = title || doc.title;
     recipientName = recipientName || doc.recipient_name;
     recipientRef = recipientRef ?? doc.recipient_ref;
-    assetPath = assetPath ?? doc.asset_path;
+    payload = doc.payload;
 
     const template = await findTemplateById(admin, doc.template_id);
     if (!template) {
@@ -326,7 +334,39 @@ export async function issueCertificateForActor(
     throw AppError.conflict("Certificate number already issued");
   }
 
+  const certificateId = crypto.randomUUID();
+  const issuedAt = new Date().toISOString();
+
+  if (!assetPath) {
+    const pdfBytes = renderDocumentPdf({
+      title,
+      templateName,
+      recipientName,
+      recipientRef,
+      category,
+      certificateNumber,
+      documentType: "certificate",
+      payload,
+      issuedAt,
+    });
+    const safeName = certificateNumber.replace(/[^\w.-]+/g, "-");
+    const file = await persistInstitutePdfAsset(admin, actor, {
+      instituteId,
+      bucket: "certificates",
+      category: "certificate_pdf",
+      fileName: `${safeName}.pdf`,
+      body: pdfBytes,
+      linkedEntityKind: "issued_certificate",
+      linkedEntityId: certificateId,
+    });
+    assetPath = file.objectPath;
+    fileKind = "pdf";
+  } else if (!fileKind) {
+    fileKind = "pdf";
+  }
+
   const row = await insertIssuedCertificate(admin, {
+    id: certificateId,
     instituteId,
     generatedDocumentId,
     templateId: templateId!,
@@ -343,7 +383,8 @@ export async function issueCertificateForActor(
     recipientRef,
     issuedByUserId: actor.userId,
     assetPath,
-    fileKind: input.fileKind ?? null,
+    fileKind,
+    issuedAt,
   });
 
   if (generatedDocumentId) {
@@ -395,4 +436,28 @@ export async function revokeIssuedCertificateForActor(
   });
   if (!updated) throw AppError.notFound("Issued certificate not found");
   return toIssuedCertificateDto(updated);
+}
+
+export async function getIssuedCertificateSignedUrlForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  id: string,
+  expiresInSec?: number,
+): Promise<AssetSignedUrlDto> {
+  const row = await findIssuedCertificateById(admin, id);
+  if (!row || !(await canReadIssued(admin, actor, row))) {
+    throw AppError.notFound("Issued certificate not found");
+  }
+  if (!row.asset_path) {
+    throw AppError.notFound("Certificate file not generated yet");
+  }
+
+  return resolveLinkedAssetSignedUrl(admin, actor, {
+    instituteId: row.institute_id,
+    linkedEntityKind: "issued_certificate",
+    linkedEntityId: row.id,
+    bucket: "certificates",
+    objectPath: row.asset_path,
+    expiresInSec,
+  });
 }

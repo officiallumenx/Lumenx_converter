@@ -25,6 +25,12 @@ import {
   updateGeneratedDocumentFields,
   updateTemplateFields,
 } from "./repository.js";
+import {
+  persistInstitutePdfAsset,
+  resolveLinkedAssetSignedUrl,
+} from "./persist-file.js";
+import { renderDocumentPdf } from "./render-pdf.js";
+import type { AssetSignedUrlDto } from "../assets/service.js";
 import type {
   CreateGeneratedInput,
   CreateTemplateInput,
@@ -575,6 +581,34 @@ export async function transitionGeneratedForActor(
     patch.portal_teacher = visibility.teacher;
     patch.published_at = new Date().toISOString();
     patch.rejection_reason = null;
+
+    if (!existing.asset_path) {
+      const template = await findTemplateById(admin, existing.template_id);
+      if (!template) {
+        throw AppError.validation("Referenced resource is invalid", {
+          template_id: ["Template not found"],
+        });
+      }
+      const pdfBytes = renderDocumentPdf({
+        title: existing.title,
+        templateName: template.name,
+        recipientName: existing.recipient_name,
+        recipientRef: existing.recipient_ref,
+        category: template.category,
+        documentType: existing.type,
+        payload: existing.payload,
+      });
+      const file = await persistInstitutePdfAsset(admin, actor, {
+        instituteId: existing.institute_id,
+        bucket: "generated-documents",
+        category: "generated_document",
+        fileName: `${existing.id}.pdf`,
+        body: pdfBytes,
+        linkedEntityKind: "generated_document",
+        linkedEntityId: existing.id,
+      });
+      patch.asset_path = file.objectPath;
+    }
   } else if (input.workflowState === "rejected") {
     patch.rejection_reason = input.rejectionReason!.trim();
     patch.portal_student = false;
@@ -606,4 +640,29 @@ export async function deleteGeneratedForActor(
 
   const deleted = await softDeleteGeneratedDocument(admin, id);
   if (!deleted) throw AppError.notFound("Generated document not found");
+}
+
+export async function getGeneratedDocumentSignedUrlForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  id: string,
+  expiresInSec?: number,
+): Promise<AssetSignedUrlDto> {
+  const row = await findGeneratedDocumentById(admin, id);
+  if (!row) throw AppError.notFound("Generated document not found");
+  if (!(await canReadGenerated(admin, actor, row))) {
+    throw AppError.forbidden("Insufficient document access");
+  }
+  if (!row.asset_path) {
+    throw AppError.notFound("Document file not generated yet");
+  }
+
+  return resolveLinkedAssetSignedUrl(admin, actor, {
+    instituteId: row.institute_id,
+    linkedEntityKind: "generated_document",
+    linkedEntityId: row.id,
+    bucket: "generated-documents",
+    objectPath: row.asset_path,
+    expiresInSec,
+  });
 }

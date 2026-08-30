@@ -10,6 +10,7 @@ import {
 } from "../../validation/validate.js";
 import {
   createAlertRuleForActor,
+  deleteAlertRuleForActor,
   evaluateAlertRulesForActor,
   listAlertRulesForActor,
   updateAlertRuleForActor,
@@ -39,18 +40,39 @@ const iconKeySchema = z.enum([
   "emergency",
 ]);
 
+const configSchema = z
+  .object({
+    threshold_pct: z.number().min(1).max(100).optional(),
+    consecutive_exams: z.number().int().min(2).max(10).optional(),
+  })
+  .optional();
+
+function mapConfig(
+  config:
+    | { threshold_pct?: number; consecutive_exams?: number }
+    | undefined,
+) {
+  if (!config) return undefined;
+  return {
+    thresholdPct: config.threshold_pct,
+    consecutiveExams: config.consecutive_exams,
+  };
+}
+
 alertRules.get("/", async (c) => {
   const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
   const query = validateQuery(
     z.object({ institute_id: uuid }),
     c.req.query(),
   );
-  const data = listAlertRulesForActor(actor, query.institute_id);
+  const data = await listAlertRulesForActor(admin, actor, query.institute_id);
   return c.json({ data });
 });
 
 alertRules.post("/", async (c) => {
   const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
   const body = validateBody(
     z.object({
       institute_id: uuid,
@@ -61,16 +83,11 @@ alertRules.post("/", async (c) => {
       channels: z.array(z.string().min(1).max(50)).max(10).optional(),
       audience: z.string().max(200).optional(),
       active: z.boolean().optional(),
-      config: z
-        .object({
-          threshold_pct: z.number().min(1).max(100).optional(),
-          consecutive_exams: z.number().int().min(2).max(10).optional(),
-        })
-        .optional(),
+      config: configSchema,
     }),
     await c.req.json(),
   );
-  const data = createAlertRuleForActor(actor, {
+  const data = await createAlertRuleForActor(admin, actor, {
     instituteId: body.institute_id,
     name: body.name,
     iconKey: body.icon_key,
@@ -79,12 +96,7 @@ alertRules.post("/", async (c) => {
     channels: body.channels,
     audience: body.audience,
     active: body.active,
-    config: body.config
-      ? {
-          thresholdPct: body.config.threshold_pct,
-          consecutiveExams: body.config.consecutive_exams,
-        }
-      : undefined,
+    config: mapConfig(body.config),
   });
   return c.json({ data }, 201);
 });
@@ -106,6 +118,7 @@ alertRules.post("/evaluate", async (c) => {
 
 alertRules.patch("/:id", async (c) => {
   const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
   const { id } = validateParams(idParamsSchema, c.req.param());
   const body = validateBody(
     z.object({
@@ -116,16 +129,11 @@ alertRules.patch("/:id", async (c) => {
       channels: z.array(z.string().min(1).max(50)).max(10).optional(),
       audience: z.string().max(200).optional(),
       active: z.boolean().optional(),
-      config: z
-        .object({
-          threshold_pct: z.number().min(1).max(100).optional(),
-          consecutive_exams: z.number().int().min(2).max(10).optional(),
-        })
-        .optional(),
+      config: configSchema,
     }),
     await c.req.json(),
   );
-  const data = updateAlertRuleForActor(actor, id, {
+  const data = await updateAlertRuleForActor(admin, actor, id, {
     name: body.name,
     iconKey: body.icon_key,
     desc: body.desc,
@@ -133,14 +141,17 @@ alertRules.patch("/:id", async (c) => {
     channels: body.channels,
     audience: body.audience,
     active: body.active,
-    config: body.config
-      ? {
-          thresholdPct: body.config.threshold_pct,
-          consecutiveExams: body.config.consecutive_exams,
-        }
-      : undefined,
+    config: mapConfig(body.config),
   });
   return c.json({ data });
+});
+
+alertRules.delete("/:id", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  await deleteAlertRuleForActor(admin, actor, id);
+  return c.json({ data: { ok: true } });
 });
 
 export default alertRules;

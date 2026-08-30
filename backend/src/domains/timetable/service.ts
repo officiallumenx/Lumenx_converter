@@ -12,13 +12,16 @@ import {
   findTeacherInInstitute,
   findTimetableSlotById,
   insertTimetableSlot,
+  listTeacherAssignments,
   listTimetableSlots,
   softDeleteTimetableSlot,
   updateTimetableSlot,
 } from "./repository.js";
 import type {
   CreateTimetableSlotInput,
+  ListTeacherAssignmentsFilter,
   ListTimetableSlotsFilter,
+  TeacherAssignmentDto,
   TimetableSlotDto,
   TimetableSlotRow,
   UpdateTimetableSlotInput,
@@ -61,6 +64,28 @@ export function toTimetableSlotDto(row: TimetableSlotRow): TimetableSlotDto {
     status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+export function toTeacherAssignmentDto(row: {
+  id: string;
+  institute_id: string;
+  academic_year_id: string;
+  class_id: string;
+  section_id: string;
+  subject_id: string;
+  teacher_id: string;
+  status: string;
+}): TeacherAssignmentDto {
+  return {
+    id: row.id,
+    instituteId: row.institute_id,
+    academicYearId: row.academic_year_id,
+    classId: row.class_id,
+    sectionId: row.section_id,
+    subjectId: row.subject_id,
+    teacherId: row.teacher_id,
+    status: row.status === "inactive" ? "inactive" : "active",
   };
 }
 
@@ -134,6 +159,24 @@ async function assertSectionMatchesGraph(
       section_id: ["Section does not match institute/year/class"],
     });
   }
+}
+
+export async function listAssignmentsForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  filter: ListTeacherAssignmentsFilter,
+): Promise<TeacherAssignmentDto[]> {
+  const instituteId = requireInstituteId(actor, filter.instituteId);
+  assertCanReadTimetable(actor, instituteId);
+
+  const rows = await listTeacherAssignments(admin, {
+    instituteId,
+    academicYearId: filter.academicYearId,
+    sectionId: filter.sectionId,
+    classId: filter.classId,
+    status: filter.status ?? "active",
+  });
+  return rows.map(toTeacherAssignmentDto);
 }
 
 export async function listSlotsForActor(
