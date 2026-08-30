@@ -54,3 +54,11 @@ export {
   type UpsertConcessionInput,
   type RecordPaymentInput,
 } from "./mutations";
+export {
+  findCategoryByKind,
+  classAmountsForCategory,
+  resolveClassId,
+  upsertCoreClassAmount,
+  syncTuitionBooksRow,
+  replaceCoreClassAmounts,
+} from "./sync-writes";

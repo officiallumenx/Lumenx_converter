@@ -23,15 +23,24 @@ import {
 import { useAdminToast } from "@/components/AdminActionToast";
 import { prependAdminNotification } from "@/lib/notification-center-store";
 import { FeesClassChecklist } from "@/components/fees/FeesClassChecklist";
+import { publishFeePlan, unpublishFeePlan } from "@/lib/fees";
 
 export function FeesPublishView({
   snapshot,
   onChange,
   writesEnabled = true,
+  apiMode = false,
+  feePlanId = null,
+  classIdByLabel = {},
+  onApiReload,
 }: {
   snapshot: FeesSnapshot;
   onChange: (next: FeesSnapshot) => void;
   writesEnabled?: boolean;
+  apiMode?: boolean;
+  feePlanId?: string | null;
+  classIdByLabel?: Record<string, string>;
+  onApiReload?: () => void;
 }) {
   const notify = useAdminToast();
   const classKeys = useMemo(() => listKnownClassKeys(snapshot), [snapshot]);
@@ -49,6 +58,35 @@ export function FeesPublishView({
     if (!writesEnabled) return;
     if (!scopeAll && selected.length === 0) {
       notify("Select at least one class");
+      return;
+    }
+    if (apiMode) {
+      if (!feePlanId) {
+        notify("No fee plan available");
+        return;
+      }
+      const publishedClassIds = scopeAll
+        ? undefined
+        : selected.map((ck) => classIdByLabel[ck]).filter(Boolean);
+      if (!scopeAll && (!publishedClassIds || publishedClassIds.length === 0)) {
+        notify("Select classes with valid class ids");
+        return;
+      }
+      void publishFeePlan(feePlanId, {
+        publishScope: scopeAll ? "institute" : "classes",
+        publishedClassIds,
+      })
+        .then(() => {
+          onApiReload?.();
+          notify(
+            scopeAll
+              ? "Fees published for entire institute"
+              : `Fees published for ${selected.length} classes`,
+          );
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to publish fees");
+        });
       return;
     }
     const next = publishFees(
@@ -102,6 +140,21 @@ export function FeesPublishView({
 
   const doUnpublish = () => {
     if (!writesEnabled) return;
+    if (apiMode) {
+      if (!feePlanId) {
+        notify("No fee plan available");
+        return;
+      }
+      void unpublishFeePlan(feePlanId)
+        .then(() => {
+          onApiReload?.();
+          notify("Fees set to draft — parents will not see dues until republished");
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to unpublish fees");
+        });
+      return;
+    }
     onChange(unpublishFees(snapshot));
     notify("Fees set to draft — parents will not see dues until republished");
   };

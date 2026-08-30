@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { NotificationBroadcastCompose } from "@/components/notifications/NotificationBroadcastCompose";
+import { NotificationApiEmitCompose } from "@/components/notifications/NotificationApiEmitCompose";
 import { NotificationCenterInbox } from "@/components/notifications/NotificationCenterInbox";
 import {
   getAdminNotifications,
@@ -44,7 +45,7 @@ function NotificationsPage() {
   const { tab: tabFromSearch } = Route.useSearch();
   const navigate = Route.useNavigate();
   const [tab, setTab] = useState<Tab>(
-    tabFromSearch === "broadcast" && !apiMode ? "broadcast" : "inbox",
+    tabFromSearch === "broadcast" ? "broadcast" : "inbox",
   );
 
   const [demoItems, setDemoItems] = useState<AdminNotification[]>(() =>
@@ -91,17 +92,10 @@ function NotificationsPage() {
   }, [apiMode, refreshDemo]);
 
   useEffect(() => {
-    if (apiMode) return;
-
     if (tabFromSearch === "broadcast" || tabFromSearch === "inbox") {
       setTab(tabFromSearch);
     }
-  }, [apiMode, tabFromSearch]);
-
-  useEffect(() => {
-    if (!apiMode) return;
-    if (tab !== "inbox") setTab("inbox");
-  }, [apiMode, tab]);
+  }, [tabFromSearch]);
 
   useEffect(() => {
     if (!apiMode) return;
@@ -170,7 +164,6 @@ function NotificationsPage() {
   ]);
 
   const onTabChange = (next: Tab) => {
-    if (apiMode && next === "broadcast") return;
     setTab(next);
     void navigate({ search: { tab: next } });
   };
@@ -208,30 +201,32 @@ function NotificationsPage() {
       title="Notification Center"
       subtitle={
         apiMode
-          ? "API mode · mark read / delete via notifications API"
+          ? tab === "inbox"
+            ? "API mode · mark read / delete via notifications API"
+            : "API mode · emit via POST /api/v1/notifications"
           : tab === "inbox"
             ? `${unreadLabel} unread · Read, search, filter, and open linked pages`
             : "Targeted announcements & emergency alerts"
       }
     >
-      {!apiMode ? (
-        <div className="mb-4">
-          <SegmentedControl
-            value={tab}
-            onChange={onTabChange}
-            options={[
-              {
-                value: "inbox",
-                label:
-                  displayUnread > 0 ? `Inbox (${displayUnread})` : "Inbox",
-              },
-              { value: "broadcast", label: "Broadcast" },
-            ]}
-          />
-        </div>
-      ) : null}
+      <div className="mb-4">
+        <SegmentedControl
+          value={tab}
+          onChange={onTabChange}
+          options={[
+            {
+              value: "inbox",
+              label: displayUnread > 0 ? `Inbox (${displayUnread})` : "Inbox",
+            },
+            {
+              value: "broadcast",
+              label: apiMode ? "Emit" : "Broadcast",
+            },
+          ]}
+        />
+      </div>
 
-      {tab === "inbox" || apiMode ? (
+      {tab === "inbox" ? (
         <NotificationCenterInbox
           items={displayItems}
           onChange={refreshList}
@@ -239,6 +234,14 @@ function NotificationsPage() {
           rowsValid={listView.rowsValid}
           listHint={listHint}
           instituteResetKey={instituteCtx.activeInstituteId}
+        />
+      ) : apiMode ? (
+        <NotificationApiEmitCompose
+          onEmitted={() => {
+            refreshList();
+            setTab("inbox");
+            void navigate({ search: { tab: "inbox" } });
+          }}
         />
       ) : (
         <NotificationBroadcastCompose />

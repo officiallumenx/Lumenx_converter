@@ -3,7 +3,7 @@ import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/active-institute";
 import { listAssets } from "./api";
 import { summarizeStorageUsage } from "./map";
-import type { StorageUsageSummary } from "./types";
+import type { AssetDto, StorageUsageSummary } from "./types";
 
 export type AssetsLoadStatus =
   | "demo"
@@ -17,6 +17,7 @@ export type AssetsLoadStatus =
 export type StorageUsageState = {
   status: AssetsLoadStatus;
   summary: StorageUsageSummary | null;
+  assets: AssetDto[];
   errorMessage: string | null;
 };
 
@@ -24,10 +25,15 @@ export async function loadStorageUsage(
   activeInstituteId: string | null,
 ): Promise<StorageUsageState> {
   if (!isApiAuthMode()) {
-    return { status: "demo", summary: null, errorMessage: null };
+    return { status: "demo", summary: null, assets: [], errorMessage: null };
   }
   if (!activeInstituteId || !isInstituteUuid(activeInstituteId)) {
-    return { status: "needs_institute", summary: null, errorMessage: null };
+    return {
+      status: "needs_institute",
+      summary: null,
+      assets: [],
+      errorMessage: null,
+    };
   }
   try {
     const assets = await listAssets({ instituteId: activeInstituteId });
@@ -35,6 +41,7 @@ export async function loadStorageUsage(
     return {
       status: assets.length === 0 ? "empty" : "ready",
       summary,
+      assets,
       errorMessage: null,
     };
   } catch (err) {
@@ -49,8 +56,13 @@ export async function loadStorageUsage(
           : null;
     const message = err instanceof Error ? err.message : "Failed to load assets";
     if (status === 403) {
-      return { status: "forbidden", summary: null, errorMessage: message };
+      return {
+        status: "forbidden",
+        summary: null,
+        assets: [],
+        errorMessage: message,
+      };
     }
-    return { status: "error", summary: null, errorMessage: message };
+    return { status: "error", summary: null, assets: [], errorMessage: message };
   }
 }

@@ -48,8 +48,9 @@ const STATUS_TONE: Record<TemplateStatus, "success" | "warning" | "neutral"> = {
 };
 
 /**
- * Documents hub Templates tab — same store as Certificates module.
- * Edit / activate / issue live in /templates.
+ * Documents hub Templates tab — same store as Certificates module in demo mode.
+ * API mode: list + activate against documents API; generate lives on /documents?view=generate.
+ * Template builder / local issue remain demo-only.
  */
 export function DocTemplatesView({
   templates,
@@ -113,18 +114,33 @@ export function DocTemplatesView({
             </p>
           </div>
           {writesEnabled ? (
-            <>
-              <Link to="/templates" search={{ view: "library" }}>
-                <Button size="sm" variant="primary">
-                  <ExternalLink className="size-3.5" /> Open Library
-                </Button>
-              </Link>
-              <Link to="/templates" search={{ view: "builder" }}>
-                <Button size="sm">
-                  <Wand2 className="size-3.5" /> Builder
-                </Button>
-              </Link>
-            </>
+            onActivateTemplate ? (
+              <>
+                <Link to="/templates">
+                  <Button size="sm" variant="primary">
+                    <ExternalLink className="size-3.5" /> Issued certificates
+                  </Button>
+                </Link>
+                <Link to="/documents" search={{ view: "generate" }}>
+                  <Button size="sm">
+                    <FileCheck className="size-3.5" /> Generate
+                  </Button>
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link to="/templates" search={{ view: "library" }}>
+                  <Button size="sm" variant="primary">
+                    <ExternalLink className="size-3.5" /> Open Library
+                  </Button>
+                </Link>
+                <Link to="/templates" search={{ view: "builder" }}>
+                  <Button size="sm">
+                    <Wand2 className="size-3.5" /> Builder
+                  </Button>
+                </Link>
+              </>
+            )
           ) : (
             <Pill tone="neutral">Read-only · API mode</Pill>
           )}
@@ -235,17 +251,27 @@ export function DocTemplatesView({
                           </Button>
                         )}
                         {t.status === "active" && (
-                          <Link to="/templates" search={{ view: "generate", templateId: t.id }}>
+                          <Link
+                            to={onActivateTemplate ? "/documents" : "/templates"}
+                            search={
+                              onActivateTemplate
+                                ? { view: "generate" }
+                                : { view: "generate", templateId: t.id }
+                            }
+                          >
                             <Button size="sm" variant="primary">
-                              <FileCheck className="size-3" /> Issue
+                              <FileCheck className="size-3" />{" "}
+                              {onActivateTemplate ? "Generate" : "Issue"}
                             </Button>
                           </Link>
                         )}
-                        <Link to="/templates" search={{ view: "builder", templateId: t.id }}>
-                          <Button size="sm">
-                            <Wand2 className="size-3" /> Edit
-                          </Button>
-                        </Link>
+                        {onActivateTemplate ? null : (
+                          <Link to="/templates" search={{ view: "builder", templateId: t.id }}>
+                            <Button size="sm">
+                              <Wand2 className="size-3" /> Edit
+                            </Button>
+                          </Link>
+                        )}
                       </div>
                     ) : (
                       <span className="text-xs text-muted-foreground">—</span>

@@ -458,14 +458,19 @@ export function normalizePhone(value: string): string {
   return normalizePhoneLast10(value);
 }
 
-export function validateStudentDraft(draft: StudentDraft): string[] {
+export function validateStudentDraft(
+  draft: StudentDraft,
+  opts?: { apiMode?: boolean },
+): string[] {
   const errors: string[] = [];
   if (!draft.firstName.trim()) errors.push("First name is required.");
   if (!draft.surname.trim()) errors.push("Surname is required.");
   if (!draft.className.trim()) errors.push("Class is required.");
-  if (!draft.parentName.trim()) errors.push("Parent name is required.");
-  if (!/^\d{10}$/.test(draft.parentPhone)) {
-    errors.push("Parent phone must contain exactly 10 digits.");
+  if (!opts?.apiMode) {
+    if (!draft.parentName.trim()) errors.push("Parent name is required.");
+    if (!/^\d{10}$/.test(draft.parentPhone)) {
+      errors.push("Parent phone must contain exactly 10 digits.");
+    }
   }
   if (!draft.address.trim()) errors.push("Address is required.");
   if (!draft.gender) errors.push("Gender is required.");

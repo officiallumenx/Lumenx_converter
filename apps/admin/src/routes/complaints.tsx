@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
-import { Card, CardHeader, Button, Pill, PageStack, Modal } from "@lumenx/ui-admin";
-import { Lock, FileText } from "lucide-react";
+import { Card, CardHeader, Button, Pill, PageStack, Modal, Field, TextInput, TextArea, Select } from "@lumenx/ui-admin";
+import { Lock, FileText, Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { DEMO_COMPLAINTS_SEED } from "@/lib/complaints-data";
@@ -19,6 +19,8 @@ import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
+  createComplaint,
+  deleteComplaint,
   loadComplaintsList,
   resolveComplaintsListView,
   shouldCommitComplaintsLoad,
@@ -61,6 +63,11 @@ function ComplaintsPage() {
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newBody, setNewBody] = useState("");
+  const [newCategory, setNewCategory] = useState("general");
+  const [newPriority, setNewPriority] = useState<"low" | "medium" | "high">("medium");
   const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
 
   const listView = resolveComplaintsListView({
@@ -206,6 +213,52 @@ function ComplaintsPage() {
     notify(`Complaint ${id} moved to ${status.replace("_", " ")}`);
   };
 
+  const submitCreate = () => {
+    if (!writesEnabled || !apiMode) return;
+    const instituteId = instituteCtx.activeInstituteId;
+    if (!instituteId) {
+      notify("Select an institute before creating a complaint");
+      return;
+    }
+    if (!newTitle.trim() || !newBody.trim()) {
+      notify("Title and body are required");
+      return;
+    }
+    void createComplaint({
+      instituteId,
+      title: newTitle.trim(),
+      body: newBody.trim(),
+      category: newCategory.trim() || "general",
+      priority: newPriority,
+      destination: "principal_admin",
+    })
+      .then(() => {
+        setCreateOpen(false);
+        setNewTitle("");
+        setNewBody("");
+        setNewCategory("general");
+        setNewPriority("medium");
+        setReloadKey((k) => k + 1);
+        notify("Complaint created");
+      })
+      .catch((err) => {
+        notify(err instanceof Error ? err.message : "Failed to create complaint");
+      });
+  };
+
+  const removeComplaint = (id: string) => {
+    if (!writesEnabled || !apiMode) return;
+    void deleteComplaint(id)
+      .then(() => {
+        setDetailId(null);
+        setReloadKey((k) => k + 1);
+        notify("Complaint deleted");
+      })
+      .catch((err) => {
+        notify(err instanceof Error ? err.message : "Failed to delete complaint");
+      });
+  };
+
   const listHint =
     displayStatus === "loading"
       ? "Loading complaints…"
@@ -224,27 +277,34 @@ function ComplaintsPage() {
       title="Complaint Triage"
       subtitle={
         apiMode
-          ? "API mode · transition status"
+          ? "API mode · create / transition / delete"
           : "Destination required (Class Teacher or Principal/Admin) · Priority Low / Medium / High · No automatic routing"
       }
       actions={
-        <Button
-          onClick={() => {
-            const csv = [
-              "id,title,from,role,destination,priority,status,time",
-              ...displayItems.map((c) =>
-                [c.id, c.title, c.from, c.role, c.destination, c.priority, c.status, c.time]
-                  .map((v) => `"${String(v).replace(/"/g, '""')}"`)
-                  .join(","),
-              ),
-            ].join("\n");
-            downloadTextToDevice("complaints-privacy-log.csv", csv, "text/csv;charset=utf-8");
-            notify("Privacy audit log downloaded");
-          }}
-          disabled={displayStatus === "loading"}
-        >
-          <Lock className="size-3.5" /> Privacy log
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {writesEnabled && apiMode ? (
+            <Button variant="primary" onClick={() => setCreateOpen(true)}>
+              <Plus className="size-3.5" /> New complaint
+            </Button>
+          ) : null}
+          <Button
+            onClick={() => {
+              const csv = [
+                "id,title,from,role,destination,priority,status,time",
+                ...displayItems.map((c) =>
+                  [c.id, c.title, c.from, c.role, c.destination, c.priority, c.status, c.time]
+                    .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+                    .join(","),
+                ),
+              ].join("\n");
+              downloadTextToDevice("complaints-privacy-log.csv", csv, "text/csv;charset=utf-8");
+              notify("Privacy audit log downloaded");
+            }}
+            disabled={displayStatus === "loading"}
+          >
+            <Lock className="size-3.5" /> Privacy log
+          </Button>
+        </div>
       }
     >
       <PageStack>
@@ -340,6 +400,14 @@ function ComplaintsPage() {
               <Button onClick={() => setDetailId(null)}>Close</Button>
               {writesEnabled ? (
                 <>
+                  {apiMode ? (
+                    <Button
+                      variant="outline"
+                      onClick={() => removeComplaint(detail.id)}
+                    >
+                      Delete
+                    </Button>
+                  ) : null}
                   <Button
                     disabled={detail.status === "review" || detail.status === "rejected"}
                     onClick={() => {
@@ -374,7 +442,7 @@ function ComplaintsPage() {
                 </>
               ) : (
                 <span className="text-[11px] text-muted-foreground self-center">
-                  API mode
+                  Read-only · select an institute to write
                 </span>
               )}
             </>
@@ -422,6 +490,59 @@ function ComplaintsPage() {
             </div>
           </div>
         )}
+      </Modal>
+
+      <Modal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        title="New complaint"
+        subtitle="Creates via institute complaints API"
+        size="md"
+        footer={
+          <>
+            <Button onClick={() => setCreateOpen(false)}>Cancel</Button>
+            <Button variant="primary" onClick={submitCreate}>
+              Create
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <Field label="Title">
+            <TextInput
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              placeholder="Short summary"
+            />
+          </Field>
+          <Field label="Body">
+            <TextArea
+              value={newBody}
+              onChange={(e) => setNewBody(e.target.value)}
+              placeholder="Details"
+              rows={4}
+            />
+          </Field>
+          <Field label="Category">
+            <TextInput
+              value={newCategory}
+              onChange={(e) => setNewCategory(e.target.value)}
+              placeholder="general"
+            />
+          </Field>
+          <Field label="Priority">
+            <Select
+              value={newPriority}
+              onChange={(e) =>
+                setNewPriority(e.target.value as "low" | "medium" | "high")
+              }
+            >
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </Select>
+          </Field>
+        </div>
       </Modal>
     </AppShell>
   );

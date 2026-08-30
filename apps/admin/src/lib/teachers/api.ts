@@ -30,3 +30,14 @@ export async function listTeachers(
 
   return client.get<TeacherDto[]>(`/api/v1/teachers?${query.toString()}`);
 }
+
+export async function getTeacher(
+  teacherId: string,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<TeacherDto> {
+  assertApiMode();
+  if (!isInstituteUuid(teacherId)) {
+    throw new Error("teacher_id must be a valid UUID");
+  }
+  return client.get<TeacherDto>(`/api/v1/teachers/${teacherId.trim()}`);
+}

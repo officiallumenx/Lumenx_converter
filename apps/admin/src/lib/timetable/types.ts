@@ -17,11 +17,30 @@ export type TimetableSlotDto = {
   updatedAt: string;
 };
 
+export type TeacherAssignmentDto = {
+  id: string;
+  instituteId: string;
+  academicYearId: string;
+  classId: string;
+  sectionId: string;
+  subjectId: string;
+  teacherId: string;
+  status: "active" | "inactive";
+};
+
 export type ListTimetableSlotsParams = {
   instituteId: string;
   academicYearId?: string;
   sectionId?: string;
   teacherId?: string;
+};
+
+export type ListTeacherAssignmentsParams = {
+  instituteId: string;
+  academicYearId?: string;
+  sectionId?: string;
+  classId?: string;
+  status?: "active" | "inactive";
 };
 
 export type TimetableSlotListItem = {
@@ -39,6 +58,18 @@ export type TimetableSlotListItem = {
   status: TimetableSlotStatus;
   teacherAssignmentId: string;
   academicYearId: string;
+};
+
+export type TeacherAssignmentListItem = {
+  id: string;
+  instituteId: string;
+  academicYearId: string;
+  classId: string;
+  sectionId: string;
+  subjectId: string;
+  teacherId: string;
+  status: "active" | "inactive";
+  label: string;
 };
 
 export type TimetableSectionSummary = {

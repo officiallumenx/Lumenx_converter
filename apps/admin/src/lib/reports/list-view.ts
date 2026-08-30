@@ -17,12 +17,14 @@ export function resolveReportsCatalogView(input: {
   storedJobs: ReportJobDto[];
   storedStatus: ReportsLoadStatus;
   storedErrorMessage: string | null;
+  storedJobsErrorMessage?: string | null;
   instituteErrorMessage: string | null;
 }): {
   status: ReportsLoadStatus;
   catalog: ReportDefinitionDto[];
   jobs: ReportJobDto[];
   errorMessage: string | null;
+  jobsErrorMessage: string | null;
   rowsValid: boolean;
 } {
   if (!input.apiMode) {
@@ -31,6 +33,7 @@ export function resolveReportsCatalogView(input: {
       catalog: input.storedCatalog,
       jobs: input.storedJobs,
       errorMessage: null,
+      jobsErrorMessage: null,
       rowsValid: true,
     };
   }
@@ -40,6 +43,7 @@ export function resolveReportsCatalogView(input: {
       catalog: [],
       jobs: [],
       errorMessage: null,
+      jobsErrorMessage: null,
       rowsValid: false,
     };
   }
@@ -49,6 +53,7 @@ export function resolveReportsCatalogView(input: {
       catalog: [],
       jobs: [],
       errorMessage: input.instituteErrorMessage,
+      jobsErrorMessage: null,
       rowsValid: false,
     };
   }
@@ -62,6 +67,7 @@ export function resolveReportsCatalogView(input: {
       catalog: [],
       jobs: [],
       errorMessage: null,
+      jobsErrorMessage: null,
       rowsValid: false,
     };
   }
@@ -71,6 +77,7 @@ export function resolveReportsCatalogView(input: {
       catalog: [],
       jobs: [],
       errorMessage: null,
+      jobsErrorMessage: null,
       rowsValid: false,
     };
   }
@@ -79,6 +86,7 @@ export function resolveReportsCatalogView(input: {
     catalog: input.storedCatalog,
     jobs: input.storedJobs,
     errorMessage: input.storedErrorMessage,
+    jobsErrorMessage: input.storedJobsErrorMessage ?? null,
     rowsValid: input.storedStatus === "ready" || input.storedStatus === "empty",
   };
 }

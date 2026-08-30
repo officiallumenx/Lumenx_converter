@@ -51,3 +51,14 @@ export async function listMarkEntries(
     `/api/v1/marks/entries?${buildQuery(params)}`,
   );
 }
+
+export async function getMarkEntry(
+  entryId: string,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<MarkEntryDto> {
+  assertApiMode();
+  if (!isInstituteUuid(entryId)) {
+    throw new Error("entry_id must be a valid UUID");
+  }
+  return client.get<MarkEntryDto>(`/api/v1/marks/entries/${entryId.trim()}`);
+}

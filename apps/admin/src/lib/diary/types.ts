@@ -31,11 +31,14 @@ export type DiaryDayDto = {
  */
 export type DiaryListItem = {
   id: string;
+  instituteId: string;
+  teacherId: string;
+  academicYearId: string | null;
   date: string;
   submittedAt: string;
   teacherName: string;
-  scope: string;
-  rows: { className: string; description: string }[];
+  scope: DiaryScope;
+  rows: { sectionId: string | null; className: string; description: string }[];
 };
 
 export type ListDiaryDaysParams = {

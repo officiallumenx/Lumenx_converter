@@ -33,6 +33,7 @@ export type StudentDetailState = {
 
 export async function loadStudentDetail(
   studentId: string,
+  activeInstituteId: string | null = null,
 ): Promise<StudentDetailState> {
   if (!isApiAuthMode()) {
     return { status: "demo", student: null, errorMessage: null };
@@ -52,6 +53,17 @@ export async function loadStudentDetail(
 
   try {
     const dto = await getStudent(studentId.trim());
+    if (
+      activeInstituteId &&
+      isInstituteUuid(activeInstituteId) &&
+      dto.instituteId !== activeInstituteId
+    ) {
+      return {
+        status: "empty",
+        student: null,
+        errorMessage: "Student not found for the active institute.",
+      };
+    }
     return {
       status: "ready",
       student: studentDtoToDetailItem(dto),

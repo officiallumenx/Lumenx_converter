@@ -1,11 +1,13 @@
 /**
  * Admin registration access gate — OTP → setup → Nexus approval.
+ * API auth mode skips this demo registration funnel (Supabase Auth is authoritative).
  */
 
 import {
   findInstituteRegistrationByEmail,
   type InstituteRegistrationApplication,
 } from "@lumenx/utils";
+import { isApiAuthMode } from "./auth-mode";
 import { loadSession } from "./auth-store";
 import { loadOtpPending } from "./otp-service";
 import { isRegistrationSubmitted } from "./institute-setup-store";
@@ -51,6 +53,11 @@ function sessionActivated(user: AuthUser): boolean {
  * back to pending-verification.
  */
 export function resolveRegistrationGate(user: AuthUser | null): RegistrationGate {
+  // API mode: never route through demo OTP / local institute-setup / Nexus cookie funnel.
+  if (isApiAuthMode()) {
+    return { kind: "allow", application: null };
+  }
+
   if (!user?.email) {
     return { kind: "allow", application: null };
   }

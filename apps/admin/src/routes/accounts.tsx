@@ -432,7 +432,7 @@ function AccountsPage() {
     return (
       <AppShell
         title={M.accounts}
-        subtitle="Institute memberships from backend · account provisioning is demo-only in API mode"
+        subtitle="Institute memberships · attach existing Auth users · no demo provisioning"
       >
         <AccountsApiMembershipsPanel />
       </AppShell>

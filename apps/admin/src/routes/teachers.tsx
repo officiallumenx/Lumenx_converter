@@ -33,6 +33,7 @@ import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
   loadTeachersList,
+  loadTeacherDetail,
   resolveTeachersListView,
   shouldCommitTeachersLoad,
   createTeacher as createTeacherApi,
@@ -397,12 +398,16 @@ function TeachersPage() {
   const [newDateOfBirth, setNewDateOfBirth] = useState("");
   const [newPassword, setNewPassword] = useState("Teacher@123");
   const [newSubjectIds, setNewSubjectIds] = useState<string[]>([]);
+  const [newSubjectsText, setNewSubjectsText] = useState("");
   const [showProfilePassword, setShowProfilePassword] = useState(false);
   const [showEditPassword, setShowEditPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const subjectCatalog = useMemo(
-    () => getSubjectCatalog().filter((subject) => subject.status === "active"),
-    [],
+    () =>
+      apiMode
+        ? []
+        : getSubjectCatalog().filter((subject) => subject.status === "active"),
+    [apiMode],
   );
 
   const selected = useMemo(
@@ -559,11 +564,28 @@ function TeachersPage() {
     return true;
   };
 
-  const openDetail = useCallback((t: TeacherRow) => {
-    setSelectedId(t.id);
-    setEditing(false);
-    setEditForm({});
-  }, []);
+  const openDetail = useCallback(
+    (t: TeacherRow) => {
+      setSelectedId(t.id);
+      setEditing(false);
+      setEditForm({});
+      if (!apiMode) return;
+      const instituteId = instituteCtx.activeInstituteId;
+      if (!instituteId) return;
+      void loadTeacherDetail(t.id, instituteId).then((next) => {
+        if (next.status !== "ready" || !next.teacher) return;
+        if (instituteCtx.activeInstituteId !== instituteId) return;
+        setApiItems((prev) => {
+          const exists = prev.some((row) => row.id === next.teacher!.id);
+          if (!exists) return [...prev, next.teacher!];
+          return prev.map((row) =>
+            row.id === next.teacher!.id ? next.teacher! : row,
+          );
+        });
+      });
+    },
+    [apiMode, instituteCtx.activeInstituteId],
+  );
 
   const closeDetail = () => {
     setSelectedId(null);
@@ -719,6 +741,7 @@ function TeachersPage() {
 
   const removeTeacher = (id: string) => {
     if (apiMode) {
+      if (!guardWrite()) return;
       void deleteTeacherApi(id)
         .then(() => {
           setPendingDelete(null);
@@ -750,9 +773,14 @@ function TeachersPage() {
       const subjects =
         newRole === "activity-coordinator"
           ? []
-          : subjectCatalog
-              .filter((subject) => newSubjectIds.includes(subject.id))
-              .map((subject) => subject.name);
+          : apiMode
+            ? newSubjectsText
+                .split(",")
+                .map((subject) => subject.trim())
+                .filter(Boolean)
+            : subjectCatalog
+                .filter((subject) => newSubjectIds.includes(subject.id))
+                .map((subject) => subject.name);
       void createTeacherApi({
         instituteId,
         displayName: newName.trim(),
@@ -771,6 +799,7 @@ function TeachersPage() {
           setNewDateOfBirth("");
           setNewPassword("Teacher@123");
           setNewSubjectIds([]);
+          setNewSubjectsText("");
           setShowNewPassword(false);
           setCreateDialogOpen(false);
           setReloadKey((k) => k + 1);
@@ -1412,13 +1441,21 @@ function TeachersPage() {
               hint={
                 newRole === "activity-coordinator"
                   ? "Subject assignment is available for Subject Teacher or Both Roles"
-                  : "Select subjects from the institute catalog"
+                  : apiMode
+                    ? "Comma-separated subject labels stored on the teacher record"
+                    : "Select subjects from the institute catalog"
               }
             >
               {newRole === "activity-coordinator" ? (
                 <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
                   Choose Subject Teacher or Both Roles to assign subjects.
                 </div>
+              ) : apiMode ? (
+                <TextInput
+                  value={newSubjectsText}
+                  onChange={(e) => setNewSubjectsText(e.target.value)}
+                  placeholder="Mathematics, Physics"
+                />
               ) : (
                 <div className="mt-1 grid gap-2 sm:grid-cols-2">
                   {subjectCatalog.map((subject) => {

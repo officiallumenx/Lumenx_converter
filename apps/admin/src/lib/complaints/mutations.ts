@@ -31,6 +31,37 @@ export type TransitionComplaintInput = {
   responseNote?: string | null;
 };
 
+export type CreateComplaintInput = {
+  instituteId: string;
+  title: string;
+  body: string;
+  category: string;
+  priority?: ComplaintPriority;
+  destination?: ComplaintDestination | null;
+  studentId?: string | null;
+  asDraft?: boolean;
+};
+
+export async function createComplaint(
+  input: CreateComplaintInput,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<ComplaintDto> {
+  assertApiMode();
+  if (!isInstituteUuid(input.instituteId)) {
+    throw new Error("institute_id must be a valid UUID");
+  }
+  return client.post<ComplaintDto>("/api/v1/complaints", {
+    institute_id: input.instituteId.trim(),
+    title: input.title.trim(),
+    body: input.body.trim(),
+    category: input.category.trim(),
+    priority: input.priority,
+    destination: input.destination,
+    student_id: input.studentId,
+    as_draft: input.asDraft,
+  });
+}
+
 export async function updateComplaint(
   complaintId: string,
   input: UpdateComplaintInput,
@@ -71,4 +102,15 @@ export async function transitionComplaint(
       response_note: input.responseNote,
     },
   );
+}
+
+export async function deleteComplaint(
+  complaintId: string,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<void> {
+  assertApiMode();
+  if (!isInstituteUuid(complaintId)) {
+    throw new Error("complaint_id must be a valid UUID");
+  }
+  await client.delete(`/api/v1/complaints/${complaintId.trim()}`);
 }

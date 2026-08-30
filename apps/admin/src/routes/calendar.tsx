@@ -30,6 +30,7 @@ import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
   createEvent,
+  cancelEvent,
   deleteEvent,
   loadCalendarList,
   resolveCalendarListView,
@@ -221,14 +222,16 @@ function CalendarPage() {
   const removeDate = (id: string) => {
     if (!writesEnabled) return;
     if (apiMode) {
-      void deleteEvent(id)
+      // Published calendar dates cannot be hard-deleted; cancel hides them from the list.
+      void cancelEvent(id, { cancellationReason: "Removed from calendar" })
+        .then(() => deleteEvent(id))
         .then(() => {
           if (editingId === id) resetForm();
           setReloadKey((k) => k + 1);
-          notify("Calendar date deleted");
+          notify("Calendar date removed");
         })
         .catch((err) => {
-          notify(err instanceof Error ? err.message : "Failed to delete date");
+          notify(err instanceof Error ? err.message : "Failed to remove date");
         });
       return;
     }

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 import {
   Button,
+  MonthCalendar,
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -70,7 +71,6 @@ export function formatDateTime12h(value: string): string {
 
 const HOURS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 const MINUTES = Array.from({ length: 60 }, (_, i) => i);
-const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"] as const;
 
 function dateAtNoon(iso: string) {
   return new Date(`${iso}T12:00:00`);
@@ -78,119 +78,6 @@ function dateAtNoon(iso: string) {
 
 function toIsoDate(d: Date): string {
   return toLocalIsoDate(d);
-}
-
-function startOfDay(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
-
-/** Even 7×N month grid — fixed cell size, consistent gaps. */
-function MonthCalendar({
-  month,
-  selectedIso,
-  minDate,
-  onMonthChange,
-  onSelect,
-}: {
-  month: Date;
-  selectedIso?: string;
-  minDate?: Date;
-  onMonthChange: (d: Date) => void;
-  onSelect: (iso: string) => void;
-}) {
-  const year = month.getFullYear();
-  const monthIndex = month.getMonth();
-  const todayIso = toIsoDate(new Date());
-
-  const cells = useMemo(() => {
-    const first = new Date(year, monthIndex, 1);
-    // Monday-first: Sun=0 → 6, Mon=1 → 0, …
-    const lead = (first.getDay() + 6) % 7;
-    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
-    const total = Math.ceil((lead + daysInMonth) / 7) * 7;
-    const list: ({ iso: string; day: number } | null)[] = [];
-    for (let i = 0; i < total; i++) {
-      const dayNum = i - lead + 1;
-      if (dayNum < 1 || dayNum > daysInMonth) {
-        list.push(null);
-        continue;
-      }
-      list.push({
-        day: dayNum,
-        iso: toIsoDate(new Date(year, monthIndex, dayNum)),
-      });
-    }
-    return list;
-  }, [year, monthIndex]);
-
-  const label = month.toLocaleDateString(undefined, { month: "long", year: "numeric" });
-
-  return (
-    <div className="w-[272px] select-none p-3">
-      <div className="mb-3 flex items-center gap-1">
-        <button
-          type="button"
-          aria-label="Previous month"
-          onClick={() => onMonthChange(new Date(year, monthIndex - 1, 1))}
-          className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          <ChevronLeft className="size-4" />
-        </button>
-        <div className="min-w-0 flex-1 text-center text-sm font-semibold tracking-tight text-foreground">
-          {label}
-        </div>
-        <button
-          type="button"
-          aria-label="Next month"
-          onClick={() => onMonthChange(new Date(year, monthIndex + 1, 1))}
-          className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          <ChevronRight className="size-4" />
-        </button>
-      </div>
-
-      <div className="mb-1.5 grid grid-cols-7 gap-1">
-        {WEEKDAYS.map((d) => (
-          <div
-            key={d}
-            className="flex h-7 items-center justify-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
-          >
-            {d}
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-7 gap-1">
-        {cells.map((cell, i) => {
-          if (!cell) {
-            return <div key={`e-${i}`} className="size-8" aria-hidden />;
-          }
-          const isSelected = cell.iso === selectedIso;
-          const isToday = cell.iso === todayIso;
-          const disabled =
-            minDate != null && startOfDay(dateAtNoon(cell.iso)) < startOfDay(minDate);
-
-          return (
-            <button
-              key={cell.iso}
-              type="button"
-              disabled={disabled}
-              onClick={() => onSelect(cell.iso)}
-              className={cn(
-                "flex size-8 items-center justify-center rounded-md text-sm tabular-nums transition-colors",
-                disabled && "cursor-not-allowed text-muted-foreground/30",
-                !disabled && !isSelected && "text-foreground hover:bg-muted",
-                !disabled && !isSelected && isToday && "font-semibold text-primary ring-1 ring-primary/35",
-                isSelected && "bg-primary font-semibold text-primary-foreground hover:bg-primary",
-              )}
-            >
-              {cell.day}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
 }
 
 /**
@@ -228,7 +115,6 @@ export function DateTimePicker12h({
 
   const { hour12, minute, period } = parseTime24(draftTime);
   const minDateIso = min ? parseDateTimeLocal(min).date || min.slice(0, 10) : "";
-  const minDate = minDateIso ? dateAtNoon(minDateIso) : undefined;
 
   const isMobile = useIsMobile();
   const display = useMemo(() => (value ? formatDateTime12h(value) : ""), [value]);
@@ -274,7 +160,7 @@ export function DateTimePicker12h({
             <MonthCalendar
               month={month}
               selectedIso={draftDate || undefined}
-              minDate={minDate}
+              min={minDateIso || undefined}
               onMonthChange={setMonth}
               onSelect={pickDate}
             />

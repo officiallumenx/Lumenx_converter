@@ -1,6 +1,8 @@
-export { listHomework, assertApiMode as assertHomeworkApiMode } from "./api";
+export { listHomework, getHomework, assertApiMode as assertHomeworkApiMode } from "./api";
 export {
   loadHomeworkList,
+  loadHomeworkDetail,
+  type HomeworkDetailState,
   type HomeworkListState,
   type HomeworkListStatus,
 } from "./load";

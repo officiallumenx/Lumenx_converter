@@ -33,6 +33,7 @@ export type ParentDetailState = {
 
 export async function loadParentDetail(
   parentId: string,
+  activeInstituteId: string | null = null,
 ): Promise<ParentDetailState> {
   if (!isApiAuthMode()) {
     return { status: "demo", parent: null, errorMessage: null };
@@ -52,6 +53,17 @@ export async function loadParentDetail(
 
   try {
     const dto = await getParent(parentId.trim());
+    if (
+      activeInstituteId &&
+      isInstituteUuid(activeInstituteId) &&
+      dto.instituteId !== activeInstituteId
+    ) {
+      return {
+        status: "empty",
+        parent: null,
+        errorMessage: "Parent not found for the active institute.",
+      };
+    }
     return {
       status: "ready",
       parent: parentDtoToDetailItem(dto),

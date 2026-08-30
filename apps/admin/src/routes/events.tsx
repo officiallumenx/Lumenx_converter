@@ -18,6 +18,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { examClassDisplayLabel } from "@/lib/exam-timetable-data";
 import {
+  apiClassAudienceSelectionValid,
+  loadApiClassSectionAudienceOptions,
+  resolveClassAudienceForApi,
+  type ApiClassSectionAudienceOption,
+} from "@/lib/class-section-audience";
+import {
   createCalendarEventId,
   cancelCalendarEvent,
   deleteCalendarEvent,
@@ -210,6 +216,22 @@ function EventsPage() {
     reloadKey,
   ]);
 
+  useEffect(() => {
+    if (!apiMode || !instituteCtx.activeInstituteId) {
+      setApiClassOptions([]);
+      return;
+    }
+    let cancelled = false;
+    void loadApiClassSectionAudienceOptions(instituteCtx.activeInstituteId).then(
+      (options) => {
+        if (!cancelled) setApiClassOptions(options);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [apiMode, instituteCtx.activeInstituteId]);
+
   const listHint =
     displayStatus === "loading"
       ? "Loading events…"
@@ -234,6 +256,9 @@ function EventsPage() {
   const [audience, setAudience] = useState<AudienceOption>("All");
   const [classScope, setClassScope] = useState<"all" | "selected">("selected");
   const [classSectionKeys, setClassSectionKeys] = useState<string[]>([]);
+  const [apiClassOptions, setApiClassOptions] = useState<
+    ApiClassSectionAudienceOption[]
+  >([]);
   const [newLocation, setNewLocation] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [newReminder, setNewReminder] = useState("1 day before");
@@ -244,8 +269,15 @@ function EventsPage() {
     newTypeChoice === "custom"
       ? customType.trim()
       : newTypeChoice.trim();
-  const classesValid =
-    audience !== "Classes" || classScope === "all" || classSectionKeys.length > 0;
+  const classesValid = apiMode
+    ? apiClassAudienceSelectionValid({
+        visibilityIsClasses: audience === "Classes",
+        classScope,
+        selectedKeys: classSectionKeys,
+      })
+    : audience !== "Classes" ||
+      classScope === "all" ||
+      classSectionKeys.length > 0;
   const canSchedule = Boolean(newTitle.trim() && resolvedType && newStart && classesValid);
 
   const audienceLabel = () => {
@@ -360,6 +392,23 @@ function EventsPage() {
               : audience === "Classes"
                 ? "classes"
                 : "all";
+      const audienceResolved = resolveClassAudienceForApi({
+        visibilityIsClasses: audience === "Classes",
+        classScope,
+        selectedKeys: classSectionKeys,
+        options: apiClassOptions,
+        baseAudienceScope: audienceScope as
+          | "all"
+          | "students"
+          | "parents"
+          | "teachers"
+          | "classes",
+        baseAudienceLabel: audienceLabel(),
+      });
+      if (!audienceResolved.ok) {
+        notify(audienceResolved.error);
+        return;
+      }
       const payload = {
         title,
         kind,
@@ -367,13 +416,10 @@ function EventsPage() {
         startsOn: date,
         endsOn: endDate ?? null,
         startTime: time || null,
-        audienceScope: audienceScope as
-          | "all"
-          | "students"
-          | "parents"
-          | "teachers"
-          | "classes",
-        audienceLabel: audienceLabel(),
+        audienceScope: audienceResolved.fields.audienceScope,
+        audienceLabel: audienceResolved.fields.audienceLabel,
+        classId: audienceResolved.fields.classId,
+        sectionId: audienceResolved.fields.sectionId,
         location: newLocation.trim() || null,
         description: newDescription.trim() || null,
         reminder: mapReminder(newReminder),
@@ -793,8 +839,13 @@ function EventsPage() {
                   selectedKeys={classSectionKeys}
                   onScopeChange={setClassScope}
                   onSelectedKeysChange={setClassSectionKeys}
+                  options={apiMode ? apiClassOptions : undefined}
                   required
-                  hint="Select one or more classes and sections"
+                  hint={
+                    apiMode
+                      ? "Pick one institute section (real UUID) — entire institute uses All classes"
+                      : "Select one or more classes and sections"
+                  }
                 />
               </div>
             ) : null}

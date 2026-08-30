@@ -1,15 +1,10 @@
 /**
- * Home dashboard summary — API mode counts from existing read APIs.
+ * Home dashboard summary — API mode uses GET /api/v1/analytics (no demo fan-out).
  */
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/active-institute";
-import { listStudents } from "@/lib/students/api";
-import { listTeachers } from "@/lib/teachers/api";
-import { listParents } from "@/lib/parents/api";
-import { listComplaints } from "@/lib/complaints/api";
-import { listLeaveRequests } from "@/lib/leave/api";
-import { listHomework } from "@/lib/homework/api";
+import { getAnalyticsSummary } from "@/lib/analytics/api";
 
 export type DashboardSummary = {
   students: number;
@@ -44,28 +39,16 @@ export async function loadDashboardSummary(
     return { status: "needs_institute", summary: null, errorMessage: null };
   }
   try {
-    const instituteId = activeInstituteId;
-    const [students, teachers, parents, complaints, leave, homework] = await Promise.all([
-      listStudents({ instituteId }),
-      listTeachers({ instituteId }),
-      listParents({ instituteId }),
-      listComplaints({ instituteId }),
-      listLeaveRequests({ instituteId }),
-      listHomework({ instituteId }),
-    ]);
-    const openComplaints = complaints.filter(
-      (c) => c.status === "pending" || c.status === "review" || c.status === "forwarded",
-    ).length;
-    const pendingLeave = leave.filter((r) => r.status === "pending").length;
+    const dto = await getAnalyticsSummary(activeInstituteId);
     return {
       status: "ready",
       summary: {
-        students: students.length,
-        teachers: teachers.length,
-        parents: parents.length,
-        openComplaints,
-        pendingLeave,
-        homeworkItems: homework.length,
+        students: dto.students,
+        teachers: dto.teachers,
+        parents: dto.parents,
+        openComplaints: dto.openComplaints,
+        pendingLeave: dto.pendingLeave,
+        homeworkItems: dto.homeworkItems,
       },
       errorMessage: null,
     };

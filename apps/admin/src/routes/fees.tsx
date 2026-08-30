@@ -18,8 +18,12 @@ import {
   loadFeesSnapshot,
   resolveFeesLoadView,
   shouldCommitFeesLoad,
+  createFeePlan,
   type FeesLoadStatus,
 } from "@/lib/fees";
+import { loadAcademicYearsList } from "@/lib/academic-years";
+import { useAdminToast } from "@/components/AdminActionToast";
+import { Button } from "@lumenx/ui-admin";
 import {
   loadStudentsList,
   resolveStudentsListView,
@@ -114,6 +118,7 @@ function studentsPickerHint(
 function FeesPage() {
   const { view } = Route.useSearch();
   const navigate = useNavigate();
+  const notify = useAdminToast();
   const { snapshot, setSnapshot } = useFeesStore();
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
@@ -134,6 +139,8 @@ function FeesPage() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(
     null,
   );
+  const [feesReloadKey, setFeesReloadKey] = useState(0);
+  const [creatingPlan, setCreatingPlan] = useState(false);
   const [apiStudents, setApiStudents] = useState<StudentListItem[]>([]);
   const [studentsListStatus, setStudentsListStatus] = useState<StudentsListStatus>(() =>
     apiMode ? "loading" : "demo",
@@ -253,6 +260,7 @@ function FeesPage() {
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
+    feesReloadKey,
   ]);
 
   useEffect(() => {
@@ -327,20 +335,72 @@ function FeesPage() {
     return feesLoadView.snapshot;
   }, [apiMode, snapshot, feesLoadView.rowsValid, feesLoadView.snapshot]);
 
+  const reloadFees = () => setFeesReloadKey((k) => k + 1);
+
+  const createPlanForInstitute = () => {
+    if (!writesEnabled || !apiMode || creatingPlan) return;
+    const instituteId = instituteCtx.activeInstituteId;
+    if (!instituteId) {
+      notify("Select an institute before creating a fee plan");
+      return;
+    }
+    setCreatingPlan(true);
+    void loadAcademicYearsList(instituteId)
+      .then((years) => {
+        const year =
+          years.items.find((y) => y.status === "active") ?? years.items[0];
+        if (!year) {
+          throw new Error("Create an academic year before creating a fee plan");
+        }
+        return createFeePlan({
+          instituteId,
+          academicYearId: year.id,
+        });
+      })
+      .then(() => {
+        notify("Fee plan created");
+        reloadFees();
+      })
+      .catch((err) => {
+        notify(err instanceof Error ? err.message : "Failed to create fee plan");
+      })
+      .finally(() => setCreatingPlan(false));
+  };
+
   const goToView = (v: FeesHubView) => navigate({ to: "/fees", search: { view: v } });
+  const demoOnChange = apiMode ? () => undefined : setSnapshot;
 
   return (
     <AppShell
       title={VIEW_TITLES[view]}
       subtitle={
         apiMode
-          ? `API mode · read-only · ${feesLoadView.rowsValid ? feesLoadView.snapshot?.publish.status ?? "…" : "…"} plan`
+          ? `API mode · ${writesEnabled ? "writes enabled" : "read-only"} · ${
+              feesLoadView.rowsValid
+                ? feesLoadView.snapshot?.publish.status ?? "…"
+                : feesLoadView.status
+            } plan`
           : VIEW_SUBTITLES[view]
       }
     >
       <FeesHubNav active={view} />
       <AdminPageTransition pageKey={view}>
-        {apiMode && !feesLoadView.rowsValid ? (
+        {apiMode && feesLoadView.status === "empty" ? (
+          <div className="flex flex-col items-center gap-3 py-12 text-center">
+            <p className="text-sm text-muted-foreground">
+              No fee plans found for this institute.
+            </p>
+            {writesEnabled ? (
+              <Button
+                variant="primary"
+                disabled={creatingPlan}
+                onClick={createPlanForInstitute}
+              >
+                Create fee plan
+              </Button>
+            ) : null}
+          </div>
+        ) : apiMode && !feesLoadView.rowsValid ? (
           <div className="py-12 text-center text-sm text-muted-foreground">
             {feesHint ?? "Loading fees…"}
           </div>
@@ -357,44 +417,61 @@ function FeesPage() {
             {view === "class-fees" && (
               <FeesClassFeesView
                 snapshot={displaySnapshot}
-                onChange={setSnapshot}
+                onChange={demoOnChange}
                 writesEnabled={writesEnabled}
+                apiMode={apiMode}
+                feePlanId={apiPlanId}
+                classIdByLabel={apiClassIdByLabel}
+                onApiReload={reloadFees}
               />
             )}
             {view === "transport" && (
               <FeesTransportView
                 snapshot={displaySnapshot}
-                onChange={setSnapshot}
+                onChange={demoOnChange}
                 writesEnabled={writesEnabled}
                 studentOptions={studentOptions}
                 studentsPickerReady={studentsPickerReady}
                 studentsPickerHint={studentsPickerHintText}
+                apiMode={apiMode}
+                feePlanId={apiPlanId}
+                classIdByLabel={apiClassIdByLabel}
+                onApiReload={reloadFees}
               />
             )}
             {view === "extra" && (
               <FeesExtraView
                 snapshot={displaySnapshot}
-                onChange={setSnapshot}
+                onChange={demoOnChange}
                 writesEnabled={writesEnabled}
+                apiMode={apiMode}
+                feePlanId={apiPlanId}
+                classIdByLabel={apiClassIdByLabel}
+                onApiReload={reloadFees}
               />
             )}
             {view === "publish" && (
               <FeesPublishView
                 snapshot={displaySnapshot}
-                onChange={setSnapshot}
+                onChange={demoOnChange}
                 writesEnabled={writesEnabled}
+                apiMode={apiMode}
+                feePlanId={apiPlanId}
+                classIdByLabel={apiClassIdByLabel}
+                onApiReload={reloadFees}
               />
             )}
             {view === "students" && (
               <FeesStudentsView
                 snapshot={displaySnapshot}
-                onChange={setSnapshot}
+                onChange={demoOnChange}
                 writesEnabled={writesEnabled}
                 studentOptions={studentOptions}
                 studentsPickerReady={studentsPickerReady}
                 studentsPickerHint={studentsPickerHintText}
                 feePlanId={apiPlanId}
                 classIdByLabel={apiClassIdByLabel}
+                onApiReload={reloadFees}
               />
             )}
           </>

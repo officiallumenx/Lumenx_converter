@@ -6,6 +6,9 @@
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/active-institute";
+import { listTeachers } from "@/lib/teachers/api";
+import { teacherDtosToListItems } from "@/lib/teachers/map";
+import type { TeacherListItem } from "@/lib/teachers/types";
 import { listDiaryDays } from "./api";
 import { diaryDtosToListItems } from "./map";
 import type { DiaryListItem } from "./types";
@@ -41,11 +44,14 @@ export async function loadDiaryDaysList(
   }
 
   try {
-    const dtos = await listDiaryDays({
-      instituteId: activeInstituteId,
-      submitted: true,
-    });
-    const items = diaryDtosToListItems(dtos);
+    const [dtos, teachers] = await Promise.all([
+      listDiaryDays({ instituteId: activeInstituteId }),
+      teacherDtosToListItems(await listTeachers({ instituteId: activeInstituteId })),
+    ]);
+    const teachersById = new Map<string, TeacherListItem>(
+      teachers.map((teacher) => [teacher.id, teacher]),
+    );
+    const items = diaryDtosToListItems(dtos, teachersById);
     return {
       status: items.length === 0 ? "empty" : "ready",
       items,

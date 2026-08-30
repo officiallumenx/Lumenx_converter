@@ -40,6 +40,8 @@ export type InstituteContextState = {
   errorMessage: string | null;
   /** Sidebar/header label — null in demo (caller uses demo profile). */
   displayLabel: string | null;
+  /** From GET /me — platform operators may create institutes and select any active one. */
+  isPlatformOperator: boolean;
 };
 
 const DEMO_STATE: InstituteContextState = {
@@ -52,6 +54,7 @@ const DEMO_STATE: InstituteContextState = {
   memberships: [],
   errorMessage: null,
   displayLabel: null,
+  isPlatformOperator: false,
 };
 
 function displayLabelFor(institute: InstituteDto | null): string | null {
@@ -90,6 +93,7 @@ export async function loadInstituteContext(): Promise<InstituteContextState> {
 
   try {
     const me = await fetchMe();
+    const isPlatformOperator = me.platformOperator.active === true;
     const memberships: InstituteMembershipRef[] = me.institutes.map((m) => ({
       instituteId: m.instituteId,
       status: m.status,
@@ -121,13 +125,21 @@ export async function loadInstituteContext(): Promise<InstituteContextState> {
           memberships,
           errorMessage: message || "Forbidden",
           displayLabel: null,
+          isPlatformOperator,
         };
       }
       throw err;
     }
 
-    const institutes = filterSelectableInstitutes(listed, memberships);
-    const resolved = resolveActiveInstitute(memberships);
+    const institutes = isPlatformOperator
+      ? listed.filter((inst) => inst.status === "active")
+      : filterSelectableInstitutes(listed, memberships);
+    const allowInstituteIds = isPlatformOperator
+      ? institutes.map((inst) => inst.id)
+      : undefined;
+    const resolved = resolveActiveInstitute(memberships, undefined, {
+      allowInstituteIds,
+    });
 
     let activeInstitute: InstituteDto | null = null;
     if (resolved.instituteId) {
@@ -142,7 +154,9 @@ export async function loadInstituteContext(): Promise<InstituteContextState> {
             activeInstitute = detail;
           } else {
             clearStoredActiveInstituteId();
-            const again = resolveActiveInstitute(memberships);
+            const again = resolveActiveInstitute(memberships, undefined, {
+              allowInstituteIds,
+            });
             return {
               mode: "api",
               status: statusFromResolve(again.reason, null),
@@ -153,11 +167,14 @@ export async function loadInstituteContext(): Promise<InstituteContextState> {
               memberships,
               errorMessage: null,
               displayLabel: null,
+              isPlatformOperator,
             };
           }
         } catch {
           clearStoredActiveInstituteId();
-          const again = resolveActiveInstitute(memberships);
+          const again = resolveActiveInstitute(memberships, undefined, {
+            allowInstituteIds,
+          });
           return {
             mode: "api",
             status: statusFromResolve(again.reason, null),
@@ -168,6 +185,7 @@ export async function loadInstituteContext(): Promise<InstituteContextState> {
             memberships,
             errorMessage: null,
             displayLabel: null,
+            isPlatformOperator,
           };
         }
       }
@@ -183,6 +201,7 @@ export async function loadInstituteContext(): Promise<InstituteContextState> {
       memberships,
       errorMessage: null,
       displayLabel: displayLabelFor(activeInstitute),
+      isPlatformOperator,
     };
   } catch (err) {
     if (err instanceof ApiClientError && err.status === 401) {
@@ -197,6 +216,7 @@ export async function loadInstituteContext(): Promise<InstituteContextState> {
         memberships: [],
         errorMessage: err.message || "Authentication required",
         displayLabel: null,
+        isPlatformOperator: false,
       };
     }
     const message =
@@ -211,6 +231,7 @@ export async function loadInstituteContext(): Promise<InstituteContextState> {
       memberships: [],
       errorMessage: message,
       displayLabel: null,
+      isPlatformOperator: false,
     };
   }
 }
@@ -223,6 +244,7 @@ export function chooseActiveInstitute(
   instituteId: string,
   memberships: InstituteMembershipRef[],
   institutes: InstituteDto[],
+  opts?: { isPlatformOperator?: boolean },
 ): InstituteDto {
   const chosen = institutes.find((i) => i.id === instituteId);
   if (!chosen) {
@@ -232,12 +254,16 @@ export function chooseActiveInstitute(
     throw new Error("Selected institute is not available for this account");
   }
   // Membership authorization + UUID persist (throws if not accessible).
-  selectActiveInstitute(instituteId, memberships);
+  selectActiveInstitute(instituteId, memberships, {
+    allowInstituteIds: opts?.isPlatformOperator
+      ? institutes.map((inst) => inst.id)
+      : undefined,
+  });
   return chosen;
 }
 
 export type InstituteContextValue = InstituteContextState & {
-  reload: () => Promise<void>;
+  reload: () => Promise<InstituteContextState>;
   selectInstitute: (instituteId: string) => Promise<InstituteDto>;
   isApiMode: boolean;
 };
@@ -257,10 +283,10 @@ function useInstituteContextController(): InstituteContextValue {
       : DEMO_STATE,
   );
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (): Promise<InstituteContextState> => {
     if (!isApiAuthMode()) {
       setState(DEMO_STATE);
-      return;
+      return DEMO_STATE;
     }
     setState((prev) => ({
       ...prev,
@@ -271,6 +297,7 @@ function useInstituteContextController(): InstituteContextValue {
     }));
     const next = await loadInstituteContext();
     setState(next);
+    return next;
   }, []);
 
   const selectInstitute = useCallback(
@@ -279,23 +306,26 @@ function useInstituteContextController(): InstituteContextValue {
         throw new Error("Institute selection is only available in API mode");
       }
       skipNextStorageReload.current = true;
+      // Re-read latest context from loader so callers after `reload()` are not stale.
+      const latest = await loadInstituteContext();
       const chosen = chooseActiveInstitute(
         instituteId,
-        state.memberships,
-        state.institutes,
+        latest.memberships,
+        latest.institutes,
+        { isPlatformOperator: latest.isPlatformOperator },
       );
-      setState((prev) => ({
-        ...prev,
+      setState({
+        ...latest,
         status: "ready",
         activeInstitute: chosen,
         activeInstituteId: chosen.id,
         reason: "stored",
         displayLabel: displayLabelFor(chosen),
         errorMessage: null,
-      }));
+      });
       return chosen;
     },
-    [state.memberships, state.institutes],
+    [],
   );
 
   useEffect(() => {

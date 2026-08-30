@@ -31,6 +31,7 @@ import {
   shouldCommitStudentFeeAccountLoad,
 } from "@/lib/fees/account-load";
 import {
+  deleteConcession,
   recordPayment as recordPaymentApi,
   upsertConcession,
 } from "@/lib/fees/mutations";
@@ -84,6 +85,7 @@ export function FeesStudentsView({
   studentsPickerHint = null,
   feePlanId = null,
   classIdByLabel = {},
+  onApiReload,
 }: {
   snapshot: FeesSnapshot;
   onChange: (next: FeesSnapshot) => void;
@@ -93,6 +95,7 @@ export function FeesStudentsView({
   studentsPickerHint?: string | null;
   feePlanId?: string | null;
   classIdByLabel?: Record<string, string>;
+  onApiReload?: () => void;
 }) {
   const apiMode = isApiAuthMode();
   const useApiFeeAccount = apiMode && Boolean(feePlanId);
@@ -286,6 +289,7 @@ export function FeesStudentsView({
       })
         .then(() => {
           setAccountReloadKey((k) => k + 1);
+          onApiReload?.();
           notify(`${name} updated for ${student.name} only`);
         })
         .catch((err) => {
@@ -306,7 +310,22 @@ export function FeesStudentsView({
   const resetLine = (categoryId: string, name: string) => {
     if (!writesEnabled || !student) return;
     if (apiMode) {
-      notify("Reset to class default is not available via API in this cutover");
+      const override = snapshot.overrides.find(
+        (o) => o.studentId === student.id && o.categoryId === categoryId,
+      );
+      if (!override?.id) {
+        notify("No concession found to reset for this line");
+        return;
+      }
+      void deleteConcession(override.id)
+        .then(() => {
+          setAccountReloadKey((k) => k + 1);
+          onApiReload?.();
+          notify(`${name} reset to class default`);
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to reset concession");
+        });
       return;
     }
     const next = clearStudentOverride(snapshot, student.id, categoryId);
@@ -357,6 +376,7 @@ export function FeesStudentsView({
       })
         .then((payment) => {
           setAccountReloadKey((k) => k + 1);
+          onApiReload?.();
           setPayNote("");
           notify(`Recorded ${formatInr(payment.amount)} · ${payment.receiptNo}`);
         })

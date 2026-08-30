@@ -1,6 +1,10 @@
 import { classLabelForSection } from "@/lib/classes/map";
 import type { ClassDto, SectionDto } from "@/lib/classes/types";
+import type { SubjectDto } from "@/lib/subjects/types";
+import type { TeacherListItem } from "@/lib/teachers/types";
 import type {
+  TeacherAssignmentDto,
+  TeacherAssignmentListItem,
   TimetableReadBundle,
   TimetableSectionSummary,
   TimetableSlotDto,
@@ -66,6 +70,45 @@ export function timetableSlotDtosToListItems(
   const sectionsById = new Map(sections.map((section) => [section.id, section]));
   const classesById = new Map(classes.map((cls) => [cls.id, cls]));
   return rows.map((dto) => timetableSlotDtoToListItem(dto, sectionsById, classesById));
+}
+
+export function teacherAssignmentDtoToListItem(
+  dto: TeacherAssignmentDto,
+  teachersById?: Map<string, TeacherListItem>,
+  subjectsById?: Map<string, SubjectDto>,
+): TeacherAssignmentListItem {
+  const teacherName =
+    teachersById?.get(dto.teacherId)?.name ??
+    shortRef(dto.teacherId, "Teacher");
+  const subject = subjectsById?.get(dto.subjectId);
+  const subjectName =
+    subject?.name?.trim() ||
+    subject?.code?.trim() ||
+    shortRef(dto.subjectId, "Subject");
+  return {
+    id: dto.id,
+    instituteId: dto.instituteId,
+    academicYearId: dto.academicYearId,
+    classId: dto.classId,
+    sectionId: dto.sectionId,
+    subjectId: dto.subjectId,
+    teacherId: dto.teacherId,
+    status: dto.status,
+    label: `${subjectName} · ${teacherName}`,
+  };
+}
+
+export function teacherAssignmentDtosToListItems(
+  rows: TeacherAssignmentDto[],
+  teachersById?: Map<string, TeacherListItem>,
+  subjectsById?: Map<string, SubjectDto>,
+): TeacherAssignmentListItem[] {
+  if (!Array.isArray(rows)) {
+    throw new TypeError("Teacher assignment API response must be an array");
+  }
+  return rows.map((dto) =>
+    teacherAssignmentDtoToListItem(dto, teachersById, subjectsById),
+  );
 }
 
 export function buildTimetableSectionSummaries(

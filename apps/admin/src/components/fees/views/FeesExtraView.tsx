@@ -24,16 +24,25 @@ import {
 import { notifyFeeAdded, pushFeesParentInbox } from "@lumenx/notifications";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { FeesClassChecklist } from "@/components/fees/FeesClassChecklist";
+import { createFeeComponent, deleteFeeComponent } from "@/lib/fees";
 import { Plus, Trash2 } from "lucide-react";
 
 export function FeesExtraView({
   snapshot,
   onChange,
   writesEnabled = true,
+  apiMode = false,
+  feePlanId = null,
+  classIdByLabel = {},
+  onApiReload,
 }: {
   snapshot: FeesSnapshot;
   onChange: (next: FeesSnapshot) => void;
   writesEnabled?: boolean;
+  apiMode?: boolean;
+  feePlanId?: string | null;
+  classIdByLabel?: Record<string, string>;
+  onApiReload?: () => void;
 }) {
   const notify = useAdminToast();
   const classKeys = useMemo(() => listKnownClassKeys(snapshot), [snapshot]);
@@ -65,6 +74,41 @@ export function FeesExtraView({
       notify("Select at least one class");
       return;
     }
+    if (apiMode) {
+      if (!feePlanId) {
+        notify("No fee plan available");
+        return;
+      }
+      const classAmounts: Record<string, number> = {};
+      for (const ck of targets) {
+        const classId = classIdByLabel[ck];
+        if (!classId) {
+          notify(`No class id mapped for "${ck}"`);
+          return;
+        }
+        classAmounts[classId] = amount;
+      }
+      void createFeeComponent({
+        feePlanId,
+        kind: "custom",
+        name: name.trim(),
+        active: true,
+        assignedToAll: scopeAll,
+        assignedClassIds: scopeAll
+          ? []
+          : targets.map((ck) => classIdByLabel[ck]).filter(Boolean),
+        classAmounts,
+      })
+        .then(() => {
+          setOpen(false);
+          onApiReload?.();
+          notify(`Added ${name.trim()}`);
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to add extra fee");
+        });
+      return;
+    }
     const amountsByClass: Record<string, number> = {};
     for (const ck of targets) amountsByClass[ck] = amount;
     const next = upsertCustomCategory(snapshot, {
@@ -90,6 +134,17 @@ export function FeesExtraView({
 
   const remove = (id: string, label: string) => {
     if (!writesEnabled) return;
+    if (apiMode) {
+      void deleteFeeComponent(id)
+        .then(() => {
+          onApiReload?.();
+          notify(`Removed ${label}`);
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to remove extra fee");
+        });
+      return;
+    }
     onChange(removeCategory(snapshot, id));
     notify(`Removed ${label}`);
   };

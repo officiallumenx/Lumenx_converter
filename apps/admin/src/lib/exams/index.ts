@@ -12,7 +12,7 @@ export type {
   ExamsCatalog,
   ListExamsParams,
 } from "./types";
-export { assertApiMode, listExams } from "./api";
+export { assertApiMode, getExam, listExams } from "./api";
 export {
   examDtoToListItem,
   examDtoToTimetableListItem,

@@ -58,7 +58,7 @@ export function RolesCatalogApiPanel() {
     <Card>
       <CardHeader
         title="Backend roles catalog"
-        hint="From GET /roles · institute role assignment UI is demo-only in API mode"
+        hint="From GET /roles · assign institute roles on memberships below"
         action={<Pill tone="neutral">Read-only · API mode</Pill>}
       />
       {hint ? (

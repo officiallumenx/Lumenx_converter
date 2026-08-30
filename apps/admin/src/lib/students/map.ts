@@ -62,6 +62,7 @@ export function studentDtoToDetailItem(dto: StudentDto): StudentDetailItem {
   const base = studentDtoToListItem(dto);
   return {
     ...base,
+    instituteId: dto.instituteId,
     address: dto.address?.trim() || "—",
     bloodGroup: dto.bloodGroup?.trim() || null,
     emergencyContact: dto.emergencyContact?.trim() || null,

@@ -107,3 +107,28 @@ export async function deleteAsset(
   }
   await client.delete(`/api/v1/assets/${assetId.trim()}`);
 }
+
+export type UploadAssetInput = {
+  instituteId: string;
+  bucket: AssetBucket;
+  category: AssetCategory;
+  file: File;
+  visibility?: "private" | "institute" | "staff";
+};
+
+export async function uploadAsset(
+  input: UploadAssetInput,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<AssetDto> {
+  assertApiMode();
+  if (!isInstituteUuid(input.instituteId)) {
+    throw new Error("institute_id must be a valid UUID");
+  }
+  const form = new FormData();
+  form.set("institute_id", input.instituteId.trim());
+  form.set("bucket", input.bucket);
+  form.set("category", input.category);
+  form.set("file", input.file);
+  if (input.visibility) form.set("visibility", input.visibility);
+  return client.uploadForm<AssetDto>("/api/v1/assets/upload", form);
+}

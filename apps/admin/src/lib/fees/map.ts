@@ -50,6 +50,7 @@ export function feeBundleToFeesSnapshot(input: {
   }));
 
   const overrides = input.concessions.map((row) => ({
+    id: row.id,
     studentId: row.studentId,
     categoryId: row.feeComponentId,
     amount: row.amount,

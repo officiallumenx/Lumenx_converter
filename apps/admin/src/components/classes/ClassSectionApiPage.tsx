@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "@tanstack/react-router";
-import { ArrowLeft } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { ArrowLeft, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { useAdminToast } from "@/components/AdminActionToast";
 import {
@@ -8,18 +8,23 @@ import {
   Card,
   CardHeader,
   Field,
+  Modal,
   PageStack,
   Pill,
   Select,
   TextInput,
 } from "@lumenx/ui-admin";
 import { useInstituteContext } from "@/lib/institutes";
+import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
+  deleteSection,
   loadSectionDetail,
   resolveSectionDetailView,
   shouldCommitClassesLoad,
+  updateClass,
   updateSection,
   type ClassesListStatus,
+  type ClassStatus,
   type SectionDetailItem,
   type SectionStatus,
 } from "@/lib/classes";
@@ -46,7 +51,12 @@ function DetailField({ label, value }: { label: string; value: string | null | u
 
 export function ClassSectionApiPage({ sectionId }: { sectionId: string }) {
   const notify = useAdminToast();
+  const navigate = useNavigate();
   const instituteCtx = useInstituteContext();
+  const writesEnabled = resolveWritesEnabled(true, {
+    status: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+  });
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
@@ -56,9 +66,12 @@ export function ClassSectionApiPage({ sectionId }: { sectionId: string }) {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [room, setRoom] = useState("");
   const [capacity, setCapacity] = useState("0");
   const [sectionStatus, setSectionStatus] = useState<SectionStatus>("active");
+  const [classStatus, setClassStatus] = useState<ClassStatus>("active");
 
   const detailView = resolveSectionDetailView({
     apiMode: true,
@@ -105,7 +118,7 @@ export function ClassSectionApiPage({ sectionId }: { sectionId: string }) {
     setSection(null);
     setStatus("loading");
     setErrorMessage(null);
-    void loadSectionDetail(sectionId).then((next) => {
+    void loadSectionDetail(sectionId, requestInstituteId).then((next) => {
       if (
         !shouldCommitClassesLoad({
           cancelled,
@@ -123,6 +136,7 @@ export function ClassSectionApiPage({ sectionId }: { sectionId: string }) {
         setRoom(next.section.room === "—" ? "" : next.section.room);
         setCapacity(String(next.section.capacity ?? 0));
         setSectionStatus(next.section.sectionStatus);
+        setClassStatus(next.section.classStatus);
       }
     });
     return () => {
@@ -140,13 +154,19 @@ export function ClassSectionApiPage({ sectionId }: { sectionId: string }) {
   const displaySection = detailView.detailValid ? detailView.section : null;
 
   const saveSection = () => {
-    if (!displaySection) return;
+    if (!writesEnabled || !displaySection) return;
     setSaving(true);
-    void updateSection(sectionId, {
-      room: room.trim() || null,
-      capacity: Number(capacity) || 0,
-      status: sectionStatus,
-    })
+    const tasks: Promise<unknown>[] = [
+      updateSection(sectionId, {
+        room: room.trim() || null,
+        capacity: Number(capacity) || 0,
+        status: sectionStatus,
+      }),
+    ];
+    if (classStatus !== displaySection.classStatus) {
+      tasks.push(updateClass(displaySection.classId, { status: classStatus }));
+    }
+    void Promise.all(tasks)
       .then(() => {
         setReloadKey((k) => k + 1);
         notify("Section updated");
@@ -159,16 +179,44 @@ export function ClassSectionApiPage({ sectionId }: { sectionId: string }) {
       });
   };
 
+  const removeSection = () => {
+    if (!writesEnabled) return;
+    setDeleting(true);
+    void deleteSection(sectionId)
+      .then(() => {
+        setConfirmDelete(false);
+        notify("Section deleted");
+        void navigate({ to: "/classes" });
+      })
+      .catch((err) => {
+        notify(err instanceof Error ? err.message : "Failed to delete section");
+      })
+      .finally(() => {
+        setDeleting(false);
+      });
+  };
+
   return (
     <AppShell
       title={displaySection?.name ?? "Class section"}
-      subtitle="API mode · section catalog record"
+      subtitle={
+        writesEnabled
+          ? "API mode · section catalog record"
+          : "API mode · read-only · select an institute to edit"
+      }
       actions={
-        <Link to="/classes">
-          <Button variant="outline" size="sm">
-            <ArrowLeft className="size-3.5" /> Back to classes
-          </Button>
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          {displaySection && writesEnabled ? (
+            <Button variant="outline" size="sm" onClick={() => setConfirmDelete(true)}>
+              <Trash2 className="size-3.5" /> Delete section
+            </Button>
+          ) : null}
+          <Link to="/classes">
+            <Button variant="outline" size="sm">
+              <ArrowLeft className="size-3.5" /> Back to classes
+            </Button>
+          </Link>
+        </div>
       }
     >
       <PageStack>
@@ -205,39 +253,69 @@ export function ClassSectionApiPage({ sectionId }: { sectionId: string }) {
                 />
               </div>
             </Card>
-            <Card>
-              <CardHeader title="Edit section" hint="PATCH /sections/:id" />
-              <div className="grid gap-4 px-4 pb-5 sm:grid-cols-3 sm:px-5">
-                <Field label="Room">
-                  <TextInput value={room} onChange={(e) => setRoom(e.target.value)} />
-                </Field>
-                <Field label="Capacity">
-                  <TextInput
-                    type="number"
-                    min={0}
-                    value={capacity}
-                    onChange={(e) => setCapacity(e.target.value)}
-                  />
-                </Field>
-                <Field label="Status">
-                  <Select
-                    value={sectionStatus}
-                    onChange={(e) => setSectionStatus(e.target.value as SectionStatus)}
-                  >
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                  </Select>
-                </Field>
-                <div className="sm:col-span-3">
-                  <Button variant="primary" onClick={saveSection} disabled={saving}>
-                    {saving ? "Saving…" : "Save section"}
-                  </Button>
+            {writesEnabled ? (
+              <Card>
+                <CardHeader title="Edit section" hint="PATCH /sections/:id · class status via PATCH /classes/:id" />
+                <div className="grid gap-4 px-4 pb-5 sm:grid-cols-2 sm:px-5 lg:grid-cols-4">
+                  <Field label="Room">
+                    <TextInput value={room} onChange={(e) => setRoom(e.target.value)} />
+                  </Field>
+                  <Field label="Capacity">
+                    <TextInput
+                      type="number"
+                      min={0}
+                      value={capacity}
+                      onChange={(e) => setCapacity(e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Section status">
+                    <Select
+                      value={sectionStatus}
+                      onChange={(e) => setSectionStatus(e.target.value as SectionStatus)}
+                    >
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </Select>
+                  </Field>
+                  <Field label="Class status">
+                    <Select
+                      value={classStatus}
+                      onChange={(e) => setClassStatus(e.target.value as ClassStatus)}
+                    >
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </Select>
+                  </Field>
+                  <div className="sm:col-span-2 lg:col-span-4">
+                    <Button variant="primary" onClick={saveSection} disabled={saving}>
+                      {saving ? "Saving…" : "Save"}
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            </Card>
+              </Card>
+            ) : null}
           </>
         )}
       </PageStack>
+
+      <Modal
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        title="Delete section?"
+        footer={
+          <>
+            <Button onClick={() => setConfirmDelete(false)}>Cancel</Button>
+            <Button variant="primary" onClick={removeSection} disabled={deleting}>
+              {deleting ? "Deleting…" : "Delete"}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-muted-foreground">
+          Soft-deletes this section for the active institute. Existing enrollments may block the
+          request if the backend enforces them.
+        </p>
+      </Modal>
     </AppShell>
   );
 }

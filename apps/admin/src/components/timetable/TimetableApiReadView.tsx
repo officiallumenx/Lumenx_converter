@@ -14,7 +14,7 @@ import {
   Th,
   Tr,
 } from "@lumenx/ui-admin";
-import { ArrowLeft, CalendarDays, ChevronRight } from "lucide-react";
+import { ArrowLeft, CalendarDays, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import { IconChip } from "@/components/IconChip";
 import type {
   TimetableReadBundle,
@@ -26,6 +26,11 @@ type TimetableApiReadViewProps = {
   bundle: TimetableReadBundle;
   selectedSectionId?: string;
   listHint?: string | null;
+  writesEnabled?: boolean;
+  mutating?: boolean;
+  onCreateSlot?: (sectionId?: string) => void;
+  onEditSlot?: (slot: TimetableSlotListItem) => void;
+  onDeleteSlot?: (slotId: string) => void;
   onOpenSection: (sectionId: string) => void;
   onBack: () => void;
 };
@@ -38,6 +43,11 @@ export function TimetableApiReadView({
   bundle,
   selectedSectionId,
   listHint = null,
+  writesEnabled = false,
+  mutating = false,
+  onCreateSlot,
+  onEditSlot,
+  onDeleteSlot,
   onOpenSection,
   onBack,
 }: TimetableApiReadViewProps) {
@@ -67,32 +77,70 @@ export function TimetableApiReadView({
     );
   }, [bundle.sections, query]);
 
-  if (selectedSectionId && selectedSummary) {
+  if (selectedSectionId) {
+    const title = selectedSummary
+      ? sectionTitle(selectedSummary)
+      : `Section ${selectedSectionId.slice(0, 8)}…`;
     return (
       <PageStack>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="ghost" size="sm" onClick={onBack}>
             <ArrowLeft className="size-3.5" /> All sections
           </Button>
-          <Pill tone="neutral">Read-only · API mode</Pill>
+          <Pill tone="neutral">
+            {writesEnabled ? "API · create / edit / delete" : "Read-only · API mode"}
+          </Pill>
+          {writesEnabled ? (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={mutating}
+              onClick={() => onCreateSlot?.(selectedSectionId)}
+            >
+              <Plus className="size-3.5" /> Add slot
+            </Button>
+          ) : null}
         </div>
 
         <Card>
           <CardHeader
-            title={sectionTitle(selectedSummary)}
-            hint={`${sectionSlots.length} slot${sectionSlots.length === 1 ? "" : "s"} · ${selectedSummary.activeCount} active`}
+            title={title}
+            hint={`${sectionSlots.length} slot${sectionSlots.length === 1 ? "" : "s"}${
+              selectedSummary ? ` · ${selectedSummary.activeCount} active` : ""
+            }`}
           />
           {sectionSlots.length === 0 ? (
             <CardBody>
               <EmptyState
                 icon={<CalendarDays className="size-5" />}
                 title="No slots for this section"
-                hint="Timetable slots appear here once configured in the backend."
+                hint={
+                  writesEnabled
+                    ? "Create a slot bound to an active teacher assignment."
+                    : "Timetable slots appear here once configured."
+                }
+                action={
+                  writesEnabled ? (
+                    <Button
+                      variant="primary"
+                      disabled={mutating}
+                      onClick={() => onCreateSlot?.(selectedSectionId)}
+                    >
+                      <Plus className="size-3.5" /> New slot
+                    </Button>
+                  ) : undefined
+                }
               />
             </CardBody>
           ) : (
             <CardBody noPadding>
-              <SlotsTable slots={sectionSlots} />
+              <SlotsTable
+                slots={sectionSlots}
+                writesEnabled={writesEnabled}
+                mutating={mutating}
+                onEditSlot={onEditSlot}
+                onDeleteSlot={onDeleteSlot}
+              />
             </CardBody>
           )}
         </Card>
@@ -103,7 +151,9 @@ export function TimetableApiReadView({
   return (
     <PageStack>
       <div className="flex flex-wrap items-center gap-2">
-        <Pill tone="neutral">Read-only · API mode</Pill>
+        <Pill tone="neutral">
+          {writesEnabled ? "API · create / edit / delete slots" : "Read-only · API mode"}
+        </Pill>
         {listHint ? <span className="text-xs text-muted-foreground">{listHint}</span> : null}
       </div>
 
@@ -122,8 +172,17 @@ export function TimetableApiReadView({
           title={bundle.sections.length === 0 ? "No timetable slots yet" : "No matches"}
           hint={
             bundle.sections.length === 0
-              ? "Slots configured for this institute will appear here."
+              ? writesEnabled
+                ? "Create a slot for a section with an active teacher assignment."
+                : "Slots configured for this institute will appear here."
               : "Try another search."
+          }
+          action={
+            writesEnabled && bundle.sections.length === 0 ? (
+              <Button variant="primary" disabled={mutating} onClick={() => onCreateSlot?.()}>
+                <Plus className="size-3.5" /> New slot
+              </Button>
+            ) : undefined
           }
         />
       ) : (
@@ -157,7 +216,19 @@ export function TimetableApiReadView({
   );
 }
 
-function SlotsTable({ slots }: { slots: TimetableSlotListItem[] }) {
+function SlotsTable({
+  slots,
+  writesEnabled = false,
+  mutating = false,
+  onEditSlot,
+  onDeleteSlot,
+}: {
+  slots: TimetableSlotListItem[];
+  writesEnabled?: boolean;
+  mutating?: boolean;
+  onEditSlot?: (slot: TimetableSlotListItem) => void;
+  onDeleteSlot?: (slotId: string) => void;
+}) {
   return (
     <DataTable>
       <thead>
@@ -168,6 +239,7 @@ function SlotsTable({ slots }: { slots: TimetableSlotListItem[] }) {
           <Th>Room</Th>
           <Th>Teacher assignment</Th>
           <Th>Status</Th>
+          {writesEnabled ? <Th className="text-right">Actions</Th> : null}
         </tr>
       </thead>
       <tbody>
@@ -187,6 +259,28 @@ function SlotsTable({ slots }: { slots: TimetableSlotListItem[] }) {
                 {slot.status}
               </Pill>
             </Td>
+            {writesEnabled ? (
+              <Td className="text-right">
+                <div className="flex justify-end gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={mutating}
+                    onClick={() => onEditSlot?.(slot)}
+                  >
+                    <Pencil className="size-3.5" /> Edit
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={mutating}
+                    onClick={() => onDeleteSlot?.(slot.id)}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                </div>
+              </Td>
+            ) : null}
           </Tr>
         ))}
       </tbody>

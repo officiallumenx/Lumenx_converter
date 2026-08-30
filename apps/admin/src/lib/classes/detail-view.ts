@@ -79,6 +79,20 @@ export function resolveSectionDetailView(
     };
   }
 
+  if (
+    input.storedStatus === "ready" &&
+    input.storedSection &&
+    input.activeInstituteId &&
+    input.storedSection.instituteId !== input.activeInstituteId
+  ) {
+    return {
+      status: "empty",
+      section: null,
+      errorMessage: "Section not found for the active institute.",
+      detailValid: true,
+    };
+  }
+
   return {
     status: input.storedStatus,
     section: input.storedSection,

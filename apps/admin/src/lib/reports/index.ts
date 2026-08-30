@@ -8,6 +8,8 @@ export {
   listReportCatalog,
   listReportJobs,
   createReportJob,
+  downloadReportJob,
+  saveBlobAsFile,
 } from "./api";
 export {
   loadReportsCatalog,

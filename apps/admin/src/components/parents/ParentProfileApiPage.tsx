@@ -16,13 +16,20 @@ import {
   TextInput,
 } from "@lumenx/ui-admin";
 import { useInstituteContext } from "@/lib/institutes";
+import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
+import { isInstituteUuid } from "@/lib/active-institute";
 import {
+  createParentLink,
   deleteParent,
+  deleteParentLink,
   loadParentDetail,
   relationshipToLabel,
   resolveParentsDetailView,
   shouldCommitParentsLoad,
   updateParent,
+  updateParentLink,
+  type GuardianLinkStatus,
+  type GuardianRelationship,
   type ParentDetailItem,
   type ParentsListStatus,
   type PortalAccessStatus,
@@ -63,6 +70,10 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
   const notify = useAdminToast();
   const navigate = useNavigate();
   const instituteCtx = useInstituteContext();
+  const writesEnabled = resolveWritesEnabled(true, {
+    status: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+  });
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
@@ -75,6 +86,10 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
   const [draft, setDraft] = useState<EditDraft | null>(null);
   const [saveError, setSaveError] = useState("");
   const [pendingDelete, setPendingDelete] = useState(false);
+  const [linkStudentId, setLinkStudentId] = useState("");
+  const [linkRelationship, setLinkRelationship] =
+    useState<GuardianRelationship>("guardian");
+  const [linkBusy, setLinkBusy] = useState(false);
 
   const detailView = resolveParentsDetailView({
     apiMode: true,
@@ -86,6 +101,14 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
     storedErrorMessage: errorMessage,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
+
+  useEffect(() => {
+    setEditing(false);
+    setDraft(null);
+    setPendingDelete(false);
+    setSaveError("");
+    setLinkStudentId("");
+  }, [instituteCtx.activeInstituteId, parentId]);
 
   useEffect(() => {
     if (instituteCtx.status === "loading") {
@@ -121,7 +144,7 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
     setParent(null);
     setStatus("loading");
     setErrorMessage(null);
-    void loadParentDetail(parentId).then((next) => {
+    void loadParentDetail(parentId, requestInstituteId).then((next) => {
       if (
         !shouldCommitParentsLoad({
           cancelled,
@@ -151,7 +174,7 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
   const displayParent = detailView.detailValid ? detailView.parent : null;
 
   const startEdit = () => {
-    if (!displayParent) return;
+    if (!writesEnabled || !displayParent) return;
     setDraft({
       name: displayParent.name,
       phone: displayParent.phone,
@@ -171,7 +194,7 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
   };
 
   const saveEdit = () => {
-    if (!draft) return;
+    if (!writesEnabled || !draft) return;
     const email = draft.email.trim().toLowerCase();
     const phone = normalizeParentPhone(draft.phone);
     if (!draft.name.trim()) {
@@ -207,6 +230,7 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
   };
 
   const confirmDelete = () => {
+    if (!writesEnabled) return;
     void deleteParent(parentId)
       .then(() => {
         setPendingDelete(false);
@@ -215,6 +239,54 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
       })
       .catch((err) => {
         notify(err instanceof Error ? err.message : "Failed to delete parent");
+      });
+  };
+
+  const addLink = () => {
+    if (!writesEnabled) return;
+    if (!isInstituteUuid(linkStudentId.trim())) {
+      notify("Student ID must be a valid UUID");
+      return;
+    }
+    setLinkBusy(true);
+    void createParentLink(parentId, {
+      studentId: linkStudentId.trim(),
+      relationship: linkRelationship,
+      isPrimary: false,
+      status: "active",
+    })
+      .then(() => {
+        setLinkStudentId("");
+        setReloadKey((k) => k + 1);
+        notify("Student link created");
+      })
+      .catch((err) => {
+        notify(err instanceof Error ? err.message : "Failed to create link");
+      })
+      .finally(() => setLinkBusy(false));
+  };
+
+  const setLinkStatus = (linkId: string, nextStatus: GuardianLinkStatus) => {
+    if (!writesEnabled) return;
+    void updateParentLink(parentId, linkId, { status: nextStatus })
+      .then(() => {
+        setReloadKey((k) => k + 1);
+        notify(nextStatus === "active" ? "Link activated" : "Link deactivated");
+      })
+      .catch((err) => {
+        notify(err instanceof Error ? err.message : "Failed to update link");
+      });
+  };
+
+  const removeLink = (linkId: string) => {
+    if (!writesEnabled) return;
+    void deleteParentLink(parentId, linkId)
+      .then(() => {
+        setReloadKey((k) => k + 1);
+        notify("Student link removed");
+      })
+      .catch((err) => {
+        notify(err instanceof Error ? err.message : "Failed to remove link");
       });
   };
 
@@ -233,7 +305,7 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
                 <Save className="size-3.5" /> Save
               </Button>
             </>
-          ) : displayParent ? (
+          ) : displayParent && writesEnabled ? (
             <>
               <Button
                 variant="outline"
@@ -376,13 +448,71 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
                           {link.isEmergencyContact ? " · emergency" : ""}
                         </div>
                       </div>
-                      <Pill tone={link.status === "active" ? "success" : "neutral"}>
-                        {link.status}
-                      </Pill>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Pill tone={link.status === "active" ? "success" : "neutral"}>
+                          {link.status}
+                        </Pill>
+                        {writesEnabled ? (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                setLinkStatus(
+                                  link.id,
+                                  link.status === "active" ? "inactive" : "active",
+                                )
+                              }
+                            >
+                              {link.status === "active" ? "Deactivate" : "Activate"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-destructive hover:bg-destructive/10"
+                              onClick={() => removeLink(link.id)}
+                            >
+                              Remove
+                            </Button>
+                          </>
+                        ) : null}
+                      </div>
                     </li>
                   ))}
                 </ul>
               )}
+              {writesEnabled ? (
+                <div className="grid gap-3 border-t border-border px-4 py-4 sm:grid-cols-[1fr_auto_auto] sm:px-5">
+                  <Field label="Student UUID">
+                    <TextInput
+                      value={linkStudentId}
+                      onChange={(e) => setLinkStudentId(e.target.value)}
+                      placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                    />
+                  </Field>
+                  <Field label="Relationship">
+                    <Select
+                      value={linkRelationship}
+                      onChange={(e) =>
+                        setLinkRelationship(e.target.value as GuardianRelationship)
+                      }
+                    >
+                      <option value="mother">mother</option>
+                      <option value="father">father</option>
+                      <option value="guardian">guardian</option>
+                    </Select>
+                  </Field>
+                  <div className="flex items-end">
+                    <Button
+                      variant="primary"
+                      onClick={addLink}
+                      disabled={linkBusy || !linkStudentId.trim()}
+                    >
+                      {linkBusy ? "Linking…" : "Add link"}
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
             </Card>
           </>
         )}

@@ -31,6 +31,7 @@ export type RolesCatalogState = {
 
 export async function loadMembershipsList(
   activeInstituteId: string | null,
+  opts?: { status?: import("./types").MembershipStatus },
 ): Promise<MembershipsListState> {
   if (!isApiAuthMode()) {
     return { status: "demo", items: [], errorMessage: null };
@@ -39,7 +40,10 @@ export async function loadMembershipsList(
     return { status: "needs_institute", items: [], errorMessage: null };
   }
   try {
-    const dtos = await listMemberships({ instituteId: activeInstituteId });
+    const dtos = await listMemberships({
+      instituteId: activeInstituteId,
+      status: opts?.status,
+    });
     const items = membershipDtosToListItems(dtos);
     return {
       status: items.length === 0 ? "empty" : "ready",

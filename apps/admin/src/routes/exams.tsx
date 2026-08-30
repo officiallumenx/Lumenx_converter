@@ -26,6 +26,7 @@ import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
   deleteExam as deleteExamApi,
+  getExam,
   loadExamsList,
   resolveExamsListView,
   shouldCommitExamsLoad,
@@ -34,9 +35,11 @@ import {
   type ExamTimetableListItem,
   type ExamsListStatus,
 } from "@/lib/exams";
+import { listSubjects, type SubjectDto } from "@/lib/subjects";
 import { useDemoProfile } from "@/lib/demo-profile-context";
 import { isCollegeMode } from "@/lib/academic-data";
 import { ExamScheduleWizard } from "@/components/exams/ExamScheduleWizard";
+import { ExamApiCreateDialog } from "@/components/exams/ExamApiCreateDialog";
 import { ExamTimetableTable } from "@/components/exams/ExamTimetableTable";
 import { useAdminToast } from "@/components/AdminActionToast";
 import {
@@ -120,6 +123,7 @@ function ExamsPage() {
 
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [addPaperOpen, setAddPaperOpen] = useState(false);
+  const [apiSubjects, setApiSubjects] = useState<SubjectDto[]>([]);
 
   const [paperDate, setPaperDate] = useState("");
   const [paperSubject, setPaperSubject] = useState(subjectOptions[0] ?? "Mathematics");
@@ -136,6 +140,24 @@ function ExamsPage() {
     setPaperGrade(gradeOptions[0] ?? "Grade 10");
     setPaperSubject(subjectOptions[0] ?? "Mathematics");
   }, [apiMode, profileId, gradeOptions, subjectOptions]);
+
+  useEffect(() => {
+    if (!apiMode || !instituteCtx.activeInstituteId) {
+      setApiSubjects([]);
+      return;
+    }
+    const instituteId = instituteCtx.activeInstituteId;
+    void listSubjects({ instituteId })
+      .then((rows) => {
+        if (activeInstituteIdRef.current !== instituteId) return;
+        setApiSubjects(rows);
+        if (rows[0]) setPaperSubject(rows[0].id);
+      })
+      .catch(() => {
+        if (activeInstituteIdRef.current !== instituteId) return;
+        setApiSubjects([]);
+      });
+  }, [apiMode, instituteCtx.activeInstituteId]);
 
   useEffect(() => {
     if (!apiMode) return;
@@ -313,10 +335,7 @@ function ExamsPage() {
     exam: ExamRecord;
     timetable: ExamTimetable;
   }) => {
-    if (apiMode) {
-      notify("Exam wizard create is demo-only; use Connect or API with academic year UUIDs");
-      return;
-    }
+    if (apiMode) return;
     setExams((p) => [...p, exam]);
     setTimetables((p) => [...p, timetable]);
     setSelectedTtId(timetable.id);
@@ -326,6 +345,7 @@ function ExamsPage() {
   };
 
   const deleteExam = (id: string) => {
+    if (!writesEnabled) return;
     if (apiMode) {
       void deleteExamApi(id)
         .then(() => {
@@ -351,6 +371,7 @@ function ExamsPage() {
   };
 
   const deleteTimetable = (id: string) => {
+    if (!writesEnabled) return;
     if (apiMode) {
       const tt = displayTimetables.find((t) => t.id === id);
       if (!tt) return;
@@ -376,8 +397,38 @@ function ExamsPage() {
   };
 
   const handleAddPaper = () => {
+    if (!writesEnabled) return;
     if (apiMode) {
-      notify("Adding papers via API requires subject schedule UUIDs");
+      if (!selectedTt || !paperDate || !paperSubject) return;
+      void getExam(selectedTt.examId)
+        .then((exam) =>
+          updateExam(exam.id, {
+            subjectSchedules: [
+              ...exam.subjectSchedules.map((s) => ({
+                subjectId: s.subjectId,
+                paperDate: s.paperDate,
+                startsAt: s.startsAt,
+                endsAt: s.endsAt,
+                room: s.room,
+                invigilatorTeacherId: s.invigilatorTeacherId,
+              })),
+              {
+                subjectId: paperSubject,
+                paperDate,
+                startsAt: paperStart,
+                endsAt: paperEnd,
+              },
+            ],
+          }),
+        )
+        .then(() => {
+          setAddPaperOpen(false);
+          setReloadKey((k) => k + 1);
+          notify("Paper added to exam schedule");
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to add paper");
+        });
       return;
     }
     if (!selectedTt || selectedTtOutdated || !paperDate || !paperSubject) return;
@@ -399,6 +450,7 @@ function ExamsPage() {
   };
 
   const publishTimetable = (id: string) => {
+    if (!writesEnabled) return;
     const tt = displayTimetables.find((t) => t.id === id);
     if (!tt) return;
     if (apiMode) {
@@ -471,12 +523,12 @@ function ExamsPage() {
               </Button>
             ) : (
               <>
-                {selectedTt.status === "draft" && (
+                {selectedTt.status === "draft" && writesEnabled && (
                   <Button variant="primary" onClick={() => publishTimetable(selectedTt.id)}>
                     <Send className="size-3.5" /> Publish timetable
                   </Button>
                 )}
-                {!apiMode ? (
+                {writesEnabled && !selectedTtOutdated ? (
                   <Button variant="primary" onClick={() => setAddPaperOpen(true)}>
                     <Plus className="size-3.5" /> Add paper
                   </Button>
@@ -497,15 +549,45 @@ function ExamsPage() {
           <ExamTimetableTable
             timetable={selectedTt as ExamTimetable}
             college={college}
-            readOnly={selectedTtOutdated || apiMode}
+            readOnly={selectedTtOutdated || !writesEnabled}
             onRemoveSlot={
-              selectedTtOutdated || apiMode
+              selectedTtOutdated || !writesEnabled
                 ? undefined
-                : (slotId) =>
-                    updateTimetable(selectedTt.id, (t) => removeSlotFromTimetable(t, slotId))
+                : (slotId) => {
+                    if (apiMode) {
+                      void getExam(selectedTt.examId)
+                        .then((exam) =>
+                          updateExam(exam.id, {
+                            subjectSchedules: exam.subjectSchedules
+                              .filter((s) => s.id !== slotId)
+                              .map((s) => ({
+                                subjectId: s.subjectId,
+                                paperDate: s.paperDate,
+                                startsAt: s.startsAt,
+                                endsAt: s.endsAt,
+                                room: s.room,
+                                invigilatorTeacherId: s.invigilatorTeacherId,
+                              })),
+                          }),
+                        )
+                        .then(() => {
+                          setReloadKey((k) => k + 1);
+                          notify("Paper removed");
+                        })
+                        .catch((err) => {
+                          notify(
+                            err instanceof Error ? err.message : "Failed to remove paper",
+                          );
+                        });
+                      return;
+                    }
+                    updateTimetable(selectedTt.id, (t) =>
+                      removeSlotFromTimetable(t, slotId),
+                    );
+                  }
             }
             onQuickEdit={
-              selectedTtOutdated || apiMode
+              selectedTtOutdated || !writesEnabled || apiMode
                 ? undefined
                 : (patch) => {
                     setExams((prev) =>
@@ -532,13 +614,18 @@ function ExamsPage() {
           />
         </div>
 
-        {!selectedTtOutdated && (
+        {!selectedTtOutdated && writesEnabled ? (
           <AddPaperModal
             open={addPaperOpen}
             onClose={() => setAddPaperOpen(false)}
             college={college}
+            apiMode={apiMode}
             gradeOptions={gradeOptions}
-            subjectOptions={subjectOptions}
+            subjectOptions={
+              apiMode
+                ? apiSubjects.map((s) => ({ value: s.id, label: `${s.name} (${s.code})` }))
+                : subjectOptions.map((s) => ({ value: s, label: s }))
+            }
             paperDate={paperDate}
             setPaperDate={setPaperDate}
             paperSubject={paperSubject}
@@ -553,7 +640,7 @@ function ExamsPage() {
             setPaperEnd={setPaperEnd}
             onAdd={handleAddPaper}
           />
-        )}
+        ) : null}
       </AppShell>
     );
   }
@@ -563,7 +650,7 @@ function ExamsPage() {
       title="Exams"
       subtitle={
         apiMode
-          ? `API mode · read-only · ${countLabel(displayExams.length)} exams`
+          ? `API mode · ${countLabel(displayExams.length)} exams`
           : "Exam pipeline, exam timetables, and grading · marks in Marks module"
       }
       actions={
@@ -586,7 +673,7 @@ function ExamsPage() {
           title="Exam timetables"
           hint={
             apiMode
-              ? "Read-only schedules from API · subject names not resolved in list view"
+              ? "Schedules from API · publish / add papers when writes are enabled"
               : "Created with each exam · publish to share with students & parents"
           }
         />
@@ -762,14 +849,26 @@ function ExamsPage() {
         )}
       </Card>
 
-      {writesEnabled ? (
-      <ExamScheduleWizard
-        open={scheduleOpen}
-        onClose={() => setScheduleOpen(false)}
-        onComplete={handleWizardComplete}
-        college={college}
-        subjectOptions={subjectOptions}
-      />
+      {writesEnabled && !apiMode ? (
+        <ExamScheduleWizard
+          open={scheduleOpen}
+          onClose={() => setScheduleOpen(false)}
+          onComplete={handleWizardComplete}
+          college={college}
+          subjectOptions={subjectOptions}
+        />
+      ) : null}
+      {writesEnabled && apiMode && instituteCtx.activeInstituteId ? (
+        <ExamApiCreateDialog
+          open={scheduleOpen}
+          instituteId={instituteCtx.activeInstituteId}
+          onClose={() => setScheduleOpen(false)}
+          onCreated={() => {
+            setReloadKey((k) => k + 1);
+            notify("Exam created (draft)");
+          }}
+          onError={(message) => notify(message)}
+        />
       ) : null}
     </AppShell>
   );
@@ -779,6 +878,7 @@ function AddPaperModal({
   open,
   onClose,
   college,
+  apiMode,
   gradeOptions,
   subjectOptions,
   paperDate,
@@ -798,8 +898,9 @@ function AddPaperModal({
   open: boolean;
   onClose: () => void;
   college: boolean;
+  apiMode: boolean;
   gradeOptions: string[];
-  subjectOptions: string[];
+  subjectOptions: { value: string; label: string }[];
   paperDate: string;
   setPaperDate: (v: string) => void;
   paperSubject: string;
@@ -835,25 +936,35 @@ function AddPaperModal({
         </Field>
         <Field label="Subject" required>
           <Select value={paperSubject} onChange={(e) => setPaperSubject(e.target.value)}>
-            {subjectOptions.map((s) => (
-              <option key={s}>{s}</option>
-            ))}
+            {subjectOptions.length === 0 ? (
+              <option value="">No subjects</option>
+            ) : (
+              subjectOptions.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))
+            )}
           </Select>
         </Field>
-        <Field label={college ? "Batch" : "Class"} required>
-          <Select value={paperGrade} onChange={(e) => setPaperGrade(e.target.value)}>
-            {gradeOptions.map((g) => (
-              <option key={g}>{g}</option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Section">
-          <Select value={paperSection} onChange={(e) => setPaperSection(e.target.value)}>
-            {SECTION_OPTIONS.map((s) => (
-              <option key={s}>{s}</option>
-            ))}
-          </Select>
-        </Field>
+        {!apiMode ? (
+          <>
+            <Field label={college ? "Batch" : "Class"} required>
+              <Select value={paperGrade} onChange={(e) => setPaperGrade(e.target.value)}>
+                {gradeOptions.map((g) => (
+                  <option key={g}>{g}</option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Section">
+              <Select value={paperSection} onChange={(e) => setPaperSection(e.target.value)}>
+                {SECTION_OPTIONS.map((s) => (
+                  <option key={s}>{s}</option>
+                ))}
+              </Select>
+            </Field>
+          </>
+        ) : null}
         <Field label="Exam time · from">
           <TextInput type="time" value={paperStart} onChange={(e) => setPaperStart(e.target.value)} />
         </Field>

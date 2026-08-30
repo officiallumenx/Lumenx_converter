@@ -8,8 +8,11 @@ export type {
 } from "./types";
 export { listComplaints } from "./api";
 export {
+  createComplaint,
   updateComplaint,
   transitionComplaint,
+  deleteComplaint,
+  type CreateComplaintInput,
   type UpdateComplaintInput,
   type TransitionComplaintInput,
 } from "./mutations";

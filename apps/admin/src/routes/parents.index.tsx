@@ -326,6 +326,7 @@ function ParentsPage() {
 
   const resendInvite = (id: string) => {
     if (apiMode) {
+      if (!writesEnabled) return;
       void updateParentApi(id, { inviteStatus: "active" })
         .then(() => {
           setReloadKey((k) => k + 1);

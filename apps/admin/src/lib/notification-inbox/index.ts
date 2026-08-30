@@ -29,4 +29,5 @@ export {
   emitNotification,
   type UpdateInboxItemInput,
   type EmitNotificationInput,
+  type NotificationAudience,
 } from "./mutations";

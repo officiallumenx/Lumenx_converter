@@ -32,13 +32,18 @@ export function homeworkDtoToListItem(
   const subject = subjectsById.get(dto.subjectId);
   return {
     id: dto.id,
+    instituteId: dto.instituteId,
     title: dto.title.trim() || "Untitled",
+    description: dto.description ?? "",
+    instructions: dto.instructions,
     kind: dto.kind,
     status: dto.status,
     dueDate: dto.dueDate,
+    teacherId: dto.teacherId,
     teacherName: teacher?.name ?? shortRef(dto.teacherId, "Teacher"),
     classLabel: sectionClassLabel(dto.sectionId, sectionsById, classesById),
     subjectLabel: subject?.name ?? shortRef(dto.subjectId, "Subject"),
+    publishedAt: dto.publishedAt,
     updatedAt: dto.updatedAt,
   };
 }

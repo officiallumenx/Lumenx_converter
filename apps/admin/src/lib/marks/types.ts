@@ -37,6 +37,8 @@ export type MarkEntryDto = {
 
 export type MarkStudentScoreItem = {
   studentId: string;
+  /** Present for API entries — required when updating scores. */
+  enrollmentId?: string;
   rollNo: string;
   name: string;
   marks: number | null;
@@ -47,6 +49,11 @@ export type MarkStudentScoreItem = {
  */
 export type MarkEntryListItem = {
   id: string;
+  instituteId?: string;
+  academicYearId?: string;
+  classId?: string;
+  sectionId?: string;
+  subjectId?: string;
   teacherId: string;
   teacherName: string;
   subject: string;
@@ -70,4 +77,19 @@ export type ListMarkEntriesParams = {
   subjectId?: string;
   teacherId?: string;
   status?: MarkEntryStatus;
+};
+
+export type MarksLookupMaps = {
+  examsById?: Map<string, { id: string; name: string }>;
+  subjectsById?: Map<string, { id: string; name: string; code?: string }>;
+  teachersById?: Map<string, { id: string; name: string }>;
+  classesById?: Map<string, { id: string; name: string; code?: string }>;
+  sectionsById?: Map<
+    string,
+    { id: string; name: string; code?: string; classId: string }
+  >;
+  enrollmentsById?: Map<
+    string,
+    { id: string; studentId: string; studentName: string; rollNo: string }
+  >;
 };

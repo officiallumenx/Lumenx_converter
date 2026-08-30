@@ -158,6 +158,10 @@ function StudentsPage() {
 
   const setAccessStatus = (id: string, accessStatus: StudentAccessStatus) => {
     if (apiMode) {
+      if (!writesEnabled) {
+        notify("Select an institute before updating students");
+        return;
+      }
       void import("@/lib/students").then(({ updateStudent }) =>
         updateStudent(id, { accessStatus })
           .then(() => {
@@ -330,6 +334,10 @@ function StudentsPage() {
 
   const removeStudent = (id: string) => {
     if (apiMode) {
+      if (!writesEnabled) {
+        notify("Select an institute before deleting students");
+        return;
+      }
       void deleteStudentApi(id)
         .then(() => {
           setPendingDelete(null);
@@ -358,6 +366,10 @@ function StudentsPage() {
 
   const createStudent = (draft: StudentDraft, addSibling: boolean) => {
     if (apiMode) {
+      if (!writesEnabled) {
+        notify("Select an institute before creating a student");
+        return;
+      }
       const instituteId = instituteCtx.activeInstituteId;
       if (!instituteId) {
         notify("Select an institute before creating a student");
@@ -546,6 +558,7 @@ function StudentsPage() {
       mobileActions={
         writesEnabled ? (
           <>
+            {!apiMode ? (
             <Button
               type="button"
               aria-label="Bulk import"
@@ -554,6 +567,7 @@ function StudentsPage() {
               <Upload />
               Import
             </Button>
+            ) : null}
             <Button
               type="button"
               aria-label="Export CSV"
@@ -890,13 +904,14 @@ function StudentsPage() {
       {writesEnabled ? (
       <StudentCreateDialog
         open={createOpen}
-        academic={profile.academic}
+        academic={apiMode ? null : profile.academic}
+        apiMode={apiMode}
         onClose={() => setCreateOpen(false)}
         onCreate={createStudent}
       />
       ) : null}
 
-      {writesEnabled ? (
+      {!apiMode && writesEnabled ? (
       <StudentBulkImportDialog
         open={bulkImportOpen}
         onClose={() => setBulkImportOpen(false)}

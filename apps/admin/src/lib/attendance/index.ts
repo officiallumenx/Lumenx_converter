@@ -43,9 +43,14 @@ export {
   resolveAttendanceConfigView,
   shouldCommitAttendanceConfigLoad,
 } from "./config-view";
+export {
+  pickAttendanceConfigForRegister,
+  slotFieldsFromMethod,
+} from "./register-create-helpers";
 export type {
   AttendanceConfigDto,
   AttendanceConfigScope,
+  AttendanceMarkStatus,
   AttendanceRegisterDetail,
   AttendanceRegisterListItem,
   ListAttendanceConfigParams,

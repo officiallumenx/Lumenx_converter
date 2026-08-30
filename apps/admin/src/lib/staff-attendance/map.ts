@@ -56,3 +56,42 @@ export function staffAttendanceDtosToDaySummary(
     marks,
   };
 }
+
+/**
+ * Fills missing teachers as draft "absent" placeholders so Admin can mark a full day.
+ */
+export function mergeTeachersIntoDaySummary(
+  summary: StaffAttendanceDaySummary,
+  teachers: TeacherListItem[],
+): StaffAttendanceDaySummary {
+  const byTeacher = new Map(summary.marks.map((mark) => [mark.teacherId, mark]));
+  const marks: StaffAttendanceMarkItem[] = teachers.map((teacher) => {
+    const existing = byTeacher.get(teacher.id);
+    if (existing) return existing;
+    return {
+      id: `pending:${teacher.id}`,
+      teacherId: teacher.id,
+      teacherName: teacher.name,
+      status: "absent",
+      checkIn: null,
+      checkOut: null,
+      note: null,
+      dayStatus: summary.dayStatus,
+    };
+  });
+  for (const mark of summary.marks) {
+    if (!teachers.some((teacher) => teacher.id === mark.teacherId)) {
+      marks.push(mark);
+    }
+  }
+  return {
+    ...summary,
+    total: marks.length,
+    present: marks.filter((m) => m.status === "present").length,
+    late: marks.filter((m) => m.status === "late").length,
+    absent: marks.filter((m) => m.status === "absent").length,
+    leave: marks.filter((m) => m.status === "leave").length,
+    halfDay: marks.filter((m) => m.status === "half-day").length,
+    marks,
+  };
+}

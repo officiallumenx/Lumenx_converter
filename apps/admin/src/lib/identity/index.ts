@@ -3,17 +3,25 @@ export type {
   MembershipDto,
   MembershipListItem,
   MembershipStatus,
+  ProfileDto,
+  ProfileStatus,
   RoleCatalogItem,
 } from "./types";
-export { assertApiMode, listMemberships, listRoles } from "./api";
+export { assertApiMode, getProfile, listMemberships, listRoles } from "./api";
 export {
   createMembership,
   updateMembership,
   deleteMembership,
+  updateOwnProfile,
   type CreateMembershipInput,
   type UpdateMembershipInput,
+  type UpdateOwnProfileInput,
 } from "./mutations";
-export { membershipDtoToListItem, membershipDtosToListItems } from "./map";
+export { membershipDtoToListItem, membershipDtosToListItems, membershipIdentityLabel, toggleRoleCode } from "./map";
+export {
+  collectMembershipCandidates,
+  type MembershipCandidate,
+} from "./membership-candidates";
 export {
   loadMembershipsList,
   loadRolesCatalog,

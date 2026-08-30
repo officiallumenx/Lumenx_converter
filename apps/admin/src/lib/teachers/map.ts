@@ -75,6 +75,7 @@ export function teacherDtoToListItem(dto: TeacherDto): TeacherListItem {
 
   return {
     id: dto.id,
+    instituteId: dto.instituteId,
     name: displayName,
     role: teachingScopeToRole(dto.teachingScope),
     dept: dto.department?.trim() || "—",

@@ -71,9 +71,10 @@ export function parentDtoToDetailItem(dto: ParentDto): ParentDetailItem {
   const base = parentDtoToListItem(dto);
   return {
     ...base,
+    instituteId: dto.instituteId,
     legacyCode: dto.legacyCode?.trim() || null,
     updatedAt: dto.updatedAt,
-    links: activeLinks(dto.links),
+    links: Array.isArray(dto.links) ? dto.links : [],
   };
 }
 

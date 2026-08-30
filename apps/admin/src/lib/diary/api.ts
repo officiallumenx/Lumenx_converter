@@ -25,7 +25,9 @@ export async function listDiaryDays(
 
   const query = new URLSearchParams();
   query.set("institute_id", params.instituteId.trim());
-  query.set("submitted", params.submitted === false ? "false" : "true");
+  if (params.submitted !== undefined) {
+    query.set("submitted", params.submitted ? "true" : "false");
+  }
   if (params.teacherId) query.set("teacher_id", params.teacherId);
   if (params.academicYearId) query.set("academic_year_id", params.academicYearId);
   if (params.scope) query.set("scope", params.scope);
@@ -34,4 +36,15 @@ export async function listDiaryDays(
   if (params.dateTo) query.set("date_to", params.dateTo);
 
   return client.get<DiaryDayDto[]>(`/api/v1/diary?${query.toString()}`);
+}
+
+export async function getDiaryDay(
+  diaryId: string,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<DiaryDayDto> {
+  assertApiMode();
+  if (!isInstituteUuid(diaryId)) {
+    throw new Error("diary_id must be a valid UUID");
+  }
+  return client.get<DiaryDayDto>(`/api/v1/diary/${diaryId.trim()}`);
 }

@@ -1,5 +1,5 @@
 export type { AssetDto, AssetCategory, AssetBucket, ListAssetsParams, StorageUsageSummary } from "./types";
-export { assertApiMode, listAssets } from "./api";
+export { assertApiMode, getAssetSignedUrl, listAssets, type AssetSignedUrlDto } from "./api";
 export { summarizeStorageUsage } from "./map";
 export {
   loadStorageUsage,
@@ -14,6 +14,8 @@ export {
   createAsset,
   updateAsset,
   deleteAsset,
+  uploadAsset,
   type CreateAssetInput,
   type UpdateAssetInput,
+  type UploadAssetInput,
 } from "./mutations";

@@ -18,6 +18,12 @@ import { Plus, Megaphone, Eye, Pin } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { examClassDisplayLabel } from "@/lib/exam-timetable-data";
+import {
+  apiClassAudienceSelectionValid,
+  loadApiClassSectionAudienceOptions,
+  resolveClassAudienceForApi,
+  type ApiClassSectionAudienceOption,
+} from "@/lib/class-section-audience";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
@@ -27,6 +33,9 @@ import {
   resolveAnnouncementsListView,
   shouldCommitAnnouncementsLoad,
   updateAnnouncement,
+  publishAnnouncement,
+  archiveAnnouncement,
+  deleteAnnouncement,
   type AnnouncementAudienceScope,
   type AnnouncementListItem,
   type AnnouncementsListStatus,
@@ -120,6 +129,9 @@ function AnnouncementsPage() {
   const [visibility, setVisibility] = useState<VisibilityOption>("All");
   const [classScope, setClassScope] = useState<"all" | "selected">("selected");
   const [classSectionKeys, setClassSectionKeys] = useState<string[]>([]);
+  const [apiClassOptions, setApiClassOptions] = useState<
+    ApiClassSectionAudienceOption[]
+  >([]);
   const [scheduleAt, setScheduleAt] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -209,8 +221,31 @@ function AnnouncementsPage() {
     reloadKey,
   ]);
 
-  const classesValid =
-    visibility !== "Classes" || classScope === "all" || classSectionKeys.length > 0;
+  useEffect(() => {
+    if (!apiMode || !instituteCtx.activeInstituteId) {
+      setApiClassOptions([]);
+      return;
+    }
+    let cancelled = false;
+    void loadApiClassSectionAudienceOptions(instituteCtx.activeInstituteId).then(
+      (options) => {
+        if (!cancelled) setApiClassOptions(options);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [apiMode, instituteCtx.activeInstituteId]);
+
+  const classesValid = apiMode
+    ? apiClassAudienceSelectionValid({
+        visibilityIsClasses: visibility === "Classes",
+        classScope,
+        selectedKeys: classSectionKeys,
+      })
+    : visibility !== "Classes" ||
+      classScope === "all" ||
+      classSectionKeys.length > 0;
   const willSchedule = scheduleAt.trim().length > 0;
   const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
 
@@ -260,6 +295,18 @@ function AnnouncementsPage() {
         scheduled && scheduleAt.trim()
           ? new Date(scheduleAt).toISOString()
           : null;
+      const audienceFields = resolveClassAudienceForApi({
+        visibilityIsClasses: visibility === "Classes",
+        classScope,
+        selectedKeys: classSectionKeys,
+        options: apiClassOptions,
+        baseAudienceScope: mapAudienceScope(),
+        baseAudienceLabel: audience,
+      });
+      if (!audienceFields.ok) {
+        notify(audienceFields.error);
+        return;
+      }
       const done = () => {
         resetForm();
         setOpen(false);
@@ -269,8 +316,10 @@ function AnnouncementsPage() {
         void updateAnnouncement(editingId, {
           title: title.trim(),
           body: body.trim() || null,
-          audienceScope: mapAudienceScope(),
-          audienceLabel: audience,
+          audienceScope: audienceFields.fields.audienceScope,
+          audienceLabel: audienceFields.fields.audienceLabel,
+          classId: audienceFields.fields.classId,
+          sectionId: audienceFields.fields.sectionId,
           scheduledAt,
         })
           .then(() => {
@@ -286,8 +335,10 @@ function AnnouncementsPage() {
         instituteId,
         title: title.trim(),
         body: body.trim() || null,
-        audienceScope: mapAudienceScope(),
-        audienceLabel: audience,
+        audienceScope: audienceFields.fields.audienceScope,
+        audienceLabel: audienceFields.fields.audienceLabel,
+        classId: audienceFields.fields.classId,
+        sectionId: audienceFields.fields.sectionId,
         scheduledAt,
         publishNow: !asDraft && !scheduled,
       })
@@ -362,6 +413,47 @@ function AnnouncementsPage() {
     notify("Pin status updated");
   };
 
+  const publishDraft = (id: string) => {
+    if (!writesEnabled || !apiMode) return;
+    void publishAnnouncement(id)
+      .then(() => {
+        setReloadKey((k) => k + 1);
+        notify("Announcement published");
+      })
+      .catch((err) => {
+        notify(err instanceof Error ? err.message : "Failed to publish");
+      });
+  };
+
+  const archiveItem = (id: string) => {
+    if (!writesEnabled || !apiMode) return;
+    void archiveAnnouncement(id)
+      .then(() => {
+        setReloadKey((k) => k + 1);
+        notify("Announcement archived");
+      })
+      .catch((err) => {
+        notify(err instanceof Error ? err.message : "Failed to archive");
+      });
+  };
+
+  const removeItem = (id: string) => {
+    if (!writesEnabled) return;
+    if (apiMode) {
+      void deleteAnnouncement(id)
+        .then(() => {
+          setReloadKey((k) => k + 1);
+          notify("Announcement deleted");
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to delete");
+        });
+      return;
+    }
+    setItems((prev) => prev.filter((a) => a.id !== id));
+    notify("Announcement deleted");
+  };
+
   const listHint =
     displayStatus === "loading"
       ? "Loading announcements…"
@@ -422,7 +514,7 @@ function AnnouncementsPage() {
                   )}
                 </div>
                 {writesEnabled ? (
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button
                       onClick={() => {
                         setEditingId(a.id);
@@ -436,6 +528,15 @@ function AnnouncementsPage() {
                     <Button variant="primary" onClick={() => togglePin(a.id)}>
                       {a.pinned ? "Unpin" : "Pin"}
                     </Button>
+                    {apiMode && a.status === "draft" ? (
+                      <Button variant="primary" onClick={() => publishDraft(a.id)}>
+                        Publish
+                      </Button>
+                    ) : null}
+                    {apiMode && a.status === "published" ? (
+                      <Button onClick={() => archiveItem(a.id)}>Archive</Button>
+                    ) : null}
+                    <Button onClick={() => removeItem(a.id)}>Delete</Button>
                   </div>
                 ) : null}
               </div>
@@ -506,8 +607,13 @@ function AnnouncementsPage() {
                   selectedKeys={classSectionKeys}
                   onScopeChange={setClassScope}
                   onSelectedKeysChange={setClassSectionKeys}
+                  options={apiMode ? apiClassOptions : undefined}
                   required
-                  hint="Choose which classes and sections can see this announcement"
+                  hint={
+                    apiMode
+                      ? "Pick one institute section (real UUID) — entire institute uses All classes"
+                      : "Choose which classes and sections can see this announcement"
+                  }
                 />
               </div>
             ) : null}

@@ -18,6 +18,7 @@ import { OfflineSyncStatusBar } from "@/components/OfflineSyncStatusBar";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiReadUnavailablePanel } from "@/components/ApiReadUnavailablePanel";
 import { AttendanceConfigApiPanel } from "@/components/settings/AttendanceConfigApiPanel";
+import { SettingsProfileApiPanel } from "@/components/settings/SettingsProfileApiPanel";
 import { AttendanceConfigurationPanel } from "@/components/academic-management/views/AttendanceConfigurationPanel";
 import { AttendanceNotificationConfigPanel } from "@/components/academic-management/views/AttendanceNotificationConfigPanel";
 import { PlatformReadOnlyBanner, TextSizeControl, LumenXFeedbackForm } from "@lumenx/ui";
@@ -205,6 +206,13 @@ function loadSettingsProfile() {
 }
 
 function ProfileTab() {
+  if (isApiAuthMode()) {
+    return <SettingsProfileApiPanel />;
+  }
+  return <ProfileTabDemo />;
+}
+
+function ProfileTabDemo() {
   const { user } = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
   const [saved, setSaved] = useState(false);

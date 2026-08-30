@@ -32,3 +32,14 @@ export async function listHomework(
   if (params.dueTo) query.set("due_to", params.dueTo);
   return client.get<HomeworkDto[]>(`/api/v1/homework?${query.toString()}`);
 }
+
+export async function getHomework(
+  homeworkId: string,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<HomeworkDto> {
+  assertApiMode();
+  if (!isInstituteUuid(homeworkId)) {
+    throw new Error("homework_id must be a valid UUID");
+  }
+  return client.get<HomeworkDto>(`/api/v1/homework/${homeworkId.trim()}`);
+}

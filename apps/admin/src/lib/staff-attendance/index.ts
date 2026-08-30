@@ -12,7 +12,17 @@ export {
 export {
   staffAttendanceDtoToMarkItem,
   staffAttendanceDtosToDaySummary,
+  mergeTeachersIntoDaySummary,
 } from "./map";
+export {
+  upsertStaffAttendanceDay,
+  submitStaffAttendanceDay,
+  reopenStaffAttendanceDay,
+  deleteStaffAttendance,
+  type StaffAttendanceDayMarkInput,
+  type UpsertStaffAttendanceDayInput,
+  type StaffAttendanceDayActionInput,
+} from "./mutations";
 export type {
   ListStaffAttendanceParams,
   StaffAttendanceDaySummary,

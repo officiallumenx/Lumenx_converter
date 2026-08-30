@@ -69,6 +69,7 @@ export type StudentListItem = {
 };
 
 export type StudentDetailItem = StudentListItem & {
+  instituteId: string;
   address: string;
   bloodGroup: string | null;
   emergencyContact: string | null;

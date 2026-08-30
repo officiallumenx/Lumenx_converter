@@ -33,6 +33,7 @@ export type SectionDetailState = {
 
 export async function loadSectionDetail(
   sectionId: string,
+  activeInstituteId?: string | null,
 ): Promise<SectionDetailState> {
   if (!isApiAuthMode()) {
     return { status: "demo", section: null, errorMessage: null };
@@ -52,6 +53,17 @@ export async function loadSectionDetail(
 
   try {
     const section = await getSection(sectionId.trim());
+    if (
+      activeInstituteId &&
+      isInstituteUuid(activeInstituteId) &&
+      section.instituteId !== activeInstituteId
+    ) {
+      return {
+        status: "empty",
+        section: null,
+        errorMessage: "Section not found for the active institute.",
+      };
+    }
     const cls = await getClass(section.classId);
     return {
       status: "ready",

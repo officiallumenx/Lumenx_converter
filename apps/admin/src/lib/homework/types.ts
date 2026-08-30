@@ -35,12 +35,17 @@ export type ListHomeworkParams = {
 
 export type HomeworkListItem = {
   id: string;
+  instituteId: string;
   title: string;
+  description: string;
+  instructions: string | null;
   kind: HomeworkKind;
   status: HomeworkStatus;
   dueDate: string;
+  teacherId: string;
   teacherName: string;
   classLabel: string;
   subjectLabel: string;
+  publishedAt: string | null;
   updatedAt: string;
 };

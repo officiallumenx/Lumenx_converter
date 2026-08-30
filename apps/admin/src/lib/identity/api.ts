@@ -1,11 +1,16 @@
 /**
- * Identity API repository — memberships and roles catalog. API auth mode only.
+ * Identity API repository — memberships, profiles, and roles catalog. API auth mode only.
  */
 import { getAdminApiClient } from "@/lib/admin-api";
 import type { AdminApiClient } from "@/lib/api";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { isInstituteUuid } from "@/lib/active-institute";
-import type { ListMembershipsParams, MembershipDto, RoleCatalogItem } from "./types";
+import type {
+  ListMembershipsParams,
+  MembershipDto,
+  ProfileDto,
+  RoleCatalogItem,
+} from "./types";
 
 function assertApiMode(): void {
   if (!isApiAuthMode()) {
@@ -14,6 +19,17 @@ function assertApiMode(): void {
 }
 
 export { assertApiMode };
+
+export async function getProfile(
+  profileId: string,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<ProfileDto> {
+  assertApiMode();
+  if (!isInstituteUuid(profileId)) {
+    throw new Error("profile_id must be a valid UUID");
+  }
+  return client.get<ProfileDto>(`/api/v1/profiles/${profileId.trim()}`);
+}
 
 export async function listMemberships(
   params: ListMembershipsParams,

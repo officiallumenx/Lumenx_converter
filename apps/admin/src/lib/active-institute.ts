@@ -77,13 +77,19 @@ export function accessibleInstituteIds(
 
 /**
  * Resolve active institute from memberships + optional stored preference.
- * Never trusts a stored ID that is not in the accessible membership set.
+ * Never trusts a stored ID that is not in the accessible set.
+ * Platform operators may pass `allowInstituteIds` (e.g. all active institutes
+ * from GET /institutes) instead of membership-scoped IDs.
  */
 export function resolveActiveInstitute(
   memberships: InstituteMembershipRef[],
   storedId: string | null = readStoredActiveInstituteId(),
+  opts?: { allowInstituteIds?: string[] },
 ): ResolveActiveInstituteResult {
-  const accessible = accessibleInstituteIds(memberships);
+  const accessible =
+    opts?.allowInstituteIds !== undefined
+      ? opts.allowInstituteIds.filter((id) => isInstituteUuid(id))
+      : accessibleInstituteIds(memberships);
 
   if (accessible.length === 0) {
     if (storedId) clearStoredActiveInstituteId();
@@ -114,8 +120,12 @@ export function resolveActiveInstitute(
 export function selectActiveInstitute(
   instituteId: string,
   memberships: InstituteMembershipRef[],
+  opts?: { allowInstituteIds?: string[] },
 ): void {
-  const accessible = accessibleInstituteIds(memberships);
+  const accessible =
+    opts?.allowInstituteIds !== undefined
+      ? opts.allowInstituteIds.filter((id) => isInstituteUuid(id))
+      : accessibleInstituteIds(memberships);
   if (!accessible.includes(instituteId)) {
     throw new Error("Selected institute is not available for this account");
   }

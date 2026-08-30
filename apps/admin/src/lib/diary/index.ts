@@ -5,7 +5,7 @@ export type {
   DiaryScope,
   ListDiaryDaysParams,
 } from "./types";
-export { listDiaryDays } from "./api";
+export { listDiaryDays, getDiaryDay } from "./api";
 export { diaryDtoToListItem, diaryDtosToListItems } from "./map";
 export {
   loadDiaryDaysList,

@@ -56,3 +56,33 @@ export async function createReportJob(
     report_id: input.reportId,
   });
 }
+
+export async function downloadReportJob(
+  jobId: string,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<{ blob: Blob; fileName: string }> {
+  assertApiMode();
+  if (!isInstituteUuid(jobId)) {
+    throw new Error("job id must be a valid UUID");
+  }
+  const result = await client.download(
+    `/api/v1/reports/jobs/${jobId.trim()}/download`,
+  );
+  return {
+    blob: result.blob,
+    fileName: result.fileName ?? `report-${jobId}.csv`,
+  };
+}
+
+/** Trigger a browser file save from an authenticated download. */
+export function saveBlobAsFile(blob: Blob, fileName: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}

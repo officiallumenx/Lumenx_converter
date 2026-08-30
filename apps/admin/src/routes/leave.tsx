@@ -42,6 +42,7 @@ import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
   decideLeave,
+  cancelLeave,
   loadLeaveRequestsList,
   resolveLeaveListView,
   shouldCommitLeaveLoad,
@@ -309,6 +310,18 @@ function LeavePage() {
     setNote("");
   };
 
+  const cancelPending = (row: TeacherLeave) => {
+    if (!writesEnabled || !apiMode) return;
+    void cancelLeave(row.id)
+      .then(() => {
+        setReloadKey((k) => k + 1);
+        notify("Leave request cancelled");
+      })
+      .catch((err) => {
+        notify(err instanceof Error ? err.message : "Failed to cancel leave");
+      });
+  };
+
   const confirmDecision = () => {
     if (!decision || decision.action === "approved") return;
     const decidedAt = new Date().toISOString().slice(0, 10);
@@ -500,7 +513,9 @@ function LeavePage() {
                     key={r.id}
                     row={r}
                     onDecide={openDecision}
+                    onCancel={cancelPending}
                     writesEnabled={writesEnabled}
+                    apiMode={apiMode}
                   />
                 ))}
               </tbody>
@@ -718,11 +733,15 @@ function StudentRow({ row }: { row: StudentLeave }) {
 function TeacherRow({
   row,
   onDecide,
+  onCancel,
   writesEnabled,
+  apiMode,
 }: {
   row: TeacherLeave;
   onDecide: (row: TeacherLeave, action: DecisionAction) => void;
+  onCancel: (row: TeacherLeave) => void;
   writesEnabled: boolean;
+  apiMode: boolean;
 }) {
   return (
     <Tr>
@@ -787,6 +806,17 @@ function TeacherRow({
             >
               <X className="size-4" strokeWidth={2.5} />
             </Button>
+            {apiMode ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onCancel(row)}
+                aria-label="Cancel request"
+                title="Cancel request"
+              >
+                Cancel
+              </Button>
+            ) : null}
           </div>
         ) : (
           <span className="text-muted-foreground text-[10px]">—</span>

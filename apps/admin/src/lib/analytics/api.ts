@@ -5,7 +5,11 @@ import { getAdminApiClient } from "@/lib/admin-api";
 import type { AdminApiClient } from "@/lib/api";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { isInstituteUuid } from "@/lib/active-institute";
-import type { AnalyticsSummaryDto } from "./types";
+import type {
+  AnalyticsRange,
+  AnalyticsSeriesDto,
+  AnalyticsSummaryDto,
+} from "./types";
 
 function assertApiMode(): void {
   if (!isApiAuthMode()) {
@@ -26,4 +30,21 @@ export async function getAnalyticsSummary(
   const query = new URLSearchParams();
   query.set("institute_id", instituteId.trim());
   return client.get<AnalyticsSummaryDto>(`/api/v1/analytics?${query.toString()}`);
+}
+
+export async function getAnalyticsSeries(
+  instituteId: string,
+  range: AnalyticsRange = "year",
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<AnalyticsSeriesDto> {
+  assertApiMode();
+  if (!isInstituteUuid(instituteId)) {
+    throw new Error("institute_id must be a valid UUID");
+  }
+  const query = new URLSearchParams();
+  query.set("institute_id", instituteId.trim());
+  query.set("range", range);
+  return client.get<AnalyticsSeriesDto>(
+    `/api/v1/analytics/series?${query.toString()}`,
+  );
 }

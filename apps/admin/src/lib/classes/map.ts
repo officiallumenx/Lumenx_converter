@@ -57,6 +57,8 @@ export function sectionDtoToDetailItem(
   const base = sectionDtoToListItem(section, classesById);
   return {
     ...base,
+    instituteId: section.instituteId,
+    classId: section.classId,
     classCode: cls.code?.trim() || "—",
     classStatus: cls.status,
     sectionStatus: section.status,

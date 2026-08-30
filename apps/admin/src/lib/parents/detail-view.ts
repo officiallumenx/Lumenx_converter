@@ -79,6 +79,20 @@ export function resolveParentsDetailView(
     };
   }
 
+  if (
+    input.storedStatus === "ready" &&
+    input.storedParent &&
+    input.activeInstituteId &&
+    input.storedParent.instituteId !== input.activeInstituteId
+  ) {
+    return {
+      status: "empty",
+      parent: null,
+      errorMessage: "Parent not found for the active institute.",
+      detailValid: true,
+    };
+  }
+
   return {
     status: input.storedStatus,
     parent: input.storedParent,

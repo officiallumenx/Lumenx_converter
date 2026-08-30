@@ -8,7 +8,7 @@ export type {
   TeacherStatus,
   TeachingScope,
 } from "./types";
-export { assertApiMode, listTeachers } from "./api";
+export { assertApiMode, getTeacher, listTeachers } from "./api";
 export {
   createTeacher,
   updateTeacher,
@@ -29,7 +29,9 @@ export {
   teachingScopeToRole,
 } from "./map";
 export {
+  loadTeacherDetail,
   loadTeachersList,
+  type TeacherDetailState,
   type TeachersListState,
   type TeachersListStatus,
 } from "./load";

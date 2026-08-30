@@ -19,7 +19,7 @@ function StudentAttendancePage() {
       title={M.attendance}
       subtitle={
         apiMode
-          ? "API mode · read-only · view attendance registers by class · section · date"
+          ? "API mode · enrollments roster · create / mark / submit registers by class · section · date"
           : "Select class · section · date · mark via Attendance Engine"
       }
     >

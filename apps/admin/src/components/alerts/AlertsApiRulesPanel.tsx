@@ -15,15 +15,17 @@ import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
   createAlertRule,
+  deleteAlertRule,
   loadAlertRules,
   resolveAlertRulesView,
+  runAlertRulesEvaluation,
   shouldCommitAlertRulesLoad,
   updateAlertRule,
   type AlertFireDto,
   type AlertRuleDto,
   type AlertRulesLoadStatus,
 } from "@/lib/alert-rules-api";
-import { Plus, Siren } from "lucide-react";
+import { Pencil, Plus, Play, Siren, Trash2 } from "lucide-react";
 
 function statusHint(status: AlertRulesLoadStatus, error: string | null): string {
   if (status === "loading") return "Loading alert rules…";
@@ -47,10 +49,15 @@ export function AlertsApiRulesPanel() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [evaluating, setEvaluating] = useState(false);
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<AlertRuleDto | null>(null);
   const [ruleName, setRuleName] = useState("");
   const [rulePriority, setRulePriority] = useState("P2");
   const [ruleDesc, setRuleDesc] = useState("");
+  const [ruleTrigger, setRuleTrigger] = useState<AlertRuleDto["iconKey"]>(
+    "complaint",
+  );
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
@@ -99,7 +106,7 @@ export function AlertsApiRulesPanel() {
         return;
       }
       setRules(next.rules);
-      setFired(next.fired);
+      setFired([]);
       setLoadStatus(next.status);
       setLoadError(next.errorMessage);
       setResolvedForInstituteId(requestInstituteId);
@@ -128,23 +135,66 @@ export function AlertsApiRulesPanel() {
 
   const hint = statusHint(view.status, view.errorMessage);
 
-  const createRule = async () => {
-    if (!instituteCtx.activeInstituteId || !ruleName.trim()) return;
+  const resetForm = () => {
+    setEditing(null);
+    setRuleName("");
+    setRuleDesc("");
+    setRulePriority("P2");
+    setRuleTrigger("complaint");
+  };
+
+  const openCreate = () => {
+    resetForm();
+    setOpen(true);
+  };
+
+  const openEdit = (rule: AlertRuleDto) => {
+    setEditing(rule);
+    setRuleName(rule.name);
+    setRuleDesc(rule.desc);
+    setRulePriority(rule.priority);
+    setRuleTrigger(rule.iconKey);
+    setOpen(true);
+  };
+
+  const saveRule = async () => {
+    if (!ruleName.trim()) return;
+    const priority = (
+      ["P0", "P1", "P2", "P3"] as const
+    ).includes(rulePriority as AlertRuleDto["priority"])
+      ? (rulePriority as AlertRuleDto["priority"])
+      : "P2";
     try {
-      await createAlertRule({
-        instituteId: instituteCtx.activeInstituteId,
-        name: ruleName.trim(),
-        desc: ruleDesc.trim() || undefined,
-        priority: rulePriority.startsWith("P0") ? "P0" : "P2",
-        iconKey: "warning",
-      });
-      notify(`Alert rule "${ruleName.trim()}" created`);
-      setRuleName("");
-      setRuleDesc("");
+      if (editing) {
+        await updateAlertRule(editing.id, {
+          name: ruleName.trim(),
+          desc: ruleDesc.trim() || "Custom alert rule",
+          priority,
+          iconKey: ruleTrigger,
+        });
+        notify(`Updated ${ruleName.trim()}`);
+      } else {
+        if (!instituteCtx.activeInstituteId) return;
+        await createAlertRule({
+          instituteId: instituteCtx.activeInstituteId,
+          name: ruleName.trim(),
+          desc: ruleDesc.trim() || undefined,
+          priority,
+          iconKey: ruleTrigger,
+        });
+        notify(`Alert rule "${ruleName.trim()}" created`);
+      }
+      resetForm();
       setOpen(false);
       setReloadKey((k) => k + 1);
     } catch (err) {
-      notify(err instanceof Error ? err.message : "Failed to create rule");
+      notify(
+        err instanceof Error
+          ? err.message
+          : editing
+            ? "Failed to update rule"
+            : "Failed to create rule",
+      );
     }
   };
 
@@ -156,6 +206,36 @@ export function AlertsApiRulesPanel() {
     } catch (err) {
       notify(err instanceof Error ? err.message : "Failed to update rule");
     }
+  };
+
+  const removeRule = async (rule: AlertRuleDto) => {
+    try {
+      await deleteAlertRule(rule.id);
+      notify(`Deleted ${rule.name}`);
+      setReloadKey((k) => k + 1);
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Failed to delete rule");
+    }
+  };
+
+  const runEvaluate = () => {
+    if (!instituteCtx.activeInstituteId || evaluating) return;
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    setEvaluating(true);
+    void runAlertRulesEvaluation(requestInstituteId)
+      .then((nextFired) => {
+        if (activeInstituteIdRef.current !== requestInstituteId) return;
+        setFired(nextFired);
+        notify(
+          nextFired.length === 0
+            ? "Evaluation complete · no rules fired"
+            : `Evaluation complete · ${nextFired.length} fired`,
+        );
+      })
+      .catch((err) => {
+        notify(err instanceof Error ? err.message : "Failed to evaluate alert rules");
+      })
+      .finally(() => setEvaluating(false));
   };
 
   return (
@@ -178,13 +258,24 @@ export function AlertsApiRulesPanel() {
       <Card>
         <CardHeader
           title="Alert rules"
-          hint="Server-backed in-memory stub · evaluate uses open high-priority complaints"
+          hint="Rules persist in alert_rule. Evaluate is on-demand (not stored) and only fires for complaint-trigger rules vs open high-priority complaints."
           action={
-            writesEnabled ? (
-              <Button variant="primary" onClick={() => setOpen(true)}>
-                <Plus className="size-3.5" /> New rule
-              </Button>
-            ) : undefined
+            <div className="flex flex-wrap gap-2">
+              {writesEnabled ? (
+                <Button
+                  variant="outline"
+                  disabled={evaluating || !view.rowsValid}
+                  onClick={runEvaluate}
+                >
+                  <Play className="size-3.5" /> Run evaluation
+                </Button>
+              ) : null}
+              {writesEnabled ? (
+                <Button variant="primary" onClick={openCreate}>
+                  <Plus className="size-3.5" /> New rule
+                </Button>
+              ) : undefined}
+            </div>
           }
         />
         {hint ? (
@@ -201,6 +292,9 @@ export function AlertsApiRulesPanel() {
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="text-sm font-medium">{r.name}</div>
                     <Pill tone={r.priority === "P0" ? "danger" : "warning"}>{r.priority}</Pill>
+                    <Pill tone={r.iconKey === "complaint" ? "success" : "neutral"}>
+                      {r.iconKey === "complaint" ? "complaint · evaluated" : `${r.iconKey} · stored only`}
+                    </Pill>
                     {r.channels.map((c) => (
                       <Pill key={c} tone="neutral">
                         {c}
@@ -214,8 +308,22 @@ export function AlertsApiRulesPanel() {
                     {r.active ? "Active" : "Paused"}
                   </Pill>
                   {writesEnabled ? (
+                    <Button onClick={() => openEdit(r)} aria-label={`Edit ${r.name}`}>
+                      <Pencil className="size-3.5" />
+                    </Button>
+                  ) : null}
+                  {writesEnabled ? (
                     <Button onClick={() => void toggleActive(r)}>
                       {r.active ? "Pause" : "Activate"}
+                    </Button>
+                  ) : null}
+                  {writesEnabled ? (
+                    <Button
+                      variant="outline"
+                      onClick={() => void removeRule(r)}
+                      aria-label={`Delete ${r.name}`}
+                    >
+                      <Trash2 className="size-3.5" />
                     </Button>
                   ) : null}
                 </div>
@@ -227,7 +335,7 @@ export function AlertsApiRulesPanel() {
 
       {view.fired.length > 0 ? (
         <Card className="mt-6">
-          <CardHeader title="Evaluation results" hint="From POST /alert-rules/evaluate" />
+          <CardHeader title="Evaluation results" hint="In-memory for this session. Fires are not written to the database." />
           <div className="px-5 pb-5 space-y-2">
             {view.fired.map((f) => (
               <div key={f.id} className="text-sm border border-border rounded-lg p-3">
@@ -241,13 +349,23 @@ export function AlertsApiRulesPanel() {
 
       <Modal
         open={writesEnabled && open}
-        onClose={() => setOpen(false)}
-        title="New alert rule"
+        onClose={() => {
+          setOpen(false);
+          resetForm();
+        }}
+        title={editing ? "Edit alert rule" : "New alert rule"}
         footer={
           <>
-            <Button onClick={() => setOpen(false)}>Cancel</Button>
-            <Button variant="primary" onClick={() => void createRule()} disabled={!ruleName.trim()}>
-              Create rule
+            <Button
+              onClick={() => {
+                setOpen(false);
+                resetForm();
+              }}
+            >
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={() => void saveRule()} disabled={!ruleName.trim()}>
+              {editing ? "Save changes" : "Create rule"}
             </Button>
           </>
         }
@@ -262,8 +380,26 @@ export function AlertsApiRulesPanel() {
           </Field>
           <Field label="Priority" required>
             <Select value={rulePriority} onChange={(e) => setRulePriority(e.target.value)}>
-              <option>P0 · Critical</option>
-              <option>P2 · Medium</option>
+              <option value="P0">P0 · Critical</option>
+              <option value="P1">P1 · High</option>
+              <option value="P2">P2 · Medium</option>
+              <option value="P3">P3 · Low</option>
+            </Select>
+          </Field>
+          <Field label="Trigger" required>
+            <Select
+              value={ruleTrigger}
+              onChange={(e) =>
+                setRuleTrigger(
+                  (e.target.value as AlertRuleDto["iconKey"]) || "complaint",
+                )
+              }
+            >
+              <option value="complaint">Open high-priority complaints (evaluated)</option>
+              <option value="warning">Warning (stored only · not evaluated)</option>
+              <option value="attendance">Attendance (stored only · not evaluated)</option>
+              <option value="security">Security (stored only · not evaluated)</option>
+              <option value="emergency">Emergency (stored only · not evaluated)</option>
             </Select>
           </Field>
           <Field label="Description">

@@ -3,14 +3,18 @@ import { AppShell } from "@/components/AppShell";
 import { AdminPageTransition } from "@/components/AdminPageTransition";
 import { DocHubNav } from "@/components/documents/DocHubNav";
 import { DocDashboardView } from "@/components/documents/views/DocDashboardView";
+import { DocDashboardApiPanel } from "@/components/documents/views/DocDashboardApiPanel";
 import { DocRequestsView } from "@/components/documents/views/DocRequestsView";
 import { DocPackagesView } from "@/components/documents/views/DocPackagesView";
 import { DocTemplatesView } from "@/components/documents/views/DocTemplatesView";
 import { DocGenerateView } from "@/components/documents/views/DocGenerateView";
+import { DocGenerateApiPanel } from "@/components/documents/views/DocGenerateApiPanel";
 import { DocGeneratedView } from "@/components/documents/views/DocGeneratedView";
 import { DocPublishedView } from "@/components/documents/views/DocPublishedView";
+import { DocPublishedApiPanel } from "@/components/documents/views/DocPublishedApiPanel";
 import { DocSignaturesView } from "@/components/documents/views/DocSignaturesView";
 import { DocCategoriesView } from "@/components/documents/views/DocCategoriesView";
+import { DocCategoriesApiPanel } from "@/components/documents/views/DocCategoriesApiPanel";
 import { DocSettingsView } from "@/components/documents/views/DocSettingsView";
 import { validateHubViewSearch } from "@/lib/hub-view-search";
 import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-labels";
@@ -337,16 +341,24 @@ function DocumentsPage() {
         : `API mode · ${generatedHint ?? "…"}`;
     }
     if (
-      view === "dashboard" ||
       view === "requests" ||
       view === "packages" ||
-      view === "generate" ||
-      view === "published" ||
       view === "signatures" ||
-      view === "categories" ||
       view === "settings"
     ) {
-      return "API mode · read unavailable · no institute read API";
+      return "API mode · read unavailable · no institute schema/API";
+    }
+    if (view === "dashboard") {
+      return "API mode · KPIs from templates + generated";
+    }
+    if (view === "generate") {
+      return "API mode · create draft via documents API";
+    }
+    if (view === "published") {
+      return "API mode · published workflow filter";
+    }
+    if (view === "categories") {
+      return "API mode · categories derived from templates";
     }
     return base;
   }, [
@@ -369,10 +381,7 @@ function DocumentsPage() {
       <AdminPageTransition pageKey={view}>
         {view === "dashboard" ? (
           apiMode ? (
-            <ApiReadUnavailablePanel
-              title="Documents dashboard unavailable in API mode"
-              domainLabel="Documents dashboard"
-            />
+            <DocDashboardApiPanel />
           ) : (
             <DocDashboardView />
           )
@@ -382,6 +391,7 @@ function DocumentsPage() {
             <ApiReadUnavailablePanel
               title="Document requests unavailable in API mode"
               domainLabel="Document requests"
+              hint="No document_request table or API. Student/staff request intake is a separate product workflow."
             />
           ) : (
             <DocRequestsView />
@@ -392,6 +402,7 @@ function DocumentsPage() {
             <ApiReadUnavailablePanel
               title="Document packages unavailable in API mode"
               domainLabel="Document packages"
+              hint="No document_package schema. Bundle sets are not modeled in the documents foundation."
             />
           ) : (
             <DocPackagesView />
@@ -415,11 +426,7 @@ function DocumentsPage() {
         )}
         {view === "generate" ? (
           apiMode ? (
-            <ApiReadUnavailablePanel
-              title="Document generation unavailable in API mode"
-              domainLabel="Document generation"
-              hint="Generation is a write workflow and there is no read-only API cutover for this tab yet. Demo generation is not available in API mode."
-            />
+            <DocGenerateApiPanel />
           ) : (
             <DocGenerateView onViewGenerated={() => goToView("generated")} />
           )
@@ -474,11 +481,7 @@ function DocumentsPage() {
         )}
         {view === "published" ? (
           apiMode ? (
-            <ApiReadUnavailablePanel
-              title="Published documents unavailable in API mode"
-              domainLabel="Published documents catalog"
-              hint="Use Certificates or Documents → Generated for API-backed read views. This published hub tab has no institute read API yet."
-            />
+            <DocPublishedApiPanel />
           ) : (
             <DocPublishedView />
           )
@@ -488,6 +491,7 @@ function DocumentsPage() {
             <ApiReadUnavailablePanel
               title="Signatures unavailable in API mode"
               domainLabel="Document signatures"
+              hint="Signature capture was deferred in the documents foundation migration (no signatory table)."
             />
           ) : (
             <DocSignaturesView />
@@ -495,10 +499,7 @@ function DocumentsPage() {
         ) : null}
         {view === "categories" ? (
           apiMode ? (
-            <ApiReadUnavailablePanel
-              title="Categories unavailable in API mode"
-              domainLabel="Document categories"
-            />
+            <DocCategoriesApiPanel />
           ) : (
             <DocCategoriesView />
           )
@@ -508,6 +509,7 @@ function DocumentsPage() {
             <ApiReadUnavailablePanel
               title="Studio settings unavailable in API mode"
               domainLabel="Document studio settings"
+              hint="No document studio settings table (numbering/watermark/Connect sync config)."
             />
           ) : (
             <DocSettingsView />

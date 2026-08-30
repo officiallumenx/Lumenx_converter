@@ -60,6 +60,7 @@ export type ParentListItem = {
 };
 
 export type ParentDetailItem = ParentListItem & {
+  instituteId: string;
   legacyCode: string | null;
   updatedAt: string;
   links: GuardianLinkDto[];

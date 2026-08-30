@@ -10,6 +10,9 @@ import {
   Th,
   Modal,
   CascadingFiltersMenu,
+  Field,
+  Select,
+  TextInput,
 } from "@lumenx/ui-admin";
 import {
   ADMIN_CLASSES,
@@ -34,19 +37,48 @@ import {
   notifyAdminMarksPending,
   notifyTeacherMarksDeadline,
 } from "@lumenx/module-notifications";
-import { BellRing, CheckCircle2, Clock, Eye, Lock, RotateCcw, Send, Siren, X } from "lucide-react";
+import {
+  BellRing,
+  CheckCircle2,
+  Clock,
+  Eye,
+  Lock,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Send,
+  Siren,
+  X,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
+import { classLabelForSection } from "@/lib/classes/map";
+import { listClassesCatalog } from "@/lib/classes/api";
+import type { ClassDto, SectionDto } from "@/lib/classes/types";
+import { listEnrollments } from "@/lib/enrollments/api";
+import type { EnrollmentDto } from "@/lib/enrollments/types";
+import { listExams } from "@/lib/exams/api";
+import type { ExamDto } from "@/lib/exams/types";
+import { listSubjects } from "@/lib/subjects/api";
+import type { SubjectDto } from "@/lib/subjects/types";
+import { listTeachers, teacherDtosToListItems, type TeacherListItem } from "@/lib/teachers";
 import {
+  createMarkEntry,
+  getMarkEntry,
+  isMarksEntryEditable,
   loadMarksList,
+  markEntryDtoToListItem,
   publishMarkEntry as publishMarkEntryApi,
   rejectMarkEntry as rejectMarkEntryApi,
   resolveMarksListView,
   returnMarkEntry as returnMarkEntryApi,
   shouldCommitMarksLoad,
+  submitMarkEntry,
+  updateMarkEntry,
   type MarkEntryListItem,
+  type MarkStudentScoreItem,
   type MarksListStatus,
 } from "@/lib/marks";
 import { adminDataFacade } from "@/lib/admin-data-facade";
@@ -112,6 +144,25 @@ function MarksPage() {
   const [q, setQ] = useState("");
   const [reviewEntry, setReviewEntry] = useState<MarkRow | null>(null);
   const [alertOpen, setAlertOpen] = useState(false);
+  const [mutating, setMutating] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  const [catalogSections, setCatalogSections] = useState<SectionDto[]>([]);
+  const [catalogClasses, setCatalogClasses] = useState<ClassDto[]>([]);
+  const [exams, setExams] = useState<ExamDto[]>([]);
+  const [subjects, setSubjects] = useState<SubjectDto[]>([]);
+  const [teachersCatalog, setTeachersCatalog] = useState<TeacherListItem[]>([]);
+
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+  const [formExamId, setFormExamId] = useState("");
+  const [formSectionId, setFormSectionId] = useState("");
+  const [formSubjectId, setFormSubjectId] = useState("");
+  const [formTeacherId, setFormTeacherId] = useState("");
+  const [formMaxMarks, setFormMaxMarks] = useState(100);
+  const [formScores, setFormScores] = useState<MarkStudentScoreItem[]>([]);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [formLoadingRoster, setFormLoadingRoster] = useState(false);
 
   useEffect(() => {
     if (!apiMode) return;
@@ -153,21 +204,51 @@ function MarksPage() {
     let cancelled = false;
     setListStatus("loading");
     setListError(null);
-    void loadMarksList(requestInstituteId).then((next) => {
-      if (
-        !shouldCommitMarksLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setApiItems(next.items);
-      setListStatus(next.status);
-      setListError(next.errorMessage);
-      setResolvedForInstituteId(requestInstituteId);
-    });
+    setFormOpen(false);
+    setReviewEntry(null);
+    void Promise.all([
+      loadMarksList(requestInstituteId),
+      listClassesCatalog({ instituteId: requestInstituteId }),
+      listExams({ instituteId: requestInstituteId }),
+      listSubjects({ instituteId: requestInstituteId }),
+      listTeachers({ instituteId: requestInstituteId }).then(teacherDtosToListItems),
+    ]).then(
+      ([next, catalog, examRows, subjectRows, teacherRows]) => {
+        if (
+          !shouldCommitMarksLoad({
+            cancelled,
+            requestInstituteId,
+            activeInstituteId: activeInstituteIdRef.current,
+          })
+        ) {
+          return;
+        }
+        setApiItems(next.items);
+        setListStatus(next.status);
+        setListError(next.errorMessage);
+        setResolvedForInstituteId(requestInstituteId);
+        setCatalogSections(catalog.sections);
+        setCatalogClasses(catalog.classes);
+        setExams(examRows);
+        setSubjects(subjectRows);
+        setTeachersCatalog(teacherRows);
+      },
+      (err) => {
+        if (
+          !shouldCommitMarksLoad({
+            cancelled,
+            requestInstituteId,
+            activeInstituteId: activeInstituteIdRef.current,
+          })
+        ) {
+          return;
+        }
+        setApiItems([]);
+        setListStatus("error");
+        setListError(err instanceof Error ? err.message : "Failed to load marks");
+        setResolvedForInstituteId(requestInstituteId);
+      },
+    );
     return () => {
       cancelled = true;
     };
@@ -188,7 +269,84 @@ function MarksPage() {
     setQ("");
     setReviewEntry(null);
     setAlertOpen(false);
+    setFormOpen(false);
   }, [instituteCtx.activeInstituteId]);
+
+  const sectionPickerOptions = useMemo(() => {
+    const classesById = new Map(catalogClasses.map((cls) => [cls.id, cls]));
+    return [...catalogSections]
+      .map((sectionRow) => ({
+        id: sectionRow.id,
+        label: `${classLabelForSection(sectionRow, classesById)} · Sec ${
+          sectionRow.code?.trim() || sectionRow.name?.trim() || sectionRow.id.slice(0, 8)
+        }`,
+        academicYearId: sectionRow.academicYearId,
+        classId: sectionRow.classId,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [catalogSections, catalogClasses]);
+
+  const examSubjectIds = useMemo(() => {
+    const exam = exams.find((row) => row.id === formExamId);
+    if (!exam) return null;
+    const ids = exam.subjectSchedules.map((s) => s.subjectId);
+    return ids.length > 0 ? new Set(ids) : null;
+  }, [exams, formExamId]);
+
+  const formSubjectOptions = useMemo(() => {
+    if (!examSubjectIds) return subjects;
+    return subjects.filter((s) => examSubjectIds.has(s.id));
+  }, [subjects, examSubjectIds]);
+
+  useEffect(() => {
+    if (!apiMode || !formOpen || !formSectionId || !instituteCtx.activeInstituteId) {
+      return;
+    }
+    if (editingEntryId) return;
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    const requestSectionId = formSectionId;
+    let cancelled = false;
+    setFormLoadingRoster(true);
+    void listEnrollments({
+      instituteId: requestInstituteId,
+      sectionId: requestSectionId,
+      status: "active",
+    })
+      .then((rows: EnrollmentDto[]) => {
+        if (
+          cancelled ||
+          activeInstituteIdRef.current !== requestInstituteId ||
+          formSectionId !== requestSectionId
+        ) {
+          return;
+        }
+        setFormScores(
+          rows
+            .slice()
+            .sort((a, b) => a.rollNo.localeCompare(b.rollNo) || a.studentName.localeCompare(b.studentName))
+            .map((row) => ({
+              studentId: row.studentId,
+              enrollmentId: row.id,
+              rollNo: row.rollNo || "—",
+              name: row.studentName || "Student",
+              marks: null,
+            })),
+        );
+      })
+      .catch((err) => {
+        if (cancelled || activeInstituteIdRef.current !== requestInstituteId) return;
+        setFormScores([]);
+        setFormError(
+          err instanceof Error ? err.message : "Failed to load section enrollments",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setFormLoadingRoster(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiMode, formOpen, formSectionId, instituteCtx.activeInstituteId, editingEntryId]);
 
   const listHint =
     listView.status === "loading"
@@ -274,8 +432,199 @@ function MarksPage() {
     adminDataFacade.marks.channel.mutate(() => next);
   };
 
+  const resetForm = () => {
+    setEditingEntryId(null);
+    setFormExamId("");
+    setFormSectionId("");
+    setFormSubjectId("");
+    setFormTeacherId("");
+    setFormMaxMarks(100);
+    setFormScores([]);
+    setFormError(null);
+  };
+
+  const openCreate = () => {
+    if (!writesEnabled || !apiMode) return;
+    resetForm();
+    setFormOpen(true);
+  };
+
   const openEntry = (entry: MarkRow) => {
+    if (!apiMode) {
+      setReviewEntry(entry);
+      return;
+    }
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    if (!requestInstituteId) return;
+    setDetailLoading(true);
     setReviewEntry(entry);
+    void getMarkEntry(entry.id)
+      .then(async (dto) => {
+        if (activeInstituteIdRef.current !== requestInstituteId) return;
+        const enrollments = await listEnrollments({
+          instituteId: requestInstituteId,
+          sectionId: dto.sectionId,
+          status: "active",
+        }).catch(() => [] as EnrollmentDto[]);
+        if (activeInstituteIdRef.current !== requestInstituteId) return;
+        const enrollmentsById = new Map(
+          enrollments.map((row) => [row.id, row]),
+        );
+        const detailed = markEntryDtoToListItem(dto, {
+          examsById: new Map(exams.map((exam) => [exam.id, exam])),
+          subjectsById: new Map(subjects.map((subject) => [subject.id, subject])),
+          teachersById: new Map(
+            teachersCatalog.map((teacher) => [teacher.id, teacher]),
+          ),
+          classesById: new Map(catalogClasses.map((cls) => [cls.id, cls])),
+          sectionsById: new Map(
+            catalogSections.map((sectionRow) => [sectionRow.id, sectionRow]),
+          ),
+          enrollmentsById,
+        });
+        setReviewEntry(detailed);
+        setApiItems((prev) =>
+          prev.map((row) => (row.id === detailed.id ? { ...row, ...detailed } : row)),
+        );
+      })
+      .catch((err) => {
+        notify(err instanceof Error ? err.message : "Failed to load mark entry detail");
+      })
+      .finally(() => setDetailLoading(false));
+  };
+
+  const openEditFromReview = () => {
+    if (!writesEnabled || !apiMode || !reviewEntry) return;
+    if (!isMarksEntryEditable(reviewEntry.status)) return;
+    const apiEntry = reviewEntry as MarkEntryListItem;
+    setEditingEntryId(apiEntry.id);
+    setFormExamId(apiEntry.examId);
+    setFormSectionId(apiEntry.sectionId ?? "");
+    setFormSubjectId(apiEntry.subjectId ?? "");
+    setFormTeacherId(apiEntry.teacherId);
+    setFormMaxMarks(apiEntry.maxMarks);
+    setFormScores(
+      apiEntry.students.map((student) => ({
+        ...student,
+        enrollmentId: student.enrollmentId,
+      })),
+    );
+    setFormError(null);
+    setReviewEntry(null);
+    setFormOpen(true);
+  };
+
+  const saveForm = (submitAfter: boolean) => {
+    if (!writesEnabled || !apiMode || mutating) return;
+    const instituteId = instituteCtx.activeInstituteId;
+    if (!instituteId) {
+      setFormError("Select an institute before saving");
+      return;
+    }
+
+    const scoresPayload = formScores
+      .filter((row) => row.enrollmentId)
+      .map((row) => ({
+        enrollmentId: row.enrollmentId!,
+        marks: row.marks,
+      }));
+
+    if (editingEntryId) {
+      if (scoresPayload.length === 0) {
+        setFormError("Scores require enrollment ids from the mark entry");
+        return;
+      }
+      if (formMaxMarks < 1) {
+        setFormError("Max marks must be at least 1");
+        return;
+      }
+      setMutating(true);
+      setFormError(null);
+      void updateMarkEntry(editingEntryId, {
+        maxMarks: formMaxMarks,
+        scores: scoresPayload,
+      })
+        .then(async () => {
+          if (activeInstituteIdRef.current !== instituteId) return;
+          if (submitAfter) {
+            await submitMarkEntry(editingEntryId);
+          }
+          if (activeInstituteIdRef.current !== instituteId) return;
+          setFormOpen(false);
+          resetForm();
+          setReloadKey((k) => k + 1);
+          notify(submitAfter ? "Marks updated and submitted" : "Marks updated");
+        })
+        .catch((err) => {
+          setFormError(err instanceof Error ? err.message : "Failed to update marks");
+        })
+        .finally(() => setMutating(false));
+      return;
+    }
+
+    if (!formExamId || !formSectionId || !formSubjectId || !formTeacherId) {
+      setFormError("Exam, section, subject, and teacher are required");
+      return;
+    }
+    const sectionMeta = sectionPickerOptions.find((row) => row.id === formSectionId);
+    if (!sectionMeta) {
+      setFormError("Select a valid section");
+      return;
+    }
+    if (formMaxMarks < 1) {
+      setFormError("Max marks must be at least 1");
+      return;
+    }
+
+    setMutating(true);
+    setFormError(null);
+    void createMarkEntry({
+      instituteId,
+      academicYearId: sectionMeta.academicYearId,
+      classId: sectionMeta.classId,
+      sectionId: sectionMeta.id,
+      examId: formExamId,
+      subjectId: formSubjectId,
+      teacherId: formTeacherId,
+      maxMarks: formMaxMarks,
+      scores: scoresPayload,
+    })
+      .then(async (created) => {
+        if (activeInstituteIdRef.current !== instituteId) return;
+        if (submitAfter) {
+          await submitMarkEntry(created.id);
+        }
+        if (activeInstituteIdRef.current !== instituteId) return;
+        setFormOpen(false);
+        resetForm();
+        setReloadKey((k) => k + 1);
+        setStage(submitAfter ? "ready" : "waiting");
+        notify(submitAfter ? "Mark entry created and submitted" : "Mark entry created");
+      })
+      .catch((err) => {
+        setFormError(err instanceof Error ? err.message : "Failed to create mark entry");
+      })
+      .finally(() => setMutating(false));
+  };
+
+  const submitFromReview = () => {
+    if (!writesEnabled || !apiMode || !reviewEntry || mutating) return;
+    if (!isMarksEntryEditable(reviewEntry.status)) return;
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    if (!requestInstituteId) return;
+    setMutating(true);
+    void submitMarkEntry(reviewEntry.id)
+      .then(() => {
+        if (activeInstituteIdRef.current !== requestInstituteId) return;
+        setReviewEntry(null);
+        setReloadKey((k) => k + 1);
+        setStage("ready");
+        notify("Marks submitted for review");
+      })
+      .catch((err) => {
+        notify(err instanceof Error ? err.message : "Failed to submit marks");
+      })
+      .finally(() => setMutating(false));
   };
 
   const approveOne = () => {
@@ -389,6 +738,11 @@ function MarksPage() {
   };
 
   const canReview = writesEnabled && reviewEntry?.status === "submitted";
+  const canEditScores =
+    apiMode &&
+    writesEnabled &&
+    reviewEntry &&
+    isMarksEntryEditable(reviewEntry.status);
   const isLocked = reviewEntry?.status === "published";
 
   return (
@@ -396,19 +750,26 @@ function MarksPage() {
       title="Marks"
       subtitle={
         apiMode
-          ? `API mode · approve / return / reject · ${countLabel(activeEntries.length)} entries · names not resolved in list view`
+          ? writesEnabled
+            ? `API mode · create / edit / submit / approve · ${countLabel(activeEntries.length)} entries`
+            : `API mode · read-only · ${countLabel(activeEntries.length)} entries`
           : "Teacher enter → edit → submit → Admin approve / reject / return → publish to students & parents (Admin cannot edit scores)"
       }
       actions={
         writesEnabled ? (
           <>
+            {apiMode ? (
+              <Button variant="primary" onClick={openCreate}>
+                <Plus className="size-3.5" /> New mark entry
+              </Button>
+            ) : null}
             {summary.pending > 0 ? (
               <Button variant="outline" onClick={() => setAlertOpen(true)}>
                 <Siren className="size-3.5" /> Alert pending teachers ({pendingTeachers.length})
               </Button>
             ) : null}
             {stage === "ready" ? (
-              <Button variant="primary" onClick={approveAllReady} disabled={list.length === 0}>
+              <Button variant="primary" onClick={approveAllReady} disabled={list.length === 0 || mutating}>
                 <Send className="size-3.5" /> Approve all ready ({list.length})
               </Button>
             ) : null}
@@ -663,19 +1024,38 @@ function MarksPage() {
                 Close
               </Button>
               <div className="ml-auto flex flex-wrap gap-2">
+                {canEditScores ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      disabled={mutating || detailLoading}
+                      onClick={openEditFromReview}
+                    >
+                      <Pencil className="size-3.5" /> Edit scores
+                    </Button>
+                    <Button
+                      variant="primary"
+                      disabled={mutating || detailLoading}
+                      onClick={submitFromReview}
+                    >
+                      <Send className="size-3.5" /> Submit
+                    </Button>
+                  </>
+                ) : null}
                 {canReview ? (
                   <>
-                    <Button variant="outline" onClick={returnOne}>
+                    <Button variant="outline" disabled={mutating} onClick={returnOne}>
                       <RotateCcw className="size-3.5" /> Return to Teacher
                     </Button>
                     <Button
                       variant="outline"
                       className="!border-destructive/40 !text-destructive hover:!bg-destructive/10"
+                      disabled={mutating}
                       onClick={rejectOne}
                     >
                       <X className="size-3.5" /> Reject
                     </Button>
-                    <Button variant="primary" onClick={approveOne}>
+                    <Button variant="primary" disabled={mutating} onClick={approveOne}>
                       <Send className="size-3.5" /> Approve
                     </Button>
                   </>
@@ -687,13 +1067,18 @@ function MarksPage() {
       >
         {reviewEntry ? (
           <div className="space-y-3">
+            {detailLoading ? (
+              <p className="text-sm text-muted-foreground">Loading scores…</p>
+            ) : null}
             {stageFromStatus(reviewEntry.status) === "waiting" && (
               <Banner tone="waiting">
                 {reviewEntry.status === "returned"
-                  ? "Returned to teacher for correction. Waiting for resubmit."
+                  ? "Returned for correction. Edit scores and submit again."
                   : reviewEntry.status === "rejected"
-                    ? "Rejected. Waiting for the teacher to enter and resubmit marks."
-                    : "Waiting for this teacher to enter and submit marks. You cannot approve yet."}
+                    ? "Rejected. Edit scores and submit again."
+                    : apiMode
+                      ? "Draft / pending entry. Edit scores and submit for review."
+                      : "Waiting for this teacher to enter and submit marks. You cannot approve yet."}
                 {reviewEntry.adminNote ? (
                   <span className="mt-1 block text-[11px] opacity-90">Note: {reviewEntry.adminNote}</span>
                 ) : null}
@@ -702,14 +1087,12 @@ function MarksPage() {
             {stageFromStatus(reviewEntry.status) === "ready" && (
               <Banner tone="ready">
                 Teacher submitted these marks. Approve to publish, Reject, or Return to Teacher.
-                Admin cannot edit scores.
               </Banner>
             )}
             {isLocked && (
               <Banner tone="published">
                 <Lock className="size-3.5 shrink-0" />
-                Approved and published. Students and parents can view these marks. Admin cannot edit
-                scores after publish.
+                Approved and published. Students and parents can view these marks.
               </Banner>
             )}
 
@@ -733,7 +1116,7 @@ function MarksPage() {
                         ? Math.round((num / reviewEntry.maxMarks) * 100)
                         : null;
                     return (
-                      <tr key={s.studentId}>
+                      <tr key={"enrollmentId" in s && s.enrollmentId ? s.enrollmentId : s.studentId}>
                         <td className="px-3 py-2 font-mono text-xs">{s.rollNo}</td>
                         <td className="px-3 py-2 text-xs font-medium">{s.name}</td>
                         <td className="px-3 py-2 text-right">
@@ -752,6 +1135,190 @@ function MarksPage() {
             </div>
           </div>
         ) : null}
+      </Modal>
+
+      <Modal
+        open={formOpen}
+        onClose={() => {
+          if (mutating) return;
+          setFormOpen(false);
+          resetForm();
+        }}
+        title={editingEntryId ? "Edit mark entry" : "New mark entry"}
+        subtitle="Use real exams, sections, teachers, and enrollments"
+        size="lg"
+        footer={
+          <>
+            <Button
+              variant="outline"
+              disabled={mutating}
+              onClick={() => {
+                setFormOpen(false);
+                resetForm();
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="outline"
+              disabled={mutating || formLoadingRoster}
+              onClick={() => saveForm(false)}
+            >
+              Save draft
+            </Button>
+            <Button
+              variant="primary"
+              disabled={mutating || formLoadingRoster}
+              onClick={() => saveForm(true)}
+            >
+              Save & submit
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          {formError ? (
+            <p className="text-sm text-destructive" role="alert">
+              {formError}
+            </p>
+          ) : null}
+          {!editingEntryId ? (
+            <>
+              <Field label="Exam">
+                <Select
+                  value={formExamId}
+                  disabled={mutating}
+                  onChange={(e) => {
+                    const nextExamId = e.target.value;
+                    setFormExamId(nextExamId);
+                    const exam = exams.find((row) => row.id === nextExamId);
+                    if (exam?.totalMarks) setFormMaxMarks(exam.totalMarks);
+                    setFormSubjectId("");
+                    setFormError(null);
+                  }}
+                >
+                  <option value="">Select exam</option>
+                  {exams.map((exam) => (
+                    <option key={exam.id} value={exam.id}>
+                      {exam.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Section">
+                <Select
+                  value={formSectionId}
+                  disabled={mutating}
+                  onChange={(e) => {
+                    setFormSectionId(e.target.value);
+                    setFormError(null);
+                  }}
+                >
+                  <option value="">Select section</option>
+                  {sectionPickerOptions.map((opt) => (
+                    <option key={opt.id} value={opt.id}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Subject">
+                  <Select
+                    value={formSubjectId}
+                    disabled={mutating || !formExamId}
+                    onChange={(e) => setFormSubjectId(e.target.value)}
+                  >
+                    <option value="">Select subject</option>
+                    {formSubjectOptions.map((subject) => (
+                      <option key={subject.id} value={subject.id}>
+                        {subject.name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Teacher">
+                  <Select
+                    value={formTeacherId}
+                    disabled={mutating}
+                    onChange={(e) => setFormTeacherId(e.target.value)}
+                  >
+                    <option value="">Select teacher</option>
+                    {teachersCatalog.map((teacher) => (
+                      <option key={teacher.id} value={teacher.id}>
+                        {teacher.name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              </div>
+            </>
+          ) : null}
+          <Field label="Max marks">
+            <TextInput
+              type="number"
+              min={1}
+              value={String(formMaxMarks)}
+              disabled={mutating}
+              onChange={(e) => setFormMaxMarks(Math.max(1, Number(e.target.value) || 1))}
+            />
+          </Field>
+          <div className="space-y-2">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Scores
+              {formLoadingRoster ? " · loading roster…" : ""}
+            </div>
+            {formScores.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                {formSectionId
+                  ? "No active enrollments for this section."
+                  : "Select a section to load enrolled students."}
+              </p>
+            ) : (
+              <div className="max-h-72 overflow-y-auto rounded-lg border border-border">
+                <table className="w-full border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-muted/40 text-[10px] uppercase tracking-wider text-muted-foreground">
+                      <th className="px-3 py-2 text-left">Roll</th>
+                      <th className="px-3 py-2 text-left">Student</th>
+                      <th className="px-3 py-2 text-right">Marks</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {formScores.map((row, index) => (
+                      <tr key={row.enrollmentId ?? row.studentId}>
+                        <td className="px-3 py-2 font-mono text-xs">{row.rollNo}</td>
+                        <td className="px-3 py-2 text-xs font-medium">{row.name}</td>
+                        <td className="px-3 py-2 text-right">
+                          <TextInput
+                            type="number"
+                            min={0}
+                            max={formMaxMarks}
+                            className="ml-auto w-24 text-right"
+                            value={row.marks == null ? "" : String(row.marks)}
+                            disabled={mutating}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              const nextMarks =
+                                raw.trim() === ""
+                                  ? null
+                                  : Math.max(0, Math.min(formMaxMarks, Number(raw) || 0));
+                              setFormScores((prev) =>
+                                prev.map((score, i) =>
+                                  i === index ? { ...score, marks: nextMarks } : score,
+                                ),
+                              );
+                            }}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
       </Modal>
 
       {writesEnabled ? (

@@ -43,6 +43,7 @@ export type TeacherDto = {
  */
 export type TeacherListItem = {
   id: string;
+  instituteId: string;
   name: string;
   role: TeacherRole;
   dept: string;

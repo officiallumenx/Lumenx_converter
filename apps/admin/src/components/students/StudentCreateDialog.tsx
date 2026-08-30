@@ -17,11 +17,11 @@ import {
   type StudentGender,
 } from "@/lib/student-directory-store";
 
-function emptyDraft(academic: DemoAcademicConfig): StudentDraft {
+function emptyDraft(academic: DemoAcademicConfig | null): StudentDraft {
   return {
     firstName: "",
     surname: "",
-    className: academic.levels[0]?.label ?? "",
+    className: academic?.levels[0]?.label ?? "",
     section: "",
     parentName: "",
     parentPhone: "",
@@ -40,11 +40,14 @@ function emptyDraft(academic: DemoAcademicConfig): StudentDraft {
 export function StudentCreateDialog({
   open,
   academic,
+  apiMode = false,
   onClose,
   onCreate,
 }: {
   open: boolean;
-  academic: DemoAcademicConfig;
+  academic: DemoAcademicConfig | null;
+  /** When true, class/section are free text and parent/Connect fields are omitted. */
+  apiMode?: boolean;
   onClose: () => void;
   onCreate: (draft: StudentDraft, addSibling: boolean) => void;
 }) {
@@ -58,7 +61,7 @@ export function StudentCreateDialog({
   }, [open, academic]);
 
   const submit = (addSibling: boolean) => {
-    const validationErrors = validateStudentDraft(draft);
+    const validationErrors = validateStudentDraft(draft, { apiMode });
     if (validationErrors.length > 0) {
       setErrors(validationErrors);
       return;
@@ -80,14 +83,20 @@ export function StudentCreateDialog({
       open={open}
       onClose={onClose}
       title="Add student"
-      subtitle="Required academic and parent details are marked below"
+      subtitle={
+        apiMode
+          ? "Creates a student via POST /api/v1/students"
+          : "Required academic and parent details are marked below"
+      }
       size="xl"
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button onClick={() => submit(true)}>
-            <Users className="size-3.5" /> Save & Add Sibling
-          </Button>
+          {!apiMode ? (
+            <Button onClick={() => submit(true)}>
+              <Users className="size-3.5" /> Save & Add Sibling
+            </Button>
+          ) : null}
           <Button variant="primary" onClick={() => submit(false)}>
             <UserPlus className="size-3.5" /> Create Student
           </Button>
@@ -109,30 +118,49 @@ export function StudentCreateDialog({
             placeholder="Sharma"
           />
         </Field>
-        <Field label={academic.mode === "college" ? "Year" : "Class"} required>
-          <Select
-            value={draft.className}
-            onChange={(event) => setDraft({ ...draft, className: event.target.value })}
-          >
-            {academic.levels.map((level) => (
-              <option key={level.id} value={level.label}>
-                {level.label}
-              </option>
-            ))}
-          </Select>
+        <Field
+          label={!apiMode && academic?.mode === "college" ? "Year" : "Class"}
+          required
+        >
+          {apiMode || !academic ? (
+            <TextInput
+              value={draft.className}
+              onChange={(event) => setDraft({ ...draft, className: event.target.value })}
+              placeholder="Grade 10"
+            />
+          ) : (
+            <Select
+              value={draft.className}
+              onChange={(event) => setDraft({ ...draft, className: event.target.value })}
+            >
+              {academic.levels.map((level) => (
+                <option key={level.id} value={level.label}>
+                  {level.label}
+                </option>
+              ))}
+            </Select>
+          )}
         </Field>
         <Field label="Section" hint="Optional">
-          <Select
-            value={draft.section}
-            onChange={(event) => setDraft({ ...draft, section: event.target.value })}
-          >
-            <option value="">Not assigned</option>
-            {academic.sections.map((section) => (
-              <option key={section} value={section}>
-                {section}
-              </option>
-            ))}
-          </Select>
+          {apiMode || !academic ? (
+            <TextInput
+              value={draft.section}
+              onChange={(event) => setDraft({ ...draft, section: event.target.value })}
+              placeholder="A"
+            />
+          ) : (
+            <Select
+              value={draft.section}
+              onChange={(event) => setDraft({ ...draft, section: event.target.value })}
+            >
+              <option value="">Not assigned</option>
+              {academic.sections.map((section) => (
+                <option key={section} value={section}>
+                  {section}
+                </option>
+              ))}
+            </Select>
+          )}
         </Field>
         <Field label="Gender" required>
           <Select
@@ -171,36 +199,108 @@ export function StudentCreateDialog({
         </Field>
       </div>
 
-      <div className="my-5 border-t border-border" />
-      <div className="mb-3 flex items-center gap-2">
-        <Users className="size-4 text-primary" />
-        <div>
-          <div className="text-xs font-semibold">Parent details</div>
-          <div className="text-[11px] text-muted-foreground">
-            Save & Add Sibling keeps these details for the next student.
+      {!apiMode ? (
+        <>
+          <div className="my-5 border-t border-border" />
+          <div className="mb-3 flex items-center gap-2">
+            <Users className="size-4 text-primary" />
+            <div>
+              <div className="text-xs font-semibold">Parent details</div>
+              <div className="text-[11px] text-muted-foreground">
+                Save & Add Sibling keeps these details for the next student.
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Field label="Parent name" required>
-          <TextInput
-            value={draft.parentName}
-            onChange={(event) => setDraft({ ...draft, parentName: event.target.value })}
-            placeholder="Rohan Sharma"
-          />
-        </Field>
-        <Field label="Parent phone" required hint="Exactly 10 digits">
-          <TextInput
-            value={draft.parentPhone}
-            onChange={(event) =>
-              setDraft({ ...draft, parentPhone: normalizePhone(event.target.value) })
-            }
-            inputMode="numeric"
-            maxLength={10}
-            placeholder="9876543210"
-          />
-        </Field>
-        <div className="sm:col-span-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Parent name" required>
+              <TextInput
+                value={draft.parentName}
+                onChange={(event) => setDraft({ ...draft, parentName: event.target.value })}
+                placeholder="Rohan Sharma"
+              />
+            </Field>
+            <Field label="Parent phone" required hint="Exactly 10 digits">
+              <TextInput
+                value={draft.parentPhone}
+                onChange={(event) =>
+                  setDraft({ ...draft, parentPhone: normalizePhone(event.target.value) })
+                }
+                inputMode="numeric"
+                maxLength={10}
+                placeholder="9876543210"
+              />
+            </Field>
+            <div className="sm:col-span-2">
+              <Field label="Address" required>
+                <TextArea
+                  value={draft.address}
+                  onChange={(event) => setDraft({ ...draft, address: event.target.value })}
+                  placeholder="Complete residential address"
+                />
+              </Field>
+            </div>
+          </div>
+
+          <div className="my-5 border-t border-border" />
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-background/40 p-4 hover:border-primary/35">
+            <input
+              type="checkbox"
+              checked={draft.createConnectAccount}
+              onChange={(event) =>
+                setDraft({ ...draft, createConnectAccount: event.target.checked })
+              }
+              className="mt-0.5 size-4 accent-primary"
+            />
+            <KeyRound className="size-4 shrink-0 text-primary" />
+            <span>
+              <span className="block text-xs font-semibold">Create Student Connect account</span>
+              <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                Student can use mobile, email, or either one when both are entered.
+              </span>
+            </span>
+          </label>
+
+          {draft.createConnectAccount ? (
+            <div className="mt-4 grid grid-cols-1 gap-4 rounded-xl border border-primary/20 bg-primary/[0.03] p-4 sm:grid-cols-2">
+              <Field label="Student phone" hint="Optional if email is entered · 10 digits">
+                <TextInput
+                  value={draft.studentPhone}
+                  onChange={(event) =>
+                    setDraft({ ...draft, studentPhone: normalizePhone(event.target.value) })
+                  }
+                  inputMode="numeric"
+                  maxLength={10}
+                  placeholder="9876543210"
+                />
+              </Field>
+              <Field label="Student email" hint="Optional if phone is entered">
+                <TextInput
+                  type="email"
+                  value={draft.studentEmail}
+                  onChange={(event) => setDraft({ ...draft, studentEmail: event.target.value })}
+                  placeholder="student@institute.edu"
+                />
+              </Field>
+              <div className="sm:col-span-2">
+                <Field
+                  label="Admin demo password"
+                  required
+                  hint="Student changes it after OTP on first login"
+                >
+                  <TextInput
+                    value={draft.temporaryPassword}
+                    onChange={(event) =>
+                      setDraft({ ...draft, temporaryPassword: event.target.value })
+                    }
+                  />
+                </Field>
+              </div>
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <>
+          <div className="my-5 border-t border-border" />
           <Field label="Address" required>
             <TextArea
               value={draft.address}
@@ -208,63 +308,10 @@ export function StudentCreateDialog({
               placeholder="Complete residential address"
             />
           </Field>
-        </div>
-      </div>
-
-      <div className="my-5 border-t border-border" />
-      <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-background/40 p-4 hover:border-primary/35">
-        <input
-          type="checkbox"
-          checked={draft.createConnectAccount}
-          onChange={(event) =>
-            setDraft({ ...draft, createConnectAccount: event.target.checked })
-          }
-          className="mt-0.5 size-4 accent-primary"
-        />
-        <KeyRound className="size-4 shrink-0 text-primary" />
-        <span>
-          <span className="block text-xs font-semibold">Create Student Connect account</span>
-          <span className="mt-0.5 block text-[11px] text-muted-foreground">
-            Student can use mobile, email, or either one when both are entered.
-          </span>
-        </span>
-      </label>
-
-      {draft.createConnectAccount && (
-        <div className="mt-4 grid grid-cols-1 gap-4 rounded-xl border border-primary/20 bg-primary/[0.03] p-4 sm:grid-cols-2">
-          <Field label="Student phone" hint="Optional if email is entered · 10 digits">
-            <TextInput
-              value={draft.studentPhone}
-              onChange={(event) =>
-                setDraft({ ...draft, studentPhone: normalizePhone(event.target.value) })
-              }
-              inputMode="numeric"
-              maxLength={10}
-              placeholder="9876543210"
-            />
-          </Field>
-          <Field label="Student email" hint="Optional if phone is entered">
-            <TextInput
-              type="email"
-              value={draft.studentEmail}
-              onChange={(event) => setDraft({ ...draft, studentEmail: event.target.value })}
-              placeholder="student@institute.edu"
-            />
-          </Field>
-          <div className="sm:col-span-2">
-            <Field label="Admin demo password" required hint="Student changes it after OTP on first login">
-              <TextInput
-                value={draft.temporaryPassword}
-                onChange={(event) =>
-                  setDraft({ ...draft, temporaryPassword: event.target.value })
-                }
-              />
-            </Field>
-          </div>
-        </div>
+        </>
       )}
 
-      {errors.length > 0 && (
+      {errors.length > 0 ? (
         <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3">
           <div className="text-xs font-semibold text-destructive">Complete required fields</div>
           <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[11px] text-destructive">
@@ -273,7 +320,7 @@ export function StudentCreateDialog({
             ))}
           </ul>
         </div>
-      )}
+      ) : null}
     </Modal>
   );
 }

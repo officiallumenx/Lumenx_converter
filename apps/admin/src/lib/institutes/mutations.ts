@@ -18,6 +18,15 @@ function assertApiMode(): void {
   }
 }
 
+export type CreateInstituteInput = {
+  code: string;
+  name: string;
+  kind: InstituteKind;
+  status?: InstituteStatus;
+  timezone?: string;
+  locale?: string;
+};
+
 export type UpdateInstituteInput = {
   name?: string;
   kind?: InstituteKind;
@@ -30,6 +39,27 @@ export type UpdateInstituteSettingsInput = {
   locale?: string;
   settings?: Record<string, unknown>;
 };
+
+export async function createInstitute(
+  input: CreateInstituteInput,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<InstituteDto> {
+  assertApiMode();
+  const code = input.code.trim();
+  const name = input.name.trim();
+  if (!code || !name) {
+    throw new Error("code and name are required");
+  }
+  const body: Record<string, unknown> = {
+    code,
+    name,
+    kind: input.kind,
+  };
+  if (input.status !== undefined) body.status = input.status;
+  if (input.timezone !== undefined) body.timezone = input.timezone.trim();
+  if (input.locale !== undefined) body.locale = input.locale.trim();
+  return client.post<InstituteDto>("/api/v1/institutes", body);
+}
 
 export async function updateInstitute(
   instituteId: string,

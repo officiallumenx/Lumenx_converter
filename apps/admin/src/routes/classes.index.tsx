@@ -181,6 +181,7 @@ function ClassesPage() {
   };
 
   const addClass = () => {
+    if (!writesEnabled) return;
     const cap = Number(capacity) || 50;
     const studentCount = Number(students) || 0;
     const levelMeta = academic.levels.find((item) => item.label === level);

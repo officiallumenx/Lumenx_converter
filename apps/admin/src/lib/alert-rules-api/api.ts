@@ -79,6 +79,17 @@ export async function updateAlertRule(
   });
 }
 
+export async function deleteAlertRule(
+  ruleId: string,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<void> {
+  assertApiMode();
+  if (!isInstituteUuid(ruleId)) {
+    throw new Error("rule id must be a valid UUID");
+  }
+  await client.delete(`/api/v1/alert-rules/${ruleId.trim()}`);
+}
+
 export async function evaluateAlertRules(
   instituteId: string,
   client: AdminApiClient = getAdminApiClient(),
@@ -91,5 +102,6 @@ export async function evaluateAlertRules(
   query.set("institute_id", instituteId.trim());
   return client.post<AlertEvaluateResultDto>(
     `/api/v1/alert-rules/evaluate?${query.toString()}`,
+    {},
   );
 }

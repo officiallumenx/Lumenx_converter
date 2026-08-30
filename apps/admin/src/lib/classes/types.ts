@@ -52,6 +52,8 @@ export type ClassListItem = {
 };
 
 export type SectionDetailItem = ClassListItem & {
+  instituteId: string;
+  classId: string;
   classCode: string;
   classStatus: ClassStatus;
   sectionStatus: SectionStatus;

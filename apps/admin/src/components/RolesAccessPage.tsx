@@ -6,6 +6,7 @@ import {
   Eye,
   EyeOff,
   KeyRound,
+  Layers,
   Plus,
   Save,
   ShieldCheck,
@@ -17,6 +18,7 @@ import {
   Button,
   Card,
   CardHeader,
+  EmptyState,
   Field,
   Modal,
   Pill,
@@ -29,6 +31,7 @@ import { AppShell } from "@/components/AppShell";
 import { ClassSectionAudienceField } from "@/components/ClassSectionMultiPicker";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { RolesCatalogApiPanel } from "@/components/permissions/RolesCatalogApiPanel";
+import { AccountsApiMembershipsPanel } from "@/components/accounts/AccountsApiMembershipsPanel";
 import { getAttendanceClassSectionOptions } from "@/lib/attendance-coordinator-access";
 import { SEARCH_TEACHERS } from "@/lib/admin-search-data";
 import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
@@ -63,9 +66,19 @@ export function RolesAccessPage() {
     return (
       <AppShell
         title={M.roles}
-        subtitle="Backend roles catalog · role assignment editing is demo-only in API mode"
+        subtitle="Frozen backend roles catalog · assign via memberships · no custom permission matrix"
       >
-        <RolesCatalogApiPanel />
+        <div className="space-y-4">
+          <RolesCatalogApiPanel />
+          <Card>
+            <EmptyState
+              icon={<Layers className="size-5" />}
+              title="Custom permission matrix"
+              hint="Module ACL (full/read/none) has no role_permission backend model — deferred. Demo localStorage matrix is not shown in API mode."
+            />
+          </Card>
+          <AccountsApiMembershipsPanel />
+        </div>
       </AppShell>
     );
   }

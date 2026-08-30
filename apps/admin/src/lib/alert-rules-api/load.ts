@@ -16,6 +16,7 @@ export type AlertRulesLoadStatus =
 export type AlertRulesState = {
   status: AlertRulesLoadStatus;
   rules: AlertRuleDto[];
+  /** Empty on load — evaluate is an explicit user action, not a side effect of open. */
   fired: AlertFireDto[];
   errorMessage: string | null;
 };
@@ -30,14 +31,11 @@ export async function loadAlertRules(
     return { status: "needs_institute", rules: [], fired: [], errorMessage: null };
   }
   try {
-    const [rules, evalResult] = await Promise.all([
-      listAlertRules(activeInstituteId),
-      evaluateAlertRules(activeInstituteId),
-    ]);
+    const rules = await listAlertRules(activeInstituteId);
     return {
       status: rules.length === 0 ? "empty" : "ready",
       rules,
-      fired: evalResult.fired,
+      fired: [],
       errorMessage: null,
     };
   } catch (err) {
@@ -56,4 +54,18 @@ export async function loadAlertRules(
     }
     return { status: "error", rules: [], fired: [], errorMessage: message };
   }
+}
+
+/** Explicit evaluate — not called from loadAlertRules. */
+export async function runAlertRulesEvaluation(
+  activeInstituteId: string,
+): Promise<AlertFireDto[]> {
+  if (!isApiAuthMode()) {
+    throw new Error("Alert rules API is only available in API auth mode");
+  }
+  if (!isInstituteUuid(activeInstituteId)) {
+    throw new Error("institute_id must be a valid UUID");
+  }
+  const result = await evaluateAlertRules(activeInstituteId);
+  return result.fired;
 }

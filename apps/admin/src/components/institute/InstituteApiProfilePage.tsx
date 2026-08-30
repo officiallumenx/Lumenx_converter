@@ -26,6 +26,7 @@ import type {
   InstituteSettingsDto,
   InstituteStatus,
 } from "@/lib/institutes/types";
+import { InstituteCreateApiPanel } from "@/components/institute/InstituteCreateApiPanel";
 import { Building2 } from "lucide-react";
 
 function profileHint(status: InstituteProfileStatus, error: string | null): string {
@@ -197,90 +198,97 @@ export function InstituteApiProfilePage() {
 
   return (
     <AppShell title="Institute" subtitle="Institute identity and settings">
-      {hint ? (
-        <Card>
-          <EmptyState icon={<Building2 className="size-5" />} title="Institute profile" hint={hint} />
-        </Card>
-      ) : view.detailValid && view.institute ? (
-        <div className="grid gap-4 lg:grid-cols-2">
+      <div className="space-y-4">
+        <InstituteCreateApiPanel />
+        {hint ? (
           <Card>
-            <CardHeader title="Identity" hint="PATCH /institutes/:id" />
-            <CardBody className="space-y-3">
-              <Field label="Name" required>
-                <TextInput value={name} onChange={(e) => setName(e.target.value)} />
-              </Field>
-              <Field label="Code" required>
-                <TextInput value={code} onChange={(e) => setCode(e.target.value)} />
-              </Field>
-              <Field label="Kind">
-                <Select
-                  value={kind}
-                  onChange={(e) => setKind(e.target.value as InstituteKind)}
-                >
-                  {KIND_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option.replace(/_/g, " ")}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="Status">
-                <Select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as InstituteStatus)}
-                >
-                  {STATUS_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="Institute ID">
-                <TextInput value={view.institute.id} readOnly className="bg-muted/30" />
-              </Field>
-              <Button
-                variant="primary"
-                onClick={saveIdentity}
-                disabled={savingIdentity || !name.trim() || !code.trim()}
-              >
-                {savingIdentity ? "Saving…" : "Save identity"}
-              </Button>
-            </CardBody>
+            <EmptyState
+              icon={<Building2 className="size-5" />}
+              title="Institute profile"
+              hint={hint}
+            />
           </Card>
-          <Card>
-            <CardHeader title="Settings" hint="PATCH /institutes/:id/settings" />
-            <CardBody className="space-y-3">
-              <Field label="Timezone" required>
-                <TextInput
-                  value={timezone}
-                  onChange={(e) => setTimezone(e.target.value)}
-                  placeholder="Asia/Kolkata"
-                />
-              </Field>
-              <Field label="Locale" required>
-                <TextInput
-                  value={locale}
-                  onChange={(e) => setLocale(e.target.value)}
-                  placeholder="en-IN"
-                />
-              </Field>
-              {view.settings ? (
-                <p className="text-[11px] text-muted-foreground">
-                  Updated {new Date(view.settings.updatedAt).toLocaleString()}
-                </p>
-              ) : null}
-              <Button
-                variant="primary"
-                onClick={saveSettings}
-                disabled={savingSettings || !timezone.trim() || !locale.trim()}
-              >
-                {savingSettings ? "Saving…" : "Save settings"}
-              </Button>
-            </CardBody>
-          </Card>
-        </div>
-      ) : null}
+        ) : view.detailValid && view.institute ? (
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader title="Identity" hint="PATCH /institutes/:id" />
+              <CardBody className="space-y-3">
+                <Field label="Name" required>
+                  <TextInput value={name} onChange={(e) => setName(e.target.value)} />
+                </Field>
+                <Field label="Code" required>
+                  <TextInput value={code} onChange={(e) => setCode(e.target.value)} />
+                </Field>
+                <Field label="Kind">
+                  <Select
+                    value={kind}
+                    onChange={(e) => setKind(e.target.value as InstituteKind)}
+                  >
+                    {KIND_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option.replace(/_/g, " ")}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Status">
+                  <Select
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value as InstituteStatus)}
+                  >
+                    {STATUS_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Institute ID">
+                  <TextInput value={view.institute.id} readOnly className="bg-muted/30" />
+                </Field>
+                <Button
+                  variant="primary"
+                  onClick={saveIdentity}
+                  disabled={savingIdentity || !name.trim() || !code.trim()}
+                >
+                  {savingIdentity ? "Saving…" : "Save identity"}
+                </Button>
+              </CardBody>
+            </Card>
+            <Card>
+              <CardHeader title="Settings" hint="PATCH /institutes/:id/settings" />
+              <CardBody className="space-y-3">
+                <Field label="Timezone" required>
+                  <TextInput
+                    value={timezone}
+                    onChange={(e) => setTimezone(e.target.value)}
+                    placeholder="Asia/Kolkata"
+                  />
+                </Field>
+                <Field label="Locale" required>
+                  <TextInput
+                    value={locale}
+                    onChange={(e) => setLocale(e.target.value)}
+                    placeholder="en-IN"
+                  />
+                </Field>
+                {view.settings ? (
+                  <p className="text-[11px] text-muted-foreground">
+                    Updated {new Date(view.settings.updatedAt).toLocaleString()}
+                  </p>
+                ) : null}
+                <Button
+                  variant="primary"
+                  onClick={saveSettings}
+                  disabled={savingSettings || !timezone.trim() || !locale.trim()}
+                >
+                  {savingSettings ? "Saving…" : "Save settings"}
+                </Button>
+              </CardBody>
+            </Card>
+          </div>
+        ) : null}
+      </div>
     </AppShell>
   );
 }

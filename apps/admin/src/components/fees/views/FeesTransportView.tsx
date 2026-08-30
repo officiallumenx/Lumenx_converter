@@ -32,6 +32,12 @@ import {
 } from "@lumenx/module-fees";
 import { useAdminToast } from "@/components/AdminActionToast";
 import {
+  deleteConcession,
+  findCategoryByKind,
+  upsertConcession,
+  upsertCoreClassAmount,
+} from "@/lib/fees";
+import {
   feesStudentClasses,
   feesStudentSections,
   feesStudentsFor,
@@ -50,6 +56,10 @@ export function FeesTransportView({
   studentOptions,
   studentsPickerReady = true,
   studentsPickerHint = null,
+  apiMode = false,
+  feePlanId = null,
+  classIdByLabel = {},
+  onApiReload,
 }: {
   snapshot: FeesSnapshot;
   onChange: (next: FeesSnapshot) => void;
@@ -57,9 +67,14 @@ export function FeesTransportView({
   studentOptions: FeesStudentOption[];
   studentsPickerReady?: boolean;
   studentsPickerHint?: string | null;
+  apiMode?: boolean;
+  feePlanId?: string | null;
+  classIdByLabel?: Record<string, string>;
+  onApiReload?: () => void;
 }) {
   const notify = useAdminToast();
-  const catId = CORE_CATEGORY_IDS.transport;
+  const catId =
+    findCategoryByKind(snapshot, "transport")?.id ?? CORE_CATEGORY_IDS.transport;
   const classKeys = useMemo(() => listKnownClassKeys(snapshot), [snapshot]);
 
   const [sectionFilter, setSectionFilter] = useState<string>("all");
@@ -135,6 +150,38 @@ export function FeesTransportView({
       return;
     }
     const amount = Number(feeDraft.replace(/,/g, "")) || 0;
+    if (apiMode) {
+      if (!feePlanId) {
+        notify("No fee plan available");
+        return;
+      }
+      const componentId = findCategoryByKind(snapshot, "transport")?.id;
+      if (!componentId) {
+        notify("Create a transport class default first");
+        return;
+      }
+      void Promise.all(
+        sectionStudents.map((student) =>
+          upsertConcession({
+            feePlanId,
+            studentId: student.id,
+            feeComponentId: componentId,
+            amount,
+            note: noteDraft.trim() || `Section ${activeSection.section}`,
+          }),
+        ),
+      )
+        .then(() => {
+          onApiReload?.();
+          notify(
+            `Transport fee saved for ${activeSection.classKey} · Section ${activeSection.section}`,
+          );
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to save transport fees");
+        });
+      return;
+    }
     let next = snapshot;
     for (const student of sectionStudents) {
       next = setStudentOverride(next, {
@@ -150,6 +197,26 @@ export function FeesTransportView({
 
   const clearSectionFee = () => {
     if (!writesEnabled || !activeSection) return;
+    if (apiMode) {
+      const toDelete = existingOverride
+        .map((o) => o.id)
+        .filter((id): id is string => Boolean(id));
+      if (toDelete.length === 0) {
+        notify("No API concessions to clear for this section");
+        return;
+      }
+      void Promise.all(toDelete.map((id) => deleteConcession(id)))
+        .then(() => {
+          onApiReload?.();
+          notify(
+            `Cleared negotiated fee for ${activeSection.classKey} · Section ${activeSection.section}`,
+          );
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to clear transport fees");
+        });
+      return;
+    }
     let next = snapshot;
     for (const student of sectionStudents) {
       next = clearStudentOverride(next, student.id, catId);
@@ -170,6 +237,29 @@ export function FeesTransportView({
   const saveClassRow = (classKey: string) => {
     if (!writesEnabled) return;
     const amount = Number((classDraft[classKey] ?? "0").replace(/,/g, "")) || 0;
+    if (apiMode) {
+      if (!feePlanId) {
+        notify("No fee plan available");
+        return;
+      }
+      void upsertCoreClassAmount({
+        feePlanId,
+        snapshot,
+        classIdByLabel,
+        kind: "transport",
+        name: "Transport",
+        classKey,
+        amount,
+      })
+        .then(() => {
+          onApiReload?.();
+          notify(`Class transport default saved for ${classKey}`);
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to save transport default");
+        });
+      return;
+    }
     onChange(setClassDefaultAmount(snapshot, classKey, catId, amount));
     notify(`Class transport default saved for ${classKey}`);
   };
@@ -182,7 +272,7 @@ export function FeesTransportView({
         </div>
       ) : (
       <>
-      <KpiGrid cols={3}>
+      <KpiGrid cols={4}>
         <Kpi label="Students with negotiated fee" value={String(transportOverrides.length)} />
         <Kpi label="Class defaults" value={String(classKeys.length)} />
         <Kpi

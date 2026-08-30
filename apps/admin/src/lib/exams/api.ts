@@ -40,3 +40,14 @@ export async function listExams(
   }
   return client.get<ExamDto[]>(`/api/v1/exams?${buildQuery(params)}`);
 }
+
+export async function getExam(
+  examId: string,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<ExamDto> {
+  assertApiMode();
+  if (!isInstituteUuid(examId)) {
+    throw new Error("exam_id must be a valid UUID");
+  }
+  return client.get<ExamDto>(`/api/v1/exams/${examId.trim()}`);
+}

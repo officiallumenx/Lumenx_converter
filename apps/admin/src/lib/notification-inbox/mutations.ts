@@ -23,6 +23,13 @@ export type UpdateInboxItemInput = {
   starred?: boolean;
 };
 
+/** Role audiences resolved server-side from active institute memberships. */
+export type NotificationAudience =
+  | "everyone"
+  | "students"
+  | "parents"
+  | "teachers";
+
 export type EmitNotificationInput = {
   instituteId: string;
   templateId?: string | null;
@@ -33,7 +40,9 @@ export type EmitNotificationInput = {
   payload?: Record<string, unknown>;
   deepLink?: string | null;
   dedupeKey?: string | null;
-  recipientUserIds: string[];
+  /** Explicit user profile UUIDs XOR audience. */
+  recipientUserIds?: string[];
+  audience?: NotificationAudience;
 };
 
 export async function updateInboxItem(
@@ -76,14 +85,23 @@ export async function emitNotification(
   if (!isInstituteUuid(input.instituteId)) {
     throw new Error("institute_id must be a valid UUID");
   }
-  if (input.recipientUserIds.length === 0) {
-    throw new Error("recipient_user_ids must not be empty");
+
+  const hasIds = Boolean(input.recipientUserIds?.length);
+  const hasAudience = Boolean(input.audience);
+  if (hasIds === hasAudience) {
+    throw new Error(
+      "Provide either recipient_user_ids or audience (not both, not neither)",
+    );
   }
-  for (const id of input.recipientUserIds) {
-    if (!isInstituteUuid(id)) {
-      throw new Error("recipient_user_ids must be valid UUIDs");
+
+  if (input.recipientUserIds) {
+    for (const id of input.recipientUserIds) {
+      if (!isInstituteUuid(id)) {
+        throw new Error("recipient_user_ids must be valid UUIDs");
+      }
     }
   }
+
   if (
     input.templateId != null &&
     input.templateId !== "" &&
@@ -91,7 +109,8 @@ export async function emitNotification(
   ) {
     throw new Error("template_id must be a valid UUID");
   }
-  return client.post("/api/v1/notifications", {
+
+  const body: Record<string, unknown> = {
     institute_id: input.instituteId.trim(),
     template_id: input.templateId,
     category: input.category,
@@ -101,6 +120,12 @@ export async function emitNotification(
     payload: input.payload,
     deep_link: input.deepLink,
     dedupe_key: input.dedupeKey,
-    recipient_user_ids: input.recipientUserIds,
-  });
+  };
+  if (input.audience) {
+    body.audience = input.audience;
+  } else {
+    body.recipient_user_ids = input.recipientUserIds;
+  }
+
+  return client.post("/api/v1/notifications", body);
 }

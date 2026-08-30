@@ -12,10 +12,12 @@ export {
   listAlertRules,
   createAlertRule,
   updateAlertRule,
+  deleteAlertRule,
   evaluateAlertRules,
 } from "./api";
 export {
   loadAlertRules,
+  runAlertRulesEvaluation,
   type AlertRulesLoadStatus,
   type AlertRulesState,
 } from "./load";

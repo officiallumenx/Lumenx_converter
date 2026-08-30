@@ -1,4 +1,4 @@
-import type { StorageUsageSummary } from "./types";
+import type { AssetDto, StorageUsageSummary } from "./types";
 import type { AssetsLoadStatus } from "./load";
 
 export function resolveStorageUsageView(input: {
@@ -14,12 +14,14 @@ export function resolveStorageUsageView(input: {
   activeInstituteId: string | null;
   resolvedForInstituteId: string | null;
   storedSummary: StorageUsageSummary | null;
+  storedAssets: AssetDto[];
   storedStatus: AssetsLoadStatus;
   storedErrorMessage: string | null;
   instituteErrorMessage: string | null;
 }): {
   status: AssetsLoadStatus;
   summary: StorageUsageSummary | null;
+  assets: AssetDto[];
   errorMessage: string | null;
   rowsValid: boolean;
 } {
@@ -27,17 +29,25 @@ export function resolveStorageUsageView(input: {
     return {
       status: "demo",
       summary: input.storedSummary,
+      assets: input.storedAssets,
       errorMessage: null,
       rowsValid: true,
     };
   }
   if (input.instituteStatus === "loading") {
-    return { status: "loading", summary: null, errorMessage: null, rowsValid: false };
+    return {
+      status: "loading",
+      summary: null,
+      assets: [],
+      errorMessage: null,
+      rowsValid: false,
+    };
   }
   if (input.instituteStatus === "error" || input.instituteStatus === "forbidden") {
     return {
       status: input.instituteStatus === "forbidden" ? "forbidden" : "error",
       summary: null,
+      assets: [],
       errorMessage: input.instituteErrorMessage,
       rowsValid: false,
     };
@@ -47,14 +57,27 @@ export function resolveStorageUsageView(input: {
     input.instituteStatus === "empty" ||
     !input.activeInstituteId
   ) {
-    return { status: "needs_institute", summary: null, errorMessage: null, rowsValid: false };
+    return {
+      status: "needs_institute",
+      summary: null,
+      assets: [],
+      errorMessage: null,
+      rowsValid: false,
+    };
   }
   if (input.resolvedForInstituteId !== input.activeInstituteId) {
-    return { status: "loading", summary: null, errorMessage: null, rowsValid: false };
+    return {
+      status: "loading",
+      summary: null,
+      assets: [],
+      errorMessage: null,
+      rowsValid: false,
+    };
   }
   return {
     status: input.storedStatus,
     summary: input.storedSummary,
+    assets: input.storedAssets,
     errorMessage: input.storedErrorMessage,
     rowsValid: true,
   };

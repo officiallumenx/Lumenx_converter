@@ -1,11 +1,11 @@
 /**
- * Identity memberships write API — create / update / delete. API auth mode only.
+ * Identity write API — memberships + own profile. API auth mode only.
  */
 import { getAdminApiClient } from "@/lib/admin-api";
 import type { AdminApiClient } from "@/lib/api";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { isInstituteUuid } from "@/lib/active-institute";
-import type { MembershipDto, MembershipStatus } from "./types";
+import type { MembershipDto, MembershipStatus, ProfileDto } from "./types";
 
 function assertApiMode(): void {
   if (!isApiAuthMode()) {
@@ -25,6 +25,12 @@ export type UpdateMembershipInput = {
   roles?: string[];
 };
 
+export type UpdateOwnProfileInput = {
+  displayName?: string;
+  phone?: string | null;
+  avatarUrl?: string | null;
+};
+
 function toCreateBody(input: CreateMembershipInput): Record<string, unknown> {
   return {
     institute_id: input.instituteId.trim(),
@@ -41,6 +47,28 @@ function toUpdateBody(input: UpdateMembershipInput): Record<string, unknown> {
     body.roles = input.roles.map((role) => role.trim()).filter(Boolean);
   }
   return body;
+}
+
+export async function updateOwnProfile(
+  profileId: string,
+  input: UpdateOwnProfileInput,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<ProfileDto> {
+  assertApiMode();
+  if (!isInstituteUuid(profileId)) {
+    throw new Error("profile_id must be a valid UUID");
+  }
+  const body: Record<string, unknown> = {};
+  if (input.displayName !== undefined) body.display_name = input.displayName.trim();
+  if (input.phone !== undefined) body.phone = input.phone;
+  if (input.avatarUrl !== undefined) body.avatar_url = input.avatarUrl;
+  if (Object.keys(body).length === 0) {
+    throw new Error("At least one field is required");
+  }
+  return client.patch<ProfileDto>(
+    `/api/v1/profiles/${profileId.trim()}`,
+    body,
+  );
 }
 
 export async function createMembership(

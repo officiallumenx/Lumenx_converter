@@ -2,14 +2,15 @@ import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/active-institute";
 import { listClassesCatalog } from "@/lib/classes/api";
+import type { ClassDto, SectionDto } from "@/lib/classes/types";
 import { listSubjects } from "@/lib/subjects/api";
 import { subjectDtosToListItems } from "@/lib/subjects/map";
 import type { SubjectListItem } from "@/lib/subjects/types";
 import { listTeachers } from "@/lib/teachers/api";
 import { teacherDtosToListItems } from "@/lib/teachers/map";
 import type { TeacherListItem } from "@/lib/teachers/types";
-import { listHomework } from "./api";
-import { homeworkDtosToListItems } from "./map";
+import { getHomework, listHomework } from "./api";
+import { homeworkDtoToListItem, homeworkDtosToListItems } from "./map";
 import type { HomeworkListItem } from "./types";
 
 export type HomeworkListStatus =
@@ -27,6 +28,51 @@ export type HomeworkListState = {
   errorMessage: string | null;
 };
 
+export type HomeworkDetailState = {
+  status: HomeworkListStatus;
+  item: HomeworkListItem | null;
+  errorMessage: string | null;
+};
+
+async function mapApiError(
+  err: unknown,
+  fallback: string,
+): Promise<{ status: HomeworkListStatus; errorMessage: string }> {
+  const status =
+    err instanceof ApiClientError
+      ? err.status
+      : err &&
+          typeof err === "object" &&
+          "status" in err &&
+          typeof (err as { status: unknown }).status === "number"
+        ? (err as { status: number }).status
+        : null;
+  const message = err instanceof Error ? err.message : fallback;
+  if (status === 403) {
+    return { status: "forbidden", errorMessage: message };
+  }
+  return { status: "error", errorMessage: message };
+}
+
+async function loadLabelMaps(instituteId: string): Promise<{
+  teachersById: Map<string, TeacherListItem>;
+  sectionsById: Map<string, SectionDto>;
+  classesById: Map<string, ClassDto>;
+  subjectsById: Map<string, SubjectListItem>;
+}> {
+  const [catalog, teachers, subjects] = await Promise.all([
+    listClassesCatalog({ instituteId }),
+    teacherDtosToListItems(await listTeachers({ instituteId })),
+    subjectDtosToListItems(await listSubjects({ instituteId })),
+  ]);
+  return {
+    teachersById: new Map(teachers.map((teacher) => [teacher.id, teacher])),
+    sectionsById: new Map(catalog.sections.map((section) => [section.id, section])),
+    classesById: new Map(catalog.classes.map((cls) => [cls.id, cls])),
+    subjectsById: new Map(subjects.map((subject) => [subject.id, subject])),
+  };
+}
+
 export async function loadHomeworkList(
   activeInstituteId: string | null,
 ): Promise<HomeworkListState> {
@@ -39,26 +85,16 @@ export async function loadHomeworkList(
   }
 
   try {
-    const [rows, catalog, teachers, subjects] = await Promise.all([
+    const [rows, labels] = await Promise.all([
       listHomework({ instituteId: activeInstituteId }),
-      listClassesCatalog({ instituteId: activeInstituteId }),
-      teacherDtosToListItems(await listTeachers({ instituteId: activeInstituteId })),
-      subjectDtosToListItems(await listSubjects({ instituteId: activeInstituteId })),
+      loadLabelMaps(activeInstituteId),
     ]);
-    const teachersById = new Map<string, TeacherListItem>(
-      teachers.map((teacher) => [teacher.id, teacher]),
-    );
-    const sectionsById = new Map(catalog.sections.map((section) => [section.id, section]));
-    const classesById = new Map(catalog.classes.map((cls) => [cls.id, cls]));
-    const subjectsById = new Map<string, SubjectListItem>(
-      subjects.map((subject) => [subject.id, subject]),
-    );
     const items = homeworkDtosToListItems(
       rows,
-      teachersById,
-      sectionsById,
-      classesById,
-      subjectsById,
+      labels.teachersById,
+      labels.sectionsById,
+      labels.classesById,
+      labels.subjectsById,
     );
     return {
       status: items.length === 0 ? "empty" : "ready",
@@ -66,20 +102,56 @@ export async function loadHomeworkList(
       errorMessage: null,
     };
   } catch (err) {
-    const status =
-      err instanceof ApiClientError
-        ? err.status
-        : err &&
-            typeof err === "object" &&
-            "status" in err &&
-            typeof (err as { status: unknown }).status === "number"
-          ? (err as { status: number }).status
-          : null;
-    const message = err instanceof Error ? err.message : "Failed to load homework";
+    const mapped = await mapApiError(err, "Failed to load homework");
+    return { status: mapped.status, items: [], errorMessage: mapped.errorMessage };
+  }
+}
 
-    if (status === 403) {
-      return { status: "forbidden", items: [], errorMessage: message };
+export async function loadHomeworkDetail(
+  activeInstituteId: string | null,
+  homeworkId: string,
+): Promise<HomeworkDetailState> {
+  if (!isApiAuthMode()) {
+    return { status: "demo", item: null, errorMessage: null };
+  }
+
+  if (!activeInstituteId || !isInstituteUuid(activeInstituteId)) {
+    return { status: "needs_institute", item: null, errorMessage: null };
+  }
+
+  if (!isInstituteUuid(homeworkId)) {
+    return {
+      status: "error",
+      item: null,
+      errorMessage: "homework_id must be a valid UUID",
+    };
+  }
+
+  try {
+    const [dto, labels] = await Promise.all([
+      getHomework(homeworkId),
+      loadLabelMaps(activeInstituteId),
+    ]);
+    if (dto.instituteId !== activeInstituteId) {
+      return {
+        status: "forbidden",
+        item: null,
+        errorMessage: "Homework does not belong to the active institute",
+      };
     }
-    return { status: "error", items: [], errorMessage: message };
+    return {
+      status: "ready",
+      item: homeworkDtoToListItem(
+        dto,
+        labels.teachersById,
+        labels.sectionsById,
+        labels.classesById,
+        labels.subjectsById,
+      ),
+      errorMessage: null,
+    };
+  } catch (err) {
+    const mapped = await mapApiError(err, "Failed to load homework detail");
+    return { status: mapped.status, item: null, errorMessage: mapped.errorMessage };
   }
 }

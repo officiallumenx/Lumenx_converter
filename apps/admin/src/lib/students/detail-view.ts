@@ -79,6 +79,20 @@ export function resolveStudentsDetailView(
     };
   }
 
+  if (
+    input.storedStatus === "ready" &&
+    input.storedStudent &&
+    input.activeInstituteId &&
+    input.storedStudent.instituteId !== input.activeInstituteId
+  ) {
+    return {
+      status: "empty",
+      student: null,
+      errorMessage: "Student not found for the active institute.",
+      detailValid: true,
+    };
+  }
+
   return {
     status: input.storedStatus,
     student: input.storedStudent,

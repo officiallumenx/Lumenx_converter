@@ -5,9 +5,11 @@ export type {
   MarkEntryStatus,
   MarkScoreDto,
   MarkStudentScoreItem,
+  MarksLookupMaps,
 } from "./types";
-export { assertApiMode, listMarkEntries } from "./api";
+export { assertApiMode, getMarkEntry, listMarkEntries } from "./api";
 export {
+  isMarksEntryEditable,
   markEntryDtoToListItem,
   markEntryDtosToListItems,
 } from "./map";
