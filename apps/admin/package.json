@@ -9,6 +9,7 @@
     "build:dev": "vite build --mode development",
     "build:capacitor": "vite build --config vite.config.capacitor.ts && node ../../packages/capacitor/scripts/flatten-capacitor-dist.mjs",
     "preview": "vite preview",
+    "start": "node server.mjs",
     "cap:sync": "cap sync",
     "cap:open:android": "cap open android",
     "lint": "eslint .",

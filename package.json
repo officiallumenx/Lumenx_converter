@@ -11,6 +11,8 @@
     "build:connect": "npm run build --workspace=@lumenx/app-connect",
     "build:connect:capacitor": "npm run build:capacitor --workspace=@lumenx/app-connect",
     "build:admin": "npm run build --workspace=@lumenx/app-admin",
+    "start:admin": "npm run start --workspace=@lumenx/app-admin",
+    "start": "npm run start:admin",
     "build:nexus": "npm run build --workspace=@lumenx/app-nexus",
     "build:transport": "npm run build --workspace=@lumenx/app-transport",
     "build:website": "npm run build --workspace=@lumenx/app-website",
