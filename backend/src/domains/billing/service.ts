@@ -5,8 +5,21 @@ import {
   assertPlatformOperator,
   assertPlatformRoles,
 } from "../../authorization/index.js";
-import { findSubscriptionById } from "../nexus/repository.js";
+import { findInstituteById } from "../identity/repository.js";
+import {
+  clearCurrentPeriods,
+  findSubscriptionById,
+  insertPeriod,
+  setPeriodCurrent,
+  updateSubscriptionFields,
+} from "../nexus/repository.js";
 import { NEXUS_COMMERCIAL_WRITE_ROLES } from "../nexus/service.js";
+import { addUtcDays, DEFAULT_GRACE_DAYS } from "../subscriptions/pricing.js";
+import {
+  deriveDurationMonths,
+  deriveFreeMonths,
+  toOfflineSubmission,
+} from "../subscriptions/service.js";
 import {
   findAdjustmentById,
   findPaymentById,
@@ -17,6 +30,7 @@ import {
   insertRenewal,
   listAdjustmentsByInstitute,
   listPaymentsByInstitute,
+  listRecordedPayments,
   listRenewalsByInstitute,
   updateAdjustmentFields,
   updatePaymentFields,
@@ -36,6 +50,7 @@ import type {
   UpdateAdjustmentInput,
   UpdateRenewalInput,
 } from "./types.js";
+import type { OfflinePaymentSubmissionDto } from "../subscriptions/types.js";
 
 const RENEWAL_STATUSES: RenewalStatus[] = [
   "draft",
@@ -141,6 +156,73 @@ async function requireLiveSubscription(
     throw AppError.validation("Subscription does not belong to institute");
   }
   return sub;
+}
+
+async function activateSubscriptionFromPaidRenewal(
+  admin: SupabaseClient,
+  renewal: RenewalRecordRow,
+  payment: PaymentRow,
+): Promise<void> {
+  if (renewal.subscription_period_id) return;
+
+  const sub = await findSubscriptionById(admin, renewal.subscription_id);
+  if (!sub) return;
+
+  const durationMonths = deriveDurationMonths(renewal);
+  const monthlyPriceInr =
+    renewal.active_student_count > 0
+      ? Math.max(
+          8_000,
+          Math.round(
+            renewal.active_student_count * num(renewal.assigned_rate_inr),
+          ),
+        )
+      : num(renewal.regular_amount_inr);
+  const freeMonths = deriveFreeMonths(renewal, monthlyPriceInr);
+
+  const startAt = new Date().toISOString();
+  const endAt = addUtcDays(startAt, durationMonths * 30);
+  const graceEndsAt = addUtcDays(endAt, DEFAULT_GRACE_DAYS);
+
+  let period = await insertPeriod(admin, {
+    subscriptionId: sub.id,
+    instituteId: sub.institute_id,
+    durationMonths,
+    activeStudentCount: renewal.active_student_count,
+    assignedRateInr: num(renewal.assigned_rate_inr),
+    monthlyPriceInr,
+    regularAmountInr: num(renewal.regular_amount_inr),
+    discountAmountInr: num(renewal.discount_amount_inr),
+    payableAmountInr: num(renewal.payable_amount_inr),
+    freeMonths,
+    startsAt: startAt,
+    endsAt: endAt,
+    paymentMethod: "offline",
+    paymentStatus: "paid",
+    paymentRef: payment.provider_ref,
+    amountPaidInr: num(payment.amount_inr),
+    paidAt: payment.verified_at ?? startAt,
+    makeCurrent: true,
+  });
+
+  await clearCurrentPeriods(admin, sub.id);
+  period = (await setPeriodCurrent(admin, period.id)) ?? period;
+
+  await updateSubscriptionFields(admin, sub.id, {
+    lifecycle_status: "active",
+    current_period_id: period.id,
+    grace_ends_at: graceEndsAt,
+    active_student_count: renewal.active_student_count,
+    assigned_rate_inr: num(renewal.assigned_rate_inr),
+  });
+
+  await updateRenewalFields(admin, renewal.id, {
+    status: "paid",
+    subscription_period_id: period.id,
+    period_starts_at: startAt,
+    period_ends_at: endAt,
+    amount_paid_inr: num(renewal.payable_amount_inr),
+  });
 }
 
 // ── Renewals ─────────────────────────────────────────────────
@@ -490,7 +572,14 @@ export async function verifyPaymentForActor(
       if (nextPaid >= payable) {
         patch.status = "paid";
       }
-      await updateRenewalFields(admin, renewal.id, patch);
+      const updatedRenewal = await updateRenewalFields(admin, renewal.id, patch);
+      if (updatedRenewal && nextPaid >= payable) {
+        await activateSubscriptionFromPaidRenewal(
+          admin,
+          updatedRenewal,
+          updated,
+        );
+      }
     }
   }
 
@@ -501,6 +590,7 @@ export async function rejectPaymentForActor(
   admin: SupabaseClient,
   actor: Actor,
   id: string,
+  reason?: string,
 ): Promise<PaymentDto> {
   assertBillingWriter(actor);
 
@@ -510,9 +600,50 @@ export async function rejectPaymentForActor(
     throw AppError.conflict("Only recorded payments can be rejected");
   }
 
+  const rejectionNote = reason?.trim()
+    ? `rejected: ${reason.trim()}`
+    : existing.note;
+
   const updated = await updatePaymentFields(admin, id, {
     status: "rejected",
+    note: rejectionNote,
   });
   if (!updated) throw AppError.notFound("Payment not found");
+
+  if (existing.renewal_record_id) {
+    const renewal = await findRenewalById(admin, existing.renewal_record_id);
+    if (renewal && renewal.status === "pending") {
+      await updateRenewalFields(admin, renewal.id, { status: "cancelled" });
+    }
+  }
+
   return toPaymentDto(updated);
+}
+
+/** Platform inbox — offline payments awaiting Nexus verification. */
+export async function listPendingOfflinePaymentsForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+): Promise<OfflinePaymentSubmissionDto[]> {
+  assertBillingReader(actor);
+
+  const recorded = await listRecordedPayments(admin);
+  const offline = recorded.filter((p) => p.method === "offline");
+  const results: OfflinePaymentSubmissionDto[] = [];
+
+  for (const payment of offline) {
+    if (!payment.renewal_record_id) continue;
+    const renewal = await findRenewalById(admin, payment.renewal_record_id);
+    if (!renewal || renewal.status !== "pending") continue;
+    const institute = await findInstituteById(admin, payment.institute_id);
+    results.push(
+      toOfflineSubmission(
+        renewal,
+        payment,
+        institute?.name ?? payment.institute_id,
+      ),
+    );
+  }
+
+  return results.sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
 }

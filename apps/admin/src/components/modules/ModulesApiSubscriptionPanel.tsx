@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Card, CardHeader, Pill } from "@lumenx/ui-admin";
+import { Link } from "@tanstack/react-router";
+import { Button, Card, CardHeader, Pill } from "@lumenx/ui-admin";
 import { useInstituteContext } from "@/lib/institutes";
 import {
   loadCurrentSubscription,
@@ -98,8 +99,15 @@ export function ModulesApiSubscriptionPanel() {
       <Card>
         <CardHeader
           title="Current subscription"
-          hint="Read-only institute subscription · Nexus billing writes stay on Nexus"
-          action={<Pill tone="neutral">API mode</Pill>}
+          hint="Read-only plan & modules · renewals on /subscription"
+          action={
+            <div className="flex items-center gap-2">
+              <Link to="/subscription">
+                <Button size="sm">Renew / pay offline</Button>
+              </Link>
+              <Pill tone="neutral">API mode</Pill>
+            </div>
+          }
         />
         {hint ? (
           <p className="px-4 pb-4 text-sm text-muted-foreground">{hint}</p>

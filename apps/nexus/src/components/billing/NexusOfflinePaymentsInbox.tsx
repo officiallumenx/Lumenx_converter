@@ -38,6 +38,8 @@ import {
   subscribeSubscriptions,
   type OfflinePaymentSubmission,
 } from "@lumenx/utils";
+import { isNexusApiMode } from "@/lib/auth-mode";
+import { NexusOfflinePaymentsInboxApi } from "./NexusOfflinePaymentsInboxApi";
 
 function formatInr(amount: number): string {
   return `₹${Math.round(amount).toLocaleString("en-IN")}`;
@@ -128,6 +130,13 @@ function Detail({
 type DialogMode = "view" | "approve" | "reject" | null;
 
 export function NexusOfflinePaymentsInbox() {
+  if (isNexusApiMode()) {
+    return <NexusOfflinePaymentsInboxApi />;
+  }
+  return <NexusOfflinePaymentsInboxDemo />;
+}
+
+function NexusOfflinePaymentsInboxDemo() {
   const [tick, setTick] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<DialogMode>(null);

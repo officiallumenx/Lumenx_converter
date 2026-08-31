@@ -3,8 +3,17 @@ import { z } from "zod";
 import { requireAuth, assertAuthenticated } from "../../auth/require-auth.js";
 import type { AppBindings } from "../../types/app.js";
 import { AppError } from "../../errors/app-error.js";
-import { validateQuery } from "../../validation/validate.js";
-import { getCurrentSubscriptionForActor } from "../../domains/subscriptions/service.js";
+import {
+  validateBody,
+  validateQuery,
+} from "../../validation/validate.js";
+import {
+  getCurrentSubscriptionForActor,
+  getSubscriptionDetailForActor,
+  getSubscriptionHistoryForActor,
+  getSubscriptionQuoteForActor,
+  submitOfflinePaymentForActor,
+} from "../../domains/subscriptions/service.js";
 
 const subscriptions = new Hono<AppBindings>();
 subscriptions.use("*", requireAuth);
@@ -20,20 +29,83 @@ function requireAdmin(c: {
 }
 
 const uuid = z.string().uuid();
+const instituteQuerySchema = z.object({ institute_id: uuid });
+const durationSchema = z.union([z.literal(1), z.literal(6), z.literal(12)]);
 
 subscriptions.get("/current", async (c) => {
   const actor = assertAuthenticated(c);
   const admin = requireAdmin(c);
-  const query = validateQuery(
-    z.object({ institute_id: uuid }),
-    c.req.query(),
-  );
+  const query = validateQuery(instituteQuerySchema, c.req.query());
   const data = await getCurrentSubscriptionForActor(
     admin,
     actor,
     query.institute_id,
   );
   return c.json({ data });
+});
+
+subscriptions.get("/detail", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(instituteQuerySchema, c.req.query());
+  const data = await getSubscriptionDetailForActor(
+    admin,
+    actor,
+    query.institute_id,
+  );
+  return c.json({ data });
+});
+
+subscriptions.get("/quote", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(
+    z.object({
+      institute_id: uuid,
+      duration_months: durationSchema.optional(),
+    }),
+    c.req.query(),
+  );
+  const data = await getSubscriptionQuoteForActor(
+    admin,
+    actor,
+    query.institute_id,
+    query.duration_months ?? null,
+  );
+  return c.json({ data });
+});
+
+subscriptions.get("/history", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(instituteQuerySchema, c.req.query());
+  const data = await getSubscriptionHistoryForActor(
+    admin,
+    actor,
+    query.institute_id,
+  );
+  return c.json({ data });
+});
+
+subscriptions.post("/offline-payments", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const body = validateBody(
+    z.object({
+      institute_id: uuid,
+      duration_months: durationSchema,
+      reference_id: z.string().min(1).max(200),
+      proof_label: z.string().max(500).nullable().optional(),
+    }),
+    await c.req.json(),
+  );
+  const data = await submitOfflinePaymentForActor(admin, actor, {
+    instituteId: body.institute_id,
+    durationMonths: body.duration_months,
+    referenceId: body.reference_id,
+    proofLabel: body.proof_label,
+  });
+  return c.json({ data }, 201);
 });
 
 export default subscriptions;

@@ -22,6 +22,8 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { SubscriptionApiPage } from "@/components/subscription/SubscriptionApiPage";
 import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-labels";
 import { AdminBillingHistoryPanel } from "@/components/AdminBillingHistoryPanel";
 import {
@@ -55,7 +57,7 @@ import {
 
 export const Route = createFileRoute("/subscription")({
   head: () => ({ meta: [{ title: adminPageTitle("/subscription") }] }),
-  component: SubscriptionPage,
+  component: SubscriptionRoutePage,
 });
 
 function formatInr(amount: number): string {
@@ -210,7 +212,18 @@ function PendingSubmissionCard({
   );
 }
 
-function SubscriptionPage() {
+function SubscriptionRoutePage() {
+  if (isApiAuthMode()) {
+    return (
+      <AppShell title={adminPageTitle("/subscription")} subtitle="Renewal & offline payment">
+        <SubscriptionApiPage />
+      </AppShell>
+    );
+  }
+  return <SubscriptionDemoPage />;
+}
+
+function SubscriptionDemoPage() {
   const [tick, setTick] = useState(0);
   const [duration, setDuration] = useState<SubscriptionDurationMonths>(1);
   const [method, setMethod] = useState<PayMethod | null>(null);

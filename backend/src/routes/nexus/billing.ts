@@ -18,6 +18,7 @@ import {
   issueRenewalForActor,
   listAdjustmentsForActor,
   listPaymentsForActor,
+  listPendingOfflinePaymentsForActor,
   listRenewalsForActor,
   rejectPaymentForActor,
   updateAdjustmentForActor,
@@ -262,6 +263,13 @@ billing.patch("/adjustments/:id", async (c) => {
 
 // ── Payments ─────────────────────────────────────────────────
 
+billing.get("/payments/pending", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const data = await listPendingOfflinePaymentsForActor(admin, actor);
+  return c.json({ data });
+});
+
 billing.get("/payments", async (c) => {
   const actor = assertAuthenticated(c);
   const admin = requireAdmin(c);
@@ -331,7 +339,17 @@ billing.post("/payments/:id/reject", async (c) => {
   const actor = assertAuthenticated(c);
   const admin = requireAdmin(c);
   const { id } = validateParams(idParamsSchema, c.req.param());
-  const data = await rejectPaymentForActor(admin, actor, id);
+  let reason: string | undefined;
+  try {
+    const raw = await c.req.json();
+    if (raw && typeof raw === "object" && "reason" in raw) {
+      const parsed = z.object({ reason: z.string().max(2000) }).safeParse(raw);
+      if (parsed.success) reason = parsed.data.reason;
+    }
+  } catch {
+    // empty body is allowed
+  }
+  const data = await rejectPaymentForActor(admin, actor, id, reason);
   return c.json({ data });
 });
 

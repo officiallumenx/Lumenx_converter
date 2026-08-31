@@ -185,6 +185,17 @@ export async function listPaymentsByInstitute(
   return ensureDbOk(result) as PaymentRow[];
 }
 
+export async function listRecordedPayments(
+  admin: SupabaseClient,
+): Promise<PaymentRow[]> {
+  const result = await admin
+    .from("payment")
+    .select(PAYMENT_COLS)
+    .eq("status", "recorded")
+    .is("deleted_at", null);
+  return ensureDbOk(result) as PaymentRow[];
+}
+
 export async function findPaymentById(
   admin: SupabaseClient,
   id: string,
