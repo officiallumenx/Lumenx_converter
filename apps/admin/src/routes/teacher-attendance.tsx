@@ -68,7 +68,7 @@ function TeacherAttendancePage() {
     return (
       <AppShell
         title="Teacher Attendance"
-        subtitle="API mode · read-only · view staff attendance marks by date"
+        subtitle="API mode · mark daily attendance · overview & submitted history"
       >
         <TeacherAttendanceApiPage />
       </AppShell>

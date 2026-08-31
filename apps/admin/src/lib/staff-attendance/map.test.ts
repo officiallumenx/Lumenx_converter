@@ -87,6 +87,7 @@ describe("staff-attendance map", () => {
     expect(summary.present).toBe(1);
     expect(summary.absent).toBe(1);
     expect(summary.dayStatus).toBe("submitted");
+    expect(summary.submittedAt).toBe("2026-06-01T10:00:00Z");
     expect(summary.marks[0]?.teacherName).toBe("Jane Doe");
     expect(summary.marks[0]?.checkIn).toBe("08:15");
   });

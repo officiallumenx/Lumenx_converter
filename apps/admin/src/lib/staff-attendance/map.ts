@@ -44,9 +44,11 @@ export function staffAttendanceDtosToDaySummary(
   const dayStatus = marks.some((mark) => mark.dayStatus === "submitted")
     ? "submitted"
     : "draft";
+  const submittedAt = rows.find((row) => row.submittedAt)?.submittedAt ?? null;
   return {
     date,
     dayStatus,
+    submittedAt,
     total: marks.length,
     present: marks.filter((m) => m.status === "present").length,
     late: marks.filter((m) => m.status === "late").length,

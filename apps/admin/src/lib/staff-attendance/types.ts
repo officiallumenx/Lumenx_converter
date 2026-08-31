@@ -47,6 +47,7 @@ export type StaffAttendanceMarkItem = {
 export type StaffAttendanceDaySummary = {
   date: string;
   dayStatus: StaffAttendanceDayStatus;
+  submittedAt: string | null;
   total: number;
   present: number;
   late: number;

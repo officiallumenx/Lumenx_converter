@@ -1,9 +1,24 @@
 export { listStaffAttendance, assertApiMode as assertStaffAttendanceApiMode } from "./api";
 export {
   loadStaffAttendanceDay,
+  loadStaffAttendanceSubmittedRange,
   type StaffAttendanceDayState,
   type StaffAttendanceLoadStatus,
+  type StaffAttendanceRangeState,
 } from "./load";
+export {
+  STAFF_ATTENDANCE_REOPEN_WINDOW_HOURS,
+  canEditSubmittedStaffAttendanceDay,
+  staffAttendanceEditWindowRemainingMs,
+} from "./policy";
+export {
+  buildStaffAttendanceOverview,
+  buildStaffAttendanceHistoryDays,
+  defaultStaffAttendanceRangeFrom,
+  type StaffAttendanceExceptionDay,
+  type StaffAttendanceOverviewRow,
+  type StaffAttendanceHistoryDay,
+} from "./overview";
 export {
   resolveStaffAttendanceDayView,
   shouldCommitStaffAttendanceLoad,
