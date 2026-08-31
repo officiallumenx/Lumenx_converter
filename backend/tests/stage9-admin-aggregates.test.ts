@@ -235,18 +235,61 @@ describe("stage 9 admin aggregates", () => {
     expect((await json(jobs)).data).toHaveLength(1);
   });
 
-  it("lists teacher performance with placeholder ratings", async () => {
-    const app = testApp();
+  it("lists teacher performance with operational OPI ratings", async () => {
+    const db = baseDb();
+    db.staff_attendance = [
+      {
+        id: "sa111111-1111-4111-8111-111111111111",
+        institute_id: INST_A,
+        teacher_id: TEACHER_A,
+        attendance_date: "2026-08-20",
+        status: "present",
+        check_in: null,
+        check_out: null,
+        note: null,
+        day_status: "submitted",
+        marked_by_user_id: USER_ADMIN,
+        submitted_at: "2026-08-20T00:00:00.000Z",
+        submitted_by_user_id: USER_ADMIN,
+        created_at: "2026-08-20T00:00:00.000Z",
+        updated_at: "2026-08-20T00:00:00.000Z",
+        deleted_at: null,
+      },
+    ];
+    db.mark_entry = [
+      {
+        id: "me111111-1111-4111-8111-111111111111",
+        institute_id: INST_A,
+        academic_year_id: "ay111111-1111-4111-8111-111111111111",
+        class_id: "cl111111-1111-4111-8111-111111111111",
+        section_id: "se111111-1111-4111-8111-111111111111",
+        exam_id: "ex111111-1111-4111-8111-111111111111",
+        subject_id: "su111111-1111-4111-8111-111111111111",
+        teacher_id: TEACHER_A,
+        max_marks: 100,
+        status: "published",
+        submitted_at: "2026-08-10T00:00:00.000Z",
+        published_at: "2026-08-10T00:00:00.000Z",
+        admin_note: null,
+        created_at: "2026-08-10T00:00:00.000Z",
+        updated_at: "2026-08-10T00:00:00.000Z",
+        deleted_at: null,
+      },
+    ];
+    const app = testApp(db);
     const res = await app.request(
       `/api/v1/teacher-performance?institute_id=${INST_A}`,
       { headers: authHeaders() },
     );
     expect(res.status).toBe(200);
     const body = await json(res);
-    expect(body.data).toHaveLength(1);
-    expect(body.data[0].teacherId).toBe(TEACHER_A);
-    expect(body.data[0].rating).toBe(4);
-    expect(body.data[0].trend).toBe("0.00");
+    expect(body.data.teachers).toHaveLength(1);
+    expect(body.data.teachers[0].teacherId).toBe(TEACHER_A);
+    expect(body.data.teachers[0].rating).toBeGreaterThan(0);
+    expect(body.data.teachers[0].ratingSource).toBe("operational");
+    expect(body.data.teachers[0].rank).toBe(1);
+    expect(body.data.summary.facultyCount).toBe(1);
+    expect(body.data.summary.ratedCount).toBe(1);
   });
 
   it("manages alert rules and evaluate stub", async () => {

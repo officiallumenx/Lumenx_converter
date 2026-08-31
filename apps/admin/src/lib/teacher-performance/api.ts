@@ -5,7 +5,7 @@ import { getAdminApiClient } from "@/lib/admin-api";
 import type { AdminApiClient } from "@/lib/api";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { isInstituteUuid } from "@/lib/active-institute";
-import type { TeacherPerformanceDto } from "./types";
+import type { TeacherPerformanceListPayload } from "./types";
 
 function assertApiMode(): void {
   if (!isApiAuthMode()) {
@@ -18,14 +18,14 @@ export { assertApiMode };
 export async function listTeacherPerformance(
   instituteId: string,
   client: AdminApiClient = getAdminApiClient(),
-): Promise<TeacherPerformanceDto[]> {
+): Promise<TeacherPerformanceListPayload> {
   assertApiMode();
   if (!isInstituteUuid(instituteId)) {
     throw new Error("institute_id must be a valid UUID");
   }
   const query = new URLSearchParams();
   query.set("institute_id", instituteId.trim());
-  return client.get<TeacherPerformanceDto[]>(
+  return client.get<TeacherPerformanceListPayload>(
     `/api/v1/teacher-performance?${query.toString()}`,
   );
 }

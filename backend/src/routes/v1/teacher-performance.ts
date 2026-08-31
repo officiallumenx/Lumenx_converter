@@ -28,12 +28,12 @@ teacherPerformance.get("/", async (c) => {
     z.object({ institute_id: uuid }),
     c.req.query(),
   );
-  const data = await listTeacherPerformanceForActor(
+  const result = await listTeacherPerformanceForActor(
     admin,
     actor,
     query.institute_id,
   );
-  return c.json({ data });
+  return c.json({ data: result });
 });
 
 export default teacherPerformance;

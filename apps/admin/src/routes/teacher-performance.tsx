@@ -143,7 +143,10 @@ function TeacherPerformanceDemoPage() {
 function TeacherPerformancePage() {
   if (isApiAuthMode()) {
     return (
-      <AppShell title={M.performance} subtitle="Teacher performance analytics">
+      <AppShell
+        title={M.performance}
+        subtitle={`Operational faculty index · analytics only · exports are in ${M.reports}`}
+      >
         <TeacherPerformanceApiPanel />
       </AppShell>
     );

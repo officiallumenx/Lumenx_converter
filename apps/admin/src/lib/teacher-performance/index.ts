@@ -1,4 +1,10 @@
-export type { TeacherPerformanceDto } from "./types";
+export type {
+  DepartmentRanking,
+  TeacherPerformanceDto,
+  TeacherPerformanceListPayload,
+  TeacherPerformanceMetrics,
+  TeacherPerformanceSummary,
+} from "./types";
 export { assertApiMode, listTeacherPerformance } from "./api";
 export {
   loadTeacherPerformanceList,
@@ -9,3 +15,11 @@ export {
   resolveTeacherPerformanceListView,
   shouldCommitTeacherPerformanceLoad,
 } from "./list-view";
+export {
+  computeDepartmentRankings,
+  computeInstituteAverage,
+  findTopRatedTeacher,
+  formatRating,
+  instituteTrendDelta,
+  trendTone,
+} from "./stats";
