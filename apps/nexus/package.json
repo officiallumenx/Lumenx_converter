@@ -15,7 +15,10 @@
     "test:billing-renewals": "tsx src/lib/billing/billing-renewals.selftest.ts",
     "test:billing-history": "tsx src/lib/billing/billing-history.selftest.ts",
     "test:subscription-pricing": "tsx ../../packages/utils/src/subscription/pricing.selftest.ts",
-    "test:subscription-lifecycle": "tsx ../../packages/utils/src/subscription/lifecycle.selftest.ts"
+    "test:subscription-lifecycle": "tsx ../../packages/utils/src/subscription/lifecycle.selftest.ts",
+    "test": "vitest run",
+    "test:registrations": "vitest run src/lib/registrations",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@cloudflare/vite-plugin": "^1.25.5",
@@ -25,6 +28,7 @@
     "@lumenx/ui": "*",
     "@lumenx/ui-admin": "*",
     "@lumenx/utils": "*",
+    "@supabase/supabase-js": "^2.112.4",
     "@tailwindcss/vite": "^4.2.1",
     "@tanstack/react-query": "^5.83.0",
     "@tanstack/react-router": "^1.168.25",
@@ -46,6 +50,7 @@
     "eslint": "^9.32.0",
     "prettier": "^3.7.3",
     "typescript": "^5.8.3",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "vitest": "^3.2.7"
   }
 }
