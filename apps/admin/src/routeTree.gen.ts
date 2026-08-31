@@ -32,6 +32,7 @@ import { Route as PendingVerificationRouteImport } from './routes/pending-verifi
 import { Route as ParentsRouteImport } from './routes/parents'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as ModulesRouteImport } from './routes/modules'
+import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as MarksRouteImport } from './routes/marks'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LeaveRouteImport } from './routes/leave'
@@ -43,6 +44,7 @@ import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as FeesRouteImport } from './routes/fees'
 import { Route as ExamsRouteImport } from './routes/exams'
 import { Route as EventsRouteImport } from './routes/events'
+import { Route as EnrollmentsRouteImport } from './routes/enrollments'
 import { Route as DocumentsRouteImport } from './routes/documents'
 import { Route as DiaryRouteImport } from './routes/diary'
 import { Route as ComplaintsRouteImport } from './routes/complaints'
@@ -180,6 +182,11 @@ const ModulesRoute = ModulesRouteImport.update({
   path: '/modules',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MessagesRoute = MessagesRouteImport.update({
+  id: '/messages',
+  path: '/messages',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MarksRoute = MarksRouteImport.update({
   id: '/marks',
   path: '/marks',
@@ -233,6 +240,11 @@ const ExamsRoute = ExamsRouteImport.update({
 const EventsRoute = EventsRouteImport.update({
   id: '/events',
   path: '/events',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EnrollmentsRoute = EnrollmentsRouteImport.update({
+  id: '/enrollments',
+  path: '/enrollments',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DocumentsRoute = DocumentsRouteImport.update({
@@ -356,6 +368,7 @@ export interface FileRoutesByFullPath {
   '/complaints': typeof ComplaintsRoute
   '/diary': typeof DiaryRoute
   '/documents': typeof DocumentsRoute
+  '/enrollments': typeof EnrollmentsRoute
   '/events': typeof EventsRoute
   '/exams': typeof ExamsRoute
   '/fees': typeof FeesRoute
@@ -367,6 +380,7 @@ export interface FileRoutesByFullPath {
   '/leave': typeof LeaveRoute
   '/login': typeof LoginRoute
   '/marks': typeof MarksRoute
+  '/messages': typeof MessagesRoute
   '/modules': typeof ModulesRoute
   '/notifications': typeof NotificationsRoute
   '/parents': typeof ParentsRouteWithChildren
@@ -412,6 +426,7 @@ export interface FileRoutesByTo {
   '/complaints': typeof ComplaintsRoute
   '/diary': typeof DiaryRoute
   '/documents': typeof DocumentsRoute
+  '/enrollments': typeof EnrollmentsRoute
   '/events': typeof EventsRoute
   '/exams': typeof ExamsRoute
   '/fees': typeof FeesRoute
@@ -423,6 +438,7 @@ export interface FileRoutesByTo {
   '/leave': typeof LeaveRoute
   '/login': typeof LoginRoute
   '/marks': typeof MarksRoute
+  '/messages': typeof MessagesRoute
   '/modules': typeof ModulesRoute
   '/notifications': typeof NotificationsRoute
   '/pending-verification': typeof PendingVerificationRoute
@@ -468,6 +484,7 @@ export interface FileRoutesById {
   '/complaints': typeof ComplaintsRoute
   '/diary': typeof DiaryRoute
   '/documents': typeof DocumentsRoute
+  '/enrollments': typeof EnrollmentsRoute
   '/events': typeof EventsRoute
   '/exams': typeof ExamsRoute
   '/fees': typeof FeesRoute
@@ -479,6 +496,7 @@ export interface FileRoutesById {
   '/leave': typeof LeaveRoute
   '/login': typeof LoginRoute
   '/marks': typeof MarksRoute
+  '/messages': typeof MessagesRoute
   '/modules': typeof ModulesRoute
   '/notifications': typeof NotificationsRoute
   '/parents': typeof ParentsRouteWithChildren
@@ -527,6 +545,7 @@ export interface FileRouteTypes {
     | '/complaints'
     | '/diary'
     | '/documents'
+    | '/enrollments'
     | '/events'
     | '/exams'
     | '/fees'
@@ -538,6 +557,7 @@ export interface FileRouteTypes {
     | '/leave'
     | '/login'
     | '/marks'
+    | '/messages'
     | '/modules'
     | '/notifications'
     | '/parents'
@@ -583,6 +603,7 @@ export interface FileRouteTypes {
     | '/complaints'
     | '/diary'
     | '/documents'
+    | '/enrollments'
     | '/events'
     | '/exams'
     | '/fees'
@@ -594,6 +615,7 @@ export interface FileRouteTypes {
     | '/leave'
     | '/login'
     | '/marks'
+    | '/messages'
     | '/modules'
     | '/notifications'
     | '/pending-verification'
@@ -638,6 +660,7 @@ export interface FileRouteTypes {
     | '/complaints'
     | '/diary'
     | '/documents'
+    | '/enrollments'
     | '/events'
     | '/exams'
     | '/fees'
@@ -649,6 +672,7 @@ export interface FileRouteTypes {
     | '/leave'
     | '/login'
     | '/marks'
+    | '/messages'
     | '/modules'
     | '/notifications'
     | '/parents'
@@ -696,6 +720,7 @@ export interface RootRouteChildren {
   ComplaintsRoute: typeof ComplaintsRoute
   DiaryRoute: typeof DiaryRoute
   DocumentsRoute: typeof DocumentsRoute
+  EnrollmentsRoute: typeof EnrollmentsRoute
   EventsRoute: typeof EventsRoute
   ExamsRoute: typeof ExamsRoute
   FeesRoute: typeof FeesRoute
@@ -707,6 +732,7 @@ export interface RootRouteChildren {
   LeaveRoute: typeof LeaveRoute
   LoginRoute: typeof LoginRoute
   MarksRoute: typeof MarksRoute
+  MessagesRoute: typeof MessagesRoute
   ModulesRoute: typeof ModulesRoute
   NotificationsRoute: typeof NotificationsRoute
   ParentsRoute: typeof ParentsRouteWithChildren
@@ -895,6 +921,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ModulesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/messages': {
+      id: '/messages'
+      path: '/messages'
+      fullPath: '/messages'
+      preLoaderRoute: typeof MessagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/marks': {
       id: '/marks'
       path: '/marks'
@@ -970,6 +1003,13 @@ declare module '@tanstack/react-router' {
       path: '/events'
       fullPath: '/events'
       preLoaderRoute: typeof EventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/enrollments': {
+      id: '/enrollments'
+      path: '/enrollments'
+      fullPath: '/enrollments'
+      preLoaderRoute: typeof EnrollmentsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/documents': {
@@ -1189,6 +1229,7 @@ const rootRouteChildren: RootRouteChildren = {
   ComplaintsRoute: ComplaintsRoute,
   DiaryRoute: DiaryRoute,
   DocumentsRoute: DocumentsRoute,
+  EnrollmentsRoute: EnrollmentsRoute,
   EventsRoute: EventsRoute,
   ExamsRoute: ExamsRoute,
   FeesRoute: FeesRoute,
@@ -1200,6 +1241,7 @@ const rootRouteChildren: RootRouteChildren = {
   LeaveRoute: LeaveRoute,
   LoginRoute: LoginRoute,
   MarksRoute: MarksRoute,
+  MessagesRoute: MessagesRoute,
   ModulesRoute: ModulesRoute,
   NotificationsRoute: NotificationsRoute,
   ParentsRoute: ParentsRouteWithChildren,

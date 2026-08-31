@@ -153,6 +153,14 @@ export const MODULE_CATALOG: ModuleDef[] = [
     description: "Class structure and section assignments",
   },
   {
+    id: "enrollments",
+    label: M.enrollments,
+    route: "/enrollments",
+    minPlan: "core",
+    group: "Core",
+    description: "Student section rosters and academic year enrollments",
+  },
+  {
     id: "academic-management",
     label: M.academics,
     route: "/academic-management",
@@ -247,6 +255,14 @@ export const MODULE_CATALOG: ModuleDef[] = [
     minPlan: "core",
     group: "Communications",
     description: "Push/email/SMS messages",
+  },
+  {
+    id: "messages",
+    label: "Messages",
+    route: "/messages",
+    minPlan: "core",
+    group: "Communications",
+    description: "Inbox from teachers and parents via Connect",
   },
   {
     id: "announcements",

@@ -136,6 +136,14 @@ export type CreateEnrollmentInput = {
   status?: EnrollmentStatus;
 };
 
+export type UpdateEnrollmentInput = {
+  rollNo?: string;
+  status?: EnrollmentStatus;
+  classId?: string;
+  sectionId?: string;
+  withdrawnOn?: string | null;
+};
+
 export type AcademicYearDto = {
   id: string;
   instituteId: string;

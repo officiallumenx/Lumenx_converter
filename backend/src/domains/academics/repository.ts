@@ -6,6 +6,7 @@ import type {
   CreateAcademicYearInput,
   CreateClassInput,
   CreateEnrollmentInput,
+  UpdateEnrollmentInput,
   CreateSectionInput,
   CreateSubjectInput,
   EnrollmentRow,
@@ -506,6 +507,38 @@ export async function insertEnrollment(
     .select(ENROLLMENT_COLS)
     .single();
   return ensureDbOk(result) as EnrollmentRow;
+}
+
+function toEnrollmentUpdateRow(
+  patch: UpdateEnrollmentInput,
+): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  if (patch.rollNo !== undefined) row.roll_no = patch.rollNo;
+  if (patch.status !== undefined) row.status = patch.status;
+  if (patch.classId !== undefined) row.class_id = patch.classId;
+  if (patch.sectionId !== undefined) row.section_id = patch.sectionId;
+  if (patch.withdrawnOn !== undefined) row.withdrawn_on = patch.withdrawnOn;
+  return row;
+}
+
+export async function updateEnrollmentFields(
+  admin: SupabaseClient,
+  id: string,
+  patch: UpdateEnrollmentInput,
+): Promise<EnrollmentRow | null> {
+  const rowPatch = toEnrollmentUpdateRow(patch);
+  if (Object.keys(rowPatch).length === 0) {
+    return findEnrollmentById(admin, id);
+  }
+  const result = await admin
+    .from("enrollment")
+    .update(rowPatch)
+    .eq("id", id)
+    .is("deleted_at", null)
+    .select(ENROLLMENT_COLS)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (result.data as EnrollmentRow | null) ?? null;
 }
 
 export async function listGuardianStudentIds(

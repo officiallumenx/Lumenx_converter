@@ -5,6 +5,12 @@ export {
   assertApiMode as assertEnrollmentsApiMode,
 } from "./api";
 export {
+  createEnrollmentRecord,
+  updateEnrollmentRecord,
+  enrollmentStatusLabel,
+} from "./mutations";
+export { loadDemoEnrollmentsList } from "./demo-data";
+export {
   loadEnrollmentsList,
   type EnrollmentListStatus,
   type EnrollmentsListState,
@@ -21,4 +27,5 @@ export type {
   EnrollmentListItem,
   EnrollmentStatus,
   ListEnrollmentsParams,
+  UpdateEnrollmentInput,
 } from "./types";

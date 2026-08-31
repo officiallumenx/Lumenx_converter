@@ -5,6 +5,7 @@ import {
   CalendarRange,
   ClipboardCheck,
   BarChart3,
+  MessageSquare,
   MessageSquareWarning,
   Bell,
   ShieldCheck,
@@ -17,6 +18,7 @@ import {
   ClipboardList,
   Bus,
   UserCheck,
+  UserPlus,
   Briefcase,
   Landmark,
   FileBarChart,
@@ -68,6 +70,7 @@ export const adminNav: readonly AdminNavGroup[] = [
     label: "Academics",
     items: [
       { to: "/classes",              label: L["/classes"],  icon: LayoutGrid     },
+      { to: "/enrollments",          label: L["/enrollments"], icon: UserPlus     },
       { to: "/academic-management",  label: L["/academic-management"], icon: School         },
       { to: "/subjects",             label: L["/subjects"],            icon: BookOpen       },
       { to: "/timetable",             label: L["/timetable"],            icon: CalendarRange  },
@@ -84,6 +87,7 @@ export const adminNav: readonly AdminNavGroup[] = [
     label: "Communications",
     items: [
       { to: "/notifications", label: L["/notifications"], icon: Bell                 },
+      { to: "/messages",      label: L["/messages"],      icon: MessageSquare        },
       { to: "/announcements", label: L["/announcements"], icon: Megaphone            },
       { to: "/alerts",        label: L["/alerts"],        icon: Siren                },
       { to: "/complaints",    label: L["/complaints"],    icon: MessageSquareWarning },

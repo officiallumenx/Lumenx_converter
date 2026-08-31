@@ -22,6 +22,7 @@ import {
   listEnrollments,
   listEnrollmentsForStudents,
   findEnrollmentById,
+  updateEnrollmentFields,
   listGuardianStudentIds,
   listSections,
   listSubjects,
@@ -47,6 +48,7 @@ import type {
   CreateAcademicYearInput,
   CreateClassInput,
   CreateEnrollmentInput,
+  UpdateEnrollmentInput,
   CreateSectionInput,
   CreateSubjectInput,
   EnrollmentDto,
@@ -817,4 +819,79 @@ export async function createEnrollmentForActor(
     `${student.first_name} ${student.surname}`.trim() ||
     shortStudentRef(student.id);
   return toEnrollmentDto(row, name);
+}
+
+const TERMINAL_ENROLLMENT_STATUSES = new Set([
+  "completed",
+  "transferred",
+  "dropped_out",
+  "graduated",
+]);
+
+function todayDateOnly(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+export async function updateEnrollmentForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  enrollmentId: string,
+  patch: UpdateEnrollmentInput,
+): Promise<EnrollmentDto> {
+  const existing = await findEnrollmentById(admin, enrollmentId);
+  if (!existing) throw AppError.notFound("Enrollment not found");
+  assertStaffWriter(actor, existing.institute_id);
+
+  const fieldPatch: UpdateEnrollmentInput = { ...patch };
+
+  if (fieldPatch.sectionId !== undefined || fieldPatch.classId !== undefined) {
+    const sectionId = fieldPatch.sectionId ?? existing.section_id;
+    const classId = fieldPatch.classId ?? existing.class_id;
+    const section = await findSectionById(admin, sectionId);
+    if (
+      !section ||
+      section.institute_id !== existing.institute_id ||
+      section.academic_year_id !== existing.academic_year_id ||
+      section.class_id !== classId
+    ) {
+      throw AppError.validation("Referenced resource is invalid", {
+        section_id: ["Section does not match institute / year / class"],
+      });
+    }
+    fieldPatch.sectionId = sectionId;
+    fieldPatch.classId = classId;
+  }
+
+  if (fieldPatch.rollNo !== undefined) {
+    const rollNo = fieldPatch.rollNo.trim();
+    if (!rollNo) {
+      throw AppError.validation("roll_no is required", {
+        roll_no: ["Required"],
+      });
+    }
+    fieldPatch.rollNo = rollNo;
+  }
+
+  if (fieldPatch.status !== undefined) {
+    if (fieldPatch.status === "active") {
+      fieldPatch.withdrawnOn = null;
+    } else if (
+      TERMINAL_ENROLLMENT_STATUSES.has(fieldPatch.status) &&
+      fieldPatch.withdrawnOn === undefined &&
+      !existing.withdrawn_on
+    ) {
+      fieldPatch.withdrawnOn = todayDateOnly();
+    }
+  }
+
+  if (Object.keys(patch).length === 0) {
+    const names = await studentNamesByIds(admin, [existing.student_id]);
+    return toEnrollmentDto(existing, names.get(existing.student_id));
+  }
+
+  const updated = await updateEnrollmentFields(admin, enrollmentId, fieldPatch);
+  if (!updated) throw AppError.notFound("Enrollment not found");
+
+  const names = await studentNamesByIds(admin, [updated.student_id]);
+  return toEnrollmentDto(updated, names.get(updated.student_id));
 }

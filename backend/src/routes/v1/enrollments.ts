@@ -12,6 +12,7 @@ import {
   createEnrollmentForActor,
   getEnrollmentForActor,
   listEnrollmentsForActor,
+  updateEnrollmentForActor,
 } from "../../domains/academics/service.js";
 
 const enrollments = new Hono<AppBindings>();
@@ -98,6 +99,40 @@ enrollments.post("/", async (c) => {
     status: body.status,
   });
   return c.json({ data }, 201);
+});
+
+enrollments.patch("/:id", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const body = validateBody(
+    z
+      .object({
+        roll_no: z.string().min(1).max(50).optional(),
+        status: enrollmentStatusSchema.optional(),
+        class_id: uuid.optional(),
+        section_id: uuid.optional(),
+        withdrawn_on: dateOnly.nullable().optional(),
+      })
+      .refine(
+        (value) =>
+          value.roll_no !== undefined ||
+          value.status !== undefined ||
+          value.class_id !== undefined ||
+          value.section_id !== undefined ||
+          value.withdrawn_on !== undefined,
+        { message: "At least one field is required" },
+      ),
+    await c.req.json(),
+  );
+  const data = await updateEnrollmentForActor(admin, actor, id, {
+    rollNo: body.roll_no,
+    status: body.status,
+    classId: body.class_id,
+    sectionId: body.section_id,
+    withdrawnOn: body.withdrawn_on,
+  });
+  return c.json({ data });
 });
 
 export default enrollments;

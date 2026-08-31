@@ -3,7 +3,7 @@ import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/active-institute";
 import { listEnrollments } from "./api";
 import { enrollmentDtosToListItems } from "./map";
-import type { EnrollmentListItem } from "./types";
+import type { EnrollmentListItem, EnrollmentStatus } from "./types";
 
 export type EnrollmentListStatus =
   | "demo"
@@ -45,7 +45,7 @@ export async function loadEnrollmentsList(
     sectionId?: string;
     classId?: string;
     academicYearId?: string;
-    status?: "active";
+    status?: EnrollmentStatus;
   } = {},
 ): Promise<EnrollmentsListState> {
   if (!isApiAuthMode()) {

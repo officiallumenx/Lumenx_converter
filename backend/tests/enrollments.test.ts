@@ -305,4 +305,31 @@ describe("enrollments API", () => {
     );
     expect(res.status).toBe(401);
   });
+
+  it("updates enrollment roll number and status", async () => {
+    const app = appWithDb(baseDb());
+    const res = await app.request(`/api/v1/enrollments/${ENROLL_A}`, {
+      method: "PATCH",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify({
+        roll_no: "8",
+        status: "transferred",
+      }),
+    });
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(body.data.rollNo).toBe("8");
+    expect(body.data.status).toBe("transferred");
+    expect(body.data.withdrawnOn).toBeTruthy();
+  });
+
+  it("forbids patch of other institute enrollment", async () => {
+    const app = appWithDb(baseDb());
+    const res = await app.request(`/api/v1/enrollments/${ENROLL_B_OTHER_INST}`, {
+      method: "PATCH",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify({ roll_no: "99" }),
+    });
+    expect(res.status).toBe(403);
+  });
 });
