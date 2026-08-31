@@ -342,20 +342,166 @@ describe("reports — durable jobs and download", () => {
     expect(marksCsv).not.toContain(studentB);
   });
 
-  it("marks unsupported catalog ids failed; isolates institutes; validates ids", async () => {
+  it("generates transport, careers, documents, and attendance-daily CSV", async () => {
+    const db = baseDb();
+    const routeId = "r0111111-1111-4111-8111-111111111111";
+    const jobId = "j0111111-1111-4111-8111-111111111111";
+    db.route = [
+      {
+        id: routeId,
+        institute_id: INST_A,
+        name: "Route 7",
+        vehicle_id: null,
+        driver_id: null,
+        status: "active",
+        config_status: "ready",
+        locked_at: null,
+        locked_by_user_id: null,
+        setup_finished_at: null,
+        created_at: "2026-08-01T00:00:00.000Z",
+        updated_at: "2026-08-01T00:00:00.000Z",
+        deleted_at: null,
+      },
+    ];
+    db.transport_enrollment = [
+      {
+        id: "te111111-1111-4111-8111-111111111111",
+        institute_id: INST_A,
+        student_id: STUDENT_A,
+        route_id: routeId,
+        pickup_stop_id: "s0111111-1111-4111-8111-111111111111",
+        drop_stop_id: "s0222222-2222-4222-8222-222222222222",
+        status: "active",
+        created_at: "2026-08-01T00:00:00.000Z",
+        updated_at: "2026-08-01T00:00:00.000Z",
+        deleted_at: null,
+      },
+    ];
+    db.career_job = [
+      {
+        id: jobId,
+        institute_id: INST_A,
+        title: "Math Teacher",
+        slug: "math-teacher",
+        description: null,
+        category: "teaching",
+        employment_type: "full_time",
+        work_mode: "on_site",
+        location_label: "Campus",
+        openings_count: 1,
+        status: "open",
+        created_by_user_id: USER_ADMIN,
+        created_at: "2026-08-01T00:00:00.000Z",
+        updated_at: "2026-08-01T00:00:00.000Z",
+        deleted_at: null,
+      },
+    ];
+    db.career_application = [
+      {
+        id: "ca111111-1111-4111-8111-111111111111",
+        institute_id: INST_A,
+        job_id: jobId,
+        candidate_profile_id: null,
+        applicant_user_id: USER_TEACHER,
+        status: "submitted",
+        cover_letter: null,
+        payload: {},
+        decision_note: null,
+        converted_teacher_id: null,
+        submitted_at: "2026-08-10T00:00:00.000Z",
+        created_at: "2026-08-10T00:00:00.000Z",
+        updated_at: "2026-08-10T00:00:00.000Z",
+        deleted_at: null,
+      },
+    ];
+    db.generated_document = [
+      {
+        id: "gd111111-1111-4111-8111-111111111111",
+        institute_id: INST_A,
+        template_id: "tp111111-1111-4111-8111-111111111111",
+        type: "certificate",
+        title: "Bonafide",
+        student_id: STUDENT_A,
+        teacher_id: null,
+        recipient_name: "Ada",
+        recipient_ref: null,
+        status: "ready",
+        workflow_state: "verified",
+        certificate_number: "C-001",
+        portal_student: true,
+        portal_parent: false,
+        portal_teacher: false,
+        rejection_reason: null,
+        payload: {},
+        asset_path: null,
+        generated_by_user_id: USER_ADMIN,
+        published_at: null,
+        created_at: "2026-08-05T00:00:00.000Z",
+        updated_at: "2026-08-05T00:00:00.000Z",
+        deleted_at: null,
+      },
+    ];
+    db.attendance_register = [
+      {
+        id: "rg111111-1111-4111-8111-111111111111",
+        institute_id: INST_A,
+        academic_year_id: "ay111111-1111-4111-8111-111111111111",
+        class_id: "cl111111-1111-4111-8111-111111111111",
+        section_id: "se111111-1111-4111-8111-111111111111",
+        attendance_date: "2026-08-20",
+        slot_label: "Day",
+        status: "submitted",
+        marked_by_teacher_id: "t0111111-1111-4111-8111-111111111111",
+        submitted_at: "2026-08-20T00:00:00.000Z",
+        deleted_at: null,
+      },
+    ];
+    db.attendance_mark = [
+      {
+        id: "mk111111-1111-4111-8111-111111111111",
+        institute_id: INST_A,
+        register_id: "rg111111-1111-4111-8111-111111111111",
+        student_id: STUDENT_A,
+        enrollment_id: "en111111-1111-4111-8111-111111111111",
+        status: "present",
+        deleted_at: null,
+      },
+    ];
+
+    const app = appWithDb(db);
+    const headers = jsonHeaders("token-admin");
+
+    async function csvFor(reportId: string): Promise<string> {
+      const created = await app.request("/api/v1/reports/jobs", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ institute_id: INST_A, report_id: reportId }),
+      });
+      expect(created.status).toBe(201);
+      const job = (await json(created)).data;
+      expect(job.status).toBe("ready");
+      const dl = await app.request(`/api/v1/reports/jobs/${job.id}/download`, {
+        headers: auth("token-admin"),
+      });
+      return dl.text();
+    }
+
+    expect(await csvFor("transport")).toContain("Route 7");
+    expect(await csvFor("careers")).toContain("Math Teacher");
+    expect(await csvFor("documents")).toContain("Bonafide");
+    expect(await csvFor("attendance-daily")).toContain("attendance_pct");
+  });
+
+  it("rejects unknown catalog ids and isolates institutes; validates ids", async () => {
     const db = baseDb();
     const app = appWithDb(db);
 
-    const unsupported = await app.request("/api/v1/reports/jobs", {
+    const unknown = await app.request("/api/v1/reports/jobs", {
       method: "POST",
       headers: jsonHeaders("token-admin"),
-      body: JSON.stringify({ institute_id: INST_A, report_id: "transport" }),
+      body: JSON.stringify({ institute_id: INST_A, report_id: "not-in-catalog" }),
     });
-    expect(unsupported.status).toBe(201);
-    const failed = (await json(unsupported)).data;
-    expect(failed.status).toBe("failed");
-    expect(failed.downloadUrl).toBeNull();
-    expect(failed.errorMessage).toMatch(/No CSV generator/);
+    expect(unknown.status).toBe(400);
 
     const ready = await app.request("/api/v1/reports/jobs", {
       method: "POST",

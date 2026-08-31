@@ -20,3 +20,12 @@ export {
   resolveReportsCatalogView,
   shouldCommitReportsLoad,
 } from "./list-view";
+export {
+  catalogById,
+  countSupportedReports,
+  filterCatalogByModule,
+  formatReportJobWhen,
+  listReportModules,
+  resolveReportName,
+  sortJobsNewestFirst,
+} from "./map";

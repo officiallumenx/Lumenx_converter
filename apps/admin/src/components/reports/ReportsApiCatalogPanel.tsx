@@ -1,20 +1,26 @@
-import { useEffect, useRef, useState } from "react";
-import { Button, Card, CardHeader, Pill } from "@lumenx/ui-admin";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Button, Card, CardHeader, PageStack, Pill } from "@lumenx/ui-admin";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
+  countSupportedReports,
   createReportJob,
   downloadReportJob,
+  filterCatalogByModule,
+  formatReportJobWhen,
+  listReportModules,
   loadReportsCatalog,
+  resolveReportName,
   resolveReportsCatalogView,
   saveBlobAsFile,
   shouldCommitReportsLoad,
+  sortJobsNewestFirst,
   type ReportDefinitionDto,
   type ReportJobDto,
   type ReportsLoadStatus,
 } from "@/lib/reports";
-import { Download, FileText } from "lucide-react";
+import { Download, FileText, Info } from "lucide-react";
 
 function statusHint(status: ReportsLoadStatus, error: string | null): string {
   if (status === "loading") return "Loading report catalog…";
@@ -45,6 +51,7 @@ export function ReportsApiCatalogPanel() {
   const [loadStatus, setLoadStatus] = useState<ReportsLoadStatus>("loading");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(null);
+  const [moduleFilter, setModuleFilter] = useState<string>("all");
   const [queueingId, setQueueingId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -129,6 +136,16 @@ export function ReportsApiCatalogPanel() {
   });
 
   const hint = statusHint(view.status, view.errorMessage);
+  const modules = useMemo(() => listReportModules(view.catalog), [view.catalog]);
+  const filteredCatalog = useMemo(
+    () => filterCatalogByModule(view.catalog, moduleFilter),
+    [view.catalog, moduleFilter],
+  );
+  const sortedJobs = useMemo(
+    () => sortJobsNewestFirst(view.jobs),
+    [view.jobs],
+  );
+  const supportedCount = countSupportedReports(view.catalog);
 
   const queueExport = async (report: ReportDefinitionDto) => {
     if (!instituteCtx.activeInstituteId) return;
@@ -168,49 +185,97 @@ export function ReportsApiCatalogPanel() {
   };
 
   return (
-    <div className="space-y-4">
+    <PageStack>
+      <Card className="p-4 border-primary/20 bg-primary/5">
+        <div className="flex gap-3">
+          <Info className="size-4 text-primary shrink-0 mt-0.5" />
+          <div className="text-xs text-muted-foreground leading-relaxed">
+            Reports export institute data as CSV files. Jobs persist in{" "}
+            <span className="font-mono">report_job</span> and download through
+            authenticated API routes — no public URLs. For live dashboards and
+            charts, use Analytics.
+          </div>
+        </div>
+      </Card>
+
       <Card>
         <CardHeader
           title="Report catalog"
-          hint="Jobs persist in report_job. CSV is generated in the queue request (no worker queue / Storage bucket)."
+          hint={`${supportedCount} of ${view.catalog.length} reports have CSV generators`}
           action={<Pill tone="neutral">API mode</Pill>}
         />
         {hint ? (
           <p className="px-4 pb-4 text-sm text-muted-foreground">{hint}</p>
         ) : (
-          <div className="px-5 pb-5 divide-y divide-border">
-            {view.catalog.map((r) => (
-              <div
-                key={r.id}
-                className="py-4 first:pt-2 last:pb-2 flex flex-wrap items-center gap-4"
-              >
-                <FileText className="size-4 text-muted-foreground shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium">{r.name}</div>
-                  <div className="text-[11px] text-muted-foreground mt-0.5 flex flex-wrap items-center gap-2">
-                    <Pill tone="neutral">{r.module}</Pill>
-                    <span className="font-mono">id: {r.id}</span>
-                    {r.generationSupported === false ? (
-                      <Pill tone="warning">generator unavailable</Pill>
-                    ) : null}
-                  </div>
-                </div>
-                {writesEnabled ? (
-                  <Button
-                    loading={queueingId === r.id}
-                    disabled={
-                      Boolean(view.jobsErrorMessage) ||
-                      r.generationSupported === false ||
-                      queueingId !== null
-                    }
-                    onClick={() => void queueExport(r)}
+          <>
+            <div className="p-4 sm:p-5 border-b border-border flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
+              <div className="lx-segmented-scroll flex-1 min-w-0">
+                <div className="flex items-center gap-1 p-1 bg-background rounded-md border border-border w-max max-w-full">
+                  <button
+                    type="button"
+                    onClick={() => setModuleFilter("all")}
+                    className={`px-3 h-7 rounded text-[11px] font-medium transition-colors ${
+                      moduleFilter === "all"
+                        ? "bg-surface text-foreground"
+                        : "text-muted-foreground"
+                    }`}
                   >
-                    <Download className="size-3.5" /> Queue export
-                  </Button>
-                ) : null}
+                    All
+                  </button>
+                  {modules.map((moduleName) => (
+                    <button
+                      key={moduleName}
+                      type="button"
+                      onClick={() => setModuleFilter(moduleName)}
+                      className={`px-3 h-7 rounded text-[11px] font-medium transition-colors ${
+                        moduleFilter === moduleName
+                          ? "bg-surface text-foreground"
+                          : "text-muted-foreground"
+                      }`}
+                    >
+                      {moduleName}
+                    </button>
+                  ))}
+                </div>
               </div>
-            ))}
-          </div>
+              <div className="text-xs text-muted-foreground sm:ml-auto font-mono shrink-0">
+                {filteredCatalog.length} reports
+              </div>
+            </div>
+            <div className="px-5 pb-5 divide-y divide-border">
+              {filteredCatalog.map((report) => (
+                <div
+                  key={report.id}
+                  className="py-4 first:pt-2 last:pb-2 flex flex-wrap items-center gap-4"
+                >
+                  <FileText className="size-4 text-muted-foreground shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium">{report.name}</div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5 flex flex-wrap items-center gap-2">
+                      <Pill tone="neutral">{report.module}</Pill>
+                      <span className="font-mono">id: {report.id}</span>
+                      {report.generationSupported === false ? (
+                        <Pill tone="warning">generator unavailable</Pill>
+                      ) : null}
+                    </div>
+                  </div>
+                  {writesEnabled ? (
+                    <Button
+                      loading={queueingId === report.id}
+                      disabled={
+                        Boolean(view.jobsErrorMessage) ||
+                        report.generationSupported === false ||
+                        queueingId !== null
+                      }
+                      onClick={() => void queueExport(report)}
+                    >
+                      <Download className="size-3.5" /> Export CSV
+                    </Button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </Card>
 
@@ -222,40 +287,53 @@ export function ReportsApiCatalogPanel() {
           />
           <p className="px-4 pb-4 text-sm text-muted-foreground">{view.jobsErrorMessage}</p>
         </Card>
-      ) : view.jobs.length > 0 ? (
+      ) : sortedJobs.length > 0 ? (
         <Card>
           <CardHeader
             title="Recent jobs"
-            hint="Durable · auth-gated download (no public URLs)"
+            hint="Durable · auth-gated CSV download"
           />
           <ul className="divide-y divide-border">
-            {view.jobs.map((j) => (
+            {sortedJobs.map((job) => (
               <li
-                key={j.id}
-                className="px-5 py-3 flex flex-wrap items-center justify-between gap-2 text-xs"
+                key={job.id}
+                className="px-5 py-3 flex flex-wrap items-center gap-2 text-xs"
               >
-                <span className="font-mono">{j.reportId}</span>
-                <Pill tone={jobTone(j.status)}>{j.status}</Pill>
-                {j.status === "ready" ? (
+                <div className="flex-1 min-w-[180px]">
+                  <div className="font-medium text-foreground">
+                    {resolveReportName(job.reportId, view.catalog)}
+                  </div>
+                  <div className="text-muted-foreground font-mono mt-0.5">
+                    {job.reportId}
+                    {job.fileName ? ` · ${job.fileName}` : ""}
+                  </div>
+                </div>
+                <Pill tone={jobTone(job.status)}>{job.status}</Pill>
+                {job.status === "ready" ? (
                   <Button
-                    loading={downloadingId === j.id}
-                    onClick={() => void downloadJob(j)}
+                    loading={downloadingId === job.id}
+                    onClick={() => void downloadJob(job)}
                   >
                     <Download className="size-3.5" /> Download
                   </Button>
-                ) : j.status === "failed" ? (
-                  <span className="text-muted-foreground max-w-xs truncate" title={j.errorMessage ?? undefined}>
-                    {j.errorMessage ?? "Failed"}
+                ) : job.status === "failed" ? (
+                  <span
+                    className="text-muted-foreground max-w-xs truncate"
+                    title={job.errorMessage ?? undefined}
+                  >
+                    {job.errorMessage ?? "Failed"}
                   </span>
                 ) : (
                   <span className="text-muted-foreground">Processing…</span>
                 )}
-                <span className="text-muted-foreground">{j.createdAt}</span>
+                <span className="text-muted-foreground w-full sm:w-auto sm:ml-auto">
+                  {formatReportJobWhen(job.createdAt)}
+                </span>
               </li>
             ))}
           </ul>
         </Card>
       ) : null}
-    </div>
+    </PageStack>
   );
 }

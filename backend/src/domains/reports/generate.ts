@@ -6,12 +6,13 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { listApplications } from "../admissions/repository.js";
-import {
-  listMarksForInstitute,
-  listRegisters,
-} from "../attendance/repository.js";
 import { listAuditEvents } from "../audit/repository.js";
+import {
+  listApplications as listCareerApplications,
+  listJobs as listCareerJobs,
+} from "../careers/repository.js";
 import { listComplaints } from "../complaints/repository.js";
+import { listGeneratedDocuments } from "../documents/repository.js";
 import { listEvents } from "../events/repository.js";
 import { listExams } from "../exams/repository.js";
 import {
@@ -25,6 +26,16 @@ import {
 } from "../marks/repository.js";
 import { listStudents } from "../students/repository.js";
 import { listTeachers } from "../teachers/repository.js";
+import {
+  listDrivers,
+  listEnrollments,
+  listRoutes,
+  listVehicles,
+} from "../transport/repository.js";
+import {
+  generateAttendanceReportCsv,
+  isAttendanceReportId,
+} from "./generate-attendance.js";
 import type { GeneratedReportFile } from "./types.js";
 
 function esc(value: string): string {
@@ -53,6 +64,12 @@ const SUPPORTED = new Set([
   "students",
   "teachers",
   "attendance",
+  "attendance-daily",
+  "attendance-weekly",
+  "attendance-student",
+  "attendance-teacher",
+  "attendance-class",
+  "attendance-section",
   "marks",
   "fees",
   "complaints",
@@ -60,6 +77,9 @@ const SUPPORTED = new Set([
   "events",
   "admissions",
   "audit",
+  "transport",
+  "careers",
+  "documents",
 ]);
 
 export function isReportGenerationSupported(reportId: string): boolean {
@@ -71,6 +91,10 @@ export async function generateReportCsv(
   instituteId: string,
   reportId: string,
 ): Promise<GeneratedReportFile> {
+  if (isAttendanceReportId(reportId)) {
+    return generateAttendanceReportCsv(admin, instituteId, reportId);
+  }
+
   switch (reportId) {
     case "students": {
       const rows = await listStudents(admin, { instituteId });
@@ -94,44 +118,6 @@ export async function generateReportCsv(
             r.section_label,
             r.status,
           ]),
-        ),
-      };
-    }
-    case "attendance": {
-      const registers = await listRegisters(admin, { instituteId });
-      const registerById = new Map(registers.map((r) => [r.id, r]));
-      const marks = (await listMarksForInstitute(admin, instituteId)).filter(
-        (m) => m.institute_id === instituteId,
-      );
-      return {
-        fileName: stamp(reportId),
-        contentType: "text/csv; charset=utf-8",
-        contentText: toCsv(
-          [
-            "register_id",
-            "attendance_date",
-            "class_id",
-            "section_id",
-            "slot_label",
-            "register_status",
-            "student_id",
-            "enrollment_id",
-            "mark_status",
-          ],
-          marks.map((m) => {
-            const reg = registerById.get(m.register_id);
-            return [
-              m.register_id,
-              reg?.attendance_date,
-              reg?.class_id,
-              reg?.section_id,
-              reg?.slot_label,
-              reg?.status,
-              m.student_id,
-              m.enrollment_id,
-              m.status,
-            ];
-          }),
         ),
       };
     }
@@ -415,6 +401,129 @@ export async function generateReportCsv(
             r.entity_id,
             r.actor_user_id,
             r.created_at,
+          ]),
+        ),
+      };
+    }
+    case "transport": {
+      const [routes, enrollments, vehicles, drivers] = await Promise.all([
+        listRoutes(admin, instituteId),
+        listEnrollments(admin, instituteId),
+        listVehicles(admin, instituteId),
+        listDrivers(admin, instituteId),
+      ]);
+      const vehicleById = new Map(vehicles.map((row) => [row.id, row]));
+      const driverById = new Map(drivers.map((row) => [row.id, row]));
+      const rows: Array<Array<string | null | undefined>> = [];
+      for (const route of routes) {
+        const routeEnrollments = enrollments.filter(
+          (row) => row.route_id === route.id,
+        );
+        const vehicle = route.vehicle_id
+          ? vehicleById.get(route.vehicle_id)
+          : null;
+        const driver = route.driver_id ? driverById.get(route.driver_id) : null;
+        if (routeEnrollments.length === 0) {
+          rows.push([
+            route.id,
+            route.name,
+            route.status,
+            route.config_status,
+            vehicle?.vehicle_number ?? "",
+            driver?.display_name ?? "",
+            "",
+            "",
+            "",
+          ]);
+        } else {
+          for (const enrollment of routeEnrollments) {
+            rows.push([
+              route.id,
+              route.name,
+              route.status,
+              route.config_status,
+              vehicle?.vehicle_number ?? "",
+              driver?.display_name ?? "",
+              enrollment.student_id,
+              enrollment.status,
+              enrollment.pickup_stop_id,
+            ]);
+          }
+        }
+      }
+      return {
+        fileName: stamp(reportId),
+        contentType: "text/csv; charset=utf-8",
+        contentText: toCsv(
+          [
+            "route_id",
+            "route_name",
+            "route_status",
+            "config_status",
+            "vehicle_number",
+            "driver_name",
+            "student_id",
+            "enrollment_status",
+            "pickup_stop_id",
+          ],
+          rows,
+        ),
+      };
+    }
+    case "careers": {
+      const [jobs, applications] = await Promise.all([
+        listCareerJobs(admin, instituteId),
+        listCareerApplications(admin, instituteId),
+      ]);
+      const jobTitle = new Map(jobs.map((row) => [row.id, row.title]));
+      return {
+        fileName: stamp(reportId),
+        contentType: "text/csv; charset=utf-8",
+        contentText: toCsv(
+          [
+            "application_id",
+            "job_id",
+            "job_title",
+            "status",
+            "submitted_at",
+            "created_at",
+          ],
+          applications.map((row) => [
+            row.id,
+            row.job_id,
+            jobTitle.get(row.job_id) ?? "",
+            row.status,
+            row.submitted_at,
+            row.created_at,
+          ]),
+        ),
+      };
+    }
+    case "documents": {
+      const rows = await listGeneratedDocuments(admin, { instituteId });
+      return {
+        fileName: stamp(reportId),
+        contentType: "text/csv; charset=utf-8",
+        contentText: toCsv(
+          [
+            "id",
+            "type",
+            "title",
+            "workflow_state",
+            "student_id",
+            "recipient_name",
+            "certificate_number",
+            "created_at",
+          ],
+          rows.map((row) => [
+            row.id,
+            row.type,
+            row.title,
+            row.workflow_state,
+            row.student_id,
+            row.recipient_name,
+            row.certificate_number,
+            row.created_at,
           ]),
         ),
       };

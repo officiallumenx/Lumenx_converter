@@ -196,7 +196,10 @@ function ReportsDemoPage() {
 function ReportsPage() {
   if (isApiAuthMode()) {
     return (
-      <AppShell title={adminPageTitle("/reports")} subtitle="Report exports and catalog">
+      <AppShell
+        title={M.reports}
+        subtitle="Download & export only · CSV · no charts or live dashboards"
+      >
         <ReportsApiCatalogPanel />
       </AppShell>
     );
