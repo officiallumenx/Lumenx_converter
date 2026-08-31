@@ -423,4 +423,16 @@ export async function deleteEventForActor(
 
   const deleted = await softDeleteEvent(admin, id);
   if (!deleted) throw AppError.notFound("Event not found");
+
+  const { recordEntitySoftDeleteInRecycleBin } = await import(
+    "../recycle/on-soft-delete.js"
+  );
+  await recordEntitySoftDeleteInRecycleBin(admin, actor, {
+    instituteId: existing.institute_id,
+    entityKind: "event",
+    entityId: id,
+    module: "Events",
+    title: existing.title?.trim() || "Event",
+    subtitle: existing.starts_on,
+  });
 }

@@ -3,6 +3,7 @@ import { AppError } from "../../errors/app-error.js";
 import type { Actor } from "../../auth/types.js";
 import {
   actorHasInstituteRole,
+  assertPlatformOperator,
   requireInstituteId,
 } from "../../authorization/index.js";
 import {
@@ -11,6 +12,7 @@ import {
   findRecycleItemById,
   insertRecycleItem,
   listRecycleItemsInBin,
+  listRecycleItemsInBinForPlatform,
   retentionCutoffIso,
   updateRecycleItemFields,
 } from "./repository.js";
@@ -125,6 +127,16 @@ export async function listRecycleItemsForActor(
     throw AppError.forbidden("Insufficient recycle access");
   }
   const rows = await listRecycleItemsInBin(admin, instituteId);
+  return rows.map(toRecycleItemDto);
+}
+
+export async function listRecycleItemsForPlatformOperator(
+  admin: SupabaseClient,
+  actor: Actor,
+  instituteId?: string,
+): Promise<RecycleItemDto[]> {
+  assertPlatformOperator(actor);
+  const rows = await listRecycleItemsInBinForPlatform(admin, instituteId);
   return rows.map(toRecycleItemDto);
 }
 

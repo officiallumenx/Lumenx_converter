@@ -17,6 +17,7 @@ import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
+  daysLeftFromDeletedAt,
   loadRecycleItemsList,
   purgeRecycleItem,
   resolveRecycleListView,
@@ -242,7 +243,9 @@ export function RecycleBinPanel() {
         ) : (
           <ul className="divide-y divide-border rounded-lg border border-border">
             {sorted.map((item) => {
-              const left = daysLeftInRecycleBin(item as RecycleBinItem);
+              const left = apiMode
+                ? daysLeftFromDeletedAt(item.deletedAt)
+                : daysLeftInRecycleBin(item as RecycleBinItem);
               return (
                 <li
                   key={item.id}

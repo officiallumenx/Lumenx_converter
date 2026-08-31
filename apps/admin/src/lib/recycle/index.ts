@@ -26,3 +26,9 @@ export {
   purgeRecycleItem,
   type CreateRecycleItemInput,
 } from "./mutations";
+export {
+  countExpiringSoon,
+  daysLeftFromDeletedAt,
+  filterRecycleByModule,
+  listRecycleModules,
+} from "./stats";

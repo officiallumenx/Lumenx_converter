@@ -297,6 +297,18 @@ export async function deleteParentForActor(
   if (!deleted) {
     throw AppError.conflict("Parent was already deleted");
   }
+
+  const { recordEntitySoftDeleteInRecycleBin } = await import(
+    "../recycle/on-soft-delete.js"
+  );
+  await recordEntitySoftDeleteInRecycleBin(admin, actor, {
+    instituteId: existing.institute_id,
+    entityKind: "parent",
+    entityId: parentId,
+    module: "Parents",
+    title: existing.display_name?.trim() || "Parent",
+    subtitle: existing.phone ?? existing.email,
+  });
 }
 
 export async function createGuardianLinkForActor(

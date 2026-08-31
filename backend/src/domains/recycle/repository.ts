@@ -51,6 +51,26 @@ export async function listRecycleItemsInBin(
   return ensureDbOk(result) as RecycleItemRow[];
 }
 
+/** Platform operator view — optional institute filter. */
+export async function listRecycleItemsInBinForPlatform(
+  admin: SupabaseClient,
+  instituteId?: string,
+): Promise<RecycleItemRow[]> {
+  const cutoff = retentionCutoffIso();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let query: any = admin
+    .from("recycle_item")
+    .select(RECYCLE_COLS)
+    .eq("status", "in_bin")
+    .gte("deleted_at", cutoff)
+    .order("deleted_at", { ascending: false });
+  if (instituteId) {
+    query = query.eq("institute_id", instituteId);
+  }
+  const result = await query;
+  return ensureDbOk(result) as RecycleItemRow[];
+}
+
 export async function findRecycleItemById(
   admin: SupabaseClient,
   id: string,

@@ -204,4 +204,16 @@ export async function deleteStaffAccountForActor(
 
   const deleted = await softDeleteStaffAccount(admin, staffAccountId);
   if (!deleted) throw AppError.conflict("Staff account was already deleted");
+
+  const { recordEntitySoftDeleteInRecycleBin } = await import(
+    "../recycle/on-soft-delete.js"
+  );
+  await recordEntitySoftDeleteInRecycleBin(admin, actor, {
+    instituteId: existing.institute_id,
+    entityKind: "staff_account",
+    entityId: staffAccountId,
+    module: "Accounts",
+    title: existing.display_name?.trim() || existing.email || "Staff account",
+    subtitle: existing.department,
+  });
 }

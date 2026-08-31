@@ -201,4 +201,16 @@ export async function deleteTeacherForActor(
   if (!deleted) {
     throw AppError.conflict("Teacher was already deleted");
   }
+
+  const { recordEntitySoftDeleteInRecycleBin } = await import(
+    "../recycle/on-soft-delete.js"
+  );
+  await recordEntitySoftDeleteInRecycleBin(admin, actor, {
+    instituteId: existing.institute_id,
+    entityKind: "teacher",
+    entityId: teacherId,
+    module: "Teachers",
+    title: existing.display_name?.trim() || "Teacher",
+    subtitle: existing.employee_id,
+  });
 }

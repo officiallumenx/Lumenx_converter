@@ -410,4 +410,19 @@ export async function deleteAssetForActor(
   await removeFromStorage(admin, existing.bucket, existing.object_path).catch(
     () => undefined,
   );
+
+  const { recordEntitySoftDeleteInRecycleBin } = await import(
+    "../recycle/on-soft-delete.js"
+  );
+  await recordEntitySoftDeleteInRecycleBin(admin, actor, {
+    instituteId: existing.institute_id,
+    entityKind: "stored_asset",
+    entityId: id,
+    module: "Assets",
+    title:
+      existing.file_name?.trim() ||
+      existing.object_path?.split("/").pop() ||
+      "Asset",
+    subtitle: existing.category,
+  });
 }

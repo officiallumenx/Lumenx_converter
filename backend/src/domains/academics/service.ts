@@ -695,6 +695,18 @@ export async function deleteSubjectForActor(
 
   const deleted = await softDeleteSubject(admin, subjectId);
   if (!deleted) throw AppError.conflict("Subject was already deleted");
+
+  const { recordEntitySoftDeleteInRecycleBin } = await import(
+    "../recycle/on-soft-delete.js"
+  );
+  await recordEntitySoftDeleteInRecycleBin(admin, actor, {
+    instituteId: existing.institute_id,
+    entityKind: "subject",
+    entityId: subjectId,
+    module: "Subjects",
+    title: existing.name?.trim() || existing.code?.trim() || "Subject",
+    subtitle: existing.code,
+  });
 }
 
 // ── Enrollments ──────────────────────────────────────────────────

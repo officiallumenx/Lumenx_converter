@@ -13,6 +13,7 @@ import {
   findSectionById,
   findSubjectById,
   findTeacherAssignmentMatch,
+  findTeacherById,
   insertHomework,
   listActiveEnrollmentsForStudents,
   listActiveTeacherAssignments,
@@ -186,6 +187,59 @@ async function validateHomeworkGraph(
   }
 }
 
+/**
+ * Staff may create on behalf of an assigned teacher; teachers use JWT identity.
+ */
+async function resolveTeacherIdForCreate(
+  admin: SupabaseClient,
+  actor: Actor,
+  input: CreateHomeworkInput,
+): Promise<string> {
+  const instituteId = input.instituteId;
+
+  if (isGovernanceWriter(actor, instituteId)) {
+    if (!input.teacherId) {
+      throw AppError.validation("teacher_id is required for staff-created homework", {
+        teacher_id: ["Required"],
+      });
+    }
+    const teacher = await findTeacherById(admin, input.teacherId);
+    if (
+      !teacher ||
+      teacher.institute_id !== instituteId ||
+      teacher.status !== "active"
+    ) {
+      throw AppError.validation("Referenced resource is invalid", {
+        teacher_id: ["Teacher not found in this institute"],
+      });
+    }
+    await assertTeacherAssignment(admin, {
+      teacherId: teacher.id,
+      instituteId,
+      academicYearId: input.academicYearId,
+      classId: input.classId,
+      sectionId: input.sectionId,
+      subjectId: input.subjectId,
+    });
+    return teacher.id;
+  }
+
+  if (!actorHasInstituteRole(actor, instituteId, "teacher")) {
+    throw AppError.forbidden("Insufficient institute role");
+  }
+
+  const identity = requireTeacherIdentity(actor, instituteId);
+  await assertTeacherAssignment(admin, {
+    teacherId: identity.teacherId,
+    instituteId,
+    academicYearId: input.academicYearId,
+    classId: input.classId,
+    sectionId: input.sectionId,
+    subjectId: input.subjectId,
+  });
+  return identity.teacherId;
+}
+
 async function assertTeacherOwner(
   admin: SupabaseClient,
   actor: Actor,
@@ -320,13 +374,6 @@ export async function createHomeworkForActor(
 ): Promise<HomeworkDto> {
   const instituteId = requireInstituteId(actor, input.instituteId);
 
-  if (!actorHasInstituteRole(actor, instituteId, "teacher")) {
-    throw AppError.forbidden("Insufficient institute role");
-  }
-
-  // Client teacher_id never authorizes; always use JWT teacher identity.
-  const identity = requireTeacherIdentity(actor, instituteId);
-
   await validateHomeworkGraph(admin, {
     instituteId,
     academicYearId: input.academicYearId,
@@ -335,19 +382,12 @@ export async function createHomeworkForActor(
     subjectId: input.subjectId,
   });
 
-  await assertTeacherAssignment(admin, {
-    teacherId: identity.teacherId,
-    instituteId,
-    academicYearId: input.academicYearId,
-    classId: input.classId,
-    sectionId: input.sectionId,
-    subjectId: input.subjectId,
-  });
+  const teacherId = await resolveTeacherIdForCreate(admin, actor, input);
 
   const row = await insertHomework(admin, {
     ...input,
     instituteId,
-    teacherId: identity.teacherId,
+    teacherId,
   });
   return toHomeworkDto(row);
 }
@@ -457,4 +497,16 @@ export async function deleteHomeworkForActor(
   if (!deleted) {
     throw AppError.conflict("Homework was already deleted");
   }
+
+  const { recordEntitySoftDeleteInRecycleBin } = await import(
+    "../recycle/on-soft-delete.js"
+  );
+  await recordEntitySoftDeleteInRecycleBin(admin, actor, {
+    instituteId: existing.institute_id,
+    entityKind: "homework",
+    entityId: homeworkId,
+    module: "Homework",
+    title: existing.title?.trim() || "Homework",
+    subtitle: existing.due_date,
+  });
 }

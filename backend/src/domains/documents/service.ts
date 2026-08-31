@@ -397,6 +397,18 @@ export async function deleteTemplateForActor(
 
   const deleted = await softDeleteTemplate(admin, id);
   if (!deleted) throw AppError.notFound("Template not found");
+
+  const { recordEntitySoftDeleteInRecycleBin } = await import(
+    "../recycle/on-soft-delete.js"
+  );
+  await recordEntitySoftDeleteInRecycleBin(admin, actor, {
+    instituteId: existing.institute_id,
+    entityKind: "template",
+    entityId: id,
+    module: "Templates",
+    title: existing.name?.trim() || "Template",
+    subtitle: existing.type,
+  });
 }
 
 export async function listGeneratedForActor(
@@ -640,6 +652,18 @@ export async function deleteGeneratedForActor(
 
   const deleted = await softDeleteGeneratedDocument(admin, id);
   if (!deleted) throw AppError.notFound("Generated document not found");
+
+  const { recordEntitySoftDeleteInRecycleBin } = await import(
+    "../recycle/on-soft-delete.js"
+  );
+  await recordEntitySoftDeleteInRecycleBin(admin, actor, {
+    instituteId: existing.institute_id,
+    entityKind: "generated_document",
+    entityId: id,
+    module: "Documents",
+    title: existing.title?.trim() || "Document",
+    subtitle: existing.recipient_name,
+  });
 }
 
 export async function getGeneratedDocumentSignedUrlForActor(

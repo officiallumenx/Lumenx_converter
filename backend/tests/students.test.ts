@@ -358,7 +358,8 @@ describe("students — validation and legacy IDs", () => {
 
 describe("students — lifecycle and soft delete", () => {
   it("patches access/status and soft-deletes", async () => {
-    const app = appWithDb(baseDb());
+    const db = baseDb();
+    const app = appWithDb(db);
 
     const patched = await app.request(`/api/v1/students/${STUDENT_A}`, {
       method: "PATCH",
@@ -375,6 +376,13 @@ describe("students — lifecycle and soft delete", () => {
       headers: auth("token-admin"),
     });
     expect(del.status).toBe(200);
+
+    expect(db.recycle_item.some(
+      (row) =>
+        row.entity_id === STUDENT_A &&
+        row.entity_kind === "student" &&
+        row.status === "in_bin",
+    )).toBe(true);
 
     const list = await app.request(`/api/v1/students?institute_id=${INST_A}`, {
       headers: auth("token-admin"),
