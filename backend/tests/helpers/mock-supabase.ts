@@ -41,6 +41,7 @@ export type MockDb = {
   mark_entry: Row[];
   mark_score: Row[];
   homework: Row[];
+  homework_submission: Row[];
   diary_day: Row[];
   diary_day_row: Row[];
   notification_template: Row[];
@@ -505,6 +506,7 @@ export function emptyMockDb(): MockDb {
     mark_entry: [],
     mark_score: [],
     homework: [],
+    homework_submission: [],
     diary_day: [],
     diary_day_row: [],
     notification_template: [],

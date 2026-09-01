@@ -1,6 +1,7 @@
 import type { StudentAssignment } from "@/lib/mock-data";
 import { teachers } from "@/lib/mock-data";
 import { downloadBlobToDevice, downloadDataUrlToDevice } from "@lumenx/utils";
+import { isApiAuthMode } from "@/auth/auth-mode";
 
 export interface AssignmentAttachment {
   id: string;
@@ -114,6 +115,20 @@ export function downloadAssignmentAttachment(file: AssignmentAttachment) {
   downloadBlobToDevice(file.fileName, blob);
 }
 
+export async function downloadAssignmentAttachmentAsync(file: AssignmentAttachment): Promise<boolean> {
+  if (downloadFromDataUrl(file)) return true;
+  if (isApiAuthMode() && !file.content && file.id) {
+    const { resolveAttachmentDownloadUrl } = await import("@/lib/homework/load");
+    const url = await resolveAttachmentDownloadUrl(file.id);
+    if (url) {
+      window.open(url, "_blank", "noopener,noreferrer");
+      return true;
+    }
+  }
+  downloadAssignmentAttachment(file);
+  return true;
+}
+
 export function openAssignmentAttachment(file: AssignmentAttachment) {
   if (file.dataUrl) {
     window.open(file.dataUrl, "_blank", "noopener,noreferrer");
@@ -123,6 +138,23 @@ export function openAssignmentAttachment(file: AssignmentAttachment) {
   const url = URL.createObjectURL(blob);
   window.open(url, "_blank", "noopener,noreferrer");
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+export async function openAssignmentAttachmentAsync(file: AssignmentAttachment): Promise<boolean> {
+  if (file.dataUrl) {
+    openAssignmentAttachment(file);
+    return true;
+  }
+  if (isApiAuthMode() && !file.content && file.id) {
+    const { resolveAttachmentDownloadUrl } = await import("@/lib/homework/load");
+    const url = await resolveAttachmentDownloadUrl(file.id);
+    if (url) {
+      window.open(url, "_blank", "noopener,noreferrer");
+      return true;
+    }
+  }
+  openAssignmentAttachment(file);
+  return true;
 }
 
 function defaultAttachments(a: StudentAssignment, instructions: string): AssignmentAttachment[] {

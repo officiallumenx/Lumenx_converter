@@ -17,6 +17,7 @@ export type HomeworkDto = {
   dueDate: string;
   status: HomeworkStatus;
   publishedAt: string | null;
+  attachmentAssetId: string | null;
   createdAt: string;
   updatedAt: string;
 };

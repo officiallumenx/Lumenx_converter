@@ -15,22 +15,30 @@ import {
   findTeacherAssignmentMatch,
   findTeacherById,
   insertHomework,
+  insertHomeworkSubmissions,
+  listActiveEnrollmentsForSection,
   listActiveEnrollmentsForStudents,
   listActiveTeacherAssignments,
   listGuardianStudentIds,
   listHomework,
+  findSubmissionById,
   softDeleteHomework,
   transitionHomeworkStatus,
   updateHomeworkFields,
+  updateSubmissionStatus,
   type EnrollmentAudienceRow,
   type TeacherAssignmentRow,
 } from "./repository.js";
+import { findAssetById } from "../assets/repository.js";
+import { findStudentById } from "../students/repository.js";
 import type {
   CreateHomeworkInput,
   HomeworkDto,
   HomeworkRow,
+  HomeworkSubmissionDto,
   ListHomeworkFilter,
   UpdateHomeworkInput,
+  UpdateHomeworkSubmissionInput,
 } from "./types.js";
 
 /** Governance: expire + soft-delete only (no content CRUD). */
@@ -72,6 +80,7 @@ export function toHomeworkDto(row: HomeworkRow): HomeworkDto {
     dueDate: row.due_date,
     status: row.status,
     publishedAt: row.published_at,
+    attachmentAssetId: row.attachment_asset_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -91,7 +100,7 @@ function isFullInstituteReader(actor: Actor, instituteId: string): boolean {
   return HOMEWORK_FULL_READ_ROLES.some((role) => membership.roles.includes(role));
 }
 
-async function resolveAccessibleStudentIds(
+export async function resolveAccessibleStudentIds(
   admin: SupabaseClient,
   actor: Actor,
   instituteId: string,
@@ -265,7 +274,7 @@ async function assertTeacherOwner(
 /**
  * Authorize read of a single row. Throws forbidden/notFound without leaking drafts.
  */
-async function assertCanReadHomework(
+export async function assertCanReadHomework(
   admin: SupabaseClient,
   actor: Actor,
   row: HomeworkRow,
@@ -308,7 +317,7 @@ async function assertCanReadHomework(
   }
 }
 
-async function filterHomeworkForActor(
+export async function filterHomeworkForActor(
   admin: SupabaseClient,
   actor: Actor,
   instituteId: string,
@@ -414,6 +423,29 @@ export async function updateHomeworkForActor(
   if (patch.instructions !== undefined) fieldPatch.instructions = patch.instructions;
   if (patch.dueDate !== undefined) fieldPatch.due_date = patch.dueDate;
   if (patch.kind !== undefined) fieldPatch.kind = patch.kind;
+  if (patch.attachmentAssetId !== undefined) {
+    if (patch.attachmentAssetId === null) {
+      fieldPatch.attachment_asset_id = null;
+    } else {
+      const asset = await findAssetById(admin, patch.attachmentAssetId);
+      if (
+        !asset ||
+        asset.institute_id !== existing.institute_id ||
+        asset.deleted_at
+      ) {
+        throw AppError.validation("Referenced resource is invalid", {
+          attachment_asset_id: ["Asset not found in this institute"],
+        });
+      }
+      const contentType = asset.content_type?.toLowerCase() ?? "";
+      if (contentType && contentType !== "application/pdf") {
+        throw AppError.validation("Referenced resource is invalid", {
+          attachment_asset_id: ["Homework attachment must be a PDF"],
+        });
+      }
+      fieldPatch.attachment_asset_id = patch.attachmentAssetId;
+    }
+  }
 
   if (Object.keys(fieldPatch).length === 0) {
     return toHomeworkDto(existing);
@@ -446,6 +478,29 @@ export async function publishHomeworkForActor(
   if (!published) {
     throw AppError.conflict("Homework cannot be published in its current status");
   }
+
+  const enrollments = await listActiveEnrollmentsForSection(admin, {
+    instituteId: published.institute_id,
+    sectionId: published.section_id,
+  });
+  await insertHomeworkSubmissions(
+    admin,
+    enrollments.map((enr) => ({
+      instituteId: published.institute_id,
+      homeworkId: published.id,
+      studentId: enr.student_id,
+      enrollmentId: enr.id,
+    })),
+  );
+
+  const { emitHomeworkPublishedNotifications } = await import("./notifications.js");
+  await emitHomeworkPublishedNotifications(
+    admin,
+    actor.userId,
+    published,
+    enrollments.map((e) => e.student_id),
+  );
+
   return toHomeworkDto(published);
 }
 
@@ -509,4 +564,51 @@ export async function deleteHomeworkForActor(
     title: existing.title?.trim() || "Homework",
     subtitle: existing.due_date,
   });
+}
+
+export async function updateHomeworkSubmissionForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  submissionId: string,
+  input: UpdateHomeworkSubmissionInput,
+): Promise<HomeworkSubmissionDto> {
+  const submission = await findSubmissionById(admin, submissionId);
+  if (!submission) throw AppError.notFound("Submission not found");
+
+  const homework = await findHomeworkById(admin, submission.homework_id);
+  if (!homework) throw AppError.notFound("Homework not found");
+
+  assertInstituteAccess(actor, homework.institute_id);
+  await assertTeacherOwner(admin, actor, homework);
+
+  if (homework.status !== "published") {
+    throw AppError.conflict("Submissions can only be marked for published homework");
+  }
+
+  const updated = await updateSubmissionStatus(admin, {
+    id: submissionId,
+    status: input.status,
+    markedByUserId: actor.userId,
+  });
+  if (!updated) throw AppError.notFound("Submission not found");
+
+  const student = await findStudentById(admin, updated.student_id);
+  const enrollmentRes = await admin
+    .from("enrollment")
+    .select("roll_no")
+    .eq("id", updated.enrollment_id)
+    .maybeSingle();
+  const rollNo =
+    (enrollmentRes.data as { roll_no: string | null } | null)?.roll_no ?? null;
+
+  return {
+    id: updated.id,
+    homeworkId: updated.homework_id,
+    studentId: updated.student_id,
+    enrollmentId: updated.enrollment_id,
+    studentName: student?.display_name?.trim() || "Student",
+    rollNo,
+    status: updated.status,
+    markedAt: updated.marked_at,
+  };
 }

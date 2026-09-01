@@ -16,11 +16,73 @@ import {
   listHomeworkForActor,
   publishHomeworkForActor,
   updateHomeworkForActor,
+  updateHomeworkSubmissionForActor,
 } from "../../domains/homework/service.js";
+import {
+  getLearnerHomeworkItemsForActor,
+  getTeacherHomeworkSheetForActor,
+} from "../../domains/homework/portal.js";
 
 const homework = new Hono<AppBindings>();
 
 homework.use("*", requireAuth);
+
+homework.get("/portal/students/:studentId/items", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { studentId } = validateParams(
+    z.object({ studentId: uuid }),
+    c.req.param(),
+  );
+  const query = validateQuery(
+    z.object({
+      institute_id: uuid,
+      kind: kindSchema.optional(),
+    }),
+    c.req.query(),
+  );
+  const data = await getLearnerHomeworkItemsForActor(admin, actor, {
+    instituteId: query.institute_id,
+    studentId,
+    kind: query.kind,
+  });
+  return c.json({ data });
+});
+
+homework.get("/portal/teacher/:homeworkId/sheet", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { homeworkId } = validateParams(
+    z.object({ homeworkId: uuid }),
+    c.req.param(),
+  );
+  const query = validateQuery(
+    z.object({ institute_id: uuid }),
+    c.req.query(),
+  );
+  const data = await getTeacherHomeworkSheetForActor(admin, actor, {
+    instituteId: query.institute_id,
+    homeworkId,
+  });
+  return c.json({ data });
+});
+
+homework.patch("/submissions/:submissionId", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { submissionId } = validateParams(
+    z.object({ submissionId: uuid }),
+    c.req.param(),
+  );
+  const body = validateBody(
+    z.object({ status: z.enum(["missing", "submitted"]) }),
+    await c.req.json(),
+  );
+  const data = await updateHomeworkSubmissionForActor(admin, actor, submissionId, {
+    status: body.status,
+  });
+  return c.json({ data });
+});
 
 function requireAdmin(c: {
   get: (k: "supabase") => AppBindings["Variables"]["supabase"];
@@ -74,6 +136,7 @@ const updateSchema = z
     instructions: z.string().max(10000).nullable().optional(),
     due_date: dateOnly.optional(),
     kind: kindSchema.optional(),
+    attachment_asset_id: uuid.nullable().optional(),
   })
   .refine(
     (body) =>
@@ -81,7 +144,8 @@ const updateSchema = z
       body.description !== undefined ||
       body.instructions !== undefined ||
       body.due_date !== undefined ||
-      body.kind !== undefined,
+      body.kind !== undefined ||
+      body.attachment_asset_id !== undefined,
     { message: "At least one field is required" },
   );
 
@@ -142,6 +206,7 @@ homework.patch("/:id", async (c) => {
     instructions: body.instructions,
     dueDate: body.due_date,
     kind: body.kind,
+    attachmentAssetId: body.attachment_asset_id,
   });
   return c.json({ data });
 });

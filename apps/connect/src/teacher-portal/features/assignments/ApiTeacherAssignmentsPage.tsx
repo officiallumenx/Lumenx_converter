@@ -4,11 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { ConnectDatePicker } from "@/components/app/attendance/AttendanceDatePicker";
-import { useTeacherPortal } from "@/context/TeacherPortalContext";
-import { teacherRepository } from "@/lib/teacher/repositories";
-import { isTeacherAccessDenied } from "@/lib/teacher/portal-access-guard";
-import { isApiAuthMode } from "@/auth/auth-mode";
-import { ApiTeacherAssignmentsPage } from "./ApiTeacherAssignmentsPage";
+import { useApp } from "@/lib/app-state";
 import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
 import { EmptyState } from "@/teacher-portal/shared/ui/EmptyState";
 import {
@@ -44,52 +40,145 @@ import type {
   TeacherAssignment,
   TeacherClass,
 } from "@/lib/teacher/types";
+import {
+  attachHomeworkPdf,
+  homeworkDtoToTeacherAssignment,
+  loadTeacherHomeworkList,
+  loadTeacherHomeworkSheet,
+  publishHomeworkItem,
+  saveHomeworkDraft,
+  submissionDtoToConnectRow,
+  toggleHomeworkSubmission,
+  type HomeworkDto,
+} from "@/lib/homework";
+import {
+  getTeacherClassesFromCache,
+  getTeacherPortalApiCache,
+  loadTeacherPortalApiData,
+} from "@/lib/teacher-classes/load";
+import {
+  listSubjects,
+  listTeacherAssignments,
+  type SubjectDto,
+  type TeacherAssignmentDto,
+} from "@/lib/teacher-classes/api";
 
 const newAssignmentSchema = z.object({
   title: z.string().trim().min(3, "Title is required.").max(200),
   description: z.string().trim().min(12, "Add instructions (at least 12 characters).").max(8000),
-  subject: z.string().min(1, "Select a subject."),
-  className: z.string().min(1, "Select a class."),
-  section: z.string().min(1, "Select a section."),
+  subjectId: z.string().min(1, "Select a subject."),
+  sectionId: z.string().min(1, "Select a class."),
   dueDate: z.string().min(1, "Set a due date."),
   type: z.enum(["homework", "assignment"]),
 });
 
 type NewAssignmentForm = z.infer<typeof newAssignmentSchema>;
 
-type BrowseMode = "item" | "class";
-
-/**
- * A) By item — pick homework/assignment, tap students submitted / not.
- * B) By class — class + section roster with totals.
- */
-export function TeacherAssignmentsPage() {
-  if (isApiAuthMode()) return <ApiTeacherAssignmentsPage />;
-  return <DemoTeacherAssignmentsPage />;
-}
-
-function DemoTeacherAssignmentsPage() {
-  const portal = useTeacherPortal();
+export function ApiTeacherAssignmentsPage() {
+  const { activeInstituteId } = useApp();
   const [assignments, setAssignments] = useState<TeacherAssignment[]>([]);
+  const [homeworkRows, setHomeworkRows] = useState<HomeworkDto[]>([]);
   const [loading, setLoading] = useState(true);
-  const [browseMode, setBrowseMode] = useState<BrowseMode>("item");
   const [categoryType, setCategoryType] = useState<"assignment" | "homework">("homework");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [portalTick, setPortalTick] = useState(0);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [subjects, setSubjects] = useState<SubjectDto[]>([]);
+  const [teacherAssignments, setTeacherAssignments] = useState<TeacherAssignmentDto[]>([]);
 
-  const load = useCallback(() => {
-    if (!portal.isTeacher) return;
-    setLoading(true);
-    teacherRepository.getAssignments().then((list) => {
-      setAssignments(list);
-      setLoading(false);
-    });
-  }, [portal.isTeacher]);
+  const refresh = useCallback(() => setReloadKey((k) => k + 1), []);
+
+  const classes = useMemo(() => {
+    void portalTick;
+    return getTeacherClassesFromCache();
+  }, [portalTick]);
+
+  const subjectLabels = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const s of subjects) {
+      map.set(s.id, s.name?.trim() || s.code?.trim() || s.id);
+    }
+    return map;
+  }, [subjects]);
+
+  const classLabels = useMemo(() => {
+    const map = new Map<string, { classLabel: string; sectionLabel: string }>();
+    for (const c of classes) {
+      map.set(c.id, { classLabel: c.className, sectionLabel: c.section });
+    }
+    return map;
+  }, [classes]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (!activeInstituteId) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    void (async () => {
+      await loadTeacherPortalApiData(activeInstituteId);
+      if (cancelled) return;
+      setPortalTick((t) => t + 1);
+      const cache = getTeacherPortalApiCache();
+      const teacherId = cache?.teacherId ?? null;
+      const cachedClasses = getTeacherClassesFromCache();
+      const classLabelMap = new Map(
+        cachedClasses.map((c) => [c.id, { classLabel: c.className, sectionLabel: c.section }]),
+      );
+      const [subjectRows, assignmentRows, listResult] = await Promise.all([
+        listSubjects(activeInstituteId),
+        teacherId
+          ? listTeacherAssignments({ instituteId: activeInstituteId, teacherId })
+          : Promise.resolve([]),
+        teacherId
+          ? loadTeacherHomeworkList({ instituteId: activeInstituteId, teacherId })
+          : Promise.resolve({ status: "empty" as const, items: [], errorMessage: null }),
+      ]);
+      if (cancelled) return;
+      setSubjects(subjectRows);
+      setTeacherAssignments(assignmentRows);
+      setHomeworkRows(listResult.items);
+      const subjectLabelMap = new Map(
+        subjectRows.map((s) => [s.id, s.name?.trim() || s.code?.trim() || s.id]),
+      );
+      setAssignments(
+        listResult.items.map((dto) => {
+          const labels = classLabelMap.get(dto.sectionId) ?? {
+            classLabel: "Class",
+            sectionLabel: "—",
+          };
+          return homeworkDtoToTeacherAssignment(dto, {
+            classLabel: labels.classLabel,
+            sectionLabel: labels.sectionLabel,
+            subjectLabel: subjectLabelMap.get(dto.subjectId) ?? dto.subjectId,
+          });
+        }),
+      );
+      setLoading(false);
+    })().catch(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeInstituteId, reloadKey]);
 
-  if (!portal.isTeacher) return null;
+  useEffect(() => {
+    setAssignments(
+      homeworkRows.map((dto) => {
+        const labels = classLabels.get(dto.sectionId) ?? {
+          classLabel: "Class",
+          sectionLabel: "—",
+        };
+        return homeworkDtoToTeacherAssignment(dto, {
+          classLabel: labels.classLabel,
+          sectionLabel: labels.sectionLabel,
+          subjectLabel: subjectLabels.get(dto.subjectId) ?? dto.subjectId,
+        });
+      }),
+    );
+  }, [homeworkRows, classLabels, subjectLabels]);
 
   return (
     <div className="min-w-0 space-y-5">
@@ -99,83 +188,68 @@ function DemoTeacherAssignmentsPage() {
             Homework
           </h1>
           <p className="mt-1.5 max-w-2xl break-words text-sm leading-relaxed text-muted-foreground">
-            Mark submissions by tap, or review a class overview.
+            Create, publish, and mark offline submissions for your classes.
           </p>
         </div>
         <div className="shrink-0">
-          <NewAssignmentDialog classes={portal.classes} onCreated={load} />
+          <ApiNewAssignmentDialog
+            instituteId={activeInstituteId}
+            classes={classes}
+            subjects={subjects}
+            teacherAssignments={teacherAssignments}
+            onCreated={refresh}
+          />
         </div>
       </div>
 
-      <div className="flex gap-2">
-        {(
-          [
-            ["item", "By item"],
-            ["class", "By class"],
-          ] as const
-        ).map(([mode, label]) => (
-          <button
-            key={mode}
-            type="button"
-            onClick={() => {
-              setBrowseMode(mode);
-              setSelectedId(null);
-            }}
-            className={cn(
-              "rounded-full px-4 py-2 text-sm font-medium",
-              browseMode === mode
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground",
-            )}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {browseMode === "class" ? (
-        <ByClassView
-          classes={portal.classes}
-          categoryType={categoryType}
-          onCategoryType={setCategoryType}
-        />
-      ) : (
-        <ByItemView
-          assignments={assignments}
-          loading={loading}
-          categoryType={categoryType}
-          onCategoryType={(t) => {
-            setCategoryType(t);
-            setSelectedId(null);
-          }}
-          selectedId={selectedId}
-          onSelectId={setSelectedId}
-          onReload={load}
-        />
-      )}
+      <ApiByItemView
+        assignments={assignments}
+        homeworkRows={homeworkRows}
+        loading={loading}
+        instituteId={activeInstituteId}
+        categoryType={categoryType}
+        onCategoryType={(t) => {
+          setCategoryType(t);
+          setSelectedId(null);
+        }}
+        selectedId={selectedId}
+        onSelectId={setSelectedId}
+        onReload={refresh}
+        subjectLabels={subjectLabels}
+        classLabels={classLabels}
+      />
     </div>
   );
 }
 
-function ByItemView({
+function ApiByItemView({
   assignments,
+  homeworkRows,
   loading,
+  instituteId,
   categoryType,
   onCategoryType,
   selectedId,
   onSelectId,
   onReload,
+  subjectLabels,
+  classLabels,
 }: {
   assignments: TeacherAssignment[];
+  homeworkRows: HomeworkDto[];
   loading: boolean;
+  instituteId: string | null;
   categoryType: "assignment" | "homework";
   onCategoryType: (t: "assignment" | "homework") => void;
   selectedId: string | null;
   onSelectId: (id: string | null) => void;
   onReload: () => void;
+  subjectLabels: Map<string, string>;
+  classLabels: Map<string, { classLabel: string; sectionLabel: string }>;
 }) {
   const [submissions, setSubmissions] = useState<AssignmentSubmission[]>([]);
   const [subsLoading, setSubsLoading] = useState(false);
+  const [selectedAssignment, setSelectedAssignment] = useState<TeacherAssignment | null>(null);
 
   const list = useMemo(
     () =>
@@ -194,25 +268,50 @@ function ByItemView({
     if (selectedId && !list.some((a) => a.id === selectedId)) onSelectId(null);
   }, [list, selectedId, onSelectId]);
 
-  const reloadSubs = useCallback(async (assignmentId: string) => {
-    setSubsLoading(true);
-    const rows = await teacherRepository.getAssignmentSubmissions(assignmentId);
-    setSubmissions(rows);
-    setSubsLoading(false);
-  }, []);
+  const reloadSubs = useCallback(
+    async (homeworkId: string) => {
+      if (!instituteId) return;
+      setSubsLoading(true);
+      const result = await loadTeacherHomeworkSheet({
+        instituteId,
+        homeworkId,
+      });
+      if (result.sheet) {
+        const dto = homeworkRows.find((h) => h.id === homeworkId);
+        const labels = dto
+          ? classLabels.get(dto.sectionId) ?? { classLabel: "Class", sectionLabel: "—" }
+          : { classLabel: "Class", sectionLabel: "—" };
+        setSelectedAssignment(
+          dto
+            ? homeworkDtoToTeacherAssignment(dto, {
+                classLabel: labels.classLabel,
+                sectionLabel: labels.sectionLabel,
+                subjectLabel: subjectLabels.get(dto.subjectId) ?? dto.subjectId,
+                sheet: result.sheet,
+              })
+            : selected,
+        );
+      }
+      setSubmissions(result.rows);
+      setSubsLoading(false);
+    },
+    [instituteId, homeworkRows, classLabels, subjectLabels],
+  );
 
   useEffect(() => {
     if (!selected?.id) {
       setSubmissions([]);
+      setSelectedAssignment(null);
       return;
     }
+    setSelectedAssignment(selected);
     void reloadSubs(selected.id);
   }, [selected?.id, reloadSubs]);
 
   const publishFn = useCallback(
     async (id: string) => {
-      await teacherRepository.publishAssignment(id);
-      toast.success("Published");
+      await publishHomeworkItem(id);
+      toast.success("Published — parents and students were notified");
       onReload();
       await reloadSubs(id);
     },
@@ -226,14 +325,14 @@ function ByItemView({
 
       {loading ? (
         <PageSkeleton rows={4} />
-      ) : selected ? (
+      ) : selectedAssignment ? (
         <SelectedAssignmentDetail
-          assignment={selected}
+          assignment={selectedAssignment}
           submissions={submissions}
           subsLoading={subsLoading}
           publishing={publishing}
           onBack={() => onSelectId(null)}
-          onPublish={() => void publish(selected.id)}
+          onPublish={() => void publish(selectedAssignment.id)}
           onSubmissionsChange={setSubmissions}
           onProgressRefresh={onReload}
         />
@@ -265,187 +364,6 @@ function ByItemView({
                   <PublishStatusBadge status={a.publishStatus} />
                 </div>
               </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-function ByClassView({
-  classes,
-  categoryType,
-  onCategoryType,
-}: {
-  classes: TeacherClass[];
-  categoryType: "assignment" | "homework";
-  onCategoryType: (t: "assignment" | "homework") => void;
-}) {
-  const [className, setClassName] = useState(classes[0]?.className ?? "");
-  const [section, setSection] = useState(classes[0]?.section ?? "");
-  const [loading, setLoading] = useState(false);
-  const [totalItems, setTotalItems] = useState(0);
-  const [rows, setRows] = useState<
-    { studentId: string; studentName: string; roll: string; submitted: number; total: number }[]
-  >([]);
-  const [q, setQ] = useState("");
-
-  const classOptions = useMemo(
-    () =>
-      [...new Set(classes.map((c) => c.className))].sort((a, b) =>
-        a.localeCompare(b, undefined, { numeric: true }),
-      ),
-    [classes],
-  );
-
-  const sectionOptions = useMemo(
-    () =>
-      [...new Set(classes.filter((c) => c.className === className).map((c) => c.section))].sort(),
-    [classes, className],
-  );
-
-  const selectedClass = useMemo(
-    () => classes.find((c) => c.className === className && c.section === section) ?? null,
-    [classes, className, section],
-  );
-
-  useEffect(() => {
-    if (!sectionOptions.includes(section) && sectionOptions[0]) {
-      setSection(sectionOptions[0]);
-    }
-  }, [sectionOptions, section]);
-
-  useEffect(() => {
-    if (!selectedClass) {
-      setRows([]);
-      setTotalItems(0);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    teacherRepository
-      .getClassSubmissionOverview(selectedClass.id, categoryType)
-      .then((data) => {
-        if (cancelled) return;
-        setTotalItems(data.totalItems);
-        setRows(data.students);
-        setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedClass, categoryType]);
-
-  const filtered = useMemo(() => {
-    const t = q.trim().toLowerCase();
-    if (!t) return rows;
-    return rows.filter(
-      (r) => r.studentName.toLowerCase().includes(t) || r.roll.includes(t),
-    );
-  }, [rows, q]);
-
-  const studentsFullyDone = rows.filter((r) => r.total > 0 && r.submitted === r.total).length;
-
-  return (
-    <div className="space-y-4">
-      <TypeToggle value={categoryType} onChange={onCategoryType} />
-
-      <div className="grid grid-cols-2 gap-2">
-        <Field label="Class">
-          <Select
-            value={className}
-            onValueChange={(v) => {
-              setClassName(v);
-              const secs = classes.filter((c) => c.className === v).map((c) => c.section);
-              if (secs[0]) setSection(secs[0]);
-            }}
-          >
-            <SelectTrigger className="h-11 rounded-xl">
-              <SelectValue placeholder="Class" />
-            </SelectTrigger>
-            <SelectContent position="popper" className="z-[100]">
-              {classOptions.map((name) => (
-                <SelectItem key={name} value={name}>
-                  Class {name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label="Section">
-          <Select value={section} onValueChange={setSection} disabled={!sectionOptions.length}>
-            <SelectTrigger className="h-11 rounded-xl">
-              <SelectValue placeholder="Section" />
-            </SelectTrigger>
-            <SelectContent position="popper" className="z-[100]">
-              {sectionOptions.map((sec) => (
-                <SelectItem key={sec} value={sec}>
-                  Section {sec}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-      </div>
-
-      {selectedClass ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-card px-3 py-3 shadow-soft sm:px-4">
-          <span className="inline-flex items-center rounded-xl bg-primary/12 px-3 py-1.5 text-base font-semibold text-primary">
-            Class {selectedClass.className}-{selectedClass.section}
-          </span>
-          <span className="text-sm text-muted-foreground">
-            {totalItems} {categoryType === "homework" ? "homework" : "assignments"} given
-          </span>
-          <span className="text-sm text-muted-foreground">
-            · {studentsFullyDone}/{rows.length} students fully submitted
-          </span>
-        </div>
-      ) : null}
-
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <h3 className="text-sm font-semibold">Students</h3>
-        <Input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search name or roll"
-          className="h-10 max-w-xs rounded-xl"
-        />
-      </div>
-
-      {loading ? (
-        <PageSkeleton rows={5} />
-      ) : !selectedClass ? (
-        <EmptyState icon={BookOpen} title="Select class and section" description="" />
-      ) : filtered.length === 0 ? (
-        <EmptyState
-          icon={BookOpen}
-          title="No students"
-          description="No roster for this class and section."
-        />
-      ) : (
-        <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
-          {filtered.map((r) => (
-            <li
-              key={r.studentId}
-              className="flex items-center justify-between gap-3 px-3 py-3 sm:px-4"
-            >
-              <div className="min-w-0">
-                <p className="font-medium">
-                  <span className="mr-2 tabular-nums text-muted-foreground">{r.roll}</span>
-                  {r.studentName}
-                </p>
-              </div>
-              <span
-                className={cn(
-                  "shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold tabular-nums",
-                  r.total > 0 && r.submitted === r.total
-                    ? "bg-success/15 text-success"
-                    : "bg-muted text-muted-foreground",
-                )}
-              >
-                {r.submitted}/{r.total} submitted
-              </span>
             </li>
           ))}
         </ul>
@@ -489,13 +407,11 @@ function SelectedAssignmentDetail({
   const toggle = async (row: AssignmentSubmission) => {
     setTogglingId(row.id);
     try {
-      const next = await teacherRepository.toggleSubmission(row.id);
-      if (next) {
-        onSubmissionsChange(submissions.map((s) => (s.id === row.id ? next : s)));
-        onProgressRefresh();
-      }
-    } catch (error) {
-      if (!isTeacherAccessDenied(error)) throw error;
+      const submitted = row.timing === "missing";
+      const updated = await toggleHomeworkSubmission(row.id, submitted);
+      const next = submissionDtoToConnectRow(updated);
+      onSubmissionsChange(submissions.map((s) => (s.id === row.id ? next : s)));
+      onProgressRefresh();
     } finally {
       setTogglingId(null);
     }
@@ -644,20 +560,17 @@ function TypeToggle({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block min-w-0 space-y-1.5">
-      <span className="text-sm font-medium text-muted-foreground">{label}</span>
-      {children}
-    </label>
-  );
-}
-
-function NewAssignmentDialog({
+function ApiNewAssignmentDialog({
+  instituteId,
   classes,
+  subjects,
+  teacherAssignments,
   onCreated,
 }: {
-  classes: { id: string; className: string; section: string; subject: string }[];
+  instituteId: string | null;
+  classes: TeacherClass[];
+  subjects: SubjectDto[];
+  teacherAssignments: TeacherAssignmentDto[];
   onCreated: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -668,75 +581,89 @@ function NewAssignmentDialog({
     defaultValues: {
       title: "",
       description: "",
-      subject: defaultClass?.subject ?? "Mathematics",
-      className: defaultClass?.className ?? "",
-      section: defaultClass?.section ?? "",
+      subjectId: "",
+      sectionId: defaultClass?.id ?? "",
       dueDate: "",
       type: "homework",
     },
   });
 
-  const watchedClassName = form.watch("className");
+  const watchedSectionId = form.watch("sectionId");
 
-  const classOptions = useMemo(
-    () =>
-      [...new Set(classes.map((c) => c.className))].sort((a, b) =>
-        a.localeCompare(b, undefined, { numeric: true }),
+  const subjectOptions = useMemo(() => {
+    const ids = [
+      ...new Set(
+        teacherAssignments
+          .filter((a) => a.status === "active" && a.sectionId === watchedSectionId)
+          .map((a) => a.subjectId),
       ),
-    [classes],
-  );
-
-  const sectionOptions = useMemo(
-    () =>
-      [
-        ...new Set(
-          classes.filter((c) => c.className === watchedClassName).map((c) => c.section),
-        ),
-      ].sort(),
-    [classes, watchedClassName],
-  );
+    ];
+    return ids.map((id) => {
+      const subject = subjects.find((s) => s.id === id);
+      return { id, label: subject?.name?.trim() || subject?.code?.trim() || id };
+    });
+  }, [teacherAssignments, watchedSectionId, subjects]);
 
   useEffect(() => {
-    const section = form.getValues("section");
-    if (section && !sectionOptions.includes(section) && sectionOptions[0]) {
-      form.setValue("section", sectionOptions[0]);
+    const current = form.getValues("subjectId");
+    if (current && !subjectOptions.some((s) => s.id === current) && subjectOptions[0]) {
+      form.setValue("subjectId", subjectOptions[0].id);
     }
-  }, [sectionOptions, form]);
+  }, [subjectOptions, form]);
 
   const createFn = useCallback(
     async (data: NewAssignmentForm) => {
-      const match = classes.find(
-        (c) => c.className === data.className && c.section === data.section,
-      );
-      if (!match) {
-        toast.error("Select a valid class and section.");
+      if (!instituteId) {
+        toast.error("Institute not loaded.");
         return;
       }
-      await teacherRepository.createAssignment({
-        title: data.title,
-        description: data.description,
-        instructions: data.description,
-        subject: data.subject,
-        classId: match.id,
-        dueDate: data.dueDate,
-        type: data.type,
-        attachment,
+      const match = teacherAssignments.find(
+        (a) =>
+          a.status === "active" &&
+          a.sectionId === data.sectionId &&
+          a.subjectId === data.subjectId,
+      );
+      if (!match) {
+        toast.error("Select a valid class and subject.");
+        return;
+      }
+      const saved = await saveHomeworkDraft({
+        homeworkId: null,
+        createInput: {
+          instituteId,
+          academicYearId: match.academicYearId,
+          classId: match.classId,
+          sectionId: match.sectionId,
+          subjectId: match.subjectId,
+          kind: data.type,
+          title: data.title,
+          description: data.description,
+          instructions: data.description,
+          dueDate: data.dueDate,
+        },
+        updateInput: {},
       });
+      if (attachment?.file) {
+        await attachHomeworkPdf({
+          instituteId,
+          homeworkId: saved.id,
+          file: attachment.file,
+        });
+      }
       setOpen(false);
       setAttachment(null);
       form.reset({
         title: "",
         description: "",
-        subject: defaultClass?.subject ?? "Mathematics",
-        className: defaultClass?.className ?? "",
-        section: defaultClass?.section ?? "",
+        subjectId: subjectOptions[0]?.id ?? "",
+        sectionId: defaultClass?.id ?? "",
         dueDate: "",
         type: "homework",
       });
       toast.success("Saved as draft.");
       onCreated();
     },
-    [attachment, classes, defaultClass, form, onCreated],
+    [instituteId, teacherAssignments, attachment, form, subjectOptions, defaultClass, onCreated],
   );
 
   const { run: onSubmit, pending: creating } = useAsyncAction(createFn);
@@ -802,53 +729,20 @@ function NewAssignmentDialog({
               />
               <FormField
                 control={form.control}
-                name="subject"
+                name="sectionId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Subject</FormLabel>
+                    <FormLabel>Class · Section</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent position="popper" className="z-[100]">
-                        {[...new Set(classes.map((c) => c.subject))].map((s) => (
-                          <SelectItem key={s} value={s}>
-                            {s}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="className"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Class</FormLabel>
-                    <Select
-                      value={field.value}
-                      onValueChange={(v) => {
-                        field.onChange(v);
-                        const secs = classes
-                          .filter((c) => c.className === v)
-                          .map((c) => c.section);
-                        form.setValue("section", secs[0] ?? "");
-                      }}
-                    >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Class" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent position="popper" className="z-[100]">
-                        {classOptions.map((name) => (
-                          <SelectItem key={name} value={name}>
-                            Class {name}
+                        {classes.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            Class {c.className}-{c.section}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -859,24 +753,24 @@ function NewAssignmentDialog({
               />
               <FormField
                 control={form.control}
-                name="section"
+                name="subjectId"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Section</FormLabel>
+                  <FormItem className="sm:col-span-2">
+                    <FormLabel>Subject</FormLabel>
                     <Select
-                      value={field.value}
                       onValueChange={field.onChange}
-                      disabled={!sectionOptions.length}
+                      value={field.value}
+                      disabled={!subjectOptions.length}
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Section" />
+                          <SelectValue placeholder="Subject" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent position="popper" className="z-[100]">
-                        {sectionOptions.map((sec) => (
-                          <SelectItem key={sec} value={sec}>
-                            Section {sec}
+                        {subjectOptions.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.label}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -907,7 +801,7 @@ function NewAssignmentDialog({
             />
             <SimpleFileUpload
               kind="homework"
-              label="Attachment (optional)"
+              label="PDF attachment (optional)"
               value={attachment}
               onChange={setAttachment}
             />
@@ -947,4 +841,3 @@ function PublishStatusBadge({ status }: { status: PublishStatus }) {
     </Badge>
   );
 }
-

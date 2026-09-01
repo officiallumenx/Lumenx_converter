@@ -1,8 +1,9 @@
+import { useState } from "react";
 import { BookOpen, Calendar, Download, ExternalLink, FileText, GraduationCap, User } from "lucide-react";
 import type { StudentAssignmentDetail } from "@/lib/assignment-details";
 import {
-  downloadAssignmentAttachment,
-  openAssignmentAttachment,
+  downloadAssignmentAttachmentAsync,
+  openAssignmentAttachmentAsync,
 } from "@/lib/assignment-details";
 import { formatAssignmentDueLabel } from "@/lib/assignment-status";
 import { toast } from "sonner";
@@ -27,6 +28,7 @@ export function AssignmentDetailDialog({
   onOpenChange: (open: boolean) => void;
   footer?: React.ReactNode;
 }) {
+  const [busyAttachmentId, setBusyAttachmentId] = useState<string | null>(null);
   if (!assignment) return null;
 
   const typeLabel = assignment.type === "homework" ? "Homework" : "Assignment";
@@ -106,7 +108,13 @@ export function AssignmentDetailDialog({
                           size="sm"
                           variant="outline"
                           className="w-full rounded-lg gap-1.5"
-                          onClick={() => openAssignmentAttachment(file)}
+                          disabled={busyAttachmentId === file.id}
+                          onClick={() => {
+                            setBusyAttachmentId(file.id);
+                            void openAssignmentAttachmentAsync(file).finally(() =>
+                              setBusyAttachmentId(null),
+                            );
+                          }}
                         >
                           <ExternalLink className="size-3.5 shrink-0" />
                           Open
@@ -115,9 +123,14 @@ export function AssignmentDetailDialog({
                           type="button"
                           size="sm"
                           className="w-full rounded-lg gap-1.5"
+                          disabled={busyAttachmentId === file.id}
                           onClick={() => {
-                            downloadAssignmentAttachment(file);
-                            toast.success("Saved to Downloads", { description: file.fileName });
+                            setBusyAttachmentId(file.id);
+                            void downloadAssignmentAttachmentAsync(file)
+                              .then(() => {
+                                toast.success("Saved to Downloads", { description: file.fileName });
+                              })
+                              .finally(() => setBusyAttachmentId(null));
                           }}
                         >
                           <Download className="size-3.5 shrink-0" />

@@ -52,6 +52,7 @@ const HW_OTHER_INST = "af444444-4444-4444-8444-444444444444";
 const HW_DRAFT_B = "af555555-5555-4555-8555-555555555555";
 const HW_PUB_OTHER_SECTION = "af666666-6666-4666-8666-666666666666";
 const HW_DELETED = "af777777-7777-4777-8777-777777777777";
+const SUBMISSION_A = "b0111111-1111-4111-8111-111111111111";
 
 beforeEach(() => {
   resetEnvCache();
@@ -98,8 +99,8 @@ function baseDb(): MockDb {
     { membership_id: MEMBER_PARENT, role_code: "parent" },
   ];
   db.teacher = [
-    { id: TEACHER_A, institute_id: INST_A, user_profile_id: USER_TEACHER, status: "active", deleted_at: null },
-    { id: TEACHER_B, institute_id: INST_A, user_profile_id: USER_TEACHER2, status: "active", deleted_at: null },
+    { id: TEACHER_A, institute_id: INST_A, user_profile_id: USER_TEACHER, display_name: "Teacher A", status: "active", deleted_at: null },
+    { id: TEACHER_B, institute_id: INST_A, user_profile_id: USER_TEACHER2, display_name: "Teacher B", status: "active", deleted_at: null },
   ];
   db.parent = [
     { id: PARENT_A, institute_id: INST_A, user_profile_id: USER_PARENT, deleted_at: null },
@@ -116,8 +117,8 @@ function baseDb(): MockDb {
     },
   ];
   db.student = [
-    { id: STUDENT_A, institute_id: INST_A, user_profile_id: USER_STUDENT, deleted_at: null },
-    { id: STUDENT_B, institute_id: INST_A, user_profile_id: USER_STUDENT_B, deleted_at: null },
+    { id: STUDENT_A, institute_id: INST_A, user_profile_id: USER_STUDENT, display_name: "Student A", deleted_at: null },
+    { id: STUDENT_B, institute_id: INST_A, user_profile_id: USER_STUDENT_B, display_name: "Student B", deleted_at: null },
   ];
   db.academic_year = [
     { id: YEAR_A, institute_id: INST_A, deleted_at: null },
@@ -164,6 +165,7 @@ function baseDb(): MockDb {
       student_id: STUDENT_A,
       class_id: CLASS_A,
       section_id: SECTION_A,
+      roll_no: "12",
       status: "active",
       deleted_at: null,
     },
@@ -194,6 +196,7 @@ function baseDb(): MockDb {
       due_date: "2026-09-10",
       status: "draft",
       published_at: null,
+      attachment_asset_id: null,
       created_at: "2026-08-01T00:00:00.000Z",
       updated_at: "2026-08-01T00:00:00.000Z",
       deleted_at: null,
@@ -213,6 +216,7 @@ function baseDb(): MockDb {
       due_date: "2026-09-15",
       status: "published",
       published_at: "2026-08-05T00:00:00.000Z",
+      attachment_asset_id: null,
       created_at: "2026-08-01T00:00:00.000Z",
       updated_at: "2026-08-05T00:00:00.000Z",
       deleted_at: null,
@@ -232,6 +236,7 @@ function baseDb(): MockDb {
       due_date: "2026-08-01",
       status: "expired",
       published_at: "2026-07-01T00:00:00.000Z",
+      attachment_asset_id: null,
       created_at: "2026-07-01T00:00:00.000Z",
       updated_at: "2026-08-02T00:00:00.000Z",
       deleted_at: null,
@@ -251,6 +256,7 @@ function baseDb(): MockDb {
       due_date: "2026-09-20",
       status: "draft",
       published_at: null,
+      attachment_asset_id: null,
       created_at: "2026-08-01T00:00:00.000Z",
       updated_at: "2026-08-01T00:00:00.000Z",
       deleted_at: null,
@@ -270,6 +276,7 @@ function baseDb(): MockDb {
       due_date: "2026-09-25",
       status: "published",
       published_at: "2026-08-06T00:00:00.000Z",
+      attachment_asset_id: null,
       created_at: "2026-08-01T00:00:00.000Z",
       updated_at: "2026-08-06T00:00:00.000Z",
       deleted_at: null,
@@ -289,6 +296,7 @@ function baseDb(): MockDb {
       due_date: "2026-09-10",
       status: "published",
       published_at: "2026-08-01T00:00:00.000Z",
+      attachment_asset_id: null,
       created_at: "2026-08-01T00:00:00.000Z",
       updated_at: "2026-08-01T00:00:00.000Z",
       deleted_at: null,
@@ -308,9 +316,25 @@ function baseDb(): MockDb {
       due_date: "2026-09-01",
       status: "draft",
       published_at: null,
+      attachment_asset_id: null,
       created_at: "2026-08-01T00:00:00.000Z",
       updated_at: "2026-08-01T00:00:00.000Z",
       deleted_at: "2026-08-10T00:00:00.000Z",
+    },
+  ];
+  db.homework_submission = [
+    {
+      id: SUBMISSION_A,
+      institute_id: INST_A,
+      homework_id: HW_PUBLISHED,
+      student_id: STUDENT_A,
+      enrollment_id: ENROLL_A,
+      status: "missing",
+      marked_at: null,
+      marked_by_user_id: null,
+      created_at: "2026-08-05T00:00:00.000Z",
+      updated_at: "2026-08-05T00:00:00.000Z",
+      deleted_at: null,
     },
   ];
   return db;
@@ -512,7 +536,17 @@ describe("homework — RBAC", () => {
           body: JSON.stringify(createBody),
         })
       ).status,
-    ).toBe(403);
+    ).toBe(201);
+
+    expect(
+      (
+        await app.request("/api/v1/homework", {
+          method: "POST",
+          headers: jsonHeaders("token-admin"),
+          body: JSON.stringify({ ...createBody, teacher_id: undefined }),
+        })
+      ).status,
+    ).toBe(400);
 
     expect(
       (
@@ -929,6 +963,21 @@ describe("homework — error mapping", () => {
   });
 });
 
+describe("homework — staff create", () => {
+  it("allows institute admin to create homework for an assigned teacher", async () => {
+    const app = appWithDb(baseDb());
+    const res = await app.request("/api/v1/homework", {
+      method: "POST",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify(createBody),
+    });
+    expect(res.status).toBe(201);
+    const body = await json(res);
+    expect(body.data.teacherId).toBe(TEACHER_A);
+    expect(body.data.title).toBe("New homework");
+  });
+});
+
 describe("homework — client teacher_id spoofing", () => {
   it("ignores client teacher_id and uses JWT identity", async () => {
     const app = appWithDb(baseDb());
@@ -939,5 +988,41 @@ describe("homework — client teacher_id spoofing", () => {
     });
     expect(res.status).toBe(201);
     expect((await json(res)).data.teacherId).toBe(TEACHER_A);
+  });
+});
+
+describe("homework — portal", () => {
+  it("returns learner items for student and parent; teacher submission sheet + toggle", async () => {
+    const app = appWithDb(baseDb());
+
+    const studentRes = await app.request(
+      `/api/v1/homework/portal/students/${STUDENT_A}/items?institute_id=${INST_A}`,
+      { headers: auth("token-student") },
+    );
+    expect(studentRes.status).toBe(200);
+    const items = (await json(studentRes)).data as Array<{ title: string }>;
+    expect(items.some((i) => i.title === "Published HW")).toBe(true);
+
+    const parentRes = await app.request(
+      `/api/v1/homework/portal/students/${STUDENT_A}/items?institute_id=${INST_A}`,
+      { headers: auth("token-parent") },
+    );
+    expect(parentRes.status).toBe(200);
+
+    const sheetRes = await app.request(
+      `/api/v1/homework/portal/teacher/${HW_PUBLISHED}/sheet?institute_id=${INST_A}`,
+      { headers: auth("token-teacher") },
+    );
+    expect(sheetRes.status).toBe(200);
+    const sheet = (await json(sheetRes)).data as { rows: Array<{ id: string; status: string }> };
+    expect(sheet.rows.length).toBeGreaterThan(0);
+
+    const toggleRes = await app.request(`/api/v1/homework/submissions/${SUBMISSION_A}`, {
+      method: "PATCH",
+      headers: jsonHeaders("token-teacher"),
+      body: JSON.stringify({ status: "submitted" }),
+    });
+    expect(toggleRes.status).toBe(200);
+    expect((await json(toggleRes)).data.status).toBe("submitted");
   });
 });

@@ -8,7 +8,10 @@ import type {
 } from "./types.js";
 
 const HOMEWORK_COLS =
-  "id, institute_id, academic_year_id, class_id, section_id, subject_id, teacher_id, kind, title, description, instructions, due_date, status, published_at, created_at, updated_at, deleted_at";
+  "id, institute_id, academic_year_id, class_id, section_id, subject_id, teacher_id, kind, title, description, instructions, due_date, status, published_at, attachment_asset_id, created_at, updated_at, deleted_at";
+
+const SUBMISSION_COLS =
+  "id, institute_id, homework_id, student_id, enrollment_id, status, marked_at, marked_by_user_id, created_at, updated_at, deleted_at";
 
 export type AcademicYearRow = {
   id: string;
@@ -311,4 +314,95 @@ export async function softDeleteHomework(
     .maybeSingle();
   if (result.error) ensureDbOk(result);
   return (result.data as HomeworkRow | null) ?? null;
+}
+
+export async function listActiveEnrollmentsForSection(
+  admin: SupabaseClient,
+  input: { instituteId: string; sectionId: string },
+): Promise<Array<{ id: string; student_id: string; roll_no: string | null }>> {
+  const result = await admin
+    .from("enrollment")
+    .select("id, student_id, roll_no")
+    .eq("institute_id", input.instituteId)
+    .eq("section_id", input.sectionId)
+    .eq("status", "active")
+    .is("deleted_at", null);
+  return ensureDbOk(result) as Array<{
+    id: string;
+    student_id: string;
+    roll_no: string | null;
+  }>;
+}
+
+export async function insertHomeworkSubmissions(
+  admin: SupabaseClient,
+  rows: Array<{
+    instituteId: string;
+    homeworkId: string;
+    studentId: string;
+    enrollmentId: string;
+  }>,
+): Promise<void> {
+  if (rows.length === 0) return;
+  const result = await admin.from("homework_submission").insert(
+    rows.map((row) => ({
+      institute_id: row.instituteId,
+      homework_id: row.homeworkId,
+      student_id: row.studentId,
+      enrollment_id: row.enrollmentId,
+      status: "missing",
+      marked_at: null,
+      marked_by_user_id: null,
+    })),
+  );
+  ensureDbOk(result);
+}
+
+export async function listSubmissionsForHomework(
+  admin: SupabaseClient,
+  homeworkId: string,
+): Promise<import("./types.js").HomeworkSubmissionRow[]> {
+  const result = await admin
+    .from("homework_submission")
+    .select(SUBMISSION_COLS)
+    .eq("homework_id", homeworkId)
+    .is("deleted_at", null);
+  return ensureDbOk(result) as import("./types.js").HomeworkSubmissionRow[];
+}
+
+export async function findSubmissionById(
+  admin: SupabaseClient,
+  id: string,
+): Promise<import("./types.js").HomeworkSubmissionRow | null> {
+  const result = await admin
+    .from("homework_submission")
+    .select(SUBMISSION_COLS)
+    .eq("id", id)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (result.data as import("./types.js").HomeworkSubmissionRow | null) ?? null;
+}
+
+export async function updateSubmissionStatus(
+  admin: SupabaseClient,
+  input: {
+    id: string;
+    status: import("./types.js").HomeworkSubmissionStatus;
+    markedByUserId: string;
+  },
+): Promise<import("./types.js").HomeworkSubmissionRow | null> {
+  const result = await admin
+    .from("homework_submission")
+    .update({
+      status: input.status,
+      marked_at: new Date().toISOString(),
+      marked_by_user_id: input.markedByUserId,
+    })
+    .eq("id", input.id)
+    .is("deleted_at", null)
+    .select(SUBMISSION_COLS)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (result.data as import("./types.js").HomeworkSubmissionRow | null) ?? null;
 }
