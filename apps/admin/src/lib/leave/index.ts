@@ -8,8 +8,10 @@ export type {
   StudentLeaveType,
   IntendedApproverRole,
   ListLeaveRequestsParams,
+  LeaveDecisionDto,
+  DecideLeaveResult,
 } from "./types";
-export { listLeaveRequests } from "./api";
+export { listLeaveRequests, getLeaveDecision } from "./api";
 export {
   decideLeave,
   cancelLeave,

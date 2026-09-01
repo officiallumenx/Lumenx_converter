@@ -5,7 +5,7 @@ import { getAdminApiClient } from "@/lib/admin-api";
 import type { AdminApiClient } from "@/lib/api";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { isInstituteUuid } from "@/lib/active-institute";
-import type { LeaveRequestDto } from "./types";
+import type { DecideLeaveResult, LeaveRequestDto } from "./types";
 
 function assertApiMode(): void {
   if (!isApiAuthMode()) {
@@ -24,12 +24,12 @@ export async function decideLeave(
   leaveId: string,
   input: DecideLeaveInput,
   client: AdminApiClient = getAdminApiClient(),
-): Promise<LeaveRequestDto> {
+): Promise<DecideLeaveResult> {
   assertApiMode();
   if (!isInstituteUuid(leaveId)) {
     throw new Error("leave_id must be a valid UUID");
   }
-  return client.post<LeaveRequestDto>(
+  return client.post<DecideLeaveResult>(
     `/api/v1/leave/requests/${leaveId.trim()}/decide`,
     {
       outcome: input.outcome,

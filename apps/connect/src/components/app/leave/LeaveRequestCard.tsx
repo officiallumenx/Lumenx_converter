@@ -3,33 +3,84 @@ import type { LeaveRequest } from "@lumenx/types";
 import { Button, cn, Label, Textarea } from "@lumenx/ui";
 import { CalendarOff, Check, X } from "lucide-react";
 import { LeaveStatusBadge } from "@/components/app/leave/LeaveStatusBadge";
-import { formatLeaveRequestDates, classTag, leaveDayCount, isClosedLeaveStatus } from "@/lib/leave-utils";
+import {
+  formatLeaveRequestDates,
+  classTag,
+  leaveDayCount,
+  isClosedLeaveStatus,
+} from "@/lib/leave-utils";
 import { leaveStore } from "@/lib/leave-store";
 import { toast } from "sonner";
+import type { ConnectLeaveRequest } from "@/lib/leave/types";
+import { toLeaveBadgeStatus } from "@/lib/leave/map";
+
+type LeaveCardRequest = LeaveRequest | ConnectLeaveRequest;
 
 export function LeaveRequestCard({
   request,
   compact = false,
   onAction,
+  apiMode = false,
+  onApprove,
+  onIgnore,
+  requireIgnoreNote = false,
 }: {
-  request: LeaveRequest;
+  request: LeaveCardRequest;
   compact?: boolean;
   onAction?: () => void;
+  apiMode?: boolean;
+  onApprove?: (id: string) => void | Promise<void>;
+  onIgnore?: (id: string, note: string) => void | Promise<void>;
+  requireIgnoreNote?: boolean;
 }) {
   const isPending = request.status === "pending";
   const [ignoring, setIgnoring] = useState(false);
   const [note, setNote] = useState("");
+  const badgeStatus = toLeaveBadgeStatus(request.status);
 
   const act = (fn: () => void, message: string) => {
     fn();
     toast.success(message, {
-      description: "Parent notified instantly via Alerts.",
+      description: apiMode ? undefined : "Parent notified instantly via Alerts.",
     });
     onAction?.();
   };
 
-  const confirmIgnore = () => {
+  const handleApprove = async () => {
+    if (apiMode && onApprove) {
+      try {
+        await onApprove(request.id);
+        toast.success("Leave accepted");
+        onAction?.();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to approve leave");
+      }
+      return;
+    }
+    act(
+      () => leaveStore.approve(request.id),
+      "Leave accepted — attendance updated for each day",
+    );
+  };
+
+  const confirmIgnore = async () => {
     const trimmed = note.trim();
+    if (requireIgnoreNote && !trimmed) {
+      toast.error("Add a note before ignoring this leave request.");
+      return;
+    }
+    if (apiMode && onIgnore) {
+      try {
+        await onIgnore(request.id, trimmed);
+        toast.success("Leave ignored");
+        setIgnoring(false);
+        setNote("");
+        onAction?.();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to ignore leave");
+      }
+      return;
+    }
     act(
       () => leaveStore.dismiss(request.id, trimmed || undefined),
       "Leave ignored",
@@ -52,7 +103,7 @@ export function LeaveRequestCard({
             <div className="flex flex-wrap items-center gap-2">
               <CalendarOff className="size-4 shrink-0 text-primary" />
               <p className="font-semibold leading-snug">{request.childName}</p>
-              <LeaveStatusBadge status={request.status} />
+              <LeaveStatusBadge status={badgeStatus} />
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
               {classTag(request.className, request.section)} · {formatLeaveRequestDates(request)}
@@ -70,13 +121,13 @@ export function LeaveRequestCard({
           <p
             className={cn(
               "mt-2 text-xs rounded-lg px-3 py-2",
-              isClosedLeaveStatus(request.status)
+              isClosedLeaveStatus(badgeStatus)
                 ? "bg-muted/50 text-foreground border border-border"
                 : "text-muted-foreground bg-muted/30",
             )}
           >
             <span className="font-medium text-muted-foreground">
-              {isClosedLeaveStatus(request.status) ? "Ignored · " : "Note · "}
+              {isClosedLeaveStatus(badgeStatus) ? "Ignored · " : "Note · "}
             </span>
             {request.teacherNote}
           </p>
@@ -89,12 +140,7 @@ export function LeaveRequestCard({
               className="h-8 w-8 p-0 shrink-0"
               aria-label="Accept"
               title="Accept"
-              onClick={() =>
-                act(
-                  () => leaveStore.approve(request.id),
-                  "Leave accepted — attendance updated for each day",
-                )
-              }
+              onClick={() => void handleApprove()}
             >
               <Check className="size-4" />
             </Button>
@@ -118,21 +164,26 @@ export function LeaveRequestCard({
           <div className="mt-4 space-y-2 rounded-xl border border-border bg-muted/20 p-3">
             <Label className="text-xs font-medium">
               Description{" "}
-              <span className="font-normal text-muted-foreground">(optional)</span>
+              {requireIgnoreNote ? (
+                <span className="font-normal text-destructive">(required)</span>
+              ) : (
+                <span className="font-normal text-muted-foreground">(optional)</span>
+              )}
             </Label>
             <Textarea
               rows={3}
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="Add a note for the parent, or leave blank…"
+              placeholder={
+                requireIgnoreNote
+                  ? "Explain why this leave is being ignored…"
+                  : "Add a note for the parent, or leave blank…"
+              }
               className="rounded-xl text-sm"
               autoFocus
             />
-            <p className="text-[11px] text-muted-foreground">
-              You can ignore without a message, or type one if you want.
-            </p>
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={confirmIgnore}>
+              <Button size="sm" variant="outline" onClick={() => void confirmIgnore()}>
                 Ignore{note.trim() ? " with note" : ""}
               </Button>
               <Button

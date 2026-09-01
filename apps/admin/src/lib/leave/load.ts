@@ -6,8 +6,17 @@
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/active-institute";
-import { listLeaveRequests } from "./api";
-import { leaveDtosToListItems } from "./map";
+import { listClassesCatalog } from "@/lib/classes/api";
+import { listStudents } from "@/lib/students/api";
+import { studentDtosToListItems } from "@/lib/students/map";
+import { listTeachers } from "@/lib/teachers/api";
+import { teacherDtosToListItems } from "@/lib/teachers/map";
+import { getLeaveDecision, listLeaveRequests } from "./api";
+import {
+  buildLeaveEnrichmentContext,
+  enrichLeaveDtosToListItems,
+  emptyLeaveEnrichmentContext,
+} from "./enrich";
 import type { LeaveListItem } from "./types";
 
 export type LeaveListStatus =
@@ -24,6 +33,23 @@ export type LeaveListState = {
   items: LeaveListItem[];
   errorMessage: string | null;
 };
+
+async function loadDecisionNotes(
+  dtos: Awaited<ReturnType<typeof listLeaveRequests>>,
+): Promise<Map<string, string | null>> {
+  const decided = dtos.filter((d) => d.status !== "pending" && d.status !== "cancelled");
+  const entries = await Promise.all(
+    decided.map(async (row) => {
+      try {
+        const decision = await getLeaveDecision(row.id);
+        return [row.id, decision.note] as const;
+      } catch {
+        return [row.id, null] as const;
+      }
+    }),
+  );
+  return new Map(entries);
+}
 
 export async function loadLeaveRequestsList(
   activeInstituteId: string | null,
@@ -42,9 +68,27 @@ export async function loadLeaveRequestsList(
 
   try {
     const dtos = await listLeaveRequests({ instituteId: activeInstituteId });
-    const items = leaveDtosToListItems(dtos);
+    if (dtos.length === 0) {
+      return { status: "empty", items: [], errorMessage: null };
+    }
+
+    const [students, teachers, catalog, decisionNotes] = await Promise.all([
+      listStudents({ instituteId: activeInstituteId }).then(studentDtosToListItems),
+      listTeachers({ instituteId: activeInstituteId }).then(teacherDtosToListItems),
+      listClassesCatalog({ instituteId: activeInstituteId }),
+      loadDecisionNotes(dtos),
+    ]);
+
+    const ctx = buildLeaveEnrichmentContext({
+      students,
+      teachers,
+      classes: catalog.classes,
+      sections: catalog.sections,
+      decisionNotes,
+    });
+    const items = enrichLeaveDtosToListItems(dtos, ctx);
     return {
-      status: items.length === 0 ? "empty" : "ready",
+      status: "ready",
       items,
       errorMessage: null,
     };
@@ -75,3 +119,5 @@ export async function loadLeaveRequestsList(
     };
   }
 }
+
+export { emptyLeaveEnrichmentContext };

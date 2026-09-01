@@ -62,7 +62,23 @@ describe("loadLeaveRequestsList", () => {
   it("maps successful API list and does not invent demo rows", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const listLeaveRequests = vi.fn().mockResolvedValue([dto()]);
-    vi.doMock("./api", () => ({ listLeaveRequests }));
+    const getLeaveDecision = vi.fn().mockRejectedValue(new Error("no decision"));
+    vi.doMock("./api", () => ({ listLeaveRequests, getLeaveDecision }));
+    vi.doMock("@/lib/students/api", () => ({
+      listStudents: vi.fn().mockResolvedValue([]),
+    }));
+    vi.doMock("@/lib/students/map", () => ({
+      studentDtosToListItems: vi.fn().mockReturnValue([]),
+    }));
+    vi.doMock("@/lib/teachers/api", () => ({
+      listTeachers: vi.fn().mockResolvedValue([]),
+    }));
+    vi.doMock("@/lib/teachers/map", () => ({
+      teacherDtosToListItems: vi.fn().mockReturnValue([]),
+    }));
+    vi.doMock("@/lib/classes/api", () => ({
+      listClassesCatalog: vi.fn().mockResolvedValue({ classes: [], sections: [] }),
+    }));
     const { loadLeaveRequestsList } = await import("./load");
     const result = await loadLeaveRequestsList(INST);
     expect(result.status).toBe("ready");

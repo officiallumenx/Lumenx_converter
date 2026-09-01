@@ -4,6 +4,7 @@ import { AppShell } from "@/components/app/AppShell";
 import { useApp } from "@/lib/app-state";
 import { ParentLeavePage } from "@/components/app/leave/ParentLeavePage";
 import { TeacherLeavePage } from "@/teacher-portal/features/leave";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { leaveStore } from "@/lib/leave-store";
 import { teacherLeaveStore } from "@/lib/teacher-leave-store";
 
@@ -18,15 +19,17 @@ export const Route = createFileRoute("/leave")({
 
 function LeaveRoutePage() {
   const { role } = useApp();
+  const apiMode = isApiAuthMode();
 
   useEffect(() => {
+    if (apiMode) return;
     if (role === "teacher" || role === "parent") {
       leaveStore.init();
     }
     if (role === "teacher") {
       teacherLeaveStore.init();
     }
-  }, [role]);
+  }, [role, apiMode]);
 
   if (role === "teacher") return <TeacherLeavePage />;
   if (role === "parent") return <ParentLeavePage />;

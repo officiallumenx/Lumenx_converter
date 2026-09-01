@@ -285,7 +285,7 @@ export const leaveStore = {
       r.id === id
         ? {
             ...r,
-            status: "dismissed" as const,
+            status: "ignored" as const,
             updatedAt: nowLabel(),
             teacherNote: trimmed,
           }

@@ -285,7 +285,12 @@ export async function createStudentLeaveForActor(
     reason,
     enrollment,
   });
-  return toLeaveRequestDto(row);
+  const dto = toLeaveRequestDto(row);
+  const {
+    emitStudentLeaveCreatedNotifications,
+  } = await import("./notifications.js");
+  await emitStudentLeaveCreatedNotifications(admin, actor.userId, dto);
+  return dto;
 }
 
 export async function createTeacherLeaveForActor(
@@ -317,7 +322,12 @@ export async function createTeacherLeaveForActor(
     reason,
     enrollment: null,
   });
-  return toLeaveRequestDto(row);
+  const dto = toLeaveRequestDto(row);
+  const {
+    emitTeacherLeaveCreatedNotifications,
+  } = await import("./notifications.js");
+  await emitTeacherLeaveCreatedNotifications(admin, actor.userId, dto);
+  return dto;
 }
 
 export async function decideLeaveForActor(
@@ -365,10 +375,28 @@ export async function decideLeaveForActor(
   );
   if (!updated) throw AppError.notFound("Leave request not found");
 
-  return {
-    request: toLeaveRequestDto(updated),
-    decision: toLeaveDecisionDto(decision),
-  };
+  const requestDto = toLeaveRequestDto(updated);
+  const decisionDto = toLeaveDecisionDto(decision);
+  const {
+    emitStudentLeaveDecidedNotifications,
+    emitTeacherLeaveDecidedNotifications,
+  } = await import("./notifications.js");
+  if (row.subject_kind === "student") {
+    await emitStudentLeaveDecidedNotifications(
+      admin,
+      actor.userId,
+      requestDto,
+      decisionDto,
+    );
+  } else {
+    await emitTeacherLeaveDecidedNotifications(
+      admin,
+      actor.userId,
+      requestDto,
+      decisionDto,
+    );
+  }
+  return { request: requestDto, decision: decisionDto };
 }
 
 export async function cancelLeaveForActor(

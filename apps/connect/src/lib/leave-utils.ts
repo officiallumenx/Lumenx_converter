@@ -7,7 +7,7 @@ export const LEAVE_STATUS_LABELS: Record<LeaveStatus, string> = {
   pending: "Pending approval",
   approved: "Approved",
   rejected: "Rejected",
-  dismissed: "Ignored",
+  ignored: "Ignored",
 };
 
 export const LEAVE_STATUS_TONE: Record<
@@ -17,7 +17,7 @@ export const LEAVE_STATUS_TONE: Record<
   pending: "warning",
   approved: "success",
   rejected: "destructive",
-  dismissed: "muted",
+  ignored: "muted",
 };
 
 /** Earliest selectable leave date — at least one calendar day ahead. */
@@ -99,5 +99,5 @@ export function selectPendingLeaveRequests(requests: LeaveRequest[]): LeaveReque
 }
 
 export function isClosedLeaveStatus(status: LeaveStatus): boolean {
-  return status === "dismissed" || status === "rejected";
+  return status === "ignored" || status === "rejected";
 }

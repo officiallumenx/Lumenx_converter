@@ -78,6 +78,7 @@ function apiItemToStudentRow(item: LeaveListItem): StudentLeave {
     status: item.status,
     applied: item.applied,
     days: item.days,
+    teacherNote: item.decisionNote,
   };
 }
 
@@ -94,6 +95,7 @@ function apiItemToTeacherRow(item: LeaveListItem): TeacherLeave {
     applied: item.applied,
     days: item.days,
     reason: item.reason,
+    adminNote: item.decisionNote,
   };
 }
 

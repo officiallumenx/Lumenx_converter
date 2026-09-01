@@ -171,7 +171,7 @@ export interface SchoolAlert {
   relatedLeaveId?: string;
 }
 
-export type LeaveStatus = "pending" | "approved" | "rejected" | "dismissed";
+export type LeaveStatus = "pending" | "approved" | "rejected" | "ignored";
 
 export interface LeaveRequest {
   id: string;

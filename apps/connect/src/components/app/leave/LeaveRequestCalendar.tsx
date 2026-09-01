@@ -50,7 +50,7 @@ export function LeaveRequestCalendar({
   const leaveDays = useMemo(() => {
     const set = new Set<string>();
     for (const req of requests) {
-      if (req.status === "rejected" || req.status === "dismissed") continue;
+      if (req.status === "rejected" || req.status === "ignored") continue;
       let cur = req.leaveStartDate;
       while (cur <= req.leaveEndDate) {
         set.add(cur);
