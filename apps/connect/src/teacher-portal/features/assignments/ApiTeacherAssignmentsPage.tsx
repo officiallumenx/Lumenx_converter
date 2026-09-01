@@ -7,6 +7,7 @@ import { ConnectDatePicker } from "@/components/app/attendance/AttendanceDatePic
 import { useApp } from "@/lib/app-state";
 import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
 import { EmptyState } from "@/teacher-portal/shared/ui/EmptyState";
+import { ConfirmDialog } from "@/teacher-portal/core/widgets/ConfirmDialog";
 import {
   Badge,
   Button,
@@ -32,7 +33,7 @@ import {
   SimpleFileUpload,
   type SimpleUploadValue,
 } from "@lumenx/ui";
-import { BookOpen, Plus, ChevronLeft, Send, CheckCircle2, Circle } from "lucide-react";
+import { BookOpen, Plus, ChevronLeft, Send, CheckCircle2, Circle, Pencil, Archive } from "lucide-react";
 import { toast } from "sonner";
 import type {
   AssignmentSubmission,
@@ -42,6 +43,7 @@ import type {
 } from "@/lib/teacher/types";
 import {
   attachHomeworkPdf,
+  expireHomeworkItem,
   homeworkDtoToTeacherAssignment,
   loadTeacherHomeworkClassOverview,
   loadTeacherHomeworkList,
@@ -75,6 +77,14 @@ const newAssignmentSchema = z.object({
 });
 
 type NewAssignmentForm = z.infer<typeof newAssignmentSchema>;
+
+const editDraftSchema = z.object({
+  title: z.string().trim().min(3, "Title is required.").max(200),
+  description: z.string().trim().min(12, "Add instructions (at least 12 characters).").max(8000),
+  dueDate: z.string().min(1, "Set a due date."),
+});
+
+type EditDraftForm = z.infer<typeof editDraftSchema>;
 type BrowseMode = "item" | "class";
 
 export function ApiTeacherAssignmentsPage() {
@@ -502,6 +512,11 @@ function ApiByItemView({
     [list, selectedId],
   );
 
+  const selectedHomework = useMemo(
+    () => (selectedId ? homeworkRows.find((h) => h.id === selectedId) ?? null : null),
+    [homeworkRows, selectedId],
+  );
+
   useEffect(() => {
     if (selectedId && !list.some((a) => a.id === selectedId)) onSelectId(null);
   }, [list, selectedId, onSelectId]);
@@ -543,8 +558,14 @@ function ApiByItemView({
       return;
     }
     setSelectedAssignment(selected);
+    const dto = homeworkRows.find((h) => h.id === selected.id);
+    if (dto?.status === "draft") {
+      setSubmissions([]);
+      setSubsLoading(false);
+      return;
+    }
     void reloadSubs(selected.id);
-  }, [selected?.id, reloadSubs]);
+  }, [selected?.id, selected, homeworkRows, reloadSubs]);
 
   const publishFn = useCallback(
     async (id: string) => {
@@ -563,16 +584,21 @@ function ApiByItemView({
 
       {loading ? (
         <PageSkeleton rows={4} />
-      ) : selectedAssignment ? (
+      ) : selectedAssignment && selectedHomework ? (
         <SelectedAssignmentDetail
           assignment={selectedAssignment}
+          homework={selectedHomework}
+          instituteId={instituteId}
           submissions={submissions}
           subsLoading={subsLoading}
           publishing={publishing}
           onBack={() => onSelectId(null)}
           onPublish={() => void publish(selectedAssignment.id)}
           onSubmissionsChange={setSubmissions}
-          onProgressRefresh={onReload}
+          onProgressRefresh={async () => {
+            onReload();
+            await reloadSubs(selectedAssignment.id);
+          }}
         />
       ) : list.length === 0 ? (
         <EmptyState
@@ -612,6 +638,8 @@ function ApiByItemView({
 
 function SelectedAssignmentDetail({
   assignment,
+  homework,
+  instituteId,
   submissions,
   subsLoading,
   publishing,
@@ -621,16 +649,32 @@ function SelectedAssignmentDetail({
   onProgressRefresh,
 }: {
   assignment: TeacherAssignment;
+  homework: HomeworkDto;
+  instituteId: string | null;
   submissions: AssignmentSubmission[];
   subsLoading: boolean;
   publishing: boolean;
   onBack: () => void;
   onPublish: () => void;
   onSubmissionsChange: (rows: AssignmentSubmission[]) => void;
-  onProgressRefresh: () => void;
+  onProgressRefresh: () => void | Promise<void>;
 }) {
   const [q, setQ] = useState("");
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [confirmExpire, setConfirmExpire] = useState(false);
+
+  const expireFn = useCallback(async () => {
+    await expireHomeworkItem(homework.id);
+    toast.success("Homework expired");
+    setConfirmExpire(false);
+    await onProgressRefresh();
+  }, [homework.id, onProgressRefresh]);
+  const { run: expire, pending: expiring } = useAsyncAction(expireFn);
+
+  const isDraft = assignment.publishStatus === "draft";
+  const isPublished = assignment.publishStatus === "published";
+  const isExpired = assignment.publishStatus === "expired";
 
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -657,21 +701,63 @@ function SelectedAssignmentDetail({
 
   return (
     <div className="space-y-4">
+      <ConfirmDialog
+        open={confirmExpire}
+        onOpenChange={setConfirmExpire}
+        title="Expire this homework?"
+        description={`"${assignment.title}" will no longer appear to parents and students.`}
+        confirmLabel="Expire"
+        destructive
+        onConfirm={() => void expire()}
+      />
+      <ApiEditDraftDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        instituteId={instituteId}
+        homework={homework}
+        onSaved={() => void onProgressRefresh()}
+      />
+
       <div className="flex flex-wrap items-center gap-2">
         <Button type="button" variant="ghost" size="sm" className="gap-1 rounded-lg" onClick={onBack}>
           <ChevronLeft className="size-4" aria-hidden />
           Back to list
         </Button>
-        {assignment.publishStatus === "draft" ? (
+        {isDraft ? (
+          <>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="ml-auto gap-1 rounded-lg"
+              onClick={() => setEditOpen(true)}
+            >
+              <Pencil className="size-3.5" aria-hidden />
+              Edit draft
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="gap-1 rounded-lg"
+              disabled={publishing}
+              onClick={onPublish}
+            >
+              <Send className="size-3.5" aria-hidden />
+              {publishing ? "Publishing…" : "Publish"}
+            </Button>
+          </>
+        ) : null}
+        {isPublished ? (
           <Button
             type="button"
             size="sm"
+            variant="outline"
             className="ml-auto gap-1 rounded-lg"
-            disabled={publishing}
-            onClick={onPublish}
+            disabled={expiring}
+            onClick={() => setConfirmExpire(true)}
           >
-            <Send className="size-3.5" aria-hidden />
-            {publishing ? "Publishing…" : "Publish"}
+            <Archive className="size-3.5" aria-hidden />
+            {expiring ? "Expiring…" : "Expire"}
           </Button>
         ) : null}
       </div>
@@ -694,16 +780,33 @@ function SelectedAssignmentDetail({
           <span className="rounded-lg bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
             Section {assignment.section}
           </span>
-          <span className="text-xs text-muted-foreground">
-            {submittedCount}/{submissions.length || assignment.totalStudents} submitted
-          </span>
+          {!isDraft ? (
+            <span className="text-xs text-muted-foreground">
+              {submittedCount}/{submissions.length || assignment.totalStudents} submitted
+            </span>
+          ) : null}
         </div>
 
+        {(assignment.description || assignment.instructions) && (
+          <p className="mt-3 text-sm leading-relaxed text-muted-foreground whitespace-pre-wrap">
+            {assignment.instructions || assignment.description}
+          </p>
+        )}
+
+        {homework.attachmentAssetId ? (
+          <p className="mt-2 text-xs text-muted-foreground">PDF attachment included</p>
+        ) : null}
+
         <p className="mt-3 text-xs text-muted-foreground">
-          Tap a student to mark submitted. Tap again to mark not submitted.
+          {isDraft
+            ? "Edit the draft, then publish to notify parents and students."
+            : isExpired
+              ? "This item is expired and read-only."
+              : "Tap a student to mark submitted. Tap again to mark not submitted."}
         </p>
       </section>
 
+      {!isDraft ? (
       <section className="space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-2">
           <h3 className="text-sm font-semibold">Students</h3>
@@ -731,12 +834,12 @@ function SelectedAssignmentDetail({
                 <li key={row.id}>
                   <button
                     type="button"
-                    disabled={togglingId === row.id}
+                    disabled={togglingId === row.id || isExpired}
                     onClick={() => void toggle(row)}
                     className={cn(
                       "flex w-full items-center justify-between gap-3 px-3 py-3 text-left transition sm:px-4",
                       isSubmitted ? "bg-success/5 hover:bg-success/10" : "hover:bg-muted/40",
-                      togglingId === row.id && "opacity-60",
+                      (togglingId === row.id || isExpired) && "opacity-60",
                     )}
                   >
                     <div className="min-w-0">
@@ -766,7 +869,158 @@ function SelectedAssignmentDetail({
           </ul>
         )}
       </section>
+      ) : null}
     </div>
+  );
+}
+
+function ApiEditDraftDialog({
+  open,
+  onOpenChange,
+  instituteId,
+  homework,
+  onSaved,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  instituteId: string | null;
+  homework: HomeworkDto;
+  onSaved: () => void;
+}) {
+  const [attachment, setAttachment] = useState<SimpleUploadValue | null>(null);
+  const form = useForm<EditDraftForm>({
+    resolver: zodResolver(editDraftSchema),
+    defaultValues: {
+      title: homework.title,
+      description: homework.instructions ?? homework.description,
+      dueDate: homework.dueDate,
+    },
+  });
+
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        title: homework.title,
+        description: homework.instructions ?? homework.description,
+        dueDate: homework.dueDate,
+      });
+      setAttachment(null);
+    }
+  }, [open, homework, form]);
+
+  const saveFn = useCallback(
+    async (data: EditDraftForm) => {
+      if (!instituteId) {
+        toast.error("Institute not loaded.");
+        return;
+      }
+      await saveHomeworkDraft({
+        homeworkId: homework.id,
+        createInput: null,
+        updateInput: {
+          title: data.title,
+          description: data.description,
+          instructions: data.description,
+          dueDate: data.dueDate,
+        },
+      });
+      if (attachment?.file) {
+        await attachHomeworkPdf({
+          instituteId,
+          homeworkId: homework.id,
+          file: attachment.file,
+        });
+      }
+      onOpenChange(false);
+      setAttachment(null);
+      toast.success("Draft saved");
+      onSaved();
+    },
+    [instituteId, homework.id, attachment, onOpenChange, onSaved],
+  );
+
+  const { run: onSubmit, pending: saving } = useAsyncAction(saveFn);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Edit draft</DialogTitle>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
+            <FormField
+              control={form.control}
+              name="title"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Title</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Instructions</FormLabel>
+                  <FormControl>
+                    <Textarea rows={4} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="dueDate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Due date</FormLabel>
+                  <FormControl>
+                    <ConnectDatePicker
+                      label="Due date"
+                      hideLabel
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="Select due date"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <SimpleFileUpload
+              kind="homework"
+              label={
+                homework.attachmentAssetId
+                  ? "Replace PDF attachment (optional)"
+                  : "PDF attachment (optional)"
+              }
+              value={attachment}
+              onChange={setAttachment}
+            />
+            <DialogFooter className="gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => onOpenChange(false)}
+                disabled={saving}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={saving}>
+                {saving ? "Saving…" : "Save draft"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
