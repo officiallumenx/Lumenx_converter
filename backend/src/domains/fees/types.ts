@@ -204,3 +204,32 @@ export type RecordFeePaymentInput = {
   paidOn: string;
   note?: string | null;
 };
+
+export type StudentFeePortalDto = {
+  studentId: string;
+  studentName: string;
+  classId: string | null;
+  className: string | null;
+  sectionName: string | null;
+  plan: FeePlanDto | null;
+  account: StudentFeeAccountDto | null;
+  payments: FeePaymentDto[];
+};
+
+export type SectionFeeRosterRowDto = {
+  studentId: string;
+  studentName: string;
+  rollNo: string | null;
+  classId: string;
+  className: string;
+  sectionId: string;
+  sectionName: string;
+  billedAmount: number;
+  paidAmount: number;
+  dueAmount: number;
+  status: StudentFeeStatus;
+  tuitionDue: number;
+  booksDue: number;
+  transportDue: number;
+  otherDue: number;
+};

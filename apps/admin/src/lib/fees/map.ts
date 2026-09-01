@@ -7,6 +7,11 @@ import type {
   FeePlanDto,
 } from "./types";
 
+export type StudentNameLookup = Map<
+  string,
+  { name: string; classKey: string }
+>;
+
 export function classLabelsToMap(classes: ClassLabelDto[]): Map<string, string> {
   return new Map(classes.map((item) => [item.id, item.label]));
 }
@@ -28,8 +33,10 @@ export function feeBundleToFeesSnapshot(input: {
   concessions: ConcessionDto[];
   payments: FeePaymentDto[];
   classLabels: ClassLabelDto[];
+  studentLookup?: StudentNameLookup;
 }): FeesSnapshot {
   const labels = classLabelsToMap(input.classLabels);
+  const studentLookup = input.studentLookup ?? new Map();
   const classDefaults: FeesSnapshot["classDefaults"] = {};
 
   for (const component of input.components) {
@@ -58,18 +65,21 @@ export function feeBundleToFeesSnapshot(input: {
     updatedAt: row.updatedAt,
   }));
 
-  const payments = input.payments.map((row) => ({
-    id: row.id,
-    receiptNo: row.receiptNo,
-    studentId: row.studentId,
-    studentName: "—",
-    classKey: "—",
-    amount: row.amount,
-    method: row.method,
-    note: row.note ?? undefined,
-    paidAt: row.paidOn,
-    recordedAt: row.createdAt,
-  }));
+  const payments = input.payments.map((row) => {
+    const student = studentLookup.get(row.studentId);
+    return {
+      id: row.id,
+      receiptNo: row.receiptNo,
+      studentId: row.studentId,
+      studentName: student?.name ?? "—",
+      classKey: student?.classKey ?? "—",
+      amount: row.amount,
+      method: row.method,
+      note: row.note ?? undefined,
+      paidAt: row.paidOn,
+      recordedAt: row.createdAt,
+    };
+  });
 
   const collections: FeesSnapshot["collections"] = {};
   for (const payment of payments) {

@@ -447,6 +447,38 @@ export async function sumPaymentsForStudent(
   return rows.reduce((sum, r) => sum + Number(r.amount), 0);
 }
 
+export async function findPrimaryActiveEnrollment(
+  admin: SupabaseClient,
+  input: { studentId: string; instituteId: string },
+): Promise<{
+  id: string;
+  class_id: string;
+  section_id: string;
+  academic_year_id: string;
+  roll_no: string | null;
+} | null> {
+  const result = await admin
+    .from("enrollment")
+    .select("id, class_id, section_id, academic_year_id, roll_no")
+    .eq("student_id", input.studentId)
+    .eq("institute_id", input.instituteId)
+    .eq("status", "active")
+    .is("deleted_at", null)
+    .order("enrolled_on", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (
+    (result.data as {
+      id: string;
+      class_id: string;
+      section_id: string;
+      academic_year_id: string;
+      roll_no: string | null;
+    } | null) ?? null
+  );
+}
+
 export async function findActiveEnrollmentForStudentYear(
   admin: SupabaseClient,
   input: { studentId: string; academicYearId: string; instituteId: string },

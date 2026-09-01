@@ -141,7 +141,7 @@ export function toPaymentDto(row: FeePaymentRow): FeePaymentDto {
   };
 }
 
-function isStaffReader(actor: Actor, instituteId: string): boolean {
+export function isStaffReader(actor: Actor, instituteId: string): boolean {
   if (actor.isPlatformOperator) return true;
   const membership = actor.memberships.find((m) => m.instituteId === instituteId);
   if (!membership) return false;
@@ -160,7 +160,7 @@ function assertFeeStaffReader(actor: Actor, instituteId: string): void {
   }
 }
 
-async function assertCanAccessStudentFees(
+export async function assertCanAccessStudentFees(
   admin: SupabaseClient,
   actor: Actor,
   instituteId: string,
@@ -205,13 +205,13 @@ function componentApplies(row: FeeComponentRow, classId: string): boolean {
   return (row.assigned_class_ids ?? []).includes(classId);
 }
 
-function classInPublishScope(plan: FeePlanRow, classId: string): boolean {
+export function classInPublishScope(plan: FeePlanRow, classId: string): boolean {
   if (plan.status !== "published") return false;
   if (plan.publish_scope === "institute") return true;
   return (plan.published_class_ids ?? []).includes(classId);
 }
 
-function resolveLines(
+export function resolveLines(
   plan: FeePlanRow,
   components: FeeComponentRow[],
   concessions: ConcessionRow[],
@@ -319,7 +319,10 @@ export async function publishFeePlanForActor(
     published_at: new Date().toISOString(),
   });
   if (!updated) throw AppError.notFound("Fee plan not found");
-  return toFeePlanDto(updated);
+  const dto = toFeePlanDto(updated);
+  const { emitFeePlanPublishedNotifications } = await import("./notifications.js");
+  await emitFeePlanPublishedNotifications(admin, actor.userId, dto);
+  return dto;
 }
 
 export async function unpublishFeePlanForActor(
@@ -684,5 +687,8 @@ export async function recordPaymentForActor(
     status: statusFromAmounts(account.billedAmount, paidAmount),
   });
 
-  return toPaymentDto(row);
+  const dto = toPaymentDto(row);
+  const { emitFeePaymentRecordedNotifications } = await import("./notifications.js");
+  await emitFeePaymentRecordedNotifications(admin, actor.userId, dto);
+  return dto;
 }

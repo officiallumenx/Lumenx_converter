@@ -25,6 +25,10 @@ import {
   updateComponentForActor,
   upsertConcessionForActor,
 } from "../../domains/fees/service.js";
+import {
+  getStudentFeePortalForActor,
+  listSectionFeeRosterForActor,
+} from "../../domains/fees/portal.js";
 
 const fees = new Hono<AppBindings>();
 fees.use("*", requireAuth);
@@ -53,6 +57,41 @@ const dateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD");
 const classAmountsSchema = z.record(z.string().uuid(), z.number().nonnegative());
 
 // Static paths before /:id
+fees.get("/portal/students/:studentId", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { studentId } = validateParams(
+    z.object({ studentId: uuid }),
+    c.req.param(),
+  );
+  const query = validateQuery(
+    z.object({ institute_id: uuid }),
+    c.req.query(),
+  );
+  const data = await getStudentFeePortalForActor(admin, actor, {
+    instituteId: query.institute_id,
+    studentId,
+  });
+  return c.json({ data });
+});
+
+fees.get("/portal/roster", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(
+    z.object({
+      institute_id: uuid,
+      section_id: uuid,
+    }),
+    c.req.query(),
+  );
+  const data = await listSectionFeeRosterForActor(admin, actor, {
+    instituteId: query.institute_id,
+    sectionId: query.section_id,
+  });
+  return c.json({ data });
+});
+
 fees.get("/plans", async (c) => {
   const actor = assertAuthenticated(c);
   const admin = requireAdmin(c);

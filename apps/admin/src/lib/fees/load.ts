@@ -2,6 +2,7 @@ import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/active-institute";
 import { listClasses } from "@/lib/classes/api";
+import { listStudents } from "@/lib/students/api";
 import type { FeesSnapshot } from "@lumenx/module-fees";
 import {
   listFeeComponents,
@@ -58,9 +59,10 @@ export async function loadFeesSnapshot(
   }
 
   try {
-    const [plans, classes] = await Promise.all([
+    const [plans, classes, students] = await Promise.all([
       listFeePlans({ instituteId: activeInstituteId }),
       listClasses({ instituteId: activeInstituteId }),
+      listStudents({ instituteId: activeInstituteId }),
     ]);
     const plan = pickActiveFeePlan(plans);
     if (!plan) {
@@ -86,12 +88,22 @@ export async function loadFeesSnapshot(
     ]);
 
     const classLabels = classes.map(classLabelFromDto);
+    const studentLookup = new Map(
+      students.map((s) => [
+        s.id,
+        {
+          name: s.displayName?.trim() || `${s.firstName} ${s.surname}`.trim() || "Student",
+          classKey: s.classLabel?.trim() || "—",
+        },
+      ]),
+    );
     const snapshot = feeBundleToFeesSnapshot({
       plan,
       components,
       concessions,
       payments,
       classLabels,
+      studentLookup,
     });
 
     return {

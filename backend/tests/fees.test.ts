@@ -26,6 +26,7 @@ const MEMBER_PARENT = "aa555555-5555-4555-8555-555555555555";
 const MEMBER_OTHER = "aa444444-4444-4444-8444-444444444444";
 const PLAN_A = "ee111111-1111-4111-8111-111111111111";
 const COMP_A = "ef111111-1111-4111-8111-111111111111";
+const SECTION_A = "ae111111-1111-4111-8111-111111111111";
 
 beforeEach(() => {
   resetEnvCache();
@@ -79,7 +80,7 @@ function baseDb(): MockDb {
       academic_year_id: YEAR_A,
       student_id: STUDENT_A,
       class_id: CLASS_A,
-      section_id: "se111111-1111-4111-8111-111111111111",
+      section_id: SECTION_A,
       status: "active",
       deleted_at: null,
     },
@@ -269,5 +270,34 @@ describe("fees api", () => {
     });
     expect(res.status).toBe(200);
     expect((await json(res)).data.amount).toBe(8000);
+  });
+
+  it("returns student fee portal for parent and section roster for teacher", async () => {
+    const db = baseDb();
+    db.fee_plan[0]!.status = "published";
+    db.fee_plan[0]!.published_at = "2026-08-01T00:00:00.000Z";
+    const app = appWithDb(db);
+
+    const portal = await app.request(
+      `/api/v1/fees/portal/students/${STUDENT_A}?institute_id=${INST_A}`,
+      { headers: { Authorization: "Bearer token-parent" } },
+    );
+    expect(portal.status).toBe(200);
+    const portalBody = (await json(portal)).data;
+    expect(portalBody.studentName).toBe("Kid");
+    expect(portalBody.account.billedAmount).toBe(10000);
+
+    const roster = await app.request(
+      `/api/v1/fees/portal/roster?institute_id=${INST_A}&section_id=${SECTION_A}`,
+      { headers: { Authorization: "Bearer token-teacher" } },
+    );
+    expect(roster.status).toBe(200);
+    expect((await json(roster)).data).toHaveLength(1);
+
+    const blocked = await app.request(
+      `/api/v1/fees/portal/roster?institute_id=${INST_A}&section_id=${SECTION_A}`,
+      { headers: { Authorization: "Bearer token-parent" } },
+    );
+    expect(blocked.status).toBe(403);
   });
 });
