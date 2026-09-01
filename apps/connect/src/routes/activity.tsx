@@ -8,12 +8,22 @@ export const Route = createFileRoute("/activity")({
 });
 
 function ActivityLayout() {
-  const { ready, apiMode } = useActivityApiSession();
+  const { ready, apiMode, error } = useActivityApiSession();
 
   if (apiMode && !ready) {
     return (
       <AppShell>
         <PageSkeleton variant="list" rows={4} />
+      </AppShell>
+    );
+  }
+
+  if (apiMode && error) {
+    return (
+      <AppShell>
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+          {error}
+        </div>
       </AppShell>
     );
   }

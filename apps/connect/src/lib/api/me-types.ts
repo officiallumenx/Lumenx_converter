@@ -13,6 +13,7 @@ export type MeResponse = {
     id: string;
     displayName: string;
     email: string | null;
+    phone?: string | null;
     status: string;
   };
   institutes: MeInstituteMembership[];

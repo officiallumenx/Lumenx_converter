@@ -91,11 +91,20 @@ export function StudentRosterEditor({ students, onChange, unitLabel = "unit" }: 
       setSearch("");
       return;
     }
-    void teacherRepository.getInstituteSections(classFilter).then(setSections);
+    if (apiMode) {
+      const secs = [
+        ...new Set(
+          instituteRoster.filter((s) => s.className === classFilter).map((s) => s.section),
+        ),
+      ].sort();
+      setSections(secs);
+    } else {
+      void teacherRepository.getInstituteSections(classFilter).then(setSections);
+    }
     setSectionFilter("");
     setSelectedIds([]);
     setSearch("");
-  }, [classFilter]);
+  }, [classFilter, apiMode, instituteRoster]);
 
   const rosterIds = useMemo(() => new Set(students.map((s) => s.id)), [students]);
 

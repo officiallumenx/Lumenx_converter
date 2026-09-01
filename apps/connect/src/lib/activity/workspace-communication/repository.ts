@@ -286,6 +286,14 @@ export const workspaceCommunicationRepository = {
     return snapshot;
   },
 
+  async preload() {
+    if (!useApi()) return;
+    store = [];
+    const apiItems = await loadApiItems();
+    store = apiItems;
+    emit();
+  },
+
   getUnreadCount(kind?: WorkspaceCommunicationKind): number {
     return store.filter(
       (i) => i.unread && (kind ? i.kind === kind : i.kind === "notification"),

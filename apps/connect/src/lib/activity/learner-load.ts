@@ -5,6 +5,7 @@ import {
   listActivityTeams,
   listPracticeSessions,
 } from "./api";
+import { listAnnouncements } from "@/lib/announcements/api";
 import type { AchievementDto, ActivityMembershipDto, PracticeSessionDto } from "./api-types";
 
 export type LearnerActivitySquad = {
@@ -32,6 +33,15 @@ export type LearnerActivityPractice = {
   status: PracticeSessionDto["status"];
 };
 
+export type LearnerTeamAnnouncement = {
+  id: string;
+  title: string;
+  body: string;
+  teamName: string;
+  sentAt: string;
+  domain: "sports" | "eca";
+};
+
 export type LearnerActivitiesData = {
   sportsSquads: LearnerActivitySquad[];
   ecaGroups: LearnerActivitySquad[];
@@ -39,6 +49,8 @@ export type LearnerActivitiesData = {
   ecaAchievements: LearnerActivityAchievement[];
   sportsPractice: LearnerActivityPractice[];
   ecaPractice: LearnerActivityPractice[];
+  sportsAnnouncements: LearnerTeamAnnouncement[];
+  ecaAnnouncements: LearnerTeamAnnouncement[];
 };
 
 export async function loadLearnerActivities(input: {
@@ -46,13 +58,15 @@ export async function loadLearnerActivities(input: {
   studentId: string;
 }): Promise<LearnerActivitiesData> {
   const { instituteId, studentId } = input;
-  const [sections, teams, memberships, achievements, practice] = await Promise.all([
-    listActivitySections(instituteId),
-    listActivityTeams(instituteId),
-    listActivityMemberships(instituteId),
-    listAchievements(instituteId, studentId),
-    listPracticeSessions(instituteId),
-  ]);
+  const [sections, teams, memberships, achievements, practice, announcements] =
+    await Promise.all([
+      listActivitySections(instituteId),
+      listActivityTeams(instituteId),
+      listActivityMemberships(instituteId),
+      listAchievements(instituteId, studentId),
+      listPracticeSessions(instituteId),
+      listAnnouncements({ instituteId }),
+    ]);
 
   const sectionById = new Map(sections.map((s) => [s.id, s]));
   const teamById = new Map(teams.map((t) => [t.id, t]));
@@ -94,9 +108,9 @@ export async function loadLearnerActivities(input: {
     .map(mapAchievement)
     .filter((a): a is LearnerActivityAchievement => Boolean(a));
 
-  const mapPractice = (row: PracticeSessionDto): (LearnerActivityPractice & {
-    domain: "sports" | "eca";
-  }) | null => {
+  const mapPractice = (
+    row: PracticeSessionDto,
+  ): (LearnerActivityPractice & { domain: "sports" | "eca" }) | null => {
     if (!teamIds.has(row.teamId)) return null;
     const team = teamById.get(row.teamId);
     const section = team ? sectionById.get(team.sectionId) : undefined;
@@ -116,6 +130,30 @@ export async function loadLearnerActivities(input: {
     .map(mapPractice)
     .filter((p): p is LearnerActivityPractice & { domain: "sports" | "eca" } => Boolean(p));
 
+  const teamAnnouncements: LearnerTeamAnnouncement[] = announcements
+    .filter(
+      (a) =>
+        a.status === "published" &&
+        a.audienceScope === "activity_team" &&
+        a.activityTeamId &&
+        teamIds.has(a.activityTeamId),
+    )
+    .map((a) => {
+      const team = a.activityTeamId ? teamById.get(a.activityTeamId) : null;
+      const section = team ? sectionById.get(team.sectionId) : null;
+      if (!team || !section) return null;
+      return {
+        id: a.id,
+        title: a.title,
+        body: a.body ?? "",
+        teamName: team.name,
+        sentAt: a.publishedAt ?? a.createdAt,
+        domain: section.domain,
+      };
+    })
+    .filter((a): a is LearnerTeamAnnouncement => Boolean(a))
+    .sort((a, b) => b.sentAt.localeCompare(a.sentAt));
+
   return {
     sportsSquads: squads.filter((s) => s.domain === "sports"),
     ecaGroups: squads.filter((s) => s.domain === "eca"),
@@ -127,5 +165,7 @@ export async function loadLearnerActivities(input: {
     ecaPractice: mappedPractice
       .filter((p) => p.domain === "eca")
       .map(({ domain: _domain, ...rest }) => rest),
+    sportsAnnouncements: teamAnnouncements.filter((a) => a.domain === "sports"),
+    ecaAnnouncements: teamAnnouncements.filter((a) => a.domain === "eca"),
   };
 }

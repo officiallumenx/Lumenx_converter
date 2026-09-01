@@ -39,18 +39,29 @@ function emitApi() {
 
 async function loadApiAchievements(): Promise<RecordedAchievement[]> {
   const instituteId = requireInstituteId();
+  await loadActivityApiHierarchy();
+  const snapshot = getActivityApiSnapshot();
+  const teamById = new Map(snapshot.teams.map((t) => [t.id, t]));
+  const sectionById = new Map(snapshot.sections.map((s) => [s.id, s]));
   const rows = await listAchievements(instituteId);
-  return rows.map((row) => ({
-    id: row.id,
-    scope: "student" as const,
-    title: row.title,
-    domain: "sports" as const,
-    unitId: row.teamId ?? "",
-    unitLabel: row.teamId ?? "Team",
-    unitKind: "team" as const,
-    studentId: row.studentId,
-    recordedAt: row.awardedOn,
-  }));
+  return rows.map((row) => {
+    const team = row.teamId ? teamById.get(row.teamId) : null;
+    const section = team ? sectionById.get(team.sectionId) : null;
+    const unitLabel = team
+      ? `${section?.name ?? "Activity"} · ${team.name}`
+      : "Team";
+    return {
+      id: row.id,
+      scope: "student" as const,
+      title: row.title,
+      domain: section?.domain ?? "sports",
+      unitId: row.teamId ?? "",
+      unitLabel,
+      unitKind: team?.kind ?? "team",
+      studentId: row.studentId,
+      recordedAt: row.awardedOn,
+    };
+  });
 }
 
 export const workspaceAchievementsRepository = {

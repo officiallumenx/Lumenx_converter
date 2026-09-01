@@ -58,6 +58,7 @@ export function ActivityPracticePage() {
           }),
         ),
       );
+      await workspaceCalendarRepository.preload();
     } else {
       await workspaceCalendarRepository.addPractice({
         title: `Practice · ${labels.join(", ")}`,

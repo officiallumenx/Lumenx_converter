@@ -149,6 +149,7 @@ function buildSeed(): WorkspaceCalendarEntry[] {
 }
 
 let entries: WorkspaceCalendarEntry[] = buildSeed();
+let apiLinkedOverlay: WorkspaceCalendarEntry[] | null = null;
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -161,18 +162,33 @@ export function subscribeCalendarStore(listener: () => void) {
 }
 
 export function getCalendarSnapshot(): WorkspaceCalendarEntry[] {
+  if (apiLinkedOverlay) {
+    const reminders = entries.filter((e) => e.kind === "reminder");
+    return [...apiLinkedOverlay, ...reminders];
+  }
   return entries;
+}
+
+export function setApiCalendarLinkedOverlay(items: WorkspaceCalendarEntry[] | null) {
+  apiLinkedOverlay = items;
+  emit();
 }
 
 export function resetCalendarStore() {
   entries = buildSeed();
+  apiLinkedOverlay = null;
+  emit();
+}
+
+export function clearDemoLinkedCalendarEntries() {
+  entries = entries.filter((e) => e.kind === "reminder");
   emit();
 }
 
 export function listCalendarEntriesFromStore(
   filters?: WorkspaceCalendarFilters,
 ): WorkspaceCalendarEntry[] {
-  let list = entries.map((e) => ({ ...e }));
+  let list = getCalendarSnapshot().map((e) => ({ ...e }));
   if (filters?.category && filters.category !== "all") {
     list = list.filter((e) => e.category === filters.category);
   }
@@ -197,7 +213,7 @@ export function listCalendarEntriesFromStore(
 }
 
 export function getCalendarEntryFromStore(id: string) {
-  return entries.find((e) => e.id === id) ?? null;
+  return getCalendarSnapshot().find((e) => e.id === id) ?? null;
 }
 
 export function createReminderInStore(input: CreateReminderInput): WorkspaceCalendarEntry {
