@@ -201,6 +201,15 @@ export {
   type InstituteProfileSyncMessage,
 } from "./shared-institute-profile";
 export {
+  INSTITUTE_PUBLIC_PROFILE_KEY,
+  emptyPublicProfile,
+  extractPublicProfileFromSettings,
+  instituteDtoToDemoProfile,
+  mergePublicProfileIntoSettings,
+  publicProfileFromRegistrationSeed,
+  type InstituteRegistrationProfileSeed,
+} from "./institute-public-profile";
+export {
   INSTITUTE_REGISTRATION_STORAGE_KEY,
   INSTITUTE_REGISTRATION_CHANGED_EVENT,
   listInstituteRegistrations,

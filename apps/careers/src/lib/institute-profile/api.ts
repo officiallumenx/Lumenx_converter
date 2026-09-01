@@ -1,0 +1,24 @@
+import { getCareersApiClient } from "@/lib/careers-api";
+import type { CareersApiClient } from "@/lib/api";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { isInstituteUuid } from "@/lib/institute-id";
+import type { DemoInstituteProfile } from "@lumenx/types";
+
+function assertApiMode(): void {
+  if (!isApiAuthMode()) {
+    throw new Error("Institute profile API is only available in API auth mode");
+  }
+}
+
+export async function getInstitutePublicProfile(
+  instituteId: string,
+  client: CareersApiClient = getCareersApiClient(),
+): Promise<{ instituteId: string; profile: DemoInstituteProfile }> {
+  assertApiMode();
+  if (!isInstituteUuid(instituteId)) {
+    throw new Error("institute_id must be a valid UUID");
+  }
+  return client.get<{ instituteId: string; profile: DemoInstituteProfile }>(
+    `/api/v1/institutes/${instituteId.trim()}/public-profile`,
+  );
+}

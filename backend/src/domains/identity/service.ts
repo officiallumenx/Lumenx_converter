@@ -33,6 +33,12 @@ import {
   updateMembershipFields,
   updateProfileFields,
 } from "./repository.js";
+import {
+  emptyPublicProfile,
+  extractPublicProfileFromSettings,
+  mergeInstituteSettingsJson,
+  type InstitutePublicProfile,
+} from "./institute-public-profile.js";
 import type {
   CreateInstituteInput,
   CreateMembershipInput,
@@ -315,7 +321,18 @@ export async function updateInstituteSettingsForActor(
   const existing = await findInstituteSettings(admin, instituteId);
   if (!existing) throw AppError.notFound("Institute settings not found");
 
-  const fieldPatch = toSettingsUpdatePatch(patch);
+  let settingsPatch = patch.settings;
+  if (settingsPatch !== undefined) {
+    settingsPatch = mergeInstituteSettingsJson(
+      (existing.settings ?? {}) as Record<string, unknown>,
+      settingsPatch,
+    );
+  }
+
+  const fieldPatch = toSettingsUpdatePatch({
+    ...patch,
+    settings: settingsPatch,
+  });
   if (Object.keys(fieldPatch).length === 0) {
     return toSettingsDto(existing);
   }
@@ -327,6 +344,25 @@ export async function updateInstituteSettingsForActor(
   );
   if (!updated) throw AppError.notFound("Institute settings not found");
   return toSettingsDto(updated);
+}
+
+/** Read-only public institute profile — any authenticated user for active institutes. */
+export async function getInstitutePublicProfileForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  instituteId: string,
+): Promise<{ instituteId: string; profile: InstitutePublicProfile }> {
+  void actor;
+  const institute = await requireActiveInstitute(admin, instituteId);
+  if (institute.status !== "active") {
+    throw AppError.notFound("Institute not found");
+  }
+  const row = await findInstituteSettings(admin, instituteId);
+  if (!row) throw AppError.notFound("Institute settings not found");
+  const profile =
+    extractPublicProfileFromSettings((row.settings ?? {}) as Record<string, unknown>) ??
+    emptyPublicProfile(institute.name);
+  return { instituteId, profile };
 }
 
 // ── Profiles ─────────────────────────────────────────────────────

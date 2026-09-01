@@ -14,6 +14,7 @@ import {
   deleteInstituteForActor,
   deleteMembershipForActor,
   getInstituteForActor,
+  getInstitutePublicProfileForActor,
   getInstituteSettingsForActor,
   getMembershipForActor,
   getProfileForActor,
@@ -72,6 +73,14 @@ institutes.get("/", async (c) => {
   const actor = assertAuthenticated(c);
   const admin = requireAdmin(c);
   const data = await listInstitutesForActor(admin, actor);
+  return c.json({ data });
+});
+
+institutes.get("/:id/public-profile", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const data = await getInstitutePublicProfileForActor(admin, actor, id);
   return c.json({ data });
 });
 

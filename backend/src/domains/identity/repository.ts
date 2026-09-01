@@ -40,6 +40,34 @@ export async function listInstitutes(
   return ensureDbOk(result) as InstituteRow[];
 }
 
+export async function listActiveInstitutesForLogin(
+  admin: SupabaseClient,
+): Promise<InstituteRow[]> {
+  const result = await admin
+    .from("institute")
+    .select(INSTITUTE_COLS)
+    .eq("status", "active")
+    .is("deleted_at", null)
+    .order("name", { ascending: true });
+  return ensureDbOk(result) as InstituteRow[];
+}
+
+export async function findInstituteByCode(
+  admin: SupabaseClient,
+  code: string,
+): Promise<InstituteRow | null> {
+  const normalized = code.trim();
+  if (!normalized) return null;
+  const result = await admin
+    .from("institute")
+    .select(INSTITUTE_COLS)
+    .ilike("code", normalized)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (result.data as InstituteRow | null) ?? null;
+}
+
 export async function findInstituteById(
   admin: SupabaseClient,
   id: string,
@@ -132,6 +160,7 @@ export async function insertInstituteSettings(
     instituteId: string;
     timezone?: string;
     locale?: string;
+    settings?: Record<string, unknown>;
   },
 ): Promise<InstituteSettingsRow> {
   const result = await admin
@@ -140,7 +169,7 @@ export async function insertInstituteSettings(
       institute_id: input.instituteId,
       timezone: input.timezone ?? "Asia/Kolkata",
       locale: input.locale ?? "en-IN",
-      settings: {},
+      settings: input.settings ?? {},
     })
     .select(SETTINGS_COLS)
     .single();

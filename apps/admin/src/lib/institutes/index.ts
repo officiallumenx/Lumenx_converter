@@ -17,6 +17,7 @@ export {
   resolveInstituteProfileView,
   shouldCommitInstituteProfileLoad,
 } from "./profile-view";
+export { demoProfileToSettingsPatch, settingsToDemoProfile } from "./map";
 export {
   loadInstituteContext,
   chooseActiveInstitute,

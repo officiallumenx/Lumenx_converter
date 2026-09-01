@@ -74,6 +74,12 @@ import {
 } from "@/lib/admissions/admin-bridge";
 import type { AdmissionFormField, ApplicationDocument, CorrectionFieldPath } from "@/lib/admissions/types";
 import { isApiAuthMode } from "@/auth/auth-mode";
+import { isInstituteUuid } from "@/lib/institute-id";
+import {
+  demoProfileToSettingsPatch,
+  loadInstituteProfileForAdmin,
+  updateInstituteSettings,
+} from "@/lib/institute-profile";
 import {
   loadApplicationDocuments,
   verifyApplicationDocument,
@@ -799,6 +805,136 @@ function emptyInstituteDraft(
 }
 
 export function InstituteSettingsPage() {
+  if (isApiAuthMode()) return <ApiInstituteSettingsPage />;
+  return <DemoInstituteSettingsPage />;
+}
+
+function ApiInstituteSettingsPage() {
+  const { user, instituteId } = useInstituteContext();
+  const [loadStatus, setLoadStatus] = useState<
+    "loading" | "ready" | "needs_institute" | "forbidden" | "error"
+  >("loading");
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [settingsRecord, setSettingsRecord] = useState<Record<string, unknown>>({});
+  const [draft, setDraft] = useState<DemoInstituteProfile | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!instituteId || !isInstituteUuid(instituteId)) {
+      setLoadStatus("needs_institute");
+      setDraft(null);
+      return;
+    }
+    let cancelled = false;
+    setLoadStatus("loading");
+    void loadInstituteProfileForAdmin({ instituteId }).then((result) => {
+      if (cancelled) return;
+      if (result.status === "ready" && result.profile && result.settings) {
+        setDraft(result.profile);
+        setSettingsRecord(result.settings.settings);
+        setLoadStatus("ready");
+        setLoadError(null);
+        return;
+      }
+      setDraft(null);
+      setLoadStatus(
+        result.status === "forbidden"
+          ? "forbidden"
+          : result.status === "needs_institute"
+            ? "needs_institute"
+            : "error",
+      );
+      setLoadError(result.errorMessage);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [instituteId]);
+
+  if (!user || user.accountType !== "institute_admin") {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">
+        Institute admin access required.
+      </div>
+    );
+  }
+
+  if (loadStatus === "loading") {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">Loading institute profile…</div>
+    );
+  }
+
+  if (loadStatus !== "ready" || !draft) {
+    return (
+      <div className="py-12 text-center space-y-2 text-sm text-muted-foreground">
+        <p>
+          {loadStatus === "needs_institute"
+            ? "Link a live LumenX institute (UUID) to edit the API-backed profile."
+            : loadError ?? "Profile unavailable."}
+        </p>
+      </div>
+    );
+  }
+
+  const save = () => {
+    if (!instituteId || !isInstituteUuid(instituteId)) return;
+    setSaving(true);
+    void updateInstituteSettings(instituteId, {
+      settings: demoProfileToSettingsPatch(settingsRecord, draft),
+    })
+      .then((next) => {
+        setSettingsRecord(next.settings);
+        setDraft(normalizeInstituteProfile(draft));
+        setEditing(false);
+        toast.success("Institute profile saved");
+      })
+      .catch((err) => {
+        toast.error(err instanceof Error ? err.message : "Failed to save profile");
+      })
+      .finally(() => setSaving(false));
+  };
+
+  return (
+    <div className="animate-in fade-in duration-300 space-y-6">
+      <AdmissionsPageHeader
+        title="Institute profile"
+        subtitle="Synced with LumenX Admin institute settings (API mode)"
+        backTo="/admissions/institute"
+      />
+      <div className="rounded-2xl border border-border bg-card p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-bold truncate">{draft.name}</p>
+          <p className="text-xs text-muted-foreground">PATCH /institutes/:id/settings</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {editing ? (
+            <>
+              <Button variant="outline" onClick={() => setEditing(false)}>
+                Cancel
+              </Button>
+              <Button onClick={save} disabled={saving}>
+                {saving ? "Saving…" : "Save profile"}
+              </Button>
+            </>
+          ) : (
+            <Button onClick={() => setEditing(true)}>
+              <Pencil className="size-4 mr-1" /> Edit profile
+            </Button>
+          )}
+        </div>
+      </div>
+      {editing ? (
+        <AdminInstituteProfileEditor value={draft} onChange={setDraft} />
+      ) : (
+        <AdminInstituteProfileView profile={draft} />
+      )}
+    </div>
+  );
+}
+
+function DemoInstituteSettingsPage() {
   const { user, instituteId, profile } = useInstituteContext();
   const catalogInstitute = instituteId ? getInstituteById(instituteId) : undefined;
   const isStandaloneInstitute = instituteId.startsWith("ins-custom-");

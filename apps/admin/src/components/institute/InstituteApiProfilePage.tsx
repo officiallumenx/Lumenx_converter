@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import type { DemoInstituteProfile } from "@lumenx/types";
+import { normalizeInstituteProfile } from "@lumenx/utils";
 import { AppShell } from "@/components/AppShell";
 import { useAdminToast } from "@/components/AdminActionToast";
 import {
@@ -12,8 +14,10 @@ import {
   TextInput,
 } from "@lumenx/ui-admin";
 import {
+  demoProfileToSettingsPatch,
   loadInstituteProfile,
   resolveInstituteProfileView,
+  settingsToDemoProfile,
   shouldCommitInstituteProfileLoad,
   updateInstitute,
   updateInstituteSettings,
@@ -27,6 +31,7 @@ import type {
   InstituteStatus,
 } from "@/lib/institutes/types";
 import { InstituteCreateApiPanel } from "@/components/institute/InstituteCreateApiPanel";
+import { InstituteRichProfileEditor } from "@/components/institute/InstituteRichProfileEditor";
 import { Building2 } from "lucide-react";
 
 function profileHint(status: InstituteProfileStatus, error: string | null): string {
@@ -69,6 +74,8 @@ export function InstituteApiProfilePage() {
   const [status, setStatus] = useState<InstituteStatus>("active");
   const [timezone, setTimezone] = useState("");
   const [locale, setLocale] = useState("");
+  const [richProfile, setRichProfile] = useState<DemoInstituteProfile | null>(null);
+  const [savingProfile, setSavingProfile] = useState(false);
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
@@ -130,6 +137,11 @@ export function InstituteApiProfilePage() {
       if (next.settings) {
         setTimezone(next.settings.timezone);
         setLocale(next.settings.locale);
+      }
+      if (next.institute && next.settings) {
+        setRichProfile(settingsToDemoProfile(next.institute, next.settings));
+      } else {
+        setRichProfile(null);
       }
     });
     return () => {
@@ -193,6 +205,24 @@ export function InstituteApiProfilePage() {
       })
       .finally(() => {
         setSavingSettings(false);
+      });
+  };
+
+  const saveRichProfile = () => {
+    if (!view.institute || !view.settings || !richProfile) return;
+    setSavingProfile(true);
+    void updateInstituteSettings(view.institute.id, {
+      settings: demoProfileToSettingsPatch(view.settings.settings, richProfile),
+    })
+      .then(() => {
+        setReloadKey((k) => k + 1);
+        notify("Institute profile saved");
+      })
+      .catch((err) => {
+        notify(err instanceof Error ? err.message : "Failed to save institute profile");
+      })
+      .finally(() => {
+        setSavingProfile(false);
       });
   };
 
@@ -286,6 +316,27 @@ export function InstituteApiProfilePage() {
                 </Button>
               </CardBody>
             </Card>
+            {richProfile ? (
+              <Card className="lg:col-span-2">
+                <CardHeader
+                  title="Public institute profile"
+                  hint="Stored in institute_settings.settings.profile · shown in Admissions and Careers"
+                />
+                <CardBody className="space-y-4">
+                  <InstituteRichProfileEditor
+                    value={richProfile}
+                    onChange={(next) => setRichProfile(normalizeInstituteProfile(next))}
+                  />
+                  <Button
+                    variant="primary"
+                    onClick={saveRichProfile}
+                    disabled={savingProfile || !richProfile.name.trim()}
+                  >
+                    {savingProfile ? "Saving…" : "Save public profile"}
+                  </Button>
+                </CardBody>
+              </Card>
+            ) : null}
           </div>
         ) : null}
       </div>
