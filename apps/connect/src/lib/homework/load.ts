@@ -5,16 +5,22 @@ import { listStudents } from "@/lib/students/api";
 import type { StudentDto } from "@/lib/students/types";
 import type { StudentAssignment } from "@/lib/mock-data";
 import type { StudentAssignmentDetail } from "@/lib/assignment-details";
+import { getTeacherStudentsForSection } from "@/lib/teacher-classes/load";
+import type { AssignmentSubmission } from "@/lib/teacher/types";
 import {
   getAssetSignedUrl,
   getStudentHomeworkItems,
   getTeacherHomeworkSheet,
   listHomework,
 } from "./api";
-import { learnerItemToDetail, learnerItemToStudentAssignment } from "./map";
-import type { HomeworkDto, LearnerHomeworkItemDto, TeacherHomeworkSheetDto } from "./types";
-import type { AssignmentSubmission } from "@/lib/teacher/types";
-import { submissionDtoToConnectRow } from "./map";
+import {
+  aggregateClassHomeworkOverview,
+  learnerItemToDetail,
+  learnerItemToStudentAssignment,
+  submissionDtoToConnectRow,
+  type ClassHomeworkOverviewRow,
+} from "./map";
+import type { HomeworkDto, HomeworkKind, LearnerHomeworkItemDto, TeacherHomeworkSheetDto } from "./types";
 
 export type HomeworkLoadStatus =
   | "demo"
@@ -187,6 +193,75 @@ export async function loadTeacherHomeworkSheet(input: {
   } catch (err) {
     const mapped = mapError(err, "homework sheet");
     return { status: mapped.status, sheet: null, rows: [], errorMessage: mapped.message };
+  }
+}
+
+export async function loadTeacherHomeworkClassOverview(input: {
+  instituteId: string | null;
+  sectionId: string | null;
+  kind: HomeworkKind;
+  homeworkItems: HomeworkDto[];
+}): Promise<{
+  status: HomeworkLoadStatus;
+  totalItems: number;
+  students: ClassHomeworkOverviewRow[];
+  errorMessage: string | null;
+}> {
+  if (!isApiAuthMode()) {
+    return { status: "demo", totalItems: 0, students: [], errorMessage: null };
+  }
+  if (
+    !input.instituteId ||
+    !isInstituteUuid(input.instituteId) ||
+    !input.sectionId ||
+    !isInstituteUuid(input.sectionId)
+  ) {
+    return { status: "needs_institute", totalItems: 0, students: [], errorMessage: null };
+  }
+
+  const published = input.homeworkItems.filter(
+    (item) =>
+      item.sectionId === input.sectionId &&
+      item.kind === input.kind &&
+      item.status === "published",
+  );
+  const roster = getTeacherStudentsForSection(input.sectionId).map((s) => ({
+    id: s.id,
+    name: s.name,
+    roll: s.roll,
+  }));
+
+  if (published.length === 0) {
+    return {
+      status: roster.length === 0 ? "empty" : "ready",
+      totalItems: 0,
+      students: aggregateClassHomeworkOverview({ totalItems: 0, roster, sheets: [] }),
+      errorMessage: null,
+    };
+  }
+
+  try {
+    const sheets = await Promise.all(
+      published.map((item) =>
+        getTeacherHomeworkSheet({
+          instituteId: input.instituteId!,
+          homeworkId: item.id,
+        }),
+      ),
+    );
+    return {
+      status: "ready",
+      totalItems: published.length,
+      students: aggregateClassHomeworkOverview({
+        totalItems: published.length,
+        roster,
+        sheets,
+      }),
+      errorMessage: null,
+    };
+  } catch (err) {
+    const mapped = mapError(err, "homework class overview");
+    return { status: mapped.status, totalItems: 0, students: [], errorMessage: mapped.message };
   }
 }
 

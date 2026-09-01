@@ -43,12 +43,14 @@ import type {
 import {
   attachHomeworkPdf,
   homeworkDtoToTeacherAssignment,
+  loadTeacherHomeworkClassOverview,
   loadTeacherHomeworkList,
   loadTeacherHomeworkSheet,
   publishHomeworkItem,
   saveHomeworkDraft,
   submissionDtoToConnectRow,
   toggleHomeworkSubmission,
+  type ClassHomeworkOverviewRow,
   type HomeworkDto,
 } from "@/lib/homework";
 import {
@@ -73,12 +75,14 @@ const newAssignmentSchema = z.object({
 });
 
 type NewAssignmentForm = z.infer<typeof newAssignmentSchema>;
+type BrowseMode = "item" | "class";
 
 export function ApiTeacherAssignmentsPage() {
   const { activeInstituteId } = useApp();
   const [assignments, setAssignments] = useState<TeacherAssignment[]>([]);
   const [homeworkRows, setHomeworkRows] = useState<HomeworkDto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [browseMode, setBrowseMode] = useState<BrowseMode>("item");
   const [categoryType, setCategoryType] = useState<"assignment" | "homework">("homework");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [portalTick, setPortalTick] = useState(0);
@@ -188,7 +192,7 @@ export function ApiTeacherAssignmentsPage() {
             Homework
           </h1>
           <p className="mt-1.5 max-w-2xl break-words text-sm leading-relaxed text-muted-foreground">
-            Create, publish, and mark offline submissions for your classes.
+            Mark submissions by tap, or review a class overview.
           </p>
         </div>
         <div className="shrink-0">
@@ -202,23 +206,257 @@ export function ApiTeacherAssignmentsPage() {
         </div>
       </div>
 
-      <ApiByItemView
-        assignments={assignments}
-        homeworkRows={homeworkRows}
-        loading={loading}
-        instituteId={activeInstituteId}
-        categoryType={categoryType}
-        onCategoryType={(t) => {
-          setCategoryType(t);
-          setSelectedId(null);
-        }}
-        selectedId={selectedId}
-        onSelectId={setSelectedId}
-        onReload={refresh}
-        subjectLabels={subjectLabels}
-        classLabels={classLabels}
-      />
+      <div className="flex gap-2">
+        {(
+          [
+            ["item", "By item"],
+            ["class", "By class"],
+          ] as const
+        ).map(([mode, label]) => (
+          <button
+            key={mode}
+            type="button"
+            onClick={() => {
+              setBrowseMode(mode);
+              setSelectedId(null);
+            }}
+            className={cn(
+              "rounded-full px-4 py-2 text-sm font-medium",
+              browseMode === mode
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground",
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {browseMode === "class" ? (
+        <ApiByClassView
+          classes={classes}
+          homeworkRows={homeworkRows}
+          instituteId={activeInstituteId}
+          categoryType={categoryType}
+          onCategoryType={setCategoryType}
+          reloadKey={reloadKey}
+        />
+      ) : (
+        <ApiByItemView
+          assignments={assignments}
+          homeworkRows={homeworkRows}
+          loading={loading}
+          instituteId={activeInstituteId}
+          categoryType={categoryType}
+          onCategoryType={(t) => {
+            setCategoryType(t);
+            setSelectedId(null);
+          }}
+          selectedId={selectedId}
+          onSelectId={setSelectedId}
+          onReload={refresh}
+          subjectLabels={subjectLabels}
+          classLabels={classLabels}
+        />
+      )}
     </div>
+  );
+}
+
+function ApiByClassView({
+  classes,
+  homeworkRows,
+  instituteId,
+  categoryType,
+  onCategoryType,
+  reloadKey,
+}: {
+  classes: TeacherClass[];
+  homeworkRows: HomeworkDto[];
+  instituteId: string | null;
+  categoryType: "assignment" | "homework";
+  onCategoryType: (t: "assignment" | "homework") => void;
+  reloadKey: number;
+}) {
+  const [className, setClassName] = useState(classes[0]?.className ?? "");
+  const [section, setSection] = useState(classes[0]?.section ?? "");
+  const [loading, setLoading] = useState(false);
+  const [totalItems, setTotalItems] = useState(0);
+  const [rows, setRows] = useState<ClassHomeworkOverviewRow[]>([]);
+  const [q, setQ] = useState("");
+
+  const classOptions = useMemo(
+    () =>
+      [...new Set(classes.map((c) => c.className))].sort((a, b) =>
+        a.localeCompare(b, undefined, { numeric: true }),
+      ),
+    [classes],
+  );
+
+  const sectionOptions = useMemo(
+    () =>
+      [...new Set(classes.filter((c) => c.className === className).map((c) => c.section))].sort(),
+    [classes, className],
+  );
+
+  const selectedClass = useMemo(
+    () => classes.find((c) => c.className === className && c.section === section) ?? null,
+    [classes, className, section],
+  );
+
+  useEffect(() => {
+    if (!sectionOptions.includes(section) && sectionOptions[0]) {
+      setSection(sectionOptions[0]);
+    }
+  }, [sectionOptions, section]);
+
+  useEffect(() => {
+    if (!instituteId || !selectedClass) {
+      setRows([]);
+      setTotalItems(0);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    void loadTeacherHomeworkClassOverview({
+      instituteId,
+      sectionId: selectedClass.id,
+      kind: categoryType,
+      homeworkItems: homeworkRows,
+    }).then((result) => {
+      if (cancelled) return;
+      setTotalItems(result.totalItems);
+      setRows(result.students);
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [instituteId, selectedClass, categoryType, homeworkRows, reloadKey]);
+
+  const filtered = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    if (!t) return rows;
+    return rows.filter(
+      (r) => r.studentName.toLowerCase().includes(t) || r.roll.includes(t),
+    );
+  }, [rows, q]);
+
+  const studentsFullyDone = rows.filter((r) => r.total > 0 && r.submitted === r.total).length;
+
+  return (
+    <div className="space-y-4">
+      <TypeToggle value={categoryType} onChange={onCategoryType} />
+
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Class">
+          <Select
+            value={className}
+            onValueChange={(v) => {
+              setClassName(v);
+              const secs = classes.filter((c) => c.className === v).map((c) => c.section);
+              if (secs[0]) setSection(secs[0]);
+            }}
+          >
+            <SelectTrigger className="h-11 rounded-xl">
+              <SelectValue placeholder="Class" />
+            </SelectTrigger>
+            <SelectContent position="popper" className="z-[100]">
+              {classOptions.map((name) => (
+                <SelectItem key={name} value={name}>
+                  Class {name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label="Section">
+          <Select value={section} onValueChange={setSection} disabled={!sectionOptions.length}>
+            <SelectTrigger className="h-11 rounded-xl">
+              <SelectValue placeholder="Section" />
+            </SelectTrigger>
+            <SelectContent position="popper" className="z-[100]">
+              {sectionOptions.map((sec) => (
+                <SelectItem key={sec} value={sec}>
+                  Section {sec}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      </div>
+
+      {selectedClass ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-card px-3 py-3 shadow-soft sm:px-4">
+          <span className="inline-flex items-center rounded-xl bg-primary/12 px-3 py-1.5 text-base font-semibold text-primary">
+            Class {selectedClass.className}-{selectedClass.section}
+          </span>
+          <span className="text-sm text-muted-foreground">
+            {totalItems} {categoryType === "homework" ? "homework" : "assignments"} given
+          </span>
+          <span className="text-sm text-muted-foreground">
+            · {studentsFullyDone}/{rows.length} students fully submitted
+          </span>
+        </div>
+      ) : null}
+
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <h3 className="text-sm font-semibold">Students</h3>
+        <Input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search name or roll"
+          className="h-10 max-w-xs rounded-xl"
+        />
+      </div>
+
+      {loading ? (
+        <PageSkeleton rows={5} />
+      ) : !selectedClass ? (
+        <EmptyState icon={BookOpen} title="Select class and section" description="" />
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon={BookOpen}
+          title="No students"
+          description="No roster for this class and section."
+        />
+      ) : (
+        <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
+          {filtered.map((r) => (
+            <li
+              key={r.studentId}
+              className="flex items-center justify-between gap-3 px-3 py-3 sm:px-4"
+            >
+              <div className="min-w-0">
+                <p className="font-medium">
+                  <span className="mr-2 tabular-nums text-muted-foreground">{r.roll}</span>
+                  {r.studentName}
+                </p>
+              </div>
+              <span
+                className={cn(
+                  "shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold tabular-nums",
+                  r.total > 0 && r.submitted === r.total
+                    ? "bg-success/15 text-success"
+                    : "bg-muted text-muted-foreground",
+                )}
+              >
+                {r.submitted}/{r.total} submitted
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block min-w-0 space-y-1.5">
+      <span className="text-sm font-medium text-muted-foreground">{label}</span>
+      {children}
+    </label>
   );
 }
 

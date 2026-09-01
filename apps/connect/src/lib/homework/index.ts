@@ -14,6 +14,7 @@ export {
 export {
   loadParentHomeworkItems,
   loadStudentHomeworkItems,
+  loadTeacherHomeworkClassOverview,
   loadTeacherHomeworkList,
   loadTeacherHomeworkSheet,
   resolveAttachmentDownloadUrl,
@@ -27,11 +28,13 @@ export {
   toggleHomeworkSubmission,
 } from "./mutations";
 export {
+  aggregateClassHomeworkOverview,
   homeworkDtoToTeacherAssignment,
   learnerItemToDetail,
   learnerItemToStudentAssignment,
   submissionDtoToConnectRow,
   submissionRowsToTeacherAssignment,
+  type ClassHomeworkOverviewRow,
 } from "./map";
 export type {
   AssetDto,

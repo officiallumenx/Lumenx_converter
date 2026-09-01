@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  aggregateClassHomeworkOverview,
   learnerItemToStudentAssignment,
   submissionDtoToConnectRow,
 } from "./map";
@@ -45,5 +46,53 @@ describe("connect homework map", () => {
     const row = submissionDtoToConnectRow(dto);
     expect(row.timing).toBe("on_time");
     expect(row.studentName).toBe("Aarav");
+  });
+
+  it("aggregates class homework overview from sheets", () => {
+    const rows = aggregateClassHomeworkOverview({
+      totalItems: 2,
+      roster: [
+        { id: "s1", name: "Aarav", roll: "12" },
+        { id: "s2", name: "Priya", roll: "15" },
+      ],
+      sheets: [
+        {
+          rows: [
+            {
+              studentId: "s1",
+              studentName: "Aarav",
+              rollNo: "12",
+              status: "submitted",
+            },
+            {
+              studentId: "s2",
+              studentName: "Priya",
+              rollNo: "15",
+              status: "missing",
+            },
+          ],
+        },
+        {
+          rows: [
+            {
+              studentId: "s1",
+              studentName: "Aarav",
+              rollNo: "12",
+              status: "submitted",
+            },
+            {
+              studentId: "s2",
+              studentName: "Priya",
+              rollNo: "15",
+              status: "submitted",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ studentId: "s1", submitted: 2, total: 2 });
+    expect(rows[1]).toMatchObject({ studentId: "s2", submitted: 1, total: 2 });
   });
 });
