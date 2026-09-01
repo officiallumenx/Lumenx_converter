@@ -7,8 +7,10 @@ import { teacherRepository } from "@/lib/teacher/repositories";
 import { sectionsForClassName, uniqueSortedClassNames } from "@/lib/class-section-options";
 import { useAsyncAction } from "@/teacher-portal/core/hooks/useAsyncAction";
 import { MarksAnalytics, MarksTable } from "./MarksTable";
+import { ApiTeacherMarksPage } from "./ApiTeacherMarksPage";
 import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
 import { ConfirmDialog } from "@/teacher-portal/core/widgets/ConfirmDialog";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import {
   Button,
   Badge,
@@ -23,6 +25,11 @@ import { toast } from "sonner";
 import type { MarkEntry, TeacherExam } from "@/lib/teacher/types";
 
 export function TeacherMarksPage() {
+  if (isApiAuthMode()) return <ApiTeacherMarksPage />;
+  return <DemoTeacherMarksPage />;
+}
+
+function DemoTeacherMarksPage() {
   const portal = useTeacherPortal();
   const search = useSearch({ strict: false }) as { examId?: string; classId?: string };
   const [exams, setExams] = useState<TeacherExam[]>([]);

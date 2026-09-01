@@ -740,6 +740,60 @@ describe("marks — privacy", () => {
   });
 });
 
+describe("marks — portal", () => {
+  it("returns aggregated report cards for student and parent; blocks other learners", async () => {
+    const app = appWithDb(baseDb());
+
+    const studentRes = await app.request(
+      `/api/v1/marks/portal/students/${STUDENT_A}/report-cards?institute_id=${INST_A}`,
+      { headers: auth("token-student") },
+    );
+    expect(studentRes.status).toBe(200);
+    const studentCards = (await json(studentRes)).data as Array<{
+      examName: string;
+      percentage: number;
+      marks: Array<{ total: number }>;
+    }>;
+    expect(studentCards.length).toBeGreaterThan(0);
+    expect(studentCards[0]!.marks[0]!.total).toBe(80);
+
+    const parentRes = await app.request(
+      `/api/v1/marks/portal/students/${STUDENT_A}/report-cards?institute_id=${INST_A}`,
+      { headers: auth("token-parent") },
+    );
+    expect(parentRes.status).toBe(200);
+
+    const otherStudent = await app.request(
+      `/api/v1/marks/portal/students/${STUDENT_B}/report-cards?institute_id=${INST_A}`,
+      { headers: auth("token-student") },
+    );
+    expect(otherStudent.status).toBe(403);
+  });
+
+  it("returns teacher mark sheet for assigned teacher only", async () => {
+    const app = appWithDb(baseDb());
+
+    const sheetRes = await app.request(
+      `/api/v1/marks/portal/teacher/sheet?institute_id=${INST_A}&section_id=${SECTION_A}&exam_id=${EXAM_A}&subject_id=${SUBJECT_A}`,
+      { headers: auth("token-teacher") },
+    );
+    expect(sheetRes.status).toBe(200);
+    const sheet = (await json(sheetRes)).data as {
+      entryId: string | null;
+      status: string;
+      rows: Array<{ studentName: string; marks: number | null }>;
+    };
+    expect(sheet.status).toBe("pending");
+    expect(sheet.rows.length).toBe(2);
+
+    const otherTeacher = await app.request(
+      `/api/v1/marks/portal/teacher/sheet?institute_id=${INST_A}&section_id=${SECTION_A}&exam_id=${EXAM_A}&subject_id=${SUBJECT_A}`,
+      { headers: auth("token-teacher2") },
+    );
+    expect(otherTeacher.status).toBe(403);
+  });
+});
+
 describe("marks — legacy IDs", () => {
   it("rejects EX-*, ex-*, ST-* path and query values", async () => {
     const app = appWithDb(baseDb());

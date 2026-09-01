@@ -247,14 +247,12 @@ export async function deleteInboxItemForActor(
 
 // ── Emit ─────────────────────────────────────────────────────────
 
-export async function emitNotificationForActor(
+async function emitNotificationInternal(
   admin: SupabaseClient,
-  actor: Actor,
+  instituteId: string,
+  createdByUserProfileId: string,
   input: EmitNotificationInput,
 ): Promise<InboxItemDto[]> {
-  const instituteId = requireInstituteId(actor, input.instituteId);
-  assertCanEmit(actor, instituteId);
-
   const title = input.title.trim();
   const body = input.body.trim();
   if (!title || !body) {
@@ -307,7 +305,6 @@ export async function emitNotificationForActor(
     });
   }
 
-  // Audience resolution already scoped to active members; re-check for explicit IDs.
   const members = await findActiveMemberUserIds(admin, instituteId, recipientIds);
   const nonMembers = recipientIds.filter((id) => !members.has(id));
   if (nonMembers.length > 0) {
@@ -333,7 +330,7 @@ export async function emitNotificationForActor(
     instituteId,
     title,
     body,
-    createdByUserProfileId: actor.userId,
+    createdByUserProfileId,
   });
 
   const recipients = await insertRecipients(admin, {
@@ -349,6 +346,31 @@ export async function emitNotificationForActor(
   });
 
   return recipients.map((r) => toInboxItemDto(r, notification));
+}
+
+/** Trusted server-side emit (e.g. scheduled announcement publish). Skips actor role checks. */
+export async function emitNotificationForInstituteSystem(
+  admin: SupabaseClient,
+  createdByUserProfileId: string,
+  input: EmitNotificationInput,
+): Promise<InboxItemDto[]> {
+  const instituteId = input.instituteId.trim();
+  if (!instituteId) {
+    throw AppError.validation("institute_id is required", {
+      institute_id: ["Required"],
+    });
+  }
+  return emitNotificationInternal(admin, instituteId, createdByUserProfileId, input);
+}
+
+export async function emitNotificationForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  input: EmitNotificationInput,
+): Promise<InboxItemDto[]> {
+  const instituteId = requireInstituteId(actor, input.instituteId);
+  assertCanEmit(actor, instituteId);
+  return emitNotificationInternal(admin, instituteId, actor.userId, input);
 }
 
 // ── Templates ────────────────────────────────────────────────────

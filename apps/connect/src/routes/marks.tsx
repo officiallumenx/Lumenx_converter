@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app/AppShell";
 import { PageHeader } from "@/components/app/PageHeader";
 import { SectionCard } from "@/components/app/SectionCard";
@@ -14,6 +14,9 @@ import { useParentPortal } from "@/context/ParentPortalContext";
 import { Skeleton, useLocalStorageExternalStore } from "@lumenx/ui";
 import { TeacherMarksPage } from "@/teacher-portal";
 import { StudentMarksPage } from "@/student-portal";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { loadParentReportCards } from "@/lib/marks";
+import type { StudentDto } from "@/lib/students/types";
 import {
   mergeReportCards,
   publishedReportCardsForLearner,
@@ -224,6 +227,116 @@ function SelectField({
 /* ----------------------------- STUDENT → @/student-portal ----------------------------- */
 
 function ParentMarks() {
+  if (isApiAuthMode()) return <ApiParentMarks />;
+  return <DemoParentMarks />;
+}
+
+function studentLabel(student: StudentDto): string {
+  return student.displayName?.trim() || `${student.firstName} ${student.surname}`.trim();
+}
+
+function ApiParentMarks() {
+  const { activeChildId, activeInstituteId, setActiveChildId } = useApp();
+  const [students, setStudents] = useState<StudentDto[]>([]);
+  const [cardsByStudentId, setCardsByStudentId] = useState<
+    Map<string, import("@lumenx/types").ReportCard[]>
+  >(new Map());
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!activeInstituteId) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    void loadParentReportCards({ instituteId: activeInstituteId }).then((result) => {
+      if (cancelled) return;
+      setStudents(result.students);
+      setCardsByStudentId(result.cardsByStudentId);
+      setLoadError(result.errorMessage);
+      setLoading(false);
+      if (result.students.length > 0) {
+        const valid = activeChildId && result.students.some((s) => s.id === activeChildId);
+        const next = valid ? activeChildId : result.students[0]!.id;
+        if (next !== activeChildId) setActiveChildId(next);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeInstituteId, activeChildId, setActiveChildId]);
+
+  const child = useMemo(
+    () => students.find((s) => s.id === activeChildId) ?? students[0] ?? null,
+    [students, activeChildId],
+  );
+
+  const reportCards = useMemo(() => {
+    if (!child) return [];
+    return cardsByStudentId.get(child.id) ?? [];
+  }, [child, cardsByStudentId]);
+
+  if (loading) {
+    return (
+      <div className="min-w-0 max-w-full space-y-4">
+        <PageHeader title="Academic Performance" subtitle="Loading this learner's records…" />
+        <Skeleton className="h-12 w-full max-w-md rounded-xl" />
+        <Skeleton className="h-72 w-full rounded-2xl" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+        {loadError}
+      </div>
+    );
+  }
+
+  if (!child) {
+    return (
+      <p className="py-12 text-center text-sm text-muted-foreground">
+        No linked students found for report cards.
+      </p>
+    );
+  }
+
+  const classLabel = `${child.classLabel?.trim() || "Class"} ${child.sectionLabel?.trim() || ""}`.trim();
+
+  return (
+    <div className="min-w-0 max-w-full" key={child.id}>
+      <PageHeader
+        title="Academic Performance"
+        subtitle={`${studentLabel(child)} • ${classLabel}`}
+      />
+      {students.length > 1 && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {students.map((s) => (
+            <Button
+              key={s.id}
+              size="sm"
+              variant={s.id === child.id ? "default" : "outline"}
+              className="rounded-xl"
+              onClick={() => setActiveChildId(s.id)}
+            >
+              {studentLabel(s)}
+            </Button>
+          ))}
+        </div>
+      )}
+      {reportCards.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No published report cards yet.</p>
+      ) : (
+        <ReportCardView reportCards={reportCards} hideDrafts hideRank />
+      )}
+    </div>
+  );
+}
+
+function DemoParentMarks() {
   const portal = useParentPortal();
   const publishedTick = useLocalStorageExternalStore(LEARNER_PUBLISHED_MARKS_KEY);
 

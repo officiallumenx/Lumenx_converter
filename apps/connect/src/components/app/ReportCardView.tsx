@@ -95,12 +95,14 @@ export function ReportCardView(props?: {
   selectedId?: string;
   onSelectedIdChange?: (id: string) => void;
   hideDrafts?: boolean;
+  hideRank?: boolean;
 }) {
   const cards = props?.reportCards ?? reportCards;
   const performanceBars = props?.termPerformance ?? performance;
   const showTeacherRemarks = props?.showTeacherRemarks ?? true;
   const detailsLinkTo = props?.detailsLinkTo ?? "/exams";
   const hideDrafts = props?.hideDrafts ?? false;
+  const hideRank = props?.hideRank ?? false;
 
   const visibleCards = useMemo(
     () => (hideDrafts ? cards.filter((r) => r.status === "published") : cards),
@@ -209,13 +211,19 @@ export function ReportCardView(props?: {
           const examPrev = prevExamFor(r);
           const examComparison = comparisonForExam(r);
           const examOverallPass = isPassing(r.percentage);
+          const totalOnlyMarks = r.marks.length > 0 && r.marks.every((m) => m.internal === 0);
 
           return (
             <TabsContent key={r.id} value={r.id} className="mt-4 space-y-4">
-              <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-2.5">
+              <div
+                className={cn(
+                  "grid min-w-0 grid-cols-2 gap-2 sm:gap-2.5",
+                  hideRank ? "sm:grid-cols-3" : "sm:grid-cols-4",
+                )}
+              >
                 <Stat label="Percentage" value={`${r.percentage}%`} tone="percentage" />
                 <Stat label="Grade" value={r.grade} tone="grade" />
-                <Stat label="Class rank" value={`#${r.rank}`} tone="rank" />
+                {!hideRank && <Stat label="Class rank" value={`#${r.rank}`} tone="rank" />}
                 <Stat
                   label="Result"
                   value={passFailLabel(r.percentage)}
@@ -236,14 +244,18 @@ export function ReportCardView(props?: {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="h-10 w-[26%] px-2 text-xs">Subject</TableHead>
-                        <TableHead className="h-10 w-[13%] px-1.5 text-right text-xs leading-tight">
-                          <span className="block">Internal</span>
-                          <span className="block font-normal text-muted-foreground">/20</span>
-                        </TableHead>
-                        <TableHead className="h-10 w-[13%] px-1.5 text-right text-xs leading-tight">
-                          <span className="block">External</span>
-                          <span className="block font-normal text-muted-foreground">/80</span>
-                        </TableHead>
+                        {!totalOnlyMarks && (
+                          <>
+                            <TableHead className="h-10 w-[13%] px-1.5 text-right text-xs leading-tight">
+                              <span className="block">Internal</span>
+                              <span className="block font-normal text-muted-foreground">/20</span>
+                            </TableHead>
+                            <TableHead className="h-10 w-[13%] px-1.5 text-right text-xs leading-tight">
+                              <span className="block">External</span>
+                              <span className="block font-normal text-muted-foreground">/80</span>
+                            </TableHead>
+                          </>
+                        )}
                         <TableHead className="h-10 w-[13%] px-1.5 text-right text-xs leading-tight">
                           <span className="block">Total</span>
                           <span className="block font-normal text-muted-foreground">/100</span>
@@ -267,12 +279,16 @@ export function ReportCardView(props?: {
                           <TableCell className="truncate px-2 py-2.5 font-medium">
                             {m.subject}
                           </TableCell>
-                          <TableCell className="px-1.5 py-2.5 text-right tabular-nums">
-                            {m.internal}
-                          </TableCell>
-                          <TableCell className="px-1.5 py-2.5 text-right tabular-nums">
-                            {m.exam}
-                          </TableCell>
+                          {!totalOnlyMarks && (
+                            <>
+                              <TableCell className="px-1.5 py-2.5 text-right tabular-nums">
+                                {m.internal}
+                              </TableCell>
+                              <TableCell className="px-1.5 py-2.5 text-right tabular-nums">
+                                {m.exam}
+                              </TableCell>
+                            </>
+                          )}
                           <TableCell className="px-1.5 py-2.5 text-right font-semibold tabular-nums">
                             {m.total}
                           </TableCell>
@@ -358,7 +374,7 @@ export function ReportCardView(props?: {
                 </div>
 
                 <div className="w-full min-w-0 max-w-full overflow-hidden rounded-xl bg-muted/10 p-2 sm:p-3">
-                  <MarksStackLegend />
+                  {!totalOnlyMarks && <MarksStackLegend />}
                   <div className="h-72 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                     <BarChart
@@ -401,9 +417,11 @@ export function ReportCardView(props?: {
                               <div className="font-medium">{row.subject}</div>
                               <div className="mt-1 space-y-0.5 text-muted-foreground">
                                 <div>Total: {row.total}/100</div>
-                                <div>
-                                  Internal: {row.internal}/20 · Exam: {row.exam}/80
-                                </div>
+                                {!totalOnlyMarks && (
+                                  <div>
+                                    Internal: {row.internal}/20 · Exam: {row.exam}/80
+                                  </div>
+                                )}
                                 <div className={row.passed ? "text-success" : "text-destructive"}>
                                   {passFailLabel(row.total)}
                                 </div>
@@ -412,28 +430,46 @@ export function ReportCardView(props?: {
                           );
                         }}
                       />
-                      <Bar
-                        dataKey="internal"
-                        name="internal"
-                        stackId="marks"
-                        fill={MARKS_INTERNAL_FILL}
-                        radius={[0, 0, 0, 0]}
-                        isAnimationActive={!prefersReducedMotion()}
-                      />
-                      <Bar
-                        dataKey="exam"
-                        name="exam"
-                        stackId="marks"
-                        radius={[8, 8, 0, 0]}
-                        isAnimationActive={!prefersReducedMotion()}
-                      >
-                        {examChartData.map((entry, index) => (
-                          <Cell
-                            key={`exam-${index}`}
-                            fill={entry.passed ? MARKS_EXAM_PASS_FILL : MARKS_EXAM_FAIL_FILL}
+                      {totalOnlyMarks ? (
+                        <Bar
+                          dataKey="total"
+                          name="total"
+                          radius={[8, 8, 0, 0]}
+                          isAnimationActive={!prefersReducedMotion()}
+                        >
+                          {examChartData.map((entry, index) => (
+                            <Cell
+                              key={`total-${index}`}
+                              fill={entry.passed ? MARKS_EXAM_PASS_FILL : MARKS_EXAM_FAIL_FILL}
+                            />
+                          ))}
+                        </Bar>
+                      ) : (
+                        <>
+                          <Bar
+                            dataKey="internal"
+                            name="internal"
+                            stackId="marks"
+                            fill={MARKS_INTERNAL_FILL}
+                            radius={[0, 0, 0, 0]}
+                            isAnimationActive={!prefersReducedMotion()}
                           />
-                        ))}
-                      </Bar>
+                          <Bar
+                            dataKey="exam"
+                            name="exam"
+                            stackId="marks"
+                            radius={[8, 8, 0, 0]}
+                            isAnimationActive={!prefersReducedMotion()}
+                          >
+                            {examChartData.map((entry, index) => (
+                              <Cell
+                                key={`exam-${index}`}
+                                fill={entry.passed ? MARKS_EXAM_PASS_FILL : MARKS_EXAM_FAIL_FILL}
+                              />
+                            ))}
+                          </Bar>
+                        </>
+                      )}
                       <ReferenceLine
                         y={PASS_MARK_THRESHOLD}
                         stroke="oklch(0.65 0.15 85)"

@@ -19,10 +19,53 @@ import {
   submitMarkEntryForActor,
   updateMarkEntryForActor,
 } from "../../domains/marks/service.js";
+import {
+  getStudentReportCardsForActor,
+  getTeacherMarkSheetForActor,
+} from "../../domains/marks/portal.js";
 
 const marks = new Hono<AppBindings>();
 
 marks.use("*", requireAuth);
+
+marks.get("/portal/students/:studentId/report-cards", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { studentId } = validateParams(
+    z.object({ studentId: uuid }),
+    c.req.param(),
+  );
+  const query = validateQuery(
+    z.object({ institute_id: uuid }),
+    c.req.query(),
+  );
+  const data = await getStudentReportCardsForActor(admin, actor, {
+    instituteId: query.institute_id,
+    studentId,
+  });
+  return c.json({ data });
+});
+
+marks.get("/portal/teacher/sheet", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(
+    z.object({
+      institute_id: uuid,
+      section_id: uuid,
+      exam_id: uuid,
+      subject_id: uuid,
+    }),
+    c.req.query(),
+  );
+  const data = await getTeacherMarkSheetForActor(admin, actor, {
+    instituteId: query.institute_id,
+    sectionId: query.section_id,
+    examId: query.exam_id,
+    subjectId: query.subject_id,
+  });
+  return c.json({ data });
+});
 
 function requireAdmin(c: {
   get: (k: "supabase") => AppBindings["Variables"]["supabase"];

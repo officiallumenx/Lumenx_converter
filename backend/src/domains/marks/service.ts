@@ -134,6 +134,21 @@ async function resolveAccessibleStudentIds(
   return ids;
 }
 
+export async function assertCanAccessStudentMarks(
+  admin: SupabaseClient,
+  actor: Actor,
+  instituteId: string,
+  studentId: string,
+): Promise<void> {
+  assertInstituteAccess(actor, instituteId);
+  if (isStaffReader(actor, instituteId)) return;
+
+  const accessible = await resolveAccessibleStudentIds(admin, actor, instituteId);
+  if (!accessible.has(studentId)) {
+    throw AppError.forbidden("Insufficient permissions");
+  }
+}
+
 function filterScoresForAccessibleStudents(
   scores: MarkScoreRow[],
   accessible: Set<string> | null,
@@ -553,7 +568,10 @@ export async function publishMarkEntryForActor(
     throw AppError.conflict("Mark entry cannot be published in its current status");
   }
   const scores = await listScoresForEntry(admin, entryId);
-  return toEntryDto(published, scores);
+  const dto = toEntryDto(published, scores);
+  const { emitMarkEntryPublishedNotifications } = await import("./notifications.js");
+  await emitMarkEntryPublishedNotifications(admin, actor.userId, dto, dto.scores ?? []);
+  return dto;
 }
 
 export async function returnMarkEntryForActor(

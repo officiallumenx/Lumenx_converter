@@ -1,4 +1,4 @@
-/** Marks domain types aligned to mark_entry / mark_score. */
+/** Mirrors backend marks portal DTOs. */
 
 export type MarkEntryStatus =
   | "pending"
@@ -6,37 +6,6 @@ export type MarkEntryStatus =
   | "published"
   | "returned"
   | "rejected";
-
-export type MarkEntryRow = {
-  id: string;
-  institute_id: string;
-  academic_year_id: string;
-  class_id: string;
-  section_id: string;
-  exam_id: string;
-  subject_id: string;
-  teacher_id: string;
-  max_marks: number;
-  status: MarkEntryStatus;
-  submitted_at: string | null;
-  published_at: string | null;
-  admin_note: string | null;
-  created_at: string;
-  updated_at: string;
-  deleted_at: string | null;
-};
-
-export type MarkScoreRow = {
-  id: string;
-  institute_id: string;
-  mark_entry_id: string;
-  student_id: string;
-  enrollment_id: string;
-  marks: number | null;
-  created_at: string;
-  updated_at: string;
-  deleted_at: string | null;
-};
 
 export type MarkScoreDto = {
   id: string;
@@ -64,44 +33,6 @@ export type MarkEntryDto = {
   createdAt: string;
   updatedAt: string;
   scores?: MarkScoreDto[];
-};
-
-export type ScoreInput = {
-  enrollmentId: string;
-  marks: number | null;
-};
-
-export type CreateMarkEntryInput = {
-  instituteId: string;
-  academicYearId: string;
-  classId: string;
-  sectionId: string;
-  examId: string;
-  subjectId: string;
-  /** Staff override only; teachers ignore client value. */
-  teacherId?: string;
-  maxMarks: number;
-  scores?: ScoreInput[];
-};
-
-export type UpdateMarkEntryInput = {
-  maxMarks?: number;
-  scores?: ScoreInput[];
-  adminNote?: string | null;
-};
-
-export type ListMarkEntriesFilter = {
-  instituteId: string;
-  academicYearId?: string;
-  sectionId?: string;
-  examId?: string;
-  subjectId?: string;
-  teacherId?: string;
-  status?: MarkEntryStatus;
-};
-
-export type WorkflowNoteInput = {
-  adminNote?: string | null;
 };
 
 export type ReportCardSubjectDto = {
@@ -147,4 +78,55 @@ export type TeacherMarkSheetDto = {
   maxMarks: number;
   status: MarkEntryStatus | "none";
   rows: TeacherMarkSheetRowDto[];
+};
+
+export type ConnectMarkRow = {
+  studentId: string;
+  enrollmentId: string;
+  studentName: string;
+  roll: string;
+  marks: number | null;
+  maxMarks: number;
+};
+
+export type MarkScoreInput = {
+  enrollmentId: string;
+  marks: number | null;
+};
+
+export type CreateMarkEntryInput = {
+  instituteId: string;
+  academicYearId: string;
+  classId: string;
+  sectionId: string;
+  examId: string;
+  subjectId: string;
+  maxMarks: number;
+  scores?: MarkScoreInput[];
+};
+
+export type UpdateMarkEntryInput = {
+  maxMarks?: number;
+  scores?: MarkScoreInput[];
+};
+
+export type ListMarkEntriesParams = {
+  instituteId: string;
+  sectionId?: string;
+  examId?: string;
+  subjectId?: string;
+  teacherId?: string;
+  status?: MarkEntryStatus;
+};
+
+export type GetTeacherMarkSheetParams = {
+  instituteId: string;
+  sectionId: string;
+  examId: string;
+  subjectId: string;
+};
+
+export type GetStudentReportCardsParams = {
+  instituteId: string;
+  studentId: string;
 };

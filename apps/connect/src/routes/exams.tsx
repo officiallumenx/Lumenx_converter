@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app/AppShell";
 import { PageHeader } from "@/components/app/PageHeader";
 import { SubjectMarksVisualization } from "@/components/app/SubjectMarksVisualization";
@@ -11,6 +11,8 @@ import { exams, fees, performance, reportCards } from "@/lib/mock-data";
 import { isPassing, passFailLabel } from "@/lib/marks-utils";
 import { parseDueDate } from "@/lib/fees-utils";
 import { prefersReducedMotion } from "@/lib/prefers-reduced-motion";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { loadLearnerExamSchedules as loadApiLearnerExamSchedules } from "@/lib/exams";
 import {
   examVisibleToClass,
   formatExamClassAudience,
@@ -74,13 +76,21 @@ function ExamsPage() {
 const LEARNER_EXAM_SCHEDULES_KEY = "lumenx.learner-exam-schedules";
 
 function ParentStudentExamsPage() {
-  const { role } = useApp();
+  const { role, activeInstituteId } = useApp();
+  const apiMode = isApiAuthMode();
   const parentPortal = useParentPortal();
   const studentPortal = useStudentPortal();
   const parentSnap = role === "parent" && parentPortal.isParent ? parentPortal.snapshot : null;
   const studentSnap = role === "student" && studentPortal.isStudent ? studentPortal.snapshot : null;
   const isLoading =
-    role === "student" && studentPortal.isStudent && studentPortal.isLoading && !studentSnap;
+    !apiMode &&
+    role === "student" &&
+    studentPortal.isStudent &&
+    studentPortal.isLoading &&
+    !studentSnap;
+
+  const [apiSchedules, setApiSchedules] = useState<LearnerExamSchedule[]>([]);
+  const [apiSchedulesLoading, setApiSchedulesLoading] = useState(apiMode);
 
   const reportCardsData = parentSnap?.reportCards ?? studentSnap?.reportCards ?? reportCards;
   const perfFallback = parentSnap?.performance ?? studentSnap?.performance ?? performance;
@@ -122,14 +132,38 @@ function ParentStudentExamsPage() {
     alsoOnFocus: true,
   });
 
+  useEffect(() => {
+    if (!apiMode) return;
+    if (!activeInstituteId) {
+      setApiSchedulesLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setApiSchedulesLoading(true);
+    void loadApiLearnerExamSchedules({
+      instituteId: activeInstituteId,
+      classGrade: learnerClass,
+    }).then((result) => {
+      if (cancelled) return;
+      setApiSchedules(result.schedules);
+      setApiSchedulesLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiMode, activeInstituteId, learnerClass]);
+
   const classSchedules = useMemo(() => {
+    if (apiMode) {
+      return apiSchedules.filter((s) => examVisibleToClass(s, learnerClass));
+    }
     void schedulesTick;
     const stored = loadLearnerExamSchedules().filter((s) =>
       examVisibleToClass(s, learnerClass),
     );
     if (stored.length > 0) return stored;
     return getFallbackLearnerSchedules().filter((s) => examVisibleToClass(s, learnerClass));
-  }, [learnerClass, schedulesTick]);
+  }, [apiMode, apiSchedules, learnerClass, schedulesTick]);
 
   const subtitle = parentSnap
     ? `Schedule and trends for ${parentSnap.child.name} (${parentSnap.classTag})`
@@ -137,7 +171,7 @@ function ParentStudentExamsPage() {
       ? `${studentSnap.profile.name} · ${studentSnap.profile.class} ${studentSnap.profile.section}`
       : "Schedule, results and trends";
 
-  if (isLoading) {
+  if (isLoading || (apiMode && apiSchedulesLoading)) {
     return (
       <div className="min-w-0 max-w-full space-y-4">
         <PageHeader title="Exams & Marks" subtitle="Loading exam schedule and results…" />
