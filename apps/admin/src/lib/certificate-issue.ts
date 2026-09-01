@@ -27,6 +27,8 @@ import {
   type IssuedCertificateRecord,
 } from "@/lib/certificate-numbering-store";
 import { notifyCertificateIssued } from "@lumenx/module-notifications";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { syncIssuedRecordsToApi } from "@/lib/certificates/api-sync";
 
 export type CertificateIssueRow = {
   studentId: string;
@@ -104,6 +106,7 @@ export async function downloadCertificatePrintHtml(input: {
 export async function issueFilledCertificates(input: {
   template: CertificateTemplate;
   rows: CertificateIssueRow[];
+  instituteId?: string | null;
 }): Promise<{
   filename: string;
   count: number;
@@ -157,6 +160,15 @@ export async function issueFilledCertificates(input: {
       })),
     );
 
+  const syncToApi = (attached: IssuedCertificateRecord[]) => {
+    if (isApiAuthMode() && input.instituteId) {
+      void syncIssuedRecordsToApi({
+        instituteId: input.instituteId,
+        records: attached,
+      });
+    }
+  };
+
   const filled = await fillCertificatePptxCopies(input.template.file, items);
   if (filled && filled.size > 0) {
     if (filled.size === 1) {
@@ -172,6 +184,7 @@ export async function issueFilledCertificates(input: {
             certificateNumber: rec.certificateNumber,
           });
         }
+        syncToApi(attached);
         return { filename: first[0], count: 1, kind: "pptx", issued: attached };
       }
     }
@@ -188,6 +201,7 @@ export async function issueFilledCertificates(input: {
         certificateNumber: rec.certificateNumber,
       });
     }
+    syncToApi(attached);
     return { filename: zipName, count: filled.size, kind: "zip", issued: attached };
   }
 
@@ -204,6 +218,7 @@ export async function issueFilledCertificates(input: {
       certificateNumber: rec.certificateNumber,
     });
   }
+  syncToApi(attached);
   return {
     filename: html.filename,
     count: html.count,

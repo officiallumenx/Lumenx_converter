@@ -85,6 +85,8 @@ export type IssueCertificateInput = {
   year?: number;
   assetPath?: string | null;
   fileKind?: IssuedCertificateFileKind | null;
+  /** Skip server PDF generation — metadata-only ledger sync from client PPTX issue. */
+  metadataOnly?: boolean;
 };
 
 export type RevokeCertificateInput = {

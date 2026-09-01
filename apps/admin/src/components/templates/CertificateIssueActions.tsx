@@ -102,11 +102,13 @@ export function CertificateIssueActions({
   rows,
   canIssue,
   blockedCount,
+  instituteId,
 }: {
   template: CertificateTemplate;
   rows: CertificateIssueRow[];
   canIssue: boolean;
   blockedCount: number;
+  instituteId?: string | null;
 }) {
   const notify = useAdminToast();
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -149,7 +151,7 @@ export function CertificateIssueActions({
     if (!canIssue || rows.length === 0) return;
     setBusy("issue");
     try {
-      const result = await issueFilledCertificates({ template, rows });
+      const result = await issueFilledCertificates({ template, rows, instituteId });
       const numbers = result.issued.map((row) => row.certificateNumber);
       const numberLabel =
         numbers.length === 1

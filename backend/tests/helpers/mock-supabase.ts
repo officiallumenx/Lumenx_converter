@@ -11,6 +11,8 @@ type GetUserResult =
 
 export type MockAuthUsers = Record<string, string>; // token -> userId
 
+export type MockAuthUsersByEmail = Record<string, { id: string }>;
+
 export type MockDb = {
   user_profile: Row[];
   membership: Row[];
@@ -55,6 +57,9 @@ export type MockDb = {
   payment: Row[];
   audit_event: Row[];
   staff_account: Row[];
+  institute_access_role: Row[];
+  institute_access_role_permission: Row[];
+  membership_access_assignment: Row[];
   fee_plan: Row[];
   fee_component: Row[];
   student_fee: Row[];
@@ -75,6 +80,7 @@ export type MockDb = {
   template: Row[];
   generated_document: Row[];
   issued_certificate: Row[];
+  certificate_recommendation: Row[];
   admission_program: Row[];
   admission_opening: Row[];
   admission_application: Row[];
@@ -101,6 +107,7 @@ export type MockDb = {
   storage_quota: Row[];
   alert_rule: Row[];
   report_job: Row[];
+  institute_registration: Row[];
 };
 
 export type MockDbError = { code: string; message?: string };
@@ -153,6 +160,12 @@ class QueryBuilder {
 
   eq(column: string, value: unknown) {
     this.filters.push((r) => r[column] === value);
+    return this;
+  }
+
+  ilike(column: string, value: unknown) {
+    const needle = String(value).toLowerCase();
+    this.filters.push((r) => String(r[column] ?? "").toLowerCase() === needle);
     return this;
   }
 
@@ -293,13 +306,122 @@ class QueryBuilder {
 export function createMockSupabaseClients(options: {
   tokens: MockAuthUsers;
   db: MockDb;
+  authUsersByEmail?: MockAuthUsersByEmail;
+  /** Pre-seed Auth passwords for existing users (e.g. principal login tests). */
+  authPasswords?: Record<string, string>;
   /** Optional queue of errors consumed by successive query builders. */
   nextErrors?: PendingError[];
 }) {
   const errorQueue = options.nextErrors ?? [];
+  const authUsersByEmail = options.authUsersByEmail ?? {};
+  const authPasswords: Record<string, string> = { ...(options.authPasswords ?? {}) };
 
   const admin = {
     auth: {
+      admin: {
+        async createUser(input: {
+          email: string;
+          password: string;
+          email_confirm?: boolean;
+        }) {
+          const normalized = input.email.trim().toLowerCase();
+          if (authUsersByEmail[normalized]) {
+            return {
+              data: { user: null },
+              error: { message: "User already registered" },
+            };
+          }
+          const id = crypto.randomUUID();
+          authUsersByEmail[normalized] = { id };
+          authPasswords[normalized] = input.password;
+          return {
+            data: { user: { id, email: normalized } },
+            error: null,
+          };
+        },
+        async updateUserById(
+          userId: string,
+          patch: { email?: string; password?: string },
+        ) {
+          const entry = Object.entries(authUsersByEmail).find(
+            ([, u]) => u.id === userId,
+          );
+          if (!entry) {
+            return { data: { user: null }, error: { message: "User not found" } };
+          }
+          const [oldEmail] = entry;
+          let email = oldEmail;
+          if (patch.email) {
+            email = patch.email.trim().toLowerCase();
+            delete authUsersByEmail[oldEmail];
+            authUsersByEmail[email] = { id: userId };
+            if (authPasswords[oldEmail] !== undefined) {
+              authPasswords[email] = authPasswords[oldEmail];
+              delete authPasswords[oldEmail];
+            }
+          }
+          if (patch.password) {
+            authPasswords[email] = patch.password;
+          }
+          return { data: { user: { id: userId, email } }, error: null };
+        },
+        async generateLink(input: { type: string; email: string }) {
+          const normalized = input.email.trim().toLowerCase();
+          const user = authUsersByEmail[normalized];
+          if (!user) {
+            return {
+              data: { properties: null },
+              error: { message: "User not found" },
+            };
+          }
+          const token = `mock-hash-${normalized}`;
+          return {
+            data: {
+              properties: { hashed_token: token },
+            },
+            error: null,
+          };
+        },
+      },
+      async verifyOtp(input: { token_hash: string; type: string }) {
+        const email = input.token_hash.replace("mock-hash-", "");
+        const user = authUsersByEmail[email];
+        if (!user) {
+          return { data: { session: null }, error: { message: "invalid token" } };
+        }
+        const access_token = `access-${user.id}`;
+        if (options.tokens) {
+          options.tokens[access_token] = user.id;
+        }
+        return {
+          data: {
+            session: {
+              access_token,
+              refresh_token: `refresh-${user.id}`,
+            },
+          },
+          error: null,
+        };
+      },
+      async signInWithPassword(input: { email: string; password: string }) {
+        const email = input.email.trim().toLowerCase();
+        const user = authUsersByEmail[email];
+        if (!user || authPasswords[email] !== input.password) {
+          return {
+            data: { session: null },
+            error: { message: "Invalid login credentials" },
+          };
+        }
+        return {
+          data: {
+            session: {
+              access_token: `access-${user.id}`,
+              refresh_token: `refresh-${user.id}`,
+            },
+          },
+          error: null,
+        };
+      },
       async getUser(token: string): Promise<GetUserResult> {
         const userId = options.tokens[token];
         if (!userId) {
@@ -398,6 +520,9 @@ export function emptyMockDb(): MockDb {
     payment: [],
     audit_event: [],
     staff_account: [],
+    institute_access_role: [],
+    institute_access_role_permission: [],
+    membership_access_assignment: [],
     fee_plan: [],
     fee_component: [],
     student_fee: [],
@@ -418,6 +543,7 @@ export function emptyMockDb(): MockDb {
     template: [],
     generated_document: [],
     issued_certificate: [],
+    certificate_recommendation: [],
     admission_program: [],
     admission_opening: [],
     admission_application: [],
@@ -444,5 +570,6 @@ export function emptyMockDb(): MockDb {
     storage_quota: [],
     alert_rule: [],
     report_job: [],
+    institute_registration: [],
   };
 }

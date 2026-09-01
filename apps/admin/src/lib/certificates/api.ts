@@ -32,3 +32,18 @@ export async function listIssuedCertificates(
     `/api/v1/certificates?${query.toString()}`,
   );
 }
+
+export async function getIssuedCertificateSignedUrl(
+  certificateId: string,
+  expiresInSec?: number,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<{ signedUrl: string; expiresAt: string }> {
+  assertApiMode();
+  if (!isInstituteUuid(certificateId)) {
+    throw new Error("certificate_id must be a valid UUID");
+  }
+  const query = expiresInSec ? `?expires_in=${expiresInSec}` : "";
+  return client.get<{ signedUrl: string; expiresAt: string }>(
+    `/api/v1/certificates/${certificateId.trim()}/signed-url${query}`,
+  );
+}

@@ -31,6 +31,7 @@ export type IssueCertificateInput = {
   year?: number;
   assetPath?: string | null;
   fileKind?: IssuedCertificateFileKind | null;
+  metadataOnly?: boolean;
 };
 
 export type RevokeCertificateInput = {
@@ -66,6 +67,7 @@ export async function issueCertificate(
     year: input.year,
     asset_path: input.assetPath,
     file_kind: input.fileKind,
+    metadata_only: input.metadataOnly,
   });
 }
 

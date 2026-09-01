@@ -24,6 +24,8 @@ import { Award, Eye } from "lucide-react";
 import { useDemoProfile } from "@/lib/demo-profile-context";
 import { CertificateHistoryPanel } from "@/components/templates/CertificateHistoryPanel";
 import { CertificateNumberingConfig } from "@/components/templates/CertificateNumberingConfig";
+import { CertificateRecommendationsPanel } from "@/components/templates/CertificateRecommendationsPanel";
+import { CertificatesIdCardPanel } from "@/components/templates/CertificatesIdCardPanel";
 import { CertificateStudentPopulatePanel } from "@/components/templates/views/CertificateStudentPopulatePanel";
 import { categoryLabel } from "@/lib/template-management/categories";
 import type { IssuedCertificateHistoryItem } from "@/lib/certificates";
@@ -34,6 +36,7 @@ type PublishedCertificateCatalogViewProps = {
   catalogBlocked?: boolean;
   catalogHint?: string | null;
   writesEnabled?: boolean;
+  activeInstituteId?: string | null;
   issuedRecords?: IssuedCertificateHistoryItem[];
   issuedListBlocked?: boolean;
   issuedListHint?: string | null;
@@ -102,6 +105,7 @@ export function PublishedCertificateCatalogView({
   catalogBlocked = false,
   catalogHint = null,
   writesEnabled = true,
+  activeInstituteId = null,
   issuedRecords,
   issuedListBlocked = false,
   issuedListHint = null,
@@ -113,17 +117,17 @@ export function PublishedCertificateCatalogView({
   const [categoryId, setCategoryId] = useState("");
   const [templateId, setTemplateId] = useState("");
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [nexusTemplateId, setNexusTemplateId] = useState("");
   const apiCatalogMode = catalogTemplates != null;
 
   useEffect(() => {
-    if (apiCatalogMode) return;
     const refresh = () => {
       setTemplates(listPublishedCertificateTemplates());
       setCategories(listPublishedCertificateCategories());
     };
     refresh();
     return subscribeCertificateCatalog(refresh);
-  }, [apiCatalogMode]);
+  }, []);
 
   const apiCategories = useMemo(() => {
     if (!catalogTemplates) return [];
@@ -167,7 +171,14 @@ export function PublishedCertificateCatalogView({
     setTemplateId(ids[0] ?? "");
   }, [apiCatalogMode, apiFilteredTemplates, filteredDemoTemplates, templateId]);
 
+  useEffect(() => {
+    const ids = filteredDemoTemplates.map((template) => template.id);
+    if (ids.includes(nexusTemplateId)) return;
+    setNexusTemplateId(ids[0] ?? "");
+  }, [filteredDemoTemplates, nexusTemplateId]);
+
   const selected = templates.find((template) => template.id === templateId);
+  const nexusSelected = templates.find((template) => template.id === nexusTemplateId);
   const selectedApiTemplate = catalogTemplates?.find((template) => template.id === templateId);
   const selectedCategoryName = apiCatalogMode
     ? selectedApiTemplate
@@ -188,16 +199,18 @@ export function PublishedCertificateCatalogView({
             </div>
           </CardBody>
         </Card>
-        <CertificateHistoryPanel
-          records={issuedRecords}
-          listBlocked={issuedListBlocked}
-          listHint={issuedListHint}
-          writesEnabled={writesEnabled}
-          onRevokeCertificate={onRevokeCertificate}
-        />
-      </PageStack>
-    );
-  }
+      <CertificateHistoryPanel
+        records={issuedRecords}
+        listBlocked={issuedListBlocked}
+        listHint={issuedListHint}
+        writesEnabled={writesEnabled}
+        onRevokeCertificate={onRevokeCertificate}
+      />
+
+      <CertificatesIdCardPanel apiMode={apiCatalogMode} />
+    </PageStack>
+  );
+}
 
   return (
     <PageStack>
@@ -347,11 +360,45 @@ export function PublishedCertificateCatalogView({
 
       {!apiCatalogMode && writesEnabled ? <CertificateNumberingConfig /> : null}
 
+      <CertificateRecommendationsPanel instituteId={activeInstituteId} />
+
+      {writesEnabled && nexusSelected && apiCatalogMode ? (
+        <Card>
+          <CardHeader
+            title="Issue from Nexus template"
+            hint="Hybrid API mode · PPTX fill locally · metadata syncs to issued ledger"
+          />
+          <CardBody className="space-y-4">
+            {filteredDemoTemplates.length > 1 ? (
+              <Field label="Nexus template">
+                <Select
+                  value={nexusTemplateId}
+                  onChange={(event) => setNexusTemplateId(event.target.value)}
+                >
+                  {filteredDemoTemplates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name} · v{template.version}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            ) : null}
+            <CertificateStudentPopulatePanel
+              template={nexusSelected}
+              institute={instituteProfile}
+              principalName={profile.admin.principalName}
+              instituteId={activeInstituteId}
+            />
+          </CardBody>
+        </Card>
+      ) : null}
+
       {!apiCatalogMode && writesEnabled && selected ? (
         <CertificateStudentPopulatePanel
           template={selected}
           institute={instituteProfile}
           principalName={profile.admin.principalName}
+          instituteId={activeInstituteId}
         />
       ) : null}
 

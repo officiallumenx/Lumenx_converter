@@ -426,4 +426,71 @@ describe("certificates api", () => {
     });
     expect(cross.status).toBe(404);
   });
+
+  it("public verify returns certificate without auth", async () => {
+    const app = appWithDb(baseDb());
+
+    const res = await app.request(
+      `/api/v1/certificates/public/verify?institute_id=${INST_A}&certificate_number=${encodeURIComponent("CERT/2026/0001")}`,
+    );
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(body.data.valid).toBe(true);
+    expect(body.data.recipientName).toBe("Student A");
+  });
+
+  it("metadata_only issue skips asset generation", async () => {
+    const app = appWithDb(baseDb());
+
+    const res = await app.request("/api/v1/certificates", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-admin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        template_id: TPL_CERT,
+        student_id: STUDENT_B,
+        recipient_name: "Student B",
+        title: "Hybrid issue",
+        certificate_number: "CERT/2026/0099",
+        file_kind: "pptx",
+        metadata_only: true,
+      }),
+    });
+    expect(res.status).toBe(201);
+    const body = await json(res);
+    expect(body.data.fileKind).toBe("pptx");
+    expect(body.data.assetPath).toBeNull();
+  });
+
+  it("creates and lists certificate recommendations", async () => {
+    const app = appWithDb(baseDb());
+
+    const created = await app.request("/api/v1/certificates/recommendations", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-teacher",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        achievement_id: "ach-1",
+        achievement_title: "100m Sprint Gold",
+        achievement_type: "sports",
+        student_id: STUDENT_A,
+        student_name: "Student A",
+        student_class_label: "10-B",
+      }),
+    });
+    expect(created.status).toBe(201);
+
+    const list = await app.request(
+      `/api/v1/certificates/recommendations?institute_id=${INST_A}&status=pending`,
+      { headers: { Authorization: "Bearer token-admin" } },
+    );
+    expect(list.status).toBe(200);
+    expect((await json(list)).data).toHaveLength(1);
+  });
 });

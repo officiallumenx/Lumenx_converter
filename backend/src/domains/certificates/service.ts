@@ -337,7 +337,7 @@ export async function issueCertificateForActor(
   const certificateId = crypto.randomUUID();
   const issuedAt = new Date().toISOString();
 
-  if (!assetPath) {
+  if (!assetPath && !input.metadataOnly) {
     const pdfBytes = renderDocumentPdf({
       title,
       templateName,
@@ -361,6 +361,8 @@ export async function issueCertificateForActor(
     });
     assetPath = file.objectPath;
     fileKind = "pdf";
+  } else if (!fileKind && input.metadataOnly) {
+    fileKind = input.fileKind ?? "pptx";
   } else if (!fileKind) {
     fileKind = "pdf";
   }

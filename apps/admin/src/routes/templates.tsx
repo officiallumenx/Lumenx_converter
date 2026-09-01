@@ -281,6 +281,7 @@ function CertificatesPage() {
         catalogBlocked={apiMode && !catalogListView.rowsValid}
         catalogHint={catalogHint}
         writesEnabled={writesEnabled}
+        activeInstituteId={instituteCtx.activeInstituteId}
         issuedRecords={issuedRecordsForView}
         issuedListBlocked={apiMode && !issuedListView.rowsValid}
         issuedListHint={issuedHint}

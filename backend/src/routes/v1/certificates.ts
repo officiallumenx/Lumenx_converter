@@ -16,8 +16,15 @@ import {
   revokeIssuedCertificateForActor,
   getIssuedCertificateSignedUrlForActor,
 } from "../../domains/certificates/service.js";
+import {
+  createCertificateRecommendationForActor,
+  listCertificateRecommendationsForActor,
+  updateCertificateRecommendationForActor,
+} from "../../domains/certificates/recommendations-service.js";
+import certificatesPublic from "./certificates-public.js";
 
 const certificates = new Hono<AppBindings>();
+certificates.route("/public", certificatesPublic);
 certificates.use("*", requireAuth);
 
 function requireAdmin(c: {
@@ -34,6 +41,7 @@ const uuid = z.string().uuid();
 const idParamsSchema = z.object({ id: uuid });
 const statusSchema = z.enum(["issued", "revoked", "superseded"]);
 const fileKindSchema = z.enum(["pdf", "html", "pptx"]);
+const recommendationStatusSchema = z.enum(["pending", "issued", "dismissed"]);
 
 certificates.get("/", async (c) => {
   const actor = assertAuthenticated(c);
@@ -52,6 +60,74 @@ certificates.get("/", async (c) => {
     studentId: query.student_id,
     status: query.status,
     templateId: query.template_id,
+  });
+  return c.json({ data });
+});
+
+certificates.get("/recommendations", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(
+    z.object({
+      institute_id: uuid,
+      status: recommendationStatusSchema.optional(),
+    }),
+    c.req.query(),
+  );
+  const data = await listCertificateRecommendationsForActor(
+    admin,
+    actor,
+    query.institute_id,
+    query.status,
+  );
+  return c.json({ data });
+});
+
+certificates.post("/recommendations", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const body = validateBody(
+    z.object({
+      institute_id: uuid,
+      achievement_id: z.string().max(200).nullable().optional(),
+      achievement_title: z.string().min(1).max(300),
+      achievement_type: z.string().min(1).max(120),
+      student_id: uuid,
+      student_name: z.string().min(1).max(300),
+      student_class_label: z.string().max(120).nullable().optional(),
+      recommended_by_name: z.string().max(200).optional(),
+      note: z.string().max(2000).nullable().optional(),
+    }),
+    await c.req.json(),
+  );
+  const data = await createCertificateRecommendationForActor(admin, actor, {
+    instituteId: body.institute_id,
+    achievementId: body.achievement_id,
+    achievementTitle: body.achievement_title,
+    achievementType: body.achievement_type,
+    studentId: body.student_id,
+    studentName: body.student_name,
+    studentClassLabel: body.student_class_label,
+    recommendedByName: body.recommended_by_name,
+    note: body.note,
+  });
+  return c.json({ data }, 201);
+});
+
+certificates.patch("/recommendations/:id", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const body = validateBody(
+    z.object({
+      status: z.enum(["issued", "dismissed"]),
+      issued_certificate_id: uuid.nullable().optional(),
+    }),
+    await c.req.json(),
+  );
+  const data = await updateCertificateRecommendationForActor(admin, actor, id, {
+    status: body.status,
+    issuedCertificateId: body.issued_certificate_id,
   });
   return c.json({ data });
 });
@@ -93,6 +169,7 @@ certificates.post("/", async (c) => {
       year: z.number().int().optional(),
       asset_path: z.string().max(1000).nullable().optional(),
       file_kind: fileKindSchema.nullable().optional(),
+      metadata_only: z.boolean().optional(),
     }),
     await c.req.json(),
   );
@@ -111,6 +188,7 @@ certificates.post("/", async (c) => {
     year: body.year,
     assetPath: body.asset_path,
     fileKind: body.file_kind,
+    metadataOnly: body.metadata_only,
   });
   return c.json({ data }, 201);
 });

@@ -10,6 +10,10 @@ import {
 } from "@lumenx/ui";
 import { toast } from "sonner";
 import { pushCertificateRecommendation } from "@lumenx/utils";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { createCertificateRecommendation } from "@/lib/certificates";
+import { getActivityApiInstituteId } from "@/lib/activity/context";
+import { isInstituteUuid } from "@/lib/institute-id";
 import type { ActivityAchievement } from "@/lib/activity/achievements/types";
 import {
   ACHIEVEMENT_LEVEL_LABELS,
@@ -125,16 +129,45 @@ export function AchievementDetailSheet({
                 <Button
                   className="rounded-xl gap-2"
                   onClick={() => {
-                    pushCertificateRecommendation({
-                      achievementId: achievement.id,
-                      achievementTitle: achievement.title,
-                      achievementType: achievement.achievementType,
-                      studentId: achievement.studentId,
-                      studentName: achievement.studentName,
-                      studentClassLabel: achievement.studentClassLabel,
-                      recommendedBy: "Activity Teacher",
-                    });
-                    toast.success("Certificate recommendation sent to Admin for issue");
+                    void (async () => {
+                      const instituteId = getActivityApiInstituteId();
+                      if (
+                        isApiAuthMode() &&
+                        instituteId &&
+                        isInstituteUuid(instituteId) &&
+                        isInstituteUuid(achievement.studentId)
+                      ) {
+                        try {
+                          await createCertificateRecommendation({
+                            instituteId,
+                            achievementId: achievement.id,
+                            achievementTitle: achievement.title,
+                            achievementType: achievement.achievementType,
+                            studentId: achievement.studentId,
+                            studentName: achievement.studentName,
+                            studentClassLabel: achievement.studentClassLabel,
+                            recommendedByName: "Activity Teacher",
+                          });
+                          toast.success("Certificate recommendation sent to Admin for issue");
+                          return;
+                        } catch (err) {
+                          toast.error(
+                            err instanceof Error ? err.message : "Could not send recommendation",
+                          );
+                          return;
+                        }
+                      }
+                      pushCertificateRecommendation({
+                        achievementId: achievement.id,
+                        achievementTitle: achievement.title,
+                        achievementType: achievement.achievementType,
+                        studentId: achievement.studentId,
+                        studentName: achievement.studentName,
+                        studentClassLabel: achievement.studentClassLabel,
+                        recommendedBy: "Activity Teacher",
+                      });
+                      toast.success("Certificate recommendation sent to Admin for issue");
+                    })();
                   }}
                 >
                   <Award className="size-4" />

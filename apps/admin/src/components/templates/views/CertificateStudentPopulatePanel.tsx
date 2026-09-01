@@ -208,10 +208,12 @@ export function CertificateStudentPopulatePanel({
   template,
   institute,
   principalName,
+  instituteId,
 }: {
   template: CertificateTemplate;
   institute: DemoInstituteProfile;
   principalName?: string;
+  instituteId?: string | null;
 }) {
   const [students, setStudents] = useState<StudentDirectoryRecord[]>([]);
   const [query, setQuery] = useState("");
@@ -530,6 +532,7 @@ export function CertificateStudentPopulatePanel({
             template={template}
             canIssue={canIssue}
             blockedCount={blockedCount}
+            instituteId={instituteId}
             rows={fills.map((row) => ({
               studentId: row.student.id,
               studentName: row.student.name,

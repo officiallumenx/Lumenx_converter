@@ -14,14 +14,18 @@ import {
   Check,
   School,
   Loader2,
+  QrCode,
 } from "lucide-react";
 import { Button } from "@lumenx/ui";
 import { Input } from "@lumenx/ui";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@lumenx/ui";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { apiSignInWithPassword, apiRequestParentLoginOtp, apiVerifyParentLoginOtp } from "@/auth/api-auth";
 import { useApp } from "@/lib/app-state";
 import { registeredInstitutes } from "@/lib/mock-data";
 import { DEFAULT_DEMO_PROFILE_ID, getDemoProfile } from "@lumenx/types";
 import { LumenXLogo } from "@/components/app/LumenXLogo";
+import { careersPortalUrl } from "@/lib/careers-origin";
 import type { Role } from "@lumenx/types";
 import { INSTITUTE_KIND_LABEL } from "@lumenx/types";
 import { toast } from "sonner";
@@ -104,7 +108,7 @@ const ROLES: { id: Role; label: string; tagline: string; icon: typeof Users }[] 
 const CONNECT_LOGIN = getDemoProfile(DEFAULT_DEMO_PROFILE_ID).connect;
 
 function LoginPage() {
-  const { user, signIn, hydrated } = useApp();
+  const { user, signIn, signInApi, hydrated } = useApp();
   const nav = useNavigate();
   const [step, setStep] = useState<Step>("institute");
   const [instituteId, setInstituteId] = useState<string | null>(null);
@@ -123,6 +127,7 @@ function LoginPage() {
   const [loginMode, setLoginMode] = useState<LoginMode>("signIn");
   const [role, setRole] = useState<Role | null>(null);
   const [loading, setLoading] = useState(false);
+  const [apiEmail, setApiEmail] = useState("");
 
   // Portal (parent / student / teacher) OTP-only flow state
   const [portalDisplayName, setPortalDisplayName] = useState<string | undefined>(undefined);
@@ -217,6 +222,26 @@ function LoginPage() {
 
   const handleResendOtp = () => {
     if (resendSeconds > 0 || !instituteId) return;
+    if (isApiAuthMode() && role === "parent") {
+      setLoading(true);
+      void apiRequestParentLoginOtp({ phone: cleanPhone, instituteId })
+        .then((result) => {
+          setPortalDisplayName(result.displayName);
+          setOtp("");
+          setPortalOtpError(null);
+          setResendSeconds(30);
+          toast.success(
+            result.devOtp
+              ? `New code sent to ${result.maskedPhone} (dev: ${result.devOtp})`
+              : `New code sent to ${result.maskedPhone}`,
+          );
+        })
+        .catch((err) => {
+          toast.error(err instanceof Error ? err.message : "Failed to resend code");
+        })
+        .finally(() => setLoading(false));
+      return;
+    }
     sendOtp(fullPhone, instituteId);
     setOtp("");
     setPortalOtpError(null);
@@ -232,12 +257,64 @@ function LoginPage() {
     }
     if (step === "role") {
       if (!role) return toast.error("Pick a portal to continue");
+      if (isApiAuthMode()) {
+        if (role === "parent") {
+          setStep("phone");
+          return;
+        }
+        setStep("api-sign-in");
+        return;
+      }
       setStep("phone");
+      return;
+    }
+    if (step === "api-sign-in") {
+      if (!role) return toast.error("Pick a portal to continue");
+      if (!apiEmail.trim().includes("@")) return toast.error("Enter your email address");
+      if (password.length < 6) return toast.error("Enter your password");
+      setLoading(true);
+      void apiSignInWithPassword({
+        email: apiEmail,
+        password,
+        role,
+        preferredInstituteId: instituteId,
+      })
+        .then((session) => {
+          signInApi(session.user, role, session.instituteId);
+          toast.success(`Welcome to ${ROLES.find((r) => r.id === role)!.label}`);
+          nav({ to: "/" });
+        })
+        .catch((err) => {
+          toast.error(err instanceof Error ? err.message : "Sign-in failed");
+        })
+        .finally(() => setLoading(false));
       return;
     }
     if (step === "phone") {
       setPhoneTouched(true);
       if (!phoneValid) return toast.error(`Enter a valid ${country.maxLen}-digit mobile number`);
+      if (isApiAuthMode() && role === "parent") {
+        if (!instituteId) return toast.error("Select your institute first");
+        setLoading(true);
+        void apiRequestParentLoginOtp({ phone: cleanPhone, instituteId })
+          .then((result) => {
+            setPortalDisplayName(result.displayName);
+            setOtp("");
+            setPortalOtpError(null);
+            setResendSeconds(30);
+            setStep("portalOtp");
+            toast.success(
+              result.devOtp
+                ? `Code sent to ${result.maskedPhone} (dev: ${result.devOtp})`
+                : `Code sent to ${result.maskedPhone}`,
+            );
+          })
+          .catch((err) => {
+            toast.error(err instanceof Error ? err.message : "Mobile not registered");
+          })
+          .finally(() => setLoading(false));
+        return;
+      }
       // Portal roles (parent / student / teacher) use OTP-only flow
       if (role === "parent" || role === "student" || role === "teacher") {
         if (!instituteId) return toast.error("Select your institute first");
@@ -395,6 +472,22 @@ function LoginPage() {
     // ── Portal OTP-only steps ─────────────────────────────────────────────────
     if (step === "portalOtp") {
       if (otp.length !== 6) return toast.error("Enter the 6-digit code");
+      if (isApiAuthMode() && role === "parent" && instituteId) {
+        setLoading(true);
+        void apiVerifyParentLoginOtp({ phone: cleanPhone, instituteId, otp })
+          .then((session) => {
+            signInApi(session.user, "parent", session.instituteId);
+            toast.success("Welcome to Parent Portal");
+            nav({ to: "/" });
+          })
+          .catch((err) => {
+            const message = err instanceof Error ? err.message : "Verification failed";
+            setPortalOtpError(message);
+            toast.error(message);
+          })
+          .finally(() => setLoading(false));
+        return;
+      }
       setLoading(true);
       setTimeout(() => {
         setLoading(false);
@@ -433,7 +526,8 @@ function LoginPage() {
   };
 
   const back = () => {
-    if (step === "role") setStep("institute");
+    if (step === "api-sign-in") setStep("role");
+    else if (step === "role") setStep("institute");
     else if (step === "phone") setStep("role");
     else if (step === "password") {
       resetStudentFlow();
@@ -478,6 +572,13 @@ function LoginPage() {
 
   return (
     <div className="min-h-screen-dvh relative bg-background overflow-hidden">
+      <Link
+        to="/verify-certificate"
+        className="absolute right-4 top-4 z-20 inline-flex items-center gap-2 rounded-xl border border-border/80 bg-card/90 px-3 py-2 text-xs font-medium text-foreground shadow-soft backdrop-blur-sm hover:bg-muted/50"
+      >
+        <QrCode className="size-4 text-primary" />
+        Verify certificate
+      </Link>
       <div className="absolute inset-0 bg-gradient-hero pointer-events-none" />
       <div className="relative grid min-h-screen-dvh lg:grid-cols-2">
         <aside className="hidden lg:flex flex-col justify-between p-12 bg-gradient-primary text-primary-foreground">
@@ -624,9 +725,12 @@ function LoginPage() {
                   </p>
                   <p>
                     Looking for a job?{" "}
-                    <Link to="/careers" className="font-medium text-primary hover:underline">
+                    <a
+                      href={careersPortalUrl("/")}
+                      className="font-medium text-primary hover:underline"
+                    >
                       Careers
-                    </Link>
+                    </a>
                   </p>
                 </div>
               </div>
@@ -775,6 +879,72 @@ function LoginPage() {
                   </Link>
                   .
                 </p>
+              </div>
+            )}
+
+            {step === "api-sign-in" && (
+              <div className="login-step-body connect-step-enter">
+                <LoginBackButton onClick={back} />
+                <div>
+                  <h2 className="login-step-title font-display text-2xl font-semibold sm:text-[1.75rem]">
+                    Sign in with email
+                  </h2>
+                  <p className="login-step-subtitle mt-1 text-sm text-muted-foreground">
+                    Use the same account as LumenX Admin for{" "}
+                    {ROLES.find((r) => r.id === role)?.label ?? "your portal"}.
+                  </p>
+                </div>
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <label htmlFor="login-api-email" className="text-sm font-medium">
+                      Email
+                    </label>
+                    <Input
+                      id="login-api-email"
+                      type="email"
+                      autoComplete="username"
+                      placeholder="you@school.edu"
+                      value={apiEmail}
+                      onChange={(e) => setApiEmail(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label htmlFor="login-api-password" className="text-sm font-medium">
+                      Password
+                    </label>
+                    <div className="relative">
+                      <Input
+                        id="login-api-password"
+                        type={showPwd ? "text" : "password"}
+                        autoComplete="current-password"
+                        placeholder="Your password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
+                        onClick={() => setShowPwd((v) => !v)}
+                        aria-label={showPwd ? "Hide password" : "Show password"}
+                      >
+                        {showPwd ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  onClick={next}
+                  disabled={loading || !apiEmail.trim() || password.length < 6}
+                  className="login-primary-action"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" /> Signing in…
+                    </>
+                  ) : (
+                    "Sign in"
+                  )}
+                </Button>
               </div>
             )}
 

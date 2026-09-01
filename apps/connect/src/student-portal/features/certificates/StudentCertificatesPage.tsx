@@ -1,16 +1,24 @@
 import { useMemo, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { PageHeader } from "@/components/app/PageHeader";
+import { ChildSwitcher } from "@/components/app/ChildSwitcher";
 import { useStudentPortal } from "@/context/StudentPortalContext";
 import { useParentPortal } from "@/context/ParentPortalContext";
 import { studentCertificateRecords as demoCertificateRecords } from "@/lib/student/mock-data";
-import type { StudentCertificateRecord } from "@/lib/student/mock-data";
 import { mergeIssuedCertificates } from "@/lib/student/admin-issued-certificates-bridge";
+import {
+  getIssuedCertificateSignedUrl,
+  useLearnerCertificates,
+  type LearnerCertificateRecord,
+} from "@/lib/certificates";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { Badge, Button, cn, Input } from "@lumenx/ui";
-import { FileText, Download, Eye, Share2, Search } from "lucide-react";
+import { FileText, Download, Eye, Share2, Search, QrCode } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@lumenx/ui";
 import { EmptyState, PageSkeleton } from "@/student-portal/shared/ui";
 import { downloadStudentCertificateToDevice } from "@/lib/device-file-downloads";
+import { SafeQrCode } from "@/components/app/id-card/SafeQrCode";
 
 const CATEGORY_LABEL = {
   academic: "Academic",
@@ -19,20 +27,71 @@ const CATEGORY_LABEL = {
   technical: "Technical",
 } as const;
 
+type CertificateRow = LearnerCertificateRecord & {
+  demo?: boolean;
+};
+
+function demoToRows(
+  records: ReturnType<typeof mergeIssuedCertificates>,
+  origin: string,
+): CertificateRow[] {
+  return records.map((c) => ({
+    id: c.id,
+    title: c.title,
+    refNo: c.refNo,
+    issuer: c.issuer,
+    issuedOn: c.issuedOn,
+    category: c.category,
+    description: c.description,
+    studentId: null,
+    hasDownload: true,
+    verifyUrl: `${origin}/verify-certificate?number=${encodeURIComponent(c.refNo)}`,
+    demo: true,
+  }));
+}
+
 export function StudentCertificatesPage({ readOnlyParent = false }: { readOnlyParent?: boolean }) {
+  const apiMode = isApiAuthMode();
   const portal = useStudentPortal();
   const parentPortal = useParentPortal();
   const parentSnap = readOnlyParent && parentPortal.isParent ? parentPortal.snapshot : null;
+  const childId = readOnlyParent && parentSnap ? parentSnap.child.id : undefined;
+  const apiCerts = useLearnerCertificates({ studentId: childId });
+
   const [filter, setFilter] = useState<"all" | keyof typeof CATEGORY_LABEL>("all");
   const [query, setQuery] = useState("");
-  const [preview, setPreview] = useState<StudentCertificateRecord | null>(null);
+  const [preview, setPreview] = useState<CertificateRow | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
-  const studentCertificateRecords =
-    readOnlyParent && parentSnap
-      ? mergeIssuedCertificates(parentSnap.child.id, demoCertificateRecords)
-      : portal.isStudent && portal.snapshot
-        ? portal.snapshot.certificates
-        : [];
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+
+  const studentCertificateRecords: CertificateRow[] = useMemo(() => {
+    if (apiMode) {
+      if (apiCerts.loading) return [];
+      return apiCerts.records;
+    }
+    if (readOnlyParent && parentSnap) {
+      return demoToRows(
+        mergeIssuedCertificates(parentSnap.child.id, demoCertificateRecords),
+        origin,
+      );
+    }
+    if (portal.isStudent && portal.snapshot) {
+      return demoToRows(portal.snapshot.certificates, origin);
+    }
+    return [];
+  }, [
+    apiMode,
+    apiCerts.loading,
+    apiCerts.records,
+    readOnlyParent,
+    parentSnap,
+    portal.isStudent,
+    portal.snapshot,
+    origin,
+  ]);
+
   const studentProfile =
     readOnlyParent && parentSnap
       ? {
@@ -59,6 +118,62 @@ export function StudentCertificatesPage({ readOnlyParent = false }: { readOnlyPa
     );
   }, [filter, query, studentCertificateRecords]);
 
+  const openPreview = async (row: CertificateRow) => {
+    setPreview(row);
+    setPreviewUrl(null);
+    if (row.demo || !apiMode || !row.hasDownload) return;
+    setPreviewLoading(true);
+    try {
+      const { signedUrl } = await getIssuedCertificateSignedUrl(row.id);
+      setPreviewUrl(signedUrl);
+    } catch {
+      setPreviewUrl(null);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const downloadRow = async (row: CertificateRow) => {
+    if (row.demo) {
+      const { filename } = downloadStudentCertificateToDevice(
+        {
+          id: row.id,
+          title: row.title,
+          refNo: row.refNo,
+          issuer: row.issuer,
+          issuedOn: row.issuedOn,
+          category: row.category,
+          description: row.description,
+        },
+        studentProfile?.name ?? "Student",
+      );
+      toast.success("Saved to Downloads", { description: filename });
+      return;
+    }
+    if (!row.hasDownload) {
+      toast.message("No file on record", {
+        description: "This certificate was issued locally — contact the school office.",
+      });
+      return;
+    }
+    try {
+      const { signedUrl } = await getIssuedCertificateSignedUrl(row.id);
+      window.open(signedUrl, "_blank", "noopener,noreferrer");
+      toast.success("Opening certificate download");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Download failed");
+    }
+  };
+
+  const shareRow = async (row: CertificateRow) => {
+    try {
+      await navigator.clipboard.writeText(row.verifyUrl);
+      toast.success("Verify link copied");
+    } catch {
+      toast.error("Could not copy link");
+    }
+  };
+
   if (!readOnlyParent && !portal.isStudent) return null;
   if (readOnlyParent && parentPortal.isLoading && !parentSnap) return <PageSkeleton rows={6} />;
   if (readOnlyParent && !parentSnap) {
@@ -70,7 +185,10 @@ export function StudentCertificatesPage({ readOnlyParent = false }: { readOnlyPa
       />
     );
   }
-  if (!readOnlyParent && (portal.isLoading || !portal.snapshot || !studentProfile)) {
+  if (!readOnlyParent && !apiMode && (portal.isLoading || !portal.snapshot || !studentProfile)) {
+    return <PageSkeleton rows={6} />;
+  }
+  if (apiMode && apiCerts.loading) {
     return <PageSkeleton rows={6} />;
   }
 
@@ -81,9 +199,28 @@ export function StudentCertificatesPage({ readOnlyParent = false }: { readOnlyPa
         subtitle={
           readOnlyParent && parentSnap
             ? `Read-only certificates for ${parentSnap.child.name}`
-            : `${studentCertificateRecords.length} certificates on record · Download or share anytime`
+            : `${studentCertificateRecords.length} certificates on record · Download or verify anytime`
+        }
+        action={
+          <Link
+            to="/verify-certificate"
+            className="inline-flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-xs font-medium hover:bg-muted/50"
+          >
+            <QrCode className="size-4 text-primary" />
+            Verify
+          </Link>
         }
       />
+
+      {readOnlyParent && parentPortal.isParent ? (
+        <div className="max-w-md">
+          <ChildSwitcher />
+        </div>
+      ) : null}
+
+      {apiMode && apiCerts.error ? (
+        <p className="text-sm text-destructive">{apiCerts.error}</p>
+      ) : null}
 
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -133,20 +270,14 @@ export function StudentCertificatesPage({ readOnlyParent = false }: { readOnlyPa
                   size="sm"
                   variant="outline"
                   className="rounded-lg gap-1.5"
-                  onClick={() => setPreview(c)}
+                  onClick={() => void openPreview(c)}
                 >
                   <Eye className="size-3.5" /> Preview
                 </Button>
                 <Button
                   size="sm"
                   className="rounded-lg gap-1.5"
-                  onClick={() => {
-                    const { filename } = downloadStudentCertificateToDevice(
-                      c,
-                      studentProfile?.name ?? "Student",
-                    );
-                    toast.success("Saved to Downloads", { description: filename });
-                  }}
+                  onClick={() => void downloadRow(c)}
                 >
                   <Download className="size-3.5" /> Download
                 </Button>
@@ -154,7 +285,7 @@ export function StudentCertificatesPage({ readOnlyParent = false }: { readOnlyPa
                   size="sm"
                   variant="ghost"
                   className="rounded-lg gap-1.5"
-                  onClick={() => toast.success("Share link copied to clipboard")}
+                  onClick={() => void shareRow(c)}
                 >
                   <Share2 className="size-3.5" /> Share
                 </Button>
@@ -185,52 +316,67 @@ export function StudentCertificatesPage({ readOnlyParent = false }: { readOnlyPa
         />
       )}
 
-      <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
+      <Dialog
+        open={!!preview}
+        onOpenChange={(o) => {
+          if (!o) {
+            setPreview(null);
+            setPreviewUrl(null);
+          }
+        }}
+      >
         <DialogContent className="rounded-2xl max-w-md">
           <DialogHeader>
             <DialogTitle>{preview?.title}</DialogTitle>
           </DialogHeader>
           {preview && (
             <div className="space-y-3 text-sm">
-              <div className="rounded-xl border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10 p-6 text-center">
-                <div className="text-xs uppercase tracking-widest text-muted-foreground">
-                  Certificate of Achievement
+              {previewUrl ? (
+                <iframe
+                  title="Certificate preview"
+                  src={previewUrl}
+                  className="h-64 w-full rounded-xl border bg-muted/30"
+                />
+              ) : (
+                <div className="rounded-xl border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10 p-6 text-center">
+                  <div className="text-xs uppercase tracking-widest text-muted-foreground">
+                    Certificate of Achievement
+                  </div>
+                  <div className="mt-1 text-[10px] font-mono text-muted-foreground">
+                    {preview.refNo}
+                  </div>
+                  <div className="mt-3 font-display text-lg font-semibold">{preview.title}</div>
+                  <div className="mt-2 text-muted-foreground">
+                    Awarded to {studentProfile?.name ?? "Student"}
+                  </div>
+                  <div className="mt-2 text-xs leading-relaxed text-muted-foreground px-2">
+                    {preview.description}
+                  </div>
+                  <div className="mt-4 text-xs text-muted-foreground">
+                    {preview.issuer} · {preview.issuedOn}
+                  </div>
+                  <Badge variant="outline" className="mt-3">
+                    {CATEGORY_LABEL[preview.category]}
+                  </Badge>
+                  {previewLoading ? (
+                    <p className="mt-3 text-xs text-muted-foreground">Loading PDF preview…</p>
+                  ) : null}
                 </div>
-                <div className="mt-1 text-[10px] font-mono text-muted-foreground">
-                  {preview.refNo}
-                </div>
-                <div className="mt-3 font-display text-lg font-semibold">{preview.title}</div>
-                <div className="mt-2 text-muted-foreground">
-                  Awarded to {studentProfile?.name ?? "Student"}
-                </div>
-                <div className="mt-2 text-xs leading-relaxed text-muted-foreground px-2">
-                  {preview.description}
-                </div>
-                <div className="mt-4 text-xs text-muted-foreground">
-                  {preview.issuer} · {preview.issuedOn}
-                </div>
-                <Badge variant="outline" className="mt-3">
-                  {CATEGORY_LABEL[preview.category]}
-                </Badge>
+              )}
+              <div className="flex justify-center">
+                <SafeQrCode value={preview.verifyUrl} size={88} />
               </div>
               <div className="flex gap-2">
                 <Button
                   className="flex-1 rounded-xl gap-2"
-                  onClick={() => {
-                    if (!preview) return;
-                    const { filename } = downloadStudentCertificateToDevice(
-                      preview,
-                      studentProfile?.name ?? "Student",
-                    );
-                    toast.success("Saved to Downloads", { description: filename });
-                  }}
+                  onClick={() => void downloadRow(preview)}
                 >
-                  <Download className="size-4" /> Download PDF
+                  <Download className="size-4" /> Download
                 </Button>
                 <Button
                   variant="outline"
                   className="rounded-xl gap-2"
-                  onClick={() => toast.success("Share link copied")}
+                  onClick={() => void shareRow(preview)}
                 >
                   <Share2 className="size-4" />
                 </Button>

@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as VerifyCertificateRouteImport } from './routes/verify-certificate'
 import { Route as TransportRouteImport } from './routes/transport'
 import { Route as TimetableRouteImport } from './routes/timetable'
 import { Route as TermsRouteImport } from './routes/terms'
@@ -93,6 +94,11 @@ import { Route as AdmissionsApplicationsApplicationIdRouteImport } from './route
 import { Route as AdmissionsInstituteApplicationsIndexRouteImport } from './routes/admissions/institute/applications/index'
 import { Route as AdmissionsInstituteApplicationsApplicationIdRouteImport } from './routes/admissions/institute/applications/$applicationId'
 
+const VerifyCertificateRoute = VerifyCertificateRouteImport.update({
+  id: '/verify-certificate',
+  path: '/verify-certificate',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TransportRoute = TransportRouteImport.update({
   id: '/transport',
   path: '/transport',
@@ -557,6 +563,7 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/timetable': typeof TimetableRoute
   '/transport': typeof TransportRoute
+  '/verify-certificate': typeof VerifyCertificateRoute
   '/activity/achievements': typeof ActivityAchievementsRoute
   '/activity/announcements': typeof ActivityAnnouncementsRoute
   '/activity/attendance': typeof ActivityAttendanceRoute
@@ -640,6 +647,7 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/timetable': typeof TimetableRoute
   '/transport': typeof TransportRoute
+  '/verify-certificate': typeof VerifyCertificateRoute
   '/activity/achievements': typeof ActivityAchievementsRoute
   '/activity/announcements': typeof ActivityAnnouncementsRoute
   '/activity/attendance': typeof ActivityAttendanceRoute
@@ -724,6 +732,7 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/timetable': typeof TimetableRoute
   '/transport': typeof TransportRoute
+  '/verify-certificate': typeof VerifyCertificateRoute
   '/activity/achievements': typeof ActivityAchievementsRoute
   '/activity/announcements': typeof ActivityAnnouncementsRoute
   '/activity/attendance': typeof ActivityAttendanceRoute
@@ -811,6 +820,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/timetable'
     | '/transport'
+    | '/verify-certificate'
     | '/activity/achievements'
     | '/activity/announcements'
     | '/activity/attendance'
@@ -894,6 +904,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/timetable'
     | '/transport'
+    | '/verify-certificate'
     | '/activity/achievements'
     | '/activity/announcements'
     | '/activity/attendance'
@@ -977,6 +988,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/timetable'
     | '/transport'
+    | '/verify-certificate'
     | '/activity/achievements'
     | '/activity/announcements'
     | '/activity/attendance'
@@ -1063,11 +1075,19 @@ export interface RootRouteChildren {
   TermsRoute: typeof TermsRoute
   TimetableRoute: typeof TimetableRoute
   TransportRoute: typeof TransportRoute
+  VerifyCertificateRoute: typeof VerifyCertificateRoute
   VerifyStudentIdRoute: typeof VerifyStudentIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/verify-certificate': {
+      id: '/verify-certificate'
+      path: '/verify-certificate'
+      fullPath: '/verify-certificate'
+      preLoaderRoute: typeof VerifyCertificateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/transport': {
       id: '/transport'
       path: '/transport'
@@ -1878,6 +1898,7 @@ const rootRouteChildren: RootRouteChildren = {
   TermsRoute: TermsRoute,
   TimetableRoute: TimetableRoute,
   TransportRoute: TransportRoute,
+  VerifyCertificateRoute: VerifyCertificateRoute,
   VerifyStudentIdRoute: VerifyStudentIdRoute,
 }
 export const routeTree = rootRouteImport

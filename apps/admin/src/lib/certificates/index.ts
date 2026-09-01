@@ -1,7 +1,13 @@
 export {
   listIssuedCertificates,
   assertApiMode as assertCertificatesApiMode,
+  getIssuedCertificateSignedUrl,
 } from "./api";
+export { syncIssuedRecordsToApi, ensureIssueTemplateId } from "./api-sync";
+export {
+  listCertificateRecommendations,
+  updateCertificateRecommendation,
+} from "./recommendations-api";
 export {
   issueCertificate,
   revokeCertificate,
