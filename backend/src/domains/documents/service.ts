@@ -10,6 +10,7 @@ import {
   findStudentById,
   listGuardianStudentIds,
 } from "../students/repository.js";
+import { listLinksForStudent, findParentById } from "../parents/repository.js";
 import { findTeacherById } from "../teachers/repository.js";
 import {
   findGeneratedDocumentById,
@@ -631,7 +632,56 @@ export async function transitionGeneratedForActor(
 
   const updated = await updateGeneratedDocumentFields(admin, id, patch);
   if (!updated) throw AppError.notFound("Generated document not found");
+
+  if (input.workflowState === "published") {
+    await emitGeneratedDocumentPublishedNotification(admin, actor, updated);
+  }
+
   return toGeneratedDocumentDto(updated);
+}
+
+async function emitGeneratedDocumentPublishedNotification(
+  admin: SupabaseClient,
+  actor: Actor,
+  row: Awaited<ReturnType<typeof updateGeneratedDocumentFields>> & object,
+): Promise<void> {
+  if (!row) return;
+  const recipientIds = new Set<string>();
+
+  if (row.student_id) {
+    const student = await findStudentById(admin, row.student_id);
+    if (student?.user_profile_id && row.portal_student) {
+      recipientIds.add(student.user_profile_id);
+    }
+    if (row.portal_parent) {
+      const links = await listLinksForStudent(admin, row.student_id, row.institute_id);
+      for (const link of links) {
+        const parent = await findParentById(admin, link.parent_id);
+        if (parent?.user_profile_id) recipientIds.add(parent.user_profile_id);
+      }
+    }
+  }
+
+  if (recipientIds.size === 0) return;
+
+  const { emitNotificationForInstituteSystem } = await import(
+    "../notifications/service.js"
+  );
+
+  try {
+    await emitNotificationForInstituteSystem(admin, actor.userId, {
+      instituteId: row.institute_id,
+      recipientUserIds: [...recipientIds],
+      category: "documents",
+      priority: "normal",
+      title: "Document ready",
+      body: `${row.title?.trim() || "Document"} for ${row.recipient_name} is ready to download.`,
+      deepLink: "/documents",
+      dedupeKey: `gen-doc-published:${row.id}`,
+    });
+  } catch {
+    /* notification delivery must not block publish */
+  }
 }
 
 export async function deleteGeneratedForActor(

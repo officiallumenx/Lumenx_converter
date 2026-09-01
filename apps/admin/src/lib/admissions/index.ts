@@ -3,6 +3,7 @@ export type {
   AdmissionApplicationListItem,
   AdmissionApplicationStage,
   AdmissionApplicationStatus,
+  AdmissionDocumentDto,
   AdmissionOpeningDto,
   AdmissionOpeningListItem,
   AdmissionOpeningStatus,
@@ -16,6 +17,8 @@ export type {
 export {
   assertApiMode,
   listAdmissionApplications,
+  listAdmissionDocuments,
+  getAdmissionDocumentSignedUrl,
   listAdmissionOpenings,
   listAdmissionPrograms,
 } from "./api";

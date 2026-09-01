@@ -1,6 +1,7 @@
 export {
   listDocumentTemplates,
   listGeneratedDocuments,
+  getGeneratedDocumentSignedUrl,
   assertApiMode as assertDocumentsApiMode,
 } from "./api";
 export {

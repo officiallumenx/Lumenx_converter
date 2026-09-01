@@ -81,4 +81,28 @@ describe("documents api repository", () => {
       listGeneratedDocuments({ instituteId: INST }),
     ).rejects.toThrow(/API auth mode/);
   });
+
+  it("gets generated document signed url", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const { getGeneratedDocumentSignedUrl } = await import("./api");
+    const genId = "dd111111-1111-4111-8111-111111111111";
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          data: { signedUrl: "https://cdn.test/doc.pdf", expiresAt: "2026-01-01T00:00:00Z" },
+        }),
+    });
+    const client = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => "tok",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    const result = await getGeneratedDocumentSignedUrl(genId, 3600, client);
+    expect(result.signedUrl).toContain("doc.pdf");
+    const url = fetchMock.mock.calls[0][0] as string;
+    expect(url).toContain(`/api/v1/documents/generated/${genId}/signed-url`);
+    expect(url).toContain("expires_in=3600");
+  });
 });

@@ -40,6 +40,7 @@ import {
   BookOpen,
   GraduationCap,
   ShieldCheck,
+  Download,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
@@ -204,12 +205,14 @@ function DetailPanel({
   doc,
   onAdvance,
   onReject,
+  onDownload,
   onClose,
   writesEnabled = true,
 }: {
   doc: GeneratedDocument;
   onAdvance: () => void;
   onReject: () => void;
+  onDownload?: () => void | Promise<void>;
   onClose: () => void;
   writesEnabled?: boolean;
 }) {
@@ -354,24 +357,31 @@ function DetailPanel({
         </div>
 
         {/* Footer actions */}
-        {writesEnabled &&
-          doc.workflowState !== "published" &&
-          doc.workflowState !== "rejected" && (
-          <div className="px-5 py-4 border-t border-border bg-surface/30 flex items-center gap-2">
-            {hasNext && (
-              <Button variant="primary" className="flex-1 justify-center" onClick={onAdvance}>
-                <ArrowRight className="size-3.5" /> {nextLabel}
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              onClick={onReject}
-              className="text-destructive hover:bg-destructive/8 hover:text-destructive border border-destructive/20"
-            >
-              <XCircle className="size-3.5" /> Reject
+        <div className="px-5 py-4 border-t border-border bg-surface/30 flex items-center gap-2">
+          {onDownload ? (
+            <Button variant="outline" className="justify-center" onClick={() => void onDownload()}>
+              <Download className="size-3.5" /> Download PDF
             </Button>
-          </div>
-        )}
+          ) : null}
+          {writesEnabled &&
+            doc.workflowState !== "published" &&
+            doc.workflowState !== "rejected" ? (
+            <>
+              {hasNext ? (
+                <Button variant="primary" className="flex-1 justify-center" onClick={onAdvance}>
+                  <ArrowRight className="size-3.5" /> {nextLabel}
+                </Button>
+              ) : null}
+              <Button
+                variant="ghost"
+                onClick={onReject}
+                className="text-destructive hover:bg-destructive/8 hover:text-destructive border border-destructive/20"
+              >
+                <XCircle className="size-3.5" /> Reject
+              </Button>
+            </>
+          ) : null}
+        </div>
       </div>
     </>
   );
@@ -577,6 +587,7 @@ type DocGeneratedViewProps = {
   listHint?: string | null;
   onAdvanceDocument?: (doc: GeneratedDocument) => void | Promise<void>;
   onRejectDocument?: (doc: GeneratedDocument, reason: string) => void | Promise<void>;
+  onDownloadDocument?: (doc: GeneratedDocument) => void | Promise<void>;
 };
 
 export function DocGeneratedView({
@@ -586,6 +597,7 @@ export function DocGeneratedView({
   listHint = null,
   onAdvanceDocument,
   onRejectDocument,
+  onDownloadDocument,
 }: DocGeneratedViewProps) {
   const [docs, setDocs] = useState<GeneratedDocument[]>(
     () => documents ?? getGeneratedDocuments(),
@@ -812,6 +824,9 @@ export function DocGeneratedView({
           }
           onAdvance={() => handleAdvance(detailDoc)}
           onReject={() => setRejectingDoc(detailDoc)}
+          onDownload={
+            onDownloadDocument ? () => onDownloadDocument(detailDoc) : undefined
+          }
           onClose={() => setDetailDoc(null)}
           writesEnabled={writesEnabled}
         />

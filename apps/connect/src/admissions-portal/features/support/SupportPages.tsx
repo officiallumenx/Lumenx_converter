@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Button, TextSizeControl, LumenXFeedbackDialog } from "@lumenx/ui";
 import { getInitials } from "@lumenx/utils";
@@ -26,17 +26,51 @@ import {
   markAllNotificationsRead,
   uploadDocument,
 } from "@/lib/admissions/repositories";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import {
+  loadApplicationDocuments,
+  uploadApplicationDocument,
+  openAdmissionDocumentPreview,
+} from "@/lib/admissions/documents-service";
+import type { ApplicationDocument } from "@/lib/admissions/types";
 import { FAQ_ITEMS, ADMISSIONS_CONTACT } from "@/lib/admissions/mock-data";
 import { getInstituteById } from "@/lib/admissions/institutes-data";
 import type { FaqItem } from "@/lib/admissions/types";
 
 export function DocumentCenterPage() {
   const { user } = useAdmissionsAuth();
+  const apiMode = isApiAuthMode();
   const [tick, setTick] = useState(0);
   const apps = user ? getApplicationsForUser(user.id).filter((a) => a.status !== "draft") : [];
   const [selected, setSelected] = useState(apps[0]?.id ?? "");
+  const [apiDocs, setApiDocs] = useState<ApplicationDocument[]>([]);
+  const [docsLoading, setDocsLoading] = useState(false);
 
   const app = apps.find((a) => a.id === selected);
+
+  useEffect(() => {
+    if (!apiMode || !app?.id || !/^[0-9a-f-]{36}$/i.test(app.id)) {
+      setApiDocs([]);
+      return;
+    }
+    let cancelled = false;
+    setDocsLoading(true);
+    void loadApplicationDocuments(app.id)
+      .then((rows) => {
+        if (!cancelled) setApiDocs(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setApiDocs([]);
+      })
+      .finally(() => {
+        if (!cancelled) setDocsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiMode, app?.id, tick]);
+
+  const displayDocs = apiMode && app && /^[0-9a-f-]{36}$/i.test(app.id) ? apiDocs : app?.documents ?? [];
 
   if (apps.length === 0) {
     return (
@@ -74,15 +108,45 @@ export function DocumentCenterPage() {
       </div>
       {app && (
         <div className="space-y-3" key={`${app.id}-${tick}`}>
-          {app.documents.length === 0 ? (
+          {docsLoading ? (
+            <p className="text-sm text-muted-foreground">Loading documents…</p>
+          ) : displayDocs.length === 0 ? (
             <p className="text-sm text-muted-foreground">No documents uploaded yet.</p>
           ) : (
-            app.documents.map((d) => (
+            displayDocs.map((d) => (
               <DocumentVerificationCard
                 key={d.id}
                 doc={d}
-                onPreview={() => toast.info(`Preview: ${d.fileName ?? d.label} (demo)`)}
+                onPreview={() => {
+                  if (apiMode && /^[0-9a-f-]{36}$/i.test(d.id)) {
+                    void openAdmissionDocumentPreview({ documentId: d.id })
+                      .then((url) => {
+                        if (!url) {
+                          toast.error("Preview unavailable.");
+                          return;
+                        }
+                        window.open(url, "_blank", "noopener,noreferrer");
+                      })
+                      .catch(() => toast.error("Preview unavailable."));
+                    return;
+                  }
+                  toast.info(`Preview: ${d.fileName ?? d.label} (demo)`);
+                }}
                 onUpload={(f) => {
+                  if (apiMode && app.instituteId && /^[0-9a-f-]{36}$/i.test(app.id)) {
+                    void uploadApplicationDocument({
+                      applicationId: app.id,
+                      instituteId: app.instituteId,
+                      type: d.type,
+                      file: f,
+                    })
+                      .then(() => {
+                        toast.success(`${d.label} updated`);
+                        setTick((n) => n + 1);
+                      })
+                      .catch(() => toast.error("Upload failed"));
+                    return;
+                  }
                   uploadDocument(app.id, d.type, f.name);
                   toast.success(`${d.label} updated`);
                   setTick((n) => n + 1);
@@ -557,7 +621,7 @@ export function AdmissionsSettingsPage() {
           className="w-full"
           onClick={() => {
             signOut();
-            nav({ to: "/admissions/login" });
+            nav({ to: "/admissions/institutes" });
           }}
         >
           Log out

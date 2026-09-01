@@ -7,6 +7,7 @@ import { DocDashboardApiPanel } from "@/components/documents/views/DocDashboardA
 import { DocRequestsView } from "@/components/documents/views/DocRequestsView";
 import { DocPackagesView } from "@/components/documents/views/DocPackagesView";
 import { DocTemplatesView } from "@/components/documents/views/DocTemplatesView";
+import { DocTemplatesApiPanel } from "@/components/documents/views/DocTemplatesApiPanel";
 import { DocGenerateView } from "@/components/documents/views/DocGenerateView";
 import { DocGenerateApiPanel } from "@/components/documents/views/DocGenerateApiPanel";
 import { DocGeneratedView } from "@/components/documents/views/DocGeneratedView";
@@ -32,6 +33,7 @@ import {
   shouldCommitDocumentsGeneratedLoad,
   shouldCommitDocumentsTemplatesLoad,
   transitionGeneratedDocument,
+  getGeneratedDocumentSignedUrl,
   type DocumentsGeneratedListStatus,
   type DocumentsListStatus,
   type DocumentsTemplatesListStatus,
@@ -408,22 +410,31 @@ function DocumentsPage() {
             <DocPackagesView />
           )
         ) : null}
-        {view === "templates" && (
-          <DocTemplatesView
-            templates={apiTemplatesForView}
-            writesEnabled={writesEnabled}
-            listBlocked={apiMode && !templatesListView.rowsValid}
-            listHint={templatesHint}
-            onActivateTemplate={
-              apiMode
-                ? async (id) => {
-                    await activateDocumentTemplate(id);
-                    setReloadKey((k) => k + 1);
-                  }
-                : undefined
-            }
-          />
-        )}
+        {view === "templates" &&
+          (apiMode ? (
+            <DocTemplatesApiPanel
+              templates={apiTemplatesForView ?? []}
+              writesEnabled={writesEnabled}
+              listBlocked={!templatesListView.rowsValid}
+              listHint={templatesHint}
+              onChanged={() => setReloadKey((k) => k + 1)}
+            />
+          ) : (
+            <DocTemplatesView
+              templates={apiTemplatesForView}
+              writesEnabled={writesEnabled}
+              listBlocked={apiMode && !templatesListView.rowsValid}
+              listHint={templatesHint}
+              onActivateTemplate={
+                apiMode
+                  ? async (id) => {
+                      await activateDocumentTemplate(id);
+                      setReloadKey((k) => k + 1);
+                    }
+                  : undefined
+              }
+            />
+          ))}
         {view === "generate" ? (
           apiMode ? (
             <DocGenerateApiPanel />
@@ -472,6 +483,22 @@ function DocumentsPage() {
                     } catch (err) {
                       notify(
                         err instanceof Error ? err.message : "Failed to reject document",
+                      );
+                    }
+                  }
+                : undefined
+            }
+            onDownloadDocument={
+              apiMode
+                ? async (doc) => {
+                    try {
+                      const { signedUrl } = await getGeneratedDocumentSignedUrl(doc.id);
+                      window.open(signedUrl, "_blank", "noopener,noreferrer");
+                    } catch (err) {
+                      notify(
+                        err instanceof Error
+                          ? err.message
+                          : "Download unavailable — publish the document first",
                       );
                     }
                   }

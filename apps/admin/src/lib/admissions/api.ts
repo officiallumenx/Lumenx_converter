@@ -66,3 +66,31 @@ export async function listAdmissionOpenings(
     `/api/v1/admissions/openings?${query.toString()}`,
   );
 }
+
+export async function listAdmissionDocuments(
+  applicationId: string,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<import("./types").AdmissionDocumentDto[]> {
+  assertApiMode();
+  if (!isInstituteUuid(applicationId)) {
+    throw new Error("application_id must be a valid UUID");
+  }
+  return client.get(
+    `/api/v1/admissions/applications/${applicationId.trim()}/documents`,
+  );
+}
+
+export async function getAdmissionDocumentSignedUrl(
+  documentId: string,
+  expiresInSec?: number,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<{ signedUrl: string; expiresAt: string }> {
+  assertApiMode();
+  if (!isInstituteUuid(documentId)) {
+    throw new Error("document_id must be a valid UUID");
+  }
+  const query = expiresInSec ? `?expires_in=${expiresInSec}` : "";
+  return client.get<{ signedUrl: string; expiresAt: string }>(
+    `/api/v1/admissions/documents/${documentId.trim()}/signed-url${query}`,
+  );
+}

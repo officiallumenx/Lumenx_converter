@@ -53,3 +53,18 @@ export async function listGeneratedDocuments(
     `/api/v1/documents/generated?${query.toString()}`,
   );
 }
+
+export async function getGeneratedDocumentSignedUrl(
+  generatedId: string,
+  expiresInSec?: number,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<{ signedUrl: string; expiresAt: string }> {
+  assertApiMode();
+  if (!isInstituteUuid(generatedId)) {
+    throw new Error("generated_document_id must be a valid UUID");
+  }
+  const query = expiresInSec ? `?expires_in=${expiresInSec}` : "";
+  return client.get<{ signedUrl: string; expiresAt: string }>(
+    `/api/v1/documents/generated/${generatedId.trim()}/signed-url${query}`,
+  );
+}

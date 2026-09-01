@@ -24,8 +24,11 @@ import {
 } from "@/lib/admissions-sync";
 import { getAdmissionsPortalWindow } from "@/lib/admissions-portal-window";
 import { ConvertToStudentDialog } from "@/components/admissions/ConvertToStudentDialog";
+import { AdmissionDocumentsApiPanel } from "@/components/admissions/AdmissionDocumentsApiPanel";
 import { getAdminAdmissionDetail } from "@/lib/admissions-application-details";
 import type { AdmissionConvertDraft } from "@/lib/admission-to-student";
+import { validateAdmissionConvertDraft } from "@/lib/admission-to-student";
+import { convertAdmissionApplicationToStudent } from "@/lib/admissions/convert-to-student-api";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { syncSubscriptionHeadcountAfterStudentChange } from "@/lib/subscription-headcount";
 import { useDemoProfile } from "@/lib/demo-profile-context";
@@ -74,6 +77,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
+import { isInstituteUuid } from "@/lib/active-institute";
 import {
   loadAdmissionsList,
   loadAdmissionsOpeningsList,
@@ -235,6 +239,7 @@ function AdmissionsPage() {
   const [docsFilter, setDocsFilter] = useState<"all" | "complete" | "incomplete">("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [convertOpen, setConvertOpen] = useState(false);
+  const [docsReview, setDocsReview] = useState<{ id: string; name: string } | null>(null);
 
   const refreshSeatRows = () => {
     setSeatRows(buildClassSeatAvailability(instituteId, profile.academic));
@@ -583,10 +588,28 @@ function AdmissionsPage() {
 
   const convertToStudent = (draft: AdmissionConvertDraft) => {
     if (!writesEnabled || !selected) return;
+    const errors = validateAdmissionConvertDraft(draft);
+    if (errors.length > 0) {
+      notify(errors[0] ?? "Invalid convert draft");
+      return;
+    }
     if (apiMode) {
-      notify(
-        "Convert to student is not available via Admissions API yet — use Students create after approving in portal",
-      );
+      if (!isInstituteUuid(selected.id)) {
+        notify("Application id must be a valid UUID in API mode");
+        return;
+      }
+      void convertAdmissionApplicationToStudent(selected.id, draft)
+        .then((result) => {
+          setSelectedId(null);
+          setConvertOpen(false);
+          setReloadKey((k) => k + 1);
+          notify(
+            `Student enrolled${result.parentId ? " · Parent Connect account ready" : ""}`,
+          );
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to convert application");
+        });
       return;
     }
     const directory = loadStudentDirectory();
@@ -683,12 +706,6 @@ function AdmissionsPage() {
   };
 
   const openConvert = (id: string) => {
-    if (apiMode) {
-      notify(
-        "Convert to student is not available via Admissions API yet — approve in portal, then create the student in Students",
-      );
-      return;
-    }
     if (!writesEnabled) {
       notify("Convert to student is not enabled in API read-only mode");
       return;
@@ -702,7 +719,7 @@ function AdmissionsPage() {
       title="Admissions"
       subtitle={
         apiMode
-          ? `API mode · ${countLabel(activeApps.length)} applications · ${programsListView.rowsValid ? programsListView.items.length : "…"} programs · ${openingsListView.rowsValid ? openingsListView.items.length : "…"} openings · document counts not in list view`
+          ? `API mode · ${countLabel(activeApps.length)} applications · ${programsListView.rowsValid ? programsListView.items.length : "…"} programs · ${openingsListView.rowsValid ? openingsListView.items.length : "…"} openings · verified/total doc counts`
           : "Review applications in Connect · add approved students here"
       }
       actions={
@@ -1119,7 +1136,16 @@ function AdmissionsPage() {
                     </div>
                   </div>
                   <Pill tone={stageTone(app.stage)}>{stageLabel(app.stage)}</Pill>
-                  {!apiMode && writesEnabled && app.stage === "approved" ? (
+                  {apiMode && writesEnabled ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setDocsReview({ id: app.id, name: app.name })}
+                    >
+                      Docs
+                    </Button>
+                  ) : null}
+                  {writesEnabled && app.stage === "approved" ? (
                     <Button variant="primary" size="sm" onClick={() => openConvert(app.id)}>
                       <UserPlus className="size-3.5" /> Convert
                     </Button>
@@ -1280,6 +1306,16 @@ function AdmissionsPage() {
         }}
         onConvert={convertToStudent}
       />
+      ) : null}
+
+      {docsReview ? (
+        <AdmissionDocumentsApiPanel
+          applicationId={docsReview.id}
+          applicationName={docsReview.name}
+          open
+          onClose={() => setDocsReview(null)}
+          onChanged={() => setReloadKey((k) => k + 1)}
+        />
       ) : null}
     </AppShell>
   );

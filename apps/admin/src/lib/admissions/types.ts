@@ -118,3 +118,30 @@ export type AdmissionApplicationListItem = {
 export type ListAdmissionApplicationsParams = {
   instituteId: string;
 };
+
+export type AdmissionDocumentDto = {
+  id: string;
+  instituteId: string;
+  applicationId: string;
+  docType:
+    | "birth_certificate"
+    | "transfer_certificate"
+    | "marks_memo"
+    | "student_photo"
+    | "parent_id"
+    | "additional";
+  label: string;
+  fileName: string | null;
+  assetPath: string | null;
+  status:
+    | "not_uploaded"
+    | "uploaded"
+    | "under_review"
+    | "verified"
+    | "rejected"
+    | "resubmission_required";
+  note: string | null;
+  uploadedByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};

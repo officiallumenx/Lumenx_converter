@@ -72,7 +72,13 @@ import {
   applicationToSyncRow,
   type AdminAdmissionStage,
 } from "@/lib/admissions/admin-bridge";
-import type { AdmissionFormField, CorrectionFieldPath } from "@/lib/admissions/types";
+import type { AdmissionFormField, ApplicationDocument, CorrectionFieldPath } from "@/lib/admissions/types";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import {
+  loadApplicationDocuments,
+  verifyApplicationDocument,
+  openAdmissionDocumentPreview,
+} from "@/lib/admissions/documents-service";
 import { ensureDemoOpenings, getOpeningsForInstitute } from "@/lib/admissions/openings-store";
 
 const BOARD_STAGES: { id: AdminAdmissionStage; label: string }[] = [
@@ -392,7 +398,9 @@ export function InstituteApplicationsPage() {
 
 export function InstituteApplicationReviewPage({ applicationId }: { applicationId: string }) {
   const { instituteId } = useInstituteContext();
+  const apiMode = isApiAuthMode();
   const [refreshTick, setRefreshTick] = useState(0);
+  const [apiDocs, setApiDocs] = useState<ApplicationDocument[]>([]);
   const apps = useMemo(() => {
     void refreshTick;
     return getAllApplications();
@@ -400,6 +408,27 @@ export function InstituteApplicationReviewPage({ applicationId }: { applicationI
   const app = apps.find((a) => a.id === applicationId);
   const [correctionReason, setCorrectionReason] = useState("");
   const [correctionFields, setCorrectionFields] = useState<CorrectionFieldPath[]>([]);
+
+  useEffect(() => {
+    if (!apiMode || !/^[0-9a-f-]{36}$/i.test(applicationId)) {
+      setApiDocs([]);
+      return;
+    }
+    let cancelled = false;
+    void loadApplicationDocuments(applicationId)
+      .then((rows) => {
+        if (!cancelled) setApiDocs(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setApiDocs([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiMode, applicationId, refreshTick]);
+
+  const displayDocs =
+    apiMode && /^[0-9a-f-]{36}$/i.test(applicationId) ? apiDocs : app?.documents ?? [];
 
   if (!app || (app.instituteId ?? "ins-lumenx-academy") !== instituteId) {
     return (
@@ -609,10 +638,10 @@ export function InstituteApplicationReviewPage({ applicationId }: { applicationI
           Documents stay at the bottom and support preview when available.
         </p>
         <div className="mt-3 space-y-2">
-          {app.documents.length === 0 ? (
+          {displayDocs.length === 0 ? (
             <p className="text-sm text-muted-foreground">No documents uploaded.</p>
           ) : (
-            app.documents.map((doc) => (
+            displayDocs.map((doc) => (
               <div
                 key={doc.id}
                 className="rounded-xl border border-border px-3 py-2 flex flex-wrap items-center justify-between gap-2"
@@ -622,21 +651,98 @@ export function InstituteApplicationReviewPage({ applicationId }: { applicationI
                   <p className="text-xs text-muted-foreground truncate">
                     {doc.fileName || "No file"} · {doc.status.replace(/_/g, " ")}
                   </p>
+                  {doc.note ? (
+                    <p className="text-xs text-destructive mt-0.5">{doc.note}</p>
+                  ) : null}
                 </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    if (!doc.previewDataUrl) {
-                      toast.error("Preview unavailable for this file.");
-                      return;
-                    }
-                    window.open(doc.previewDataUrl, "_blank", "noopener,noreferrer");
-                  }}
-                >
-                  Preview
-                </Button>
+                <div className="flex flex-wrap gap-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      if (apiMode && /^[0-9a-f-]{36}$/i.test(doc.id)) {
+                        void openAdmissionDocumentPreview({ documentId: doc.id })
+                          .then((url) => {
+                            if (!url) {
+                              toast.error("Preview unavailable for this file.");
+                              return;
+                            }
+                            window.open(url, "_blank", "noopener,noreferrer");
+                          })
+                          .catch(() => toast.error("Preview unavailable."));
+                        return;
+                      }
+                      if (!doc.previewDataUrl) {
+                        toast.error("Preview unavailable for this file.");
+                        return;
+                      }
+                      window.open(doc.previewDataUrl, "_blank", "noopener,noreferrer");
+                    }}
+                  >
+                    Preview
+                  </Button>
+                  {apiMode && isVerificationStage && /^[0-9a-f-]{36}$/i.test(doc.id) ? (
+                    <>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => {
+                          void verifyApplicationDocument({
+                            documentId: doc.id,
+                            status: "verified",
+                          })
+                            .then(() => {
+                              toast.success(`${doc.label} verified`);
+                              setRefreshTick((t) => t + 1);
+                            })
+                            .catch(() => toast.error("Could not verify document"));
+                        }}
+                      >
+                        Verify
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          void verifyApplicationDocument({
+                            documentId: doc.id,
+                            status: "resubmission_required",
+                            note: "Please re-upload a clearer copy.",
+                          })
+                            .then(() => {
+                              toast.success("Resubmission requested");
+                              setRefreshTick((t) => t + 1);
+                            })
+                            .catch(() => toast.error("Could not update document"));
+                        }}
+                      >
+                        Resubmit
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="text-destructive"
+                        onClick={() => {
+                          void verifyApplicationDocument({
+                            documentId: doc.id,
+                            status: "rejected",
+                            note: "Document rejected by institute.",
+                          })
+                            .then(() => {
+                              toast.success(`${doc.label} rejected`);
+                              setRefreshTick((t) => t + 1);
+                            })
+                            .catch(() => toast.error("Could not reject document"));
+                        }}
+                      >
+                        Reject
+                      </Button>
+                    </>
+                  ) : null}
+                </div>
               </div>
             ))
           )}

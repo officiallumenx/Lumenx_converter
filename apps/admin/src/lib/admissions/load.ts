@@ -3,6 +3,7 @@ import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/active-institute";
 import {
   listAdmissionApplications,
+  listAdmissionDocuments,
   listAdmissionOpenings,
   listAdmissionPrograms,
 } from "./api";
@@ -10,7 +11,9 @@ import {
   admissionApplicationDtosToListItems,
   admissionOpeningDtosToListItems,
   admissionProgramDtosToListItems,
+  formatAdmissionDocCount,
 } from "./map";
+import type { AdmissionApplicationDto } from "./types";
 import type {
   AdmissionApplicationListItem,
   AdmissionOpeningListItem,
@@ -103,16 +106,67 @@ async function loadAdmissionsResourceList<T>(
 export async function loadAdmissionsList(
   activeInstituteId: string | null,
 ): Promise<AdmissionsListState> {
-  const result = await loadAdmissionsResourceList(
-    activeInstituteId,
-    (instituteId) => listAdmissionApplications({ instituteId }),
-    (rows) =>
-      admissionApplicationDtosToListItems(
-        rows as Parameters<typeof admissionApplicationDtosToListItems>[0],
-      ),
-    "Failed to load admissions applications",
-  );
-  return result;
+  if (!isApiAuthMode()) {
+    return { status: "demo", items: [], errorMessage: null };
+  }
+
+  if (!activeInstituteId || !isInstituteUuid(activeInstituteId)) {
+    return {
+      status: "needs_institute",
+      items: [],
+      errorMessage: null,
+    };
+  }
+
+  try {
+    const rows = (await listAdmissionApplications({
+      instituteId: activeInstituteId,
+    })) as AdmissionApplicationDto[];
+
+    const docCounts: Record<string, string> = {};
+    await Promise.all(
+      rows.map(async (app) => {
+        try {
+          const docs = await listAdmissionDocuments(app.id);
+          docCounts[app.id] = formatAdmissionDocCount(docs);
+        } catch {
+          docCounts[app.id] = "—/—";
+        }
+      }),
+    );
+
+    const items = admissionApplicationDtosToListItems(rows, docCounts);
+    return {
+      status: items.length === 0 ? "empty" : "ready",
+      items,
+      errorMessage: null,
+    };
+  } catch (err) {
+    const status =
+      err instanceof ApiClientError
+        ? err.status
+        : err &&
+            typeof err === "object" &&
+            "status" in err &&
+            typeof (err as { status: unknown }).status === "number"
+          ? (err as { status: number }).status
+          : null;
+    const message =
+      err instanceof Error ? err.message : "Failed to load admissions applications";
+
+    if (status === 403) {
+      return {
+        status: "forbidden",
+        items: [],
+        errorMessage: message,
+      };
+    }
+    return {
+      status: "error",
+      items: [],
+      errorMessage: message,
+    };
+  }
 }
 
 export async function loadAdmissionsProgramsList(

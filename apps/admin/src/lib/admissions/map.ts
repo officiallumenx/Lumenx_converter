@@ -55,8 +55,15 @@ function formatApplied(iso: string | null): string {
   }
 }
 
+export function formatAdmissionDocCount(docs: { status: string }[]): string {
+  if (docs.length === 0) return "0/0";
+  const verified = docs.filter((d) => d.status === "verified").length;
+  return `${verified}/${docs.length}`;
+}
+
 export function admissionApplicationDtoToListItem(
   dto: AdmissionApplicationDto,
+  docsSummary?: string,
 ): AdmissionApplicationListItem {
   return {
     id: dto.id,
@@ -64,18 +71,21 @@ export function admissionApplicationDtoToListItem(
     grade: gradeFromPayload(dto.payload),
     stage: mapStatus(dto.status),
     applied: formatApplied(dto.submittedAt ?? dto.createdAt),
-    docs: "—/—",
+    docs: docsSummary ?? "—/—",
     instituteId: dto.instituteId,
   };
 }
 
 export function admissionApplicationDtosToListItems(
   rows: AdmissionApplicationDto[],
+  docCounts?: Record<string, string>,
 ): AdmissionApplicationListItem[] {
   if (!Array.isArray(rows)) {
     throw new TypeError("Admissions API response must be an array");
   }
-  return rows.map(admissionApplicationDtoToListItem);
+  return rows.map((dto) =>
+    admissionApplicationDtoToListItem(dto, docCounts?.[dto.id]),
+  );
 }
 
 export function admissionProgramDtoToListItem(

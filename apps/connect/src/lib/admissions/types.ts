@@ -150,6 +150,8 @@ export interface ApplicationDocument {
   adminNotes?: string[];
   verificationTimeline?: DocumentVerificationEvent[];
   previewDataUrl?: string;
+  assetPath?: string;
+  assetId?: string;
   version?: number;
 }
 

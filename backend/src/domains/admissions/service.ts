@@ -691,7 +691,94 @@ export async function updateDocumentForActor(
 
   const updated = await updateDocumentFields(admin, id, patch);
   if (!updated) throw AppError.notFound("Admission document not found");
+
+  if (input.status !== undefined && input.status !== existing.status) {
+    await emitAdmissionDocumentStatusNotification(admin, actor, {
+      application,
+      document: updated,
+      status: input.status,
+    });
+  }
+
   return toDocumentDto(updated);
+}
+
+export async function getAdmissionDocumentSignedUrlForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  id: string,
+  expiresInSec?: number,
+): Promise<import("../assets/service.js").AssetSignedUrlDto> {
+  const existing = await findDocumentById(admin, id);
+  if (!existing) throw AppError.notFound("Admission document not found");
+
+  const application = await findApplicationById(admin, existing.application_id);
+  if (!application || !isMember(actor, application.institute_id)) {
+    throw AppError.notFound("Admission document not found");
+  }
+
+  if (!existing.asset_path) {
+    throw AppError.notFound("Document file not uploaded yet");
+  }
+
+  const { resolveLinkedAssetSignedUrl } = await import(
+    "../documents/persist-file.js"
+  );
+  return resolveLinkedAssetSignedUrl(admin, actor, {
+    instituteId: application.institute_id,
+    linkedEntityKind: "admission_document",
+    linkedEntityId: existing.id,
+    bucket: "admission-docs",
+    objectPath: existing.asset_path,
+    expiresInSec,
+  });
+}
+
+async function emitAdmissionDocumentStatusNotification(
+  admin: SupabaseClient,
+  actor: Actor,
+  input: {
+    application: { applicant_user_id: string | null; institute_id: string };
+    document: { label: string; doc_type: string };
+    status: string;
+  },
+): Promise<void> {
+  const applicantId = input.application.applicant_user_id;
+  if (!applicantId) return;
+
+  const { emitNotificationForInstituteSystem } = await import(
+    "../notifications/service.js"
+  );
+
+  let title: string;
+  let body: string;
+  if (input.status === "verified") {
+    title = "Document verified";
+    body = `${input.document.label} was verified for your application.`;
+  } else if (input.status === "rejected") {
+    title = "Document rejected";
+    body = `${input.document.label} was rejected. Check admissions for details.`;
+  } else if (input.status === "resubmission_required") {
+    title = "Document resubmission required";
+    body = `Please re-upload ${input.document.label} for your application.`;
+  } else {
+    return;
+  }
+
+  try {
+    await emitNotificationForInstituteSystem(admin, actor.userId, {
+      instituteId: input.application.institute_id,
+      recipientUserIds: [applicantId],
+      category: "admissions",
+      priority: "normal",
+      title,
+      body,
+      deepLink: "/admissions/documents",
+      dedupeKey: `adm-doc-${input.document.doc_type}-${input.status}-${Date.now()}`,
+    });
+  } catch {
+    /* notification delivery must not block document updates */
+  }
 }
 
 // ── Inquiries ────────────────────────────────────────────────────
