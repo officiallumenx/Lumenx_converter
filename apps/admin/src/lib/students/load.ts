@@ -6,9 +6,14 @@
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/active-institute";
-import { listStudents, getStudent } from "./api";
+import { getStudent, getStudentGuardians, listStudents } from "./api";
 import { studentDtosToListItems, studentDtoToDetailItem } from "./map";
-import type { StudentDetailItem, StudentListItem } from "./types";
+import type {
+  ListStudentsParams,
+  StudentDetailItem,
+  StudentGuardianDto,
+  StudentListItem,
+} from "./types";
 
 export type StudentsListStatus =
   | "demo"
@@ -91,8 +96,43 @@ export async function loadStudentDetail(
   }
 }
 
+export async function loadStudentGuardians(
+  studentId: string,
+): Promise<{
+  status: StudentsListStatus;
+  guardians: StudentGuardianDto[];
+  errorMessage: string | null;
+}> {
+  if (!isApiAuthMode()) {
+    return { status: "demo", guardians: [], errorMessage: null };
+  }
+  if (!studentId?.trim() || !isInstituteUuid(studentId.trim())) {
+    return { status: "error", guardians: [], errorMessage: "Student id must be a valid UUID." };
+  }
+
+  try {
+    const guardians = await getStudentGuardians(studentId.trim());
+    return { status: "ready", guardians, errorMessage: null };
+  } catch (err) {
+    const status =
+      err instanceof ApiClientError
+        ? err.status
+        : err &&
+            typeof err === "object" &&
+            "status" in err &&
+            typeof (err as { status: unknown }).status === "number"
+          ? (err as { status: number }).status
+          : null;
+    const message = err instanceof Error ? err.message : "Failed to load guardians";
+    if (status === 403) return { status: "forbidden", guardians: [], errorMessage: message };
+    if (status === 404) return { status: "empty", guardians: [], errorMessage: "Student not found." };
+    return { status: "error", guardians: [], errorMessage: message };
+  }
+}
+
 export async function loadStudentsList(
   activeInstituteId: string | null,
+  filters: Omit<ListStudentsParams, "instituteId"> = {},
 ): Promise<StudentsListState> {
   if (!isApiAuthMode()) {
     return { status: "demo", items: [], errorMessage: null };
@@ -107,7 +147,7 @@ export async function loadStudentsList(
   }
 
   try {
-    const dtos = await listStudents({ instituteId: activeInstituteId });
+    const dtos = await listStudents({ instituteId: activeInstituteId, ...filters });
     const items = studentDtosToListItems(dtos);
     return {
       status: items.length === 0 ? "empty" : "ready",

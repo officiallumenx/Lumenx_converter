@@ -20,12 +20,14 @@ import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
   deleteStudent,
   loadStudentDetail,
+  loadStudentGuardians,
   resolveStudentsDetailView,
   shouldCommitStudentsLoad,
   updateStudent,
   type StudentAccessStatus,
   type StudentDetailItem,
   type StudentGender,
+  type StudentGuardianDto,
   type StudentStatus,
   type StudentsListStatus,
 } from "@/lib/students";
@@ -111,6 +113,7 @@ export function StudentProfileApiPage({ studentId }: { studentId: string }) {
   const [draft, setDraft] = useState<EditDraft | null>(null);
   const [saveError, setSaveError] = useState("");
   const [pendingDelete, setPendingDelete] = useState(false);
+  const [guardians, setGuardians] = useState<StudentGuardianDto[]>([]);
 
   const detailView = resolveStudentsDetailView({
     apiMode: true,
@@ -189,6 +192,21 @@ export function StudentProfileApiPage({ studentId }: { studentId: string }) {
     studentId,
     reloadKey,
   ]);
+
+  useEffect(() => {
+    if (status !== "ready" || !student) {
+      setGuardians([]);
+      return;
+    }
+    let cancelled = false;
+    void loadStudentGuardians(studentId).then((result) => {
+      if (cancelled) return;
+      setGuardians(result.status === "ready" ? result.guardians : []);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [studentId, student, status, reloadKey]);
 
   const hint = detailHint(detailView.status, detailView.errorMessage);
   const displayStudent = detailView.detailValid ? detailView.student : null;
@@ -466,6 +484,39 @@ export function StudentProfileApiPage({ studentId }: { studentId: string }) {
                 <DetailField label="Blood group" value={displayStudent.bloodGroup} />
                 <DetailField label="Emergency contact" value={displayStudent.emergencyContact} />
                 <DetailField label="Legacy code" value={displayStudent.legacyCode} />
+              </div>
+            </Card>
+            <Card>
+              <CardHeader
+                title="Linked guardians"
+                hint="Read-only — manage links from the parent profile"
+              />
+              <div className="px-4 pb-5 sm:px-5">
+                {guardians.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No linked guardians yet.</p>
+                ) : (
+                  <ul className="space-y-3">
+                    {guardians.map((g) => (
+                      <li
+                        key={g.linkId}
+                        className="rounded-lg border border-border px-3 py-2.5 text-xs"
+                      >
+                        <div className="font-medium">{g.parentName}</div>
+                        <div className="mt-1 text-muted-foreground capitalize">
+                          {g.relationship}
+                          {g.isPrimary ? " · Primary" : ""}
+                          {g.isEmergencyContact ? " · Emergency" : ""}
+                        </div>
+                        {g.phone ? (
+                          <div className="mt-1 text-muted-foreground">{g.phone}</div>
+                        ) : null}
+                        {g.email ? (
+                          <div className="text-muted-foreground">{g.email}</div>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             </Card>
             <Card>

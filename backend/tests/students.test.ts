@@ -108,7 +108,15 @@ function baseDb(): MockDb {
     { membership_id: MEMBER_PARENT, role_code: "parent" },
   ];
   db.parent = [
-    { id: PARENT_A, institute_id: INST_A, user_profile_id: USER_PARENT, deleted_at: null },
+    {
+      id: PARENT_A,
+      institute_id: INST_A,
+      user_profile_id: USER_PARENT,
+      name: "Raj Patel",
+      phone: "+919876543210",
+      email: "raj@example.com",
+      deleted_at: null,
+    },
   ];
   db.guardian_link = [
     {
@@ -117,6 +125,8 @@ function baseDb(): MockDb {
       student_id: STUDENT_A,
       parent_id: PARENT_A,
       relationship: "father",
+      is_primary: true,
+      is_emergency_contact: true,
       status: "active",
       deleted_at: null,
     },
@@ -398,5 +408,44 @@ describe("students — lifecycle and soft delete", () => {
       (await app.request(`/api/v1/students/${STUDENT_DELETED}`, { headers: auth("token-admin") }))
         .status,
     ).toBe(404);
+  });
+});
+
+describe("students — guardians", () => {
+  it("returns linked guardians for staff and student self", async () => {
+    const app = appWithDb(baseDb());
+
+    const adminRes = await app.request(`/api/v1/students/${STUDENT_A}/guardians`, {
+      headers: auth("token-admin"),
+    });
+    expect(adminRes.status).toBe(200);
+    const adminBody = await json(adminRes);
+    expect(adminBody.data).toHaveLength(1);
+    expect(adminBody.data[0].parentName).toBe("Raj Patel");
+    expect(adminBody.data[0].relationship).toBe("father");
+
+    const studentRes = await app.request(`/api/v1/students/${STUDENT_A}/guardians`, {
+      headers: auth("token-student"),
+    });
+    expect(studentRes.status).toBe(200);
+
+    const otherStudent = await app.request(`/api/v1/students/${STUDENT_B}/guardians`, {
+      headers: auth("token-student"),
+    });
+    expect(otherStudent.status).toBe(403);
+  });
+});
+
+describe("students — list filters", () => {
+  it("filters by class_label and q", async () => {
+    const app = appWithDb(baseDb());
+    const res = await app.request(
+      `/api/v1/students?institute_id=${INST_A}&class_label=9&q=Bala`,
+      { headers: auth("token-admin") },
+    );
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0].id).toBe(STUDENT_B);
   });
 });

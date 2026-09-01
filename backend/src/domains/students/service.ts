@@ -19,9 +19,11 @@ import type {
   CreateStudentInput,
   ListStudentsFilter,
   StudentDto,
+  StudentGuardianDto,
   StudentRow,
   UpdateStudentInput,
 } from "./types.js";
+import { findParentById, listLinksForStudent } from "../parents/repository.js";
 
 export const STUDENT_STAFF_WRITE_ROLES = [
   "institute_admin",
@@ -264,4 +266,35 @@ export async function deleteStudentForActor(
       "Student",
     subtitle: existing.admission_number,
   });
+}
+
+export async function getStudentGuardiansForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  studentId: string,
+): Promise<StudentGuardianDto[]> {
+  const row = await findStudentById(admin, studentId);
+  if (!row) throw AppError.notFound("Student not found");
+
+  await assertCanReadStudent(admin, actor, row);
+
+  const links = await listLinksForStudent(admin, studentId, row.institute_id);
+  const guardians: StudentGuardianDto[] = [];
+
+  for (const link of links) {
+    const parent = await findParentById(admin, link.parent_id);
+    if (!parent || parent.deleted_at) continue;
+    guardians.push({
+      linkId: link.id,
+      parentId: link.parent_id,
+      parentName: parent.name?.trim() || "Parent",
+      phone: parent.phone,
+      email: parent.email,
+      relationship: link.relationship,
+      isPrimary: link.is_primary,
+      isEmergencyContact: link.is_emergency_contact,
+    });
+  }
+
+  return guardians;
 }

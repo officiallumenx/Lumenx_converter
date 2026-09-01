@@ -12,6 +12,7 @@ import {
   createStudentForActor,
   deleteStudentForActor,
   getStudentForActor,
+  getStudentGuardiansForActor,
   listStudentsForActor,
   updateStudentForActor,
 } from "../../domains/students/service.js";
@@ -125,6 +126,14 @@ students.get("/", async (c) => {
     sectionLabel: query.section_label,
     q: query.q,
   });
+  return c.json({ data });
+});
+
+students.get("/:id/guardians", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const data = await getStudentGuardiansForActor(admin, actor, id);
   return c.json({ data });
 });
 

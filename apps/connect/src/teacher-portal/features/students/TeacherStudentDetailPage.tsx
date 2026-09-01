@@ -2,6 +2,9 @@ import { Link } from "@tanstack/react-router";
 import { PageHeader } from "@/components/app/PageHeader";
 import { teacherRepository } from "@/lib/teacher/repositories";
 import { isTeacherAccessDenied } from "@/lib/teacher/portal-access-guard";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { useApp } from "@/lib/app-state";
+import { loadTeacherStudentDetail } from "@/lib/students";
 import { useAsyncLoad } from "@/lib/hooks/useAsyncLoad";
 import { StudentDetailPanel } from "./StudentDetailPanel";
 import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
@@ -13,6 +16,89 @@ import type { RemarkType, StudentDetail, StudentReturnContext } from "@/lib/teac
 
 /** Full-page student profile (e.g. from global search). List views use StudentAccordionList instead. */
 export function TeacherStudentDetailPage({
+  studentId,
+  returnTo,
+}: {
+  studentId: string;
+  returnTo?: StudentReturnContext;
+}) {
+  if (isApiAuthMode()) {
+    return <ApiTeacherStudentDetailPage studentId={studentId} returnTo={returnTo} />;
+  }
+  return <DemoTeacherStudentDetailPage studentId={studentId} returnTo={returnTo} />;
+}
+
+function ApiTeacherStudentDetailPage({
+  studentId,
+  returnTo,
+}: {
+  studentId: string;
+  returnTo?: StudentReturnContext;
+}) {
+  const { activeInstituteId } = useApp();
+  const { data: detail, loading } = useAsyncLoad(
+    () =>
+      loadTeacherStudentDetail({
+        instituteId: activeInstituteId,
+        studentId,
+      }).then((result) => (result.status === "ready" ? result.detail : null)),
+    [activeInstituteId, studentId],
+    { initial: null as StudentDetail | null },
+  );
+
+  const backTo =
+    returnTo?.from === "classes" && returnTo.classId
+      ? { to: "/classes" as const, search: { id: returnTo.classId }, label: "Back to class" }
+      : { to: "/students" as const, search: undefined, label: "Back to students" };
+
+  if (loading) return <PageSkeleton rows={6} />;
+
+  if (!detail) {
+    return (
+      <EmptyState
+        icon={UserX}
+        title="Student not found"
+        description="This student may not be in the institute roster."
+        action={
+          <Link to="/students">
+            <Button className="rounded-xl">Back to students</Button>
+          </Link>
+        }
+      />
+    );
+  }
+
+  return (
+    <div className="min-w-0 space-y-5">
+      <PageHeader
+        title={detail.name}
+        subtitle={`Roll ${detail.roll} · Class ${detail.className}-${detail.section}`}
+        action={
+          <Link to={backTo.to} search={backTo.search}>
+            <Button variant="outline" className="rounded-xl gap-2">
+              <ArrowLeft className="size-4" /> {backTo.label}
+            </Button>
+          </Link>
+        }
+      />
+
+      <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-border bg-card p-4 sm:p-5">
+        <Avatar className="size-16 shrink-0">
+          <AvatarFallback className="text-lg">{detail.avatarInitials}</AvatarFallback>
+        </Avatar>
+        <div className="min-w-0 flex-1">
+          <Badge variant="outline" className="capitalize">
+            Active student
+          </Badge>
+        </div>
+      </div>
+
+      <StudentDetailPanel detail={detail} apiMode />
+    </div>
+  );
+}
+
+function DemoTeacherStudentDetailPage({
   studentId,
   returnTo,
 }: {

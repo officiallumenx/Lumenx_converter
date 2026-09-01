@@ -9,6 +9,8 @@ import {
   type ReactNode,
 } from "react";
 import { useApp } from "@/lib/app-state";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { loadStudentPortalSnapshot } from "@/lib/students";
 import { studentRepository } from "@/lib/student/repositories";
 import type { StudentSnapshot } from "@/lib/student/types";
 
@@ -23,7 +25,7 @@ export type StudentPortalState = {
 const StudentPortalCtx = createContext<StudentPortalState | undefined>(undefined);
 
 export function StudentPortalRegistry({ children }: { children: ReactNode }) {
-  const { role } = useApp();
+  const { role, activeInstituteId, user } = useApp();
   const [snapshot, setSnapshot] = useState<StudentSnapshot | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [tick, setTick] = useState(0);
@@ -41,8 +43,15 @@ export function StudentPortalRegistry({ children }: { children: ReactNode }) {
     const my = ++seq.current;
     setIsLoading(true);
 
-    studentRepository
-      .getSnapshot()
+    const load = isApiAuthMode()
+      ? loadStudentPortalSnapshot({
+          instituteId: activeInstituteId,
+          userDisplayName: user?.name,
+          userEmail: user?.email,
+        }).then((result) => (result.status === "ready" ? result.snapshot : null))
+      : studentRepository.getSnapshot();
+
+    load
       .then((s) => {
         if (seq.current !== my) return;
         setSnapshot(s);
@@ -52,7 +61,7 @@ export function StudentPortalRegistry({ children }: { children: ReactNode }) {
         if (seq.current !== my) return;
         setIsLoading(false);
       });
-  }, [role, tick]);
+  }, [role, tick, activeInstituteId, user?.name, user?.email]);
 
   const value = useMemo<StudentPortalState>(() => {
     if (role !== "student") {

@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/app/PageHeader";
 import { IdCardDetailsPanel, IdCardQrDialog, IdCardVisual } from "@/components/app/id-card";
 import { IdCardScanUrlHint, useStudentQrUrl } from "@/components/app/id-card/useStudentQrUrl";
 import { useApp } from "@/lib/app-state";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { useStudentPortal } from "@/context/StudentPortalContext";
 import { studentProfile } from "@/lib/mock-data";
 import {
@@ -32,7 +33,8 @@ export function StudentIdCardPage() {
   const profile = portal.snapshot.profile;
   const lookupId = resolveCanonicalStudentId(profile.id);
   const syncRow =
-    findIdCardSyncRow(profile.id, sync) ?? findIdCardSyncRow(lookupId, sync);
+    !isApiAuthMode() &&
+    (findIdCardSyncRow(profile.id, sync) ?? findIdCardSyncRow(lookupId, sync));
 
   let card: ConnectIdCardViewModel;
   if (syncRow) {

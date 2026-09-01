@@ -93,6 +93,8 @@ export type CreateStudentInput = {
   legacyCode?: string | null;
   idCardIssuedOn?: string | null;
   idCardValidTill?: string | null;
+  /** Set when enrolling from an approved admission application. */
+  sourceAdmissionApplicationId?: string | null;
   /** Ignored for authorization / linking — never trust client. */
   userProfileId?: string | null;
 };
@@ -126,4 +128,15 @@ export type ListStudentsFilter = {
   classLabel?: string;
   sectionLabel?: string;
   q?: string;
+};
+
+export type StudentGuardianDto = {
+  linkId: string;
+  parentId: string;
+  parentName: string;
+  phone: string | null;
+  email: string | null;
+  relationship: string;
+  isPrimary: boolean;
+  isEmergencyContact: boolean;
 };

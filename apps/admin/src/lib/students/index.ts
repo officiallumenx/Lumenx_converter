@@ -4,10 +4,11 @@ export type {
   StudentDetailItem,
   StudentDto,
   StudentGender,
+  StudentGuardianDto,
   StudentListItem,
   StudentStatus,
 } from "./types";
-export { assertApiMode, getStudent, listStudents } from "./api";
+export { assertApiMode, getStudent, getStudentGuardians, listStudents } from "./api";
 export {
   createStudent,
   updateStudent,
@@ -23,6 +24,7 @@ export {
 } from "./map";
 export {
   loadStudentDetail,
+  loadStudentGuardians,
   loadStudentsList,
   type StudentDetailState,
   type StudentsListState,

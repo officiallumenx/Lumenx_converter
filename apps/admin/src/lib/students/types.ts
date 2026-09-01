@@ -80,4 +80,19 @@ export type StudentDetailItem = StudentListItem & {
 
 export type ListStudentsParams = {
   instituteId: string;
+  status?: StudentStatus;
+  classLabel?: string;
+  sectionLabel?: string;
+  q?: string;
+};
+
+export type StudentGuardianDto = {
+  linkId: string;
+  parentId: string;
+  parentName: string;
+  phone: string | null;
+  email: string | null;
+  relationship: string;
+  isPrimary: boolean;
+  isEmergencyContact: boolean;
 };

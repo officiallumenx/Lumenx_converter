@@ -1,6 +1,8 @@
 import { useCallback, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { Avatar, AvatarFallback, Badge, cn } from "@lumenx/ui";
+import { useApp } from "@/lib/app-state";
+import { loadTeacherStudentDetail } from "@/lib/students";
 import { teacherRepository } from "@/lib/teacher/repositories";
 import { isTeacherAccessDenied } from "@/lib/teacher/portal-access-guard";
 import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
@@ -11,20 +13,33 @@ import type { RemarkType, StudentDetail, TeacherStudent } from "@/lib/teacher/ty
 export function StudentAccordionList({
   students,
   showClassLabel = true,
+  apiMode = false,
 }: {
   students: TeacherStudent[];
   showClassLabel?: boolean;
+  apiMode?: boolean;
 }) {
+  const { activeInstituteId } = useApp();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [details, setDetails] = useState<Record<string, StudentDetail>>({});
   const [loadingId, setLoadingId] = useState<string | null>(null);
 
   const loadDetail = useCallback(async (id: string) => {
     setLoadingId(id);
-    const d = await teacherRepository.getStudent(id);
-    if (d) setDetails((prev) => ({ ...prev, [id]: d }));
+    if (apiMode) {
+      const result = await loadTeacherStudentDetail({
+        instituteId: activeInstituteId,
+        studentId: id,
+      });
+      if (result.status === "ready" && result.detail) {
+        setDetails((prev) => ({ ...prev, [id]: result.detail }));
+      }
+    } else {
+      const d = await teacherRepository.getStudent(id);
+      if (d) setDetails((prev) => ({ ...prev, [id]: d }));
+    }
     setLoadingId(null);
-  }, []);
+  }, [apiMode, activeInstituteId]);
 
   const toggle = (id: string) => {
     if (expandedId === id) {
@@ -76,20 +91,22 @@ export function StudentAccordionList({
                   {showClassLabel ? ` · Class ${s.className}-${s.section}` : ""}
                 </div>
               </div>
-              <div className="flex shrink-0 flex-col items-end gap-1">
-                <Badge
-                  variant="outline"
-                  className={cn(
-                    "text-[10px] tabular-nums",
-                    tone === "success" && "border-success/30 text-success",
-                    tone === "warning" && "border-warning/30 text-warning-foreground",
-                    tone === "destructive" && "border-destructive/30 text-destructive",
-                  )}
-                >
-                  {s.avgScore}%
-                </Badge>
-                <span className="text-[10px] text-muted-foreground">{s.attendancePct}% att.</span>
-              </div>
+              {!apiMode ? (
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "text-[10px] tabular-nums",
+                      tone === "success" && "border-success/30 text-success",
+                      tone === "warning" && "border-warning/30 text-warning-foreground",
+                      tone === "destructive" && "border-destructive/30 text-destructive",
+                    )}
+                  >
+                    {s.avgScore}%
+                  </Badge>
+                  <span className="text-[10px] text-muted-foreground">{s.attendancePct}% att.</span>
+                </div>
+              ) : null}
               <ChevronDown
                 className={cn(
                   "size-5 shrink-0 text-muted-foreground transition-transform duration-200",
@@ -106,7 +123,10 @@ export function StudentAccordionList({
                   <StudentDetailPanel
                     detail={details[s.id]}
                     compact
-                    onAddRemark={(type, text) => addRemark(s.id, type, text)}
+                    apiMode={apiMode}
+                    onAddRemark={
+                      apiMode ? undefined : (type, text) => addRemark(s.id, type, text)
+                    }
                   />
                 ) : (
                   <p className="text-sm text-muted-foreground">Could not load student details.</p>

@@ -92,7 +92,7 @@ export async function insertStudent(
       user_profile_id: null,
       legacy_code: input.legacyCode ?? null,
       admission_number: input.admissionNumber ?? null,
-      source_admission_application_id: null,
+      source_admission_application_id: input.sourceAdmissionApplicationId ?? null,
       first_name: input.firstName,
       surname: input.surname,
       display_name: input.displayName,

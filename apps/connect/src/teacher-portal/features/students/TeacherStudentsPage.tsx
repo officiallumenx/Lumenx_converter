@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { sectionsForClassName, uniqueSortedClassNames } from "@/lib/class-section-options";
 import { teacherRepository } from "@/lib/teacher/repositories";
 import { StudentAccordionList } from "./StudentAccordionList";
 import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
@@ -10,6 +12,7 @@ import { Search, Users } from "lucide-react";
 
 export function TeacherStudentsPage() {
   const portal = useTeacherPortal();
+  const apiMode = isApiAuthMode();
   const [classFilter, setClassFilter] = useState<string>("all");
   const [sectionFilter, setSectionFilter] = useState<string>("all");
   const [q, setQ] = useState("");
@@ -19,17 +22,30 @@ export function TeacherStudentsPage() {
 
   useEffect(() => {
     if (!portal.isTeacher) return;
+    if (apiMode) {
+      setClassNames(uniqueSortedClassNames(portal.classes));
+      return;
+    }
     teacherRepository.getInstituteClassNames().then(setClassNames);
-  }, [portal.isTeacher]);
+  }, [portal.isTeacher, portal.classes, apiMode]);
 
   useEffect(() => {
     if (!portal.isTeacher) return;
+    if (apiMode) {
+      const next = sectionsForClassName(
+        portal.classes,
+        classFilter === "all" ? "all" : classFilter,
+      );
+      setSections(next);
+      setSectionFilter((prev) => (prev !== "all" && !next.includes(prev) ? "all" : prev));
+      return;
+    }
     const grade = classFilter === "all" ? undefined : classFilter;
     teacherRepository.getInstituteSections(grade).then((next) => {
       setSections(next);
       setSectionFilter((prev) => (prev !== "all" && !next.includes(prev) ? "all" : prev));
     });
-  }, [portal.isTeacher, classFilter]);
+  }, [portal.isTeacher, classFilter, apiMode, portal.classes]);
 
   const filtered = useMemo(() => {
     if (!portal.isTeacher) return [];
@@ -122,6 +138,7 @@ export function TeacherStudentsPage() {
           key={listKey}
           students={filtered}
           showClassLabel={classFilter === "all" || sectionFilter === "all"}
+          apiMode={apiMode}
         />
       ) : (
         <EmptyState

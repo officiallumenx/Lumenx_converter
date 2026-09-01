@@ -2,7 +2,7 @@ import { getConnectApiClient } from "@/lib/connect-api";
 import type { ConnectApiClient } from "@/lib/api";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { isInstituteUuid } from "@/lib/institute-id";
-import type { ListStudentsParams, StudentDto } from "./types";
+import type { ListStudentsParams, StudentDto, StudentGuardianDto } from "./types";
 
 function assertApiMode(): void {
   if (!isApiAuthMode()) {
@@ -22,7 +22,31 @@ export async function listStudents(
   const query = new URLSearchParams();
   query.set("institute_id", params.instituteId.trim());
   if (params.status) query.set("status", params.status);
+  if (params.classLabel?.trim()) query.set("class_label", params.classLabel.trim());
+  if (params.sectionLabel?.trim()) query.set("section_label", params.sectionLabel.trim());
   if (params.q?.trim()) query.set("q", params.q.trim());
 
   return client.get<StudentDto[]>(`/api/v1/students?${query.toString()}`);
+}
+
+export async function getStudent(
+  studentId: string,
+  client: ConnectApiClient = getConnectApiClient(),
+): Promise<StudentDto> {
+  assertApiMode();
+  if (!isInstituteUuid(studentId)) {
+    throw new Error("student_id must be a valid UUID");
+  }
+  return client.get<StudentDto>(`/api/v1/students/${studentId.trim()}`);
+}
+
+export async function getStudentGuardians(
+  studentId: string,
+  client: ConnectApiClient = getConnectApiClient(),
+): Promise<StudentGuardianDto[]> {
+  assertApiMode();
+  if (!isInstituteUuid(studentId)) {
+    throw new Error("student_id must be a valid UUID");
+  }
+  return client.get<StudentGuardianDto[]>(`/api/v1/students/${studentId.trim()}/guardians`);
 }

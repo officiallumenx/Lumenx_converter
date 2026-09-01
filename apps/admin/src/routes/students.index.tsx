@@ -237,7 +237,12 @@ function StudentsPage() {
     let cancelled = false;
     setListStatus("loading");
     setListError(null);
-    void loadStudentsList(requestInstituteId).then((next) => {
+    void loadStudentsList(requestInstituteId, {
+      q: searchQuery.trim() || undefined,
+      status: filter !== "all" ? (filter as StudentStatus) : undefined,
+      classLabel: classFilter !== "all" ? classFilter : undefined,
+      sectionLabel: sectionFilter !== "all" ? sectionFilter : undefined,
+    }).then((next) => {
       if (
         !shouldCommitStudentsLoad({
           cancelled,
@@ -261,6 +266,10 @@ function StudentsPage() {
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
     reloadKey,
+    searchQuery,
+    filter,
+    classFilter,
+    sectionFilter,
   ]);
 
   useEffect(() => {
@@ -277,16 +286,21 @@ function StudentsPage() {
   }, [instituteCtx.activeInstituteId]);
 
   const list = useMemo(() => {
-    let filtered = filterAdminStudents(
-      displayItems as StudentDirectoryRecord[],
-      searchQuery,
-      filter,
-    ) as StudentRow[];
-    filtered = filtered.filter((s) =>
-      matchesClassSection(s.grade, classFilter, sectionFilter, departmentFilter),
-    );
-    if (!apiMode && minAttendancePct > 0) {
-      filtered = filtered.filter((s) => s.attendance >= minAttendancePct);
+    let filtered: StudentRow[];
+    if (apiMode) {
+      filtered = displayItems as StudentRow[];
+    } else {
+      filtered = filterAdminStudents(
+        displayItems as StudentDirectoryRecord[],
+        searchQuery,
+        filter,
+      ) as StudentRow[];
+      filtered = filtered.filter((s) =>
+        matchesClassSection(s.grade, classFilter, sectionFilter, departmentFilter),
+      );
+      if (minAttendancePct > 0) {
+        filtered = filtered.filter((s) => s.attendance >= minAttendancePct);
+      }
     }
     return sortAdminStudents(
       filtered as StudentDirectoryRecord[],
