@@ -98,6 +98,7 @@ export type MockDb = {
   achievement: Row[];
   practice_session: Row[];
   message_thread: Row[];
+  message_thread_participant: Row[];
   message: Row[];
   stored_asset: Row[];
   recycle_item: Row[];
@@ -561,6 +562,7 @@ export function emptyMockDb(): MockDb {
     achievement: [],
     practice_session: [],
     message_thread: [],
+    message_thread_participant: [],
     message: [],
     stored_asset: [],
     recycle_item: [],

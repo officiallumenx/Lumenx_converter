@@ -9,11 +9,13 @@ import {
   validateQuery,
 } from "../../validation/validate.js";
 import {
+  createGroupThreadForActor,
   createMessageForActor,
   createThreadForActor,
   deleteMessageForActor,
   getThreadForActor,
   listMessagesForActor,
+  listRecipientsForActor,
   listThreadsForActor,
   markMessageReadForActor,
   updateThreadForActor,
@@ -70,6 +72,48 @@ messages.post("/threads", async (c) => {
     body: body.body,
   });
   return c.json({ data }, 201);
+});
+
+messages.post("/threads/group", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const body = validateBody(
+    z.object({
+      institute_id: uuid,
+      subject: z.string().min(1).max(500).nullable().optional(),
+      class_label: z.string().min(1).max(120),
+      section_label: z.string().min(1).max(120),
+      body: z.string().min(1).max(8000).nullable().optional(),
+    }),
+    await c.req.json(),
+  );
+  const data = await createGroupThreadForActor(admin, actor, {
+    instituteId: body.institute_id,
+    subject: body.subject,
+    classLabel: body.class_label,
+    sectionLabel: body.section_label,
+    body: body.body,
+  });
+  return c.json({ data }, 201);
+});
+
+messages.get("/recipients", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(
+    z.object({
+      institute_id: uuid,
+      student_id: uuid.optional(),
+    }),
+    c.req.query(),
+  );
+  const data = await listRecipientsForActor(
+    admin,
+    actor,
+    query.institute_id,
+    query.student_id,
+  );
+  return c.json({ data });
 });
 
 messages.get("/threads/:id", async (c) => {

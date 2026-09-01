@@ -5,26 +5,42 @@ import {
   actorHasInstituteRole,
   requireInstituteId,
 } from "../../authorization/index.js";
+import { ensureDbOk } from "../../db/errors.js";
+import { emitNotificationForInstituteSystem } from "../notifications/service.js";
+import {
+  findParentById,
+  listLinksForStudent,
+  listParents,
+} from "../parents/repository.js";
+import { listTeachers } from "../teachers/repository.js";
+import { findMemberRoleCodes } from "./repository.js";
 import {
   findStudentById,
   listGuardianStudentIds,
+  listStudents,
 } from "../students/repository.js";
 import {
   findActiveMembershipId,
   findMessageById,
+  findProfileDisplayNames,
   findThreadById,
   insertMessage,
   insertThread,
+  insertThreadParticipants,
   listMessagesForThread,
+  listParticipantsForThread,
+  listThreadIdsForParticipant,
   listThreads,
   softDeleteMessage,
   updateMessageFields,
   updateThreadFields,
 } from "./repository.js";
 import type {
+  CreateGroupThreadInput,
   CreateMessageInput,
   CreateThreadInput,
   MessageDto,
+  MessageRecipientDto,
   MessageRow,
   MessageThreadDto,
   MessageThreadRow,
@@ -53,16 +69,23 @@ export const STAFF_WRITE_ROLES = [
   "teacher",
 ] as const;
 
-export function toThreadDto(row: MessageThreadRow): MessageThreadDto {
+export function toThreadDto(
+  row: MessageThreadRow,
+  participantUserIds?: string[],
+): MessageThreadDto {
   return {
     id: row.id,
     instituteId: row.institute_id,
     subject: row.subject,
     studentId: row.student_id,
+    threadKind: row.thread_kind ?? "direct",
+    groupClassLabel: row.group_class_label,
+    groupSectionLabel: row.group_section_label,
     createdByUserId: row.created_by_user_id,
     counterpartUserId: row.counterpart_user_id,
     status: row.status,
     lastMessageAt: row.last_message_at,
+    participantUserIds,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -105,23 +128,58 @@ function isStaffWriter(actor: Actor, instituteId: string): boolean {
   );
 }
 
-function isParticipant(actor: Actor, row: MessageThreadRow): boolean {
+function isDirectParticipant(actor: Actor, row: MessageThreadRow): boolean {
   return (
     row.created_by_user_id === actor.userId ||
     row.counterpart_user_id === actor.userId
   );
 }
 
-function canReadThread(actor: Actor, row: MessageThreadRow): boolean {
+function canReadThread(
+  actor: Actor,
+  row: MessageThreadRow,
+  groupThreadIds: Set<string>,
+): boolean {
   if (!isMember(actor, row.institute_id)) return false;
   if (isStaffReader(actor, row.institute_id)) return true;
-  return isParticipant(actor, row);
+  if (row.thread_kind === "group") {
+    return (
+      row.created_by_user_id === actor.userId ||
+      groupThreadIds.has(row.id)
+    );
+  }
+  return isDirectParticipant(actor, row);
 }
 
-function canPostOnThread(actor: Actor, row: MessageThreadRow): boolean {
+function canPostOnThread(
+  actor: Actor,
+  row: MessageThreadRow,
+  groupThreadIds: Set<string>,
+): boolean {
   if (!isMember(actor, row.institute_id)) return false;
-  if (isParticipant(actor, row)) return true;
+  if (row.thread_kind === "group") {
+    return (
+      row.created_by_user_id === actor.userId ||
+      groupThreadIds.has(row.id) ||
+      isStaffReader(actor, row.institute_id)
+    );
+  }
+  if (isDirectParticipant(actor, row)) return true;
   return isStaffReader(actor, row.institute_id);
+}
+
+function canMarkRead(
+  actor: Actor,
+  row: MessageThreadRow,
+  groupThreadIds: Set<string>,
+): boolean {
+  if (row.thread_kind === "group") {
+    return (
+      row.created_by_user_id === actor.userId ||
+      groupThreadIds.has(row.id)
+    );
+  }
+  return isDirectParticipant(actor, row);
 }
 
 async function assertOptionalStudentId(
@@ -178,6 +236,167 @@ function normalizeSubject(
   return trimmed;
 }
 
+async function resolveSectionParticipantUserIds(
+  admin: SupabaseClient,
+  instituteId: string,
+  classLabel: string,
+  sectionLabel: string,
+): Promise<string[]> {
+  const students = await listStudents(admin, {
+    instituteId,
+    classLabel: classLabel.trim(),
+    sectionLabel: sectionLabel.trim(),
+    status: "active",
+  });
+  const userIds = new Set<string>();
+  for (const student of students) {
+    if (student.user_profile_id) userIds.add(student.user_profile_id);
+    const links = await listLinksForStudent(admin, student.id, instituteId);
+    for (const link of links) {
+      const parent = await findParentById(admin, link.parent_id);
+      if (parent?.user_profile_id) userIds.add(parent.user_profile_id);
+    }
+  }
+  return [...userIds];
+}
+
+async function primaryRoleForUser(
+  admin: SupabaseClient,
+  userId: string,
+  instituteId: string,
+): Promise<MessageRecipientDto["role"]> {
+  const roles = await findMemberRoleCodes(admin, userId, instituteId);
+  if (roles.includes("teacher")) return "teacher";
+  if (roles.includes("parent")) return "parent";
+  if (roles.includes("student")) return "student";
+  return "staff";
+}
+
+async function emitMessageNotifications(
+  admin: SupabaseClient,
+  actor: Actor,
+  thread: MessageThreadRow,
+  message: MessageRow,
+): Promise<void> {
+  const profileNames = await findProfileDisplayNames(admin, [actor.userId]);
+  const senderName = profileNames.get(actor.userId) ?? "Someone";
+  const preview =
+    thread.subject?.trim() ||
+    (thread.thread_kind === "group"
+      ? `${thread.group_class_label ?? "Class"} ${thread.group_section_label ?? ""}`.trim()
+      : "New message");
+
+  const recipientIds = new Set<string>();
+
+  if (thread.thread_kind === "direct") {
+    if (thread.created_by_user_id !== actor.userId) {
+      recipientIds.add(thread.created_by_user_id);
+    }
+    if (thread.counterpart_user_id && thread.counterpart_user_id !== actor.userId) {
+      recipientIds.add(thread.counterpart_user_id);
+    }
+  } else {
+    const participants = await listParticipantsForThread(admin, thread.id);
+    for (const p of participants) {
+      if (p.user_profile_id !== actor.userId) {
+        recipientIds.add(p.user_profile_id);
+      }
+    }
+  }
+
+  if (recipientIds.size === 0) return;
+
+  for (const recipientId of recipientIds) {
+    const role = await primaryRoleForUser(admin, recipientId, thread.institute_id);
+    const title =
+      role === "teacher"
+        ? "New message"
+        : role === "parent"
+          ? "New message from school"
+          : "New message";
+    const body = `${senderName}: ${preview.slice(0, 120)}`;
+
+    try {
+      await emitNotificationForInstituteSystem(admin, actor.userId, {
+        instituteId: thread.institute_id,
+        recipientUserIds: [recipientId],
+        category: "messages",
+        priority: "important",
+        title,
+        body,
+        deepLink: "/messages",
+        dedupeKey: `msg-${message.id}-${recipientId}`,
+        payload: {
+          messageId: message.id,
+          threadId: thread.id,
+          recipientRole: role,
+        },
+      });
+    } catch {
+      /* notification must not block message send */
+    }
+  }
+}
+
+// ── Recipients ─────────────────────────────────────────────────
+
+export async function listRecipientsForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  instituteIdRaw: string,
+  studentIdRaw?: string | null,
+): Promise<MessageRecipientDto[]> {
+  const instituteId = requireInstituteId(actor, instituteIdRaw);
+  if (!isMember(actor, instituteId)) {
+    throw AppError.forbidden("Insufficient messages access");
+  }
+
+  if (studentIdRaw) {
+    await assertOptionalStudentId(admin, actor, instituteId, studentIdRaw);
+  }
+
+  const result: MessageRecipientDto[] = [];
+  const seen = new Set<string>();
+
+  const add = (
+    userId: string | null | undefined,
+    displayName: string,
+    role: MessageRecipientDto["role"],
+  ) => {
+    if (!userId || userId === actor.userId || seen.has(userId)) return;
+    seen.add(userId);
+    result.push({ userId, displayName, role });
+  };
+
+  const isParentOrStudent =
+    actorHasInstituteRole(actor, instituteId, "parent") ||
+    actorHasInstituteRole(actor, instituteId, "student");
+
+  if (isParentOrStudent || !isStaffReader(actor, instituteId)) {
+    const teachers = await listTeachers(admin, { instituteId });
+    for (const t of teachers) {
+      add(t.user_profile_id, t.display_name?.trim() || "Teacher", "teacher");
+    }
+  }
+
+  if (isStaffReader(actor, instituteId)) {
+    const teachers = await listTeachers(admin, { instituteId });
+    for (const t of teachers) {
+      add(t.user_profile_id, t.display_name?.trim() || "Teacher", "teacher");
+    }
+    const parents = await listParents(admin, { instituteId });
+    for (const p of parents) {
+      add(p.user_profile_id, p.name?.trim() || "Parent", "parent");
+    }
+    const students = await listStudents(admin, { instituteId, status: "active" });
+    for (const s of students) {
+      add(s.user_profile_id, s.display_name?.trim() || "Student", "student");
+    }
+  }
+
+  return result.sort((a, b) => a.displayName.localeCompare(b.displayName));
+}
+
 // ── Threads ──────────────────────────────────────────────────────
 
 export async function listThreadsForActor(
@@ -186,8 +405,15 @@ export async function listThreadsForActor(
   instituteIdRaw: string,
 ): Promise<MessageThreadDto[]> {
   const instituteId = requireInstituteId(actor, instituteIdRaw);
+  const groupThreadIds = await listThreadIdsForParticipant(
+    admin,
+    actor.userId,
+    instituteId,
+  );
   const rows = await listThreads(admin, instituteId);
-  return rows.filter((r) => canReadThread(actor, r)).map(toThreadDto);
+  return rows
+    .filter((r) => canReadThread(actor, r, groupThreadIds))
+    .map((r) => toThreadDto(r));
 }
 
 export async function getThreadForActor(
@@ -196,10 +422,22 @@ export async function getThreadForActor(
   id: string,
 ): Promise<MessageThreadDto> {
   const row = await findThreadById(admin, id);
-  if (!row || !canReadThread(actor, row)) {
+  if (!row) throw AppError.notFound("Message thread not found");
+  const groupThreadIds = await listThreadIdsForParticipant(
+    admin,
+    actor.userId,
+    row.institute_id,
+  );
+  if (!canReadThread(actor, row, groupThreadIds)) {
     throw AppError.notFound("Message thread not found");
   }
-  return toThreadDto(row);
+  const participants =
+    row.thread_kind === "group"
+      ? (await listParticipantsForThread(admin, row.id)).map(
+          (p) => p.user_profile_id,
+        )
+      : undefined;
+  return toThreadDto(row, participants);
 }
 
 export async function createThreadForActor(
@@ -243,6 +481,7 @@ export async function createThreadForActor(
     instituteId,
     subject,
     studentId,
+    threadKind: "direct",
     createdByUserId: actor.userId,
     counterpartUserId: input.counterpartUserId,
     status: "open",
@@ -250,17 +489,95 @@ export async function createThreadForActor(
   });
 
   if (initialBody) {
-    await insertMessage(admin, {
+    const msg = await insertMessage(admin, {
       instituteId,
       threadId: thread.id,
       senderUserId: actor.userId,
       body: initialBody,
       sentAt: now,
     });
+    await emitMessageNotifications(admin, actor, thread, msg);
   }
 
   const fresh = await findThreadById(admin, thread.id);
   return toThreadDto(fresh ?? thread);
+}
+
+export async function createGroupThreadForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  input: CreateGroupThreadInput,
+): Promise<MessageThreadDto> {
+  const instituteId = requireInstituteId(actor, input.instituteId);
+  if (!isStaffWriter(actor, instituteId)) {
+    throw AppError.forbidden("Only staff can create class message threads");
+  }
+
+  const classLabel = input.classLabel.trim();
+  const sectionLabel = input.sectionLabel.trim();
+  if (!classLabel || !sectionLabel) {
+    throw AppError.validation("Referenced resource is invalid", {
+      class_label: ["Required"],
+      section_label: ["Required"],
+    });
+  }
+
+  const participantIds = await resolveSectionParticipantUserIds(
+    admin,
+    instituteId,
+    classLabel,
+    sectionLabel,
+  );
+  if (participantIds.length === 0) {
+    throw AppError.validation("Referenced resource is invalid", {
+      section_label: ["No students or parents found for this class"],
+    });
+  }
+
+  const subject =
+    normalizeSubject(input.subject) ??
+    `${classLabel} ${sectionLabel}`.trim();
+  const initialBody =
+    input.body != null && input.body.trim().length > 0
+      ? assertBody(input.body)
+      : null;
+  const now = new Date().toISOString();
+
+  const thread = await insertThread(admin, {
+    instituteId,
+    subject,
+    studentId: null,
+    threadKind: "group",
+    groupClassLabel: classLabel,
+    groupSectionLabel: sectionLabel,
+    createdByUserId: actor.userId,
+    counterpartUserId: null,
+    status: "open",
+    lastMessageAt: initialBody ? now : null,
+  });
+
+  await insertThreadParticipants(
+    admin,
+    participantIds.map((userProfileId) => ({
+      instituteId,
+      threadId: thread.id,
+      userProfileId,
+    })),
+  );
+
+  if (initialBody) {
+    const msg = await insertMessage(admin, {
+      instituteId,
+      threadId: thread.id,
+      senderUserId: actor.userId,
+      body: initialBody,
+      sentAt: now,
+    });
+    await emitMessageNotifications(admin, actor, thread, msg);
+  }
+
+  const fresh = await findThreadById(admin, thread.id);
+  return toThreadDto(fresh ?? thread, participantIds);
 }
 
 export async function updateThreadForActor(
@@ -270,11 +587,22 @@ export async function updateThreadForActor(
   input: UpdateThreadInput,
 ): Promise<MessageThreadDto> {
   const existing = await findThreadById(admin, id);
-  if (!existing || !canReadThread(actor, existing)) {
+  if (!existing) throw AppError.notFound("Message thread not found");
+
+  const groupThreadIds = await listThreadIdsForParticipant(
+    admin,
+    actor.userId,
+    existing.institute_id,
+  );
+  if (!canReadThread(actor, existing, groupThreadIds)) {
     throw AppError.notFound("Message thread not found");
   }
 
-  const participant = isParticipant(actor, existing);
+  const participant =
+    existing.thread_kind === "direct"
+      ? isDirectParticipant(actor, existing)
+      : existing.created_by_user_id === actor.userId ||
+        groupThreadIds.has(existing.id);
   const writer = isStaffWriter(actor, existing.institute_id);
 
   if (!participant && !writer) {
@@ -289,12 +617,9 @@ export async function updateThreadForActor(
 
   if (input.status !== undefined) {
     if (input.status === "archived") {
-      if (!writer) {
-        throw AppError.notFound("Message thread not found");
-      }
+      if (!writer) throw AppError.notFound("Message thread not found");
       patch.status = "archived";
     } else if (input.status === "closed" || input.status === "open") {
-      // Archived is terminal for non-writers (cannot reopen/close without staff)
       if (existing.status === "archived" && !writer) {
         throw AppError.notFound("Message thread not found");
       }
@@ -320,7 +645,13 @@ export async function listMessagesForActor(
   threadId: string,
 ): Promise<MessageDto[]> {
   const thread = await findThreadById(admin, threadId);
-  if (!thread || !canReadThread(actor, thread)) {
+  if (!thread) throw AppError.notFound("Message thread not found");
+  const groupThreadIds = await listThreadIdsForParticipant(
+    admin,
+    actor.userId,
+    thread.institute_id,
+  );
+  if (!canReadThread(actor, thread, groupThreadIds)) {
     throw AppError.notFound("Message thread not found");
   }
   const rows = await listMessagesForThread(admin, threadId);
@@ -334,7 +665,13 @@ export async function createMessageForActor(
   input: CreateMessageInput,
 ): Promise<MessageDto> {
   const thread = await findThreadById(admin, threadId);
-  if (!thread || !canPostOnThread(actor, thread)) {
+  if (!thread) throw AppError.notFound("Message thread not found");
+  const groupThreadIds = await listThreadIdsForParticipant(
+    admin,
+    actor.userId,
+    thread.institute_id,
+  );
+  if (!canPostOnThread(actor, thread, groupThreadIds)) {
     throw AppError.notFound("Message thread not found");
   }
 
@@ -352,6 +689,7 @@ export async function createMessageForActor(
     sentAt: now,
   });
   await updateThreadFields(admin, thread.id, { last_message_at: now });
+  await emitMessageNotifications(admin, actor, thread, row);
   return toMessageDto(row);
 }
 
@@ -364,7 +702,17 @@ export async function markMessageReadForActor(
   if (!message) throw AppError.notFound("Message not found");
 
   const thread = await findThreadById(admin, message.thread_id);
-  if (!thread || !canReadThread(actor, thread) || !isParticipant(actor, thread)) {
+  if (!thread) throw AppError.notFound("Message not found");
+
+  const groupThreadIds = await listThreadIdsForParticipant(
+    admin,
+    actor.userId,
+    thread.institute_id,
+  );
+  if (
+    !canReadThread(actor, thread, groupThreadIds) ||
+    !canMarkRead(actor, thread, groupThreadIds)
+  ) {
     throw AppError.notFound("Message not found");
   }
 
@@ -390,7 +738,14 @@ export async function deleteMessageForActor(
   if (!message) throw AppError.notFound("Message not found");
 
   const thread = await findThreadById(admin, message.thread_id);
-  if (!thread || !canReadThread(actor, thread)) {
+  if (!thread) throw AppError.notFound("Message not found");
+
+  const groupThreadIds = await listThreadIdsForParticipant(
+    admin,
+    actor.userId,
+    thread.institute_id,
+  );
+  if (!canReadThread(actor, thread, groupThreadIds)) {
     throw AppError.notFound("Message not found");
   }
 
