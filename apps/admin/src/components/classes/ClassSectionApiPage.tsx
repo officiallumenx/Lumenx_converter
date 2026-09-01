@@ -28,6 +28,8 @@ import {
   type SectionDetailItem,
   type SectionStatus,
 } from "@/lib/classes";
+import { SectionRosterPanel } from "@/components/classes/SectionRosterPanel";
+import { SectionTeachersPanel } from "@/components/classes/SectionTeachersPanel";
 
 function detailHint(status: ClassesListStatus, errorMessage: string | null): string | null {
   if (status === "loading") return "Loading class section…";
@@ -243,6 +245,8 @@ export function ClassSectionApiPage({ sectionId }: { sectionId: string }) {
                 <DetailField label="Timetable grade" value={displaySection.timetableGrade} />
                 <DetailField label="Room" value={displaySection.room} />
                 <DetailField label="Capacity" value={String(displaySection.capacity)} />
+                <DetailField label="Students" value={String(displaySection.students)} />
+                <DetailField label="Teachers" value={displaySection.teacher} />
                 <DetailField
                   label="Academic year id"
                   value={displaySection.academicYearId.slice(0, 8) + "…"}
@@ -294,6 +298,18 @@ export function ClassSectionApiPage({ sectionId }: { sectionId: string }) {
                 </div>
               </Card>
             ) : null}
+            <SectionRosterPanel
+              section={displaySection}
+              writesEnabled={writesEnabled}
+              onChanged={() => setReloadKey((k) => k + 1)}
+              notify={notify}
+            />
+            <SectionTeachersPanel
+              section={displaySection}
+              writesEnabled={writesEnabled}
+              onChanged={() => setReloadKey((k) => k + 1)}
+              notify={notify}
+            />
           </>
         )}
       </PageStack>

@@ -6,7 +6,12 @@
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/active-institute";
+import { listEnrollments } from "@/lib/enrollments/api";
+import { listSubjects } from "@/lib/subjects/api";
+import { listTeachers } from "@/lib/teachers/api";
+import { listTeacherAssignments } from "@/lib/timetable/api";
 import { listClassesCatalog, getClass, getSection } from "./api";
+import { buildSectionEnrichment } from "./enrich";
 import { sectionsToListItems, sectionDtoToDetailItem } from "./map";
 import type { ClassListItem, SectionDetailItem } from "./types";
 
@@ -65,9 +70,29 @@ export async function loadSectionDetail(
       };
     }
     const cls = await getClass(section.classId);
+    const [enrollments, assignments, teachers, subjects] = await Promise.all([
+      listEnrollments({
+        instituteId: section.instituteId,
+        sectionId: section.id,
+        status: "active",
+      }).catch(() => []),
+      listTeacherAssignments({
+        instituteId: section.instituteId,
+        sectionId: section.id,
+        status: "active",
+      }).catch(() => []),
+      listTeachers({ instituteId: section.instituteId }).catch(() => []),
+      listSubjects({ instituteId: section.instituteId }).catch(() => []),
+    ]);
+    const enrich = buildSectionEnrichment(
+      enrollments,
+      assignments,
+      new Map(teachers.map((t) => [t.id, t])),
+      new Map(subjects.map((s) => [s.id, s])),
+    );
     return {
       status: "ready",
-      section: sectionDtoToDetailItem(section, cls),
+      section: sectionDtoToDetailItem(section, cls, enrich),
       errorMessage: null,
     };
   } catch (err) {
@@ -108,10 +133,21 @@ export async function loadClassesList(
   }
 
   try {
-    const { sections, classes } = await listClassesCatalog({
-      instituteId: activeInstituteId,
-    });
-    const items = sectionsToListItems(sections, classes);
+    const instituteId = activeInstituteId;
+    const [catalog, enrollments, assignments, teachers, subjects] = await Promise.all([
+      listClassesCatalog({ instituteId }),
+      listEnrollments({ instituteId, status: "active" }).catch(() => []),
+      listTeacherAssignments({ instituteId, status: "active" }).catch(() => []),
+      listTeachers({ instituteId }).catch(() => []),
+      listSubjects({ instituteId }).catch(() => []),
+    ]);
+    const enrich = buildSectionEnrichment(
+      enrollments,
+      assignments,
+      new Map(teachers.map((t) => [t.id, t])),
+      new Map(subjects.map((s) => [s.id, s])),
+    );
+    const items = sectionsToListItems(catalog.sections, catalog.classes, enrich);
     return {
       status: items.length === 0 ? "empty" : "ready",
       items,

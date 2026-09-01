@@ -1,4 +1,9 @@
-import { postDemoSync } from "@lumenx/utils";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import {
+  getAllTeacherStudentsFromCache,
+  getTeacherClassesFromCache,
+  getTeacherStudentsForSection,
+} from "@/lib/teacher-classes";
 import { notifyDirectMessage } from "@lumenx/module-notifications";
 import {
   notifyHomeworkAssigned,
@@ -269,11 +274,13 @@ function ingestPhase7TeacherInbox(): boolean {
       continue;
     }
     const category =
-      row.category === "exams"
-        ? ("exam_updates" as const)
-        : row.category === "events"
-          ? ("events" as const)
-          : ("staff_notices" as const);
+      row.module === "announcements" || row.category === "circulars"
+        ? ("announcements" as const)
+        : row.category === "exams"
+          ? ("exam_updates" as const)
+          : row.category === "events"
+            ? ("events" as const)
+            : ("staff_notices" as const);
     notificationsStore = [
       {
         id: row.id,
@@ -317,6 +324,9 @@ if (typeof window !== "undefined") {
     ) {
       ensurePrincipalAlertsIngested();
     }
+  });
+  listenDemoSync("announcements", () => {
+    if (ingestPhase7TeacherInbox()) notifyNotifications();
   });
 }
 
@@ -523,6 +533,12 @@ export const teacherRepository = {
   },
 
   async getClasses(): Promise<TeacherClass[]> {
+    if (isApiAuthMode()) {
+      const cached = getTeacherClassesFromCache();
+      if (cached.length > 0) return cached;
+      await delay(80);
+      return getTeacherClassesFromCache();
+    }
     await delay();
     return teacherClasses.map((c) => ({
       ...c,
@@ -582,6 +598,12 @@ export const teacherRepository = {
   },
 
   async getStudents(classId?: string): Promise<TeacherStudent[]> {
+    if (isApiAuthMode()) {
+      const list = classId
+        ? getTeacherStudentsForSection(classId)
+        : getAllTeacherStudentsFromCache();
+      return list;
+    }
     await delay();
     const list = classId ? getStudentsByClass(classId) : instituteStudents;
     return list.map((s) => ({

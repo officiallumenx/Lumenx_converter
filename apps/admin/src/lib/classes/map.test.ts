@@ -5,6 +5,7 @@ import {
   sectionDtoToListItem,
   sectionsToListItems,
 } from "./map";
+import { buildSectionEnrichment } from "./enrich";
 import type { ClassDto, SectionDto } from "./types";
 
 const INST = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -62,6 +63,48 @@ describe("classes DTO mapping", () => {
     expect(item.students).toBe(0);
     expect(item.hasTimetable).toBe(false);
     expect(item.subjectTeacherAssignments).toEqual({});
+  });
+
+  it("applies enrollment and teacher enrichment", () => {
+    const section = sectionDto();
+    const classesById = new Map([[CLASS_ID, classDto()]]);
+    const enrich = buildSectionEnrichment(
+      [
+        {
+          id: "e1",
+          instituteId: INST,
+          academicYearId: "y",
+          studentId: "s1",
+          studentName: "A",
+          classId: CLASS_ID,
+          sectionId: section.id,
+          rollNo: "1",
+          status: "active",
+          enrolledOn: "2026-01-01",
+          withdrawnOn: null,
+          createdAt: "",
+          updatedAt: "",
+        },
+      ],
+      [
+        {
+          id: "a1",
+          instituteId: INST,
+          academicYearId: "y",
+          classId: CLASS_ID,
+          sectionId: section.id,
+          subjectId: "su1",
+          teacherId: "tt1",
+          status: "active",
+        },
+      ],
+      new Map([["tt1", { name: "Ms Rao" }]]),
+      new Map([["su1", { name: "Math", code: "MATH" }]]),
+    );
+    const item = sectionDtoToListItem(section, classesById, enrich);
+    expect(item.students).toBe(1);
+    expect(item.teacher).toBe("Ms Rao");
+    expect(item.hasTimetable).toBe(true);
   });
 
   it("falls back when class join is missing", () => {

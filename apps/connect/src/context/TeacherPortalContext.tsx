@@ -9,6 +9,11 @@ import {
   type ReactNode,
 } from "react";
 import { useApp } from "@/lib/app-state";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import {
+  clearTeacherPortalApiCache,
+  loadTeacherPortalApiData,
+} from "@/lib/teacher-classes";
 import { teacherRepository } from "@/lib/teacher/repositories";
 import type {
   DashboardSnapshot,
@@ -31,7 +36,7 @@ export type TeacherPortalState = {
 const TeacherPortalCtx = createContext<TeacherPortalState | undefined>(undefined);
 
 export function TeacherPortalRegistry({ children }: { children: ReactNode }) {
-  const { role } = useApp();
+  const { role, activeInstituteId } = useApp();
   const [profile, setProfile] = useState<TeacherProfile | null>(null);
   const [classes, setClasses] = useState<TeacherClass[]>([]);
   const [dashboard, setDashboard] = useState<DashboardSnapshot | null>(null);
@@ -46,6 +51,7 @@ export function TeacherPortalRegistry({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (role !== "teacher") {
       loadedRef.current = false;
+      clearTeacherPortalApiCache();
       setProfile((p) => (p === null ? p : null));
       setClasses((c) => (c.length === 0 ? c : []));
       setDashboard((d) => (d === null ? d : null));
@@ -60,18 +66,35 @@ export function TeacherPortalRegistry({ children }: { children: ReactNode }) {
     const showSpinner = !loadedRef.current;
     if (showSpinner) setIsLoading(true);
 
-    Promise.all([
+    const loadClassesAndStudents = async (): Promise<{
+      classes: TeacherClass[];
+      students: TeacherStudent[];
+    }> => {
+      if (isApiAuthMode() && activeInstituteId) {
+        const data = await loadTeacherPortalApiData(activeInstituteId);
+        return {
+          classes: data?.classes ?? [],
+          students: data?.allStudents ?? [],
+        };
+      }
+      const [classes, students] = await Promise.all([
+        teacherRepository.getClasses(),
+        teacherRepository.getStudents(),
+      ]);
+      return { classes, students };
+    };
+
+    void Promise.all([
       teacherRepository.getProfile(),
-      teacherRepository.getClasses(),
+      loadClassesAndStudents(),
       teacherRepository.getDashboard(),
-      teacherRepository.getStudents(),
     ])
-      .then(([p, c, d, s]) => {
+      .then(([p, roster, d]) => {
         if (seq.current !== my) return;
         setProfile(p);
-        setClasses(c);
+        setClasses(roster.classes);
         setDashboard(d);
-        setStudents(s);
+        setStudents(roster.students);
         loadedRef.current = true;
         if (showSpinner) setIsLoading(false);
       })
@@ -79,7 +102,7 @@ export function TeacherPortalRegistry({ children }: { children: ReactNode }) {
         if (seq.current !== my) return;
         if (showSpinner) setIsLoading(false);
       });
-  }, [role, tick]);
+  }, [role, tick, activeInstituteId]);
 
   const value = useMemo<TeacherPortalState>(() => {
     if (role !== "teacher") {

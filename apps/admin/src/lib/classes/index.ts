@@ -33,6 +33,7 @@ export {
   sectionDtoToListItem,
   sectionsToListItems,
 } from "./map";
+export { buildSectionEnrichment, type SectionEnrichment } from "./enrich";
 export {
   loadClassesList,
   loadSectionDetail,

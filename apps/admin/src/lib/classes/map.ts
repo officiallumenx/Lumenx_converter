@@ -1,4 +1,5 @@
 import type { ClassDto, ClassListItem, SectionDetailItem, SectionDto } from "./types";
+import type { SectionEnrichment } from "./enrich";
 
 export function classLabelForSection(
   section: SectionDto,
@@ -13,12 +14,17 @@ export function classLabelForSection(
 export function sectionDtoToListItem(
   section: SectionDto,
   classesById: Map<string, ClassDto>,
+  enrich?: SectionEnrichment,
 ): ClassListItem {
   const cls = classesById.get(section.classId);
   const classLabel = classLabelForSection(section, classesById);
   const sectionCode = section.code?.trim() || section.name?.trim() || "—";
   const room = section.room?.trim() || "—";
   const capacity = section.capacity ?? 0;
+  const students = enrich?.enrollmentCountBySection.get(section.id) ?? 0;
+  const teacher = enrich?.teachersBySection.get(section.id) ?? "—";
+  const subjectTeacherAssignments =
+    enrich?.subjectTeacherBySection.get(section.id) ?? {};
 
   return {
     id: section.id,
@@ -26,18 +32,19 @@ export function sectionDtoToListItem(
     levelId: section.classId,
     timetableGrade: cls?.code?.trim() || classLabel,
     section: sectionCode,
-    teacher: "—",
-    students: 0,
+    teacher,
+    students,
     capacity,
     room,
-    hasTimetable: false,
-    subjectTeacherAssignments: {},
+    hasTimetable: Object.keys(subjectTeacherAssignments).length > 0,
+    subjectTeacherAssignments,
   };
 }
 
 export function sectionsToListItems(
   sections: SectionDto[],
   classes: ClassDto[],
+  enrich?: SectionEnrichment,
 ): ClassListItem[] {
   if (!Array.isArray(sections)) {
     throw new TypeError("Sections API response must be an array");
@@ -46,15 +53,16 @@ export function sectionsToListItems(
     throw new TypeError("Classes API response must be an array");
   }
   const classesById = new Map(classes.map((item) => [item.id, item]));
-  return sections.map((section) => sectionDtoToListItem(section, classesById));
+  return sections.map((section) => sectionDtoToListItem(section, classesById, enrich));
 }
 
 export function sectionDtoToDetailItem(
   section: SectionDto,
   cls: ClassDto,
+  enrich?: SectionEnrichment,
 ): SectionDetailItem {
   const classesById = new Map([[cls.id, cls]]);
-  const base = sectionDtoToListItem(section, classesById);
+  const base = sectionDtoToListItem(section, classesById, enrich);
   return {
     ...base,
     instituteId: section.instituteId,
