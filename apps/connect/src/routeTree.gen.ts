@@ -35,32 +35,20 @@ import { Route as CertificatesRouteImport } from './routes/certificates'
 import { Route as CareersRouteImport } from './routes/careers'
 import { Route as AttendanceRouteImport } from './routes/attendance'
 import { Route as AssignmentsRouteImport } from './routes/assignments'
+import { Route as AnnouncementsRouteImport } from './routes/announcements'
 import { Route as AlertsRouteImport } from './routes/alerts'
 import { Route as AdmissionsRouteImport } from './routes/admissions'
 import { Route as ActivityRouteImport } from './routes/activity'
+import { Route as ActivitiesRouteImport } from './routes/activities'
 import { Route as AchievementsRouteImport } from './routes/achievements'
 import { Route as AcademicHistoryRouteImport } from './routes/academic-history'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as CareersIndexRouteImport } from './routes/careers/index'
 import { Route as AdmissionsIndexRouteImport } from './routes/admissions/index'
 import { Route as ActivityIndexRouteImport } from './routes/activity/index'
 import { Route as VerifyStudentIdRouteImport } from './routes/verify.$studentId'
 import { Route as StudentsStudentIdRouteImport } from './routes/students.$studentId'
-import { Route as CareersTermsRouteImport } from './routes/careers/terms'
-import { Route as CareersSignupRouteImport } from './routes/careers/signup'
-import { Route as CareersSetupFromAdminRouteImport } from './routes/careers/setup-from-admin'
-import { Route as CareersSettingsRouteImport } from './routes/careers/settings'
-import { Route as CareersSavedRouteImport } from './routes/careers/saved'
-import { Route as CareersProfileRouteImport } from './routes/careers/profile'
-import { Route as CareersPrivacyRouteImport } from './routes/careers/privacy'
-import { Route as CareersNotificationsRouteImport } from './routes/careers/notifications'
-import { Route as CareersLoginRouteImport } from './routes/careers/login'
-import { Route as CareersInterviewsRouteImport } from './routes/careers/interviews'
-import { Route as CareersForgotPasswordRouteImport } from './routes/careers/forgot-password'
-import { Route as CareersDocumentsRouteImport } from './routes/careers/documents'
-import { Route as CareersDashboardRouteImport } from './routes/careers/dashboard'
-import { Route as CareersApplyRouteImport } from './routes/careers/apply'
-import { Route as CareersApplicationsRouteImport } from './routes/careers/applications'
+import { Route as CareersSplatRouteImport } from './routes/careers/$'
+import { Route as AnnouncementsIdRouteImport } from './routes/announcements.$id'
 import { Route as AdmissionsTermsRouteImport } from './routes/admissions/terms'
 import { Route as AdmissionsSignupRouteImport } from './routes/admissions/signup'
 import { Route as AdmissionsSetupFromAdminRouteImport } from './routes/admissions/setup-from-admin'
@@ -92,16 +80,8 @@ import { Route as ActivityCalendarRouteImport } from './routes/activity/calendar
 import { Route as ActivityAttendanceRouteImport } from './routes/activity/attendance'
 import { Route as ActivityAnnouncementsRouteImport } from './routes/activity/announcements'
 import { Route as ActivityAchievementsRouteImport } from './routes/activity/achievements'
-import { Route as CareersRecruiterIndexRouteImport } from './routes/careers/recruiter/index'
-import { Route as CareersJobsIndexRouteImport } from './routes/careers/jobs/index'
-import { Route as CareersInstitutesIndexRouteImport } from './routes/careers/institutes/index'
 import { Route as AdmissionsInstitutesIndexRouteImport } from './routes/admissions/institutes/index'
 import { Route as AdmissionsInstituteIndexRouteImport } from './routes/admissions/institute/index'
-import { Route as CareersRecruiterTalentRouteImport } from './routes/careers/recruiter/talent'
-import { Route as CareersRecruiterApplicantsRouteImport } from './routes/careers/recruiter/applicants'
-import { Route as CareersJobsJobIdRouteImport } from './routes/careers/jobs/$jobId'
-import { Route as CareersInstitutesInstituteIdRouteImport } from './routes/careers/institutes/$instituteId'
-import { Route as CareersApplicationsApplicationIdRouteImport } from './routes/careers/applications/$applicationId'
 import { Route as AdmissionsProgramsProgramIdRouteImport } from './routes/admissions/programs/$programId'
 import { Route as AdmissionsInstitutesInstituteIdRouteImport } from './routes/admissions/institutes/$instituteId'
 import { Route as AdmissionsInstituteSettingsRouteImport } from './routes/admissions/institute/settings'
@@ -110,11 +90,8 @@ import { Route as AdmissionsInstituteOpeningsRouteImport } from './routes/admiss
 import { Route as AdmissionsInstituteFormRouteImport } from './routes/admissions/institute/form'
 import { Route as AdmissionsInstituteApplicationsRouteImport } from './routes/admissions/institute/applications'
 import { Route as AdmissionsApplicationsApplicationIdRouteImport } from './routes/admissions/applications/$applicationId'
-import { Route as CareersRecruiterJobsIndexRouteImport } from './routes/careers/recruiter/jobs/index'
 import { Route as AdmissionsInstituteApplicationsIndexRouteImport } from './routes/admissions/institute/applications/index'
-import { Route as CareersRecruiterJobsNewRouteImport } from './routes/careers/recruiter/jobs/new'
 import { Route as AdmissionsInstituteApplicationsApplicationIdRouteImport } from './routes/admissions/institute/applications/$applicationId'
-import { Route as CareersRecruiterJobsJobIdEditRouteImport } from './routes/careers/recruiter/jobs/$jobId/edit'
 
 const TransportRoute = TransportRouteImport.update({
   id: '/transport',
@@ -246,6 +223,11 @@ const AssignmentsRoute = AssignmentsRouteImport.update({
   path: '/assignments',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AnnouncementsRoute = AnnouncementsRouteImport.update({
+  id: '/announcements',
+  path: '/announcements',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AlertsRoute = AlertsRouteImport.update({
   id: '/alerts',
   path: '/alerts',
@@ -259,6 +241,11 @@ const AdmissionsRoute = AdmissionsRouteImport.update({
 const ActivityRoute = ActivityRouteImport.update({
   id: '/activity',
   path: '/activity',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ActivitiesRoute = ActivitiesRouteImport.update({
+  id: '/activities',
+  path: '/activities',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AchievementsRoute = AchievementsRouteImport.update({
@@ -275,11 +262,6 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
-} as any)
-const CareersIndexRoute = CareersIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => CareersRoute,
 } as any)
 const AdmissionsIndexRoute = AdmissionsIndexRouteImport.update({
   id: '/',
@@ -301,80 +283,15 @@ const StudentsStudentIdRoute = StudentsStudentIdRouteImport.update({
   path: '/$studentId',
   getParentRoute: () => StudentsRoute,
 } as any)
-const CareersTermsRoute = CareersTermsRouteImport.update({
-  id: '/terms',
-  path: '/terms',
+const CareersSplatRoute = CareersSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
   getParentRoute: () => CareersRoute,
 } as any)
-const CareersSignupRoute = CareersSignupRouteImport.update({
-  id: '/signup',
-  path: '/signup',
-  getParentRoute: () => CareersRoute,
-} as any)
-const CareersSetupFromAdminRoute = CareersSetupFromAdminRouteImport.update({
-  id: '/setup-from-admin',
-  path: '/setup-from-admin',
-  getParentRoute: () => CareersRoute,
-} as any)
-const CareersSettingsRoute = CareersSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => CareersRoute,
-} as any)
-const CareersSavedRoute = CareersSavedRouteImport.update({
-  id: '/saved',
-  path: '/saved',
-  getParentRoute: () => CareersRoute,
-} as any)
-const CareersProfileRoute = CareersProfileRouteImport.update({
-  id: '/profile',
-  path: '/profile',
-  getParentRoute: () => CareersRoute,
-} as any)
-const CareersPrivacyRoute = CareersPrivacyRouteImport.update({
-  id: '/privacy',
-  path: '/privacy',
-  getParentRoute: () => CareersRoute,
-} as any)
-const CareersNotificationsRoute = CareersNotificationsRouteImport.update({
-  id: '/notifications',
-  path: '/notifications',
-  getParentRoute: () => CareersRoute,
-} as any)
-const CareersLoginRoute = CareersLoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => CareersRoute,
-} as any)
-const CareersInterviewsRoute = CareersInterviewsRouteImport.update({
-  id: '/interviews',
-  path: '/interviews',
-  getParentRoute: () => CareersRoute,
-} as any)
-const CareersForgotPasswordRoute = CareersForgotPasswordRouteImport.update({
-  id: '/forgot-password',
-  path: '/forgot-password',
-  getParentRoute: () => CareersRoute,
-} as any)
-const CareersDocumentsRoute = CareersDocumentsRouteImport.update({
-  id: '/documents',
-  path: '/documents',
-  getParentRoute: () => CareersRoute,
-} as any)
-const CareersDashboardRoute = CareersDashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
-  getParentRoute: () => CareersRoute,
-} as any)
-const CareersApplyRoute = CareersApplyRouteImport.update({
-  id: '/apply',
-  path: '/apply',
-  getParentRoute: () => CareersRoute,
-} as any)
-const CareersApplicationsRoute = CareersApplicationsRouteImport.update({
-  id: '/applications',
-  path: '/applications',
-  getParentRoute: () => CareersRoute,
+const AnnouncementsIdRoute = AnnouncementsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AnnouncementsRoute,
 } as any)
 const AdmissionsTermsRoute = AdmissionsTermsRouteImport.update({
   id: '/terms',
@@ -533,21 +450,6 @@ const ActivityAchievementsRoute = ActivityAchievementsRouteImport.update({
   path: '/achievements',
   getParentRoute: () => ActivityRoute,
 } as any)
-const CareersRecruiterIndexRoute = CareersRecruiterIndexRouteImport.update({
-  id: '/recruiter/',
-  path: '/recruiter/',
-  getParentRoute: () => CareersRoute,
-} as any)
-const CareersJobsIndexRoute = CareersJobsIndexRouteImport.update({
-  id: '/jobs/',
-  path: '/jobs/',
-  getParentRoute: () => CareersRoute,
-} as any)
-const CareersInstitutesIndexRoute = CareersInstitutesIndexRouteImport.update({
-  id: '/institutes/',
-  path: '/institutes/',
-  getParentRoute: () => CareersRoute,
-} as any)
 const AdmissionsInstitutesIndexRoute =
   AdmissionsInstitutesIndexRouteImport.update({
     id: '/institutes/',
@@ -559,34 +461,6 @@ const AdmissionsInstituteIndexRoute =
     id: '/',
     path: '/',
     getParentRoute: () => AdmissionsInstituteRoute,
-  } as any)
-const CareersRecruiterTalentRoute = CareersRecruiterTalentRouteImport.update({
-  id: '/recruiter/talent',
-  path: '/recruiter/talent',
-  getParentRoute: () => CareersRoute,
-} as any)
-const CareersRecruiterApplicantsRoute =
-  CareersRecruiterApplicantsRouteImport.update({
-    id: '/recruiter/applicants',
-    path: '/recruiter/applicants',
-    getParentRoute: () => CareersRoute,
-  } as any)
-const CareersJobsJobIdRoute = CareersJobsJobIdRouteImport.update({
-  id: '/jobs/$jobId',
-  path: '/jobs/$jobId',
-  getParentRoute: () => CareersRoute,
-} as any)
-const CareersInstitutesInstituteIdRoute =
-  CareersInstitutesInstituteIdRouteImport.update({
-    id: '/institutes/$instituteId',
-    path: '/institutes/$instituteId',
-    getParentRoute: () => CareersRoute,
-  } as any)
-const CareersApplicationsApplicationIdRoute =
-  CareersApplicationsApplicationIdRouteImport.update({
-    id: '/$applicationId',
-    path: '/$applicationId',
-    getParentRoute: () => CareersApplicationsRoute,
   } as any)
 const AdmissionsProgramsProgramIdRoute =
   AdmissionsProgramsProgramIdRouteImport.update({
@@ -635,43 +509,28 @@ const AdmissionsApplicationsApplicationIdRoute =
     path: '/$applicationId',
     getParentRoute: () => AdmissionsApplicationsRoute,
   } as any)
-const CareersRecruiterJobsIndexRoute =
-  CareersRecruiterJobsIndexRouteImport.update({
-    id: '/recruiter/jobs/',
-    path: '/recruiter/jobs/',
-    getParentRoute: () => CareersRoute,
-  } as any)
 const AdmissionsInstituteApplicationsIndexRoute =
   AdmissionsInstituteApplicationsIndexRouteImport.update({
     id: '/',
     path: '/',
     getParentRoute: () => AdmissionsInstituteApplicationsRoute,
   } as any)
-const CareersRecruiterJobsNewRoute = CareersRecruiterJobsNewRouteImport.update({
-  id: '/recruiter/jobs/new',
-  path: '/recruiter/jobs/new',
-  getParentRoute: () => CareersRoute,
-} as any)
 const AdmissionsInstituteApplicationsApplicationIdRoute =
   AdmissionsInstituteApplicationsApplicationIdRouteImport.update({
     id: '/$applicationId',
     path: '/$applicationId',
     getParentRoute: () => AdmissionsInstituteApplicationsRoute,
   } as any)
-const CareersRecruiterJobsJobIdEditRoute =
-  CareersRecruiterJobsJobIdEditRouteImport.update({
-    id: '/recruiter/jobs/$jobId/edit',
-    path: '/recruiter/jobs/$jobId/edit',
-    getParentRoute: () => CareersRoute,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/academic-history': typeof AcademicHistoryRoute
   '/achievements': typeof AchievementsRoute
+  '/activities': typeof ActivitiesRoute
   '/activity': typeof ActivityRouteWithChildren
   '/admissions': typeof AdmissionsRouteWithChildren
   '/alerts': typeof AlertsRoute
+  '/announcements': typeof AnnouncementsRouteWithChildren
   '/assignments': typeof AssignmentsRoute
   '/attendance': typeof AttendanceRoute
   '/careers': typeof CareersRouteWithChildren
@@ -729,26 +588,12 @@ export interface FileRoutesByFullPath {
   '/admissions/setup-from-admin': typeof AdmissionsSetupFromAdminRoute
   '/admissions/signup': typeof AdmissionsSignupRoute
   '/admissions/terms': typeof AdmissionsTermsRoute
-  '/careers/applications': typeof CareersApplicationsRouteWithChildren
-  '/careers/apply': typeof CareersApplyRoute
-  '/careers/dashboard': typeof CareersDashboardRoute
-  '/careers/documents': typeof CareersDocumentsRoute
-  '/careers/forgot-password': typeof CareersForgotPasswordRoute
-  '/careers/interviews': typeof CareersInterviewsRoute
-  '/careers/login': typeof CareersLoginRoute
-  '/careers/notifications': typeof CareersNotificationsRoute
-  '/careers/privacy': typeof CareersPrivacyRoute
-  '/careers/profile': typeof CareersProfileRoute
-  '/careers/saved': typeof CareersSavedRoute
-  '/careers/settings': typeof CareersSettingsRoute
-  '/careers/setup-from-admin': typeof CareersSetupFromAdminRoute
-  '/careers/signup': typeof CareersSignupRoute
-  '/careers/terms': typeof CareersTermsRoute
+  '/announcements/$id': typeof AnnouncementsIdRoute
+  '/careers/$': typeof CareersSplatRoute
   '/students/$studentId': typeof StudentsStudentIdRoute
   '/verify/$studentId': typeof VerifyStudentIdRoute
   '/activity/': typeof ActivityIndexRoute
   '/admissions/': typeof AdmissionsIndexRoute
-  '/careers/': typeof CareersIndexRoute
   '/admissions/applications/$applicationId': typeof AdmissionsApplicationsApplicationIdRoute
   '/admissions/institute/applications': typeof AdmissionsInstituteApplicationsRouteWithChildren
   '/admissions/institute/form': typeof AdmissionsInstituteFormRoute
@@ -757,29 +602,21 @@ export interface FileRoutesByFullPath {
   '/admissions/institute/settings': typeof AdmissionsInstituteSettingsRoute
   '/admissions/institutes/$instituteId': typeof AdmissionsInstitutesInstituteIdRoute
   '/admissions/programs/$programId': typeof AdmissionsProgramsProgramIdRoute
-  '/careers/applications/$applicationId': typeof CareersApplicationsApplicationIdRoute
-  '/careers/institutes/$instituteId': typeof CareersInstitutesInstituteIdRoute
-  '/careers/jobs/$jobId': typeof CareersJobsJobIdRoute
-  '/careers/recruiter/applicants': typeof CareersRecruiterApplicantsRoute
-  '/careers/recruiter/talent': typeof CareersRecruiterTalentRoute
   '/admissions/institute/': typeof AdmissionsInstituteIndexRoute
   '/admissions/institutes/': typeof AdmissionsInstitutesIndexRoute
-  '/careers/institutes/': typeof CareersInstitutesIndexRoute
-  '/careers/jobs/': typeof CareersJobsIndexRoute
-  '/careers/recruiter/': typeof CareersRecruiterIndexRoute
   '/admissions/institute/applications/$applicationId': typeof AdmissionsInstituteApplicationsApplicationIdRoute
-  '/careers/recruiter/jobs/new': typeof CareersRecruiterJobsNewRoute
   '/admissions/institute/applications/': typeof AdmissionsInstituteApplicationsIndexRoute
-  '/careers/recruiter/jobs/': typeof CareersRecruiterJobsIndexRoute
-  '/careers/recruiter/jobs/$jobId/edit': typeof CareersRecruiterJobsJobIdEditRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/academic-history': typeof AcademicHistoryRoute
   '/achievements': typeof AchievementsRoute
+  '/activities': typeof ActivitiesRoute
   '/alerts': typeof AlertsRoute
+  '/announcements': typeof AnnouncementsRouteWithChildren
   '/assignments': typeof AssignmentsRoute
   '/attendance': typeof AttendanceRoute
+  '/careers': typeof CareersRouteWithChildren
   '/certificates': typeof CertificatesRoute
   '/classes': typeof ClassesRoute
   '/complaints': typeof ComplaintsRoute
@@ -833,26 +670,12 @@ export interface FileRoutesByTo {
   '/admissions/setup-from-admin': typeof AdmissionsSetupFromAdminRoute
   '/admissions/signup': typeof AdmissionsSignupRoute
   '/admissions/terms': typeof AdmissionsTermsRoute
-  '/careers/applications': typeof CareersApplicationsRouteWithChildren
-  '/careers/apply': typeof CareersApplyRoute
-  '/careers/dashboard': typeof CareersDashboardRoute
-  '/careers/documents': typeof CareersDocumentsRoute
-  '/careers/forgot-password': typeof CareersForgotPasswordRoute
-  '/careers/interviews': typeof CareersInterviewsRoute
-  '/careers/login': typeof CareersLoginRoute
-  '/careers/notifications': typeof CareersNotificationsRoute
-  '/careers/privacy': typeof CareersPrivacyRoute
-  '/careers/profile': typeof CareersProfileRoute
-  '/careers/saved': typeof CareersSavedRoute
-  '/careers/settings': typeof CareersSettingsRoute
-  '/careers/setup-from-admin': typeof CareersSetupFromAdminRoute
-  '/careers/signup': typeof CareersSignupRoute
-  '/careers/terms': typeof CareersTermsRoute
+  '/announcements/$id': typeof AnnouncementsIdRoute
+  '/careers/$': typeof CareersSplatRoute
   '/students/$studentId': typeof StudentsStudentIdRoute
   '/verify/$studentId': typeof VerifyStudentIdRoute
   '/activity': typeof ActivityIndexRoute
   '/admissions': typeof AdmissionsIndexRoute
-  '/careers': typeof CareersIndexRoute
   '/admissions/applications/$applicationId': typeof AdmissionsApplicationsApplicationIdRoute
   '/admissions/institute/form': typeof AdmissionsInstituteFormRoute
   '/admissions/institute/openings': typeof AdmissionsInstituteOpeningsRoute
@@ -860,30 +683,21 @@ export interface FileRoutesByTo {
   '/admissions/institute/settings': typeof AdmissionsInstituteSettingsRoute
   '/admissions/institutes/$instituteId': typeof AdmissionsInstitutesInstituteIdRoute
   '/admissions/programs/$programId': typeof AdmissionsProgramsProgramIdRoute
-  '/careers/applications/$applicationId': typeof CareersApplicationsApplicationIdRoute
-  '/careers/institutes/$instituteId': typeof CareersInstitutesInstituteIdRoute
-  '/careers/jobs/$jobId': typeof CareersJobsJobIdRoute
-  '/careers/recruiter/applicants': typeof CareersRecruiterApplicantsRoute
-  '/careers/recruiter/talent': typeof CareersRecruiterTalentRoute
   '/admissions/institute': typeof AdmissionsInstituteIndexRoute
   '/admissions/institutes': typeof AdmissionsInstitutesIndexRoute
-  '/careers/institutes': typeof CareersInstitutesIndexRoute
-  '/careers/jobs': typeof CareersJobsIndexRoute
-  '/careers/recruiter': typeof CareersRecruiterIndexRoute
   '/admissions/institute/applications/$applicationId': typeof AdmissionsInstituteApplicationsApplicationIdRoute
-  '/careers/recruiter/jobs/new': typeof CareersRecruiterJobsNewRoute
   '/admissions/institute/applications': typeof AdmissionsInstituteApplicationsIndexRoute
-  '/careers/recruiter/jobs': typeof CareersRecruiterJobsIndexRoute
-  '/careers/recruiter/jobs/$jobId/edit': typeof CareersRecruiterJobsJobIdEditRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/academic-history': typeof AcademicHistoryRoute
   '/achievements': typeof AchievementsRoute
+  '/activities': typeof ActivitiesRoute
   '/activity': typeof ActivityRouteWithChildren
   '/admissions': typeof AdmissionsRouteWithChildren
   '/alerts': typeof AlertsRoute
+  '/announcements': typeof AnnouncementsRouteWithChildren
   '/assignments': typeof AssignmentsRoute
   '/attendance': typeof AttendanceRoute
   '/careers': typeof CareersRouteWithChildren
@@ -941,26 +755,12 @@ export interface FileRoutesById {
   '/admissions/setup-from-admin': typeof AdmissionsSetupFromAdminRoute
   '/admissions/signup': typeof AdmissionsSignupRoute
   '/admissions/terms': typeof AdmissionsTermsRoute
-  '/careers/applications': typeof CareersApplicationsRouteWithChildren
-  '/careers/apply': typeof CareersApplyRoute
-  '/careers/dashboard': typeof CareersDashboardRoute
-  '/careers/documents': typeof CareersDocumentsRoute
-  '/careers/forgot-password': typeof CareersForgotPasswordRoute
-  '/careers/interviews': typeof CareersInterviewsRoute
-  '/careers/login': typeof CareersLoginRoute
-  '/careers/notifications': typeof CareersNotificationsRoute
-  '/careers/privacy': typeof CareersPrivacyRoute
-  '/careers/profile': typeof CareersProfileRoute
-  '/careers/saved': typeof CareersSavedRoute
-  '/careers/settings': typeof CareersSettingsRoute
-  '/careers/setup-from-admin': typeof CareersSetupFromAdminRoute
-  '/careers/signup': typeof CareersSignupRoute
-  '/careers/terms': typeof CareersTermsRoute
+  '/announcements/$id': typeof AnnouncementsIdRoute
+  '/careers/$': typeof CareersSplatRoute
   '/students/$studentId': typeof StudentsStudentIdRoute
   '/verify/$studentId': typeof VerifyStudentIdRoute
   '/activity/': typeof ActivityIndexRoute
   '/admissions/': typeof AdmissionsIndexRoute
-  '/careers/': typeof CareersIndexRoute
   '/admissions/applications/$applicationId': typeof AdmissionsApplicationsApplicationIdRoute
   '/admissions/institute/applications': typeof AdmissionsInstituteApplicationsRouteWithChildren
   '/admissions/institute/form': typeof AdmissionsInstituteFormRoute
@@ -969,21 +769,10 @@ export interface FileRoutesById {
   '/admissions/institute/settings': typeof AdmissionsInstituteSettingsRoute
   '/admissions/institutes/$instituteId': typeof AdmissionsInstitutesInstituteIdRoute
   '/admissions/programs/$programId': typeof AdmissionsProgramsProgramIdRoute
-  '/careers/applications/$applicationId': typeof CareersApplicationsApplicationIdRoute
-  '/careers/institutes/$instituteId': typeof CareersInstitutesInstituteIdRoute
-  '/careers/jobs/$jobId': typeof CareersJobsJobIdRoute
-  '/careers/recruiter/applicants': typeof CareersRecruiterApplicantsRoute
-  '/careers/recruiter/talent': typeof CareersRecruiterTalentRoute
   '/admissions/institute/': typeof AdmissionsInstituteIndexRoute
   '/admissions/institutes/': typeof AdmissionsInstitutesIndexRoute
-  '/careers/institutes/': typeof CareersInstitutesIndexRoute
-  '/careers/jobs/': typeof CareersJobsIndexRoute
-  '/careers/recruiter/': typeof CareersRecruiterIndexRoute
   '/admissions/institute/applications/$applicationId': typeof AdmissionsInstituteApplicationsApplicationIdRoute
-  '/careers/recruiter/jobs/new': typeof CareersRecruiterJobsNewRoute
   '/admissions/institute/applications/': typeof AdmissionsInstituteApplicationsIndexRoute
-  '/careers/recruiter/jobs/': typeof CareersRecruiterJobsIndexRoute
-  '/careers/recruiter/jobs/$jobId/edit': typeof CareersRecruiterJobsJobIdEditRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -991,9 +780,11 @@ export interface FileRouteTypes {
     | '/'
     | '/academic-history'
     | '/achievements'
+    | '/activities'
     | '/activity'
     | '/admissions'
     | '/alerts'
+    | '/announcements'
     | '/assignments'
     | '/attendance'
     | '/careers'
@@ -1051,26 +842,12 @@ export interface FileRouteTypes {
     | '/admissions/setup-from-admin'
     | '/admissions/signup'
     | '/admissions/terms'
-    | '/careers/applications'
-    | '/careers/apply'
-    | '/careers/dashboard'
-    | '/careers/documents'
-    | '/careers/forgot-password'
-    | '/careers/interviews'
-    | '/careers/login'
-    | '/careers/notifications'
-    | '/careers/privacy'
-    | '/careers/profile'
-    | '/careers/saved'
-    | '/careers/settings'
-    | '/careers/setup-from-admin'
-    | '/careers/signup'
-    | '/careers/terms'
+    | '/announcements/$id'
+    | '/careers/$'
     | '/students/$studentId'
     | '/verify/$studentId'
     | '/activity/'
     | '/admissions/'
-    | '/careers/'
     | '/admissions/applications/$applicationId'
     | '/admissions/institute/applications'
     | '/admissions/institute/form'
@@ -1079,29 +856,21 @@ export interface FileRouteTypes {
     | '/admissions/institute/settings'
     | '/admissions/institutes/$instituteId'
     | '/admissions/programs/$programId'
-    | '/careers/applications/$applicationId'
-    | '/careers/institutes/$instituteId'
-    | '/careers/jobs/$jobId'
-    | '/careers/recruiter/applicants'
-    | '/careers/recruiter/talent'
     | '/admissions/institute/'
     | '/admissions/institutes/'
-    | '/careers/institutes/'
-    | '/careers/jobs/'
-    | '/careers/recruiter/'
     | '/admissions/institute/applications/$applicationId'
-    | '/careers/recruiter/jobs/new'
     | '/admissions/institute/applications/'
-    | '/careers/recruiter/jobs/'
-    | '/careers/recruiter/jobs/$jobId/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/academic-history'
     | '/achievements'
+    | '/activities'
     | '/alerts'
+    | '/announcements'
     | '/assignments'
     | '/attendance'
+    | '/careers'
     | '/certificates'
     | '/classes'
     | '/complaints'
@@ -1155,26 +924,12 @@ export interface FileRouteTypes {
     | '/admissions/setup-from-admin'
     | '/admissions/signup'
     | '/admissions/terms'
-    | '/careers/applications'
-    | '/careers/apply'
-    | '/careers/dashboard'
-    | '/careers/documents'
-    | '/careers/forgot-password'
-    | '/careers/interviews'
-    | '/careers/login'
-    | '/careers/notifications'
-    | '/careers/privacy'
-    | '/careers/profile'
-    | '/careers/saved'
-    | '/careers/settings'
-    | '/careers/setup-from-admin'
-    | '/careers/signup'
-    | '/careers/terms'
+    | '/announcements/$id'
+    | '/careers/$'
     | '/students/$studentId'
     | '/verify/$studentId'
     | '/activity'
     | '/admissions'
-    | '/careers'
     | '/admissions/applications/$applicationId'
     | '/admissions/institute/form'
     | '/admissions/institute/openings'
@@ -1182,29 +937,20 @@ export interface FileRouteTypes {
     | '/admissions/institute/settings'
     | '/admissions/institutes/$instituteId'
     | '/admissions/programs/$programId'
-    | '/careers/applications/$applicationId'
-    | '/careers/institutes/$instituteId'
-    | '/careers/jobs/$jobId'
-    | '/careers/recruiter/applicants'
-    | '/careers/recruiter/talent'
     | '/admissions/institute'
     | '/admissions/institutes'
-    | '/careers/institutes'
-    | '/careers/jobs'
-    | '/careers/recruiter'
     | '/admissions/institute/applications/$applicationId'
-    | '/careers/recruiter/jobs/new'
     | '/admissions/institute/applications'
-    | '/careers/recruiter/jobs'
-    | '/careers/recruiter/jobs/$jobId/edit'
   id:
     | '__root__'
     | '/'
     | '/academic-history'
     | '/achievements'
+    | '/activities'
     | '/activity'
     | '/admissions'
     | '/alerts'
+    | '/announcements'
     | '/assignments'
     | '/attendance'
     | '/careers'
@@ -1262,26 +1008,12 @@ export interface FileRouteTypes {
     | '/admissions/setup-from-admin'
     | '/admissions/signup'
     | '/admissions/terms'
-    | '/careers/applications'
-    | '/careers/apply'
-    | '/careers/dashboard'
-    | '/careers/documents'
-    | '/careers/forgot-password'
-    | '/careers/interviews'
-    | '/careers/login'
-    | '/careers/notifications'
-    | '/careers/privacy'
-    | '/careers/profile'
-    | '/careers/saved'
-    | '/careers/settings'
-    | '/careers/setup-from-admin'
-    | '/careers/signup'
-    | '/careers/terms'
+    | '/announcements/$id'
+    | '/careers/$'
     | '/students/$studentId'
     | '/verify/$studentId'
     | '/activity/'
     | '/admissions/'
-    | '/careers/'
     | '/admissions/applications/$applicationId'
     | '/admissions/institute/applications'
     | '/admissions/institute/form'
@@ -1290,30 +1022,21 @@ export interface FileRouteTypes {
     | '/admissions/institute/settings'
     | '/admissions/institutes/$instituteId'
     | '/admissions/programs/$programId'
-    | '/careers/applications/$applicationId'
-    | '/careers/institutes/$instituteId'
-    | '/careers/jobs/$jobId'
-    | '/careers/recruiter/applicants'
-    | '/careers/recruiter/talent'
     | '/admissions/institute/'
     | '/admissions/institutes/'
-    | '/careers/institutes/'
-    | '/careers/jobs/'
-    | '/careers/recruiter/'
     | '/admissions/institute/applications/$applicationId'
-    | '/careers/recruiter/jobs/new'
     | '/admissions/institute/applications/'
-    | '/careers/recruiter/jobs/'
-    | '/careers/recruiter/jobs/$jobId/edit'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AcademicHistoryRoute: typeof AcademicHistoryRoute
   AchievementsRoute: typeof AchievementsRoute
+  ActivitiesRoute: typeof ActivitiesRoute
   ActivityRoute: typeof ActivityRouteWithChildren
   AdmissionsRoute: typeof AdmissionsRouteWithChildren
   AlertsRoute: typeof AlertsRoute
+  AnnouncementsRoute: typeof AnnouncementsRouteWithChildren
   AssignmentsRoute: typeof AssignmentsRoute
   AttendanceRoute: typeof AttendanceRoute
   CareersRoute: typeof CareersRouteWithChildren
@@ -1527,6 +1250,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AssignmentsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/announcements': {
+      id: '/announcements'
+      path: '/announcements'
+      fullPath: '/announcements'
+      preLoaderRoute: typeof AnnouncementsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/alerts': {
       id: '/alerts'
       path: '/alerts'
@@ -1546,6 +1276,13 @@ declare module '@tanstack/react-router' {
       path: '/activity'
       fullPath: '/activity'
       preLoaderRoute: typeof ActivityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/activities': {
+      id: '/activities'
+      path: '/activities'
+      fullPath: '/activities'
+      preLoaderRoute: typeof ActivitiesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/achievements': {
@@ -1568,13 +1305,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/careers/': {
-      id: '/careers/'
-      path: '/'
-      fullPath: '/careers/'
-      preLoaderRoute: typeof CareersIndexRouteImport
-      parentRoute: typeof CareersRoute
     }
     '/admissions/': {
       id: '/admissions/'
@@ -1604,110 +1334,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StudentsStudentIdRouteImport
       parentRoute: typeof StudentsRoute
     }
-    '/careers/terms': {
-      id: '/careers/terms'
-      path: '/terms'
-      fullPath: '/careers/terms'
-      preLoaderRoute: typeof CareersTermsRouteImport
+    '/careers/$': {
+      id: '/careers/$'
+      path: '/$'
+      fullPath: '/careers/$'
+      preLoaderRoute: typeof CareersSplatRouteImport
       parentRoute: typeof CareersRoute
     }
-    '/careers/signup': {
-      id: '/careers/signup'
-      path: '/signup'
-      fullPath: '/careers/signup'
-      preLoaderRoute: typeof CareersSignupRouteImport
-      parentRoute: typeof CareersRoute
-    }
-    '/careers/setup-from-admin': {
-      id: '/careers/setup-from-admin'
-      path: '/setup-from-admin'
-      fullPath: '/careers/setup-from-admin'
-      preLoaderRoute: typeof CareersSetupFromAdminRouteImport
-      parentRoute: typeof CareersRoute
-    }
-    '/careers/settings': {
-      id: '/careers/settings'
-      path: '/settings'
-      fullPath: '/careers/settings'
-      preLoaderRoute: typeof CareersSettingsRouteImport
-      parentRoute: typeof CareersRoute
-    }
-    '/careers/saved': {
-      id: '/careers/saved'
-      path: '/saved'
-      fullPath: '/careers/saved'
-      preLoaderRoute: typeof CareersSavedRouteImport
-      parentRoute: typeof CareersRoute
-    }
-    '/careers/profile': {
-      id: '/careers/profile'
-      path: '/profile'
-      fullPath: '/careers/profile'
-      preLoaderRoute: typeof CareersProfileRouteImport
-      parentRoute: typeof CareersRoute
-    }
-    '/careers/privacy': {
-      id: '/careers/privacy'
-      path: '/privacy'
-      fullPath: '/careers/privacy'
-      preLoaderRoute: typeof CareersPrivacyRouteImport
-      parentRoute: typeof CareersRoute
-    }
-    '/careers/notifications': {
-      id: '/careers/notifications'
-      path: '/notifications'
-      fullPath: '/careers/notifications'
-      preLoaderRoute: typeof CareersNotificationsRouteImport
-      parentRoute: typeof CareersRoute
-    }
-    '/careers/login': {
-      id: '/careers/login'
-      path: '/login'
-      fullPath: '/careers/login'
-      preLoaderRoute: typeof CareersLoginRouteImport
-      parentRoute: typeof CareersRoute
-    }
-    '/careers/interviews': {
-      id: '/careers/interviews'
-      path: '/interviews'
-      fullPath: '/careers/interviews'
-      preLoaderRoute: typeof CareersInterviewsRouteImport
-      parentRoute: typeof CareersRoute
-    }
-    '/careers/forgot-password': {
-      id: '/careers/forgot-password'
-      path: '/forgot-password'
-      fullPath: '/careers/forgot-password'
-      preLoaderRoute: typeof CareersForgotPasswordRouteImport
-      parentRoute: typeof CareersRoute
-    }
-    '/careers/documents': {
-      id: '/careers/documents'
-      path: '/documents'
-      fullPath: '/careers/documents'
-      preLoaderRoute: typeof CareersDocumentsRouteImport
-      parentRoute: typeof CareersRoute
-    }
-    '/careers/dashboard': {
-      id: '/careers/dashboard'
-      path: '/dashboard'
-      fullPath: '/careers/dashboard'
-      preLoaderRoute: typeof CareersDashboardRouteImport
-      parentRoute: typeof CareersRoute
-    }
-    '/careers/apply': {
-      id: '/careers/apply'
-      path: '/apply'
-      fullPath: '/careers/apply'
-      preLoaderRoute: typeof CareersApplyRouteImport
-      parentRoute: typeof CareersRoute
-    }
-    '/careers/applications': {
-      id: '/careers/applications'
-      path: '/applications'
-      fullPath: '/careers/applications'
-      preLoaderRoute: typeof CareersApplicationsRouteImport
-      parentRoute: typeof CareersRoute
+    '/announcements/$id': {
+      id: '/announcements/$id'
+      path: '/$id'
+      fullPath: '/announcements/$id'
+      preLoaderRoute: typeof AnnouncementsIdRouteImport
+      parentRoute: typeof AnnouncementsRoute
     }
     '/admissions/terms': {
       id: '/admissions/terms'
@@ -1926,27 +1565,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ActivityAchievementsRouteImport
       parentRoute: typeof ActivityRoute
     }
-    '/careers/recruiter/': {
-      id: '/careers/recruiter/'
-      path: '/recruiter'
-      fullPath: '/careers/recruiter/'
-      preLoaderRoute: typeof CareersRecruiterIndexRouteImport
-      parentRoute: typeof CareersRoute
-    }
-    '/careers/jobs/': {
-      id: '/careers/jobs/'
-      path: '/jobs'
-      fullPath: '/careers/jobs/'
-      preLoaderRoute: typeof CareersJobsIndexRouteImport
-      parentRoute: typeof CareersRoute
-    }
-    '/careers/institutes/': {
-      id: '/careers/institutes/'
-      path: '/institutes'
-      fullPath: '/careers/institutes/'
-      preLoaderRoute: typeof CareersInstitutesIndexRouteImport
-      parentRoute: typeof CareersRoute
-    }
     '/admissions/institutes/': {
       id: '/admissions/institutes/'
       path: '/institutes'
@@ -1960,41 +1578,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/admissions/institute/'
       preLoaderRoute: typeof AdmissionsInstituteIndexRouteImport
       parentRoute: typeof AdmissionsInstituteRoute
-    }
-    '/careers/recruiter/talent': {
-      id: '/careers/recruiter/talent'
-      path: '/recruiter/talent'
-      fullPath: '/careers/recruiter/talent'
-      preLoaderRoute: typeof CareersRecruiterTalentRouteImport
-      parentRoute: typeof CareersRoute
-    }
-    '/careers/recruiter/applicants': {
-      id: '/careers/recruiter/applicants'
-      path: '/recruiter/applicants'
-      fullPath: '/careers/recruiter/applicants'
-      preLoaderRoute: typeof CareersRecruiterApplicantsRouteImport
-      parentRoute: typeof CareersRoute
-    }
-    '/careers/jobs/$jobId': {
-      id: '/careers/jobs/$jobId'
-      path: '/jobs/$jobId'
-      fullPath: '/careers/jobs/$jobId'
-      preLoaderRoute: typeof CareersJobsJobIdRouteImport
-      parentRoute: typeof CareersRoute
-    }
-    '/careers/institutes/$instituteId': {
-      id: '/careers/institutes/$instituteId'
-      path: '/institutes/$instituteId'
-      fullPath: '/careers/institutes/$instituteId'
-      preLoaderRoute: typeof CareersInstitutesInstituteIdRouteImport
-      parentRoute: typeof CareersRoute
-    }
-    '/careers/applications/$applicationId': {
-      id: '/careers/applications/$applicationId'
-      path: '/$applicationId'
-      fullPath: '/careers/applications/$applicationId'
-      preLoaderRoute: typeof CareersApplicationsApplicationIdRouteImport
-      parentRoute: typeof CareersApplicationsRoute
     }
     '/admissions/programs/$programId': {
       id: '/admissions/programs/$programId'
@@ -2052,13 +1635,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdmissionsApplicationsApplicationIdRouteImport
       parentRoute: typeof AdmissionsApplicationsRoute
     }
-    '/careers/recruiter/jobs/': {
-      id: '/careers/recruiter/jobs/'
-      path: '/recruiter/jobs'
-      fullPath: '/careers/recruiter/jobs/'
-      preLoaderRoute: typeof CareersRecruiterJobsIndexRouteImport
-      parentRoute: typeof CareersRoute
-    }
     '/admissions/institute/applications/': {
       id: '/admissions/institute/applications/'
       path: '/'
@@ -2066,26 +1642,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdmissionsInstituteApplicationsIndexRouteImport
       parentRoute: typeof AdmissionsInstituteApplicationsRoute
     }
-    '/careers/recruiter/jobs/new': {
-      id: '/careers/recruiter/jobs/new'
-      path: '/recruiter/jobs/new'
-      fullPath: '/careers/recruiter/jobs/new'
-      preLoaderRoute: typeof CareersRecruiterJobsNewRouteImport
-      parentRoute: typeof CareersRoute
-    }
     '/admissions/institute/applications/$applicationId': {
       id: '/admissions/institute/applications/$applicationId'
       path: '/$applicationId'
       fullPath: '/admissions/institute/applications/$applicationId'
       preLoaderRoute: typeof AdmissionsInstituteApplicationsApplicationIdRouteImport
       parentRoute: typeof AdmissionsInstituteApplicationsRoute
-    }
-    '/careers/recruiter/jobs/$jobId/edit': {
-      id: '/careers/recruiter/jobs/$jobId/edit'
-      path: '/recruiter/jobs/$jobId/edit'
-      fullPath: '/careers/recruiter/jobs/$jobId/edit'
-      preLoaderRoute: typeof CareersRecruiterJobsJobIdEditRouteImport
-      parentRoute: typeof CareersRoute
     }
   }
 }
@@ -2246,73 +1808,24 @@ const AdmissionsRouteWithChildren = AdmissionsRoute._addFileChildren(
   AdmissionsRouteChildren,
 )
 
-interface CareersApplicationsRouteChildren {
-  CareersApplicationsApplicationIdRoute: typeof CareersApplicationsApplicationIdRoute
+interface AnnouncementsRouteChildren {
+  AnnouncementsIdRoute: typeof AnnouncementsIdRoute
 }
 
-const CareersApplicationsRouteChildren: CareersApplicationsRouteChildren = {
-  CareersApplicationsApplicationIdRoute: CareersApplicationsApplicationIdRoute,
+const AnnouncementsRouteChildren: AnnouncementsRouteChildren = {
+  AnnouncementsIdRoute: AnnouncementsIdRoute,
 }
 
-const CareersApplicationsRouteWithChildren =
-  CareersApplicationsRoute._addFileChildren(CareersApplicationsRouteChildren)
+const AnnouncementsRouteWithChildren = AnnouncementsRoute._addFileChildren(
+  AnnouncementsRouteChildren,
+)
 
 interface CareersRouteChildren {
-  CareersApplicationsRoute: typeof CareersApplicationsRouteWithChildren
-  CareersApplyRoute: typeof CareersApplyRoute
-  CareersDashboardRoute: typeof CareersDashboardRoute
-  CareersDocumentsRoute: typeof CareersDocumentsRoute
-  CareersForgotPasswordRoute: typeof CareersForgotPasswordRoute
-  CareersInterviewsRoute: typeof CareersInterviewsRoute
-  CareersLoginRoute: typeof CareersLoginRoute
-  CareersNotificationsRoute: typeof CareersNotificationsRoute
-  CareersPrivacyRoute: typeof CareersPrivacyRoute
-  CareersProfileRoute: typeof CareersProfileRoute
-  CareersSavedRoute: typeof CareersSavedRoute
-  CareersSettingsRoute: typeof CareersSettingsRoute
-  CareersSetupFromAdminRoute: typeof CareersSetupFromAdminRoute
-  CareersSignupRoute: typeof CareersSignupRoute
-  CareersTermsRoute: typeof CareersTermsRoute
-  CareersIndexRoute: typeof CareersIndexRoute
-  CareersInstitutesInstituteIdRoute: typeof CareersInstitutesInstituteIdRoute
-  CareersJobsJobIdRoute: typeof CareersJobsJobIdRoute
-  CareersRecruiterApplicantsRoute: typeof CareersRecruiterApplicantsRoute
-  CareersRecruiterTalentRoute: typeof CareersRecruiterTalentRoute
-  CareersInstitutesIndexRoute: typeof CareersInstitutesIndexRoute
-  CareersJobsIndexRoute: typeof CareersJobsIndexRoute
-  CareersRecruiterIndexRoute: typeof CareersRecruiterIndexRoute
-  CareersRecruiterJobsNewRoute: typeof CareersRecruiterJobsNewRoute
-  CareersRecruiterJobsIndexRoute: typeof CareersRecruiterJobsIndexRoute
-  CareersRecruiterJobsJobIdEditRoute: typeof CareersRecruiterJobsJobIdEditRoute
+  CareersSplatRoute: typeof CareersSplatRoute
 }
 
 const CareersRouteChildren: CareersRouteChildren = {
-  CareersApplicationsRoute: CareersApplicationsRouteWithChildren,
-  CareersApplyRoute: CareersApplyRoute,
-  CareersDashboardRoute: CareersDashboardRoute,
-  CareersDocumentsRoute: CareersDocumentsRoute,
-  CareersForgotPasswordRoute: CareersForgotPasswordRoute,
-  CareersInterviewsRoute: CareersInterviewsRoute,
-  CareersLoginRoute: CareersLoginRoute,
-  CareersNotificationsRoute: CareersNotificationsRoute,
-  CareersPrivacyRoute: CareersPrivacyRoute,
-  CareersProfileRoute: CareersProfileRoute,
-  CareersSavedRoute: CareersSavedRoute,
-  CareersSettingsRoute: CareersSettingsRoute,
-  CareersSetupFromAdminRoute: CareersSetupFromAdminRoute,
-  CareersSignupRoute: CareersSignupRoute,
-  CareersTermsRoute: CareersTermsRoute,
-  CareersIndexRoute: CareersIndexRoute,
-  CareersInstitutesInstituteIdRoute: CareersInstitutesInstituteIdRoute,
-  CareersJobsJobIdRoute: CareersJobsJobIdRoute,
-  CareersRecruiterApplicantsRoute: CareersRecruiterApplicantsRoute,
-  CareersRecruiterTalentRoute: CareersRecruiterTalentRoute,
-  CareersInstitutesIndexRoute: CareersInstitutesIndexRoute,
-  CareersJobsIndexRoute: CareersJobsIndexRoute,
-  CareersRecruiterIndexRoute: CareersRecruiterIndexRoute,
-  CareersRecruiterJobsNewRoute: CareersRecruiterJobsNewRoute,
-  CareersRecruiterJobsIndexRoute: CareersRecruiterJobsIndexRoute,
-  CareersRecruiterJobsJobIdEditRoute: CareersRecruiterJobsJobIdEditRoute,
+  CareersSplatRoute: CareersSplatRoute,
 }
 
 const CareersRouteWithChildren =
@@ -2334,9 +1847,11 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AcademicHistoryRoute: AcademicHistoryRoute,
   AchievementsRoute: AchievementsRoute,
+  ActivitiesRoute: ActivitiesRoute,
   ActivityRoute: ActivityRouteWithChildren,
   AdmissionsRoute: AdmissionsRouteWithChildren,
   AlertsRoute: AlertsRoute,
+  AnnouncementsRoute: AnnouncementsRouteWithChildren,
   AssignmentsRoute: AssignmentsRoute,
   AttendanceRoute: AttendanceRoute,
   CareersRoute: CareersRouteWithChildren,

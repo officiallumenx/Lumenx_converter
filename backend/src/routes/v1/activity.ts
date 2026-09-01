@@ -22,6 +22,7 @@ import {
   getPracticeSessionForActor,
   getSectionForActor,
   getTeamForActor,
+  getTeamRecipientsForActor,
   listAchievementsForActor,
   listMembershipsForActor,
   listPracticeSessionsForActor,
@@ -186,6 +187,14 @@ activity.post("/teams", async (c) => {
     status: body.status,
   });
   return c.json({ data }, 201);
+});
+
+activity.get("/teams/:id/recipients", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const data = await getTeamRecipientsForActor(admin, actor, id);
+  return c.json({ data });
 });
 
 activity.get("/teams/:id", async (c) => {

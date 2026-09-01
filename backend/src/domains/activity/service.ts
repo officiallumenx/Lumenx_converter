@@ -9,6 +9,8 @@ import {
   findStudentById,
   listGuardianStudentIds,
 } from "../students/repository.js";
+import { listLinksForStudentIds } from "../parents/repository.js";
+import { ensureDbOk } from "../../db/errors.js";
 import {
   findAchievementById,
   findActiveMembership,
@@ -896,4 +898,83 @@ export async function deletePracticeSessionForActor(
   }
   const deleted = await softDeletePracticeSession(admin, id);
   if (!deleted) throw AppError.notFound("Practice session not found");
+}
+
+export async function resolveActivityTeamRecipientUserIds(
+  admin: SupabaseClient,
+  instituteId: string,
+  activityTeamId: string,
+): Promise<string[]> {
+  const memberships = await listMemberships(admin, instituteId, activityTeamId);
+  const studentIds = [
+    ...new Set(
+      memberships.filter((m) => m.status === "active").map((m) => m.student_id),
+    ),
+  ];
+  if (studentIds.length === 0) return [];
+
+  const studentResult = await admin
+    .from("student")
+    .select("id, user_profile_id")
+    .eq("institute_id", instituteId)
+    .in("id", studentIds)
+    .is("deleted_at", null);
+  if (studentResult.error) {
+    ensureDbOk(studentResult);
+  }
+  const students = (studentResult.data ?? []) as Array<{
+    id: string;
+    user_profile_id: string | null;
+  }>;
+
+  const profileIds = new Set<string>();
+  for (const s of students) {
+    if (s.user_profile_id) profileIds.add(s.user_profile_id);
+  }
+
+  const links = await listLinksForStudentIds(admin, studentIds, instituteId);
+  const parentIds = [...new Set(links.map((l) => l.parent_id))];
+  if (parentIds.length > 0) {
+    const parentResult = await admin
+      .from("parent")
+      .select("id, user_profile_id")
+      .eq("institute_id", instituteId)
+      .in("id", parentIds)
+      .is("deleted_at", null);
+    if (parentResult.error) {
+      ensureDbOk(parentResult);
+    }
+    for (const p of (parentResult.data ?? []) as Array<{
+      user_profile_id: string | null;
+    }>) {
+      if (p.user_profile_id) profileIds.add(p.user_profile_id);
+    }
+  }
+
+  return [...profileIds];
+}
+
+export type ActivityTeamRecipientsDto = {
+  teamId: string;
+  recipientUserIds: string[];
+};
+
+export async function getTeamRecipientsForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  teamId: string,
+): Promise<ActivityTeamRecipientsDto> {
+  const team = await findTeamById(admin, teamId);
+  if (!team || !(await canReadTeam(admin, actor, team))) {
+    throw AppError.notFound("Activity team not found");
+  }
+  if (!isWriter(actor, team.institute_id)) {
+    throw AppError.forbidden("Insufficient activity write access");
+  }
+  const recipientUserIds = await resolveActivityTeamRecipientUserIds(
+    admin,
+    team.institute_id,
+    teamId,
+  );
+  return { teamId, recipientUserIds };
 }

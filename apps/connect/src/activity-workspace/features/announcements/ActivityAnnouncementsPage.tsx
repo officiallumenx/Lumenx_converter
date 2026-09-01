@@ -61,6 +61,7 @@ export function ActivityAnnouncementsPage() {
         body: body.trim(),
         activityType: domain,
         unitLabels: [label],
+        unitIds: [selected.id],
       });
       toast.success("Announcement sent", {
         description: `${label} · also noted in Notifications`,

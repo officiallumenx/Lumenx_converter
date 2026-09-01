@@ -13,6 +13,9 @@ import {
 } from "@/lib/activity/hierarchy";
 import { workspaceCalendarRepository } from "@/lib/activity/workspace-calendar";
 import { workspaceCommunicationRepository } from "@/lib/activity/workspace-communication";
+import { createPracticeSession } from "@/lib/activity/api";
+import { getActivityApiInstituteId } from "@/lib/activity/context";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { ActivityPageShell } from "@/activity-workspace/shared/ui/ActivityPageShell";
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -40,13 +43,30 @@ export function ActivityPracticePage() {
   const assign = async () => {
     if (!date || !time || !day || selected.length === 0) return;
     const labels = selected.map(formatUnitLabel);
-    await workspaceCalendarRepository.addPractice({
-      title: `Practice · ${labels.join(", ")}`,
-      date,
-      startTime: time,
-      unitIds: selected.map((u) => u.id),
-      unitLabels: labels,
-    });
+    if (isApiAuthMode()) {
+      const instituteId = getActivityApiInstituteId();
+      if (!instituteId) return;
+      await Promise.all(
+        selected.map((unit) =>
+          createPracticeSession({
+            instituteId,
+            teamId: unit.id,
+            title: `Practice · ${formatUnitLabel(unit)}`,
+            scheduledOn: date,
+            startTime: time,
+            notes: `${day} practice`,
+          }),
+        ),
+      );
+    } else {
+      await workspaceCalendarRepository.addPractice({
+        title: `Practice · ${labels.join(", ")}`,
+        date,
+        startTime: time,
+        unitIds: selected.map((u) => u.id),
+        unitLabels: labels,
+      });
+    }
     await workspaceCommunicationRepository.pushFromActivity({
       title: "Practice assigned",
       body: `${labels.join(", ")} · ${day} ${date} at ${time} — added to Calendar.`,

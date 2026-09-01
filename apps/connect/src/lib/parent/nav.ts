@@ -19,6 +19,7 @@ import {
   Bus,
   History,
   Award,
+  Megaphone,
 } from "lucide-react";
 import { STUDENT_MODULE_COLORS } from "@/lib/student/nav";
 
@@ -51,13 +52,14 @@ export const PARENT_NAV = [
   { to: "/timetable", label: "Timetable", icon: Calendar, moduleColor: STUDENT_MODULE_COLORS.blue },
   { to: "/id-card", label: "ID Card", icon: FileText, moduleColor: STUDENT_MODULE_COLORS.slate },
   { to: "/notifications", label: "Notifications", icon: Bell, moduleColor: STUDENT_MODULE_COLORS.crimson },
+  { to: "/announcements", label: "Announcements", icon: Megaphone, moduleColor: STUDENT_MODULE_COLORS.rose },
 ] as const;
 
 /** Lower-frequency modules — inserted before Settings. */
 export const PARENT_MORE_NAV = [
   { to: "/events", label: "Events", icon: CalendarDays, moduleColor: STUDENT_MODULE_COLORS.sky },
   { to: "/teachers", label: "Teachers", icon: Users, moduleColor: STUDENT_MODULE_COLORS.navy },
-  { to: "/sports", label: "Sports", icon: Trophy, moduleColor: STUDENT_MODULE_COLORS.amber },
+  { to: "/activities", label: "Activities", icon: Trophy, moduleColor: STUDENT_MODULE_COLORS.amber },
   { to: "/complaints", label: "Complaints", icon: ShieldAlert, moduleColor: STUDENT_MODULE_COLORS.scarlet },
 ] as const;
 

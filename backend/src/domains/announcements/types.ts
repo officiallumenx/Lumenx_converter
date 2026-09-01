@@ -11,7 +11,8 @@ export type AnnouncementAudienceScope =
   | "students"
   | "parents"
   | "teachers"
-  | "classes";
+  | "classes"
+  | "activity_team";
 
 export type AnnouncementRow = {
   id: string;
@@ -22,6 +23,7 @@ export type AnnouncementRow = {
   audience_label: string | null;
   class_id: string | null;
   section_id: string | null;
+  activity_team_id: string | null;
   status: AnnouncementStatus;
   scheduled_at: string | null;
   published_at: string | null;
@@ -44,6 +46,7 @@ export type AnnouncementDto = {
   audienceLabel: string | null;
   classId: string | null;
   sectionId: string | null;
+  activityTeamId: string | null;
   status: AnnouncementStatus;
   scheduledAt: string | null;
   publishedAt: string | null;
@@ -71,6 +74,7 @@ export type CreateAnnouncementInput = {
   audienceLabel?: string | null;
   classId?: string | null;
   sectionId?: string | null;
+  activityTeamId?: string | null;
   /** When set, creates as scheduled; otherwise draft unless publishNow. */
   scheduledAt?: string | null;
   publishNow?: boolean;
@@ -85,6 +89,7 @@ export type UpdateAnnouncementInput = {
   audienceLabel?: string | null;
   classId?: string | null;
   sectionId?: string | null;
+  activityTeamId?: string | null;
   scheduledAt?: string | null;
   pinned?: boolean;
   pinUntil?: string | null;

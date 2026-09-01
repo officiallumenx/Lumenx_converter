@@ -16,6 +16,7 @@ import {
   MessageSquare,
   ShieldAlert,
   Siren,
+  Megaphone,
   Bus,
 } from "lucide-react";
 
@@ -107,6 +108,7 @@ export const STUDENT_NAV = [
   { to: "/exams", label: "Exams", icon: GraduationCap, moduleColor: STUDENT_MODULE_COLORS.red },
   { to: "/alerts", label: "Alerts", icon: Siren, moduleColor: STUDENT_MODULE_COLORS.rose },
   { to: "/notifications", label: "Notifications", icon: Bell, moduleColor: STUDENT_MODULE_COLORS.crimson },
+  { to: "/announcements", label: "Announcements", icon: Megaphone, moduleColor: STUDENT_MODULE_COLORS.rose },
   { to: "/messages", label: "Messages", icon: MessageSquare, moduleColor: STUDENT_MODULE_COLORS.cyan },
   { to: "/academic-history", label: "Academic History", icon: History, moduleColor: STUDENT_MODULE_COLORS.violet },
 ] as const;
@@ -117,7 +119,7 @@ export const STUDENT_MORE_NAV = [
   { to: "/growth", label: "Growth", icon: Sparkles, moduleColor: STUDENT_MODULE_COLORS.teal },
   { to: "/events", label: "Events", icon: CalendarDays, moduleColor: STUDENT_MODULE_COLORS.sky },
   { to: "/fees", label: "Fees", icon: Wallet, moduleColor: STUDENT_MODULE_COLORS.deepOrange },
-  { to: "/sports", label: "Sports", icon: Trophy, moduleColor: STUDENT_MODULE_COLORS.amber },
+  { to: "/activities", label: "Activities", icon: Trophy, moduleColor: STUDENT_MODULE_COLORS.amber },
   { to: "/teachers", label: "Teachers", icon: Users, moduleColor: STUDENT_MODULE_COLORS.navy },
   { to: "/certificates", label: "Certificates", icon: FileText, moduleColor: STUDENT_MODULE_COLORS.fuchsia },
   { to: "/id-card", label: "ID Card", icon: FileText, moduleColor: STUDENT_MODULE_COLORS.slate },

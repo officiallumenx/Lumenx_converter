@@ -102,6 +102,7 @@ function baseDb(): MockDb {
       audience_label: "All",
       class_id: null,
       section_id: null,
+      activity_team_id: null,
       status: "published",
       scheduled_at: null,
       published_at: "2026-08-01T00:00:00.000Z",
@@ -123,6 +124,7 @@ function baseDb(): MockDb {
       audience_label: "All",
       class_id: null,
       section_id: null,
+      activity_team_id: null,
       status: "draft",
       scheduled_at: null,
       published_at: null,
@@ -144,6 +146,7 @@ function baseDb(): MockDb {
       audience_label: "Teachers",
       class_id: null,
       section_id: null,
+      activity_team_id: null,
       status: "published",
       scheduled_at: null,
       published_at: "2026-08-01T00:00:00.000Z",
@@ -165,6 +168,7 @@ function baseDb(): MockDb {
       audience_label: null,
       class_id: null,
       section_id: null,
+      activity_team_id: null,
       status: "published",
       scheduled_at: null,
       published_at: "2026-08-01T00:00:00.000Z",
@@ -346,5 +350,137 @@ describe("announcements api", () => {
       headers: { Authorization: "Bearer token-admin" },
     });
     expect(res.status).toBe(403);
+  });
+
+  it("fans out inbox notifications when an announcement is published", async () => {
+    const db = baseDb();
+    db.announcement = [];
+    db.notification = [];
+    db.notification_recipient = [];
+    const app = appWithDb(db);
+
+    const created = await app.request("/api/v1/announcements", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-admin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        title: "Holiday notice",
+        body: "School closed Friday",
+        audience_scope: "parents",
+        publish_now: true,
+      }),
+    });
+    expect(created.status).toBe(201);
+    expect(db.notification.length).toBe(1);
+    expect(db.notification[0]?.category).toBe("announcements");
+    expect(db.notification_recipient.length).toBeGreaterThan(0);
+    expect(db.notification_recipient.some((r) => r.user_profile_id === USER_PARENT)).toBe(
+      true,
+    );
+    expect(db.notification[0]?.deep_link).toMatch(/^\/announcements\//);
+  });
+
+  it("records a view for published announcements", async () => {
+    const app = appWithDb(baseDb());
+    const res = await app.request(`/api/v1/announcements/${ANN_PUB}/view`, {
+      method: "POST",
+      headers: { Authorization: "Bearer token-parent" },
+    });
+    expect(res.status).toBe(200);
+    expect((await json(res)).data.views).toBe(11);
+  });
+
+  it("auto-publishes due scheduled announcements on list", async () => {
+    const db = baseDb();
+    const ANN_DUE = "ae555555-5555-4555-8555-555555555555";
+    db.announcement.push({
+      id: ANN_DUE,
+      institute_id: INST_A,
+      title: "Due notice",
+      body: "Should publish now",
+      audience_scope: "parents",
+      audience_label: "Parents",
+      class_id: null,
+      section_id: null,
+      status: "scheduled",
+      scheduled_at: "2020-01-01T09:00:00.000Z",
+      published_at: null,
+      archived_at: null,
+      pinned: false,
+      pin_until: null,
+      views: 0,
+      created_by_user_id: USER_ADMIN,
+      created_at: "2026-08-01T00:00:00.000Z",
+      updated_at: "2026-08-01T00:00:00.000Z",
+      deleted_at: null,
+    });
+    db.notification = [];
+    db.notification_recipient = [];
+    const app = appWithDb(db);
+
+    const list = await app.request(
+      `/api/v1/announcements?institute_id=${INST_A}`,
+      { headers: { Authorization: "Bearer token-parent" } },
+    );
+    expect(list.status).toBe(200);
+    const rows = (await json(list)).data as Array<{ id: string; status: string }>;
+    expect(rows.some((r) => r.id === ANN_DUE && r.status === "published")).toBe(true);
+    expect(db.notification.length).toBe(1);
+  });
+
+  it("allows teacher to publish activity_team announcements", async () => {
+    const db = baseDb();
+    db.activity_section = [
+      {
+        id: "a0111111-1111-4111-8111-111111111111",
+        institute_id: INST_A,
+        domain: "sports",
+        sports_category: "outdoor",
+        name: "Cricket",
+        slug: "cricket",
+        description: null,
+        status: "active",
+        created_by_user_id: USER_ADMIN,
+        created_at: "2026-08-01T00:00:00.000Z",
+        updated_at: "2026-08-01T00:00:00.000Z",
+        deleted_at: null,
+      },
+    ];
+    db.activity_team = [
+      {
+        id: "a0333333-3333-4333-8333-333333333333",
+        institute_id: INST_A,
+        section_id: "a0111111-1111-4111-8111-111111111111",
+        kind: "team",
+        name: "Team A",
+        status: "active",
+        created_by_user_id: USER_ADMIN,
+        created_at: "2026-08-01T00:00:00.000Z",
+        updated_at: "2026-08-01T00:00:00.000Z",
+        deleted_at: null,
+      },
+    ];
+    const app = appWithDb(db);
+
+    const res = await app.request("/api/v1/announcements", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-teacher",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        title: "Team practice moved",
+        body: "Report at 4 PM",
+        audience_scope: "activity_team",
+        activity_team_id: "a0333333-3333-4333-8333-333333333333",
+        publish_now: true,
+      }),
+    });
+    expect(res.status).toBe(201);
+    expect((await json(res)).data.audienceScope).toBe("activity_team");
   });
 });

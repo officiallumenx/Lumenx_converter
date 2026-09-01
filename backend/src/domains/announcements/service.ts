@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AppError } from "../../errors/app-error.js";
+import { ensureDbOk } from "../../db/errors.js";
 import type { Actor } from "../../auth/types.js";
 import {
   assertInstituteAccess,
@@ -7,12 +8,19 @@ import {
   actorHasInstituteRole,
   requireInstituteId,
 } from "../../authorization/index.js";
-import { listEnrollmentsForStudents } from "../academics/repository.js";
+import { listEnrollments, listEnrollmentsForStudents } from "../academics/repository.js";
+import { listLinksForStudentIds } from "../parents/repository.js";
 import { listGuardianStudentIds } from "../students/repository.js";
+import { listMemberships } from "../activity/repository.js";
+import { resolveActivityTeamRecipientUserIds } from "../activity/service.js";
+import { emitNotificationForActor, emitNotificationForInstituteSystem } from "../notifications/service.js";
+import type { NotificationAudience } from "../notifications/types.js";
 import {
   findAnnouncementById,
+  incrementAnnouncementViews,
   insertAnnouncement,
   listAnnouncements,
+  listDueScheduledAnnouncements,
   softDeleteAnnouncement,
   toAnnouncementUpdatePatch,
   updateAnnouncementFields,
@@ -33,6 +41,17 @@ export const ANNOUNCEMENT_WRITE_ROLES = [
   "vice_principal",
   "coordinator",
   "it_admin",
+] as const;
+
+/** Teachers/coordinators may post activity-team scoped announcements. */
+export const ACTIVITY_TEAM_ANNOUNCEMENT_WRITE_ROLES = [
+  "institute_admin",
+  "principal",
+  "vice_principal",
+  "coordinator",
+  "it_admin",
+  "staff",
+  "teacher",
 ] as const;
 
 export const ANNOUNCEMENT_STAFF_READ_ROLES = [
@@ -57,6 +76,7 @@ export function toAnnouncementDto(row: AnnouncementRow): AnnouncementDto {
     audienceLabel: row.audience_label,
     classId: row.class_id,
     sectionId: row.section_id,
+    activityTeamId: row.activity_team_id,
     status: row.status,
     scheduledAt: row.scheduled_at,
     publishedAt: row.published_at,
@@ -128,6 +148,19 @@ async function actorMatchesAudience(
           (row.section_id == null || e.section_id === row.section_id),
       );
     }
+    case "activity_team": {
+      if (!row.activity_team_id) return false;
+      const linked = await resolveLinkedStudentIds(admin, actor, instituteId);
+      if (linked.size === 0) return false;
+      const memberships = await listMemberships(
+        admin,
+        instituteId,
+        row.activity_team_id,
+      );
+      return memberships.some(
+        (m) => m.status === "active" && linked.has(m.student_id),
+      );
+    }
     default:
       return false;
   }
@@ -175,6 +208,29 @@ function assertAudienceClasses(
   }
 }
 
+function assertAudienceActivityTeam(
+  scope: AnnouncementAudienceScope,
+  activityTeamId: string | null | undefined,
+): void {
+  if (scope === "activity_team" && !activityTeamId) {
+    throw AppError.validation("Referenced resource is invalid", {
+      audience_scope: ["activity_team scope requires activity_team_id"],
+    });
+  }
+}
+
+function assertCanWriteAnnouncement(
+  actor: Actor,
+  instituteId: string,
+  audienceScope: AnnouncementAudienceScope,
+): void {
+  const roles =
+    audienceScope === "activity_team"
+      ? ACTIVITY_TEAM_ANNOUNCEMENT_WRITE_ROLES
+      : ANNOUNCEMENT_WRITE_ROLES;
+  assertInstituteRoles(actor, instituteId, [...roles]);
+}
+
 function assertTitle(title: string): string {
   const trimmed = title.trim();
   if (!trimmed) {
@@ -185,12 +241,180 @@ function assertTitle(title: string): string {
   return trimmed;
 }
 
+function mapAnnouncementAudience(
+  scope: AnnouncementAudienceScope,
+): NotificationAudience {
+  switch (scope) {
+    case "students":
+      return "students";
+    case "parents":
+      return "parents";
+    case "teachers":
+      return "teachers";
+    case "all":
+    case "classes":
+    default:
+      return "everyone";
+  }
+}
+
+async function resolveClassAudienceUserIds(
+  admin: SupabaseClient,
+  instituteId: string,
+  classId: string | null,
+  sectionId: string | null,
+): Promise<string[]> {
+  const enrollments = await listEnrollments(admin, {
+    instituteId,
+    classId: classId ?? undefined,
+    sectionId: sectionId ?? undefined,
+    status: "active",
+  });
+  if (enrollments.length === 0) return [];
+
+  const studentIds = [...new Set(enrollments.map((e) => e.student_id))];
+  const studentResult = await admin
+    .from("student")
+    .select("id, user_profile_id")
+    .eq("institute_id", instituteId)
+    .in("id", studentIds)
+    .is("deleted_at", null);
+  if (studentResult.error) {
+    ensureDbOk(studentResult);
+  }
+  const students = (studentResult.data ?? []) as Array<{
+    id: string;
+    user_profile_id: string | null;
+  }>;
+
+  const profileIds = new Set<string>();
+  for (const s of students) {
+    if (s.user_profile_id) profileIds.add(s.user_profile_id);
+  }
+
+  const links = await listLinksForStudentIds(admin, studentIds, instituteId);
+  const parentIds = [...new Set(links.map((l) => l.parent_id))];
+  if (parentIds.length > 0) {
+    const parentResult = await admin
+      .from("parent")
+      .select("id, user_profile_id")
+      .eq("institute_id", instituteId)
+      .in("id", parentIds)
+      .is("deleted_at", null);
+    if (parentResult.error) {
+      ensureDbOk(parentResult);
+    }
+    for (const p of (parentResult.data ?? []) as Array<{
+      user_profile_id: string | null;
+    }>) {
+      if (p.user_profile_id) profileIds.add(p.user_profile_id);
+    }
+  }
+
+  return [...profileIds];
+}
+
+async function fanOutAnnouncementNotification(
+  admin: SupabaseClient,
+  actor: Actor,
+  row: AnnouncementRow,
+  options?: { systemEmit?: boolean },
+): Promise<void> {
+  const body = (row.body ?? row.title).trim();
+  if (!body) return;
+
+  const deepLink = `/announcements/${row.id}`;
+  const base = {
+    instituteId: row.institute_id,
+    category: "announcements" as const,
+    priority: row.pinned ? ("important" as const) : ("normal" as const),
+    title: row.title.trim(),
+    body,
+    deepLink,
+    dedupeKey: `announcement:${row.id}`,
+    payload: {
+      announcementId: row.id,
+      audienceScope: row.audience_scope,
+      audienceLabel: row.audience_label,
+    },
+  };
+
+  const emit = options?.systemEmit
+    ? (input: Parameters<typeof emitNotificationForInstituteSystem>[2]) =>
+        emitNotificationForInstituteSystem(admin, row.created_by_user_id, input)
+    : (input: Parameters<typeof emitNotificationForActor>[2]) =>
+        emitNotificationForActor(admin, actor, input);
+
+  try {
+    if (row.audience_scope === "classes") {
+      const recipientUserIds = await resolveClassAudienceUserIds(
+        admin,
+        row.institute_id,
+        row.class_id,
+        row.section_id,
+      );
+      if (recipientUserIds.length === 0) return;
+      await emit({
+        ...base,
+        recipientUserIds,
+      });
+      return;
+    }
+
+    if (row.audience_scope === "activity_team" && row.activity_team_id) {
+      const recipientUserIds = await resolveActivityTeamRecipientUserIds(
+        admin,
+        row.institute_id,
+        row.activity_team_id,
+      );
+      if (recipientUserIds.length === 0) return;
+      await emit({
+        ...base,
+        recipientUserIds,
+      });
+      return;
+    }
+
+    await emit({
+      ...base,
+      audience: mapAnnouncementAudience(row.audience_scope),
+    });
+  } catch (err) {
+    if (err instanceof AppError && err.status === 400) return;
+    throw err;
+  }
+}
+
+async function publishDueScheduledAnnouncements(
+  admin: SupabaseClient,
+  actor: Actor,
+  instituteId: string,
+): Promise<void> {
+  const due = await listDueScheduledAnnouncements(
+    admin,
+    instituteId,
+    new Date().toISOString(),
+  );
+  for (const row of due) {
+    const updated = await updateAnnouncementFields(admin, row.id, {
+      status: "published",
+      published_at: new Date().toISOString(),
+      scheduled_at: null,
+      archived_at: null,
+    });
+    if (updated) {
+      await fanOutAnnouncementNotification(admin, actor, updated, { systemEmit: true });
+    }
+  }
+}
+
 export async function listAnnouncementsForActor(
   admin: SupabaseClient,
   actor: Actor,
   filter: ListAnnouncementsFilter,
 ): Promise<AnnouncementDto[]> {
   const instituteId = requireInstituteId(actor, filter.instituteId);
+  await publishDueScheduledAnnouncements(admin, actor, instituteId);
   const rows = await listAnnouncements(admin, {
     ...filter,
     instituteId,
@@ -217,12 +441,12 @@ export async function createAnnouncementForActor(
   input: CreateAnnouncementInput,
 ): Promise<AnnouncementDto> {
   const instituteId = requireInstituteId(actor, input.instituteId);
-  assertInstituteRoles(actor, instituteId, [...ANNOUNCEMENT_WRITE_ROLES]);
+  const audienceScope = input.audienceScope ?? "all";
+  assertCanWriteAnnouncement(actor, instituteId, audienceScope);
+  assertAudienceClasses(audienceScope, input.classId, input.sectionId);
+  assertAudienceActivityTeam(audienceScope, input.activityTeamId);
 
   const title = assertTitle(input.title);
-  const audienceScope = input.audienceScope ?? "all";
-  assertAudienceClasses(audienceScope, input.classId, input.sectionId);
-
   let status: AnnouncementStatus = "draft";
   let scheduledAt: string | null = null;
   let publishedAt: string | null = null;
@@ -245,6 +469,9 @@ export async function createAnnouncementForActor(
     scheduledAt,
     publishedAt,
   });
+  if (status === "published") {
+    await fanOutAnnouncementNotification(admin, actor, row);
+  }
   return toAnnouncementDto(row);
 }
 
@@ -257,7 +484,8 @@ export async function updateAnnouncementForActor(
   const existing = await findAnnouncementById(admin, id);
   if (!existing) throw AppError.notFound("Announcement not found");
   assertInstituteAccess(actor, existing.institute_id);
-  assertInstituteRoles(actor, existing.institute_id, [...ANNOUNCEMENT_WRITE_ROLES]);
+  const nextScope = input.audienceScope ?? existing.audience_scope;
+  assertCanWriteAnnouncement(actor, existing.institute_id, nextScope);
 
   if (existing.status === "archived") {
     throw AppError.conflict("Archived announcements cannot be edited");
@@ -265,12 +493,16 @@ export async function updateAnnouncementForActor(
 
   if (input.title !== undefined) assertTitle(input.title);
 
-  const nextScope = input.audienceScope ?? existing.audience_scope;
   const nextClass =
     input.classId !== undefined ? input.classId : existing.class_id;
   const nextSection =
     input.sectionId !== undefined ? input.sectionId : existing.section_id;
+  const nextActivityTeam =
+    input.activityTeamId !== undefined
+      ? input.activityTeamId
+      : existing.activity_team_id;
   assertAudienceClasses(nextScope, nextClass, nextSection);
+  assertAudienceActivityTeam(nextScope, nextActivityTeam);
 
   const patch = toAnnouncementUpdatePatch(input);
 
@@ -319,6 +551,7 @@ export async function publishAnnouncementForActor(
     archived_at: null,
   });
   if (!updated) throw AppError.notFound("Announcement not found");
+  await fanOutAnnouncementNotification(admin, actor, updated);
   return toAnnouncementDto(updated);
 }
 
@@ -363,4 +596,20 @@ export async function deleteAnnouncementForActor(
 
   const deleted = await softDeleteAnnouncement(admin, id);
   if (!deleted) throw AppError.notFound("Announcement not found");
+}
+
+export async function recordAnnouncementViewForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  id: string,
+): Promise<AnnouncementDto> {
+  const existing = await findAnnouncementById(admin, id);
+  if (!existing) throw AppError.notFound("Announcement not found");
+  await assertCanReadAnnouncement(admin, actor, existing);
+  if (existing.status !== "published") {
+    return toAnnouncementDto(existing);
+  }
+  const updated = await incrementAnnouncementViews(admin, id);
+  if (!updated) throw AppError.notFound("Announcement not found");
+  return toAnnouncementDto(updated);
 }

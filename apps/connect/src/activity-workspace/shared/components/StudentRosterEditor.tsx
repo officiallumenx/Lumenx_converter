@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Users, UserPlus, X } from "lucide-react";
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@lumenx/ui";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { useApp } from "@/lib/app-state";
+import { listStudents } from "@/lib/students/api";
 import { teacherRepository } from "@/lib/teacher/repositories";
 import type { TeacherStudent } from "@/lib/teacher/types";
 import { ActivityEmptyState } from "@/activity-workspace/shared/ui/ActivityEmptyState";
@@ -22,8 +25,34 @@ function toHierarchyStudent(s: TeacherStudent): HierarchyStudent {
   };
 }
 
+function apiStudentToTeacherStudent(row: {
+  id: string;
+  displayName: string;
+  classLabel: string | null;
+  sectionLabel: string | null;
+  rollNo: string | null;
+}): TeacherStudent {
+  const className = row.classLabel ?? "—";
+  const section = row.sectionLabel ?? "—";
+  return {
+    id: row.id,
+    name: row.displayName,
+    roll: row.rollNo ?? "—",
+    classId: `${className}-${section}`,
+    className,
+    section,
+    attendancePct: 0,
+    homeworkSubmissionPct: 0,
+    avgScore: 0,
+    grade: "—",
+    avatarInitials: row.displayName.slice(0, 2).toUpperCase(),
+  };
+}
+
 /** Add students to a Sports team or ECA group — institute roster filtered by class and section. */
 export function StudentRosterEditor({ students, onChange, unitLabel = "unit" }: Props) {
+  const { activeInstituteId } = useApp();
+  const apiMode = isApiAuthMode();
   const [classFilter, setClassFilter] = useState("");
   const [sectionFilter, setSectionFilter] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -34,15 +63,25 @@ export function StudentRosterEditor({ students, onChange, unitLabel = "unit" }: 
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    void Promise.all([
-      teacherRepository.getInstituteClassNames(),
-      teacherRepository.getStudents(),
-    ]).then(([classes, roster]) => {
+    void (async () => {
+      if (apiMode && activeInstituteId) {
+        const rows = await listStudents({ instituteId: activeInstituteId, status: "active" });
+        const roster = rows.map(apiStudentToTeacherStudent);
+        const classes = [...new Set(roster.map((s) => s.className))].sort();
+        setClassNames(classes);
+        setInstituteRoster(roster);
+        setLoading(false);
+        return;
+      }
+      const [classes, roster] = await Promise.all([
+        teacherRepository.getInstituteClassNames(),
+        teacherRepository.getStudents(),
+      ]);
       setClassNames(classes);
       setInstituteRoster(roster);
       setLoading(false);
-    });
-  }, []);
+    })();
+  }, [apiMode, activeInstituteId]);
 
   useEffect(() => {
     if (!classFilter) {

@@ -152,7 +152,7 @@ const NAV: { to: string; label: string; icon: typeof Home; roles: Role[] }[] = [
   },
   { to: "/events", label: "Events", icon: CalendarDays, roles: ["parent", "teacher", "student"] },
   { to: "/teachers", label: "Teachers", icon: Users, roles: ["parent", "student"] },
-  { to: "/sports", label: "Sports", icon: Trophy, roles: ["parent", "student"] },
+  { to: "/activities", label: "Activities", icon: Trophy, roles: ["parent", "student"] },
   { to: "/growth", label: "Growth", icon: Sparkles, roles: ["parent", "student"] },
   { to: "/id-card", label: "ID Card", icon: FileText, roles: ["parent", "student"] },
   {

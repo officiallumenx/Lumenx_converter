@@ -9,7 +9,7 @@ import type {
 } from "./types.js";
 
 export const ANNOUNCEMENT_COLS =
-  "id, institute_id, title, body, audience_scope, audience_label, class_id, section_id, status, scheduled_at, published_at, archived_at, pinned, pin_until, views, created_by_user_id, created_at, updated_at, deleted_at";
+  "id, institute_id, title, body, audience_scope, audience_label, class_id, section_id, activity_team_id, status, scheduled_at, published_at, archived_at, pinned, pin_until, views, created_by_user_id, created_at, updated_at, deleted_at";
 
 export async function listAnnouncements(
   admin: SupabaseClient,
@@ -64,6 +64,7 @@ export async function insertAnnouncement(
       audience_label: input.audienceLabel ?? null,
       class_id: input.classId ?? null,
       section_id: input.sectionId ?? null,
+      activity_team_id: input.activityTeamId ?? null,
       status: input.status,
       scheduled_at: input.scheduledAt,
       published_at: input.publishedAt,
@@ -92,6 +93,9 @@ export function toAnnouncementUpdatePatch(
   }
   if (input.classId !== undefined) patch.class_id = input.classId;
   if (input.sectionId !== undefined) patch.section_id = input.sectionId;
+  if (input.activityTeamId !== undefined) {
+    patch.activity_team_id = input.activityTeamId;
+  }
   if (input.scheduledAt !== undefined) patch.scheduled_at = input.scheduledAt;
   if (input.pinned !== undefined) patch.pinned = input.pinned;
   if (input.pinUntil !== undefined) patch.pin_until = input.pinUntil;
@@ -121,6 +125,39 @@ export async function softDeleteAnnouncement(
   const result = await admin
     .from("announcement")
     .update({ deleted_at: new Date().toISOString() })
+    .eq("id", id)
+    .is("deleted_at", null)
+    .select(ANNOUNCEMENT_COLS)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (result.data as AnnouncementRow | null) ?? null;
+}
+
+export async function listDueScheduledAnnouncements(
+  admin: SupabaseClient,
+  instituteId: string,
+  nowIso: string,
+): Promise<AnnouncementRow[]> {
+  const result = await admin
+    .from("announcement")
+    .select(ANNOUNCEMENT_COLS)
+    .eq("institute_id", instituteId)
+    .eq("status", "scheduled")
+    .lte("scheduled_at", nowIso)
+    .is("deleted_at", null);
+  return ensureDbOk(result) as AnnouncementRow[];
+}
+
+export async function incrementAnnouncementViews(
+  admin: SupabaseClient,
+  id: string,
+): Promise<AnnouncementRow | null> {
+  const existing = await findAnnouncementById(admin, id);
+  if (!existing) return null;
+
+  const result = await admin
+    .from("announcement")
+    .update({ views: existing.views + 1 })
     .eq("id", id)
     .is("deleted_at", null)
     .select(ANNOUNCEMENT_COLS)

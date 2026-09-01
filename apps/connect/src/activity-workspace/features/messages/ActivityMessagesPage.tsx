@@ -61,6 +61,7 @@ export function ActivityMessagesPage() {
         body: body.trim(),
         activityType: domain,
         unitLabels: [label],
+        unitIds: [selected.id],
       });
       toast.success("Message sent", {
         description: `${label} · also noted in Notifications`,

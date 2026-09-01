@@ -15,6 +15,7 @@ import {
   getAnnouncementForActor,
   listAnnouncementsForActor,
   publishAnnouncementForActor,
+  recordAnnouncementViewForActor,
   updateAnnouncementForActor,
 } from "../../domains/announcements/service.js";
 
@@ -40,6 +41,7 @@ const audienceScopeSchema = z.enum([
   "parents",
   "teachers",
   "classes",
+  "activity_team",
 ]);
 
 announcements.get("/", async (c) => {
@@ -75,6 +77,7 @@ announcements.post("/", async (c) => {
       audience_label: z.string().max(300).nullable().optional(),
       class_id: uuid.nullable().optional(),
       section_id: uuid.nullable().optional(),
+      activity_team_id: uuid.nullable().optional(),
       scheduled_at: z.string().datetime({ offset: true }).nullable().optional(),
       publish_now: z.boolean().optional(),
       pinned: z.boolean().optional(),
@@ -91,6 +94,7 @@ announcements.post("/", async (c) => {
     audienceLabel: body.audience_label,
     classId: body.class_id,
     sectionId: body.section_id,
+    activityTeamId: body.activity_team_id,
     scheduledAt: body.scheduled_at,
     publishNow: body.publish_now,
     pinned: body.pinned,
@@ -119,6 +123,7 @@ announcements.patch("/:id", async (c) => {
       audience_label: z.string().max(300).nullable().optional(),
       class_id: uuid.nullable().optional(),
       section_id: uuid.nullable().optional(),
+      activity_team_id: uuid.nullable().optional(),
       scheduled_at: z.string().datetime({ offset: true }).nullable().optional(),
       pinned: z.boolean().optional(),
       pin_until: z.string().datetime({ offset: true }).nullable().optional(),
@@ -133,6 +138,7 @@ announcements.patch("/:id", async (c) => {
     audienceLabel: body.audience_label,
     classId: body.class_id,
     sectionId: body.section_id,
+    activityTeamId: body.activity_team_id,
     scheduledAt: body.scheduled_at,
     pinned: body.pinned,
     pinUntil: body.pin_until,
@@ -153,6 +159,14 @@ announcements.post("/:id/archive", async (c) => {
   const admin = requireAdmin(c);
   const { id } = validateParams(idParamsSchema, c.req.param());
   const data = await archiveAnnouncementForActor(admin, actor, id);
+  return c.json({ data });
+});
+
+announcements.post("/:id/view", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const data = await recordAnnouncementViewForActor(admin, actor, id);
   return c.json({ data });
 });
 
