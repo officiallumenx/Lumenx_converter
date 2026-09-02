@@ -33,7 +33,7 @@ import {
   adminWriteBlockReason,
   canAdminMutate,
 } from "@/lib/admin-write-access";
-import { syncAdminSubscriptionAccess } from "@/lib/sync-admin-subscription-access";
+import { syncAdminSubscriptionAccess, syncAdminSubscriptionAccessFromApi } from "@/lib/sync-admin-subscription-access";
 import {
   getInitials,
   subscribeSubscriptions,
@@ -93,14 +93,15 @@ function AcademicYearLockSync() {
 
   useEffect(() => {
     try {
-      syncAdminSubscriptionAccess();
       if (apiMode) {
         if (instituteCtx.status !== "ready" || !instituteCtx.activeInstituteId) {
           syncAcademicYearLocked({ locked: true, yearLabel: undefined });
           return;
         }
+        const instituteId = instituteCtx.activeInstituteId;
         let cancelled = false;
-        void loadAcademicYearsList(instituteCtx.activeInstituteId).then((next) => {
+        void syncAdminSubscriptionAccessFromApi(instituteId);
+        void loadAcademicYearsList(instituteId).then((next) => {
           if (cancelled) return;
           const active = next.items.find((y) => y.status === "active");
           syncAcademicYearLocked({
@@ -112,6 +113,7 @@ function AcademicYearLockSync() {
           cancelled = true;
         };
       }
+      syncAdminSubscriptionAccess();
       const active = loadAcademicYears().find((y) => y.status === "active");
       syncAcademicYearLocked({
         locked: !active,

@@ -24,7 +24,10 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { InstituteBillingPanel } from "@/components/billing/InstituteBillingPanel";
 import { InstituteSubscriptionPricingPanel } from "@/components/billing/InstituteSubscriptionPricingPanel";
+import { InstituteSubscriptionPricingApiPanel } from "@/components/billing/InstituteSubscriptionPricingApiPanel";
 import { NexusSubscriptionBillingHistoryPanel } from "@/components/billing/NexusSubscriptionBillingHistoryPanel";
+import { NexusSubscriptionBillingHistoryApiPanel } from "@/components/billing/NexusSubscriptionBillingHistoryApiPanel";
+import { isNexusApiMode } from "@/lib/auth-mode";
 import {
   activateInstitute,
   archiveInstitute,
@@ -205,12 +208,23 @@ function InstituteDetailPage() {
       </div>
 
       {/* 1. Subscription pricing (SoT) — Nexus assigns rate; Admin cannot edit */}
-      <InstituteSubscriptionPricingPanel instituteId={id} />
+      {isNexusApiMode() ? (
+        <InstituteSubscriptionPricingApiPanel
+          instituteId={id}
+          instituteName={inst.name}
+        />
+      ) : (
+        <InstituteSubscriptionPricingPanel instituteId={id} />
+      )}
 
-      <NexusSubscriptionBillingHistoryPanel instituteId={id} />
+      {isNexusApiMode() ? (
+        <NexusSubscriptionBillingHistoryApiPanel instituteId={id} />
+      ) : (
+        <NexusSubscriptionBillingHistoryPanel instituteId={id} />
+      )}
 
       {/* 2. Invoices / renewals (legacy demo tooling — not plan tiers) */}
-      <InstituteBillingPanel instituteId={id} />
+      {!isNexusApiMode() ? <InstituteBillingPanel instituteId={id} /> : null}
 
       {/* 3. Tenure on platform */}
       <Card className="mb-4">

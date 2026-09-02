@@ -31,6 +31,8 @@ import {
   Layers,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { isNexusApiMode } from "@/lib/auth-mode";
+import { ModulesLicensesApiPanel } from "@/components/modules/ModulesLicensesApiPanel";
 import {
   syncDirectoryFromLicense,
   listPlatformInstitutes,
@@ -60,6 +62,23 @@ export const Route = createFileRoute("/modules")({
   head: () => ({ meta: [{ title: "Module entitlements — LumenX Nexus" }] }),
   component: ModulesPage,
 });
+
+function ModulesPage() {
+  if (isNexusApiMode()) {
+    const institutes = listPlatformInstitutes()
+      .filter((i) => i.status !== "archived")
+      .map((i) => ({ id: i.id, name: i.name }));
+    return (
+      <AppShell
+        title="Module entitlements"
+        subtitle="Plan + admin module grants · live licenses API"
+      >
+        <ModulesLicensesApiPanel institutes={institutes} />
+      </AppShell>
+    );
+  }
+  return <ModulesDemoPage />;
+}
 
 type SurfaceTab = "admin" | "connect" | "careers" | "admissions" | "transport";
 
@@ -99,7 +118,7 @@ function mirrorDirectory(license: InstituteLicense) {
   });
 }
 
-function ModulesPage() {
+function ModulesDemoPage() {
   const [tick, setTick] = useState(0);
   const [surface, setSurface] = useState<SurfaceTab>("admin");
   const [connectPortal, setConnectPortal] = useState<ConnectPortalId>("teachers");

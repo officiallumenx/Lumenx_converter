@@ -23,9 +23,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInstituteContext } from "@/lib/institutes";
 import {
   getSubscriptionQuotes,
+  getSubscriptionHistory,
   loadSubscriptionDetail,
   performOfflinePaymentSubmit,
   type InstituteSubscriptionDetailDto,
+  type InstituteSubscriptionHistoryDto,
   type OfflinePaymentSubmissionDto,
   type SubscriptionQuoteDto,
 } from "@/lib/subscriptions";
@@ -72,6 +74,76 @@ function PendingSubmissionCard({ submission }: { submission: OfflinePaymentSubmi
         {submission.proofLabel ? (
           <Detail label="Proof" value={submission.proofLabel} />
         ) : null}
+      </div>
+    </Card>
+  );
+}
+
+function SubscriptionApiHistoryCard({ instituteId }: { instituteId: string | null }) {
+  const [history, setHistory] = useState<InstituteSubscriptionHistoryDto | null>(null);
+
+  useEffect(() => {
+    if (!instituteId) {
+      setHistory(null);
+      return;
+    }
+    let cancelled = false;
+    void getSubscriptionHistory(instituteId)
+      .then((rows) => {
+        if (!cancelled) setHistory(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setHistory(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [instituteId]);
+
+  if (!history) return null;
+  const renewals = history.renewals ?? [];
+  const payments = history.payments ?? [];
+  if (renewals.length === 0 && payments.length === 0) {
+    return (
+      <Card>
+        <CardHeader title="Billing history" hint="From GET /api/v1/subscriptions/history" />
+        <p className="px-5 pb-5 text-sm text-muted-foreground">No renewals or payments yet.</p>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader title="Billing history" hint="Renewals and payments from the billing API" />
+      <div className="px-5 pb-5 space-y-3">
+        {renewals.slice(0, 8).map((row) => (
+          <div
+            key={row.id}
+            className="rounded-lg border border-border px-3 py-2.5 text-xs flex flex-wrap items-center justify-between gap-2"
+          >
+            <div>
+              <div className="font-medium">{row.invoiceNumber}</div>
+              <div className="text-muted-foreground">
+                {formatDateTime(row.periodStartsAt)} → {formatDateTime(row.periodEndsAt)}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="font-mono font-semibold">{formatInr(row.payableAmountInr)}</div>
+              <Pill tone={row.status === "paid" ? "success" : "neutral"}>{row.status}</Pill>
+            </div>
+          </div>
+        ))}
+        {payments.slice(0, 8).map((row) => (
+          <div
+            key={row.id}
+            className="rounded-md border border-border px-3 py-2 text-xs flex flex-wrap items-center justify-between gap-2"
+          >
+            <div className="text-muted-foreground">
+              Payment · {row.method} · {formatDateTime(row.recordedAt)}
+            </div>
+            <div className="font-mono font-semibold">{formatInr(row.amountInr)}</div>
+          </div>
+        ))}
       </div>
     </Card>
   );
@@ -239,6 +311,8 @@ export function SubscriptionApiPage() {
       ) : null}
 
       {pending ? <PendingSubmissionCard submission={pending} /> : null}
+
+      <SubscriptionApiHistoryCard instituteId={instituteCtx.activeInstituteId} />
 
       {step === "submitted" && !pending ? (
         <Card className="border-emerald-500/35 bg-emerald-500/5">

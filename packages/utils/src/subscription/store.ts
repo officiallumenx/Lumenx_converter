@@ -916,6 +916,44 @@ export function syncAdminReadOnlyFromSubscription(instituteId: string): void {
   syncReadOnlyFlag(sub);
 }
 
+/**
+ * Replace local subscription row with API/DB truth (Admin API mode hydrate).
+ * Does not invent trial windows — uses lifecycle/period from the server as-is.
+ */
+export function hydrateInstituteSubscriptionFromApi(
+  input: InstituteSubscription,
+): InstituteSubscription {
+  const next = refreshLifecycle({
+    ...input,
+    instituteName: input.instituteName.trim() || "Institute",
+    assignedRateInr: normalizeAssignedRate(input.assignedRateInr),
+    activeStudentCount: Math.max(0, Math.round(input.activeStudentCount)),
+    updatedAt: nowIso(),
+  });
+  const state = readState();
+  writeState(upsertSubscription(state, next));
+  syncReadOnlyFlag(next);
+  return next;
+}
+
+/** Remove local subscription row when API has no subscription for the institute. */
+export function clearInstituteSubscriptionLocal(instituteId: string): void {
+  const state = readState();
+  const nextSubs = state.subscriptions.filter((s) => s.instituteId !== instituteId);
+  if (nextSubs.length === state.subscriptions.length) {
+    savePlatformReadOnlyState({
+      subscriptionExpired: false,
+      subscriptionMessage: undefined,
+    });
+    return;
+  }
+  writeState({ ...state, subscriptions: nextSubs });
+  savePlatformReadOnlyState({
+    subscriptionExpired: false,
+    subscriptionMessage: undefined,
+  });
+}
+
 /** Full immutable billing history for an institute (subscription + renewals + payments + adjustments). */
 export function getInstituteBillingHistory(instituteId: string): {
   instituteId: string;

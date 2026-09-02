@@ -38,6 +38,8 @@ import {
   type RateQuotePeriod,
 } from "@/lib/institute-billing-store";
 import { subscribeSubscriptions } from "@lumenx/utils";
+import { isNexusApiMode } from "@/lib/auth-mode";
+import { BillingPortfolioApiPanel } from "@/components/billing/BillingPortfolioApiPanel";
 
 export const Route = createFileRoute("/billing")({
   head: () => ({ meta: [{ title: "Billing & Renewals — LumenX Nexus" }] }),
@@ -60,6 +62,23 @@ type PortfolioRow = {
 };
 
 function BillingPage() {
+  if (isNexusApiMode()) {
+    const institutes = listPlatformInstitutes()
+      .filter((i) => i.status !== "archived")
+      .map((i) => ({ id: i.id, name: i.name }));
+    return (
+      <AppShell
+        title="Billing & Renewals"
+        subtitle="Subscription portfolio · offline payment inbox · live API"
+      >
+        <BillingPortfolioApiPanel institutes={institutes} />
+      </AppShell>
+    );
+  }
+  return <BillingDemoPage />;
+}
+
+function BillingDemoPage() {
   const [tick, setTick] = useState(0);
   useEffect(() => {
     const a = subscribeInstituteBilling(() => setTick((t) => t + 1));
