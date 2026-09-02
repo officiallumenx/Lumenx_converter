@@ -12,6 +12,11 @@ import type {
   TimetableSlotDto,
 } from "./types";
 
+export type PublishSectionTimetableResult = {
+  sectionId: string;
+  activatedCount: number;
+};
+
 function assertApiMode(): void {
   if (!isApiAuthMode()) {
     throw new Error("Timetable API is only available in API auth mode");
@@ -63,5 +68,22 @@ export async function listTeacherAssignments(
 
   return client.get<TeacherAssignmentDto[]>(
     `/api/v1/timetable/assignments?${query.toString()}`,
+  );
+}
+
+export async function publishSectionTimetable(
+  params: { instituteId: string; sectionId: string },
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<PublishSectionTimetableResult> {
+  assertApiMode();
+  if (!isInstituteUuid(params.instituteId) || !isInstituteUuid(params.sectionId)) {
+    throw new Error("institute_id and section_id must be valid UUIDs");
+  }
+  return client.post<PublishSectionTimetableResult>(
+    "/api/v1/timetable/publish-section",
+    {
+      institute_id: params.instituteId.trim(),
+      section_id: params.sectionId.trim(),
+    },
   );
 }

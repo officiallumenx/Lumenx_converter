@@ -13,6 +13,8 @@ import { listActiveEnrollmentsForStudents } from "../homework/repository.js";
 import { findTeacherById } from "../teachers/repository.js";
 import {
   findActiveAssignmentById,
+  findAssignmentIdsForTeacher,
+  listTeacherAssignments,
   listTimetableSlots,
 } from "./repository.js";
 import type { PortalTimetableDto, PortalTimetablePeriodDto } from "./types.js";
@@ -164,31 +166,45 @@ export async function getTeacherTimetableForActor(
     throw AppError.notFound("Teacher not found");
   }
 
-  const slots = await listTimetableSlots(
-    admin,
-    {
+  if (input.sectionId) {
+    const assignments = await listTeacherAssignments(admin, {
       instituteId,
       sectionId: input.sectionId,
-    },
-    undefined,
-  );
-
-  const filtered = [];
-  for (const slot of slots) {
-    const assignment = await findActiveAssignmentById(
-      admin,
-      slot.teacher_assignment_id,
-    );
-    if (assignment?.teacher_id === teacherId) {
-      filtered.push(slot);
+      teacherId,
+      status: "active",
+    });
+    if (assignments.length === 0) {
+      throw AppError.forbidden("Insufficient permissions");
     }
+
+    const slots = await listTimetableSlots(admin, {
+      instituteId,
+      sectionId: input.sectionId,
+    });
+    const periods = await slotsToPortalPeriods(admin, slots);
+    return {
+      instituteId,
+      studentId: null,
+      sectionId: input.sectionId,
+      periods,
+      weekdays: weekdaysFromPeriods(periods),
+    };
   }
 
-  const periods = await slotsToPortalPeriods(admin, filtered);
+  const assignmentIds = await findAssignmentIdsForTeacher(admin, {
+    instituteId,
+    teacherId,
+  });
+  const slots = await listTimetableSlots(
+    admin,
+    { instituteId },
+    assignmentIds,
+  );
+  const periods = await slotsToPortalPeriods(admin, slots);
   return {
     instituteId,
     studentId: null,
-    sectionId: input.sectionId ?? null,
+    sectionId: null,
     periods,
     weekdays: weekdaysFromPeriods(periods),
   };

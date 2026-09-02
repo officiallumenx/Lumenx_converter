@@ -6,18 +6,23 @@ import {
   requireInstituteId,
 } from "../../authorization/index.js";
 import {
+  activateInactiveSlotsForSection,
   findActiveAssignmentById,
   findAssignmentIdsForTeacher,
   findSectionById,
+  findSubjectInInstitute,
   findTeacherInInstitute,
   findTimetableSlotById,
+  insertTeacherAssignment,
   insertTimetableSlot,
   listTeacherAssignments,
   listTimetableSlots,
   softDeleteTimetableSlot,
   updateTimetableSlot,
 } from "./repository.js";
+import { emitTimetableSectionPublishedNotifications } from "./notifications.js";
 import type {
+  CreateTeacherAssignmentInput,
   CreateTimetableSlotInput,
   ListTeacherAssignmentsFilter,
   ListTimetableSlotsFilter,
@@ -161,6 +166,53 @@ async function assertSectionMatchesGraph(
   }
 }
 
+export async function createAssignmentForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  input: CreateTeacherAssignmentInput,
+): Promise<TeacherAssignmentDto> {
+  const instituteId = requireInstituteId(actor, input.instituteId);
+  assertCanWriteTimetable(actor, instituteId);
+
+  await assertSectionMatchesGraph(admin, {
+    sectionId: input.sectionId,
+    instituteId,
+    academicYearId: input.academicYearId,
+    classId: input.classId,
+  });
+
+  const teacher = await findTeacherInInstitute(admin, {
+    teacherId: input.teacherId,
+    instituteId,
+  });
+  if (!teacher) {
+    throw AppError.validation("Referenced resource is invalid", {
+      teacher_id: ["Teacher not found in this institute"],
+    });
+  }
+
+  const subject = await findSubjectInInstitute(admin, {
+    subjectId: input.subjectId,
+    instituteId,
+  });
+  if (!subject) {
+    throw AppError.validation("Referenced resource is invalid", {
+      subject_id: ["Subject not found in this institute"],
+    });
+  }
+
+  const row = await insertTeacherAssignment(admin, {
+    instituteId,
+    academicYearId: input.academicYearId,
+    classId: input.classId,
+    sectionId: input.sectionId,
+    subjectId: input.subjectId,
+    teacherId: input.teacherId,
+    status: input.status ?? "active",
+  });
+  return toTeacherAssignmentDto(row);
+}
+
 export async function listAssignmentsForActor(
   admin: SupabaseClient,
   actor: Actor,
@@ -174,6 +226,7 @@ export async function listAssignmentsForActor(
     academicYearId: filter.academicYearId,
     sectionId: filter.sectionId,
     classId: filter.classId,
+    teacherId: filter.teacherId,
     status: filter.status ?? "active",
   });
   return rows.map(toTeacherAssignmentDto);
@@ -324,4 +377,54 @@ export async function deleteSlotForActor(
   const instituteId = requireInstituteId(actor, existing.institute_id);
   assertCanWriteTimetable(actor, instituteId);
   await softDeleteTimetableSlot(admin, slotId);
+}
+
+export async function publishSectionTimetableForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  input: { instituteId: string; sectionId: string },
+): Promise<{ sectionId: string; activatedCount: number }> {
+  const instituteId = requireInstituteId(actor, input.instituteId);
+  assertCanWriteTimetable(actor, instituteId);
+
+  const section = await findSectionById(admin, input.sectionId);
+  if (!section || section.institute_id !== instituteId) {
+    throw AppError.notFound("Section not found");
+  }
+
+  const activated = await activateInactiveSlotsForSection(admin, {
+    instituteId,
+    sectionId: input.sectionId,
+  });
+
+  if (activated.length > 0) {
+    const classRes = await admin
+      .from("class")
+      .select("name, code")
+      .eq("id", section.class_id)
+      .maybeSingle();
+    const classRow = classRes.data as { name: string | null; code: string | null } | null;
+    const classLabel =
+      classRow?.name?.trim() || classRow?.code?.trim() || "Class";
+
+    const sectionRes = await admin
+      .from("section")
+      .select("name, code")
+      .eq("id", input.sectionId)
+      .maybeSingle();
+    const sectionRow = sectionRes.data as { name: string | null; code: string | null } | null;
+    const sectionLabel =
+      sectionRow?.code?.trim() || sectionRow?.name?.trim() || "—";
+
+    await emitTimetableSectionPublishedNotifications(admin, actor.userId, {
+      instituteId,
+      sectionId: input.sectionId,
+      academicYearId: section.academic_year_id,
+      classLabel,
+      sectionLabel,
+      activatedCount: activated.length,
+    });
+  }
+
+  return { sectionId: input.sectionId, activatedCount: activated.length };
 }

@@ -17,6 +17,7 @@ import {
 import { ArrowLeft, CalendarDays, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import { IconChip } from "@/components/IconChip";
 import type {
+  TimetableInstituteSummary,
   TimetableReadBundle,
   TimetableSectionSummary,
   TimetableSlotListItem,
@@ -24,6 +25,7 @@ import type {
 
 type TimetableApiReadViewProps = {
   bundle: TimetableReadBundle;
+  instituteSummary?: TimetableInstituteSummary;
   selectedSectionId?: string;
   listHint?: string | null;
   writesEnabled?: boolean;
@@ -31,6 +33,7 @@ type TimetableApiReadViewProps = {
   onCreateSlot?: (sectionId?: string) => void;
   onEditSlot?: (slot: TimetableSlotListItem) => void;
   onDeleteSlot?: (slotId: string) => void;
+  onPublishSection?: (sectionId: string) => void;
   onOpenSection: (sectionId: string) => void;
   onBack: () => void;
 };
@@ -39,8 +42,23 @@ function sectionTitle(summary: TimetableSectionSummary): string {
   return `${summary.classLabel} · Sec ${summary.sectionLabel}`;
 }
 
+function publishStatusLabel(status: TimetableSectionSummary["publishStatus"]): string {
+  if (status === "published") return "Published";
+  if (status === "draft") return "Draft";
+  return "Empty";
+}
+
+function publishStatusTone(
+  status: TimetableSectionSummary["publishStatus"],
+): "success" | "warning" | "neutral" {
+  if (status === "published") return "success";
+  if (status === "draft") return "warning";
+  return "neutral";
+}
+
 export function TimetableApiReadView({
   bundle,
+  instituteSummary,
   selectedSectionId,
   listHint = null,
   writesEnabled = false,
@@ -48,6 +66,7 @@ export function TimetableApiReadView({
   onCreateSlot,
   onEditSlot,
   onDeleteSlot,
+  onPublishSection,
   onOpenSection,
   onBack,
 }: TimetableApiReadViewProps) {
@@ -81,6 +100,10 @@ export function TimetableApiReadView({
     const title = selectedSummary
       ? sectionTitle(selectedSummary)
       : `Section ${selectedSectionId.slice(0, 8)}…`;
+    const canPublish =
+      writesEnabled &&
+      Boolean(selectedSummary?.inactiveCount) &&
+      onPublishSection;
     return (
       <PageStack>
         <div className="flex flex-wrap items-center gap-2">
@@ -90,6 +113,21 @@ export function TimetableApiReadView({
           <Pill tone="neutral">
             {writesEnabled ? "API · create / edit / delete" : "Read-only · API mode"}
           </Pill>
+          {selectedSummary ? (
+            <Pill tone={publishStatusTone(selectedSummary.publishStatus)}>
+              {publishStatusLabel(selectedSummary.publishStatus)}
+            </Pill>
+          ) : null}
+          {canPublish ? (
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={mutating}
+              onClick={() => onPublishSection?.(selectedSectionId!)}
+            >
+              Publish section
+            </Button>
+          ) : null}
           {writesEnabled ? (
             <Button
               size="sm"
@@ -106,7 +144,9 @@ export function TimetableApiReadView({
           <CardHeader
             title={title}
             hint={`${sectionSlots.length} slot${sectionSlots.length === 1 ? "" : "s"}${
-              selectedSummary ? ` · ${selectedSummary.activeCount} active` : ""
+              selectedSummary
+                ? ` · ${selectedSummary.activeCount} active · ${selectedSummary.inactiveCount} draft`
+                : ""
             }`}
           />
           {sectionSlots.length === 0 ? (
@@ -154,6 +194,13 @@ export function TimetableApiReadView({
         <Pill tone="neutral">
           {writesEnabled ? "API · create / edit / delete slots" : "Read-only · API mode"}
         </Pill>
+        {instituteSummary ? (
+          <>
+            <Pill tone="success">{instituteSummary.publishedCount} published</Pill>
+            <Pill tone="warning">{instituteSummary.draftCount} draft</Pill>
+            <Pill tone="neutral">{instituteSummary.totalSlots} slots</Pill>
+          </>
+        ) : null}
         {listHint ? <span className="text-xs text-muted-foreground">{listHint}</span> : null}
       </div>
 
@@ -203,10 +250,16 @@ export function TimetableApiReadView({
                     </div>
                     <div className="text-[11px] text-muted-foreground truncate">
                       {section.slotCount} slots · {section.activeCount} active
+                      {section.inactiveCount > 0 ? ` · ${section.inactiveCount} draft` : ""}
                     </div>
                   </div>
                 </div>
-                <ChevronRight className="size-4 text-muted-foreground group-hover:text-primary shrink-0 mt-1 transition-colors" />
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  <Pill tone={publishStatusTone(section.publishStatus)}>
+                    {publishStatusLabel(section.publishStatus)}
+                  </Pill>
+                  <ChevronRight className="size-4 text-muted-foreground group-hover:text-primary mt-1 transition-colors" />
+                </div>
               </div>
             </button>
           ))}

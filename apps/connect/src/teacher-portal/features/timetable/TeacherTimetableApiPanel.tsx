@@ -1,33 +1,81 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { PageHeader } from "@/components/app/PageHeader";
 import { TimetableDayPicker } from "@/components/app/timetable/TimetableDayPicker";
 import { PeriodTimeline, type PeriodRow } from "@/components/app/timetable/PeriodTimeline";
 import { useApp } from "@/lib/app-state";
-import { isApiAuthMode } from "@/auth/auth-mode";
+import { useTeacherPortal } from "@/context/TeacherPortalContext";
 import { loadTeacherTimetable } from "@/lib/timetable";
 import {
   getCurrentAndNextPeriod,
   getDefaultTimetableDay,
   getTodayDayName,
 } from "@/lib/student/timetable-utils";
+import { sectionsForClassName, uniqueSortedClassNames } from "@/lib/class-section-options";
 import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
-import { Badge, cn } from "@lumenx/ui";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Badge,
+  cn,
+} from "@lumenx/ui";
+import type { WeeklyTimetable } from "@/lib/timetable";
+
+type TimetablePeriod = WeeklyTimetable[string][number];
 
 export function TeacherTimetableApiPanel() {
   const { activeInstituteId } = useApp();
+  const portal = useTeacherPortal();
+  const [mode, setMode] = useState<"my" | "class">("my");
   const [status, setStatus] = useState<string>("loading");
   const [error, setError] = useState<string | null>(null);
-  const [schedule, setSchedule] = useState<
-    Record<string, Array<{ time: string; subject: string; teacher: string }>>
-  >({});
+  const [schedule, setSchedule] = useState<WeeklyTimetable>({});
   const [weekdays, setWeekdays] = useState<string[]>([]);
   const [view, setView] = useState<"daily" | "weekly">("daily");
   const [reloadKey, setReloadKey] = useState(0);
 
+  const initialClass = portal.classes[0];
+  const [classNameFilter, setClassNameFilter] = useState(initialClass?.className ?? "");
+  const [sectionFilter, setSectionFilter] = useState(initialClass?.section ?? "");
+
+  const classNames = useMemo(
+    () => uniqueSortedClassNames(portal.classes),
+    [portal.classes],
+  );
+  const sections = useMemo(
+    () => sectionsForClassName(portal.classes, classNameFilter),
+    [portal.classes, classNameFilter],
+  );
+  const sectionId = useMemo(() => {
+    const match = portal.classes.find(
+      (item) => item.className === classNameFilter && item.section === sectionFilter,
+    );
+    return match?.id ?? "";
+  }, [portal.classes, classNameFilter, sectionFilter]);
+
+  useEffect(() => {
+    if (portal.classes[0] && !classNameFilter) {
+      setClassNameFilter(portal.classes[0].className);
+      setSectionFilter(portal.classes[0].section);
+    }
+  }, [portal.classes, classNameFilter]);
+
+  useEffect(() => {
+    if (!sections.includes(sectionFilter) && sections[0]) {
+      setSectionFilter(sections[0]);
+    }
+  }, [sections, sectionFilter]);
+
   useEffect(() => {
     let cancelled = false;
     setStatus("loading");
-    void loadTeacherTimetable({ instituteId: activeInstituteId }).then((result) => {
+    void loadTeacherTimetable({
+      instituteId: activeInstituteId,
+      sectionId: mode === "class" ? sectionId || null : null,
+    }).then((result) => {
       if (cancelled) return;
       setSchedule(result.schedule);
       setWeekdays(result.weekdays);
@@ -37,7 +85,7 @@ export function TeacherTimetableApiPanel() {
     return () => {
       cancelled = true;
     };
-  }, [activeInstituteId, reloadKey]);
+  }, [activeInstituteId, reloadKey, mode, sectionId]);
 
   const days = weekdays.length > 0 ? weekdays : Object.keys(schedule);
   const today = getTodayDayName();
@@ -66,8 +114,15 @@ export function TeacherTimetableApiPanel() {
     () =>
       dayPeriods.map((period) => ({
         time: period.time,
-        subject: period.subject,
-        subtitle: period.teacher !== "—" ? period.teacher : undefined,
+        subject: mode === "class" ? period.subject : period.subject,
+        subtitle:
+          mode === "class"
+            ? period.teacher !== "—"
+              ? period.teacher
+              : undefined
+            : period.teacher !== "—"
+              ? period.teacher
+              : undefined,
         state:
           current?.subject === period.subject && current?.time === period.time
             ? "current"
@@ -75,7 +130,7 @@ export function TeacherTimetableApiPanel() {
               ? "next"
               : "default",
       })),
-    [dayPeriods, current, next],
+    [dayPeriods, current, next, mode],
   );
 
   if (status === "loading") {
@@ -119,22 +174,92 @@ export function TeacherTimetableApiPanel() {
 
   return (
     <div className="min-w-0 space-y-5">
-      <PageHeader title="Timetable" subtitle="Your teaching periods across assigned classes" />
+      <PageHeader
+        title="Timetable"
+        subtitle={
+          mode === "class"
+            ? "Full class schedule — all subjects for the selected class"
+            : "Your teaching periods across assigned classes"
+        }
+      />
+
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            ["my", "My timetable"],
+            ["class", "Class timetable"],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setMode(value)}
+            className={cn(
+              "rounded-full px-4 py-2 text-sm font-medium",
+              mode === value
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground",
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {mode === "class" && (
+        <div className="grid grid-cols-2 gap-2 sm:max-w-md sm:gap-3">
+          <Select
+            value={classNameFilter}
+            onValueChange={(value) => {
+              setClassNameFilter(value);
+              const nextSections = portal.classes
+                .filter((item) => item.className === value)
+                .map((item) => item.section);
+              if (!nextSections.includes(sectionFilter)) {
+                setSectionFilter(nextSections[0] ?? "");
+              }
+            }}
+          >
+            <SelectTrigger className="h-11 rounded-xl">
+              <SelectValue placeholder="Class" />
+            </SelectTrigger>
+            <SelectContent position="popper" className="z-[100]">
+              {classNames.map((name) => (
+                <SelectItem key={name} value={name}>
+                  Class {name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={sectionFilter} onValueChange={setSectionFilter}>
+            <SelectTrigger className="h-11 rounded-xl">
+              <SelectValue placeholder="Section" />
+            </SelectTrigger>
+            <SelectContent position="popper" className="z-[100]">
+              {sections.map((section) => (
+                <SelectItem key={section} value={section}>
+                  Section {section}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       <div className="flex gap-2">
-        {(["daily", "weekly"] as const).map((v) => (
+        {(["daily", "weekly"] as const).map((value) => (
           <button
-            key={v}
+            key={value}
             type="button"
-            onClick={() => setView(v)}
+            onClick={() => setView(value)}
             className={cn(
               "rounded-full px-4 py-2 text-sm font-medium capitalize",
-              view === v
+              view === value
                 ? "bg-primary text-primary-foreground shadow-glow"
                 : "bg-muted text-muted-foreground",
             )}
           >
-            {v}
+            {value}
           </button>
         ))}
       </div>
@@ -144,21 +269,9 @@ export function TeacherTimetableApiPanel() {
           {isToday && (current || next) && (
             <div className="grid min-w-0 grid-cols-1 gap-3 lg:grid-cols-2">
               {current && (
-                <div className="rounded-2xl border border-primary/40 bg-primary/[0.06] p-4">
-                  <Badge className="mb-2 border-0 bg-primary text-primary-foreground">Now</Badge>
-                  <div className="font-semibold text-primary">{current.subject}</div>
-                  <div className="text-sm text-muted-foreground">{current.time}</div>
-                </div>
+                <TeacherHighlight period={current} label="Now" showMarkLink={mode === "my"} />
               )}
-              {next && (
-                <div className="rounded-2xl border border-border bg-card p-4">
-                  <Badge variant="outline" className="mb-2">
-                    Up next
-                  </Badge>
-                  <div className="font-semibold text-primary">{next.subject}</div>
-                  <div className="text-sm text-muted-foreground">{next.time}</div>
-                </div>
-              )}
+              {next && <TeacherHighlight period={next} label="Up next" />}
             </div>
           )}
 
@@ -185,7 +298,9 @@ export function TeacherTimetableApiPanel() {
             <PeriodTimeline
               periods={dayPeriodRows}
               emptyMessage={
-                status === "empty" ? "No timetable published yet." : `No classes on ${day}.`
+                status === "empty"
+                  ? "No timetable published yet."
+                  : `No classes on ${day}.`
               }
               showPastMuted={isToday}
             />
@@ -193,8 +308,8 @@ export function TeacherTimetableApiPanel() {
         </>
       ) : (
         <div className="space-y-6">
-          {days.map((d) => {
-            const slotsForDay = schedule[d] ?? [];
+          {days.map((weekday) => {
+            const slotsForDay = schedule[weekday] ?? [];
             if (!slotsForDay.length) return null;
             const rows: PeriodRow[] = slotsForDay.map((slot) => ({
               time: slot.time,
@@ -204,17 +319,17 @@ export function TeacherTimetableApiPanel() {
             }));
             return (
               <section
-                key={d}
+                key={weekday}
                 className="min-w-0 rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-5"
               >
                 <h2
                   className={cn(
                     "mb-4 border-b border-border pb-3 text-sm font-semibold",
-                    d === today && "text-primary",
+                    weekday === today && "text-primary",
                   )}
                 >
-                  {d}
-                  {d === today ? " (Today)" : ""}
+                  {weekday}
+                  {weekday === today ? " (Today)" : ""}
                   <span className="ml-2 font-normal text-muted-foreground">
                     · {slotsForDay.length} periods
                   </span>
@@ -225,6 +340,46 @@ export function TeacherTimetableApiPanel() {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+function TeacherHighlight({
+  period,
+  label,
+  showMarkLink,
+}: {
+  period: TimetablePeriod;
+  label: string;
+  showMarkLink?: boolean;
+}) {
+  const isNow = label === "Now";
+  return (
+    <div
+      className={cn(
+        "rounded-2xl border p-4 shadow-soft sm:p-5",
+        isNow ? "border-primary/40 bg-primary/[0.06]" : "border-border bg-card",
+      )}
+    >
+      <Badge
+        className={cn("mb-2", isNow && "border-0 bg-primary text-primary-foreground")}
+        variant={isNow ? "default" : "outline"}
+      >
+        {label}
+      </Badge>
+      <div className="font-semibold text-primary">{period.subject}</div>
+      <div className="mt-1 text-sm text-muted-foreground">{period.time}</div>
+      {period.teacher !== "—" ? (
+        <div className="text-xs text-muted-foreground">{period.teacher}</div>
+      ) : null}
+      {showMarkLink && isNow ? (
+        <Link
+          to="/attendance"
+          className="mt-3 inline-flex rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
+        >
+          Mark attendance
+        </Link>
+      ) : null}
     </div>
   );
 }

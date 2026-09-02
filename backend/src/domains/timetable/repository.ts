@@ -123,6 +123,7 @@ export async function listTeacherAssignments(
     academicYearId?: string;
     sectionId?: string;
     classId?: string;
+    teacherId?: string;
     status?: "active" | "inactive";
   },
 ): Promise<AssignmentGraphRow[]> {
@@ -142,6 +143,9 @@ export async function listTeacherAssignments(
   }
   if (filter.classId) {
     query = query.eq("class_id", filter.classId);
+  }
+  if (filter.teacherId) {
+    query = query.eq("teacher_id", filter.teacherId);
   }
   if (filter.status) {
     query = query.eq("status", filter.status);
@@ -166,6 +170,55 @@ export async function findSectionById(
     ensureDbOk(result);
   }
   return (result.data as SectionRow | null) ?? null;
+}
+
+export async function findSubjectInInstitute(
+  admin: SupabaseClient,
+  input: { subjectId: string; instituteId: string },
+): Promise<{ id: string; institute_id: string } | null> {
+  const result = await admin
+    .from("subject")
+    .select("id, institute_id")
+    .eq("id", input.subjectId)
+    .eq("institute_id", input.instituteId)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (result.error) {
+    ensureDbOk(result);
+  }
+  return (result.data as { id: string; institute_id: string } | null) ?? null;
+}
+
+export async function insertTeacherAssignment(
+  admin: SupabaseClient,
+  input: {
+    instituteId: string;
+    academicYearId: string;
+    classId: string;
+    sectionId: string;
+    subjectId: string;
+    teacherId: string;
+    status: "active" | "inactive";
+  },
+): Promise<AssignmentGraphRow> {
+  const result = await admin
+    .from("teacher_assignment")
+    .insert({
+      institute_id: input.instituteId,
+      academic_year_id: input.academicYearId,
+      class_id: input.classId,
+      section_id: input.sectionId,
+      subject_id: input.subjectId,
+      teacher_id: input.teacherId,
+      status: input.status,
+    })
+    .select(
+      "id, institute_id, academic_year_id, class_id, section_id, subject_id, teacher_id, status, deleted_at",
+    )
+    .single();
+
+  return ensureDbOk(result) as AssignmentGraphRow;
 }
 
 export async function findTeacherInInstitute(
@@ -241,6 +294,22 @@ export async function updateTimetableSlot(
     .single();
 
   return ensureDbOk(result) as TimetableSlotRow;
+}
+
+export async function activateInactiveSlotsForSection(
+  admin: SupabaseClient,
+  input: { instituteId: string; sectionId: string },
+): Promise<TimetableSlotRow[]> {
+  const rows = await listTimetableSlots(admin, {
+    instituteId: input.instituteId,
+    sectionId: input.sectionId,
+  });
+  const activated: TimetableSlotRow[] = [];
+  for (const row of rows) {
+    if (row.status !== "inactive") continue;
+    activated.push(await updateTimetableSlot(admin, row.id, { status: "active" }));
+  }
+  return activated;
 }
 
 export async function softDeleteTimetableSlot(

@@ -1,4 +1,4 @@
-export { listTimetableSlots, listTeacherAssignments, assertApiMode as assertTimetableApiMode } from "./api";
+export { listTimetableSlots, listTeacherAssignments, publishSectionTimetable, assertApiMode as assertTimetableApiMode } from "./api";
 export {
   loadTimetableReadBundle,
   type TimetableLoadState,
@@ -11,7 +11,9 @@ export {
 } from "./list-view";
 export {
   buildTimetableReadBundle,
+  buildTimetableInstituteSummary,
   buildTimetableSectionSummaries,
+  resolveTimetablePublishStatus,
   teacherAssignmentDtoToListItem,
   teacherAssignmentDtosToListItems,
   timetableSlotDtoToListItem,
@@ -22,6 +24,8 @@ export type {
   ListTimetableSlotsParams,
   TeacherAssignmentDto,
   TeacherAssignmentListItem,
+  TimetableInstituteSummary,
+  TimetablePublishStatus,
   TimetableReadBundle,
   TimetableSectionSummary,
   TimetableSlotDto,
@@ -29,9 +33,12 @@ export type {
   TimetableSlotStatus,
 } from "./types";
 export {
+  createTeacherAssignment,
   createTimetableSlot,
   updateTimetableSlot,
   deleteTimetableSlot,
+  publishSectionTimetable,
+  type CreateTeacherAssignmentInput,
   type CreateTimetableSlotInput,
   type UpdateTimetableSlotInput,
 } from "./mutations";

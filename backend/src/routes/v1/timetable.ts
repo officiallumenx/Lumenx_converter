@@ -15,6 +15,7 @@ import {
   getSlotForActor,
   listAssignmentsForActor,
   listSlotsForActor,
+  publishSectionTimetableForActor,
   updateSlotForActor,
 } from "../../domains/timetable/service.js";
 import {
@@ -222,6 +223,29 @@ timetable.get("/portal/teacher", async (c) => {
     teacherId: query.teacher_id,
     sectionId: query.section_id,
   });
+  return c.json({ data });
+});
+
+/**
+ * POST /api/v1/timetable/publish-section
+ * Activate all inactive slots for a section (publish) and notify learners/staff.
+ */
+timetable.post("/publish-section", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const body = validateBody(
+    z.object({
+      institute_id: uuid,
+      section_id: uuid,
+    }),
+    await c.req.json(),
+  );
+
+  const data = await publishSectionTimetableForActor(admin, actor, {
+    instituteId: body.institute_id,
+    sectionId: body.section_id,
+  });
+
   return c.json({ data });
 });
 

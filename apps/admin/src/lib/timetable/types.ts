@@ -78,6 +78,17 @@ export type TimetableSectionSummary = {
   sectionLabel: string;
   slotCount: number;
   activeCount: number;
+  inactiveCount: number;
+  publishStatus: TimetablePublishStatus;
+};
+
+export type TimetablePublishStatus = "empty" | "draft" | "published";
+
+export type TimetableInstituteSummary = {
+  sectionCount: number;
+  draftCount: number;
+  publishedCount: number;
+  totalSlots: number;
 };
 
 export type TimetableReadBundle = {

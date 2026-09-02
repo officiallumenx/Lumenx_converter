@@ -31,6 +31,11 @@ const CLASS_B = "ff222222-2222-4222-8222-222222222222";
 const ASSIGN_A = "ab111111-1111-4111-8111-111111111111";
 const ASSIGN_B = "ab222222-2222-4222-8222-222222222222";
 const SLOT_A = "ac111111-1111-4111-8111-111111111111";
+const SLOT_B = "ac222222-2222-4222-8222-222222222222";
+const USER_STUDENT = "44444444-4444-4444-8444-444444444444";
+const MEMBER_STUDENT = "aa444444-4444-4444-8444-444444444444";
+const STUDENT_A = "ad111111-1111-4111-8111-111111111111";
+const ENROLL_A = "ae111111-1111-4111-8111-111111111111";
 
 beforeEach(() => {
   resetEnvCache();
@@ -71,6 +76,13 @@ function baseDb(): MockDb {
       status: "active",
       deleted_at: null,
     },
+    {
+      id: USER_STUDENT,
+      display_name: "Student",
+      email: "student@example.com",
+      status: "active",
+      deleted_at: null,
+    },
   ];
   db.membership = [
     {
@@ -94,11 +106,19 @@ function baseDb(): MockDb {
       status: "active",
       deleted_at: null,
     },
+    {
+      id: MEMBER_STUDENT,
+      user_id: USER_STUDENT,
+      institute_id: INST_A,
+      status: "active",
+      deleted_at: null,
+    },
   ];
   db.membership_role = [
     { membership_id: MEMBER_ADMIN, role_code: "institute_admin" },
     { membership_id: MEMBER_TEACHER, role_code: "teacher" },
     { membership_id: MEMBER_OTHER, role_code: "institute_admin" },
+    { membership_id: MEMBER_STUDENT, role_code: "student" },
   ];
   db.teacher = [
     {
@@ -194,6 +214,44 @@ function baseDb(): MockDb {
       status: "active",
       created_at: "2026-01-01T00:00:00.000Z",
       updated_at: "2026-01-01T00:00:00.000Z",
+      deleted_at: null,
+    },
+    {
+      id: SLOT_B,
+      institute_id: INST_A,
+      academic_year_id: YEAR_A,
+      class_id: CLASS_A,
+      section_id: SECTION_A,
+      teacher_assignment_id: ASSIGN_A,
+      day_of_week: 2,
+      period_index: 2,
+      starts_at: "09:00:00",
+      ends_at: "09:45:00",
+      room: "102",
+      status: "inactive",
+      created_at: "2026-01-01T00:00:00.000Z",
+      updated_at: "2026-01-01T00:00:00.000Z",
+      deleted_at: null,
+    },
+  ];
+  db.student = [
+    {
+      id: STUDENT_A,
+      institute_id: INST_A,
+      user_profile_id: USER_STUDENT,
+      status: "active",
+      deleted_at: null,
+    },
+  ];
+  db.enrollment = [
+    {
+      id: ENROLL_A,
+      institute_id: INST_A,
+      academic_year_id: YEAR_A,
+      student_id: STUDENT_A,
+      class_id: CLASS_A,
+      section_id: SECTION_A,
+      status: "active",
       deleted_at: null,
     },
   ];
@@ -306,8 +364,10 @@ describe("timetable — read authorization", () => {
     });
     expect(res.status).toBe(200);
     const body = await json(res);
-    expect(body.data).toHaveLength(1);
-    expect(body.data[0].id).toBe(SLOT_A);
+    expect(body.data).toHaveLength(2);
+    expect(body.data.map((row: { id: string }) => row.id)).toEqual(
+      expect.arrayContaining([SLOT_A, SLOT_B]),
+    );
     expect(body.data[0].instituteId).toBe(INST_A);
   });
 
@@ -566,6 +626,48 @@ describe("timetable — portal routes", () => {
     const body = await json(res);
     expect(body.data.periods.length).toBeGreaterThan(0);
     expect(body.data.weekdays.length).toBeGreaterThan(0);
+  });
+
+  it("returns full class timetable when teacher requests assigned section", async () => {
+    const db = baseDb();
+    const app = appWithDb(db);
+    const res = await app.request(
+      `/api/v1/timetable/portal/teacher?institute_id=${INST_A}&section_id=${SECTION_A}`,
+      { headers: auth("token-teacher") },
+    );
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(body.data.periods.length).toBe(1);
+  });
+});
+
+describe("timetable — publish section", () => {
+  it("activates inactive slots and emits notifications", async () => {
+    const db = baseDb();
+    db.notification = [];
+    db.notification_recipient = [];
+    const app = appWithDb(db);
+
+    const res = await app.request("/api/v1/timetable/publish-section", {
+      method: "POST",
+      headers: { ...auth("token-admin"), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        section_id: SECTION_A,
+      }),
+    });
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(body.data.activatedCount).toBe(1);
+    expect(db.timetable_slot.find((s) => s.id === SLOT_B)?.status).toBe("active");
+    expect(db.notification.length).toBeGreaterThan(0);
+    expect(db.notification.some((n) => n.category === "timetable")).toBe(true);
+    expect(
+      db.notification_recipient.some((r) => r.user_profile_id === USER_STUDENT),
+    ).toBe(true);
+    expect(
+      db.notification_recipient.some((r) => r.user_profile_id === USER_TEACHER),
+    ).toBe(true);
   });
 });
 

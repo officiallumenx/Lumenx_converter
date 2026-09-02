@@ -35,6 +35,8 @@ import { useApp } from "@/lib/app-state";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { loadConnectEvents, pickUpcomingEvents, type ConnectEventItem } from "@/lib/events";
 import { loadLearnerExamSchedules, type LearnerExamSchedule } from "@/lib/exams";
+import { loadLearnerTimetable, pickTodayPeriods } from "@/lib/timetable";
+import { getTodayDayName } from "@/lib/student/timetable-utils";
 import { formatEventDate } from "@/components/app/events/events-shared";
 import { PageSkeleton, EmptyState } from "@/student-portal/shared/ui";
 import {
@@ -132,6 +134,9 @@ export function StudentDashboardPage() {
   const { pathname } = useLocation();
   const [apiUpcomingEvents, setApiUpcomingEvents] = useState<ConnectEventItem[] | null>(null);
   const [apiUpcomingExams, setApiUpcomingExams] = useState<LearnerExamSchedule[] | null>(null);
+  const [apiTodayClasses, setApiTodayClasses] = useState<
+    Array<{ time: string; subject: string; teacher: string }> | null
+  >(null);
 
   useEffect(() => {
     if (!isApiAuthMode()) {
@@ -179,6 +184,28 @@ export function StudentDashboardPage() {
     };
   }, [activeInstituteId, portal.snapshot?.profile.class]);
 
+  useEffect(() => {
+    if (!isApiAuthMode() || !activeInstituteId || !portal.snapshot?.profile.id) {
+      setApiTodayClasses(null);
+      return;
+    }
+    let cancelled = false;
+    void loadLearnerTimetable({
+      instituteId: activeInstituteId,
+      studentId: portal.snapshot.profile.id,
+    }).then((result) => {
+      if (cancelled) return;
+      if (result.status === "ready" || result.status === "empty") {
+        setApiTodayClasses(pickTodayPeriods(result.schedule, getTodayDayName()));
+      } else {
+        setApiTodayClasses([]);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeInstituteId, portal.snapshot?.profile.id]);
+
   const notifications = useSyncExternalStore(
     studentNotificationStore.subscribe,
     studentNotificationStore.getItems,
@@ -190,7 +217,7 @@ export function StudentDashboardPage() {
 
   const snap = portal.snapshot;
   const today = days[Math.max(0, Math.min(5, new Date().getDay() - 1))];
-  const todayClasses = snap.timetable[today] ?? [];
+  const todayClasses = apiTodayClasses ?? snap.timetable[today] ?? [];
   const weak = [...snap.performance].sort((a, b) => a.score - b.score).slice(0, 2);
   const recentAch = snap.achievements.filter((a) => !a.progress).slice(0, 3);
   const publishedCard = [...snap.reportCards].filter((r) => r.status === "published").at(-1);

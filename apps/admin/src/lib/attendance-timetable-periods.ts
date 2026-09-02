@@ -88,3 +88,49 @@ export function attendancePeriodsForSectionDate(
   // Dense 0..n-1 indexes — same as Connect `periodsFromTimetableSlots`.
   return periodsFromTimetableSlots(rows);
 }
+
+const DAY_NAMES = [
+  "",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+] as const;
+
+function formatSlotTime(value: string): string {
+  return value.length >= 5 ? value.slice(0, 5) : value;
+}
+
+/**
+ * Resolve teaching periods from API timetable slots for period-wise attendance.
+ */
+export function attendancePeriodsFromTimetableSlots(
+  slots: Array<{
+    dayOfWeek: number;
+    periodIndex: number;
+    startsAt: string;
+    endsAt: string;
+    subjectLabel: string;
+    status: string;
+  }>,
+  date: string,
+): PeriodInput[] {
+  const dayName = weekdayNameFromIso(date);
+  const dayIdx = DAY_NAMES.findIndex(
+    (name) => name.toLowerCase() === dayName.toLowerCase(),
+  );
+  if (dayIdx < 1) return [];
+
+  const rows = slots
+    .filter((slot) => slot.status === "active" && slot.dayOfWeek === dayIdx)
+    .sort((a, b) => a.periodIndex - b.periodIndex)
+    .map((slot) => ({
+      subject: slot.subjectLabel.trim() || "Period",
+      time: `${formatSlotTime(slot.startsAt)}–${formatSlotTime(slot.endsAt)}`,
+    }));
+
+  return periodsFromTimetableSlots(rows);
+}

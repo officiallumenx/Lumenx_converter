@@ -8,4 +8,11 @@ export function timetableDtoToWeeklySchedule(dto: PortalTimetableDto): WeeklyTim
   });
 }
 
+export function pickTodayPeriods(
+  schedule: WeeklyTimetable,
+  dayName: string,
+): Array<{ time: string; subject: string; teacher: string }> {
+  return schedule[dayName] ?? [];
+}
+
 export { portalTimetableToWeeklySchedule };

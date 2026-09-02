@@ -24,16 +24,19 @@ import {
   deleteTimetableSlot,
   listTeacherAssignments,
   loadTimetableReadBundle,
+  publishSectionTimetable,
   resolveTimetableLoadView,
   shouldCommitTimetableLoad,
   teacherAssignmentDtosToListItems,
   updateTimetableSlot,
+  buildTimetableInstituteSummary,
   type TeacherAssignmentListItem,
   type TimetableLoadStatus,
   type TimetableReadBundle,
   type TimetableSlotListItem,
   type TimetableSlotStatus,
 } from "@/lib/timetable";
+import { notifyTimetablePublished } from "@lumenx/module-notifications";
 
 const DAY_OPTIONS = [
   { value: 1, label: "Monday" },
@@ -97,7 +100,7 @@ export function TimetableApiPage() {
   const [formStartsAt, setFormStartsAt] = useState("09:00");
   const [formEndsAt, setFormEndsAt] = useState("09:45");
   const [formRoom, setFormRoom] = useState("");
-  const [formStatus, setFormStatus] = useState<TimetableSlotStatus>("active");
+  const [formStatus, setFormStatus] = useState<TimetableSlotStatus>("inactive");
   const [formError, setFormError] = useState<string | null>(null);
   const [loadingAssignments, setLoadingAssignments] = useState(false);
 
@@ -284,6 +287,39 @@ export function TimetableApiPage() {
 
   const selectedSectionId = search.id;
 
+  const instituteSummary = useMemo(
+    () => (loadView.bundle ? buildTimetableInstituteSummary(loadView.bundle.sections) : null),
+    [loadView.bundle],
+  );
+
+  const publishSection = (sectionId: string) => {
+    if (!writesEnabled || mutating) return;
+    const instituteId = instituteCtx.activeInstituteId;
+    if (!instituteId) return;
+    const summary = loadView.bundle?.sections.find((s) => s.sectionId === sectionId);
+    if (!summary?.inactiveCount) return;
+
+    setMutating(true);
+    void publishSectionTimetable({ instituteId, sectionId })
+      .then((result) => {
+        if (activeInstituteIdRef.current !== instituteId) return;
+        notifyTimetablePublished({
+          timetableId: sectionId,
+          classLabel: `${summary.classLabel} · Sec ${summary.sectionLabel}`,
+        });
+        setReloadKey((k) => k + 1);
+        notify(
+          result.activatedCount > 0
+            ? `Published ${result.activatedCount} period${result.activatedCount === 1 ? "" : "s"} for ${summary.classLabel} · Sec ${summary.sectionLabel}`
+            : "Section timetable is already published",
+        );
+      })
+      .catch((err) => {
+        notify(err instanceof Error ? err.message : "Failed to publish timetable");
+      })
+      .finally(() => setMutating(false));
+  };
+
   const subtitle = useMemo(() => {
     if (!loadView.rowsValid || !loadView.bundle) {
       return `API mode · ${loadHint ?? "…"}`;
@@ -291,8 +327,8 @@ export function TimetableApiPage() {
     const mode = writesEnabled
       ? "create / edit / delete slots"
       : "read-only";
-    return `API mode · ${mode} · ${loadView.bundle.sections.length} sections · ${loadView.bundle.slots.length} slots`;
-  }, [loadView.bundle, loadView.rowsValid, loadHint, writesEnabled]);
+    return `API mode · ${mode} · ${loadView.bundle.sections.length} sections · ${loadView.bundle.slots.length} slots · ${instituteSummary?.publishedCount ?? 0} published`;
+  }, [loadView.bundle, loadView.rowsValid, loadHint, writesEnabled, instituteSummary?.publishedCount]);
 
   const openSection = (sectionId: string) => {
     void navigate({
@@ -327,7 +363,7 @@ export function TimetableApiPage() {
     setFormStartsAt("09:00");
     setFormEndsAt("09:45");
     setFormRoom("");
-    setFormStatus("active");
+    setFormStatus("inactive");
     setFormError(null);
     setAssignments([]);
   };
@@ -479,6 +515,7 @@ export function TimetableApiPage() {
       ) : (
         <TimetableApiReadView
           bundle={loadView.bundle}
+          instituteSummary={instituteSummary ?? undefined}
           selectedSectionId={selectedSectionId}
           listHint={loadHint}
           writesEnabled={writesEnabled}
@@ -486,6 +523,7 @@ export function TimetableApiPage() {
           onCreateSlot={openCreate}
           onEditSlot={openEdit}
           onDeleteSlot={removeSlot}
+          onPublishSection={publishSection}
           onOpenSection={openSection}
           onBack={backToList}
         />

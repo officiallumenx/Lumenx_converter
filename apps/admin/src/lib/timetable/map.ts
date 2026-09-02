@@ -5,6 +5,8 @@ import type { TeacherListItem } from "@/lib/teachers/types";
 import type {
   TeacherAssignmentDto,
   TeacherAssignmentListItem,
+  TimetableInstituteSummary,
+  TimetablePublishStatus,
   TimetableReadBundle,
   TimetableSectionSummary,
   TimetableSlotDto,
@@ -111,6 +113,16 @@ export function teacherAssignmentDtosToListItems(
   );
 }
 
+export function resolveTimetablePublishStatus(input: {
+  slotCount: number;
+  activeCount: number;
+}): TimetablePublishStatus {
+  if (input.slotCount === 0) return "empty";
+  if (input.activeCount === 0) return "draft";
+  if (input.activeCount < input.slotCount) return "draft";
+  return "published";
+}
+
 export function buildTimetableSectionSummaries(
   slots: TimetableSlotListItem[],
 ): TimetableSectionSummary[] {
@@ -118,21 +130,47 @@ export function buildTimetableSectionSummaries(
   for (const slot of slots) {
     const existing = bySection.get(slot.sectionId);
     if (!existing) {
+      const activeCount = slot.status === "active" ? 1 : 0;
       bySection.set(slot.sectionId, {
         sectionId: slot.sectionId,
         classLabel: slot.classLabel,
         sectionLabel: slot.sectionLabel,
         slotCount: 1,
-        activeCount: slot.status === "active" ? 1 : 0,
+        activeCount,
+        inactiveCount: slot.status === "active" ? 0 : 1,
+        publishStatus: "draft",
       });
       continue;
     }
     existing.slotCount += 1;
     if (slot.status === "active") existing.activeCount += 1;
+    else existing.inactiveCount += 1;
   }
-  return [...bySection.values()].sort((a, b) =>
-    `${a.classLabel}-${a.sectionLabel}`.localeCompare(`${b.classLabel}-${b.sectionLabel}`),
-  );
+  return [...bySection.values()]
+    .map((section) => ({
+      ...section,
+      publishStatus: resolveTimetablePublishStatus(section),
+    }))
+    .sort((a, b) =>
+      `${a.classLabel}-${a.sectionLabel}`.localeCompare(`${b.classLabel}-${b.sectionLabel}`),
+    );
+}
+
+export function buildTimetableInstituteSummary(
+  sections: TimetableSectionSummary[],
+): TimetableInstituteSummary {
+  let draftCount = 0;
+  let publishedCount = 0;
+  for (const section of sections) {
+    if (section.publishStatus === "published") publishedCount += 1;
+    else if (section.publishStatus === "draft") draftCount += 1;
+  }
+  return {
+    sectionCount: sections.length,
+    draftCount,
+    publishedCount,
+    totalSlots: sections.reduce((total, section) => total + section.slotCount, 0),
+  };
 }
 
 export function buildTimetableReadBundle(
