@@ -14,12 +14,14 @@ const USER_ADMIN = "11111111-1111-4111-8111-111111111111";
 const USER_TEACHER = "22222222-2222-4222-8222-222222222222";
 const USER_PARENT = "55555555-5555-4555-8555-555555555555";
 const USER_OTHER = "44444444-4444-4444-8444-444444444444";
+const USER_DRIVER = "66666666-6666-4666-8666-666666666666";
 const INST_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const INST_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const MEMBER_ADMIN = "aa111111-1111-4111-8111-111111111111";
 const MEMBER_TEACHER = "aa222222-2222-4222-8222-222222222222";
 const MEMBER_PARENT = "aa555555-5555-4555-8555-555555555555";
 const MEMBER_OTHER = "aa444444-4444-4444-8444-444444444444";
+const MEMBER_DRIVER = "aa666666-6666-4666-8666-666666666666";
 const STUDENT_A = "ac111111-1111-4111-8111-111111111111";
 const STUDENT_B = "ac222222-2222-4222-8222-222222222222";
 const PARENT_A = "ba111111-1111-4111-8111-111111111111";
@@ -28,6 +30,7 @@ const VEHICLE_B = "ve222222-2222-4222-8222-222222222222";
 const ENROLL_A = "ae111111-1111-4111-8111-111111111111";
 const ENROLL_OTHER = "ae222222-2222-4222-8222-222222222222";
 const ROUTE_A = "af111111-1111-4111-8111-111111111111";
+const DRIVER_A = "d1111111-1111-4111-8111-111111111111";
 const STOP_PICKUP = "b0111111-1111-4111-8111-111111111111";
 const STOP_DROP = "b0222222-2222-4222-8222-222222222222";
 
@@ -53,18 +56,21 @@ function baseDb(): MockDb {
     { id: USER_TEACHER, display_name: "Teacher", email: "t@x.com", status: "active", deleted_at: null },
     { id: USER_PARENT, display_name: "Parent", email: "p@x.com", status: "active", deleted_at: null },
     { id: USER_OTHER, display_name: "Other", email: "o@x.com", status: "active", deleted_at: null },
+    { id: USER_DRIVER, display_name: "Driver", email: "d@x.com", status: "active", deleted_at: null },
   ];
   db.membership = [
     { id: MEMBER_ADMIN, user_id: USER_ADMIN, institute_id: INST_A, status: "active", deleted_at: null },
     { id: MEMBER_TEACHER, user_id: USER_TEACHER, institute_id: INST_A, status: "active", deleted_at: null },
     { id: MEMBER_PARENT, user_id: USER_PARENT, institute_id: INST_A, status: "active", deleted_at: null },
     { id: MEMBER_OTHER, user_id: USER_OTHER, institute_id: INST_B, status: "active", deleted_at: null },
+    { id: MEMBER_DRIVER, user_id: USER_DRIVER, institute_id: INST_A, status: "active", deleted_at: null },
   ];
   db.membership_role = [
     { membership_id: MEMBER_ADMIN, role_code: "institute_admin" },
     { membership_id: MEMBER_TEACHER, role_code: "teacher" },
     { membership_id: MEMBER_PARENT, role_code: "parent" },
     { membership_id: MEMBER_OTHER, role_code: "institute_admin" },
+    { membership_id: MEMBER_DRIVER, role_code: "driver" },
   ];
   db.institute = [
     { id: INST_A, code: "A", name: "A", kind: "school", status: "active", deleted_at: null },
@@ -97,6 +103,22 @@ function baseDb(): MockDb {
       student_id: STUDENT_A,
       institute_id: INST_A,
       status: "active",
+      deleted_at: null,
+    },
+  ];
+  db.driver = [
+    {
+      id: DRIVER_A,
+      institute_id: INST_A,
+      user_profile_id: USER_DRIVER,
+      display_name: "Driver A",
+      phone: "9999999999",
+      license_number: "DL-1",
+      license_expiry: null,
+      status: "active",
+      notes: null,
+      created_at: "2026-08-01T00:00:00.000Z",
+      updated_at: "2026-08-01T00:00:00.000Z",
       deleted_at: null,
     },
   ];
@@ -138,6 +160,11 @@ function baseDb(): MockDb {
       locked_at: null,
       locked_by_user_id: null,
       setup_finished_at: null,
+      approval_status: "approved",
+      submitted_by_user_id: null,
+      reviewed_by_user_id: null,
+      reviewed_at: null,
+      rejection_reason: null,
       created_at: "2026-08-01T00:00:00.000Z",
       updated_at: "2026-08-01T00:00:00.000Z",
       deleted_at: null,
@@ -154,6 +181,11 @@ function baseDb(): MockDb {
       longitude: 77.59,
       route_order: 0,
       notification_radius_m: 150,
+      approval_status: "approved",
+      submitted_by_user_id: null,
+      reviewed_by_user_id: null,
+      reviewed_at: null,
+      rejection_reason: null,
       created_at: "2026-08-01T00:00:00.000Z",
       updated_at: "2026-08-01T00:00:00.000Z",
       deleted_at: null,
@@ -168,6 +200,11 @@ function baseDb(): MockDb {
       longitude: 77.6,
       route_order: 1,
       notification_radius_m: 150,
+      approval_status: "approved",
+      submitted_by_user_id: null,
+      reviewed_by_user_id: null,
+      reviewed_at: null,
+      rejection_reason: null,
       created_at: "2026-08-01T00:00:00.000Z",
       updated_at: "2026-08-01T00:00:00.000Z",
       deleted_at: null,
@@ -182,6 +219,11 @@ function baseDb(): MockDb {
       pickup_stop_id: STOP_PICKUP,
       drop_stop_id: STOP_DROP,
       status: "active",
+      approval_status: "approved",
+      submitted_by_user_id: null,
+      reviewed_by_user_id: null,
+      reviewed_at: null,
+      rejection_reason: null,
       created_at: "2026-08-01T00:00:00.000Z",
       updated_at: "2026-08-01T00:00:00.000Z",
       deleted_at: null,
@@ -194,6 +236,11 @@ function baseDb(): MockDb {
       pickup_stop_id: STOP_PICKUP,
       drop_stop_id: STOP_DROP,
       status: "active",
+      approval_status: "approved",
+      submitted_by_user_id: null,
+      reviewed_by_user_id: null,
+      reviewed_at: null,
+      rejection_reason: null,
       created_at: "2026-08-01T00:00:00.000Z",
       updated_at: "2026-08-01T00:00:00.000Z",
       deleted_at: null,
@@ -213,6 +260,7 @@ function appWithDb(db: MockDb) {
         "token-teacher": USER_TEACHER,
         "token-parent": USER_PARENT,
         "token-other": USER_OTHER,
+        "token-driver": USER_DRIVER,
       },
       db,
     }),
@@ -449,5 +497,48 @@ describe("transport api", () => {
     expect(res.status).toBe(201);
     const body = await json(res);
     expect(body.data.userProfileId).toBeNull();
+  });
+
+  it("driver submits pending route and admin approves via review queue", async () => {
+    const app = appWithDb(baseDb());
+
+    const create = await app.request("/api/v1/transport/routes", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-driver",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        name: "Driver Route",
+      }),
+    });
+    expect(create.status).toBe(201);
+    const created = (await json(create)).data;
+    expect(created.approvalStatus).toBe("pending");
+
+    const queueBefore = await app.request(
+      `/api/v1/transport/review-queue?institute_id=${INST_A}`,
+      { headers: { Authorization: "Bearer token-admin" } },
+    );
+    expect(queueBefore.status).toBe(200);
+    const pending = (await json(queueBefore)).data as Array<{ kind: string; item: { id: string } }>;
+    expect(pending.some((x) => x.kind === "route" && x.item.id === created.id)).toBe(true);
+
+    const parentList = await app.request(
+      `/api/v1/transport/routes?institute_id=${INST_A}`,
+      { headers: { Authorization: "Bearer token-parent" } },
+    );
+    expect(parentList.status).toBe(403);
+
+    const approve = await app.request(
+      `/api/v1/transport/routes/${created.id}/approve`,
+      {
+        method: "POST",
+        headers: { Authorization: "Bearer token-admin" },
+      },
+    );
+    expect(approve.status).toBe(200);
+    expect((await json(approve)).data.approvalStatus).toBe("approved");
   });
 });

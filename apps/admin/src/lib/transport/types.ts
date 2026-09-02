@@ -2,6 +2,8 @@
 
 export type TransportAssetStatus = "active" | "inactive" | "maintenance";
 
+export type TransportApprovalStatus = "pending" | "approved" | "rejected";
+
 export type VehicleDto = {
   id: string;
   instituteId: string;
@@ -49,6 +51,11 @@ export type RouteDto = {
   lockedAt: string | null;
   lockedByUserId: string | null;
   setupFinishedAt: string | null;
+  approvalStatus: TransportApprovalStatus;
+  submittedByUserId: string | null;
+  reviewedByUserId: string | null;
+  reviewedAt: string | null;
+  rejectionReason: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -63,6 +70,11 @@ export type StopDto = {
   longitude: number;
   routeOrder: number;
   notificationRadiusM: number;
+  approvalStatus: TransportApprovalStatus;
+  submittedByUserId: string | null;
+  reviewedByUserId: string | null;
+  reviewedAt: string | null;
+  rejectionReason: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -98,6 +110,11 @@ export type TransportEnrollmentDto = {
   pickupStopId: string;
   dropStopId: string;
   status: EnrollmentStatus;
+  approvalStatus: TransportApprovalStatus;
+  submittedByUserId: string | null;
+  reviewedByUserId: string | null;
+  reviewedAt: string | null;
+  rejectionReason: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -114,4 +131,13 @@ export type TransportEnrollmentListItem = {
   pickupStopName: string;
   dropStopName: string;
   status: EnrollmentStatus;
+};
+
+export type TransportReviewQueueItem =
+  | { kind: "route"; item: RouteDto }
+  | { kind: "stop"; item: StopDto }
+  | { kind: "enrollment"; item: TransportEnrollmentDto };
+
+export type ListTransportReviewQueueParams = {
+  instituteId: string;
 };

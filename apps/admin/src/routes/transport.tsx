@@ -17,6 +17,7 @@ import { TransportAttendanceView } from "@/components/transport/views/TransportA
 import { TransportAnalyticsView } from "@/components/transport/views/TransportAnalyticsView";
 import { TransportSettingsView } from "@/components/transport/views/TransportSettingsView";
 import { TransportEmergenciesView } from "@/components/transport/views/TransportEmergenciesView";
+import { TransportApprovalApiPanel } from "@/components/transport/TransportApprovalApiPanel";
 import { TransportReviewsView } from "@/components/transport/views/TransportReviewsView";
 import { parseHubView, validateHubViewSearch } from "@/lib/hub-view-search";
 import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
@@ -975,10 +976,10 @@ function TransportPage() {
         ) : null}
         {view === "reviews" ? (
           apiMode ? (
-            <ApiReadUnavailablePanel
-              title="Pending requests unavailable in API mode"
-              domainLabel="Transport driver review queue"
-              hint="There is no institute-scoped read API for pending stop and assignment reviews. Demo approval data is not shown in API mode."
+            <TransportApprovalApiPanel
+              instituteId={instituteId}
+              writesEnabled={writesEnabled}
+              onNotify={notify}
             />
           ) : (
             <TransportReviewsView />

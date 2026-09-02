@@ -44,6 +44,12 @@ import {
   updateVehicleFields,
   upsertTransportSettings,
 } from "./repository.js";
+import {
+  approvalStatusForCreate,
+  assertCanDeleteRejected,
+  isDriverForInstitute,
+  isTransportWriter,
+} from "./approval.js";
 import type {
   CreateDriverInput,
   CreateEnrollmentInput,
@@ -60,6 +66,7 @@ import type {
   TransportEnrollmentRow,
   TransportSettingsDto,
   TransportSettingsRow,
+  TransportApprovalStatus,
   UpdateDriverInput,
   UpdateEnrollmentInput,
   UpdateRouteInput,
@@ -133,6 +140,11 @@ export function toRouteDto(row: RouteRow): RouteDto {
     lockedAt: row.locked_at,
     lockedByUserId: row.locked_by_user_id,
     setupFinishedAt: row.setup_finished_at,
+    approvalStatus: row.approval_status,
+    submittedByUserId: row.submitted_by_user_id,
+    reviewedByUserId: row.reviewed_by_user_id,
+    reviewedAt: row.reviewed_at,
+    rejectionReason: row.rejection_reason,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -149,6 +161,11 @@ export function toStopDto(row: StopRow): StopDto {
     longitude: row.longitude,
     routeOrder: row.route_order,
     notificationRadiusM: row.notification_radius_m,
+    approvalStatus: row.approval_status,
+    submittedByUserId: row.submitted_by_user_id,
+    reviewedByUserId: row.reviewed_by_user_id,
+    reviewedAt: row.reviewed_at,
+    rejectionReason: row.rejection_reason,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -163,6 +180,11 @@ export function toEnrollmentDto(row: TransportEnrollmentRow): TransportEnrollmen
     pickupStopId: row.pickup_stop_id,
     dropStopId: row.drop_stop_id,
     status: row.status,
+    approvalStatus: row.approval_status,
+    submittedByUserId: row.submitted_by_user_id,
+    reviewedByUserId: row.reviewed_by_user_id,
+    reviewedAt: row.reviewed_at,
+    rejectionReason: row.rejection_reason,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -193,6 +215,32 @@ function isStaffReader(actor: Actor, instituteId: string): boolean {
 function assertTransportWriter(actor: Actor, instituteId: string): void {
   requireInstituteId(actor, instituteId);
   assertInstituteRoles(actor, instituteId, [...TRANSPORT_WRITE_ROLES]);
+}
+
+function assertCanSubmitTransport(actor: Actor, instituteId: string): void {
+  requireInstituteId(actor, instituteId);
+  if (isTransportWriter(actor, instituteId)) return;
+  if (isDriverForInstitute(actor, instituteId)) return;
+  throw AppError.forbidden("Insufficient permissions");
+}
+
+function filterApprovalRows<T extends {
+  approval_status: TransportApprovalStatus;
+  submitted_by_user_id: string | null;
+}>(
+  actor: Actor,
+  instituteId: string,
+  rows: T[],
+): T[] {
+  if (isTransportWriter(actor, instituteId)) return rows;
+  if (isDriverForInstitute(actor, instituteId)) {
+    return rows.filter(
+      (r) =>
+        r.approval_status === "approved" ||
+        (r.approval_status !== "approved" && r.submitted_by_user_id === actor.userId),
+    );
+  }
+  return rows.filter((r) => r.approval_status === "approved");
 }
 
 function assertTransportStaffReader(actor: Actor, instituteId: string): void {
@@ -478,7 +526,7 @@ export async function listRoutesForActor(
 ): Promise<RouteDto[]> {
   const id = requireInstituteId(actor, instituteId);
   assertTransportStaffReader(actor, id);
-  const rows = await listRoutes(admin, id);
+  const rows = filterApprovalRows(actor, id, await listRoutes(admin, id));
   return rows.map(toRouteDto);
 }
 
@@ -490,6 +538,13 @@ export async function getRouteForActor(
   const row = await findRouteById(admin, routeId);
   if (!row) throw AppError.notFound("Route not found");
   assertTransportStaffReader(actor, row.institute_id);
+  if (
+    !isTransportWriter(actor, row.institute_id) &&
+    row.approval_status !== "approved" &&
+    row.submitted_by_user_id !== actor.userId
+  ) {
+    throw AppError.notFound("Route not found");
+  }
   return toRouteDto(row);
 }
 
@@ -499,7 +554,9 @@ export async function createRouteForActor(
   input: CreateRouteInput,
 ): Promise<RouteDto> {
   const instituteId = requireInstituteId(actor, input.instituteId);
-  assertTransportWriter(actor, instituteId);
+  assertCanSubmitTransport(actor, instituteId);
+  const writer = isTransportWriter(actor, instituteId);
+  const approvalStatus = approvalStatusForCreate(actor, instituteId);
 
   const name = input.name.trim();
   if (!name) throw AppError.validation("name is required");
@@ -511,7 +568,13 @@ export async function createRouteForActor(
     await assertDriverInInstitute(admin, input.driverId, instituteId);
   }
 
-  const row = await insertRoute(admin, { ...input, instituteId, name });
+  const row = await insertRoute(admin, {
+    ...input,
+    instituteId,
+    name,
+    approvalStatus,
+    submittedByUserId: writer ? null : actor.userId,
+  });
   return toRouteDto(row);
 }
 
@@ -550,7 +613,17 @@ export async function deleteRouteForActor(
 ): Promise<void> {
   const existing = await findRouteById(admin, routeId);
   if (!existing) throw AppError.notFound("Route not found");
-  assertTransportWriter(actor, existing.institute_id);
+  if (isTransportWriter(actor, existing.institute_id)) {
+    const deleted = await softDeleteRoute(admin, routeId);
+    if (!deleted) throw AppError.conflict("Route was already deleted");
+    return;
+  }
+  assertCanDeleteRejected(
+    actor,
+    existing.institute_id,
+    existing.submitted_by_user_id,
+    existing.approval_status,
+  );
   const deleted = await softDeleteRoute(admin, routeId);
   if (!deleted) throw AppError.conflict("Route was already deleted");
 }
@@ -565,7 +638,11 @@ export async function listStopsForActor(
   const route = await findRouteById(admin, routeId);
   if (!route) throw AppError.notFound("Route not found");
   assertTransportStaffReader(actor, route.institute_id);
-  const rows = await listStopsForRoute(admin, routeId);
+  const rows = filterApprovalRows(
+    actor,
+    route.institute_id,
+    await listStopsForRoute(admin, routeId),
+  );
   return rows.map(toStopDto);
 }
 
@@ -577,6 +654,13 @@ export async function getStopForActor(
   const row = await findStopById(admin, stopId);
   if (!row) throw AppError.notFound("Stop not found");
   assertTransportStaffReader(actor, row.institute_id);
+  if (
+    !isTransportWriter(actor, row.institute_id) &&
+    row.approval_status !== "approved" &&
+    row.submitted_by_user_id !== actor.userId
+  ) {
+    throw AppError.notFound("Stop not found");
+  }
   return toStopDto(row);
 }
 
@@ -586,7 +670,9 @@ export async function createStopForActor(
   input: CreateStopInput,
 ): Promise<StopDto> {
   const instituteId = requireInstituteId(actor, input.instituteId);
-  assertTransportWriter(actor, instituteId);
+  assertCanSubmitTransport(actor, instituteId);
+  const writer = isTransportWriter(actor, instituteId);
+  const approvalStatus = approvalStatusForCreate(actor, instituteId);
 
   await assertRouteInInstitute(admin, input.routeId, instituteId);
 
@@ -610,6 +696,8 @@ export async function createStopForActor(
     instituteId,
     name,
     locationLabel,
+    approvalStatus,
+    submittedByUserId: writer ? null : actor.userId,
   });
   return toStopDto(row);
 }
@@ -652,7 +740,17 @@ export async function deleteStopForActor(
 ): Promise<void> {
   const existing = await findStopById(admin, stopId);
   if (!existing) throw AppError.notFound("Stop not found");
-  assertTransportWriter(actor, existing.institute_id);
+  if (isTransportWriter(actor, existing.institute_id)) {
+    const deleted = await softDeleteStop(admin, stopId);
+    if (!deleted) throw AppError.conflict("Stop was already deleted");
+    return;
+  }
+  assertCanDeleteRejected(
+    actor,
+    existing.institute_id,
+    existing.submitted_by_user_id,
+    existing.approval_status,
+  );
   const deleted = await softDeleteStop(admin, stopId);
   if (!deleted) throw AppError.conflict("Stop was already deleted");
 }
@@ -667,7 +765,7 @@ export async function listEnrollmentsForActor(
   const id = requireInstituteId(actor, instituteId);
 
   if (isStaffReader(actor, id)) {
-    const rows = await listEnrollments(admin, id);
+    const rows = filterApprovalRows(actor, id, await listEnrollments(admin, id));
     return rows.map(toEnrollmentDto);
   }
 
@@ -675,7 +773,11 @@ export async function listEnrollmentsForActor(
   if (linked.size === 0) {
     throw AppError.forbidden("Insufficient permissions");
   }
-  const rows = await listEnrollments(admin, id, [...linked]);
+  const rows = filterApprovalRows(
+    actor,
+    id,
+    await listEnrollments(admin, id, [...linked]),
+  );
   return rows.map(toEnrollmentDto);
 }
 
@@ -696,7 +798,9 @@ export async function createEnrollmentForActor(
   input: CreateEnrollmentInput,
 ): Promise<TransportEnrollmentDto> {
   const instituteId = requireInstituteId(actor, input.instituteId);
-  assertTransportWriter(actor, instituteId);
+  assertCanSubmitTransport(actor, instituteId);
+  const writer = isTransportWriter(actor, instituteId);
+  const approvalStatus = approvalStatusForCreate(actor, instituteId);
 
   const student = await findStudentById(admin, input.studentId);
   if (!student || student.institute_id !== instituteId) {
@@ -707,7 +811,12 @@ export async function createEnrollmentForActor(
   await assertStopOnRoute(admin, input.pickupStopId, input.routeId, instituteId);
   await assertStopOnRoute(admin, input.dropStopId, input.routeId, instituteId);
 
-  const row = await insertEnrollment(admin, { ...input, instituteId });
+  const row = await insertEnrollment(admin, {
+    ...input,
+    instituteId,
+    approvalStatus,
+    submittedByUserId: writer ? null : actor.userId,
+  });
   return toEnrollmentDto(row);
 }
 
@@ -758,7 +867,17 @@ export async function deleteEnrollmentForActor(
 ): Promise<void> {
   const existing = await findEnrollmentById(admin, enrollmentId);
   if (!existing) throw AppError.notFound("Enrollment not found");
-  assertTransportWriter(actor, existing.institute_id);
+  if (isTransportWriter(actor, existing.institute_id)) {
+    const deleted = await softDeleteEnrollment(admin, enrollmentId);
+    if (!deleted) throw AppError.conflict("Enrollment was already deleted");
+    return;
+  }
+  assertCanDeleteRejected(
+    actor,
+    existing.institute_id,
+    existing.submitted_by_user_id,
+    existing.approval_status,
+  );
   const deleted = await softDeleteEnrollment(admin, enrollmentId);
   if (!deleted) throw AppError.conflict("Enrollment was already deleted");
 }

@@ -27,13 +27,13 @@ const DRIVER_COLS =
   "id, institute_id, user_profile_id, display_name, phone, license_number, license_expiry, status, notes, created_at, updated_at, deleted_at";
 
 const ROUTE_COLS =
-  "id, institute_id, name, vehicle_id, driver_id, status, config_status, locked_at, locked_by_user_id, setup_finished_at, created_at, updated_at, deleted_at";
+  "id, institute_id, name, vehicle_id, driver_id, status, config_status, locked_at, locked_by_user_id, setup_finished_at, approval_status, submitted_by_user_id, reviewed_by_user_id, reviewed_at, rejection_reason, created_at, updated_at, deleted_at";
 
 const STOP_COLS =
-  "id, institute_id, route_id, name, location_label, latitude, longitude, route_order, notification_radius_m, created_at, updated_at, deleted_at";
+  "id, institute_id, route_id, name, location_label, latitude, longitude, route_order, notification_radius_m, approval_status, submitted_by_user_id, reviewed_by_user_id, reviewed_at, rejection_reason, created_at, updated_at, deleted_at";
 
 const ENROLLMENT_COLS =
-  "id, institute_id, student_id, route_id, pickup_stop_id, drop_stop_id, status, created_at, updated_at, deleted_at";
+  "id, institute_id, student_id, route_id, pickup_stop_id, drop_stop_id, status, approval_status, submitted_by_user_id, reviewed_by_user_id, reviewed_at, rejection_reason, created_at, updated_at, deleted_at";
 
 const SETTINGS_COLS =
   "institute_id, default_notification_radius_m, default_pickup_buffer_mins, working_days, created_at, updated_at";
@@ -158,6 +158,22 @@ export async function findDriverById(
   return (result.data as DriverRow | null) ?? null;
 }
 
+export async function findDriverByUserProfileId(
+  admin: SupabaseClient,
+  userProfileId: string,
+  instituteId: string,
+): Promise<DriverRow | null> {
+  const result = await admin
+    .from("driver")
+    .select(DRIVER_COLS)
+    .eq("user_profile_id", userProfileId)
+    .eq("institute_id", instituteId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (result.data as DriverRow | null) ?? null;
+}
+
 export async function insertDriver(
   admin: SupabaseClient,
   input: CreateDriverInput,
@@ -264,6 +280,8 @@ export async function insertRoute(
       driver_id: input.driverId ?? null,
       status: input.status ?? "active",
       config_status: input.configStatus ?? "not_configured",
+      approval_status: input.approvalStatus ?? "approved",
+      submitted_by_user_id: input.submittedByUserId ?? null,
     })
     .select(ROUTE_COLS)
     .single();
@@ -356,6 +374,8 @@ export async function insertStop(
       longitude: input.longitude,
       route_order: input.routeOrder,
       notification_radius_m: input.notificationRadiusM ?? 150,
+      approval_status: input.approvalStatus ?? "approved",
+      submitted_by_user_id: input.submittedByUserId ?? null,
     })
     .select(STOP_COLS)
     .single();
@@ -455,6 +475,8 @@ export async function insertEnrollment(
       pickup_stop_id: input.pickupStopId,
       drop_stop_id: input.dropStopId,
       status: input.status ?? "active",
+      approval_status: input.approvalStatus ?? "approved",
+      submitted_by_user_id: input.submittedByUserId ?? null,
     })
     .select(ENROLLMENT_COLS)
     .single();

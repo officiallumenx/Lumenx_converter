@@ -3,6 +3,7 @@
 export type TransportAssetStatus = "active" | "inactive" | "maintenance";
 export type RouteConfigStatus = "not_configured" | "configured" | "locked";
 export type EnrollmentStatus = "active" | "inactive" | "ended";
+export type TransportApprovalStatus = "pending" | "approved" | "rejected";
 
 export type VehicleRow = {
   id: string;
@@ -43,6 +44,11 @@ export type RouteRow = {
   locked_at: string | null;
   locked_by_user_id: string | null;
   setup_finished_at: string | null;
+  approval_status: TransportApprovalStatus;
+  submitted_by_user_id: string | null;
+  reviewed_by_user_id: string | null;
+  reviewed_at: string | null;
+  rejection_reason: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -58,6 +64,11 @@ export type StopRow = {
   longitude: number;
   route_order: number;
   notification_radius_m: number;
+  approval_status: TransportApprovalStatus;
+  submitted_by_user_id: string | null;
+  reviewed_by_user_id: string | null;
+  reviewed_at: string | null;
+  rejection_reason: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -71,6 +82,11 @@ export type TransportEnrollmentRow = {
   pickup_stop_id: string;
   drop_stop_id: string;
   status: EnrollmentStatus;
+  approval_status: TransportApprovalStatus;
+  submitted_by_user_id: string | null;
+  reviewed_by_user_id: string | null;
+  reviewed_at: string | null;
+  rejection_reason: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -122,6 +138,11 @@ export type RouteDto = {
   lockedAt: string | null;
   lockedByUserId: string | null;
   setupFinishedAt: string | null;
+  approvalStatus: TransportApprovalStatus;
+  submittedByUserId: string | null;
+  reviewedByUserId: string | null;
+  reviewedAt: string | null;
+  rejectionReason: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -136,6 +157,11 @@ export type StopDto = {
   longitude: number;
   routeOrder: number;
   notificationRadiusM: number;
+  approvalStatus: TransportApprovalStatus;
+  submittedByUserId: string | null;
+  reviewedByUserId: string | null;
+  reviewedAt: string | null;
+  rejectionReason: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -148,6 +174,11 @@ export type TransportEnrollmentDto = {
   pickupStopId: string;
   dropStopId: string;
   status: EnrollmentStatus;
+  approvalStatus: TransportApprovalStatus;
+  submittedByUserId: string | null;
+  reviewedByUserId: string | null;
+  reviewedAt: string | null;
+  rejectionReason: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -206,6 +237,8 @@ export type CreateRouteInput = {
   driverId?: string | null;
   status?: TransportAssetStatus;
   configStatus?: RouteConfigStatus;
+  approvalStatus?: TransportApprovalStatus;
+  submittedByUserId?: string | null;
 };
 
 export type UpdateRouteInput = {
@@ -225,6 +258,8 @@ export type CreateStopInput = {
   longitude: number;
   routeOrder: number;
   notificationRadiusM?: number;
+  approvalStatus?: TransportApprovalStatus;
+  submittedByUserId?: string | null;
 };
 
 export type UpdateStopInput = {
@@ -243,6 +278,8 @@ export type CreateEnrollmentInput = {
   pickupStopId: string;
   dropStopId: string;
   status?: EnrollmentStatus;
+  approvalStatus?: TransportApprovalStatus;
+  submittedByUserId?: string | null;
 };
 
 export type UpdateEnrollmentInput = {

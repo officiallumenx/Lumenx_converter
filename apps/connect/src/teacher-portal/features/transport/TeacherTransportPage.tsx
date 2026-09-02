@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Bus, Clock, Users } from "lucide-react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { StatCard } from "@/components/app/StatCard";
@@ -11,14 +11,36 @@ import {
 } from "@/components/app/transport/TransportRouteTimeline";
 import { TransportStudentsTable } from "@/components/app/transport/TransportStudentsTable";
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
+import { useApp } from "@/lib/app-state";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { loadTeacherClassTransport } from "@/lib/transport";
 import { transportStore } from "@/lib/transport-store";
 import { formatEtaMinutes, unreadTransportAlertCount } from "@/lib/transport-utils";
 import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
 import { EmptyState } from "@/teacher-portal/shared/ui/EmptyState";
+import type { TeacherClassTransportRow } from "@/lib/transport";
 
 export function TeacherTransportPage() {
   const portal = useTeacherPortal();
+  const { activeInstituteId } = useApp();
+  const apiMode = isApiAuthMode();
   const hasTransport = portal.isTeacher && portal.profile?.hasTransport === true;
+  const [apiRoster, setApiRoster] = useState<TeacherClassTransportRow[]>([]);
+  const [apiRosterLoading, setApiRosterLoading] = useState(false);
+
+  useEffect(() => {
+    if (!apiMode || !hasTransport || !activeInstituteId) return;
+    let cancelled = false;
+    setApiRosterLoading(true);
+    void loadTeacherClassTransport({ instituteId: activeInstituteId }).then((state) => {
+      if (cancelled) return;
+      if (state.status === "ready") setApiRoster(state.rows);
+      setApiRosterLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiMode, hasTransport, activeInstituteId, portal.classes.length]);
 
   useEffect(() => {
     if (hasTransport) {
@@ -99,6 +121,46 @@ export function TeacherTransportPage() {
         title="Transport management"
         subtitle={`Monitor ${routeOverview.routeName} · pickup status for students in your classes`}
       />
+
+      {apiMode ? (
+        <div className="rounded-xl border border-border bg-card p-4">
+          <h2 className="text-sm font-semibold text-foreground">Class bus assignments</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Approved enrollments from the institute transport API.
+          </p>
+          {apiRosterLoading ? (
+            <p className="mt-3 text-sm text-muted-foreground">Loading roster…</p>
+          ) : apiRoster.length === 0 ? (
+            <p className="mt-3 text-sm text-muted-foreground">No bus assignments found.</p>
+          ) : (
+            <div className="mt-3 overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-border text-muted-foreground">
+                    <th className="py-2 pr-4 font-medium">Student</th>
+                    <th className="py-2 pr-4 font-medium">Class</th>
+                    <th className="py-2 pr-4 font-medium">Roll</th>
+                    <th className="py-2 font-medium">Bus</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {apiRoster.map((row) => (
+                    <tr key={row.studentId} className="border-b border-border/60">
+                      <td className="py-2 pr-4">{row.studentName}</td>
+                      <td className="py-2 pr-4">
+                        {row.classLabel}
+                        {row.sectionLabel !== "—" ? ` · ${row.sectionLabel}` : ""}
+                      </td>
+                      <td className="py-2 pr-4">{row.rollNo}</td>
+                      <td className="py-2">{row.busNumber ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      ) : null}
 
       <TransportEtaBanner tracking={tracking} />
 

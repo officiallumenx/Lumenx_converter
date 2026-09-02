@@ -9,6 +9,20 @@ import {
   validateQuery,
 } from "../../validation/validate.js";
 import {
+  approveTransportEnrollmentForActor,
+  approveTransportRouteForActor,
+  approveTransportStopForActor,
+  deleteRejectedTransportEnrollmentForActor,
+  deleteRejectedTransportRouteForActor,
+  deleteRejectedTransportStopForActor,
+  getDriverMeForActor,
+  listTeacherClassTransportForActor,
+  listTransportReviewQueueForActor,
+  rejectTransportEnrollmentForActor,
+  rejectTransportRouteForActor,
+  rejectTransportStopForActor,
+} from "../../domains/transport/approval-service.js";
+import {
   createDriverForActor,
   createEnrollmentForActor,
   createRouteForActor,
@@ -516,6 +530,144 @@ transport.put("/settings", async (c) => {
     defaultNotificationRadiusM: body.default_notification_radius_m,
     defaultPickupBufferMins: body.default_pickup_buffer_mins,
     workingDays: body.working_days,
+  });
+  return c.json({ data });
+});
+
+// ── Approval workflow ────────────────────────────────────────────
+
+transport.get("/review-queue", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(
+    z.object({ institute_id: uuid }),
+    c.req.query(),
+  );
+  const data = await listTransportReviewQueueForActor(
+    admin,
+    actor,
+    query.institute_id,
+  );
+  return c.json({ data });
+});
+
+transport.post("/routes/:id/approve", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const data = await approveTransportRouteForActor(admin, actor, id);
+  return c.json({ data });
+});
+
+transport.post("/routes/:id/reject", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const body = validateBody(
+    z.object({ reason: z.string().min(1).max(2000) }),
+    await c.req.json(),
+  );
+  const data = await rejectTransportRouteForActor(admin, actor, id, body.reason);
+  return c.json({ data });
+});
+
+transport.delete("/routes/:id/rejected", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  await deleteRejectedTransportRouteForActor(admin, actor, id);
+  return c.json({ data: { ok: true } });
+});
+
+transport.post("/stops/:id/approve", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const data = await approveTransportStopForActor(admin, actor, id);
+  return c.json({ data });
+});
+
+transport.post("/stops/:id/reject", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const body = validateBody(
+    z.object({ reason: z.string().min(1).max(2000) }),
+    await c.req.json(),
+  );
+  const data = await rejectTransportStopForActor(admin, actor, id, body.reason);
+  return c.json({ data });
+});
+
+transport.delete("/stops/:id/rejected", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  await deleteRejectedTransportStopForActor(admin, actor, id);
+  return c.json({ data: { ok: true } });
+});
+
+transport.post("/enrollments/:id/approve", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const data = await approveTransportEnrollmentForActor(admin, actor, id);
+  return c.json({ data });
+});
+
+transport.post("/enrollments/:id/reject", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const body = validateBody(
+    z.object({ reason: z.string().min(1).max(2000) }),
+    await c.req.json(),
+  );
+  const data = await rejectTransportEnrollmentForActor(
+    admin,
+    actor,
+    id,
+    body.reason,
+  );
+  return c.json({ data });
+});
+
+transport.delete("/enrollments/:id/rejected", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  await deleteRejectedTransportEnrollmentForActor(admin, actor, id);
+  return c.json({ data: { ok: true } });
+});
+
+// ── Portal helpers ───────────────────────────────────────────────
+
+transport.get("/drivers/me", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(
+    z.object({ institute_id: uuid }),
+    c.req.query(),
+  );
+  const data = await getDriverMeForActor(admin, actor, query.institute_id);
+  return c.json({ data });
+});
+
+transport.get("/portal/teacher-class-roster", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(
+    z.object({
+      institute_id: uuid,
+      class_label: z.string().min(1).optional(),
+      section_label: z.string().min(1).optional(),
+    }),
+    c.req.query(),
+  );
+  const data = await listTeacherClassTransportForActor(admin, actor, {
+    instituteId: query.institute_id,
+    classLabel: query.class_label,
+    sectionLabel: query.section_label,
   });
   return c.json({ data });
 });

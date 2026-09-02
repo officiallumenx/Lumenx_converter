@@ -1,3 +1,5 @@
+export { isApiAuthMode, isDemoAuthMode, getTransportAuthMode } from "./auth-mode";
+export type { TransportAuthMode } from "./auth-mode";
 export {
   findDriverByPhone,
   formatIndianMobile,

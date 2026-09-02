@@ -366,6 +366,12 @@ export {
   type PushTransportNotificationInput,
 } from "./transport-notification-bridge";
 export {
+  subscribeTransportRealtime,
+  type TransportRealtimeEvent,
+  type TransportRealtimeTable,
+  type SubscribeTransportRealtimeOptions,
+} from "./transport-realtime";
+export {
   loadDashboardLayout,
   saveDashboardLayout,
   resetDashboardLayout,
