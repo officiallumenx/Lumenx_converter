@@ -27,7 +27,9 @@ import {
   transitionComplaint,
   type ComplaintListItem,
   type ComplaintsListStatus,
+  type ComplaintStatus as BackendComplaintStatus,
 } from "@/lib/complaints";
+import { refreshAdminComplaintsPendingCount } from "@/lib/complaints/pending-count-store";
 
 export const Route = createFileRoute("/complaints")({
   head: () => ({ meta: [{ title: "Complaints — LumenX Admin" }] }),
@@ -139,6 +141,7 @@ function ComplaintsPage() {
       setListStatus(next.status);
       setListError(next.errorMessage);
       setResolvedForInstituteId(requestInstituteId);
+      void refreshAdminComplaintsPendingCount(requestInstituteId);
     });
     return () => {
       cancelled = true;
@@ -163,7 +166,7 @@ function ComplaintsPage() {
     [displayItems, detailId],
   );
 
-  const setStatus = (id: string, status: ComplaintStatus, reason?: string) => {
+  const setStatus = (id: string, status: BackendComplaintStatus, reason?: string) => {
     if (apiMode) {
       if (!writesEnabled) return;
       void transitionComplaint(id, {
@@ -172,6 +175,7 @@ function ComplaintsPage() {
       })
         .then(() => {
           setReloadKey((k) => k + 1);
+          void refreshAdminComplaintsPendingCount(instituteCtx.activeInstituteId);
           notify(`Complaint ${id} moved to ${status.replace("_", " ")}`);
         })
         .catch((err) => {
@@ -408,18 +412,33 @@ function ComplaintsPage() {
                       Delete
                     </Button>
                   ) : null}
-                  <Button
-                    disabled={detail.status === "review" || detail.status === "rejected"}
-                    onClick={() => {
-                      setStatus(detail.id, "review");
-                      setDetailId(null);
-                    }}
-                  >
-                    Move to Review
-                  </Button>
+                  {detail.backendStatus === "pending" || detail.backendStatus === "forwarded" ? (
+                    <Button
+                      onClick={() => {
+                        setStatus(detail.id, "review");
+                        setDetailId(null);
+                      }}
+                    >
+                      Move to Review
+                    </Button>
+                  ) : null}
+                  {detail.backendStatus === "pending" ||
+                  detail.backendStatus === "review" ? (
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setStatus(detail.id, "forwarded");
+                        setDetailId(null);
+                      }}
+                    >
+                      Forward to Admin
+                    </Button>
+                  ) : null}
                   <Button
                     variant="danger"
-                    disabled={detail.status === "resolved" || detail.status === "rejected"}
+                    disabled={
+                      detail.status === "resolved" || detail.status === "rejected"
+                    }
                     onClick={() => {
                       const reason =
                         window.prompt("Rejection reason (shown to requester):", "") ?? "";
@@ -431,14 +450,46 @@ function ComplaintsPage() {
                   </Button>
                   <Button
                     variant="primary"
-                    disabled={detail.status === "resolved" || detail.status === "rejected"}
+                    disabled={
+                      detail.status === "resolved" || detail.status === "rejected"
+                    }
                     onClick={() => {
-                      setStatus(detail.id, "resolved");
+                      const note =
+                        window.prompt("Resolution note (optional):", "") ?? "";
+                      setStatus(detail.id, "resolved", note || undefined);
                       setDetailId(null);
                     }}
                   >
                     Mark Resolved
                   </Button>
+                  {detail.backendStatus === "resolved" ||
+                  detail.backendStatus === "rejected" ||
+                  detail.backendStatus === "review" ||
+                  detail.backendStatus === "forwarded" ||
+                  detail.backendStatus === "pending" ? (
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setStatus(detail.id, "closed");
+                        setDetailId(null);
+                      }}
+                    >
+                      Close
+                    </Button>
+                  ) : null}
+                  {detail.backendStatus === "resolved" ||
+                  detail.backendStatus === "closed" ||
+                  detail.backendStatus === "rejected" ? (
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setStatus(detail.id, "archived");
+                        setDetailId(null);
+                      }}
+                    >
+                      Archive
+                    </Button>
+                  ) : null}
                 </>
               ) : (
                 <span className="text-[11px] text-muted-foreground self-center">
@@ -485,6 +536,14 @@ function ComplaintsPage() {
             <div className="p-4 rounded-lg bg-background/40 border border-border text-sm leading-relaxed text-muted-foreground">
               {detail.body}
             </div>
+            {detail.responseNote ? (
+              <div className="p-4 rounded-lg bg-primary/5 border border-primary/20 text-sm">
+                <div className="text-[11px] font-medium text-muted-foreground mb-1">
+                  Response note
+                </div>
+                {detail.responseNote}
+              </div>
+            ) : null}
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <FileText className="size-3.5" /> Detail view
             </div>

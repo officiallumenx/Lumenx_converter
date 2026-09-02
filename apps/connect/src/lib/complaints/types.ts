@@ -30,21 +30,6 @@ export type ComplaintDto = {
   updatedAt: string;
 };
 
-/** Existing Complaints page list/kanban model. */
-export type ComplaintListItem = {
-  id: string;
-  title: string;
-  from: string;
-  role: string;
-  destination: ComplaintDestination;
-  priority: "Low" | "Medium" | "High";
-  status: "pending" | "review" | "resolved" | "rejected";
-  backendStatus: ComplaintStatus;
-  time: string;
-  body: string;
-  responseNote: string | null;
-};
-
 export type ListComplaintsParams = {
   instituteId: string;
   status?: ComplaintStatus;
@@ -52,4 +37,43 @@ export type ListComplaintsParams = {
   priority?: ComplaintPriority;
   studentId?: string;
   teacherId?: string;
+};
+
+export type CreateComplaintInput = {
+  instituteId: string;
+  title: string;
+  body: string;
+  category: string;
+  priority?: ComplaintPriority;
+  destination?: ComplaintDestination | null;
+  studentId?: string | null;
+  asDraft?: boolean;
+};
+
+export type UpdateComplaintInput = {
+  title?: string;
+  body?: string;
+  category?: string;
+  priority?: ComplaintPriority;
+  destination?: ComplaintDestination | null;
+};
+
+export type TransitionComplaintInput = {
+  status: ComplaintStatus;
+  responseNote?: string | null;
+};
+
+/** Parent / student list row. */
+export type ConnectComplaintItem = {
+  id: string;
+  title: string;
+  category: string;
+  destination: ComplaintDestination;
+  priorityLabel: "Low" | "Medium" | "High";
+  statusLabel: string;
+  status: ComplaintStatus;
+  body: string;
+  responseNote: string | null;
+  createdAtLabel: string;
+  studentId: string | null;
 };

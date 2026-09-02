@@ -26,6 +26,8 @@ import { appendDemoComplaint, loadDemoComplaints, listenDemoSync } from "@lumenx
 import { notifyComplaintSubmitted } from "@lumenx/module-notifications";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@lumenx/ui";
 import { TeacherComplaintsPage } from "@/teacher-portal";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { LearnerComplaintsApiPanel } from "@/components/app/complaints/LearnerComplaintsApiPanel";
 
 export const Route = createFileRoute("/complaints")({
   head: () => ({ meta: [{ title: "Complaints — LumenX Connect" }] }),
@@ -102,6 +104,7 @@ function ComplaintsPage() {
   }, [role, activeChildId, extra]);
 
   if (role === "teacher") return <TeacherComplaintsPage />;
+  if (isApiAuthMode()) return <LearnerComplaintsApiPanel />;
 
   const childLabel =
     role === "parent" && portal.isParent && portal.snapshot ? portal.snapshot.child.name : null;

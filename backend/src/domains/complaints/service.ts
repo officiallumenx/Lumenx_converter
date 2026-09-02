@@ -30,6 +30,10 @@ import type {
   TransitionComplaintInput,
   UpdateComplaintInput,
 } from "./types.js";
+import {
+  emitComplaintCreatedNotifications,
+  emitComplaintTransitionNotifications,
+} from "./notifications.js";
 
 /** Admin triage write roles (principal_admin destination). */
 export const COMPLAINT_TRIAGE_ROLES = [
@@ -299,6 +303,7 @@ export async function createComplaintForActor(
     teacherId,
     status: asDraft ? "draft" : "pending",
   });
+  await emitComplaintCreatedNotifications(admin, actor.userId, row);
   return toComplaintDto(row);
 }
 
@@ -441,6 +446,12 @@ export async function transitionComplaintForActor(
 
   const updated = await updateComplaintFields(admin, id, patch);
   if (!updated) throw AppError.notFound("Complaint not found");
+  await emitComplaintTransitionNotifications(
+    admin,
+    actor.userId,
+    existing,
+    updated,
+  );
   return toComplaintDto(updated);
 }
 

@@ -37,9 +37,13 @@ export function ComplaintCard({
   onArchive,
   onSubmitDraft,
   onDeleteDraft,
+  hideResolve,
+  hideClose,
 }: {
   complaint: TeacherComplaint;
   disabled?: boolean;
+  hideResolve?: boolean;
+  hideClose?: boolean;
   onView?: (id: string) => void;
   onRespond?: (id: string) => void;
   onForward?: (id: string) => void;
@@ -132,23 +136,27 @@ export function ComplaintCard({
                 Forward
               </Button>
             )}
-            <Button
-              size="sm"
-              variant="outline"
-              className="rounded-xl"
-              disabled={disabled}
-              onClick={() => onResolve?.(complaint.id)}
-            >
-              Mark resolved
-            </Button>
-            <Button
-              size="sm"
-              className="rounded-xl"
-              disabled={disabled}
-              onClick={() => onClose?.(complaint.id)}
-            >
-              Close
-            </Button>
+            {!hideResolve && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-xl"
+                disabled={disabled}
+                onClick={() => onResolve?.(complaint.id)}
+              >
+                Mark resolved
+              </Button>
+            )}
+            {!hideClose && (
+              <Button
+                size="sm"
+                className="rounded-xl"
+                disabled={disabled}
+                onClick={() => onClose?.(complaint.id)}
+              >
+                Close
+              </Button>
+            )}
           </>
         )}
         {canArchive && (

@@ -80,8 +80,10 @@ export function complaintDtoToListItem(
     destination: dto.destination ?? "principal_admin",
     priority: mapPriority(dto.priority),
     status,
+    backendStatus: dto.status,
     time: formatRelativeWhen(dto.createdAt),
     body: dto.body,
+    responseNote: dto.responseNote,
   };
 }
 

@@ -12,6 +12,17 @@ import { EmptyState } from "@/teacher-portal/shared/ui/EmptyState";
 import { ShieldAlert, Plus } from "lucide-react";
 import { toast } from "sonner";
 import type { ComplaintStatus, TeacherComplaint } from "@/lib/teacher/types";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { useApp } from "@/lib/app-state";
+import {
+  loadTeacherComplaints,
+  removeComplaintDraft,
+  splitTeacherComplaints,
+  submitTeacherComplaint,
+  teacherActionToBackendStatus,
+  teacherPriorityToApi,
+  transitionComplaintStatus,
+} from "@/lib/complaints";
 import {
   Dialog,
   DialogContent,
@@ -43,8 +54,11 @@ const schema = z.object({
 });
 
 export function TeacherComplaintsPage() {
+  const { activeInstituteId } = useApp();
+  const apiMode = isApiAuthMode();
   const [items, setItems] = useState<TeacherComplaint[]>([]);
   const [loading, setLoading] = useState(true);
+  const [queueTab, setQueueTab] = useState<"mine" | "class_inbox">("mine");
   const [statusFilter, setStatusFilter] = useState<ComplaintStatusFilter>("all");
   const [respondId, setRespondId] = useState<string | null>(null);
   const [viewId, setViewId] = useState<string | null>(null);
@@ -58,19 +72,30 @@ export function TeacherComplaintsPage() {
 
   const load = useCallback(() => {
     setLoading(true);
+    if (apiMode && activeInstituteId) {
+      void loadTeacherComplaints({ instituteId: activeInstituteId }).then((result) => {
+        if (result.status === "ready") setItems(result.items);
+        else setItems([]);
+        setLoading(false);
+      });
+      return;
+    }
     teacherRepository.getComplaints().then((c) => {
       setItems(c);
       setLoading(false);
     });
-  }, []);
+  }, [apiMode, activeInstituteId]);
 
   useEffect(() => {
     load();
   }, [load]);
 
+  const { mine, classInbox } = useMemo(() => splitTeacherComplaints(items), [items]);
+  const queueItems = queueTab === "class_inbox" ? classInbox : mine;
+
   const statusCounts = useMemo(() => {
     const counts: Record<ComplaintStatusFilter, number> = {
-      all: items.length,
+      all: queueItems.length,
       draft: 0,
       open: 0,
       in_progress: 0,
@@ -79,22 +104,83 @@ export function TeacherComplaintsPage() {
       closed: 0,
       archived: 0,
     };
-    for (const item of items) counts[item.status] += 1;
+    for (const item of queueItems) counts[item.status] += 1;
     return counts;
-  }, [items]);
+  }, [queueItems]);
 
   const filteredItems = useMemo(
-    () => (statusFilter === "all" ? items : items.filter((c) => c.status === statusFilter)),
-    [items, statusFilter],
+    () =>
+      statusFilter === "all"
+        ? queueItems
+        : queueItems.filter((c) => c.status === statusFilter),
+    [queueItems, statusFilter],
   );
 
   const updateStatusFn = useCallback(
     async (id: string, status: ComplaintStatus, resp?: string) => {
-      await teacherRepository.updateComplaintStatus(id, status, resp);
-      toast.success(`Complaint marked as ${status.replace("_", " ")}`);
+      if (apiMode) {
+        const action =
+          status === "open"
+            ? "submit_draft"
+            : status === "in_progress"
+              ? "respond"
+              : status === "forwarded"
+                ? "forward"
+                : status === "resolved"
+                  ? "resolve"
+                  : status === "closed"
+                    ? "close"
+                    : status === "archived"
+                      ? "archive"
+                      : "respond";
+        await transitionComplaintStatus(
+          id,
+          teacherActionToBackendStatus(action),
+          resp?.trim() || null,
+        );
+      } else {
+        await teacherRepository.updateComplaintStatus(id, status, resp);
+      }
+      toast.success(`Complaint updated`);
       load();
     },
-    [load],
+    [apiMode, load],
+  );
+
+  const createFn = useCallback(
+    async (data: z.infer<typeof schema>, draft = false) => {
+      if (apiMode && activeInstituteId) {
+        const row = await submitTeacherComplaint({
+          instituteId: activeInstituteId,
+          title: data.title,
+          body: data.body,
+          category: data.category,
+          priority: teacherPriorityToApi(data.priority),
+          asDraft: draft,
+        });
+      } else {
+        await teacherRepository.createComplaint({ ...data, draft });
+      }
+      toast.success(draft ? "Draft saved" : "Complaint submitted");
+      setCreateOpen(false);
+      form.reset();
+      if (draft) setStatusFilter("draft");
+      load();
+    },
+    [apiMode, activeInstituteId, form, load],
+  );
+
+  const deleteDraftFn = useCallback(
+    async (id: string) => {
+      if (apiMode) {
+        await removeComplaintDraft(id);
+      } else {
+        await teacherRepository.deleteComplaint(id);
+      }
+      toast.success("Draft deleted");
+      load();
+    },
+    [apiMode, load],
   );
 
   const submitResponseFn = useCallback(async () => {
@@ -103,27 +189,6 @@ export function TeacherComplaintsPage() {
     setRespondId(null);
     setResponse("");
   }, [respondId, response, updateStatusFn]);
-
-  const createFn = useCallback(
-    async (data: z.infer<typeof schema>, draft = false) => {
-      await teacherRepository.createComplaint({ ...data, draft });
-      toast.success(draft ? "Draft saved" : "Complaint submitted");
-      setCreateOpen(false);
-      form.reset();
-      if (draft) setStatusFilter("draft");
-      load();
-    },
-    [form, load],
-  );
-
-  const deleteDraftFn = useCallback(
-    async (id: string) => {
-      await teacherRepository.deleteComplaint(id);
-      toast.success("Draft deleted");
-      load();
-    },
-    [load],
-  );
 
   const { run: updateStatus, pending: updatingStatus } = useAsyncAction(updateStatusFn);
   const { run: submitResponse, pending: submittingResponse } = useAsyncAction(submitResponseFn);
@@ -153,6 +218,39 @@ export function TeacherComplaintsPage() {
         }
       />
 
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            setQueueTab("mine");
+            setStatusFilter("all");
+          }}
+          className={cn(
+            "rounded-full px-3 py-1.5 text-xs font-medium",
+            queueTab === "mine"
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted text-muted-foreground",
+          )}
+        >
+          My complaints ({mine.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setQueueTab("class_inbox");
+            setStatusFilter("all");
+          }}
+          className={cn(
+            "rounded-full px-3 py-1.5 text-xs font-medium",
+            queueTab === "class_inbox"
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted text-muted-foreground",
+          )}
+        >
+          Class inbox ({classInbox.length})
+        </button>
+      </div>
+
       <div className="flex flex-wrap gap-1.5">
         {COMPLAINT_STATUS_FILTERS.map(({ id, label }) => (
           <button
@@ -181,6 +279,8 @@ export function TeacherComplaintsPage() {
               key={c.id}
               complaint={c}
               disabled={actionPending}
+              hideResolve={Boolean(c.isClassInbox)}
+              hideClose={Boolean(c.isClassInbox)}
               onView={(id) => setViewId(id)}
               onRespond={(id) => setRespondId(id)}
               onForward={(id) => updateStatus(id, "forwarded", "Forwarded to admin for review.")}

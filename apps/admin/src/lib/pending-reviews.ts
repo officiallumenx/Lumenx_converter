@@ -7,6 +7,12 @@ import { ADMISSION_APPLICATIONS, CAREER_CANDIDATES } from "@/lib/admin-module-da
 import { peekAdminSyncRows, subscribeAdmissionsSync } from "@/lib/admissions-sync";
 import { DEMO_COMPLAINTS_SEED } from "@/lib/complaints-data";
 import {
+  getAdminComplaintsPendingCount,
+  refreshAdminComplaintsPendingCount,
+  subscribeAdminComplaintsPendingCount,
+} from "@/lib/complaints/pending-count-store";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import {
   readAdminCareerSyncRows,
   subscribeCareersSync,
   type AdminCareerStage,
@@ -175,12 +181,20 @@ function readPendingReviewInputs() {
   return {
     submittedMarks: countSubmittedMarks(getMarkEntriesSnapshot()),
     pendingTeacherLeave: countPendingTeacherLeave(teacherLeave),
-    adminComplaints: countAdminComplaints(complaints),
+    adminComplaints: isApiAuthMode()
+      ? getAdminComplaintsPendingCount()
+      : countAdminComplaints(complaints),
     pendingAdmissionConverts: countPendingAdmissionConverts(),
     pendingCareerHires: countPendingCareerHires(),
     pendingTransportStops: loadPendingStops().length,
     pendingTransportAssignments: loadPendingAssignments().length,
   };
+}
+
+/** Call when institute context is ready in API mode. */
+export function syncPendingReviewsComplaintsApi(instituteId: string | null): void {
+  if (!isApiAuthMode()) return;
+  void refreshAdminComplaintsPendingCount(instituteId);
 }
 
 export function loadPendingReviews(): PendingReviewItem[] {
@@ -224,6 +238,7 @@ export function subscribePendingReviews(listener: () => void): () => void {
     subscribeCareersSync(notify),
     listenDemoSync("leave", notify),
     listenDemoSync("complaints", notify),
+    subscribeAdminComplaintsPendingCount(notify),
   ];
 
   return () => {

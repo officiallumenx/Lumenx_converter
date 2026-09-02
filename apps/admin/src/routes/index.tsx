@@ -37,9 +37,10 @@ import {
   Clock,
   BarChart3,
 } from "lucide-react";
-import { useMemo, useSyncExternalStore } from "react";
+import { useMemo, useSyncExternalStore, useEffect } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
+import { syncPendingReviewsComplaintsApi } from "@/lib/pending-reviews";
 import { HomeApiSummaryPanel } from "@/components/home/HomeApiSummaryPanel";
 import {
   DashboardCustomizeActions,
@@ -103,6 +104,11 @@ function todayLabel(): string {
 
 function HomeApiPage() {
   const instituteCtx = useInstituteContext();
+  useEffect(() => {
+    if (instituteCtx.status === "ready" && instituteCtx.activeInstituteId) {
+      syncPendingReviewsComplaintsApi(instituteCtx.activeInstituteId);
+    }
+  }, [instituteCtx.status, instituteCtx.activeInstituteId]);
   const instituteLabel =
     instituteCtx.status === "ready" && instituteCtx.activeInstitute
       ? instituteCtx.activeInstitute.name

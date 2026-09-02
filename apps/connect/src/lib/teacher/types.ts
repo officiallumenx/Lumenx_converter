@@ -191,6 +191,10 @@ export interface TeacherComplaint {
   status: ComplaintStatus;
   createdAt: string;
   response?: string;
+  destination?: "class_teacher" | "principal_admin";
+  studentId?: string | null;
+  /** Parent/student complaint routed to class teacher queue. */
+  isClassInbox?: boolean;
 }
 
 export interface TeacherEvent {

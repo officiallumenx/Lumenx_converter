@@ -59,7 +59,11 @@ describe("loadComplaintsList", () => {
   it("maps successful API list and does not invent demo rows", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const listComplaints = vi.fn().mockResolvedValue([dto()]);
+    const listStudents = vi.fn().mockResolvedValue([]);
+    const listTeachers = vi.fn().mockResolvedValue([]);
     vi.doMock("./api", () => ({ listComplaints }));
+    vi.doMock("@/lib/students/api", () => ({ listStudents }));
+    vi.doMock("@/lib/teachers/api", () => ({ listTeachers }));
     const { loadComplaintsList } = await import("./load");
     const result = await loadComplaintsList(INST);
     expect(result.status).toBe("ready");

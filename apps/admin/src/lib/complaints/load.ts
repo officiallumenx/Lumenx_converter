@@ -6,8 +6,15 @@
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/active-institute";
+import { listStudents } from "@/lib/students/api";
+import { studentDtosToListItems } from "@/lib/students/map";
+import { listTeachers } from "@/lib/teachers/api";
+import { teacherDtosToListItems } from "@/lib/teachers/map";
 import { listComplaints } from "./api";
-import { complaintDtosToListItems } from "./map";
+import {
+  buildComplaintEnrichmentContext,
+  enrichComplaintDtosToListItems,
+} from "./enrich";
 import type { ComplaintListItem } from "./types";
 
 export type ComplaintsListStatus =
@@ -42,7 +49,12 @@ export async function loadComplaintsList(
 
   try {
     const dtos = await listComplaints({ instituteId: activeInstituteId });
-    const items = complaintDtosToListItems(dtos);
+    const [students, teachers] = await Promise.all([
+      listStudents({ instituteId: activeInstituteId }).then(studentDtosToListItems),
+      listTeachers({ instituteId: activeInstituteId }).then(teacherDtosToListItems),
+    ]);
+    const ctx = buildComplaintEnrichmentContext({ students, teachers });
+    const items = enrichComplaintDtosToListItems(dtos, ctx);
     return {
       status: items.length === 0 ? "empty" : "ready",
       items,
