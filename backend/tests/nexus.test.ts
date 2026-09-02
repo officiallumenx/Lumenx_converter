@@ -339,4 +339,52 @@ describe("nexus core api", () => {
     const res = await app.request("/api/nexus/health");
     expect(res.status).toBe(200);
   });
+
+  it("returns network analytics for platform operators", async () => {
+    const db = baseDb();
+    db.student = [
+      {
+        id: "ac111111-1111-4111-8111-111111111111",
+        institute_id: INST_A,
+        display_name: "Kid",
+        deleted_at: null,
+        created_at: "2026-06-01T00:00:00.000Z",
+      },
+    ];
+    db.support_thread = [
+      {
+        id: "st111111-1111-4111-8111-111111111111",
+        institute_id: INST_A,
+        subject: "Help",
+        category: "issue",
+        status: "open",
+        priority: "medium",
+        assignee_handle: null,
+        assignee_user_id: null,
+        created_by_user_id: USER_ADMIN,
+        last_message_at: "2026-08-01T00:00:00.000Z",
+        created_at: "2026-08-01T00:00:00.000Z",
+        updated_at: "2026-08-01T00:00:00.000Z",
+        deleted_at: null,
+      },
+    ];
+    const app = appWithDb(db);
+
+    const denied = await app.request("/api/nexus/analytics/network", {
+      headers: { Authorization: "Bearer token-admin" },
+    });
+    expect(denied.status).toBe(403);
+
+    const res = await app.request(
+      "/api/nexus/analytics/network?range=6m",
+      { headers: { Authorization: "Bearer token-root" } },
+    );
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(body.data.kpis.institutes).toBeGreaterThanOrEqual(1);
+    expect(body.data.kpis.students).toBe(1);
+    expect(body.data.kpis.supportOpen).toBe(1);
+    expect(body.data.series.labels.length).toBe(6);
+    expect(body.data.planMix).toBeTruthy();
+  });
 });

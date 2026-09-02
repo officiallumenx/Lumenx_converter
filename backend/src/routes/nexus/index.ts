@@ -32,6 +32,7 @@ import policies from "./policies.js";
 import registrations from "./registrations.js";
 import recycle from "./recycle.js";
 import storage from "./storage.js";
+import analytics from "./analytics.js";
 
 const uuid = z.string().uuid();
 const idParamsSchema = z.object({ id: uuid });
@@ -323,5 +324,6 @@ nexus.route("/policies", policies);
 nexus.route("/registrations", registrations);
 nexus.route("/recycle", recycle);
 nexus.route("/storage", storage);
+nexus.route("/analytics", analytics);
 
 export default nexus;

@@ -25,6 +25,7 @@ import {
   type AttendanceListStatus,
   type AttendanceRegisterListItem,
 } from "@/lib/attendance";
+import { loadAnalyticsSeries, type AnalyticsSeriesDto } from "@/lib/analytics";
 import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
 
 function attendanceHint(
@@ -270,8 +271,25 @@ function ReportsView() {
 }
 
 function AnalyticsView() {
+  const { activeInstituteId } = useInstituteContext();
   const { listView, sectionsById, classesById } = useAttendanceHubRegisters(undefined);
   const hint = attendanceHint(listView.status, listView.errorMessage);
+  const [series, setSeries] = useState<AnalyticsSeriesDto | null>(null);
+
+  useEffect(() => {
+    if (!activeInstituteId) {
+      setSeries(null);
+      return;
+    }
+    let cancelled = false;
+    void loadAnalyticsSeries(activeInstituteId, "year").then((result) => {
+      if (cancelled) return;
+      setSeries(result.series);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeInstituteId]);
 
   const totals = useMemo(() => {
     let present = 0;
@@ -310,6 +328,9 @@ function AnalyticsView() {
       .slice(0, 12);
   }, [listView.items, sectionsById, classesById]);
 
+  const monthly = series?.attendanceMonthly ?? [];
+  const maxMonthly = Math.max(1, ...monthly.map((m) => m.markCount));
+
   return (
     <PageStack>
       <Pill tone="neutral">Read-only · API mode · institute-wide aggregates</Pill>
@@ -319,6 +340,38 @@ function AnalyticsView() {
         <Kpi label="Absent marks" value={String(totals.absent)} tone="down" />
         <Kpi label="Registers loaded" value={String(totals.registers)} />
       </div>
+
+      <Card>
+        <CardHeader
+          title="Monthly attendance marks"
+          hint={
+            monthly.length === 0
+              ? "No monthly series yet from GET /api/v1/analytics/series"
+              : "From institute analytics series"
+          }
+        />
+        {monthly.length === 0 ? (
+          <div className="px-5 py-10 text-center text-sm text-muted-foreground">
+            No attendance marks in the selected analytics range.
+          </div>
+        ) : (
+          <div className="flex items-end gap-1.5 px-5 pb-5 h-40">
+            {monthly.map((row) => (
+              <div key={row.month} className="flex-1 flex flex-col items-center gap-1 min-w-0">
+                <div
+                  className="w-full rounded-t bg-primary/70"
+                  style={{ height: `${Math.max(4, (row.markCount / maxMonthly) * 100)}%` }}
+                  title={`${row.month}: ${row.markCount} marks · ${row.presentPct ?? "—"}% present`}
+                />
+                <span className="text-[9px] font-mono text-muted-foreground truncate w-full text-center">
+                  {row.month.slice(5)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
       <Card>
         <CardHeader
           title="Low attendance sections"

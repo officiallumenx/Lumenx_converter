@@ -382,6 +382,16 @@ export async function listPeriodsForSubscription(
   return ensureDbOk(result) as SubscriptionPeriodRow[];
 }
 
+export async function listAllPeriods(
+  admin: SupabaseClient,
+): Promise<SubscriptionPeriodRow[]> {
+  const result = await admin
+    .from("subscription_period")
+    .select(PERIOD_COLS)
+    .is("deleted_at", null);
+  return ensureDbOk(result) as SubscriptionPeriodRow[];
+}
+
 export async function clearCurrentPeriods(
   admin: SupabaseClient,
   subscriptionId: string,

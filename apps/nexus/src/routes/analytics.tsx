@@ -21,6 +21,8 @@ import {
   Users,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { isNexusApiMode } from "@/lib/auth-mode";
+import { NetworkAnalyticsApiPanel } from "@/components/analytics/NetworkAnalyticsApiPanel";
 import {
   DATE_RANGE_OPTIONS,
   barHeights,
@@ -39,6 +41,20 @@ export const Route = createFileRoute("/analytics")({
 });
 
 function NetworkAnalyticsPage() {
+  if (isNexusApiMode()) {
+    return (
+      <AppShell
+        title="Network Analytics"
+        subtitle="Cross-institute platform performance · live API aggregates · not Admin school analytics"
+      >
+        <NetworkAnalyticsApiPanel />
+      </AppShell>
+    );
+  }
+  return <NetworkAnalyticsDemoPage />;
+}
+
+function NetworkAnalyticsDemoPage() {
   const [filters, setFilters] = useState<NetworkAnalyticsFilters>(defaultNetworkAnalyticsFilters);
   const snap = useMemo(() => buildNetworkAnalytics(filters), [filters]);
   const { kpis, series, planMix, planLabels, moduleAdoption, usageTrend, format } = snap;
