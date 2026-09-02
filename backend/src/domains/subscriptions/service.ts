@@ -329,7 +329,7 @@ export async function getSubscriptionHistoryForActor(
 
   return {
     renewals: renewals
-      .filter((r) => r.status === "paid" || r.status === "cancelled")
+      .filter((r) => r.status !== "draft")
       .map((r) => ({
         id: r.id,
         invoiceNumber: r.invoice_number,
@@ -340,6 +340,7 @@ export async function getSubscriptionHistoryForActor(
         assignedRateInr: num(r.assigned_rate_inr),
         payableAmountInr: num(r.payable_amount_inr),
         amountPaidInr: num(r.amount_paid_inr),
+        issuedAt: r.issued_at,
         createdAt: r.created_at,
       }))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),

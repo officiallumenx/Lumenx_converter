@@ -93,6 +93,11 @@ function assemblePdf(contentStream: string): Uint8Array {
   return new TextEncoder().encode(pdf);
 }
 
+/** Render arbitrary text lines into a single-page PDF. */
+export function renderTextPdf(bodyLines: string[]): Uint8Array {
+  return assemblePdf(buildContentStream(bodyLines));
+}
+
 export function renderDocumentPdf(input: RenderDocumentPdfInput): Uint8Array {
   const bodyLines: string[] = [
     input.title,
@@ -113,5 +118,5 @@ export function renderDocumentPdf(input: RenderDocumentPdfInput): Uint8Array {
     bodyLines.push("Details:");
     bodyLines.push(...details);
   }
-  return assemblePdf(buildContentStream(bodyLines));
+  return renderTextPdf(bodyLines);
 }

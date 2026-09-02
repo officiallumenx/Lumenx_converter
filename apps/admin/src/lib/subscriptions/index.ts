@@ -2,6 +2,7 @@ export type { InstituteSubscriptionCurrentDto } from "./types";
 export type {
   InstituteSubscriptionDetailDto,
   InstituteSubscriptionHistoryDto,
+  InvoicePdfSignedUrlDto,
   OfflinePaymentSubmissionDto,
   SubscriptionQuoteDto,
   SubmitOfflinePaymentInput,
@@ -9,6 +10,7 @@ export type {
 export {
   assertApiMode,
   getCurrentSubscription,
+  getRenewalInvoicePdf,
   getSubscriptionDetail,
   getSubscriptionHistory,
   getSubscriptionQuote,

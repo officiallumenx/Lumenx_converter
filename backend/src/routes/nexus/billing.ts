@@ -15,6 +15,8 @@ import {
   getAdjustmentForActor,
   getPaymentForActor,
   getRenewalForActor,
+  getRenewalInvoicePdfForActor,
+  issueInvoiceFromSubscriptionForActor,
   issueRenewalForActor,
   listAdjustmentsForActor,
   listPaymentsForActor,
@@ -122,6 +124,27 @@ billing.post("/renewals", async (c) => {
   return c.json({ data }, 201);
 });
 
+billing.post("/renewals/issue-invoice", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const body = validateBody(
+    z.object({
+      institute_id: uuid,
+      duration_months: z.union([z.literal(1), z.literal(6), z.literal(12)]),
+      due_at: z.string().datetime().nullable().optional(),
+      notes: z.string().max(2000).nullable().optional(),
+    }),
+    await c.req.json(),
+  );
+  const data = await issueInvoiceFromSubscriptionForActor(admin, actor, {
+    instituteId: body.institute_id,
+    durationMonths: body.duration_months,
+    dueAt: body.due_at,
+    notes: body.notes,
+  });
+  return c.json({ data }, 201);
+});
+
 billing.get("/renewals/:id", async (c) => {
   const actor = assertAuthenticated(c);
   const admin = requireAdmin(c);
@@ -171,6 +194,14 @@ billing.post("/renewals/:id/issue", async (c) => {
   const admin = requireAdmin(c);
   const { id } = validateParams(idParamsSchema, c.req.param());
   const data = await issueRenewalForActor(admin, actor, id);
+  return c.json({ data });
+});
+
+billing.get("/renewals/:id/pdf", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const data = await getRenewalInvoicePdfForActor(admin, actor, id);
   return c.json({ data });
 });
 

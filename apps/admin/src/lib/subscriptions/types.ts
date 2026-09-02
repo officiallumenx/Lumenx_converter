@@ -91,6 +91,7 @@ export type InstituteSubscriptionHistoryDto = {
     assignedRateInr: number;
     payableAmountInr: number;
     amountPaidInr: number;
+    issuedAt?: string | null;
     createdAt: string;
   }>;
   payments: Array<{
@@ -103,6 +104,14 @@ export type InstituteSubscriptionHistoryDto = {
     recordedAt: string;
     verifiedAt: string | null;
   }>;
+};
+
+export type InvoicePdfSignedUrlDto = {
+  signedUrl: string;
+  expiresAt: string;
+  assetId: string;
+  renewalId: string;
+  invoiceNumber: string;
 };
 
 export type SubmitOfflinePaymentInput = {

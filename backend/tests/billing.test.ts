@@ -250,8 +250,37 @@ describe("nexus billing api", () => {
     );
     expect(issued.status).toBe(200);
     const body = await json(issued);
-    expect(body.data.status).toBe("issued");
-    expect(body.data.issuedAt).toBeTruthy();
+    expect(body.data.renewal.status).toBe("issued");
+    expect(body.data.renewal.issuedAt).toBeTruthy();
+    expect(body.data.pdf.signedUrl).toContain("https://");
+    expect(body.data.pdf.invoiceNumber).toBe("INV-001");
+  });
+
+  it("issues invoice from subscription with PDF in one shot", async () => {
+    const app = appWithDb(baseDb());
+    const res = await app.request("/api/nexus/billing/renewals/issue-invoice", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-billing",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        duration_months: 12,
+      }),
+    });
+    expect(res.status).toBe(201);
+    const body = await json(res);
+    expect(body.data.renewal.status).toBe("issued");
+    expect(body.data.renewal.invoiceNumber).toMatch(/^LX-INV-/);
+    expect(body.data.pdf.signedUrl).toContain("https://");
+
+    const pdf = await app.request(
+      `/api/nexus/billing/renewals/${body.data.renewal.id}/pdf`,
+      { headers: { Authorization: "Bearer token-billing" } },
+    );
+    expect(pdf.status).toBe(200);
+    expect((await json(pdf)).data.signedUrl).toContain("https://");
   });
 
   it("records payment and verify marks renewal paid when full", async () => {

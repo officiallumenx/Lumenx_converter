@@ -9,6 +9,7 @@ import type {
   InstituteSubscriptionCurrentDto,
   InstituteSubscriptionDetailDto,
   InstituteSubscriptionHistoryDto,
+  InvoicePdfSignedUrlDto,
   OfflinePaymentSubmissionDto,
   SubmitOfflinePaymentInput,
   SubscriptionQuoteDto,
@@ -94,6 +95,16 @@ export async function getSubscriptionHistory(
   }
   return client.get<InstituteSubscriptionHistoryDto>(
     `/api/v1/subscriptions/history?${instituteQuery(instituteId)}`,
+  );
+}
+
+export async function getRenewalInvoicePdf(
+  renewalId: string,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<InvoicePdfSignedUrlDto> {
+  assertApiMode();
+  return client.get<InvoicePdfSignedUrlDto>(
+    `/api/v1/subscriptions/renewals/${encodeURIComponent(renewalId.trim())}/pdf`,
   );
 }
 

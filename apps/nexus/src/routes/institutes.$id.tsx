@@ -25,6 +25,7 @@ import { useEffect, useMemo, useState } from "react";
 import { InstituteBillingPanel } from "@/components/billing/InstituteBillingPanel";
 import { InstituteSubscriptionPricingPanel } from "@/components/billing/InstituteSubscriptionPricingPanel";
 import { InstituteSubscriptionPricingApiPanel } from "@/components/billing/InstituteSubscriptionPricingApiPanel";
+import { InstituteInvoiceIssueApiPanel } from "@/components/billing/InstituteInvoiceIssueApiPanel";
 import { NexusSubscriptionBillingHistoryPanel } from "@/components/billing/NexusSubscriptionBillingHistoryPanel";
 import { NexusSubscriptionBillingHistoryApiPanel } from "@/components/billing/NexusSubscriptionBillingHistoryApiPanel";
 import { isNexusApiMode } from "@/lib/auth-mode";
@@ -216,6 +217,13 @@ function InstituteDetailPage() {
       ) : (
         <InstituteSubscriptionPricingPanel instituteId={id} />
       )}
+
+      {isNexusApiMode() ? (
+        <InstituteInvoiceIssueApiPanel
+          instituteId={id}
+          instituteName={inst.name}
+        />
+      ) : null}
 
       {isNexusApiMode() ? (
         <NexusSubscriptionBillingHistoryApiPanel instituteId={id} />

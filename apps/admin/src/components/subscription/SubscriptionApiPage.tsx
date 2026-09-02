@@ -16,12 +16,14 @@ import {
   Building2,
   CheckCircle2,
   CreditCard,
+  Download,
   Landmark,
   Loader2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInstituteContext } from "@/lib/institutes";
 import {
+  getRenewalInvoicePdf,
   getSubscriptionQuotes,
   getSubscriptionHistory,
   loadSubscriptionDetail,
@@ -81,6 +83,7 @@ function PendingSubmissionCard({ submission }: { submission: OfflinePaymentSubmi
 
 function SubscriptionApiHistoryCard({ instituteId }: { instituteId: string | null }) {
   const [history, setHistory] = useState<InstituteSubscriptionHistoryDto | null>(null);
+  const [pdfError, setPdfError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!instituteId) {
@@ -100,6 +103,16 @@ function SubscriptionApiHistoryCard({ instituteId }: { instituteId: string | nul
     };
   }, [instituteId]);
 
+  const onDownloadPdf = async (renewalId: string) => {
+    setPdfError(null);
+    try {
+      const pdf = await getRenewalInvoicePdf(renewalId);
+      window.open(pdf.signedUrl, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      setPdfError(err instanceof Error ? err.message : "PDF download failed");
+    }
+  };
+
   if (!history) return null;
   const renewals = history.renewals ?? [];
   const payments = history.payments ?? [];
@@ -114,8 +127,9 @@ function SubscriptionApiHistoryCard({ instituteId }: { instituteId: string | nul
 
   return (
     <Card>
-      <CardHeader title="Billing history" hint="Renewals and payments from the billing API" />
+      <CardHeader title="Invoices & billing history" hint="Issued invoices · download PDF · offline pay" />
       <div className="px-5 pb-5 space-y-3">
+        {pdfError ? <p className="text-sm text-destructive">{pdfError}</p> : null}
         {renewals.slice(0, 8).map((row) => (
           <div
             key={row.id}
@@ -127,9 +141,14 @@ function SubscriptionApiHistoryCard({ instituteId }: { instituteId: string | nul
                 {formatDateTime(row.periodStartsAt)} → {formatDateTime(row.periodEndsAt)}
               </div>
             </div>
-            <div className="text-right">
-              <div className="font-mono font-semibold">{formatInr(row.payableAmountInr)}</div>
-              <Pill tone={row.status === "paid" ? "success" : "neutral"}>{row.status}</Pill>
+            <div className="flex items-center gap-2">
+              <div className="text-right">
+                <div className="font-mono font-semibold">{formatInr(row.payableAmountInr)}</div>
+                <Pill tone={row.status === "paid" ? "success" : "neutral"}>{row.status}</Pill>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => void onDownloadPdf(row.id)}>
+                <Download className="size-3.5" /> PDF
+              </Button>
             </div>
           </div>
         ))}

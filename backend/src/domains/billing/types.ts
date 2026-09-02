@@ -221,3 +221,23 @@ export type CreatePaymentInput = {
   providerRef?: string | null;
   note?: string | null;
 };
+
+export type InvoicePdfSignedUrlDto = {
+  signedUrl: string;
+  expiresAt: string;
+  assetId: string;
+  renewalId: string;
+  invoiceNumber: string;
+};
+
+export type IssueInvoiceFromSubscriptionInput = {
+  instituteId: string;
+  durationMonths: 1 | 6 | 12;
+  dueAt?: string | null;
+  notes?: string | null;
+};
+
+export type IssueInvoiceResultDto = {
+  renewal: RenewalRecordDto;
+  pdf: InvoicePdfSignedUrlDto;
+};

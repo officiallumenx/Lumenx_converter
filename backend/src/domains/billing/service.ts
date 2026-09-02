@@ -2,13 +2,16 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { AppError } from "../../errors/app-error.js";
 import type { Actor } from "../../auth/types.js";
 import {
+  assertInstituteRoles,
   assertPlatformOperator,
   assertPlatformRoles,
+  requireInstituteId,
 } from "../../authorization/index.js";
 import { findInstituteById } from "../identity/repository.js";
 import {
   clearCurrentPeriods,
   findSubscriptionById,
+  findSubscriptionByInstituteId,
   insertPeriod,
   setPeriodCurrent,
   updateSubscriptionFields,
@@ -36,12 +39,25 @@ import {
   updatePaymentFields,
   updateRenewalFields,
 } from "./repository.js";
+import type { OfflinePaymentSubmissionDto } from "../subscriptions/types.js";
+import {
+  calculateSubscriptionQuote,
+  parseSubscriptionDuration,
+  type SubscriptionDurationMonths,
+} from "../subscriptions/pricing.js";
+import { persistInstitutePdfAsset } from "../documents/persist-file.js";
+import { listAssets } from "../assets/repository.js";
+import { getAssetSignedUrlForActor } from "../assets/service.js";
+import { renderInvoicePdf } from "./render-invoice-pdf.js";
 import type {
   BillingAdjustmentDto,
   BillingAdjustmentRow,
   CreateAdjustmentInput,
   CreatePaymentInput,
   CreateRenewalInput,
+  InvoicePdfSignedUrlDto,
+  IssueInvoiceFromSubscriptionInput,
+  IssueInvoiceResultDto,
   PaymentDto,
   PaymentRow,
   RenewalRecordDto,
@@ -50,7 +66,6 @@ import type {
   UpdateAdjustmentInput,
   UpdateRenewalInput,
 } from "./types.js";
-import type { OfflinePaymentSubmissionDto } from "../subscriptions/types.js";
 
 const RENEWAL_STATUSES: RenewalStatus[] = [
   "draft",
@@ -156,6 +171,68 @@ async function requireLiveSubscription(
     throw AppError.validation("Subscription does not belong to institute");
   }
   return sub;
+}
+
+function newNexusInvoiceNumber(): string {
+  return `LX-INV-${Date.now().toString(36).toUpperCase()}-${Math.random()
+    .toString(36)
+    .slice(2, 6)
+    .toUpperCase()}`;
+}
+
+async function ensureRenewalInvoicePdf(
+  admin: SupabaseClient,
+  actor: Actor,
+  renewal: RenewalRecordRow,
+): Promise<InvoicePdfSignedUrlDto> {
+  const existingAssets = await listAssets(admin, {
+    instituteId: renewal.institute_id,
+    linkedEntityKind: "other",
+    linkedEntityId: renewal.id,
+    category: "generated_document",
+  });
+  let assetId = existingAssets[0]?.id ?? null;
+
+  if (!assetId) {
+    const institute = await findInstituteById(admin, renewal.institute_id);
+    const pdfBytes = renderInvoicePdf({
+      invoiceNumber: renewal.invoice_number,
+      instituteName: institute?.name ?? renewal.institute_id,
+      instituteId: renewal.institute_id,
+      status: renewal.status,
+      periodStartsAt: renewal.period_starts_at,
+      periodEndsAt: renewal.period_ends_at,
+      dueAt: renewal.due_at,
+      issuedAt: renewal.issued_at,
+      activeStudentCount: renewal.active_student_count,
+      assignedRateInr: num(renewal.assigned_rate_inr),
+      regularAmountInr: num(renewal.regular_amount_inr),
+      discountAmountInr: num(renewal.discount_amount_inr),
+      payableAmountInr: num(renewal.payable_amount_inr),
+      amountPaidInr: num(renewal.amount_paid_inr),
+      notes: renewal.notes,
+    });
+    const safeName = renewal.invoice_number.replace(/[^\w.-]+/g, "-");
+    const file = await persistInstitutePdfAsset(admin, actor, {
+      instituteId: renewal.institute_id,
+      bucket: "generated-documents",
+      category: "generated_document",
+      fileName: `${safeName}.pdf`,
+      body: pdfBytes,
+      linkedEntityKind: "other",
+      linkedEntityId: renewal.id,
+    });
+    assetId = file.assetId;
+  }
+
+  const signed = await getAssetSignedUrlForActor(admin, actor, assetId);
+  return {
+    signedUrl: signed.signedUrl,
+    expiresAt: signed.expiresAt,
+    assetId: signed.assetId,
+    renewalId: renewal.id,
+    invoiceNumber: renewal.invoice_number,
+  };
 }
 
 async function activateSubscriptionFromPaidRenewal(
@@ -353,7 +430,7 @@ export async function issueRenewalForActor(
   admin: SupabaseClient,
   actor: Actor,
   id: string,
-): Promise<RenewalRecordDto> {
+): Promise<IssueInvoiceResultDto> {
   assertBillingWriter(actor);
 
   const existing = await findRenewalById(admin, id);
@@ -367,7 +444,97 @@ export async function issueRenewalForActor(
     issued_at: new Date().toISOString(),
   });
   if (!updated) throw AppError.notFound("Renewal record not found");
-  return toRenewalDto(updated);
+
+  const pdf = await ensureRenewalInvoicePdf(admin, actor, updated);
+  return { renewal: toRenewalDto(updated), pdf };
+}
+
+export async function issueInvoiceFromSubscriptionForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  input: IssueInvoiceFromSubscriptionInput,
+): Promise<IssueInvoiceResultDto> {
+  assertBillingWriter(actor);
+
+  const durationMonths = parseSubscriptionDuration(input.durationMonths);
+  if (!durationMonths) {
+    throw AppError.validation("durationMonths must be 1, 6, or 12");
+  }
+
+  const institute = await findInstituteById(admin, input.instituteId);
+  if (!institute) throw AppError.notFound("Institute not found");
+
+  const sub = await findSubscriptionByInstituteId(admin, input.instituteId);
+  if (!sub) throw AppError.notFound("Subscription not found for institute");
+
+  const quote = calculateSubscriptionQuote({
+    activeStudentCount: sub.active_student_count,
+    assignedRateInr: num(sub.assigned_rate_inr),
+    durationMonths: durationMonths as SubscriptionDurationMonths,
+  });
+
+  const startAt = new Date().toISOString();
+  const endAt = addUtcDays(startAt, durationMonths * 30);
+  const dueAt =
+    input.dueAt ?? addUtcDays(startAt, 14);
+
+  const draft = await insertRenewal(admin, {
+    instituteId: input.instituteId,
+    subscriptionId: sub.id,
+    invoiceNumber: newNexusInvoiceNumber(),
+    periodStartsAt: startAt,
+    periodEndsAt: endAt,
+    dueAt,
+    activeStudentCount: quote.activeStudentCount,
+    assignedRateInr: quote.assignedRateInr,
+    regularAmountInr: quote.regularAmountInr,
+    discountAmountInr: quote.discountAmountInr,
+    payableAmountInr: quote.payableAmountInr,
+    notes: input.notes ?? null,
+    createdByUserId: actor.userId,
+  });
+
+  return issueRenewalForActor(admin, actor, draft.id);
+}
+
+export async function getRenewalInvoicePdfForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  renewalId: string,
+): Promise<InvoicePdfSignedUrlDto> {
+  assertBillingReader(actor);
+  const renewal = await findRenewalById(admin, renewalId);
+  if (!renewal) throw AppError.notFound("Renewal record not found");
+  if (renewal.status === "draft") {
+    throw AppError.conflict("Invoice PDF is available after the renewal is issued");
+  }
+  return ensureRenewalInvoicePdf(admin, actor, renewal);
+}
+
+/** Institute staff / admin download of an issued invoice PDF. */
+export async function getInstituteRenewalInvoicePdfForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  renewalId: string,
+): Promise<InvoicePdfSignedUrlDto> {
+  const renewal = await findRenewalById(admin, renewalId);
+  if (!renewal) throw AppError.notFound("Renewal record not found");
+  requireInstituteId(actor, renewal.institute_id);
+  if (!actor.isPlatformOperator) {
+    assertInstituteRoles(actor, renewal.institute_id, [
+      "institute_admin",
+      "principal",
+      "vice_principal",
+      "coordinator",
+      "it_admin",
+      "accountant",
+      "staff",
+    ]);
+  }
+  if (renewal.status === "draft") {
+    throw AppError.conflict("Invoice PDF is available after the renewal is issued");
+  }
+  return ensureRenewalInvoicePdf(admin, actor, renewal);
 }
 
 // ── Adjustments ──────────────────────────────────────────────

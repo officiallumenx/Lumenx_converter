@@ -5,6 +5,7 @@ import type { AppBindings } from "../../types/app.js";
 import { AppError } from "../../errors/app-error.js";
 import {
   validateBody,
+  validateParams,
   validateQuery,
 } from "../../validation/validate.js";
 import {
@@ -14,6 +15,7 @@ import {
   getSubscriptionQuoteForActor,
   submitOfflinePaymentForActor,
 } from "../../domains/subscriptions/service.js";
+import { getInstituteRenewalInvoicePdfForActor } from "../../domains/billing/service.js";
 
 const subscriptions = new Hono<AppBindings>();
 subscriptions.use("*", requireAuth);
@@ -31,6 +33,7 @@ function requireAdmin(c: {
 const uuid = z.string().uuid();
 const instituteQuerySchema = z.object({ institute_id: uuid });
 const durationSchema = z.union([z.literal(1), z.literal(6), z.literal(12)]);
+const idParamsSchema = z.object({ id: uuid });
 
 subscriptions.get("/current", async (c) => {
   const actor = assertAuthenticated(c);
@@ -84,6 +87,14 @@ subscriptions.get("/history", async (c) => {
     actor,
     query.institute_id,
   );
+  return c.json({ data });
+});
+
+subscriptions.get("/renewals/:id/pdf", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const data = await getInstituteRenewalInvoicePdfForActor(admin, actor, id);
   return c.json({ data });
 });
 

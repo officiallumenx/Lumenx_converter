@@ -41,3 +41,39 @@ export type PaymentDto = {
   createdAt: string;
   updatedAt: string;
 };
+
+export type RenewalRecordDto = {
+  id: string;
+  instituteId: string;
+  subscriptionId: string;
+  subscriptionPeriodId: string | null;
+  invoiceNumber: string;
+  status: string;
+  periodStartsAt: string;
+  periodEndsAt: string;
+  dueAt: string | null;
+  issuedAt: string | null;
+  activeStudentCount: number;
+  assignedRateInr: number;
+  regularAmountInr: number;
+  discountAmountInr: number;
+  payableAmountInr: number;
+  amountPaidInr: number;
+  notes: string | null;
+  createdByUserId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type InvoicePdfSignedUrlDto = {
+  signedUrl: string;
+  expiresAt: string;
+  assetId: string;
+  renewalId: string;
+  invoiceNumber: string;
+};
+
+export type IssueInvoiceResultDto = {
+  renewal: RenewalRecordDto;
+  pdf: InvoicePdfSignedUrlDto;
+};

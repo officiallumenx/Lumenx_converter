@@ -75,6 +75,7 @@ export type SubscriptionHistoryRenewalDto = {
   assignedRateInr: number;
   payableAmountInr: number;
   amountPaidInr: number;
+  issuedAt: string | null;
   createdAt: string;
 };
 
