@@ -14,6 +14,7 @@ import {
   clearTeacherPortalApiCache,
   loadTeacherPortalApiData,
 } from "@/lib/teacher-classes";
+import { loadTeacherPortalBundle } from "@/lib/teachers/load";
 import { teacherRepository } from "@/lib/teacher/repositories";
 import type {
   DashboardSnapshot,
@@ -61,40 +62,63 @@ export function TeacherPortalRegistry({ children }: { children: ReactNode }) {
     }
 
     const my = ++seq.current;
-    // Only show the skeleton on the very first load for this role session; subsequent
-    // refresh() calls (e.g. re-entering the dashboard after a mutation) update silently.
     const showSpinner = !loadedRef.current;
     if (showSpinner) setIsLoading(true);
 
-    const loadClassesAndStudents = async (): Promise<{
+    const loadDemo = async (): Promise<{
+      profile: TeacherProfile;
       classes: TeacherClass[];
+      dashboard: DashboardSnapshot;
       students: TeacherStudent[];
     }> => {
-      if (isApiAuthMode() && activeInstituteId) {
-        const data = await loadTeacherPortalApiData(activeInstituteId);
-        return {
-          classes: data?.classes ?? [],
-          students: data?.allStudents ?? [],
-        };
-      }
-      const [classes, students] = await Promise.all([
-        teacherRepository.getClasses(),
-        teacherRepository.getStudents(),
+      const [p, roster, d] = await Promise.all([
+        teacherRepository.getProfile(),
+        Promise.all([
+          teacherRepository.getClasses(),
+          teacherRepository.getStudents(),
+        ]),
+        teacherRepository.getDashboard(),
       ]);
-      return { classes, students };
+      return {
+        profile: p,
+        classes: roster[0],
+        students: roster[1],
+        dashboard: d,
+      };
     };
 
-    void Promise.all([
-      teacherRepository.getProfile(),
-      loadClassesAndStudents(),
-      teacherRepository.getDashboard(),
-    ])
-      .then(([p, roster, d]) => {
+    const loadApi = async (): Promise<{
+      profile: TeacherProfile;
+      classes: TeacherClass[];
+      dashboard: DashboardSnapshot;
+      students: TeacherStudent[];
+    } | null> => {
+      if (!activeInstituteId) return null;
+      const roster = await loadTeacherPortalApiData(activeInstituteId);
+      if (!roster) return null;
+      const bundle = await loadTeacherPortalBundle({
+        instituteId: activeInstituteId,
+        classes: roster.classes,
+      });
+      return {
+        profile: bundle.profile,
+        classes: roster.classes,
+        students: roster.allStudents,
+        dashboard: bundle.dashboard,
+      };
+    };
+
+    void (isApiAuthMode() && activeInstituteId ? loadApi() : loadDemo())
+      .then((result) => {
         if (seq.current !== my) return;
-        setProfile(p);
-        setClasses(roster.classes);
-        setDashboard(d);
-        setStudents(roster.students);
+        if (!result) {
+          if (showSpinner) setIsLoading(false);
+          return;
+        }
+        setProfile(result.profile);
+        setClasses(result.classes);
+        setDashboard(result.dashboard);
+        setStudents(result.students);
         loadedRef.current = true;
         if (showSpinner) setIsLoading(false);
       })

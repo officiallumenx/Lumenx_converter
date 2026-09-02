@@ -8,7 +8,7 @@ import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/active-institute";
 import { getTeacher, listTeachers } from "./api";
 import { teacherDtoToListItem, teacherDtosToListItems } from "./map";
-import type { TeacherListItem } from "./types";
+import type { ListTeachersParams, TeacherListItem } from "./types";
 
 export type TeachersListStatus =
   | "demo"
@@ -88,6 +88,7 @@ export async function loadTeacherDetail(
 
 export async function loadTeachersList(
   activeInstituteId: string | null,
+  filters: Pick<ListTeachersParams, "status" | "teachingScope" | "q"> = {},
 ): Promise<TeachersListState> {
   if (!isApiAuthMode()) {
     return { status: "demo", items: [], errorMessage: null };
@@ -102,7 +103,12 @@ export async function loadTeachersList(
   }
 
   try {
-    const dtos = await listTeachers({ instituteId: activeInstituteId });
+    const dtos = await listTeachers({
+      instituteId: activeInstituteId,
+      status: filters.status,
+      teachingScope: filters.teachingScope,
+      q: filters.q,
+    });
     const items = teacherDtosToListItems(dtos);
     return {
       status: items.length === 0 ? "empty" : "ready",

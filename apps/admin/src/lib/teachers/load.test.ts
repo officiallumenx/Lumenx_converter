@@ -62,6 +62,20 @@ describe("loadTeachersList", () => {
     expect(listTeachers).not.toHaveBeenCalled();
   });
 
+  it("passes list filters through to the API client", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const listTeachers = vi.fn().mockResolvedValue([dto()]);
+    vi.doMock("./api", () => ({ listTeachers }));
+    const { loadTeachersList } = await import("./load");
+    await loadTeachersList(INST, { status: "on_leave", q: "Ravi" });
+    expect(listTeachers).toHaveBeenCalledWith({
+      instituteId: INST,
+      status: "on_leave",
+      teachingScope: undefined,
+      q: "Ravi",
+    });
+  });
+
   it("maps successful API list and does not invent demo rows", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const listTeachers = vi.fn().mockResolvedValue([dto()]);

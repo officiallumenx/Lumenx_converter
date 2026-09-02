@@ -15,6 +15,10 @@ import {
   listTeachersForActor,
   updateTeacherForActor,
 } from "../../domains/teachers/service.js";
+import {
+  getLearnerFacultyForActor,
+  getTeacherSelfPortalForActor,
+} from "../../domains/teachers/portal.js";
 
 const teachers = new Hono<AppBindings>();
 
@@ -109,6 +113,42 @@ teachers.get("/", async (c) => {
     status: query.status,
     teachingScope: query.teaching_scope,
     q: query.q,
+  });
+  return c.json({ data });
+});
+
+const portalStudentParamsSchema = z.object({
+  studentId: uuid,
+});
+
+const portalStudentQuerySchema = z.object({
+  institute_id: uuid,
+});
+
+const portalMeQuerySchema = z.object({
+  institute_id: uuid,
+  teacher_id: uuid.optional(),
+});
+
+teachers.get("/portal/students/:studentId", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { studentId } = validateParams(portalStudentParamsSchema, c.req.param());
+  const query = validateQuery(portalStudentQuerySchema, c.req.query());
+  const data = await getLearnerFacultyForActor(admin, actor, {
+    instituteId: query.institute_id,
+    studentId,
+  });
+  return c.json({ data });
+});
+
+teachers.get("/portal/me", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(portalMeQuerySchema, c.req.query());
+  const data = await getTeacherSelfPortalForActor(admin, actor, {
+    instituteId: query.institute_id,
+    teacherId: query.teacher_id,
   });
   return c.json({ data });
 });

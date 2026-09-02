@@ -27,6 +27,9 @@ export async function listTeachers(
 
   const query = new URLSearchParams();
   query.set("institute_id", params.instituteId.trim());
+  if (params.status) query.set("status", params.status);
+  if (params.teachingScope) query.set("teaching_scope", params.teachingScope);
+  if (params.q?.trim()) query.set("q", params.q.trim());
 
   return client.get<TeacherDto[]>(`/api/v1/teachers?${query.toString()}`);
 }

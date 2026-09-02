@@ -8,23 +8,29 @@ import {
   Button,
   cn,
 } from "@lumenx/ui";
-import { Crown, Mail, MapPin, Clock, Phone, MessageSquare } from "lucide-react";
-import { Link } from "@tanstack/react-router";
+import { Crown, Mail, Phone } from "lucide-react";
 import { teachers } from "@/lib/mock-data";
+import type { LearnerTeacherCard } from "@/lib/teachers/types";
 
-export type TeacherRecord = (typeof teachers)[number];
+export type TeacherRecord = (typeof teachers)[number] | LearnerTeacherCard;
 
 export function TeacherDetailDialog({
+  teacher,
   teacherId,
   open,
   onOpenChange,
 }: {
-  teacherId: string | null;
+  teacher?: TeacherRecord | null;
+  teacherId?: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const t = teachers.find((x) => x.id === teacherId);
+  const t = teacher ?? teachers.find((entry) => entry.id === teacherId);
   if (!t) return null;
+
+  const qualification =
+    "qualification" in t && t.qualification ? t.qualification : undefined;
+  const department = "department" in t && t.department ? t.department : undefined;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -50,47 +56,50 @@ export function TeacherDetailDialog({
             </div>
             <div>
               <div className="font-medium">{t.subject}</div>
-              {"qualification" in t && t.qualification && (
-                <div className="text-sm text-muted-foreground">{t.qualification}</div>
-              )}
-              {"experienceYears" in t && t.experienceYears && (
+              {department ? (
+                <div className="text-sm text-muted-foreground">{department}</div>
+              ) : null}
+              {qualification ? (
+                <div className="text-sm text-muted-foreground">{qualification}</div>
+              ) : null}
+              {"experienceYears" in t && t.experienceYears ? (
                 <div className="text-xs text-muted-foreground">
                   {t.experienceYears} years teaching
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
 
-          {"bio" in t && t.bio && (
+          {"bio" in t && t.bio ? (
             <p className="text-sm leading-relaxed text-muted-foreground">{t.bio}</p>
-          )}
+          ) : null}
 
           <ul className="space-y-2 text-sm">
-            {"email" in t && t.email && (
+            {"email" in t && t.email ? (
               <li className="flex items-start gap-2">
                 <Mail className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                 <span className="break-all">{t.email}</span>
               </li>
-            )}
+            ) : null}
             <li className="flex items-center gap-2">
               <Phone className="size-4 shrink-0 text-muted-foreground" />
               {t.phone}
             </li>
-            {"room" in t && t.room && (
+            {"room" in t && t.room ? (
               <li className="flex items-start gap-2">
-                <MapPin className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                <span className="mt-0.5 text-muted-foreground">Room</span>
                 {t.room}
               </li>
-            )}
-            {"availability" in t && t.availability && (
+            ) : null}
+            {"availability" in t && t.availability ? (
               <li className="flex items-start gap-2">
-                <Clock className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                Office hours: {t.availability}
+                <span className="mt-0.5 text-muted-foreground">Office hours</span>
+                {t.availability}
               </li>
-            )}
+            ) : null}
           </ul>
 
-          {"languages" in t && t.languages && t.languages.length > 0 && (
+          {"languages" in t && t.languages && t.languages.length > 0 ? (
             <div>
               <div className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Languages
@@ -103,18 +112,7 @@ export function TeacherDetailDialog({
                 ))}
               </div>
             </div>
-          )}
-
-          <div className="flex gap-2 pt-2">
-            <Button asChild variant="outline" className="flex-1 rounded-xl gap-1.5">
-              <Link to="/messages" onClick={() => onOpenChange(false)}>
-                <MessageSquare className="size-4" /> Message
-              </Link>
-            </Button>
-            <Button variant="outline" className="rounded-xl" aria-label="Call teacher">
-              <Phone className="size-4" />
-            </Button>
-          </div>
+          ) : null}
         </div>
       </DialogContent>
     </Dialog>

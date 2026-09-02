@@ -70,6 +70,9 @@ export type TeacherListItem = {
 
 export type ListTeachersParams = {
   instituteId: string;
+  status?: ApiTeacherStatus;
+  teachingScope?: TeachingScope;
+  q?: string;
 };
 
 export type { TeacherRole, TeacherStatus };

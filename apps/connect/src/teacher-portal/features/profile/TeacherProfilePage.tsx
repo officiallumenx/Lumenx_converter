@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { getInitials, processSimpleUpload } from "@lumenx/utils";
 import { PageHeader } from "@/components/app/PageHeader";
 import { useApp } from "@/lib/app-state";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
 import { teacherRepository } from "@/lib/teacher/repositories";
 import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
@@ -52,6 +53,7 @@ export function TeacherProfilePage({
   initialSection?: "support" | "help" | "feedback" | "report";
 }) {
   const { user, signOut, toggleTheme, theme } = useApp();
+  const apiMode = isApiAuthMode();
   const portal = useTeacherPortal();
   const portalAccess = useTeacherPortalAccess();
   const nav = useNavigate();
@@ -247,18 +249,7 @@ export function TeacherProfilePage({
                 </p>
                 <p className="mt-0.5 truncate text-xs text-muted-foreground">{profile.phone}</p>
               </div>
-              {!editing ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0 gap-1.5 rounded-xl"
-                  onClick={beginEdit}
-                >
-                  <Pencil className="size-3.5" />
-                  Edit
-                </Button>
-              ) : (
+              {editing ? (
                 <Button
                   type="button"
                   variant="ghost"
@@ -269,7 +260,18 @@ export function TeacherProfilePage({
                   <X className="size-3.5" />
                   Cancel
                 </Button>
-              )}
+              ) : !apiMode ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 gap-1.5 rounded-xl"
+                  onClick={beginEdit}
+                >
+                  <Pencil className="size-3.5" />
+                  Edit
+                </Button>
+              ) : null}
             </div>
             <Badge variant="outline" className="mt-2 text-[10px] sm:text-xs">
               Teacher · Institute managed

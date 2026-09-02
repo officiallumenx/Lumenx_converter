@@ -30,6 +30,16 @@ const TEACHER_OTHER = "bb333333-3333-4333-8333-333333333333";
 const TEACHER_DELETED = "bb444444-4444-4444-8444-444444444444";
 const PARENT_A = "ba111111-1111-4111-8111-111111111111";
 const STUDENT_A = "ac111111-1111-4111-8111-111111111111";
+const STUDENT_B = "ac222222-2222-4222-8222-222222222222";
+const SECTION_A = "cc111111-1111-4111-8111-111111111111";
+const SUBJECT_A = "dd111111-1111-4111-8111-111111111111";
+const SUBJECT_B = "dd222222-2222-4222-8222-222222222222";
+const YEAR_A = "ee111111-1111-4111-8111-111111111111";
+const CLASS_A = "ff111111-1111-4111-8111-111111111111";
+const ASSIGN_A = "ab111111-1111-4111-8111-111111111111";
+const ASSIGN_B = "ab222222-2222-4222-8222-222222222222";
+const ENROLL_A = "ad111111-1111-4111-8111-111111111111";
+const ENROLL_B = "ad222222-2222-4222-8222-222222222222";
 
 beforeEach(() => {
   resetEnvCache();
@@ -143,6 +153,124 @@ function baseDb(): MockDb {
       display_name: "Gone Teacher",
       deleted_at: "2026-08-10T00:00:00.000Z",
     }),
+  ];
+  return db;
+}
+
+function portalDb(): MockDb {
+  const db = baseDb();
+  db.guardian_link = [
+    {
+      id: "bc111111-1111-4111-8111-111111111111",
+      institute_id: INST_A,
+      student_id: STUDENT_A,
+      parent_id: PARENT_A,
+      relationship: "father",
+      is_primary: true,
+      status: "active",
+      deleted_at: null,
+    },
+  ];
+  db.student = [
+    ...(db.student ?? []),
+    {
+      id: STUDENT_B,
+      institute_id: INST_A,
+      user_profile_id: null,
+      first_name: "Bina",
+      surname: "Shah",
+      display_name: "Bina Shah",
+      gender: "female",
+      address: "x",
+      status: "active",
+      access_status: "active",
+      deleted_at: null,
+    },
+  ];
+  db.academic_year = [{ id: YEAR_A, institute_id: INST_A, deleted_at: null }];
+  db.class = [
+    {
+      id: CLASS_A,
+      institute_id: INST_A,
+      academic_year_id: YEAR_A,
+      grade_label: "10",
+      code: "10",
+      name: "Grade 10",
+      deleted_at: null,
+    },
+  ];
+  db.section = [
+    {
+      id: SECTION_A,
+      institute_id: INST_A,
+      academic_year_id: YEAR_A,
+      class_id: CLASS_A,
+      code: "A",
+      name: "A",
+      deleted_at: null,
+    },
+  ];
+  db.subject = [
+    {
+      id: SUBJECT_A,
+      institute_id: INST_A,
+      name: "Mathematics",
+      code: "MATH",
+      deleted_at: null,
+    },
+    {
+      id: SUBJECT_B,
+      institute_id: INST_A,
+      name: "Physics",
+      code: "PHY",
+      deleted_at: null,
+    },
+  ];
+  db.enrollment = [
+    {
+      id: ENROLL_A,
+      institute_id: INST_A,
+      academic_year_id: YEAR_A,
+      student_id: STUDENT_A,
+      class_id: CLASS_A,
+      section_id: SECTION_A,
+      status: "active",
+      deleted_at: null,
+    },
+    {
+      id: ENROLL_B,
+      institute_id: INST_A,
+      academic_year_id: YEAR_A,
+      student_id: STUDENT_B,
+      class_id: CLASS_A,
+      section_id: SECTION_A,
+      status: "active",
+      deleted_at: null,
+    },
+  ];
+  db.teacher_assignment = [
+    {
+      id: ASSIGN_A,
+      teacher_id: TEACHER_A,
+      institute_id: INST_A,
+      section_id: SECTION_A,
+      subject_id: SUBJECT_A,
+      academic_year_id: YEAR_A,
+      class_id: CLASS_A,
+      status: "active",
+      deleted_at: null,
+    },
+    {
+      id: ASSIGN_B,
+      teacher_id: TEACHER_B,
+      institute_id: INST_A,
+      section_id: SECTION_A,
+      subject_id: SUBJECT_B,
+      academic_year_id: YEAR_A,
+      class_id: CLASS_A,
+      status: "active",
+      deleted_at: null,
+    },
   ];
   return db;
 }
@@ -323,5 +451,57 @@ describe("teachers — validation and soft delete", () => {
       (await app.request(`/api/v1/teachers/${TEACHER_DELETED}`, { headers: auth("token-admin") }))
         .status,
     ).toBe(404);
+  });
+});
+
+describe("teachers — portal reads", () => {
+  it("learners and parents read faculty for an accessible student", async () => {
+    const app = appWithDb(portalDb());
+
+    for (const token of ["token-student", "token-parent"]) {
+      const res = await app.request(
+        `/api/v1/teachers/portal/students/${STUDENT_A}?institute_id=${INST_A}`,
+        { headers: auth(token) },
+      );
+      expect(res.status).toBe(200);
+      const body = await json(res);
+      expect(body.data.studentId).toBe(STUDENT_A);
+      expect(body.data.classLabel).toBe("10");
+      expect(body.data.sectionLabel).toBe("A");
+      const names = (body.data.teachers as Array<{ displayName: string }>).map(
+        (t) => t.displayName,
+      );
+      expect(names).toContain("Ananya Iyer");
+      expect(names).toContain("Ravi Mehta");
+      const classTeacher = (
+        body.data.teachers as Array<{ displayName: string; isClassTeacher: boolean }>
+      ).find((t) => t.displayName === "Ravi Mehta");
+      expect(classTeacher?.isClassTeacher).toBe(true);
+    }
+  });
+
+  it("teacher reads self portal profile and assignments", async () => {
+    const app = appWithDb(portalDb());
+    const res = await app.request(`/api/v1/teachers/portal/me?institute_id=${INST_A}`, {
+      headers: auth("token-teacher"),
+    });
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(body.data.teacherId).toBe(TEACHER_A);
+    expect(body.data.displayName).toBe("Ananya Iyer");
+    expect(body.data.assignments).toHaveLength(1);
+    expect(body.data.assignments[0].subjects).toContain("Mathematics");
+  });
+
+  it("denies faculty read for unrelated students", async () => {
+    const app = appWithDb(portalDb());
+    expect(
+      (
+        await app.request(
+          `/api/v1/teachers/portal/students/${STUDENT_B}?institute_id=${INST_A}`,
+          { headers: auth("token-parent") },
+        )
+      ).status,
+    ).toBe(403);
   });
 });

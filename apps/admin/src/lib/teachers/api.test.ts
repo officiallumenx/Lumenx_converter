@@ -65,7 +65,32 @@ describe("teachers api repository", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("lists teachers with institute_id only in API mode", async () => {
+  it("lists teachers with optional filters in API mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const { listTeachers } = await import("./api");
+    const payload = [dto()];
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ data: payload }),
+    });
+    const client = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => "tok",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    const result = await listTeachers(
+      { instituteId: INST, status: "active", q: "Sarah" },
+      client,
+    );
+    expect(result).toEqual(payload);
+    const url = fetchMock.mock.calls[0][0] as string;
+    expect(url).toContain(`institute_id=${INST}`);
+    expect(url).toContain("status=active");
+    expect(url).toContain("q=Sarah");
+  });
+
+  it("lists teachers with institute_id only when filters omitted", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const { listTeachers } = await import("./api");
     const payload = [dto()];
