@@ -9,6 +9,17 @@ import type {
   AttendanceSlotKind,
 } from "@/lib/attendance/types";
 
+export type AttendanceRegisterSlotFields = {
+  slotKind: AttendanceSlotKind;
+  slotCode: string;
+  slotLabel: string;
+  periodIndex: number | null;
+  timetableSlotId?: string | null;
+  subjectLabel?: string | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+};
+
 export function pickAttendanceConfigForRegister(opts: {
   configs: AttendanceConfigDto[];
   attendanceDate: string;
@@ -32,14 +43,23 @@ export function pickAttendanceConfigForRegister(opts: {
   return eligible[0] ?? null;
 }
 
-export function slotFieldsFromMethod(method: AttendanceMethod): {
-  slotKind: AttendanceSlotKind;
-  slotCode: string;
-  slotLabel: string;
-  periodIndex: number | null;
-} {
+export function slotFieldsFromPeriod(input: AttendanceRegisterSlotFields): AttendanceRegisterSlotFields {
+  return input;
+}
+
+export function slotFieldsFromMethod(
+  method: AttendanceMethod,
+  period?: AttendanceRegisterSlotFields,
+): AttendanceRegisterSlotFields {
+  if (period) return period;
   switch (method) {
     case "morning_first_period":
+      return {
+        slotKind: "morning",
+        slotCode: "slot:morning-first",
+        slotLabel: "Morning · First Period",
+        periodIndex: null,
+      };
     case "morning_afternoon":
       return {
         slotKind: "morning",
@@ -50,9 +70,9 @@ export function slotFieldsFromMethod(method: AttendanceMethod): {
     case "period_wise":
       return {
         slotKind: "period",
-        slotCode: "slot:period:1",
+        slotCode: "slot:period:0",
         slotLabel: "Period 1",
-        periodIndex: 1,
+        periodIndex: 0,
       };
     case "daily":
     default:
@@ -63,4 +83,13 @@ export function slotFieldsFromMethod(method: AttendanceMethod): {
         periodIndex: null,
       };
   }
+}
+
+export function afternoonSlotFields(): AttendanceRegisterSlotFields {
+  return {
+    slotKind: "afternoon",
+    slotCode: "slot:afternoon",
+    slotLabel: "Afternoon",
+    periodIndex: null,
+  };
 }

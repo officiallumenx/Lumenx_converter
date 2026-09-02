@@ -11,7 +11,14 @@ import { Button, cn, Badge } from "@lumenx/ui";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@lumenx/ui";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useApp } from "@/lib/app-state";
+import { isInstituteUuid } from "@/lib/institute-id";
 import { loadInstituteHolidays } from "@/lib/events";
+import { loadLearnerAttendancePortal } from "@/lib/attendance/load";
+import {
+  monthIsoRange,
+  overlayPortalAttendanceDays,
+  portalDaysToStatusMap,
+} from "@/lib/attendance/map";
 import {
   buildAttendanceDays,
   buildLearnerAttendanceDays,
@@ -37,6 +44,8 @@ type AttendanceOverviewProps = {
   seed?: number;
   studentId?: string;
   sectionKey?: string;
+  /** Real student UUID for API portal history (parent/student Connect API mode). */
+  portalStudentId?: string;
   /** Open calendar on this year (0-based month via initialMonth). Defaults to current month. */
   initialYear?: number;
   initialMonth?: number;
@@ -49,6 +58,7 @@ export function AttendanceOverview({
   subtitle,
   studentId,
   sectionKey,
+  portalStudentId,
   initialYear,
   initialMonth,
 }: AttendanceOverviewProps) {
@@ -59,6 +69,38 @@ export function AttendanceOverview({
   const [rangeEnd, setRangeEnd] = useState("");
   const { activeInstituteId } = useApp();
   const [apiHolidays, setApiHolidays] = useState<InstituteHoliday[] | null>(null);
+  const [portalStatusByDate, setPortalStatusByDate] = useState<Map<
+    string,
+    AttendanceDayStatus
+  > | null>(null);
+
+  const apiPortalStudentId =
+    portalStudentId && isInstituteUuid(portalStudentId) ? portalStudentId : null;
+
+  useEffect(() => {
+    if (!isApiAuthMode() || !apiPortalStudentId || !activeInstituteId) {
+      setPortalStatusByDate(null);
+      return;
+    }
+    let cancelled = false;
+    const { from, to } = monthIsoRange(year, month);
+    void loadLearnerAttendancePortal({
+      instituteId: activeInstituteId,
+      studentId: apiPortalStudentId,
+      fromDate: from,
+      toDate: to,
+    }).then((result) => {
+      if (cancelled) return;
+      if (result.portal) {
+        setPortalStatusByDate(portalDaysToStatusMap(result.portal));
+      } else {
+        setPortalStatusByDate(new Map());
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeInstituteId, apiPortalStudentId, year, month]);
 
   useEffect(() => {
     if (!isApiAuthMode()) {
@@ -79,6 +121,12 @@ export function AttendanceOverview({
 
   const historyBounds = useMemo(() => attendanceHistoryBounds(12), []);
   const days = useMemo(() => {
+    if (apiPortalStudentId && portalStatusByDate) {
+      return overlayPortalAttendanceDays(
+        buildAttendanceDays(year, month, holidayList),
+        { year, month, statusByDate: portalStatusByDate },
+      );
+    }
     if (studentId && sectionKey) {
       return buildLearnerAttendanceDays({
         year,
@@ -89,7 +137,15 @@ export function AttendanceOverview({
       });
     }
     return buildAttendanceDays(year, month, holidayList);
-  }, [year, month, studentId, sectionKey, holidayList]);
+  }, [
+    year,
+    month,
+    studentId,
+    sectionKey,
+    holidayList,
+    apiPortalStudentId,
+    portalStatusByDate,
+  ]);
   const leadingBlanks = calendarLeadingBlanks(year, month);
   const selectableMonths = useMemo(() => listSelectableMonths(12), []);
 

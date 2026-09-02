@@ -38,12 +38,15 @@ import {
   resolveAttendanceRegistersListView,
   shouldCommitAttendanceRegistersLoad,
   slotFieldsFromMethod,
+  slotFieldsFromPeriod,
+  afternoonSlotFields,
   submitAttendanceRegister,
   updateAttendanceRegister,
   type AttendanceListStatus,
   type AttendanceMarkStatus,
   type AttendanceRegisterDetail,
   type AttendanceRegisterListItem,
+  type AttendanceRegisterSlotFields,
 } from "@/lib/attendance";
 import {
   loadEnrollmentsList,
@@ -53,6 +56,8 @@ import {
   type EnrollmentListStatus,
 } from "@/lib/enrollments";
 import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
+import { attendancePeriodsFromTimetableSlots } from "@/lib/attendance-timetable-periods";
+import { listTeacherAssignments, listTimetableSlots } from "@/lib/timetable";
 
 const MARK_OPTIONS: AttendanceMarkStatus[] = ["present", "absent", "leave"];
 
@@ -130,6 +135,12 @@ export function StudentAttendanceApiPage() {
   const [enrollmentsResolvedKey, setEnrollmentsResolvedKey] = useState<string | null>(null);
 
   const [draftMarks, setDraftMarks] = useState<Record<string, AttendanceMarkStatus>>({});
+
+  const [markConfig, setMarkConfig] = useState<ReturnType<typeof pickAttendanceConfigForRegister>>(null);
+  const [markSlots, setMarkSlots] = useState<AttendanceRegisterSlotFields[]>([]);
+  const [activeCreateSlotCode, setActiveCreateSlotCode] = useState("");
+  const [creatingSlotCode, setCreatingSlotCode] = useState<string | null>(null);
+  const [slotsLoading, setSlotsLoading] = useState(false);
 
   const [activeRegisterId, setActiveRegisterId] = useState("");
   const activeRegisterIdRef = useRef(activeRegisterId);
@@ -359,6 +370,120 @@ export function StudentAttendanceApiPage() {
   ]);
 
   useEffect(() => {
+    if (!state.classId || !state.sectionId || !state.date || !instituteCtx.activeInstituteId) {
+      setMarkConfig(null);
+      setMarkSlots([]);
+      setActiveCreateSlotCode("");
+      return;
+    }
+
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    const classRow = classesById.get(state.classId);
+    const sectionRow = sectionsById.get(state.sectionId);
+    if (!classRow || !sectionRow) return;
+
+    let cancelled = false;
+    setSlotsLoading(true);
+    void loadAttendanceConfigList(requestInstituteId)
+      .then(async (configState) => {
+        if (cancelled || activeInstituteIdRef.current !== requestInstituteId) return;
+        const config = pickAttendanceConfigForRegister({
+          configs: configState.items,
+          attendanceDate: state.date,
+          classCode: classRow.code,
+          sectionCode: sectionRow.code,
+        });
+        setMarkConfig(config);
+        if (!config) {
+          setMarkSlots([]);
+          setActiveCreateSlotCode("");
+          return;
+        }
+
+        let slots: AttendanceRegisterSlotFields[] = [];
+        if (config.method === "period_wise") {
+          const [timetableSlots, assignments] = await Promise.all([
+            listTimetableSlots({
+              instituteId: requestInstituteId,
+              academicYearId: classRow.academicYearId,
+              sectionId: state.sectionId,
+            }),
+            listTeacherAssignments({
+              instituteId: requestInstituteId,
+              sectionId: state.sectionId,
+            }),
+          ]);
+          const subjectByAssignment = new Map(
+            assignments.map((row) => [row.id, row.subjectId]),
+          );
+          const subjectIds = [...new Set(assignments.map((a) => a.subjectId))];
+          const subjectLabels = new Map<string, string>();
+          for (const subjectId of subjectIds) {
+            subjectLabels.set(subjectId, subjectId.slice(0, 8));
+          }
+          const enriched = timetableSlots.map((slot) => ({
+            id: slot.id,
+            dayOfWeek: slot.dayOfWeek,
+            periodIndex: slot.periodIndex,
+            startsAt: slot.startsAt,
+            endsAt: slot.endsAt,
+            status: slot.status,
+            subjectLabel:
+              subjectLabels.get(
+                subjectByAssignment.get(slot.teacherAssignmentId) ?? "",
+              ) ?? "Subject",
+          }));
+          slots = attendancePeriodsFromTimetableSlots(enriched, state.date).map((period) =>
+            slotFieldsFromPeriod({
+              slotKind: "period",
+              slotCode: period.slotCode,
+              slotLabel: period.slotLabel,
+              periodIndex: period.index,
+              timetableSlotId: period.timetableSlotId,
+              subjectLabel: period.subject,
+              startsAt: period.startsAt,
+              endsAt: period.endsAt,
+            }),
+          );
+        } else if (config.method === "morning_afternoon") {
+          slots = [
+            slotFieldsFromMethod(config.method),
+            afternoonSlotFields(),
+          ];
+        } else {
+          slots = [slotFieldsFromMethod(config.method)];
+        }
+        setMarkSlots(slots);
+        const markedCodes = new Set(registers.map((row) => row.slotCode));
+        const firstUnmarked = slots.find((slot) => !markedCodes.has(slot.slotCode));
+        setActiveCreateSlotCode(firstUnmarked?.slotCode ?? slots[0]?.slotCode ?? "");
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setMarkConfig(null);
+          setMarkSlots([]);
+          setActiveCreateSlotCode("");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setSlotsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    instituteCtx.activeInstituteId,
+    state.classId,
+    state.sectionId,
+    state.date,
+    classesById,
+    sectionsById,
+    registers,
+    registersReloadKey,
+  ]);
+
+  useEffect(() => {
     if (!activeRegisterId || !instituteCtx.activeInstituteId) {
       setDetail(null);
       setDetailStatus("empty");
@@ -397,6 +522,25 @@ export function StudentAttendanceApiPage() {
     setDraftMarks((prev) => ({ ...prev, [enrollmentId]: status }));
   };
 
+  const markedSlotCodes = useMemo(
+    () => new Set(registersView.items.map((row) => row.slotCode)),
+    [registersView.items],
+  );
+
+  const unmarkedSlots = useMemo(
+    () => markSlots.filter((slot) => !markedSlotCodes.has(slot.slotCode)),
+    [markSlots, markedSlotCodes],
+  );
+
+  const activeCreateSlot = useMemo(() => {
+    const code = creatingSlotCode ?? activeCreateSlotCode;
+    return (
+      unmarkedSlots.find((slot) => slot.slotCode === code) ??
+      unmarkedSlots[0] ??
+      null
+    );
+  }, [unmarkedSlots, activeCreateSlotCode, creatingSlotCode]);
+
   const createRegister = () => {
     if (!writesEnabled || saving || !instituteCtx.activeInstituteId) return;
     if (!state.classId || !state.sectionId || !state.date) return;
@@ -404,55 +548,45 @@ export function StudentAttendanceApiPage() {
       notify("No enrolled students to mark for this section");
       return;
     }
+    if (!markConfig || !activeCreateSlot) {
+      notify("Select an attendance slot to mark");
+      return;
+    }
 
     const requestInstituteId = instituteCtx.activeInstituteId;
     const classRow = classesById.get(state.classId);
-    const sectionRow = sectionsById.get(state.sectionId);
-    if (!classRow || !sectionRow) {
-      notify("Class or section catalog is incomplete");
+    if (!classRow) {
+      notify("Class catalog is incomplete");
       return;
     }
 
     setSaving(true);
-    void loadAttendanceConfigList(requestInstituteId)
-      .then((configState) => {
-        if (activeInstituteIdRef.current !== requestInstituteId) return null;
-        if (configState.status === "forbidden" || configState.status === "error") {
-          throw new Error(configState.errorMessage ?? "Failed to load attendance config");
-        }
-        const config = pickAttendanceConfigForRegister({
-          configs: configState.items,
-          attendanceDate: state.date,
-          classCode: classRow.code,
-          sectionCode: sectionRow.code,
-        });
-        if (!config) {
-          throw new Error("No attendance configuration covers this date for the section");
-        }
-        const slot = slotFieldsFromMethod(config.method);
-        return createAttendanceRegister({
-          instituteId: requestInstituteId,
-          academicYearId: classRow.academicYearId,
-          classId: state.classId,
-          sectionId: state.sectionId,
-          configVersionId: config.id,
-          attendanceDate: state.date,
-          slotKind: slot.slotKind,
-          slotCode: slot.slotCode,
-          slotLabel: slot.slotLabel,
-          periodIndex: slot.periodIndex,
-          marks: enrollmentsView.items.map((row) => ({
-            enrollmentId: row.id,
-            status: draftMarks[row.id] ?? "present",
-          })),
-        });
-      })
+    void createAttendanceRegister({
+      instituteId: requestInstituteId,
+      academicYearId: classRow.academicYearId,
+      classId: state.classId,
+      sectionId: state.sectionId,
+      configVersionId: markConfig.id,
+      attendanceDate: state.date,
+      slotKind: activeCreateSlot.slotKind,
+      slotCode: activeCreateSlot.slotCode,
+      slotLabel: activeCreateSlot.slotLabel,
+      periodIndex: activeCreateSlot.periodIndex,
+      timetableSlotId: activeCreateSlot.timetableSlotId,
+      subjectLabel: activeCreateSlot.subjectLabel,
+      startsAt: activeCreateSlot.startsAt,
+      endsAt: activeCreateSlot.endsAt,
+      marks: enrollmentsView.items.map((row) => ({
+        enrollmentId: row.id,
+        status: draftMarks[row.id] ?? "present",
+      })),
+    })
       .then((created) => {
-        if (!created) return;
         if (activeInstituteIdRef.current !== requestInstituteId) return;
         notify("Attendance register created");
         setRegistersReloadKey((k) => k + 1);
         setActiveRegisterId(created.id);
+        setCreatingSlotCode(null);
       })
       .catch((err) => {
         notify(err instanceof Error ? err.message : "Failed to create attendance register");
@@ -516,8 +650,10 @@ export function StudentAttendanceApiPage() {
 
   const createMode =
     registersView.rowsValid &&
-    registersView.items.length === 0 &&
-    Boolean(state.classId && state.sectionId && state.date);
+    unmarkedSlots.length > 0 &&
+    Boolean(state.classId && state.sectionId && state.date) &&
+    Boolean(markConfig) &&
+    (registersView.items.length === 0 || creatingSlotCode !== null);
 
   const summary = useMemo(() => {
     if (createMode) {
@@ -634,17 +770,54 @@ export function StudentAttendanceApiPage() {
             hint={
               !enrollmentsView.rowsValid
                 ? enrollmentsHint ?? "Loading enrollments…"
-                : `${enrollmentsView.items.length} enrolled · mark then create`
+                : `${enrollmentsView.items.length} enrolled · ${activeCreateSlot?.slotLabel ?? "slot"}`
             }
             action={
               canWrite && enrollmentsView.rowsValid && enrollmentsView.items.length > 0 ? (
-                <Button variant="primary" disabled={saving} onClick={createRegister}>
+                <Button variant="primary" disabled={saving || !activeCreateSlot} onClick={createRegister}>
                   <Plus className="size-3.5" /> Create register
                 </Button>
               ) : null
             }
           />
-          {!enrollmentsView.rowsValid ? (
+          {creatingSlotCode ? (
+            <div className="px-4 pb-3 sm:px-5">
+              <Button variant="outline" size="sm" onClick={() => setCreatingSlotCode(null)}>
+                Back to registers
+              </Button>
+            </div>
+          ) : null}
+          {unmarkedSlots.length > 1 ? (
+            <div className="flex flex-wrap gap-2 px-4 pb-3 sm:px-5">
+              {unmarkedSlots.map((slot) => (
+                <button
+                  key={slot.slotCode}
+                  type="button"
+                  onClick={() => setActiveCreateSlotCode(slot.slotCode)}
+                  className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    activeCreateSlot?.slotCode === slot.slotCode
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-background text-muted-foreground hover:bg-surface-hover"
+                  }`}
+                >
+                  {slot.slotLabel}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {slotsLoading ? (
+            <div className="px-4 pb-8 text-center text-sm text-muted-foreground sm:px-5">
+              Loading attendance slots…
+            </div>
+          ) : !markConfig ? (
+            <div className="px-4 pb-8 text-center text-sm text-muted-foreground sm:px-5">
+              No attendance configuration covers this date for the section.
+            </div>
+          ) : !activeCreateSlot ? (
+            <div className="px-4 pb-8 text-center text-sm text-muted-foreground sm:px-5">
+              All slots are marked for this date.
+            </div>
+          ) : !enrollmentsView.rowsValid ? (
             <div className="px-4 pb-8 text-center text-sm text-muted-foreground sm:px-5">
               {enrollmentsHint ?? "Loading enrollments…"}
             </div>
@@ -730,7 +903,10 @@ export function StudentAttendanceApiPage() {
                 <button
                   key={register.id}
                   type="button"
-                  onClick={() => setActiveRegisterId(register.id)}
+                  onClick={() => {
+                    setCreatingSlotCode(null);
+                    setActiveRegisterId(register.id);
+                  }}
                   className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
                     activeRegisterId === register.id
                       ? "border-primary bg-primary/10 text-primary"
@@ -738,6 +914,29 @@ export function StudentAttendanceApiPage() {
                   }`}
                 >
                   {register.slotLabel}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {unmarkedSlots.length > 0 && canWrite ? (
+            <div className="flex flex-wrap gap-2 px-4 pb-3 sm:px-5">
+              {unmarkedSlots.map((slot) => (
+                <button
+                  key={slot.slotCode}
+                  type="button"
+                  onClick={() => {
+                    setCreatingSlotCode(slot.slotCode);
+                    setActiveCreateSlotCode(slot.slotCode);
+                    const initial: Record<string, AttendanceMarkStatus> = {};
+                    for (const row of enrollmentsView.items) {
+                      initial[row.id] = "present";
+                    }
+                    setDraftMarks(initial);
+                  }}
+                  className="rounded-lg border border-dashed border-primary/40 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/5"
+                >
+                  + {slot.slotLabel}
                 </button>
               ))}
             </div>

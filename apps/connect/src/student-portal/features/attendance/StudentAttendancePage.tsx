@@ -74,6 +74,7 @@ export function StudentAttendancePage() {
         subtitle={`${profile.name} · ${profile.class} ${profile.section}`}
         studentId={studentId}
         sectionKey={sectionKey}
+        portalStudentId={profile.id}
         initialYear={att.year}
         initialMonth={att.month}
       />

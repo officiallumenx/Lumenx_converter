@@ -46,6 +46,9 @@ export {
 export {
   pickAttendanceConfigForRegister,
   slotFieldsFromMethod,
+  slotFieldsFromPeriod,
+  afternoonSlotFields,
+  type AttendanceRegisterSlotFields,
 } from "./register-create-helpers";
 export type {
   AttendanceConfigDto,

@@ -20,6 +20,7 @@ export function attendanceRegisterDtoToListItem(
     sectionId: dto.sectionId,
     classId: dto.classId,
     attendanceDate: dto.attendanceDate,
+    slotCode: dto.slotCode,
     slotLabel: dto.slotLabel,
     subjectLabel: dto.subjectLabel,
     status: dto.status,

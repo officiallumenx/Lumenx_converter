@@ -597,3 +597,67 @@ describe("attendance — config + health", () => {
     expect((await app.request("/api/v1/health")).status).toBe(200);
   });
 });
+
+describe("attendance — portal reads", () => {
+  it("returns learner attendance history for parent", async () => {
+    const db = baseDb();
+    db.attendance_register[0] = {
+      ...db.attendance_register[0],
+      status: "submitted",
+      submitted_at: "2026-08-01T10:00:00.000Z",
+    };
+    const app = appWithDb(db);
+    const res = await app.request(
+      `/api/v1/attendance/portal/students/${STUDENT_A}?institute_id=${INST_A}&from_date=2026-08-01&to_date=2026-08-01`,
+      { headers: auth("token-parent") },
+    );
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(body.data.days).toEqual([
+      { date: "2026-08-01", status: "present" },
+    ]);
+  });
+
+  it("returns teacher portal slots for assigned section", async () => {
+    const app = appWithDb(baseDb());
+    const res = await app.request(
+      `/api/v1/attendance/portal/teacher?institute_id=${INST_A}&section_id=${SECTION_A}&attendance_date=2026-08-01`,
+      { headers: auth("token-teacher") },
+    );
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(body.data.slots.length).toBeGreaterThan(0);
+    expect(body.data.slots[0].slotCode).toBe("slot:day");
+  });
+
+  it("blocks learner portal for unrelated student", async () => {
+    const app = appWithDb(baseDb());
+    const res = await app.request(
+      `/api/v1/attendance/portal/students/${STUDENT_OTHER}?institute_id=${INST_A}`,
+      { headers: auth("token-parent") },
+    );
+    expect(res.status).toBe(403);
+  });
+});
+
+describe("attendance — submit notifications", () => {
+  it("emits notifications for absent marks on submit", async () => {
+    const db = baseDb();
+    db.notification = [];
+    db.notification_recipient = [];
+    db.attendance_mark = db.attendance_mark.map((mark) =>
+      mark.id === MARK_A ? { ...mark, status: "absent" } : mark,
+    );
+    const app = appWithDb(db);
+    const submit = await app.request(`/api/v1/attendance/registers/${REGISTER_A}/submit`, {
+      method: "POST",
+      headers: auth("token-admin"),
+    });
+    expect(submit.status).toBe(200);
+    expect(db.notification.length).toBeGreaterThan(0);
+    expect(db.notification.some((n) => n.category === "attendance")).toBe(true);
+    expect(
+      db.notification_recipient.some((r) => r.user_profile_id === USER_PARENT),
+    ).toBe(true);
+  });
+});

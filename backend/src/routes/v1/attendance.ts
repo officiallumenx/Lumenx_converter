@@ -17,6 +17,10 @@ import {
   submitRegisterForActor,
   updateRegisterForActor,
 } from "../../domains/attendance/service.js";
+import {
+  getLearnerAttendancePortalForActor,
+  getTeacherAttendancePortalForActor,
+} from "../../domains/attendance/portal.js";
 
 const attendance = new Hono<AppBindings>();
 
@@ -242,6 +246,48 @@ attendance.post("/registers/:id/submit", async (c) => {
   const admin = requireAdmin(c);
   const { id } = validateParams(idParamsSchema, c.req.param());
   const data = await submitRegisterForActor(admin, actor, id);
+  return c.json({ data });
+});
+
+const portalStudentParamsSchema = z.object({
+  studentId: uuid,
+});
+
+const portalStudentQuerySchema = z.object({
+  institute_id: uuid,
+  from_date: z.string().regex(dateRe).optional(),
+  to_date: z.string().regex(dateRe).optional(),
+});
+
+const portalTeacherQuerySchema = z.object({
+  institute_id: uuid,
+  section_id: uuid,
+  attendance_date: z.string().regex(dateRe),
+});
+
+attendance.get("/portal/students/:studentId", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { studentId } = validateParams(portalStudentParamsSchema, c.req.param());
+  const query = validateQuery(portalStudentQuerySchema, c.req.query());
+  const data = await getLearnerAttendancePortalForActor(admin, actor, {
+    instituteId: query.institute_id,
+    studentId,
+    fromDate: query.from_date,
+    toDate: query.to_date,
+  });
+  return c.json({ data });
+});
+
+attendance.get("/portal/teacher", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(portalTeacherQuerySchema, c.req.query());
+  const data = await getTeacherAttendancePortalForActor(admin, actor, {
+    instituteId: query.institute_id,
+    sectionId: query.section_id,
+    attendanceDate: query.attendance_date,
+  });
   return c.json({ data });
 });
 

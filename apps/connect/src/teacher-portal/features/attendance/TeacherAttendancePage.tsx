@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState, useCallback, useRef, type ReactNode } from "react";
 import { useSearch } from "@tanstack/react-router";
 import { PageHeader } from "@/components/app/PageHeader";
+import { ConnectDatePicker } from "@/components/app/attendance/AttendanceDatePicker";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { TeacherAttendanceApiPanel } from "./TeacherAttendanceApiPanel";
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
 import { teacherRepository } from "@/lib/teacher/repositories";
 import { leaveStore } from "@/lib/leave-store";
@@ -46,6 +49,11 @@ import {
 } from "./useAttendanceWorkflow";
 
 export function TeacherAttendancePage() {
+  if (isApiAuthMode()) return <TeacherAttendanceApiPanel />;
+  return <TeacherAttendanceDemoPage />;
+}
+
+function TeacherAttendanceDemoPage() {
   const portal = useTeacherPortal();
   const search = useSearch({ strict: false }) as { classId?: string };
   const teacherClasses = portal.isTeacher ? portal.classes : [];
@@ -790,13 +798,12 @@ function HistoryView({
         </SelectContent>
       </Select>
       <div className="relative min-w-0">
-        <Input
-          type="date"
+        <ConnectDatePicker
+          label="Filter by date"
+          hideLabel
           value={filterDate}
-          onChange={(e) => setFilterDate(e.target.value)}
-          className="h-10 rounded-xl pr-8"
-          aria-label="Filter by date"
-          title="Pick a date or type YYYY-MM-DD. Clear to show all."
+          onChange={setFilterDate}
+          placeholder="Filter by date"
         />
         {filterDate ? (
           <button

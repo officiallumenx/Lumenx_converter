@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/app/AppShell";
 import { PageHeader } from "@/components/app/PageHeader";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { useApp } from "@/lib/app-state";
 import { childProfile } from "@/lib/mock-data";
 import { useParentPortal } from "@/context/ParentPortalContext";
@@ -61,6 +62,7 @@ function ParentAttendanceView() {
       subtitle={`${who} · ${classTag}`}
       studentId={studentId}
       sectionKey={sectionKey}
+      portalStudentId={isApiAuthMode() ? child?.id : undefined}
     />
   );
 }

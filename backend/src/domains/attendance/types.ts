@@ -171,3 +171,53 @@ export type ListRegistersFilter = {
   attendanceDate?: string;
   status?: AttendanceRegisterStatus;
 };
+
+export type PortalAttendanceDayStatus =
+  | "present"
+  | "absent"
+  | "leave"
+  | "unknown";
+
+export type PortalAttendanceDayDto = {
+  date: string;
+  status: PortalAttendanceDayStatus;
+};
+
+export type PortalLearnerAttendanceDto = {
+  instituteId: string;
+  studentId: string;
+  fromDate: string;
+  toDate: string;
+  days: PortalAttendanceDayDto[];
+  summary: {
+    present: number;
+    absent: number;
+    leave: number;
+    unknown: number;
+    attendancePct: number;
+  };
+};
+
+export type PortalTeacherAttendanceSlotDto = {
+  slotCode: string;
+  slotKind: AttendanceSlotKind;
+  slotLabel: string;
+  periodIndex: number | null;
+  timetableSlotId: string | null;
+  subjectLabel: string | null;
+  startsAt: string | null;
+  endsAt: string | null;
+  registerId: string | null;
+  registerStatus: AttendanceRegisterStatus | null;
+};
+
+export type PortalTeacherAttendanceDto = {
+  instituteId: string;
+  sectionId: string;
+  classId: string;
+  academicYearId: string;
+  attendanceDate: string;
+  method: AttendanceMethod | null;
+  configVersionId: string | null;
+  slots: PortalTeacherAttendanceSlotDto[];
+};

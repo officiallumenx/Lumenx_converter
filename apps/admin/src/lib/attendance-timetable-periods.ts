@@ -109,6 +109,7 @@ function formatSlotTime(value: string): string {
  */
 export function attendancePeriodsFromTimetableSlots(
   slots: Array<{
+    id: string;
     dayOfWeek: number;
     periodIndex: number;
     startsAt: string;
@@ -117,20 +118,39 @@ export function attendancePeriodsFromTimetableSlots(
     status: string;
   }>,
   date: string,
-): PeriodInput[] {
+): Array<{
+  index: number;
+  subject: string;
+  time: string;
+  timetableSlotId: string;
+  startsAt: string;
+  endsAt: string;
+  slotCode: string;
+  slotLabel: string;
+}> {
   const dayName = weekdayNameFromIso(date);
   const dayIdx = DAY_NAMES.findIndex(
     (name) => name.toLowerCase() === dayName.toLowerCase(),
   );
   if (dayIdx < 1) return [];
 
-  const rows = slots
+  const active = slots
     .filter((slot) => slot.status === "active" && slot.dayOfWeek === dayIdx)
-    .sort((a, b) => a.periodIndex - b.periodIndex)
-    .map((slot) => ({
-      subject: slot.subjectLabel.trim() || "Period",
-      time: `${formatSlotTime(slot.startsAt)}–${formatSlotTime(slot.endsAt)}`,
-    }));
+    .sort((a, b) => a.periodIndex - b.periodIndex);
 
-  return periodsFromTimetableSlots(rows);
+  return active.map((slot, denseIndex) => {
+    const subject = slot.subjectLabel.trim() || "Period";
+    const startsAt = formatSlotTime(slot.startsAt);
+    const endsAt = formatSlotTime(slot.endsAt);
+    return {
+      index: denseIndex,
+      subject,
+      time: `${startsAt}–${endsAt}`,
+      timetableSlotId: slot.id,
+      startsAt,
+      endsAt,
+      slotCode: `slot:period:${denseIndex}`,
+      slotLabel: `P${denseIndex + 1} · ${subject}`,
+    };
+  });
 }

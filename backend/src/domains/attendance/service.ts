@@ -142,7 +142,7 @@ function isStaffReader(actor: Actor, instituteId: string): boolean {
  * Teacher may mark when they have an active assignment on the section graph.
  * Staff override roles skip assignment. Never trust client teacher ids.
  */
-async function assertCanWriteAttendance(
+export async function assertCanWriteAttendance(
   admin: SupabaseClient,
   actor: Actor,
   input: {
@@ -596,5 +596,16 @@ export async function submitRegisterForActor(
     // Concurrent submit won the race — treat as already submitted.
     throw AppError.conflict("Attendance register is already submitted");
   }
+
+  const { emitAttendanceRegisterSubmittedNotifications } = await import(
+    "./notifications.js"
+  );
+  await emitAttendanceRegisterSubmittedNotifications(
+    admin,
+    actor.userId,
+    submitted,
+    marks,
+  );
+
   return toRegisterDto(submitted, marks);
 }

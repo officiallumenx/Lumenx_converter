@@ -59,6 +59,7 @@ export type AttendanceRegisterListItem = {
   sectionId: string;
   classId: string;
   attendanceDate: string;
+  slotCode: string;
   slotLabel: string;
   subjectLabel: string | null;
   status: AttendanceRegisterStatus;
