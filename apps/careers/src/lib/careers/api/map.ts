@@ -1,4 +1,5 @@
 import { buildApplicationTimeline } from "../mock-data";
+import { interviewFromApplicationPayload } from "../interviews";
 import type {
   ApplicationDocument,
   ApplicationStatus,
@@ -165,6 +166,12 @@ export function careerApplicationDtoToJobApplication(
     payloadField(dto.payload, ["instituteName", "organizationName"]) ||
     context.instituteName ||
     "Institute";
+  const interview = interviewFromApplicationPayload(
+    dto.payload,
+    status,
+    dto.updatedAt,
+    dto.decisionNote,
+  );
 
   return {
     id: dto.id,
@@ -192,6 +199,7 @@ export function careerApplicationDtoToJobApplication(
     documents: [] as ApplicationDocument[],
     timeline: buildApplicationTimeline(status, submittedAt),
     hrNotes: dto.decisionNote ? [dto.decisionNote] : undefined,
+    interview,
   };
 }
 

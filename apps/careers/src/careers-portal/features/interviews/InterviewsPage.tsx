@@ -2,13 +2,12 @@ import { Link } from "@tanstack/react-router";
 import { Badge, Button } from "@lumenx/ui";
 import { Calendar, MapPin, Video } from "lucide-react";
 import { CareersPageHeader } from "@/careers-portal/shared/ui/CareersPageHeader";
-import { useCareersAuth } from "@/careers-portal/core/CareersAuthProvider";
-import { getInterviewsForUser } from "@/lib/careers/repositories";
+import { useCareersInterviews } from "@/hooks/use-careers-interviews";
 import { interviewModeLabel, statusLabel } from "@/lib/careers/status-utils";
+import type { ApplicationStatus } from "@/lib/careers/types";
 
 export function InterviewsPage() {
-  const { user } = useCareersAuth();
-  const interviews = user ? getInterviewsForUser(user.id) : [];
+  const { interviews, loading, errorMessage } = useCareersInterviews();
   const now = new Date();
   const upcoming = interviews.filter(
     (i) => i.interview.status === "scheduled" && new Date(i.interview.date) >= now,
@@ -17,9 +16,19 @@ export function InterviewsPage() {
     (i) => i.interview.status === "completed" || new Date(i.interview.date) < now,
   );
 
+  if (loading) {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">Loading interviews…</div>
+    );
+  }
+
   return (
     <div className="animate-in fade-in duration-300">
       <CareersPageHeader title="Interview schedule" subtitle="Across all your applications" />
+
+      {errorMessage && (
+        <p className="mb-4 text-center text-sm text-destructive">{errorMessage}</p>
+      )}
 
       {interviews.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-8 text-center">
@@ -66,7 +75,7 @@ function InterviewCard({
   applicationId: string;
   jobTitle: string;
   instituteName: string;
-  status: string;
+  status: ApplicationStatus;
   interview: {
     date: string;
     time: string;
@@ -87,7 +96,7 @@ function InterviewCard({
           <p className="font-medium">{jobTitle}</p>
           <p className="text-sm text-muted-foreground">{instituteName}</p>
         </div>
-        <Badge variant="outline">{statusLabel(status as Parameters<typeof statusLabel>[0])}</Badge>
+        <Badge variant="outline">{statusLabel(status)}</Badge>
       </div>
       <div className="mt-3 space-y-1 text-sm text-muted-foreground">
         <p className="flex items-center gap-2">

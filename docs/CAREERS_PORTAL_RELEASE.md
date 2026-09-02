@@ -59,6 +59,7 @@ REST client: `apps/careers/src/lib/careers/api/`
 | Saved jobs | `GET/POST/DELETE /careers/saved` | `useCareersSaved`, SaveJobButton |
 | Talent pool | `GET /careers/talent-pool` | `useCareersTalent` |
 | Notifications | `GET/PATCH /notifications` | `useCareersApiInbox` |
+| Interviews | Derived from applications (`interview_scheduled` / payload) | `useCareersInterviews` |
 
 Institute context: `resolveCareersInstituteId(user)` from `activeInstituteId` or `organizationId`.
 
@@ -104,6 +105,7 @@ apps/careers/src/
     use-careers-profile.ts
     use-careers-saved.ts
     use-careers-talent.ts
+    use-careers-interviews.ts
     use-careers-api-inbox.ts
 ```
 
