@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
+import { isApiAuthMode } from "@/lib/auth/auth-mode";
 import { useTransportAuth } from "@/lib/auth/transport-auth";
 import {
   resolveDriverAssignment,
   subscribeDriverAssignment,
   type DriverAssignment,
 } from "@/lib/transport/driver-assignment";
+import { loadApiDriverAssignment } from "@/lib/transport/driver-assignment-api";
 import { setAttendanceVehicleScope } from "@/lib/transport/attendance/store";
 import { setRouteSetupDriverScope } from "@/lib/transport/route-setup/store";
 
@@ -26,18 +28,56 @@ const LOADING: DriverAssignment = {
 };
 
 /**
- * Live assignment for the signed-in driver (ops bridge).
+ * Live assignment for the signed-in driver (ops bridge or API).
  * Keeps route-setup, trip, and attendance scope aligned with this driver.
  */
 export function useDriverAssignment(): DriverAssignment {
   const { user, hydrated } = useTransportAuth();
   const phone = user?.phone ?? null;
+  const apiMode = isApiAuthMode();
+  const [apiAssignment, setApiAssignment] = useState<DriverAssignment | null>(null);
 
-  const assignment = useSyncExternalStore(
+  const demoAssignment = useSyncExternalStore(
     subscribeDriverAssignment,
     () => getSnapshot(phone),
     () => LOADING,
   );
+
+  const loadApi = useCallback(async () => {
+    if (!apiMode || !user?.instituteId || !user.driverId) {
+      setApiAssignment(null);
+      return;
+    }
+    try {
+      const next = await loadApiDriverAssignment({
+        instituteId: user.instituteId,
+        driverId: user.driverId,
+        displayName: user.name,
+        phone: user.phone,
+        employeeId: user.employeeId,
+      });
+      setApiAssignment(next);
+    } catch {
+      setApiAssignment({
+        status: "not_found",
+        account: null,
+        driver: null,
+        bus: null,
+        route: null,
+        studentCount: 0,
+        lockedByAdmin: false,
+        tripAssignment: null,
+        message: "Could not load driver assignment from API.",
+      });
+    }
+  }, [apiMode, user]);
+
+  useEffect(() => {
+    if (!hydrated || !apiMode) return;
+    void loadApi();
+  }, [hydrated, apiMode, loadApi]);
+
+  const assignment = apiMode ? (apiAssignment ?? LOADING) : demoAssignment;
 
   const status = assignment.status;
   const accountId = assignment.account?.id ?? null;
@@ -77,6 +117,7 @@ export function useDriverAssignment(): DriverAssignment {
         driverPhone: driverPhone ?? "—",
         employeeId,
         licenseNumber,
+        instituteId: user?.instituteId,
       });
       setAttendanceVehicleScope(vehicleId);
       return;
@@ -96,6 +137,7 @@ export function useDriverAssignment(): DriverAssignment {
     employeeId,
     licenseNumber,
     driverPhone,
+    user?.instituteId,
   ]);
 
   if (!hydrated) return LOADING;
@@ -104,6 +146,7 @@ export function useDriverAssignment(): DriverAssignment {
 
 export function useEnsureDriverScope(): () => void {
   const assignment = useDriverAssignment();
+  const { user } = useTransportAuth();
   return useCallback(() => {
     if (assignment.status === "ready" && assignment.account && assignment.bus && assignment.route) {
       setRouteSetupDriverScope({
@@ -117,8 +160,9 @@ export function useEnsureDriverScope(): () => void {
         driverPhone: assignment.driver?.phone ?? "—",
         employeeId: assignment.account.employeeId,
         licenseNumber: assignment.account.licenseNumber,
+        instituteId: user?.instituteId,
       });
       setAttendanceVehicleScope(assignment.bus.vehicleId);
     }
-  }, [assignment]);
+  }, [assignment, user?.instituteId]);
 }

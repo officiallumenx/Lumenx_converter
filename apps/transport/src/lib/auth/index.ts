@@ -1,4 +1,5 @@
-export { isApiAuthMode, isDemoAuthMode, getTransportAuthMode } from "./auth-mode";
+export { apiSignInWithPassword, apiSignOut, hydrateApiTransportSession } from "./api-auth";
+export type { ApiTransportSession } from "./api-auth";
 export type { TransportAuthMode } from "./auth-mode";
 export {
   findDriverByPhone,

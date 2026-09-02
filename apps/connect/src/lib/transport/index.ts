@@ -1,16 +1,23 @@
 export {
+  getLearnerTransport,
   listTransportEnrollments,
   listTransportRoutes,
   listTransportStops,
   listTeacherClassTransport,
 } from "./api";
-export { loadTeacherClassTransport } from "./load";
+export { loadLearnerTransport, loadTeacherClassTransport } from "./load";
 export type {
+  LearnerTransportParams,
+  LearnerTransportStop,
+  LearnerTransportSummary,
   RouteDto,
   StopDto,
   TeacherClassTransportParams,
   TeacherClassTransportRow,
   TransportApprovalStatus,
   TransportEnrollmentDto,
-} from "./types";
-export type { TeacherClassTransportLoadState } from "./load";
+} from "./api-types";
+export type {
+  LearnerTransportLoadState,
+  TeacherClassTransportLoadState,
+} from "./load";

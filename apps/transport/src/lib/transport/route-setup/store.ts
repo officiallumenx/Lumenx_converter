@@ -14,6 +14,7 @@ import type {
   UpsertStopInput,
 } from "./types";
 import { canEditAssignment, canEditStop } from "./types";
+import { syncStopSubmissionToApi } from "./api-sync";
 
 const STORAGE_KEY = "lumenx.transport.route-setup.v1";
 
@@ -31,6 +32,7 @@ export type RouteSetupDriverScope = {
   driverPhone: string;
   employeeId: string;
   licenseNumber: string;
+  instituteId?: string;
 };
 
 type RouteSetupStorageV2 = {
@@ -243,6 +245,11 @@ function persist() {
   pushApprovedOpsBridge();
 }
 
+function queueApiStopSync(stop: RouteSetupStop): void {
+  if (!scope) return;
+  void syncStopSubmissionToApi(scope, stop).catch(() => undefined);
+}
+
 function applyAdminLockFromBridge() {
   if (!scope) return;
   const lock = loadTransportOps().routeLocksByRoute[scope.routeId];
@@ -264,7 +271,8 @@ export function setRouteSetupDriverScope(next: RouteSetupDriverScope): void {
     scope.driverName === next.driverName &&
     scope.driverPhone === next.driverPhone &&
     scope.employeeId === next.employeeId &&
-    scope.licenseNumber === next.licenseNumber;
+    scope.licenseNumber === next.licenseNumber &&
+    scope.instituteId === next.instituteId;
   if (same) return;
 
   scope = next;
@@ -542,6 +550,7 @@ export function upsertRouteSetupStop(
       };
       record = { ...record, assignments: syncAssignmentsForStop(changeRequest) };
       persist();
+      queueApiStopSync(changeRequest);
       notifyAdminStopRequest({
         stopId: changeRequest.id,
         stopName: changeRequest.name,
@@ -586,6 +595,7 @@ export function upsertRouteSetupStop(
     };
     record = { ...record, assignments: syncAssignmentsForStop(updated) };
     persist();
+    queueApiStopSync(updated);
     notifyAdminStopRequest({
       stopId: updated.id,
       stopName: updated.name,
@@ -631,6 +641,7 @@ export function upsertRouteSetupStop(
   };
   record = { ...record, assignments: syncAssignmentsForStop(next) };
   persist();
+  queueApiStopSync(next);
   notifyAdminStopRequest({
     stopId: next.id,
     stopName: next.name,

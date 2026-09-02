@@ -9,6 +9,7 @@ import { AuthDemoCard, AuthHeader, AuthScreen } from "@/components/auth/auth-scr
 import { DriverMark } from "@/components/app/driver-mark";
 import { COUNTRIES, PhoneInput, validatePhone } from "@/components/auth/phone-input";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   findDriverByPhone,
   isValidTransportOtp,
@@ -25,7 +26,10 @@ const AUTH_TOAST_ID = "transport-auth";
 
 export function DriverLoginPage() {
   const navigate = useNavigate();
-  const { user, hydrated, signIn } = useTransportAuth();
+  const { user, hydrated, signIn, signInWithPassword, apiMode } = useTransportAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [apiError, setApiError] = useState<string | null>(null);
   const [step, setStep] = useState<Step>("phone");
   const [country] = useState(COUNTRIES[0]);
   const [phone, setPhone] = useState("");
@@ -59,7 +63,7 @@ export function DriverLoginPage() {
     setOtpError(null);
   }, []);
 
-  useOtpAutofill(handleOtpAutofill, step === "otp" && otpSent);
+  useOtpAutofill(handleOtpAutofill, step === "otp" && otpSent && !apiMode);
 
   const scheduleDemoOtp = useCallback(() => {
     if (demoOtpTimerRef.current) clearTimeout(demoOtpTimerRef.current);
@@ -71,6 +75,20 @@ export function DriverLoginPage() {
       });
     }, DEMO_OTP_DELAY_MS);
   }, []);
+
+  const handleApiSignIn = async () => {
+    setApiError(null);
+    setLoading(true);
+    try {
+      await signInWithPassword(email, password);
+      toast.success("Signed in");
+      void navigate({ to: "/" });
+    } catch (err) {
+      setApiError(err instanceof Error ? err.message : "Sign in failed");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const sendOtp = () => {
     setPhoneError(null);
@@ -134,6 +152,38 @@ export function DriverLoginPage() {
       <div className="flex min-h-dvh items-center justify-center bg-background">
         <Loader2 className="size-6 animate-spin text-muted-foreground" aria-hidden />
       </div>
+    );
+  }
+
+  if (apiMode) {
+    return (
+      <AuthScreen>
+        <AuthHeader
+          title="Driver sign in"
+          subtitle="Use your institute email and password"
+          icon={<DriverMark className="h-12 w-12" />}
+        />
+        <div className="space-y-3">
+          <Input
+            type="email"
+            autoComplete="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <Input
+            type="password"
+            autoComplete="current-password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          {apiError ? <p className="text-sm text-destructive">{apiError}</p> : null}
+          <Button className="w-full" disabled={loading} onClick={() => void handleApiSignIn()}>
+            {loading ? <Loader2 className="animate-spin" /> : "Sign in"}
+          </Button>
+        </div>
+      </AuthScreen>
     );
   }
 

@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore, useCallback } from "react";
 import { Bus, Clock, Users } from "lucide-react";
+import { subscribeTransportRealtime } from "@lumenx/utils";
 import { PageHeader } from "@/components/app/PageHeader";
 import { StatCard } from "@/components/app/StatCard";
 import { TransportAlertsList } from "@/components/app/transport/TransportAlertsList";
@@ -14,6 +15,7 @@ import { useTeacherPortal } from "@/context/TeacherPortalContext";
 import { useApp } from "@/lib/app-state";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { loadTeacherClassTransport } from "@/lib/transport";
+import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { transportStore } from "@/lib/transport-store";
 import { formatEtaMinutes, unreadTransportAlertCount } from "@/lib/transport-utils";
 import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
@@ -28,19 +30,31 @@ export function TeacherTransportPage() {
   const [apiRoster, setApiRoster] = useState<TeacherClassTransportRow[]>([]);
   const [apiRosterLoading, setApiRosterLoading] = useState(false);
 
-  useEffect(() => {
+  const reloadApiRoster = useCallback(() => {
     if (!apiMode || !hasTransport || !activeInstituteId) return;
-    let cancelled = false;
     setApiRosterLoading(true);
     void loadTeacherClassTransport({ instituteId: activeInstituteId }).then((state) => {
-      if (cancelled) return;
       if (state.status === "ready") setApiRoster(state.rows);
       setApiRosterLoading(false);
     });
-    return () => {
-      cancelled = true;
-    };
-  }, [apiMode, hasTransport, activeInstituteId, portal.classes.length]);
+  }, [apiMode, hasTransport, activeInstituteId]);
+
+  useEffect(() => {
+    reloadApiRoster();
+  }, [reloadApiRoster, portal.classes.length]);
+
+  useEffect(() => {
+    if (!apiMode || !activeInstituteId) return;
+    try {
+      const supabase = getSupabaseBrowserClient();
+      return subscribeTransportRealtime(supabase, {
+        instituteId: activeInstituteId,
+        onChange: reloadApiRoster,
+      });
+    } catch {
+      return undefined;
+    }
+  }, [apiMode, activeInstituteId, reloadApiRoster]);
 
   useEffect(() => {
     if (hasTransport) {

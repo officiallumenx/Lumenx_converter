@@ -16,6 +16,7 @@ import {
   deleteRejectedTransportRouteForActor,
   deleteRejectedTransportStopForActor,
   getDriverMeForActor,
+  getLearnerTransportForActor,
   listTeacherClassTransportForActor,
   listTransportReviewQueueForActor,
   rejectTransportEnrollmentForActor,
@@ -650,6 +651,23 @@ transport.get("/drivers/me", async (c) => {
     c.req.query(),
   );
   const data = await getDriverMeForActor(admin, actor, query.institute_id);
+  return c.json({ data });
+});
+
+transport.get("/portal/learner-transport", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(
+    z.object({
+      institute_id: uuid,
+      student_id: uuid,
+    }),
+    c.req.query(),
+  );
+  const data = await getLearnerTransportForActor(admin, actor, {
+    instituteId: query.institute_id,
+    studentId: query.student_id,
+  });
   return c.json({ data });
 });
 

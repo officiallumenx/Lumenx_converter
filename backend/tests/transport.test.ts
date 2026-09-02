@@ -499,6 +499,20 @@ describe("transport api", () => {
     expect(body.data.userProfileId).toBeNull();
   });
 
+  it("parent can read learner transport portal summary", async () => {
+    const app = appWithDb(baseDb());
+    const res = await app.request(
+      `/api/v1/transport/portal/learner-transport?institute_id=${INST_A}&student_id=${STUDENT_A}`,
+      { headers: { Authorization: "Bearer token-parent" } },
+    );
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(body.data.studentId).toBe(STUDENT_A);
+    expect(body.data.enrollmentId).toBe(ENROLL_A);
+    expect(body.data.busNumber).toBe("BUS-1");
+    expect(body.data.pickupStop?.name).toBe("Gate A");
+  });
+
   it("driver submits pending route and admin approves via review queue", async () => {
     const app = appWithDb(baseDb());
 
