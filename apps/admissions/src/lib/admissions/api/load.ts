@@ -9,6 +9,7 @@ import type {
 } from "../types";
 import {
   getAdmissionApplication,
+  getAdmissionProgram,
   listAdmissionApplications,
   listAdmissionInquiries,
   listAdmissionOpenings,
@@ -19,6 +20,7 @@ import {
   admissionApplicationDtoToPortal,
   admissionInquiryDtosToPortal,
   admissionOpeningDtosToPortal,
+  admissionProgramDtoToPortal,
   admissionProgramDtosToPortal,
 } from "./map-portal";
 import type {
@@ -190,6 +192,76 @@ export async function loadAdmissionsPrograms(
     (rows) => admissionProgramDtosToPortal(rows as AdmissionProgramDto[]),
     "Failed to load admission programs",
   );
+}
+
+export async function loadAdmissionsProgramById(
+  programId: string,
+): Promise<{
+  status: AdmissionsLoadStatus;
+  program: AdmissionProgram | null;
+  errorMessage: string | null;
+}> {
+  if (!isApiAuthMode()) {
+    return { status: "demo", program: null, errorMessage: null };
+  }
+
+  if (!isInstituteUuid(programId)) {
+    return {
+      status: "error",
+      program: null,
+      errorMessage: "Invalid program id",
+    };
+  }
+
+  try {
+    const dto = await getAdmissionProgram(programId);
+    return {
+      status: "ready",
+      program: admissionProgramDtoToPortal(dto),
+      errorMessage: null,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to load program";
+    return { status: "error", program: null, errorMessage: message };
+  }
+}
+
+export async function loadAdmissionsBrowsePrograms(
+  instituteIds: string[],
+): Promise<{
+  status: AdmissionsLoadStatus;
+  grouped: { instituteId: string; programs: AdmissionProgram[] }[];
+  errorMessage: string | null;
+}> {
+  if (!isApiAuthMode()) {
+    return { status: "demo", grouped: [], errorMessage: null };
+  }
+
+  const validIds = instituteIds.filter(isInstituteUuid);
+  if (validIds.length === 0) {
+    return { status: "empty", grouped: [], errorMessage: null };
+  }
+
+  try {
+    const results = await Promise.all(
+      validIds.map(async (instituteId) => {
+        const rows = await listAdmissionPrograms({ instituteId });
+        const programs = admissionProgramDtosToPortal(rows).filter(
+          (p) => p.id && p.name,
+        );
+        return { instituteId, programs };
+      }),
+    );
+    const grouped = results.filter((g) => g.programs.length > 0);
+    return {
+      status: grouped.length === 0 ? "empty" : "ready",
+      grouped,
+      errorMessage: null,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to load programs";
+    return { status: "error", grouped: [], errorMessage: message };
+  }
 }
 
 export async function loadAdmissionsOpenings(

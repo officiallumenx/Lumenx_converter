@@ -67,6 +67,19 @@ export async function listAdmissionPrograms(
   );
 }
 
+export async function getAdmissionProgram(
+  programId: string,
+  client: AdmissionsApiClient = getAdmissionsApiClient(),
+): Promise<AdmissionProgramDto> {
+  assertApiMode();
+  if (!isInstituteUuid(programId)) {
+    throw new Error("program_id must be a valid UUID");
+  }
+  return client.get<AdmissionProgramDto>(
+    `/api/v1/admissions/programs/${programId.trim()}`,
+  );
+}
+
 export async function listAdmissionOpenings(
   params: ListAdmissionOpeningsParams,
   client: AdmissionsApiClient = getAdmissionsApiClient(),
@@ -79,6 +92,19 @@ export async function listAdmissionOpenings(
   query.set("institute_id", params.instituteId.trim());
   return client.get<AdmissionOpeningDto[]>(
     `/api/v1/admissions/openings?${query.toString()}`,
+  );
+}
+
+export async function getAdmissionOpening(
+  openingId: string,
+  client: AdmissionsApiClient = getAdmissionsApiClient(),
+): Promise<AdmissionOpeningDto> {
+  assertApiMode();
+  if (!isInstituteUuid(openingId)) {
+    throw new Error("opening_id must be a valid UUID");
+  }
+  return client.get<AdmissionOpeningDto>(
+    `/api/v1/admissions/openings/${openingId.trim()}`,
   );
 }
 

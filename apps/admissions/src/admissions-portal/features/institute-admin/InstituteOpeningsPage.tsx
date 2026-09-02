@@ -23,10 +23,18 @@ import {
 import { DoorOpen, Pencil, Plus, Trash2 } from "lucide-react";
 import { toLocalIsoDate } from "@lumenx/utils";
 import { toast } from "sonner";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { useAdmissionsAuth } from "@/admissions-portal/core/AdmissionsAuthProvider";
 import { ConnectDatePicker } from "@/components/app/attendance/AttendanceDatePicker";
 import { AdmissionsPageHeader } from "@/admissions-portal/shared/ui/AdmissionsPageHeader";
 import type { AdmissionOpening, AdmissionOpeningStatus } from "@/lib/admissions/types";
+import {
+  createAdmissionOpening,
+  deleteAdmissionOpening,
+  updateAdmissionOpening,
+} from "@/lib/admissions/api";
+import { useAdmissionsOpenings } from "@/hooks/use-admissions-openings";
+import { useAdmissionsPrograms } from "@/hooks/use-admissions-programs";
 import {
   createOpening,
   deleteOpening,
@@ -43,7 +51,6 @@ const STATUS_LABEL: Record<AdmissionOpeningStatus, string> = {
   closed: "Closed",
 };
 
-/** One class per opening — pick from this list. */
 const CLASS_OPTIONS = [
   "Nursery",
   "LKG",
@@ -62,7 +69,7 @@ const CLASS_OPTIONS = [
   "Class 12",
 ] as const;
 
-const emptyForm = (): AdmissionOpeningInput => ({
+const emptyForm = (): AdmissionOpeningInput & { programId?: string } => ({
   name: "",
   description: "",
   grades: [],
@@ -73,9 +80,9 @@ const emptyForm = (): AdmissionOpeningInput => ({
   ageCriteria: "",
   duration: "1 year",
   status: "draft",
+  programId: "",
 });
 
-/** Normalize stored deadline to `yyyy-mm-dd` for `<input type="date">`. */
 function toDateInputValue(raw: string): string {
   const value = raw.trim();
   if (!value || value === "TBA") return "";
@@ -89,7 +96,6 @@ function toDateInputValue(raw: string): string {
   return `${y}-${m}-${day}`;
 }
 
-/** Display deadline as e.g. 30 Jun 2026. */
 function formatDeadline(raw: string): string {
   const iso = toDateInputValue(raw);
   if (!iso) return raw.trim() || "TBA";
@@ -107,7 +113,6 @@ function classFromOpening(opening: AdmissionOpening): string {
   if (CLASS_OPTIONS.includes(fromName as (typeof CLASS_OPTIONS)[number])) return fromName;
   const fromGrade = opening.grades[0]?.trim() ?? "";
   if (CLASS_OPTIONS.includes(fromGrade as (typeof CLASS_OPTIONS)[number])) return fromGrade;
-  // Legacy "Grade 10" → "Class 10"
   const gradeMatch = fromGrade.match(/^Grade\s+(\d+)$/i);
   if (gradeMatch) return `Class ${gradeMatch[1]}`;
   return fromName || fromGrade;
@@ -116,22 +121,44 @@ function classFromOpening(opening: AdmissionOpening): string {
 export function InstituteOpeningsPage() {
   const { user } = useAdmissionsAuth();
   const instituteId = user?.instituteId ?? "";
-  const [items, setItems] = useState<AdmissionOpening[]>([]);
+  const apiMode = isApiAuthMode();
+
+  const {
+    openings: apiOpenings,
+    reload: reloadApiOpenings,
+    loading: apiLoading,
+  } = useAdmissionsOpenings({ instituteId: apiMode ? instituteId : null });
+  const { programs: apiPrograms } = useAdmissionsPrograms({
+    instituteId: apiMode ? instituteId : null,
+  });
+
+  const [demoItems, setDemoItems] = useState<AdmissionOpening[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<AdmissionOpeningInput>(emptyForm);
+  const [form, setForm] = useState(emptyForm);
   const [showForm, setShowForm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<AdmissionOpening | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  const reload = () => {
+  const items = apiMode ? apiOpenings : demoItems;
+
+  const reloadDemo = () => {
     if (!instituteId) return;
-    setItems(getOpeningsForInstitute(instituteId));
+    setDemoItems(getOpeningsForInstitute(instituteId));
   };
 
   useEffect(() => {
-    if (!instituteId) return;
+    if (apiMode || !instituteId) return;
     ensureDemoOpenings(instituteId);
-    setItems(getOpeningsForInstitute(instituteId));
-  }, [instituteId]);
+    setDemoItems(getOpeningsForInstitute(instituteId));
+  }, [apiMode, instituteId]);
+
+  useEffect(() => {
+    if (!apiMode || !showForm || form.programId) return;
+    const first = apiPrograms[0];
+    if (first) {
+      setForm((prev) => ({ ...prev, programId: first.id }));
+    }
+  }, [apiMode, showForm, form.programId, apiPrograms]);
 
   if (!user || user.accountType !== "institute_admin") {
     return (
@@ -174,6 +201,7 @@ export function InstituteOpeningsPage() {
       ageCriteria: opening.ageCriteria,
       duration: opening.duration,
       status: opening.status,
+      programId: apiPrograms[0]?.id ?? "",
     });
     setShowForm(true);
   };
@@ -196,20 +224,12 @@ export function InstituteOpeningsPage() {
     }));
   };
 
-  const save = () => {
+  const save = async () => {
     if (!selectedClass) return toast.error("Select a class");
     if (form.seatsAvailable < 0) {
       return toast.error("Seats cannot be negative");
     }
 
-    // One opening = one class only
-    const payload: AdmissionOpeningInput = {
-      ...form,
-      name: selectedClass,
-      grades: [selectedClass],
-    };
-
-    // Block duplicate class for the same institute (except when editing that row)
     const duplicate = items.find(
       (o) =>
         o.id !== editingId &&
@@ -219,6 +239,54 @@ export function InstituteOpeningsPage() {
       return toast.error(`${selectedClass} opening already exists`);
     }
 
+    if (apiMode) {
+      const programId = form.programId?.trim() || apiPrograms[0]?.id;
+      if (!programId) {
+        return toast.error("Create an admission program in Admin first, then add openings.");
+      }
+
+      setSaving(true);
+      try {
+        const deadline = form.applicationDeadline?.trim() || undefined;
+        if (editingId) {
+          await updateAdmissionOpening(editingId, {
+            name: selectedClass,
+            description: form.description?.trim() || null,
+            seatsAvailable: form.seatsAvailable,
+            academicYearLabel: form.academicYear?.trim() || null,
+            applicationDeadline: deadline ?? null,
+            status: form.status,
+          });
+          toast.success("Opening updated");
+        } else {
+          await createAdmissionOpening({
+            instituteId,
+            programId,
+            name: selectedClass,
+            description: form.description?.trim() || null,
+            seatsAvailable: form.seatsAvailable,
+            academicYearLabel: form.academicYear?.trim() || null,
+            applicationDeadline: deadline,
+            openNow: form.status === "open",
+          });
+          toast.success("Opening created");
+        }
+        cancelForm();
+        reloadApiOpenings();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to save opening");
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
+    const payload: AdmissionOpeningInput = {
+      ...form,
+      name: selectedClass,
+      grades: [selectedClass],
+    };
+
     if (editingId) {
       updateOpening(editingId, payload);
       toast.success("Opening updated");
@@ -227,10 +295,27 @@ export function InstituteOpeningsPage() {
       toast.success("Opening created");
     }
     cancelForm();
-    reload();
+    reloadDemo();
   };
 
-  const changeStatus = (id: string, status: AdmissionOpeningStatus) => {
+  const changeStatus = async (id: string, status: AdmissionOpeningStatus) => {
+    if (apiMode) {
+      try {
+        await updateAdmissionOpening(id, { status });
+        toast.success(
+          status === "open"
+            ? "Opening published — parents can apply"
+            : status === "closed"
+              ? "Opening closed"
+              : "Moved to draft",
+        );
+        reloadApiOpenings();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to update status");
+      }
+      return;
+    }
+
     setOpeningStatus(id, status);
     toast.success(
       status === "open"
@@ -239,7 +324,7 @@ export function InstituteOpeningsPage() {
           ? "Opening closed"
           : "Moved to draft",
     );
-    reload();
+    reloadDemo();
   };
 
   const askDelete = (opening: AdmissionOpening, e?: MouseEvent) => {
@@ -248,9 +333,25 @@ export function InstituteOpeningsPage() {
     setDeleteTarget(opening);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!deleteTarget) return;
     const id = deleteTarget.id;
+
+    if (apiMode) {
+      try {
+        await deleteAdmissionOpening(id);
+        toast.success("Opening deleted");
+        if (editingId === id) cancelForm();
+        else setShowForm(false);
+        reloadApiOpenings();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Could not delete opening");
+      } finally {
+        setDeleteTarget(null);
+      }
+      return;
+    }
+
     const ok = deleteOpening(id);
     setDeleteTarget(null);
     if (!ok) {
@@ -260,7 +361,7 @@ export function InstituteOpeningsPage() {
     toast.success("Opening deleted");
     if (editingId === id) cancelForm();
     else setShowForm(false);
-    reload();
+    reloadDemo();
   };
 
   return (
@@ -271,12 +372,20 @@ export function InstituteOpeningsPage() {
         backTo="/institute"
       />
 
+      {apiMode && apiPrograms.length === 0 && (
+        <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-muted-foreground">
+          No admission programs yet. Ask your school admin to add a program from LumenX Admin →
+          Admissions, then return here to publish class openings.
+        </p>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
           {items.filter((i) => i.status === "open").length} published · {items.length} total
+          {apiLoading ? " · loading…" : ""}
         </p>
         {!showForm && (
-          <Button onClick={startCreate}>
+          <Button onClick={startCreate} disabled={apiMode && apiPrograms.length === 0}>
             <Plus className="size-4 mr-1" /> Add opening
           </Button>
         )}
@@ -289,6 +398,26 @@ export function InstituteOpeningsPage() {
             {editingId ? "Edit opening" : "New opening"}
           </h3>
           <div className="grid gap-4 sm:grid-cols-2">
+            {apiMode && apiPrograms.length > 1 && (
+              <div className="sm:col-span-2">
+                <Label className="text-xs text-muted-foreground">Program</Label>
+                <Select
+                  value={form.programId || undefined}
+                  onValueChange={(v) => setForm({ ...form, programId: v })}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Select program" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {apiPrograms.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="sm:col-span-2">
               <Label className="text-xs text-muted-foreground">Class</Label>
               <Select value={selectedClass || undefined} onValueChange={setClass}>
@@ -318,9 +447,6 @@ export function InstituteOpeningsPage() {
                   setForm({ ...form, seatsAvailable: Number(e.target.value) || 0 })
                 }
               />
-              <p className="mt-1 text-xs text-muted-foreground">
-                Set 0 to mark seats full while keeping class visible for waitlist.
-              </p>
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">Academic year</Label>
@@ -369,15 +495,6 @@ export function InstituteOpeningsPage() {
               </Select>
             </div>
             <div className="sm:col-span-2">
-              <Label className="text-xs text-muted-foreground">Eligibility (optional)</Label>
-              <Input
-                className="mt-1"
-                placeholder="e.g. Class 9 pass with 60%+"
-                value={form.eligibility ?? ""}
-                onChange={(e) => setForm({ ...form, eligibility: e.target.value })}
-              />
-            </div>
-            <div className="sm:col-span-2">
               <Label className="text-xs text-muted-foreground">Description (optional)</Label>
               <Textarea
                 className="mt-1"
@@ -388,7 +505,9 @@ export function InstituteOpeningsPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button onClick={save}>{editingId ? "Save changes" : "Create opening"}</Button>
+            <Button onClick={() => void save()} disabled={saving}>
+              {editingId ? "Save changes" : "Create opening"}
+            </Button>
             <Button variant="outline" onClick={cancelForm}>
               Cancel
             </Button>
@@ -405,9 +524,7 @@ export function InstituteOpeningsPage() {
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="font-semibold">{o.name}</p>
-                <Badge
-                  variant={o.status === "open" ? "default" : "secondary"}
-                >
+                <Badge variant={o.status === "open" ? "default" : "secondary"}>
                   {STATUS_LABEL[o.status]}
                 </Badge>
               </div>
@@ -427,7 +544,7 @@ export function InstituteOpeningsPage() {
                   size="sm"
                   onClick={(e) => {
                     e.stopPropagation();
-                    changeStatus(o.id, "open");
+                    void changeStatus(o.id, "open");
                   }}
                 >
                   Publish
@@ -440,7 +557,7 @@ export function InstituteOpeningsPage() {
                   variant="outline"
                   onClick={(e) => {
                     e.stopPropagation();
-                    changeStatus(o.id, "closed");
+                    void changeStatus(o.id, "closed");
                   }}
                 >
                   Close
@@ -488,7 +605,7 @@ export function InstituteOpeningsPage() {
             <AlertDialogTitle>Delete opening?</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteTarget
-                ? `“${deleteTarget.name}” will be removed permanently. Parents will no longer see this opening.`
+                ? `"${deleteTarget.name}" will be removed permanently. Parents will no longer see this opening.`
                 : "This opening will be removed permanently."}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -496,7 +613,7 @@ export function InstituteOpeningsPage() {
             <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={confirmDelete}
+              onClick={() => void confirmDelete()}
             >
               Delete
             </AlertDialogAction>

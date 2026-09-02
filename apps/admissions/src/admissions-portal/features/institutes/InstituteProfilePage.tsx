@@ -12,6 +12,8 @@ import { useAdmissionsAuth } from "@/admissions-portal/core/AdmissionsAuthProvid
 import { getInstituteById, INSTITUTE_KIND_LABEL } from "@/lib/institutes-data";
 import { getInstituteProfileExtended } from "@/lib/institute-profiles";
 import { getProgramsForInstitute } from "@/lib/programs-data";
+import { useAdmissionsPrograms } from "@/hooks/use-admissions-programs";
+import { isInstituteUuid } from "@/lib/institute-id";
 import {
   getAdmissionsInstituteProfile,
   subscribeSharedInstituteProfile,
@@ -25,7 +27,11 @@ import { AdminInstituteProfileView } from "./AdminInstituteProfileView";
 export function InstituteProfilePage({ instituteId }: { instituteId: string }) {
   const institute = getInstituteById(instituteId);
   const ext = getInstituteProfileExtended(instituteId);
-  const programs = getProgramsForInstitute(instituteId);
+  const demoPrograms = getProgramsForInstitute(instituteId);
+  const { programs: apiPrograms, loading: programsLoading } = useAdmissionsPrograms({
+    instituteId: isInstituteUuid(instituteId) ? instituteId : null,
+  });
+  const programs = isInstituteUuid(instituteId) ? apiPrograms : demoPrograms;
   const { user } = useAdmissionsAuth();
   const { saved, toggle, canSave } = useInstituteSave(instituteId);
   const [adminProfile, setAdminProfile] = useState<DemoInstituteProfile | null>(null);
@@ -135,11 +141,17 @@ export function InstituteProfilePage({ instituteId }: { instituteId: string }) {
         link={`/institutes/${instituteId}`}
         linkLabel="All programs"
       >
-        <div className="grid gap-4 sm:grid-cols-2">
-          {programs.slice(0, 4).map((p) => (
-            <ProgramCard key={p.id} program={p} instituteId={instituteId} showInstitute={false} />
-          ))}
-        </div>
+        {programsLoading && programs.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-4">Loading programs…</p>
+        ) : programs.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-4">No programs published yet.</p>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {programs.slice(0, 4).map((p) => (
+              <ProgramCard key={p.id} program={p} instituteId={instituteId} showInstitute={false} />
+            ))}
+          </div>
+        )}
       </SectionCard>
 
       <SectionCard title="Admission office">

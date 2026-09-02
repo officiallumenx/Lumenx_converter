@@ -162,8 +162,12 @@ export function AdmissionsHomePage() {
   );
 }
 
+import { Link } from "@tanstack/react-router";
+import { ProgramCard } from "@/admissions-portal/shared/ui/AdmissionsShellWidgets";
+import { useAdmissionsBrowsePrograms } from "@/hooks/use-admissions-browse-programs";
+
 export function ProgramsPage() {
-  const grouped = getProgramsGroupedByInstitute();
+  const { grouped, loading, status, errorMessage } = useAdmissionsBrowsePrograms();
 
   return (
     <div className="animate-in fade-in duration-300 space-y-8">
@@ -173,30 +177,43 @@ export function ProgramsPage() {
           Browse by institute — each program is unique to its institution.
         </p>
       </div>
-      {grouped.map((group) => (
-        <section key={group.instituteId}>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-display text-lg font-bold">{group.instituteName}</h2>
-            <Link
-              to="/institutes/$instituteId"
-              params={{ instituteId: group.instituteId }}
-              className="text-xs text-primary hover:underline"
-            >
-              View institute
-            </Link>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {group.programs.map((p) => (
-              <ProgramCard
-                key={p.id}
-                program={p}
-                instituteId={group.instituteId}
-                showInstitute={false}
-              />
-            ))}
-          </div>
-        </section>
-      ))}
+
+      {loading ? (
+        <p className="py-12 text-center text-sm text-muted-foreground">Loading programs…</p>
+      ) : status === "error" ? (
+        <p className="py-12 text-center text-sm text-destructive">
+          {errorMessage ?? "Failed to load programs."}
+        </p>
+      ) : grouped.length === 0 ? (
+        <p className="py-12 text-center text-sm text-muted-foreground">
+          No published programs yet. Check back soon or browse institutes directly.
+        </p>
+      ) : (
+        grouped.map((group) => (
+          <section key={group.instituteId}>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="font-display text-lg font-bold">{group.instituteName}</h2>
+              <Link
+                to="/institutes/$instituteId"
+                params={{ instituteId: group.instituteId }}
+                className="text-xs text-primary hover:underline"
+              >
+                View institute
+              </Link>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {group.programs.map((p) => (
+                <ProgramCard
+                  key={p.id}
+                  program={p}
+                  instituteId={group.instituteId}
+                  showInstitute={false}
+                />
+              ))}
+            </div>
+          </section>
+        ))
+      )}
     </div>
   );
 }

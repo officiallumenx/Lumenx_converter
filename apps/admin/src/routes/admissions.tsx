@@ -25,6 +25,8 @@ import {
 import { getAdmissionsPortalWindow } from "@/lib/admissions-portal-window";
 import { ConvertToStudentDialog } from "@/components/admissions/ConvertToStudentDialog";
 import { AdmissionDocumentsApiPanel } from "@/components/admissions/AdmissionDocumentsApiPanel";
+import { AdmissionProgramCreateDialog } from "@/components/admissions/AdmissionProgramCreateDialog";
+import { AdmissionOpeningCreateDialog } from "@/components/admissions/AdmissionOpeningCreateDialog";
 import { getAdminAdmissionDetail } from "@/lib/admissions-application-details";
 import type { AdminAdmissionDetail } from "@/lib/admissions-application-details";
 import type { AdmissionConvertDraft } from "@/lib/admission-to-student";
@@ -244,6 +246,8 @@ function AdmissionsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [convertOpen, setConvertOpen] = useState(false);
   const [docsReview, setDocsReview] = useState<{ id: string; name: string } | null>(null);
+  const [createProgramOpen, setCreateProgramOpen] = useState(false);
+  const [createOpeningOpen, setCreateOpeningOpen] = useState(false);
 
   const refreshSeatRows = () => {
     setSeatRows(buildClassSeatAvailability(instituteId, profile.academic));
@@ -806,11 +810,18 @@ function AdmissionsPage() {
                 title="Admission programs"
                 hint="Program catalog from the API"
                 action={
-                  <Pill tone="neutral">
-                    {programsListView.rowsValid
-                      ? `${programsListView.items.length} program(s)`
-                      : "…"}
-                  </Pill>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {writesEnabled ? (
+                      <Button size="sm" onClick={() => setCreateProgramOpen(true)}>
+                        Add program
+                      </Button>
+                    ) : null}
+                    <Pill tone="neutral">
+                      {programsListView.rowsValid
+                        ? `${programsListView.items.length} program(s)`
+                        : "…"}
+                    </Pill>
+                  </div>
                 }
               />
               {!programsListView.rowsValid ? (
@@ -887,11 +898,18 @@ function AdmissionsPage() {
                 title="Admission openings"
                 hint="Openings linked to programs"
                 action={
-                  <Pill tone="neutral">
-                    {openingsListView.rowsValid
-                      ? `${openingsListView.items.length} opening(s)`
-                      : "…"}
-                  </Pill>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {writesEnabled ? (
+                      <Button size="sm" onClick={() => setCreateOpeningOpen(true)}>
+                        Add opening
+                      </Button>
+                    ) : null}
+                    <Pill tone="neutral">
+                      {openingsListView.rowsValid
+                        ? `${openingsListView.items.length} opening(s)`
+                        : "…"}
+                    </Pill>
+                  </div>
                 }
               />
               {!openingsListView.rowsValid ? (
@@ -1347,6 +1365,32 @@ function AdmissionsPage() {
           onClose={() => setDocsReview(null)}
           onChanged={() => setReloadKey((k) => k + 1)}
         />
+      ) : null}
+
+      {writesEnabled && apiMode && instituteCtx.activeInstituteId ? (
+        <>
+          <AdmissionProgramCreateDialog
+            open={createProgramOpen}
+            instituteId={instituteCtx.activeInstituteId}
+            onClose={() => setCreateProgramOpen(false)}
+            onCreated={() => {
+              setReloadKey((k) => k + 1);
+              notify("Admission program created");
+            }}
+            onError={(message) => notify(message)}
+          />
+          <AdmissionOpeningCreateDialog
+            open={createOpeningOpen}
+            instituteId={instituteCtx.activeInstituteId}
+            programs={programsListView.items}
+            onClose={() => setCreateOpeningOpen(false)}
+            onCreated={() => {
+              setReloadKey((k) => k + 1);
+              notify("Admission opening created");
+            }}
+            onError={(message) => notify(message)}
+          />
+        </>
       ) : null}
     </AppShell>
   );

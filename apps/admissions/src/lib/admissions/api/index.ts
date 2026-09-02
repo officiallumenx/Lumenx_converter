@@ -21,6 +21,8 @@ export type {
 export {
   assertApiMode,
   getAdmissionApplication,
+  getAdmissionOpening,
+  getAdmissionProgram,
   listAdmissionApplications,
   listAdmissionInquiries,
   listAdmissionOpenings,
@@ -83,8 +85,10 @@ export {
 export {
   loadAdmissionsApplicationById,
   loadAdmissionsApplications,
+  loadAdmissionsBrowsePrograms,
   loadAdmissionsInquiries,
   loadAdmissionsOpenings,
+  loadAdmissionsProgramById,
   loadAdmissionsPrograms,
   type AdmissionsApplicationsLoadState,
   type AdmissionsInquiriesLoadState,

@@ -5,23 +5,34 @@ import { AdmissionsPageHeader } from "@/admissions-portal/shared/ui/AdmissionsPa
 import { SectionCard } from "@/components/app/SectionCard";
 import { ProgramCard } from "@/admissions-portal/shared/ui/AdmissionsShellWidgets";
 import { useAdmissionsAuth } from "@/admissions-portal/core/AdmissionsAuthProvider";
-import { getProgramByIdV2, getRelatedPrograms } from "@/lib/programs-data";
 import { getInstituteById } from "@/lib/institutes-data";
+import { getRelatedPrograms } from "@/lib/programs-data";
 import { FAQ_ITEMS } from "@/lib/admissions/mock-data";
 import { InstituteLogoBadge } from "@/admissions-portal/shared/ui/v2/AdmissionsV2Widgets";
 import { isProgramSaved, toggleSavedProgram } from "@/lib/admissions/saved-store";
+import { useAdmissionProgramDetail } from "@/hooks/use-admission-program-detail";
 import { useState } from "react";
 import { cn } from "@lumenx/ui";
 
 export function ProgramDetailPage({ programId }: { programId: string }) {
-  const program = getProgramByIdV2(programId);
+  const { program, loading, errorMessage } = useAdmissionProgramDetail(programId);
   const { user } = useAdmissionsAuth();
   const [, tick] = useState(0);
+
+  if (loading) {
+    return (
+      <div className="py-12 text-center">
+        <p className="text-muted-foreground">Loading program…</p>
+      </div>
+    );
+  }
 
   if (!program) {
     return (
       <div className="py-12 text-center">
-        <p className="text-muted-foreground">Program not found.</p>
+        <p className="text-muted-foreground">
+          {errorMessage ?? "Program not found."}
+        </p>
         <Button className="mt-4" asChild>
           <Link to="/programs">Browse programs</Link>
         </Button>
@@ -30,7 +41,7 @@ export function ProgramDetailPage({ programId }: { programId: string }) {
   }
 
   const institute = getInstituteById(program.instituteId);
-  const related = getRelatedPrograms(programId);
+  const related = getRelatedPrograms(programId).filter((p) => p.id !== program.id);
   const faqs = FAQ_ITEMS.filter((f) => program.faqIds?.includes(f.id));
   const saved = user ? isProgramSaved(user.id, programId) : false;
   const applySearch = { program: program.id, institute: program.instituteId };
