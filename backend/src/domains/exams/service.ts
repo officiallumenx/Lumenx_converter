@@ -41,6 +41,10 @@ import type {
   TargetSectionInput,
   UpdateExamInput,
 } from "./types.js";
+import {
+  emitExamSchedulePublishedNotifications,
+  isInstituteDriver,
+} from "./notifications.js";
 
 export const EXAM_WRITE_ROLES = [
   "institute_admin",
@@ -364,6 +368,30 @@ export async function listExamsForActor(
     );
   }
 
+  if (isInstituteDriver(actor, instituteId)) {
+    const published = rows.filter((r) => r.schedule_status === "published");
+    const ids = published.map((r) => r.id);
+    const [targets, schedules] = await Promise.all([
+      listTargetsForExamIds(admin, ids),
+      listSchedulesForExamIds(admin, ids),
+    ]);
+    const targetsByExam = new Map<string, ExamTargetSectionRow[]>();
+    const schedulesByExam = new Map<string, ExamSubjectScheduleRow[]>();
+    for (const t of targets) {
+      const list = targetsByExam.get(t.exam_id) ?? [];
+      list.push(t);
+      targetsByExam.set(t.exam_id, list);
+    }
+    for (const s of schedules) {
+      const list = schedulesByExam.get(s.exam_id) ?? [];
+      list.push(s);
+      schedulesByExam.set(s.exam_id, list);
+    }
+    return published.map((r) =>
+      toExamDto(r, targetsByExam.get(r.id) ?? [], schedulesByExam.get(r.id) ?? []),
+    );
+  }
+
   // Learner / parent: published + audience only
   const accessibleStudents = await resolveAccessibleStudentIds(
     admin,
@@ -614,7 +642,14 @@ export async function updateExamForActor(
     schedules = await insertSchedules(admin, exam, resolvedSchedules);
   }
 
-  return toExamDto(exam, targets, schedules);
+  const dto = toExamDto(exam, targets, schedules);
+  if (
+    patch.scheduleStatus === "published" &&
+    existing.schedule_status !== "published"
+  ) {
+    await emitExamSchedulePublishedNotifications(admin, actor.userId, dto);
+  }
+  return dto;
 }
 
 export async function deleteExamForActor(

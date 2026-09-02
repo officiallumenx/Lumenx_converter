@@ -457,6 +457,12 @@ function ExamsPage() {
       void updateExam(tt.examId, { scheduleStatus: "published" })
         .then(() => {
           setReloadKey((k) => k + 1);
+          notifyExamTimetablePublished({
+            examId: tt.examId,
+            examName: tt.examName,
+            dateRange: examTimetableRange(tt.slots),
+            classLabel: tt.grade,
+          });
           notify("Timetable published to students & parents");
         })
         .catch((err) => {
@@ -587,9 +593,42 @@ function ExamsPage() {
                   }
             }
             onQuickEdit={
-              selectedTtOutdated || !writesEnabled || apiMode
+              selectedTtOutdated || !writesEnabled
                 ? undefined
                 : (patch) => {
+                    if (apiMode) {
+                      void getExam(selectedTt.examId)
+                        .then((exam) =>
+                          updateExam(exam.id, {
+                            header: patch.header,
+                            defaultStartsAt: patch.startTime,
+                            defaultEndsAt: patch.endTime,
+                            subjectSchedules: patch.slots.map((slot) => {
+                              const existing = exam.subjectSchedules.find(
+                                (s) => s.id === slot.id,
+                              );
+                              return {
+                                subjectId: existing?.subjectId ?? exam.subjectSchedules[0]?.subjectId ?? "",
+                                paperDate: slot.date,
+                                startsAt: slot.startTime,
+                                endsAt: slot.endTime,
+                                room: slot.room || null,
+                                invigilatorTeacherId: existing?.invigilatorTeacherId ?? null,
+                              };
+                            }),
+                          }),
+                        )
+                        .then(() => {
+                          setReloadKey((k) => k + 1);
+                          notify("Timetable updated");
+                        })
+                        .catch((err) => {
+                          notify(
+                            err instanceof Error ? err.message : "Failed to update timetable",
+                          );
+                        });
+                      return;
+                    }
                     setExams((prev) =>
                       prev.map((e) =>
                         e.id === selectedTt.examId

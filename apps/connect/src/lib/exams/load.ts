@@ -2,9 +2,10 @@ import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/institute-id";
 import type { LearnerExamSchedule } from "@lumenx/module-exams";
-import { listSubjects } from "@/lib/teacher-classes/api";
+import { listSubjects, listTeacherAssignments, fetchMe } from "@/lib/teacher-classes/api";
 import { examDtosToLearnerSchedules } from "@/lib/marks/map";
 import { listExams } from "./api";
+import { examDtosToTeacherExamPapers, type TeacherExamPaperItem } from "./map";
 
 export type ExamsLoadStatus =
   | "demo"
@@ -61,3 +62,65 @@ export async function loadLearnerExamSchedules(input: {
     return { status: "error", schedules: [], errorMessage: message };
   }
 }
+
+export async function loadTeacherExamPapers(input: {
+  instituteId: string | null;
+  defaultClassId?: string;
+}): Promise<{
+  status: ExamsLoadStatus;
+  papers: TeacherExamPaperItem[];
+  errorMessage: string | null;
+}> {
+  if (!isApiAuthMode()) {
+    return { status: "demo", papers: [], errorMessage: null };
+  }
+  if (!input.instituteId || !isInstituteUuid(input.instituteId)) {
+    return { status: "needs_institute", papers: [], errorMessage: null };
+  }
+
+  try {
+    const [exams, subjects] = await Promise.all([
+      listExams({ instituteId: input.instituteId }),
+      listSubjects(input.instituteId),
+    ]);
+    const me = await fetchMe();
+    const teacherId =
+      me.identities.teachers.find((t) => t.instituteId === input.instituteId)?.teacherId ??
+      null;
+    const assignments = teacherId
+      ? await listTeacherAssignments({
+          instituteId: input.instituteId,
+          teacherId,
+        })
+      : [];
+    const subjectLabels = new Map(
+      subjects.map((s) => [s.id, s.name?.trim() || s.code?.trim() || s.id]),
+    );
+    const classLabels = new Map<string, string>();
+    for (const assignment of assignments) {
+      classLabels.set(
+        assignment.sectionId,
+        `Class ${assignment.classId.slice(0, 8)} · Sec ${assignment.sectionId.slice(0, 8)}`,
+      );
+    }
+    const papers = examDtosToTeacherExamPapers({
+      exams,
+      subjectLabels,
+      teacherId: me.identities.teachers.find((t) => t.instituteId === input.instituteId)
+        ?.teacherId ?? null,
+      classLabels,
+      defaultClassId: input.defaultClassId ?? assignments[0]?.sectionId ?? "",
+    });
+    return {
+      status: papers.length === 0 ? "empty" : "ready",
+      papers,
+      errorMessage: null,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to load exams";
+    return { status: "error", papers: [], errorMessage: message };
+  }
+}
+
+export { examScheduleCountUpcoming, pickUpcomingExamPapers } from "./map";
+export type { TeacherExamPaperItem } from "./map";

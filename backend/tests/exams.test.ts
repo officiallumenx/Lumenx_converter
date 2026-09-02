@@ -173,12 +173,14 @@ function baseDb(): MockDb {
       id: STUDENT_A,
       institute_id: INST_A,
       user_profile_id: USER_STUDENT,
+      status: "active",
       deleted_at: null,
     },
     {
       id: STUDENT_B,
       institute_id: INST_A,
       user_profile_id: null,
+      status: "active",
       deleted_at: null,
     },
   ];
@@ -535,6 +537,58 @@ describe("exams — authorization", () => {
     expect(ids).not.toContain(EXAM_DRAFT);
     expect(ids).not.toContain(EXAM_SECTION);
   });
+
+  it("lets institute driver read published exams only", async () => {
+    const db = baseDb();
+    const USER_DRIVER = "66666666-6666-4666-8666-666666666666";
+    const MEMBER_DRIVER = "aa666666-6666-4666-8666-666666666666";
+    db.user_profile.push({
+      id: USER_DRIVER,
+      display_name: "Driver",
+      email: "d@x.com",
+      status: "active",
+      deleted_at: null,
+    });
+    db.membership.push({
+      id: MEMBER_DRIVER,
+      user_id: USER_DRIVER,
+      institute_id: INST_A,
+      status: "active",
+      deleted_at: null,
+    });
+    db.membership_role.push({ membership_id: MEMBER_DRIVER, role_code: "driver" });
+
+    const env = loadEnv({ NODE_ENV: "test", LOG_LEVEL: "error" });
+    const app = createApp(
+      env,
+      silentLogger,
+      createMockSupabaseClients({
+        tokens: {
+          "token-admin": USER_ADMIN,
+          "token-teacher": USER_TEACHER,
+          "token-student": USER_STUDENT,
+          "token-other": USER_OTHER,
+          "token-parent": USER_PARENT,
+          "token-driver": USER_DRIVER,
+        },
+        db,
+      }),
+    );
+
+    const list = await app.request(`/api/v1/exams?institute_id=${INST_A}`, {
+      headers: auth("token-driver"),
+    });
+    expect(list.status).toBe(200);
+    const ids = (await json(list)).data.map((e: { id: string }) => e.id);
+    expect(ids).toContain(EXAM_PUBLISHED);
+    expect(ids).toContain(EXAM_SECTION);
+    expect(ids).not.toContain(EXAM_DRAFT);
+
+    const draft = await app.request(`/api/v1/exams/${EXAM_DRAFT}`, {
+      headers: auth("token-driver"),
+    });
+    expect(draft.status).toBe(403);
+  });
 });
 
 describe("exams — create / patch / delete / lifecycle", () => {
@@ -615,6 +669,38 @@ describe("exams — create / patch / delete / lifecycle", () => {
     expect(filtered.status).toBe(200);
     const ids = (await json(filtered)).data.map((e: { id: string }) => e.id);
     expect(ids).not.toContain(EXAM_DRAFT);
+  });
+
+  it("emits notifications when exam schedule is published", async () => {
+    const db = baseDb();
+    db.notification = [];
+    db.notification_recipient = [];
+    const app = appWithDb(db);
+
+    const publish = await app.request(`/api/v1/exams/${EXAM_DRAFT}`, {
+      method: "PATCH",
+      headers: { ...auth("token-admin"), "Content-Type": "application/json" },
+      body: JSON.stringify({ schedule_status: "published" }),
+    });
+    expect(publish.status).toBe(200);
+
+    expect(db.notification.length).toBeGreaterThan(0);
+    expect(db.notification.some((n) => n.category === "exams")).toBe(true);
+    expect(
+      db.notification.some((n) =>
+        String(n.title).includes("Unit Test Draft"),
+      ),
+    ).toBe(true);
+    expect(
+      db.notification_recipient.some(
+        (r) => r.user_profile_id === USER_TEACHER,
+      ),
+    ).toBe(true);
+    expect(
+      db.notification_recipient.some(
+        (r) => r.user_profile_id === USER_STUDENT,
+      ),
+    ).toBe(true);
   });
 
   it("blocks patch after close; allows soft delete", async () => {

@@ -34,6 +34,7 @@ import { useSyncExternalStore } from "react";
 import { useApp } from "@/lib/app-state";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { loadConnectEvents, pickUpcomingEvents, type ConnectEventItem } from "@/lib/events";
+import { loadLearnerExamSchedules, type LearnerExamSchedule } from "@/lib/exams";
 import { formatEventDate } from "@/components/app/events/events-shared";
 import { PageSkeleton, EmptyState } from "@/student-portal/shared/ui";
 import {
@@ -130,10 +131,12 @@ export function StudentDashboardPage() {
   const { activeInstituteId } = useApp();
   const { pathname } = useLocation();
   const [apiUpcomingEvents, setApiUpcomingEvents] = useState<ConnectEventItem[] | null>(null);
+  const [apiUpcomingExams, setApiUpcomingExams] = useState<LearnerExamSchedule[] | null>(null);
 
   useEffect(() => {
     if (!isApiAuthMode()) {
       setApiUpcomingEvents(null);
+      setApiUpcomingExams(null);
       return;
     }
     let cancelled = false;
@@ -150,6 +153,32 @@ export function StudentDashboardPage() {
     };
   }, [activeInstituteId]);
 
+  useEffect(() => {
+    if (!isApiAuthMode() || !activeInstituteId || !portal.snapshot) {
+      setApiUpcomingExams(null);
+      return;
+    }
+    let cancelled = false;
+    void loadLearnerExamSchedules({
+      instituteId: activeInstituteId,
+      classGrade: portal.snapshot.profile.class,
+    }).then((result) => {
+      if (cancelled) return;
+      if (result.status === "ready" || result.status === "empty") {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        setApiUpcomingExams(
+          result.schedules.filter((s) => new Date(s.endDate) >= today).slice(0, 3),
+        );
+      } else {
+        setApiUpcomingExams([]);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeInstituteId, portal.snapshot?.profile.class]);
+
   const notifications = useSyncExternalStore(
     studentNotificationStore.subscribe,
     studentNotificationStore.getItems,
@@ -165,7 +194,11 @@ export function StudentDashboardPage() {
   const weak = [...snap.performance].sort((a, b) => a.score - b.score).slice(0, 2);
   const recentAch = snap.achievements.filter((a) => !a.progress).slice(0, 3);
   const publishedCard = [...snap.reportCards].filter((r) => r.status === "published").at(-1);
-  const upcomingExams = snap.exams.slice(0, 3);
+  const upcomingExams = apiUpcomingExams ?? snap.exams.slice(0, 3);
+  const upcomingExamCount =
+    apiUpcomingExams !== null
+      ? apiUpcomingExams.length
+      : snap.exams.length;
   const demoUpcomingEvents = snap.schoolEvents.filter((e) => e.kind !== "holiday").slice(0, 3);
   const upcomingEvents = apiUpcomingEvents ?? demoUpcomingEvents;
   const recentNotifications = notifications.slice(0, 4);
@@ -275,13 +308,14 @@ export function StudentDashboardPage() {
                             ? `${publishedCard.percentage}%`
                             : "84%"
                           : card.valueKey === "exams"
-                            ? String(snap.exams.length)
+                            ? String(upcomingExamCount)
                             : String(snap.certificates.length);
+                    const nextExam = apiUpcomingExams?.[0] ?? snap.exams[0];
                     const hint =
                       card.valueKey === "score" && publishedCard
                         ? `${publishedCard.grade} grade`
-                        : card.valueKey === "exams" && snap.exams[0]
-                          ? `Next: ${snap.exams[0].subject}`
+                        : card.valueKey === "exams" && nextExam
+                          ? `Next: ${"subject" in nextExam ? nextExam.subject : nextExam.examName}`
                           : card.hint;
 
                     return (

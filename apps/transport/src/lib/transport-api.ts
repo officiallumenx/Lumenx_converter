@@ -38,6 +38,35 @@ async function transportFetch<T>(
   return json.data as T;
 }
 
+export type TransportExamDto = {
+  id: string;
+  instituteId: string;
+  name: string;
+  header: string;
+  startDate: string;
+  endDate: string;
+  defaultStartsAt: string;
+  defaultEndsAt: string;
+  scheduleStatus: "draft" | "published";
+  lifecycleStatus: "open" | "closed";
+  subjectSchedules: Array<{
+    id: string;
+    subjectId: string;
+    paperDate: string;
+    startsAt: string;
+    endsAt: string;
+    room: string | null;
+  }>;
+};
+
+export async function listPublishedExams(instituteId: string): Promise<TransportExamDto[]> {
+  const query = new URLSearchParams({
+    institute_id: instituteId,
+    schedule_status: "published",
+  });
+  return transportFetch<TransportExamDto[]>(`/api/v1/exams?${query.toString()}`);
+}
+
 export type DriverMe = {
   driverId: string;
   instituteId: string;

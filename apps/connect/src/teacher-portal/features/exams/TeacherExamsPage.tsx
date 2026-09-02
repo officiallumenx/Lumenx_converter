@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { PageHeader } from "@/components/app/PageHeader";
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { TeacherExamsApiPanel } from "./TeacherExamsApiPanel";
 import { teacherRepository } from "@/lib/teacher/repositories";
 import { sectionsForClassName, uniqueSortedClassNames } from "@/lib/class-section-options";
 import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
@@ -35,6 +37,16 @@ function marksActionLabel(status: TeacherExam["marksStatus"]) {
 
 export function TeacherExamsPage() {
   const portal = useTeacherPortal();
+  if (!portal.isTeacher) return null;
+  if (isApiAuthMode()) return <TeacherExamsApiPanel />;
+  return <TeacherExamsDemoPage portal={portal} />;
+}
+
+function TeacherExamsDemoPage({
+  portal,
+}: {
+  portal: ReturnType<typeof useTeacherPortal>;
+}) {
   const [exams, setExams] = useState<TeacherExam[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<TeacherExam | null>(null);
@@ -73,8 +85,6 @@ export function TeacherExamsPage() {
       setLoading(false);
     });
   }, [portal.isTeacher, portal.classes, classFilter, sectionFilter]);
-
-  if (!portal.isTeacher) return null;
 
   const displayed = statusFilter === "all" ? exams : exams.filter((e) => e.status === statusFilter);
 

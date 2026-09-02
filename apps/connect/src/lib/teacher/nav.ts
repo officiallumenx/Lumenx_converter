@@ -17,6 +17,7 @@ import {
   Wallet,
   CalendarOff,
   Bus,
+  Megaphone,
 } from "lucide-react";
 import { STUDENT_MODULE_COLORS } from "@/lib/student/nav";
 
@@ -39,6 +40,7 @@ export const TEACHER_NAV = [
   { to: "/timetable", label: "Timetable", icon: Calendar, moduleColor: STUDENT_MODULE_COLORS.blue },
   { to: "/messages", label: "Messages", icon: MessageSquare, moduleColor: STUDENT_MODULE_COLORS.cyan },
   { to: "/notifications", label: "Notifications", icon: Bell, moduleColor: STUDENT_MODULE_COLORS.crimson },
+  { to: "/announcements", label: "Announcements", icon: Megaphone, moduleColor: STUDENT_MODULE_COLORS.rose },
   { to: "/events", label: "Events", icon: CalendarDays, moduleColor: STUDENT_MODULE_COLORS.sky },
   { to: "/fees", label: "Fees", icon: Wallet, moduleColor: STUDENT_MODULE_COLORS.deepOrange },
   { to: "/transport", label: "Transport", icon: Bus, moduleColor: STUDENT_MODULE_COLORS.orange },

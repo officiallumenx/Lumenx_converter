@@ -30,6 +30,7 @@ export function SchoolCalendarPage() {
   const [status, setStatus] = useState<string>("loading");
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [filter, setFilter] = useState<"all" | "exam" | "other">("all");
 
   useEffect(() => {
     if (!apiMode) {
@@ -51,13 +52,19 @@ export function SchoolCalendarPage() {
   }, [apiMode, user?.instituteId, reloadKey]);
 
   const today = new Date();
+  const filteredItems = useMemo(() => {
+    if (filter === "exam") return items.filter((item) => item.kind === "exam");
+    if (filter === "other") return items.filter((item) => item.kind !== "exam");
+    return items;
+  }, [items, filter]);
+
   const { upcoming, past } = useMemo(() => {
-    const sorted = [...items].sort((a, b) => a.date.localeCompare(b.date));
+    const sorted = [...filteredItems].sort((a, b) => a.date.localeCompare(b.date));
     return {
       upcoming: sorted.filter((e) => new Date(e.date) >= startOfDay(today)),
       past: sorted.filter((e) => new Date(e.date) < startOfDay(today)),
     };
-  }, [items, today]);
+  }, [filteredItems, today]);
 
   return (
     <div className="min-w-0 space-y-5 sm:space-y-6">
@@ -90,6 +97,28 @@ export function SchoolCalendarPage() {
         </div>
       ) : (
         <div className="space-y-6">
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                ["all", "All"],
+                ["exam", "Exams"],
+                ["other", "Other"],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setFilter(key)}
+                className={`rounded-full px-3 py-1.5 text-xs font-medium ${
+                  filter === key
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <CalendarSection title={`Upcoming (${upcoming.length})`} items={upcoming} />
           <CalendarSection title={`Past (${past.length})`} items={past} muted />
         </div>

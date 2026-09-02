@@ -49,7 +49,9 @@ describe("loadExamsList", () => {
   it("maps successful API list without demo fallback", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const listExams = vi.fn().mockResolvedValue([dto()]);
+    const listSubjects = vi.fn().mockResolvedValue([]);
     vi.doMock("./api", () => ({ listExams }));
+    vi.doMock("@/lib/subjects", () => ({ listSubjects }));
     const { loadExamsList } = await import("./load");
     const result = await loadExamsList(INST);
     expect(result.status).toBe("ready");

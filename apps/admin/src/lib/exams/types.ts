@@ -82,6 +82,7 @@ export type ExamTimetableSlotItem = {
   date: string;
   dayNumber: number;
   subject: string;
+  subjectId?: string;
   grade: string;
   section: string;
   startTime: string;

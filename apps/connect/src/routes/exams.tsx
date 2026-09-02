@@ -13,6 +13,7 @@ import { parseDueDate } from "@/lib/fees-utils";
 import { prefersReducedMotion } from "@/lib/prefers-reduced-motion";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { loadLearnerExamSchedules as loadApiLearnerExamSchedules } from "@/lib/exams";
+import { loadStudentReportCards } from "@/lib/marks";
 import {
   examVisibleToClass,
   formatExamClassAudience,
@@ -91,8 +92,16 @@ function ParentStudentExamsPage() {
 
   const [apiSchedules, setApiSchedules] = useState<LearnerExamSchedule[]>([]);
   const [apiSchedulesLoading, setApiSchedulesLoading] = useState(apiMode);
+  const [apiReportCards, setApiReportCards] = useState<ReportCard[] | null>(null);
 
-  const reportCardsData = parentSnap?.reportCards ?? studentSnap?.reportCards ?? reportCards;
+  const studentId =
+    parentSnap?.child.id ?? (studentSnap ? studentSnap.profile.id : null);
+
+  const reportCardsData =
+    apiReportCards ??
+    parentSnap?.reportCards ??
+    studentSnap?.reportCards ??
+    reportCards;
   const perfFallback = parentSnap?.performance ?? studentSnap?.performance ?? performance;
 
   const publishedCards = useMemo(
@@ -152,6 +161,28 @@ function ParentStudentExamsPage() {
       cancelled = true;
     };
   }, [apiMode, activeInstituteId, learnerClass]);
+
+  useEffect(() => {
+    if (!apiMode || !activeInstituteId || !studentId) {
+      setApiReportCards(null);
+      return;
+    }
+    let cancelled = false;
+    void loadStudentReportCards({
+      instituteId: activeInstituteId,
+      studentId,
+    }).then((result) => {
+      if (cancelled) return;
+      if (result.status === "ready" || result.status === "empty") {
+        setApiReportCards(result.cards);
+      } else {
+        setApiReportCards([]);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiMode, activeInstituteId, studentId]);
 
   const classSchedules = useMemo(() => {
     if (apiMode) {

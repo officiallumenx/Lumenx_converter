@@ -6,6 +6,7 @@ import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/active-institute";
 import { listExams } from "./api";
 import { examDtosToCatalog } from "./map";
+import { listSubjects } from "@/lib/subjects";
 import type { ExamListItem, ExamTimetableListItem } from "./types";
 
 export type ExamsListStatus =
@@ -46,8 +47,14 @@ export async function loadExamsList(
   }
 
   try {
-    const rows = await listExams({ instituteId: activeInstituteId });
-    const catalog = examDtosToCatalog(rows);
+    const [rows, subjects] = await Promise.all([
+      listExams({ instituteId: activeInstituteId }),
+      listSubjects(activeInstituteId),
+    ]);
+    const subjectLabels = new Map(
+      subjects.map((s) => [s.id, s.name?.trim() || s.code?.trim() || s.id]),
+    );
+    const catalog = examDtosToCatalog(rows, undefined, subjectLabels);
     return {
       status: catalog.items.length === 0 ? "empty" : "ready",
       items: catalog.items,

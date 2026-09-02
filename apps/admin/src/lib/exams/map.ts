@@ -47,12 +47,16 @@ function progressForStatus(status: ExamListStatus): number {
 function scheduleToSlot(
   schedule: ExamDto["subjectSchedules"][number],
   index: number,
+  subjectLabels?: Map<string, string>,
 ): ExamTimetableSlotItem {
   return {
     id: schedule.id,
     date: schedule.paperDate,
     dayNumber: index + 1,
-    subject: "Subject",
+    subject:
+      subjectLabels?.get(schedule.subjectId)?.trim() ||
+      schedule.subjectId.slice(0, 8),
+    subjectId: schedule.subjectId,
     grade: "—",
     section: "All",
     startTime: normalizeTime(schedule.startsAt),
@@ -92,8 +96,13 @@ export function examDtoToListItem(
   };
 }
 
-export function examDtoToTimetableListItem(dto: ExamDto): ExamTimetableListItem {
-  const slots = dto.subjectSchedules.map(scheduleToSlot);
+export function examDtoToTimetableListItem(
+  dto: ExamDto,
+  subjectLabels?: Map<string, string>,
+): ExamTimetableListItem {
+  const slots = dto.subjectSchedules.map((schedule, index) =>
+    scheduleToSlot(schedule, index, subjectLabels),
+  );
   return {
     id: `tt-${dto.id}`,
     examId: dto.id,
@@ -113,6 +122,7 @@ export function examDtoToTimetableListItem(dto: ExamDto): ExamTimetableListItem 
 export function examDtosToCatalog(
   rows: ExamDto[],
   today = new Date().toISOString().slice(0, 10),
+  subjectLabels?: Map<string, string>,
 ): ExamsCatalog {
   if (!Array.isArray(rows)) {
     throw new TypeError("Exams API response must be an array");
@@ -120,6 +130,6 @@ export function examDtosToCatalog(
   const items = rows.map((dto) => examDtoToListItem(dto, today));
   const timetables = rows
     .filter((dto) => dto.subjectSchedules.length > 0)
-    .map(examDtoToTimetableListItem);
+    .map((dto) => examDtoToTimetableListItem(dto, subjectLabels));
   return { items, timetables };
 }

@@ -9,10 +9,16 @@ import {
 import { listAcademicYears, type AcademicYearDto } from "@/lib/academic-years";
 import { listSections, type SectionDto } from "@/lib/classes";
 import { listSubjects, type SubjectDto } from "@/lib/subjects";
-import {
-  createExam,
-  type CreateExamInput,
-} from "@/lib/exams";
+import { createExam, type CreateExamInput } from "@/lib/exams";
+
+type PaperRow = {
+  id: string;
+  subjectId: string;
+  paperDate: string;
+  startsAt: string;
+  endsAt: string;
+  room: string;
+};
 
 type ExamApiCreateDialogProps = {
   open: boolean;
@@ -21,6 +27,17 @@ type ExamApiCreateDialogProps = {
   onCreated: () => void;
   onError: (message: string) => void;
 };
+
+function newPaperRow(defaults?: Partial<PaperRow>): PaperRow {
+  return {
+    id: `paper-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    subjectId: defaults?.subjectId ?? "",
+    paperDate: defaults?.paperDate ?? "",
+    startsAt: defaults?.startsAt ?? "09:00",
+    endsAt: defaults?.endsAt ?? "12:00",
+    room: defaults?.room ?? "",
+  };
+}
 
 export function ExamApiCreateDialog({
   open,
@@ -44,9 +61,8 @@ export function ExamApiCreateDialog({
   const [endsAt, setEndsAt] = useState("12:00");
   const [totalMarks, setTotalMarks] = useState("100");
   const [audienceScope, setAudienceScope] = useState<"year" | "section">("year");
-  const [sectionId, setSectionId] = useState("");
-  const [subjectId, setSubjectId] = useState("");
-  const [paperDate, setPaperDate] = useState("");
+  const [selectedSectionIds, setSelectedSectionIds] = useState<string[]>([]);
+  const [paperRows, setPaperRows] = useState<PaperRow[]>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -62,8 +78,12 @@ export function ExamApiCreateDialog({
         setSubjects(subjectRows);
         const active = yearRows.find((y) => y.status === "active") ?? yearRows[0];
         setAcademicYearId(active?.id ?? "");
-        setSubjectId(subjectRows[0]?.id ?? "");
-        setSectionId(sectionRows[0]?.id ?? "");
+        setSelectedSectionIds(sectionRows[0] ? [sectionRows[0].id] : []);
+        setPaperRows(
+          subjectRows[0]
+            ? [newPaperRow({ subjectId: subjectRows[0].id, startsAt: "09:00", endsAt: "12:00" })]
+            : [],
+        );
       })
       .catch((err) => {
         onError(err instanceof Error ? err.message : "Failed to load exam catalogs");
@@ -71,16 +91,24 @@ export function ExamApiCreateDialog({
       .finally(() => {
         setLoadingCatalog(false);
       });
-  }, [open, instituteId]);
+  }, [open, instituteId, onError]);
 
   const resetAndClose = () => {
     setName("");
     setHeader("");
     setStartDate("");
     setEndDate("");
-    setPaperDate("");
-    setAudienceScope("year");
+    setPaperRows([]);
+    setSelectedSectionIds([]);
     onClose();
+  };
+
+  const toggleSection = (sectionId: string) => {
+    setSelectedSectionIds((current) =>
+      current.includes(sectionId)
+        ? current.filter((id) => id !== sectionId)
+        : [...current, sectionId],
+    );
   };
 
   const submit = () => {
@@ -97,38 +125,42 @@ export function ExamApiCreateDialog({
       onError("Total marks must be a positive number");
       return;
     }
-    if (audienceScope === "section" && !sectionId) {
-      onError("Select a target section");
+    if (audienceScope === "section" && selectedSectionIds.length === 0) {
+      onError("Select at least one target section");
       return;
     }
 
-    const selectedSection = sections.find((s) => s.id === sectionId);
+    const targetSections =
+      audienceScope === "section"
+        ? selectedSectionIds
+            .map((id) => sections.find((s) => s.id === id))
+            .filter((s): s is SectionDto => Boolean(s))
+            .map((s) => ({ sectionId: s.id, classId: s.classId }))
+        : undefined;
+
+    const subjectSchedules = paperRows
+      .filter((row) => row.subjectId)
+      .map((row) => ({
+        subjectId: row.subjectId,
+        paperDate: row.paperDate || startDate,
+        startsAt: row.startsAt || startsAt,
+        endsAt: row.endsAt || endsAt,
+        room: row.room.trim() || null,
+      }));
+
     const input: CreateExamInput = {
       instituteId,
       academicYearId,
       name: name.trim(),
-      header: (header.trim() || name.trim()),
+      header: header.trim() || name.trim(),
       startDate,
       endDate,
       defaultStartsAt: startsAt,
       defaultEndsAt: endsAt,
       totalMarks: marks,
       audienceScope,
-      targetSections:
-        audienceScope === "section" && selectedSection
-          ? [{ sectionId: selectedSection.id, classId: selectedSection.classId }]
-          : undefined,
-      subjectSchedules:
-        subjectId && (paperDate || startDate)
-          ? [
-              {
-                subjectId,
-                paperDate: paperDate || startDate,
-                startsAt,
-                endsAt,
-              },
-            ]
-          : undefined,
+      targetSections,
+      subjectSchedules: subjectSchedules.length > 0 ? subjectSchedules : undefined,
     };
 
     setSaving(true);
@@ -195,32 +227,16 @@ export function ExamApiCreateDialog({
             />
           </Field>
           <Field label="Start date" required>
-            <TextInput
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-            />
+            <TextInput type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
           </Field>
           <Field label="End date" required>
-            <TextInput
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-            />
+            <TextInput type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
           </Field>
           <Field label="Default start">
-            <TextInput
-              type="time"
-              value={startsAt}
-              onChange={(e) => setStartsAt(e.target.value)}
-            />
+            <TextInput type="time" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
           </Field>
           <Field label="Default end">
-            <TextInput
-              type="time"
-              value={endsAt}
-              onChange={(e) => setEndsAt(e.target.value)}
-            />
+            <TextInput type="time" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
           </Field>
           <Field label="Total marks" required>
             <TextInput
@@ -233,49 +249,146 @@ export function ExamApiCreateDialog({
           <Field label="Audience">
             <Select
               value={audienceScope}
-              onChange={(e) =>
-                setAudienceScope(e.target.value as "year" | "section")
-              }
+              onChange={(e) => setAudienceScope(e.target.value as "year" | "section")}
             >
               <option value="year">All classes (year)</option>
-              <option value="section">Selected section</option>
+              <option value="section">Selected sections</option>
             </Select>
           </Field>
           {audienceScope === "section" ? (
-            <Field label="Target section" required className="sm:col-span-2">
-              <Select value={sectionId} onChange={(e) => setSectionId(e.target.value)}>
+            <Field label="Target sections" required className="sm:col-span-2">
+              <div className="flex flex-wrap gap-2 rounded-lg border border-border p-3">
                 {sections.length === 0 ? (
-                  <option value="">No sections</option>
+                  <span className="text-sm text-muted-foreground">No sections</span>
                 ) : (
                   sections.map((s) => (
-                    <option key={s.id} value={s.id}>
+                    <label key={s.id} className="inline-flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={selectedSectionIds.includes(s.id)}
+                        onChange={() => toggleSection(s.id)}
+                      />
                       {s.name} ({s.code})
-                    </option>
+                    </label>
                   ))
                 )}
-              </Select>
+              </div>
             </Field>
           ) : null}
-          <Field label="First paper subject" className="sm:col-span-2">
-            <Select value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
-              <option value="">None (header only)</option>
-              {subjects.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} ({s.code})
-                </option>
-              ))}
-            </Select>
-          </Field>
-          {subjectId ? (
-            <Field label="First paper date">
-              <TextInput
-                type="date"
-                value={paperDate}
-                onChange={(e) => setPaperDate(e.target.value)}
-                placeholder="Defaults to start date"
-              />
-            </Field>
-          ) : null}
+          <div className="sm:col-span-2 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">Subject papers</h3>
+              <Button
+                type="button"
+                onClick={() =>
+                  setPaperRows((rows) => [
+                    ...rows,
+                    newPaperRow({
+                      subjectId: subjects[0]?.id ?? "",
+                      paperDate: startDate,
+                      startsAt,
+                      endsAt,
+                    }),
+                  ])
+                }
+              >
+                Add paper
+              </Button>
+            </div>
+            {paperRows.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Add papers to build the timetable, or leave empty for header-only draft.
+              </p>
+            ) : (
+              paperRows.map((row, index) => (
+                <div
+                  key={row.id}
+                  className="grid gap-2 rounded-lg border border-border p-3 sm:grid-cols-2"
+                >
+                  <Field label={`Paper ${index + 1} subject`}>
+                    <Select
+                      value={row.subjectId}
+                      onChange={(e) =>
+                        setPaperRows((rows) =>
+                          rows.map((r) =>
+                            r.id === row.id ? { ...r, subjectId: e.target.value } : r,
+                          ),
+                        )
+                      }
+                    >
+                      {subjects.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} ({s.code})
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field label="Date">
+                    <TextInput
+                      type="date"
+                      value={row.paperDate}
+                      onChange={(e) =>
+                        setPaperRows((rows) =>
+                          rows.map((r) =>
+                            r.id === row.id ? { ...r, paperDate: e.target.value } : r,
+                          ),
+                        )
+                      }
+                    />
+                  </Field>
+                  <Field label="Start">
+                    <TextInput
+                      type="time"
+                      value={row.startsAt}
+                      onChange={(e) =>
+                        setPaperRows((rows) =>
+                          rows.map((r) =>
+                            r.id === row.id ? { ...r, startsAt: e.target.value } : r,
+                          ),
+                        )
+                      }
+                    />
+                  </Field>
+                  <Field label="End">
+                    <TextInput
+                      type="time"
+                      value={row.endsAt}
+                      onChange={(e) =>
+                        setPaperRows((rows) =>
+                          rows.map((r) =>
+                            r.id === row.id ? { ...r, endsAt: e.target.value } : r,
+                          ),
+                        )
+                      }
+                    />
+                  </Field>
+                  <Field label="Room" className="sm:col-span-2">
+                    <TextInput
+                      value={row.room}
+                      onChange={(e) =>
+                        setPaperRows((rows) =>
+                          rows.map((r) =>
+                            r.id === row.id ? { ...r, room: e.target.value } : r,
+                          ),
+                        )
+                      }
+                    />
+                  </Field>
+                  <div className="sm:col-span-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() =>
+                        setPaperRows((rows) => rows.filter((r) => r.id !== row.id))
+                      }
+                    >
+                      Remove paper
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       )}
     </Modal>
