@@ -108,7 +108,7 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
     void loadPortalSchoolAlerts({ instituteId: activeInstituteId }).then((result) => {
       if (cancelled) return;
       if (result.status === "ready" || result.status === "empty") {
-        alertStore.initOnce(result.alerts);
+        alertStore.replaceFromApi(result.alerts);
       }
     });
     return () => {

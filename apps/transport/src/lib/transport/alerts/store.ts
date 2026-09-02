@@ -115,16 +115,14 @@ function emit() {
 }
 
 function mergeSnapshot(): TransportNotification[] {
+  // API mode: notification inbox only — never fall back to seed/demo workflow SoT.
+  if (isApiAuthMode()) {
+    return [...apiNotifications];
+  }
   const workflow = listTransportNotifications("driver").map(workflowToAlert);
   const seedIds = new Set(workflow.map((n) => n.id));
   const seeds = seedNotifications.filter((n) => !seedIds.has(n.id));
-  const apiIds = new Set(apiNotifications.map((n) => n.id));
-  const filteredSeeds = seeds.filter((n) => !apiIds.has(n.id));
-  const filteredWorkflow = workflow.filter((n) => !apiIds.has(n.id));
-  if (isApiAuthMode()) {
-    return [...apiNotifications, ...filteredWorkflow, ...(apiNotifications.length === 0 ? filteredSeeds : [])];
-  }
-  return [...filteredWorkflow, ...filteredSeeds];
+  return [...workflow, ...seeds];
 }
 
 let cached: TransportNotification[] | null = null;
@@ -164,15 +162,23 @@ export function resetAlertsStore() {
 }
 
 export function markAllAlertsReadInStore(): void {
-  markAllTransportNotificationsRead("driver");
-  seedNotifications = seedNotifications.map((n) => ({ ...n, unread: false }));
+  if (!isApiAuthMode()) {
+    markAllTransportNotificationsRead("driver");
+    seedNotifications = seedNotifications.map((n) => ({ ...n, unread: false }));
+  }
+  apiNotifications = apiNotifications.map((n) => ({ ...n, unread: false }));
   invalidate();
   emit();
 }
 
 export function markAlertReadInStore(id: string): void {
-  markTransportNotificationRead(id);
-  seedNotifications = seedNotifications.map((n) =>
+  if (!isApiAuthMode()) {
+    markTransportNotificationRead(id);
+    seedNotifications = seedNotifications.map((n) =>
+      n.id === id ? { ...n, unread: false } : n,
+    );
+  }
+  apiNotifications = apiNotifications.map((n) =>
     n.id === id ? { ...n, unread: false } : n,
   );
   invalidate();

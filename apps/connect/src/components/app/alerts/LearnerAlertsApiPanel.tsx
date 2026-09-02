@@ -60,12 +60,13 @@ export function LearnerAlertsApiPanel({
   useEffect(() => {
     let cancelled = false;
     setStatus("loading");
-    alertStore.reset();
     void loadPortalSchoolAlerts({ instituteId: activeInstituteId }).then((result) => {
       if (cancelled) return;
       setStatus(result.status);
       setError(result.errorMessage);
-      alertStore.initOnce(result.alerts);
+      if (result.status === "ready" || result.status === "empty") {
+        alertStore.replaceFromApi(result.alerts);
+      }
       syncBadgeCounts();
     });
     return () => {

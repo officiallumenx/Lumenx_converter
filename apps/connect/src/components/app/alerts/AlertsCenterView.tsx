@@ -28,6 +28,7 @@ import {
   type AlertFilterId,
 } from "@/lib/alerts-utils";
 import { alertStore } from "@/lib/alert-store";
+import { isApiAuthMode } from "@/auth/auth-mode";
 
 const CATEGORY_ICONS: Record<AlertCategory, typeof HeartPulse> = {
   absence: UserX,
@@ -554,6 +555,7 @@ export function AlertsDashboardPanel({
 
 export function useAlertStoreInit(seed: SchoolAlert[]) {
   useEffect(() => {
+    if (isApiAuthMode()) return;
     alertStore.initOnce(seed);
   }, [seed]);
 }

@@ -1,10 +1,12 @@
 import type { SchoolAlert } from "@lumenx/types";
 import { listenDemoSync, loadBroadcastInbox, type DemoBroadcast } from "@lumenx/utils";
+import { isApiAuthMode } from "@/auth/auth-mode";
 
 type Listener = () => void;
 
 let items: SchoolAlert[] = [];
 let initialized = false;
+let demoBroadcastListening = false;
 const listeners = new Set<Listener>();
 let ackHandler: ((id: string) => void | Promise<void>) | null = null;
 let ackAllHandler: (() => void | Promise<void>) | null = null;
@@ -40,10 +42,21 @@ function alertFromBroadcast(row: DemoBroadcast): SchoolAlert {
 }
 
 function ingestBroadcasts() {
+  if (isApiAuthMode()) return;
   for (const row of loadBroadcastInbox()) {
     if (items.some((a) => a.id === `bc-${row.id}`)) continue;
     items = [alertFromBroadcast(row), ...items];
   }
+}
+
+function ensureDemoBroadcastListener() {
+  if (isApiAuthMode() || demoBroadcastListening || typeof window === "undefined") return;
+  demoBroadcastListening = true;
+  listenDemoSync("broadcast", () => {
+    if (isApiAuthMode()) return;
+    ingestBroadcasts();
+    notify();
+  });
 }
 
 export const alertStore = {
@@ -57,18 +70,29 @@ export const alertStore = {
     initialized = true;
     const existingIds = new Set(items.map((a) => a.id));
     const seedToAdd = seed.filter((a) => !existingIds.has(a.id)).map((a) => ({ ...a }));
-    if (seedToAdd.length === 0) {
-      notify();
-      return;
+    if (seedToAdd.length > 0) {
+      items = [...items, ...seedToAdd];
     }
-    items = [...items, ...seedToAdd];
-    ingestBroadcasts();
-    if (typeof window !== "undefined") {
-      listenDemoSync("broadcast", () => {
-        ingestBroadcasts();
-        notify();
-      });
+    if (!isApiAuthMode()) {
+      ingestBroadcasts();
+      ensureDemoBroadcastListener();
     }
+    notify();
+  },
+  /**
+   * Replace store contents from the school-alerts portal API (API auth mode).
+   * Keeps leave-action alerts that are not school-alert inbox rows.
+   */
+  replaceFromApi(alerts: SchoolAlert[]) {
+    const apiIds = new Set(alerts.map((a) => a.id));
+    const keepLocal = items.filter(
+      (a) =>
+        !apiIds.has(a.id) &&
+        !a.id.startsWith("bc-") &&
+        Boolean(a.relatedLeaveId || a.actionRequired),
+    );
+    items = [...alerts.map((a) => ({ ...a })), ...keepLocal];
+    initialized = true;
     notify();
   },
   reset() {

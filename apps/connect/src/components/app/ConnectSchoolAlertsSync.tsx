@@ -38,7 +38,7 @@ export function ConnectSchoolAlertsSync(): null {
       setConnectApiAlertCounts({ unack, emergency });
 
       if (result.status === "ready" || result.status === "empty") {
-        alertStore.initOnce(result.alerts);
+        alertStore.replaceFromApi(result.alerts);
       }
 
       const currentIds = new Set(result.alerts.map((alert) => alert.id));
