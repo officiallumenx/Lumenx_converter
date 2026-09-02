@@ -671,4 +671,21 @@ describe("transport api", () => {
     expect(resolve.status).toBe(200);
     expect((await json(resolve)).data.status).toBe("resolved");
   });
+
+  it("returns transport analytics summary for admin", async () => {
+    const app = appWithDb(baseDb());
+    const today = new Date().toISOString().slice(0, 10);
+
+    const res = await app.request(
+      `/api/v1/transport/analytics?institute_id=${INST_A}&trip_date=${today}`,
+      { headers: { Authorization: "Bearer token-admin" } },
+    );
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(body.data.totalRoutes).toBe(1);
+    expect(body.data.approvedEnrollments).toBe(2);
+    expect(body.data.approvedStops).toBe(2);
+    expect(body.data.configuredRoutes).toBe(1);
+    expect(body.data.tripDate).toBe(today);
+  });
 });

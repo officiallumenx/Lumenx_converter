@@ -3,9 +3,11 @@ import type { AdminApiClient } from "@/lib/api";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { isInstituteUuid } from "@/lib/active-institute";
 import type {
+  GetTransportAnalyticsParams,
   ListTransportBoardingMarksParams,
   ListTransportEmergenciesParams,
   ListTransportTripsParams,
+  TransportAnalyticsDto,
   TransportBoardingEventDto,
   TransportEmergencyDto,
   TransportTripDto,
@@ -82,5 +84,21 @@ export async function resolveTransportEmergencyApi(
   return client.post<TransportEmergencyDto>(
     `/api/v1/transport/emergencies/${emergencyId}/resolve`,
     { resolve_note: resolveNote ?? null },
+  );
+}
+
+export async function getTransportAnalytics(
+  params: GetTransportAnalyticsParams,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<TransportAnalyticsDto> {
+  assertApiMode();
+  if (!isInstituteUuid(params.instituteId)) {
+    throw new Error("institute_id must be a valid UUID");
+  }
+  const query = new URLSearchParams();
+  query.set("institute_id", params.instituteId.trim());
+  if (params.tripDate?.trim()) query.set("trip_date", params.tripDate.trim());
+  return client.get<TransportAnalyticsDto>(
+    `/api/v1/transport/analytics?${query.toString()}`,
   );
 }

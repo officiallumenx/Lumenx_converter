@@ -13,7 +13,11 @@ import {
   findRouteById,
   findStopById,
   findVehicleById,
+  listDrivers,
+  listEnrollments,
+  listRoutes,
   listStopsForRoute,
+  listVehicles,
 } from "./repository.js";
 import {
   finalizeBoardingForTrip,
@@ -42,6 +46,7 @@ import type {
   EmergencyStatus,
   LearnerTransportLiveDto,
   StartTripInput,
+  TransportAnalyticsDto,
   TransportBoardingEventDto,
   TransportBoardingEventRow,
   TransportEmergencyDto,
@@ -663,4 +668,73 @@ export async function listBoardingMarksForInstituteForActor(
     all.push(...marks);
   }
   return Promise.all(all.map((row) => enrichBoarding(admin, row)));
+}
+
+export async function getTransportAnalyticsForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  instituteId: string,
+  tripDate?: string,
+): Promise<TransportAnalyticsDto> {
+  const id = requireInstituteId(actor, instituteId);
+  assertTransportStaffReader(actor, id);
+  const date = tripDate?.trim() || new Date().toISOString().slice(0, 10);
+
+  const [vehicles, drivers, routes, enrollments, trips, emergencies] =
+    await Promise.all([
+      listVehicles(admin, id),
+      listDrivers(admin, id),
+      listRoutes(admin, id),
+      listEnrollments(admin, id),
+      listTrips(admin, id, date),
+      listEmergencies(admin, id),
+    ]);
+
+  let totalStops = 0;
+  let approvedStops = 0;
+  for (const route of routes) {
+    const stops = await listStopsForRoute(admin, route.id);
+    totalStops += stops.length;
+    approvedStops += stops.filter((s) => s.approval_status === "approved").length;
+  }
+
+  const boardingRows: TransportBoardingEventRow[] = [];
+  for (const trip of trips) {
+    const marks = await listBoardingEventsForTrip(admin, trip.id);
+    boardingRows.push(...marks);
+  }
+
+  const activeTrips = trips.filter(
+    (t) => !t.finalized && t.phase !== "completed",
+  ).length;
+  const completedTripsToday = trips.filter(
+    (t) => t.finalized || t.phase === "completed",
+  ).length;
+
+  return {
+    instituteId: id,
+    tripDate: date,
+    totalVehicles: vehicles.length,
+    totalDrivers: drivers.length,
+    totalRoutes: routes.length,
+    configuredRoutes: routes.filter((r) => r.config_status === "configured").length,
+    lockedRoutes: routes.filter((r) => r.config_status === "locked").length,
+    pendingRouteSetup: routes.filter((r) => r.config_status === "not_configured")
+      .length,
+    totalStops,
+    approvedStops,
+    totalEnrollments: enrollments.length,
+    activeEnrollments: enrollments.filter((e) => e.status === "active").length,
+    approvedEnrollments: enrollments.filter(
+      (e) => e.approval_status === "approved",
+    ).length,
+    tripsToday: trips.length,
+    activeTrips,
+    completedTripsToday,
+    boardingMarksToday: boardingRows.length,
+    boardedToday: boardingRows.filter((m) => m.boarding_status === "boarded").length,
+    openEmergencies: emergencies.filter(
+      (e) => e.status === "active" || e.status === "acknowledged",
+    ).length,
+  };
 }

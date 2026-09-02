@@ -29,6 +29,7 @@ import {
   endTripForActor,
   getActiveTripForVehicleForActor,
   getOpenEmergencyForVehicleForActor,
+  getTransportAnalyticsForActor,
   getLearnerTransportLiveForActor,
   getTripForActor,
   listBoardingForTripForActor,
@@ -706,6 +707,25 @@ transport.get("/portal/teacher-class-roster", async (c) => {
     classLabel: query.class_label,
     sectionLabel: query.section_label,
   });
+  return c.json({ data });
+});
+
+transport.get("/analytics", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(
+    z.object({
+      institute_id: uuid,
+      trip_date: dateOnly,
+    }),
+    c.req.query(),
+  );
+  const data = await getTransportAnalyticsForActor(
+    admin,
+    actor,
+    query.institute_id,
+    query.trip_date ?? undefined,
+  );
   return c.json({ data });
 });
 

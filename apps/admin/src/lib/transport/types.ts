@@ -224,3 +224,30 @@ export type ListTransportEmergenciesParams = {
   instituteId: string;
   status?: "active" | "acknowledged" | "resolved";
 };
+
+export type TransportAnalyticsDto = {
+  instituteId: string;
+  tripDate: string;
+  totalVehicles: number;
+  totalDrivers: number;
+  totalRoutes: number;
+  configuredRoutes: number;
+  lockedRoutes: number;
+  pendingRouteSetup: number;
+  totalStops: number;
+  approvedStops: number;
+  totalEnrollments: number;
+  activeEnrollments: number;
+  approvedEnrollments: number;
+  tripsToday: number;
+  activeTrips: number;
+  completedTripsToday: number;
+  boardingMarksToday: number;
+  boardedToday: number;
+  openEmergencies: number;
+};
+
+export type GetTransportAnalyticsParams = {
+  instituteId: string;
+  tripDate?: string;
+};

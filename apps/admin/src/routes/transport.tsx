@@ -21,6 +21,7 @@ import { TransportApprovalApiPanel } from "@/components/transport/TransportAppro
 import { TransportTripsApiPanel } from "@/components/transport/TransportTripsApiPanel";
 import { TransportAttendanceApiPanel } from "@/components/transport/TransportAttendanceApiPanel";
 import { TransportEmergenciesApiPanel } from "@/components/transport/TransportEmergenciesApiPanel";
+import { TransportAnalyticsApiPanel } from "@/components/transport/TransportAnalyticsApiPanel";
 import { TransportReviewsView } from "@/components/transport/views/TransportReviewsView";
 import { parseHubView, validateHubViewSearch } from "@/lib/hub-view-search";
 import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
@@ -1015,11 +1016,7 @@ function TransportPage() {
         ) : null}
         {view === "analytics" ? (
           apiMode ? (
-            <ApiReadUnavailablePanel
-              title="Transport analytics unavailable in API mode"
-              domainLabel="Transport analytics"
-              hint="There is no institute-scoped read API for transport analytics exports. Demo KPIs are not shown in API mode."
-            />
+            <TransportAnalyticsApiPanel instituteId={instituteId} />
           ) : (
             <TransportAnalyticsView snapshot={snapshot} />
           )
