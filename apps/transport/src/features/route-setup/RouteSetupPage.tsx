@@ -10,6 +10,7 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { StatusChip } from "@/components/ui/status-chip";
 import { useDriverAssignment } from "@/hooks/use-driver-assignment";
 import { useRouteSetup } from "@/hooks/use-route-setup";
+import { useTransportRealtimeRefresh } from "@/hooks/use-transport-realtime";
 import { useTransportAuth } from "@/lib/auth/transport-auth";
 import { captureCurrentGps } from "@/lib/transport/capture-gps";
 import { routeSetupRepository } from "@/lib/transport/route-setup";
@@ -33,6 +34,7 @@ export function RouteSetupPage() {
   const record = useRouteSetup();
   const assignment = useDriverAssignment();
   const { user } = useTransportAuth();
+  useTransportRealtimeRefresh(user?.instituteId, () => undefined);
   const driverId = user?.id ?? assignment.account?.id ?? "";
   const vehicleId = assignment.bus?.vehicleId ?? "";
   const busLabel = assignment.bus?.busNumber ?? "—";

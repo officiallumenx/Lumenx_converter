@@ -76,7 +76,13 @@ export async function submitTransportStop(input: {
   longitude: number;
   routeOrder: number;
 }) {
-  return transportFetch(`/api/v1/transport/stops`, {
+  return transportFetch<{
+    id: string;
+    instituteId: string;
+    routeId: string;
+    name: string;
+    approvalStatus: string;
+  }>(`/api/v1/transport/stops`, {
     method: "POST",
     body: {
       institute_id: input.instituteId,
@@ -90,6 +96,23 @@ export async function submitTransportStop(input: {
   });
 }
 
+export type StopDto = {
+  id: string;
+  instituteId: string;
+  routeId: string;
+  name: string;
+  locationLabel: string;
+  routeOrder: number;
+  approvalStatus: string;
+};
+
+export async function listTransportStops(input: {
+  routeId: string;
+}): Promise<StopDto[]> {
+  const query = new URLSearchParams({ route_id: input.routeId });
+  return transportFetch<StopDto[]>(`/api/v1/transport/stops?${query.toString()}`);
+}
+
 export async function submitTransportEnrollment(input: {
   instituteId: string;
   studentId: string;
@@ -97,7 +120,11 @@ export async function submitTransportEnrollment(input: {
   pickupStopId: string;
   dropStopId: string;
 }) {
-  return transportFetch(`/api/v1/transport/enrollments`, {
+  return transportFetch<{
+    id: string;
+    studentId: string;
+    approvalStatus: string;
+  }>(`/api/v1/transport/enrollments`, {
     method: "POST",
     body: {
       institute_id: input.instituteId,

@@ -28,6 +28,8 @@ export type RouteSetupStop = {
   replacesStopId?: string;
   /** Admin decline reason (when status is rejected) */
   rejectionReason?: string;
+  /** API stop id after driver submission in API auth mode */
+  apiStopId?: string;
 };
 
 /** Student ↔ stop link tracked separately for approval workflow. */
@@ -45,6 +47,8 @@ export type StudentStopAssignment = {
   replacesAssignmentId?: string;
   /** Admin decline reason (when status is rejected) */
   rejectionReason?: string;
+  /** API enrollment id after driver submission in API auth mode */
+  apiEnrollmentId?: string;
 };
 
 export type RouteSetupRecord = {

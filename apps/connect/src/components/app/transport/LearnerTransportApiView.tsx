@@ -1,17 +1,31 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { Bus, Clock, MapPin } from "lucide-react";
 import { subscribeTransportRealtime } from "@lumenx/utils";
 import { PageHeader } from "@/components/app/PageHeader";
 import { StatCard } from "@/components/app/StatCard";
+import { TransportBusCard } from "@/components/app/transport/TransportBusCard";
+import {
+  TransportEtaBanner,
+  TransportRouteTimeline,
+  TransportTrackingPanel,
+} from "@/components/app/transport/TransportRouteTimeline";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { loadLearnerTransport } from "@/lib/transport";
 import type { LearnerTransportSummary } from "@/lib/transport";
+import {
+  buildLiveTracking,
+  mapLearnerSummaryToAssignment,
+  subscribeLearnerLiveTrip,
+  summaryStopsToTimeline,
+} from "@/lib/transport/learner-live";
+import { formatEtaMinutes } from "@/lib/transport-utils";
 
 type Props = {
   instituteId: string;
   studentId: string;
   subtitle: string;
   headerExtra?: React.ReactNode;
+  viewer?: "parent" | "student";
 };
 
 export function LearnerTransportApiView({
@@ -19,13 +33,15 @@ export function LearnerTransportApiView({
   studentId,
   subtitle,
   headerExtra,
+  viewer = "parent",
 }: Props) {
   const [summary, setSummary] = useState<LearnerTransportSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [empty, setEmpty] = useState<string | null>(null);
+  const [liveTick, setLiveTick] = useState(0);
 
-  const reload = () => {
+  const reload = useCallback(() => {
     setLoading(true);
     setError(null);
     setEmpty(null);
@@ -48,11 +64,11 @@ export function LearnerTransportApiView({
       }
       setLoading(false);
     });
-  };
+  }, [instituteId, studentId]);
 
   useEffect(() => {
     reload();
-  }, [instituteId, studentId]);
+  }, [reload]);
 
   useEffect(() => {
     try {
@@ -64,7 +80,18 @@ export function LearnerTransportApiView({
     } catch {
       return undefined;
     }
-  }, [instituteId]);
+  }, [instituteId, reload]);
+
+  useEffect(() => subscribeLearnerLiveTrip(() => setLiveTick((t) => t + 1)), []);
+
+  const assignment = useMemo(
+    () => (summary ? mapLearnerSummaryToAssignment(summary) : null),
+    [summary],
+  );
+  const tracking = useMemo(
+    () => (summary && assignment ? buildLiveTracking(summary, assignment) : null),
+    [summary, assignment, liveTick],
+  );
 
   if (loading) {
     return (
@@ -86,7 +113,7 @@ export function LearnerTransportApiView({
     );
   }
 
-  if (empty || !summary) {
+  if (empty || !summary || !assignment || !tracking) {
     return (
       <div className="space-y-5">
         {headerExtra}
@@ -99,6 +126,7 @@ export function LearnerTransportApiView({
   }
 
   const pending = summary.approvalStatus === "pending";
+  const timelineStops = summaryStopsToTimeline(summary);
 
   return (
     <div className="min-w-0 max-w-full space-y-5">
@@ -111,6 +139,9 @@ export function LearnerTransportApiView({
         </div>
       ) : null}
 
+      <TransportEtaBanner tracking={tracking} assignment={assignment} viewer={viewer} />
+      <TransportTrackingPanel tracking={tracking} />
+
       <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
         <StatCard
           icon={Bus}
@@ -121,10 +152,24 @@ export function LearnerTransportApiView({
         />
         <StatCard
           icon={Clock}
-          label="Driver"
-          value={summary.driverName ?? "—"}
-          hint={summary.driverPhone ?? "Contact school transport office"}
-          tone="primary"
+          label={
+            tracking.learnerStatus === "awaiting_pickup" ? "Time to your stop" : "Journey status"
+          }
+          value={
+            tracking.sharedTripActive
+              ? formatEtaMinutes(tracking.etaMinutes)
+              : tracking.learnerStatus === "reached_school"
+                ? "Reached school"
+                : tracking.learnerStatus === "picked_up"
+                  ? "Picked up"
+                  : "Scheduled"
+          }
+          hint={
+            tracking.sharedTripActive
+              ? tracking.nextStopName
+              : summary.driverName ?? "Contact school transport office"
+          }
+          tone={tracking.sharedTripActive ? "primary" : "neutral"}
         />
         <StatCard
           icon={MapPin}
@@ -134,21 +179,14 @@ export function LearnerTransportApiView({
         />
       </div>
 
-      {summary.stops.length > 0 ? (
-        <div className="rounded-xl border border-border bg-card p-4">
-          <h2 className="text-sm font-semibold">Route stops</h2>
-          <ol className="mt-3 space-y-2 text-sm">
-            {summary.stops.map((stop) => (
-              <li key={stop.id} className="flex gap-2">
-                <span className="font-medium text-muted-foreground">{stop.routeOrder + 1}.</span>
-                <span>
-                  {stop.name}
-                  <span className="block text-xs text-muted-foreground">{stop.locationLabel}</span>
-                </span>
-              </li>
-            ))}
-          </ol>
-        </div>
+      <TransportBusCard assignment={assignment} />
+
+      {timelineStops.length > 0 ? (
+        <TransportRouteTimeline
+          stops={timelineStops}
+          tracking={tracking}
+          highlightStopId={assignment.pickupStop.id}
+        />
       ) : null}
     </div>
   );

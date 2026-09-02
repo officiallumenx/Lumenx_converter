@@ -21,3 +21,9 @@ export type {
   LearnerTransportLoadState,
   TeacherClassTransportLoadState,
 } from "./load";
+export {
+  buildLiveTracking,
+  mapLearnerSummaryToAssignment,
+  subscribeLearnerLiveTrip,
+  summaryStopsToTimeline,
+} from "./learner-live";

@@ -510,6 +510,7 @@ describe("transport api", () => {
     expect(body.data.studentId).toBe(STUDENT_A);
     expect(body.data.enrollmentId).toBe(ENROLL_A);
     expect(body.data.busNumber).toBe("BUS-1");
+    expect(body.data.vehicleId).toBe(VEHICLE_A);
     expect(body.data.pickupStop?.name).toBe("Gate A");
   });
 

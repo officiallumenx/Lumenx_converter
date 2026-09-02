@@ -71,6 +71,7 @@ export type LearnerTransportSummary = {
   routeId: string | null;
   routeName: string | null;
   busNumber: string | null;
+  vehicleId: string | null;
   vehicleRegistration: string | null;
   driverName: string | null;
   driverPhone: string | null;

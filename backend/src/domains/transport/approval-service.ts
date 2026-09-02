@@ -60,6 +60,7 @@ export type LearnerTransportSummary = {
   routeId: string | null;
   routeName: string | null;
   busNumber: string | null;
+  vehicleId: string | null;
   vehicleRegistration: string | null;
   driverName: string | null;
   driverPhone: string | null;
@@ -457,6 +458,7 @@ export async function getLearnerTransportForActor(
       routeId: null,
       routeName: null,
       busNumber: null,
+      vehicleId: null,
       vehicleRegistration: null,
       driverName: null,
       driverPhone: null,
@@ -476,6 +478,7 @@ export async function getLearnerTransportForActor(
       routeId: enrollment.route_id,
       routeName: null,
       busNumber: null,
+      vehicleId: null,
       vehicleRegistration: null,
       driverName: null,
       driverPhone: null,
@@ -496,6 +499,7 @@ export async function getLearnerTransportForActor(
       routeId: enrollment.route_id,
       routeName: route?.name ?? null,
       busNumber: null,
+      vehicleId: route?.vehicle_id ?? null,
       vehicleRegistration: null,
       driverName: null,
       driverPhone: null,
@@ -527,6 +531,7 @@ export async function getLearnerTransportForActor(
     routeId: route.id,
     routeName: route.name,
     busNumber: vehicle?.vehicle_number ?? null,
+    vehicleId: route.vehicle_id,
     vehicleRegistration: vehicle?.registration_number ?? null,
     driverName: driver?.display_name ?? null,
     driverPhone: driver?.phone ?? null,

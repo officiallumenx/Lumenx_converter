@@ -14,7 +14,7 @@ import type {
   UpsertStopInput,
 } from "./types";
 import { canEditAssignment, canEditStop } from "./types";
-import { syncStopSubmissionToApi } from "./api-sync";
+import { syncStopAndEnrollmentsToApi } from "./api-sync";
 
 const STORAGE_KEY = "lumenx.transport.route-setup.v1";
 
@@ -247,7 +247,30 @@ function persist() {
 
 function queueApiStopSync(stop: RouteSetupStop): void {
   if (!scope) return;
-  void syncStopSubmissionToApi(scope, stop).catch(() => undefined);
+  const pendingAssignments = record.assignments.filter(
+    (a) => a.stopId === stop.id && a.status === "pending",
+  );
+  void syncStopAndEnrollmentsToApi(scope, stop, pendingAssignments)
+    .then(({ apiStopId, syncedEnrollmentIds }) => {
+      if (!apiStopId && syncedEnrollmentIds.length === 0) return;
+      record = {
+        ...record,
+        stops: record.stops.map((s) =>
+          s.id === stop.id && apiStopId ? { ...s, apiStopId } : s,
+        ),
+        assignments: record.assignments.map((a) => {
+          if (!syncedEnrollmentIds.includes(a.id)) return a;
+          const source = pendingAssignments.find((p) => p.id === a.id);
+          return source?.apiEnrollmentId
+            ? { ...a, apiEnrollmentId: source.apiEnrollmentId }
+            : a;
+        }),
+      };
+      if (scope) byRoute[scope.routeId] = record;
+      persistLocalOnly();
+      emit();
+    })
+    .catch(() => undefined);
 }
 
 function applyAdminLockFromBridge() {
