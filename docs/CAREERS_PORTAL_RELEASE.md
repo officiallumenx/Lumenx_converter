@@ -54,7 +54,8 @@ REST client: `apps/careers/src/lib/careers/api/`
 | Feature | Endpoints | Hooks / pages |
 |---------|-----------|---------------|
 | Jobs | `GET/POST/PATCH/DELETE /careers/jobs` | `useCareersJobs`, browse, recruiter CRUD |
-| Applications | `GET/POST /careers/applications`, `POST .../transition` | `useCareersApplications`, apply wizard |
+| Applications | `GET/POST/PATCH /careers/applications`, `POST .../transition` | `useCareersApplications`, apply wizard, document center |
+| Documents | `POST /assets/upload` (`career-docs` bucket) + `PATCH /careers/applications/:id` (`payload.documents`) | Document center, apply wizard uploads |
 | Profile | `GET/PUT /careers/me/profile` | `useCareersProfile` |
 | Saved jobs | `GET/POST/DELETE /careers/saved` | `useCareersSaved`, SaveJobButton |
 | Talent pool | `GET /careers/talent-pool` | `useCareersTalent` |
@@ -109,6 +110,8 @@ apps/careers/src/
     use-careers-api-inbox.ts
 ```
 
+Branch workflow: see [CONTRIBUTING.md](./CONTRIBUTING.md) — use `feature/careers-*` branches and PRs to `main`.
+
 ---
 
 ## 6. Demo accounts
@@ -136,5 +139,6 @@ npm test --workspace=@lumenx/app-careers
 - [ ] Job seeker: browse, filter, apply from job detail
 - [ ] Recruiter: post job → edit → open on board
 - [ ] API mode: jobs, applications, profile, saved, talent pool load
+- [ ] API mode: upload resume/documents on `/documents` and during apply
 - [ ] Home search passes `?q=` to jobs page
 - [ ] `/` loads without Connect parent/teacher/student context

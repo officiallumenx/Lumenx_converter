@@ -53,6 +53,7 @@ import type {
   TalentPoolEntryDto,
   TalentPoolEntryRow,
   TransitionApplicationInput,
+  UpdateApplicationInput,
   UpdateJobInput,
   UpsertCandidateProfileInput,
   UserSavedItemDto,
@@ -567,6 +568,74 @@ export async function createApplicationForActor(
     await emitCareerApplicationCreatedNotification(admin, actor.userId, row);
   }
   return toApplicationDto(row);
+}
+
+function mergeApplicationPayload(
+  existing: unknown,
+  incoming: unknown,
+): Record<string, unknown> {
+  const base =
+    typeof existing === "object" && existing !== null && !Array.isArray(existing)
+      ? { ...(existing as Record<string, unknown>) }
+      : {};
+  if (incoming === undefined) return base;
+  const patch =
+    typeof incoming === "object" && incoming !== null && !Array.isArray(incoming)
+      ? (incoming as Record<string, unknown>)
+      : {};
+  const merged = { ...base, ...patch };
+  if (Array.isArray(patch.documents)) {
+    merged.documents = patch.documents;
+  }
+  return merged;
+}
+
+export async function updateApplicationForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  id: string,
+  input: UpdateApplicationInput,
+): Promise<CareerApplicationDto> {
+  const existing = await findApplicationById(admin, id);
+  if (!existing || !canReadApplication(actor, existing)) {
+    throw AppError.notFound("Career application not found");
+  }
+
+  const isOwner = existing.applicant_user_id === actor.userId;
+  const staff = isWriter(actor, existing.institute_id);
+
+  if (!isOwner && !staff) {
+    throw AppError.notFound("Career application not found");
+  }
+
+  if (isOwner && TERMINAL_APP_STATUSES.includes(existing.status)) {
+    throw AppError.conflict("Application can no longer be updated");
+  }
+
+  const patch: Record<string, unknown> = {};
+
+  if (input.coverLetter !== undefined) {
+    patch.cover_letter = input.coverLetter?.trim() || null;
+  }
+
+  if (input.payload !== undefined) {
+    patch.payload = mergeApplicationPayload(existing.payload, input.payload);
+  }
+
+  if (input.decisionNote !== undefined) {
+    if (!staff) {
+      throw AppError.notFound("Career application not found");
+    }
+    patch.decision_note = input.decisionNote?.trim() || null;
+  }
+
+  if (Object.keys(patch).length === 0) {
+    return toApplicationDto(existing);
+  }
+
+  const updated = await updateApplicationFields(admin, id, patch);
+  if (!updated) throw AppError.notFound("Career application not found");
+  return toApplicationDto(updated);
 }
 
 export async function transitionApplicationForActor(

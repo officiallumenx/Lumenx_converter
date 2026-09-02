@@ -33,22 +33,64 @@ import {
   markNotificationRead,
   uploadDocument,
 } from "@/lib/careers/repositories";
+import { uploadCareerApplicationDocument } from "@/lib/careers/api";
+import { resolveCareersInstituteId } from "@/lib/careers/institute-context";
 import { useCareersApplications } from "@/hooks/use-careers-applications";
 import { documentStatusLabel } from "@/lib/careers/status-utils";
 import { useCareersApiInbox } from "@/hooks/use-careers-api-inbox";
 import { formatCareersNotificationTime } from "@/lib/notification-inbox";
+import type { CareerDocumentType } from "@/lib/careers/types";
 
 export function DocumentsPage() {
   const { user } = useCareersAuth();
+  const apiMode = isApiAuthMode();
   const [tick, setTick] = useState(0);
-  const { applications, loading } = useCareersApplications({ scope: "candidate" });
+  const { applications, loading, reload, instituteId } = useCareersApplications({
+    scope: "candidate",
+  });
   const groups = user
     ? applications.map((a) => ({
         applicationId: a.id,
+        instituteId: a.instituteId,
         jobTitle: a.jobTitle,
         documents: a.documents,
       }))
     : [];
+
+  const handleUpload = async (
+    applicationId: string,
+    appInstituteId: string | undefined,
+    type: CareerDocumentType,
+    file: File,
+    existingDocuments: typeof groups[number]["documents"],
+  ) => {
+    if (!apiMode) {
+      uploadDocument(applicationId, type, file.name);
+      toast.success("Document updated");
+      setTick((n) => n + 1);
+      return;
+    }
+
+    const resolvedInstituteId = appInstituteId ?? instituteId ?? resolveCareersInstituteId(user);
+    if (!resolvedInstituteId) {
+      toast.error("Institute context is required to upload documents.");
+      return;
+    }
+
+    try {
+      await uploadCareerApplicationDocument({
+        applicationId,
+        instituteId: resolvedInstituteId,
+        type,
+        file,
+        existingDocuments,
+      });
+      toast.success("Document uploaded");
+      reload();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Upload failed");
+    }
+  };
 
   if (loading) {
     return (
@@ -74,9 +116,13 @@ export function DocumentsPage() {
                     fileName={d.fileName}
                     status={documentStatusLabel(d.status)}
                     onUpload={(file) => {
-                      uploadDocument(g.applicationId, d.type, file.name);
-                      toast.success(`${d.label} updated`);
-                      setTick((n) => n + 1);
+                      void handleUpload(
+                        g.applicationId,
+                        g.instituteId,
+                        d.type,
+                        file,
+                        g.documents,
+                      );
                     }}
                   />
                 ))}

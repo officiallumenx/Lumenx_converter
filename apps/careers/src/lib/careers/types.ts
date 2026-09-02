@@ -318,6 +318,8 @@ export interface ApplicationDocument {
   status: DocumentVerificationStatus;
   uploadedAt?: string;
   note?: string;
+  /** Asset UUID when uploaded via API mode */
+  assetId?: string;
 }
 
 export interface InterviewDetails {
@@ -410,7 +412,7 @@ export interface ApplicationDraft {
   address: Partial<AddressInfo>;
   professional: Partial<ProfessionalInfo>;
   skills: Partial<SkillsInfo>;
-  documents: Partial<Record<CareerDocumentType, { fileName: string }>>;
+  documents: Partial<Record<CareerDocumentType, { fileName: string; assetId?: string }>>;
   extras?: Record<string, string>;
   coverLetter?: string;
 }

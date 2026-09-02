@@ -253,6 +253,12 @@ export type TransitionApplicationInput = {
   decisionNote?: string | null;
 };
 
+export type UpdateApplicationInput = {
+  coverLetter?: string | null;
+  payload?: unknown;
+  decisionNote?: string | null;
+};
+
 export type CreateInquiryInput = {
   instituteId: string;
   category?: CareerInquiryCategory;

@@ -36,7 +36,11 @@ import {
 import type { ApplicationDraft, CareerDocumentType } from "@/lib/careers/types";
 
 import { clearDraft, submitApplication } from "@/lib/careers/repositories";
-import { createCareerApplication } from "@/lib/careers/api";
+import {
+  createCareerApplication,
+  documentsToPayloadRecords,
+  uploadCareerDocumentAsset,
+} from "@/lib/careers/api";
 import { resolveCareersInstituteId } from "@/lib/careers/institute-context";
 import { useCareersJobs } from "@/hooks/use-careers-jobs";
 import { useCareersJob } from "@/hooks/use-careers-jobs";
@@ -105,6 +109,31 @@ export function ApplyWizardPage({ jobId }: { jobId?: string }) {
   const update = (patch: Partial<ApplicationDraft>) =>
     setDraft((d) => (d ? { ...d, ...patch } : d));
 
+  const handleDraftDocumentUpload = async (type: CareerDocumentType, file: File) => {
+    if (!draft) return;
+    if (!isApiAuthMode()) {
+      update({ documents: { ...draft.documents, [type]: { fileName: file.name } } });
+      return;
+    }
+    const instituteId = resolveCareersInstituteId(user) ?? selectedJob?.instituteId;
+    if (!instituteId) {
+      toast.error("Institute context is required to upload documents.");
+      return;
+    }
+    try {
+      const asset = await uploadCareerDocumentAsset({ instituteId, file });
+      update({
+        documents: {
+          ...draft.documents,
+          [type]: { fileName: file.name, assetId: asset.id },
+        },
+      });
+      toast.success("Document uploaded");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Upload failed");
+    }
+  };
+
   const handleSubmit = async () => {
     if (!user || !draft || !selectedJob || !activeJobId) return;
 
@@ -143,11 +172,30 @@ export function ApplyWizardPage({ jobId }: { jobId?: string }) {
           toast.error("Institute context is required to submit in API mode.");
           return;
         }
+        const draftDocs = Object.entries(draft.documents ?? {})
+          .filter((entry): entry is [CareerDocumentType, { fileName: string; assetId?: string }] => {
+            const meta = entry[1];
+            return !!meta?.fileName;
+          })
+          .map(([type, meta]) => ({
+            id: `doc-${type}`,
+            type,
+            label: type.replace(/_/g, " "),
+            fileName: meta.fileName,
+            assetId: meta.assetId,
+            status: meta.assetId ? ("uploaded" as const) : ("pending_upload" as const),
+            uploadedAt: meta.assetId
+              ? new Date().toISOString().slice(0, 10)
+              : undefined,
+          }));
         const created = await createCareerApplication({
           instituteId,
           jobId: activeJobId,
           coverLetter: coverLetter.trim() || null,
-          payload,
+          payload: {
+            ...payload,
+            documents: documentsToPayloadRecords(draftDocs),
+          },
           submitNow: true,
         });
         clearDraft(user.id);
@@ -454,9 +502,9 @@ export function ApplyWizardPage({ jobId }: { jobId?: string }) {
             <DocumentUploadCard
               label={GAP_LABELS.resume}
               fileName={draft.documents?.resume?.fileName}
-              onUpload={(f) =>
-                update({ documents: { ...draft.documents, resume: { fileName: f.name } } })
-              }
+              onUpload={(f) => {
+                void handleDraftDocumentUpload("resume", f);
+              }}
             />
           )}
         </div>
@@ -508,11 +556,9 @@ export function ApplyWizardPage({ jobId }: { jobId?: string }) {
             <DocumentUploadCard
               label="Demo teaching video"
               fileName={draft.documents?.demo_teaching_video?.fileName}
-              onUpload={(f) =>
-                update({
-                  documents: { ...draft.documents, demo_teaching_video: { fileName: f.name } },
-                })
-              }
+              onUpload={(f) => {
+                void handleDraftDocumentUpload("demo_teaching_video", f);
+              }}
             />
           )}
 

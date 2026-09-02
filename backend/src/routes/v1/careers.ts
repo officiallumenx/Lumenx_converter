@@ -28,6 +28,7 @@ import {
   listTalentPoolForActor,
   respondInquiryForActor,
   transitionApplicationForActor,
+  updateApplicationForActor,
   updateJobForActor,
   upsertCandidateProfileForActor,
 } from "../../domains/careers/service.js";
@@ -260,6 +261,26 @@ careers.get("/applications/:id", async (c) => {
   const admin = requireAdmin(c);
   const { id } = validateParams(idParamsSchema, c.req.param());
   const data = await getApplicationForActor(admin, actor, id);
+  return c.json({ data });
+});
+
+careers.patch("/applications/:id", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const body = validateBody(
+    z.object({
+      cover_letter: z.string().max(8000).nullable().optional(),
+      payload: z.unknown().optional(),
+      decision_note: z.string().max(4000).nullable().optional(),
+    }),
+    await c.req.json(),
+  );
+  const data = await updateApplicationForActor(admin, actor, id, {
+    coverLetter: body.cover_letter,
+    payload: body.payload,
+    decisionNote: body.decision_note,
+  });
   return c.json({ data });
 });
 

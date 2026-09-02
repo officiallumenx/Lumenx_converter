@@ -64,6 +64,12 @@ export type TransitionCareerApplicationInput = {
   decisionNote?: string | null;
 };
 
+export type UpdateCareerApplicationInput = {
+  coverLetter?: string | null;
+  payload?: unknown;
+  decisionNote?: string | null;
+};
+
 export type CreateSavedItemInput = {
   instituteId: string;
   itemKind: "career_job";
@@ -170,6 +176,22 @@ export async function transitionCareerApplication(
       status: input.status,
       decision_note: input.decisionNote,
     },
+  );
+}
+
+export async function updateCareerApplication(
+  applicationId: string,
+  input: UpdateCareerApplicationInput,
+  client: CareersApiClient = getCareersApiClient(),
+): Promise<CareerApplicationDto> {
+  assertApiMode();
+  const body: Record<string, unknown> = {};
+  if (input.coverLetter !== undefined) body.cover_letter = input.coverLetter;
+  if (input.payload !== undefined) body.payload = input.payload;
+  if (input.decisionNote !== undefined) body.decision_note = input.decisionNote;
+  return client.patch<CareerApplicationDto>(
+    `/api/v1/careers/applications/${applicationId.trim()}`,
+    body,
   );
 }
 

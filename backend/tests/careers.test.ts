@@ -417,6 +417,48 @@ describe("careers api", () => {
     expect(adminRespond.status).toBe(200);
   });
 
+  it("parent can patch application payload documents", async () => {
+    const app = appWithDb(baseDb());
+
+    const patch = await app.request(`/api/v1/careers/applications/${APP_PARENT}`, {
+      method: "PATCH",
+      headers: {
+        Authorization: "Bearer token-parent",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        payload: {
+          documents: [
+            {
+              id: "doc-resume",
+              type: "resume",
+              label: "Resume / CV",
+              fileName: "resume.pdf",
+              assetId: "aa111111-1111-4111-8111-111111111111",
+              status: "uploaded",
+            },
+          ],
+        },
+      }),
+    });
+    expect(patch.status).toBe(200);
+    const data = (await json(patch)).data as { payload: { documents: unknown[] } };
+    expect(data.payload.documents).toHaveLength(1);
+
+    const otherPatch = await app.request(
+      `/api/v1/careers/applications/${APP_OTHER}`,
+      {
+        method: "PATCH",
+        headers: {
+          Authorization: "Bearer token-parent",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ payload: { documents: [] } }),
+      },
+    );
+    expect(otherPatch.status).toBe(404);
+  });
+
   it("emits careers inbox notification on staff transition", async () => {
     const db = baseDb();
     const app = appWithDb(db);

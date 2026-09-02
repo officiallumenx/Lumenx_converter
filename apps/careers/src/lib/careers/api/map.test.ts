@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { applicationDocumentsFromPayload } from "./documents";
 import {
   careerApplicationDtoToJobApplication,
   careerJobDtoToPosting,
@@ -90,5 +91,52 @@ describe("careers api map", () => {
     });
     expect(app.interview?.date).toBe("2026-05-28");
     expect(app.interview?.mode).toBe("video");
+  });
+
+  it("maps documents from application payload with default slots", () => {
+    const docs = applicationDocumentsFromPayload({
+      documents: [
+        {
+          id: "doc-resume",
+          type: "resume",
+          label: "Resume / CV",
+          fileName: "cv.pdf",
+          assetId: "aa111111-1111-4111-8111-111111111111",
+          status: "uploaded",
+        },
+      ],
+    });
+    expect(docs.find((d) => d.type === "resume")?.fileName).toBe("cv.pdf");
+    expect(docs.find((d) => d.type === "certificates")?.status).toBe("pending_upload");
+
+    const dto: CareerApplicationDto = {
+      id: "ca111111-1111-4111-8111-111111111111",
+      instituteId: INST,
+      jobId: "jj111111-1111-4111-8111-111111111111",
+      candidateProfileId: null,
+      applicantUserId: "uu111111-1111-4111-8111-111111111111",
+      status: "submitted",
+      coverLetter: null,
+      payload: {
+        documents: [
+          {
+            id: "doc-resume",
+            type: "resume",
+            label: "Resume / CV",
+            fileName: "cv.pdf",
+            status: "uploaded",
+          },
+        ],
+      },
+      decisionNote: null,
+      convertedTeacherId: null,
+      submittedAt: "2026-06-01T10:00:00Z",
+      createdAt: "2026-06-01T10:00:00Z",
+      updatedAt: "2026-06-01T10:00:00Z",
+    };
+    const app = careerApplicationDtoToJobApplication(dto, {
+      candidateId: "uu111111-1111-4111-8111-111111111111",
+    });
+    expect(app.documents.some((d) => d.type === "resume" && d.fileName === "cv.pdf")).toBe(true);
   });
 });

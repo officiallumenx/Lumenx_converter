@@ -28,14 +28,24 @@ export {
   deleteCareerJob,
   deleteSavedItem,
   transitionCareerApplication,
+  updateCareerApplication,
   updateCareerJob,
   upsertCandidateProfile,
   type CreateCareerApplicationInput,
   type CreateCareerJobInput,
   type TransitionCareerApplicationInput,
+  type UpdateCareerApplicationInput,
   type UpdateCareerJobInput,
   type UpsertCandidateProfileInput,
 } from "./mutations";
+
+export {
+  applicationDocumentsFromPayload,
+  documentsToPayloadRecords,
+  mergeApplicationDocument,
+  uploadCareerApplicationDocument,
+  uploadCareerDocumentAsset,
+} from "./documents";
 
 export {
   careerApplicationDtoToJobApplication,

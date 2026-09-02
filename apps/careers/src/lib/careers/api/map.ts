@@ -1,5 +1,6 @@
 import { buildApplicationTimeline } from "../mock-data";
 import { interviewFromApplicationPayload } from "../interviews";
+import { applicationDocumentsFromPayload } from "./documents";
 import type {
   ApplicationDocument,
   ApplicationStatus,
@@ -196,7 +197,7 @@ export function careerApplicationDtoToJobApplication(
     },
     professional: EMPTY_PROFESSIONAL,
     skills: EMPTY_SKILLS,
-    documents: [] as ApplicationDocument[],
+    documents: applicationDocumentsFromPayload(dto.payload),
     timeline: buildApplicationTimeline(status, submittedAt),
     hrNotes: dto.decisionNote ? [dto.decisionNote] : undefined,
     interview,
