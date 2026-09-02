@@ -1,5 +1,6 @@
 export {
   getLearnerTransport,
+  getLearnerTransportLive,
   listTransportEnrollments,
   listTransportRoutes,
   listTransportStops,
@@ -23,6 +24,8 @@ export type {
 } from "./load";
 export {
   buildLiveTracking,
+  buildLiveTrackingFromApi,
+  loadLearnerTransportLive,
   mapLearnerSummaryToAssignment,
   subscribeLearnerLiveTrip,
   summaryStopsToTimeline,

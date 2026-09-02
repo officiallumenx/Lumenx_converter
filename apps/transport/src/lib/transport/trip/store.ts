@@ -525,7 +525,32 @@ export function endTripSession(summary?: TripEndSummary | null): TripActionResul
   return { ok: true, session: getTripSessionSnapshot() };
 }
 
-/** Clear COMPLETED and return to READY for the next shift. */
+/** Apply server trip state after API ops (API auth mode). */
+export function syncTripFromApiDto(dto: {
+  id: string;
+  phase: TripPhase;
+  startedAt: string | null;
+  completedAt: string | null;
+  vehicleId: string;
+  routeId: string;
+  currentStopIndex: number;
+}): TripActionResult {
+  phase = dto.phase;
+  tripId = dto.id;
+  startedAt = dto.startedAt;
+  completedAt = dto.completedAt;
+  vehicleId = dto.vehicleId;
+  routeId = dto.routeId;
+  currentStopIndex = dto.currentStopIndex;
+  if (dto.phase !== "completed") {
+    lastSummary = null;
+  }
+  cachedSession = null;
+  persist();
+  emit();
+  return { ok: true, session: getTripSessionSnapshot() };
+}
+
 export function dismissCompletedTripSession(): TripActionResult {
   if (phase !== "completed" && phase !== "ready") {
     if (isTripActive(phase)) {

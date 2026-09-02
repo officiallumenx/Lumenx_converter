@@ -3,7 +3,11 @@ import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 export type TransportRealtimeTable =
   | "route"
   | "stop"
-  | "transport_enrollment";
+  | "transport_enrollment"
+  | "transport_trip"
+  | "transport_boarding_event"
+  | "transport_emergency"
+  | "vehicle_location";
 
 export type TransportRealtimeEvent = {
   table: TransportRealtimeTable;
@@ -28,6 +32,10 @@ export function subscribeTransportRealtime(
     "route",
     "stop",
     "transport_enrollment",
+    "transport_trip",
+    "transport_boarding_event",
+    "transport_emergency",
+    "vehicle_location",
   ];
 
   const channels: RealtimeChannel[] = [];

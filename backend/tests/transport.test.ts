@@ -25,8 +25,8 @@ const MEMBER_DRIVER = "aa666666-6666-4666-8666-666666666666";
 const STUDENT_A = "ac111111-1111-4111-8111-111111111111";
 const STUDENT_B = "ac222222-2222-4222-8222-222222222222";
 const PARENT_A = "ba111111-1111-4111-8111-111111111111";
-const VEHICLE_A = "ve111111-1111-4111-8111-111111111111";
-const VEHICLE_B = "ve222222-2222-4222-8222-222222222222";
+const VEHICLE_A = "ee111111-1111-4111-8111-111111111111";
+const VEHICLE_B = "ee222222-2222-4222-8222-222222222222";
 const ENROLL_A = "ae111111-1111-4111-8111-111111111111";
 const ENROLL_OTHER = "ae222222-2222-4222-8222-222222222222";
 const ROUTE_A = "af111111-1111-4111-8111-111111111111";
@@ -555,5 +555,120 @@ describe("transport api", () => {
     );
     expect(approve.status).toBe(200);
     expect((await json(approve)).data.approvalStatus).toBe("approved");
+  });
+
+  it("driver starts trip, marks boarding, and parent reads live transport", async () => {
+    const db = baseDb();
+    db.route[0] = { ...db.route[0], driver_id: DRIVER_A };
+    const app = appWithDb(db);
+    const today = new Date().toISOString().slice(0, 10);
+
+    const start = await app.request("/api/v1/transport/trips", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-driver",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        route_id: ROUTE_A,
+        vehicle_id: VEHICLE_A,
+        driver_id: DRIVER_A,
+        trip_date: today,
+      }),
+    });
+    expect(start.status).toBe(201);
+    const trip = (await json(start)).data;
+    expect(trip.phase).toBe("starting");
+
+    const phase = await app.request(`/api/v1/transport/trips/${trip.id}/phase`, {
+      method: "PATCH",
+      headers: {
+        Authorization: "Bearer token-driver",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ phase: "running", current_stop_index: 0 }),
+    });
+    expect(phase.status).toBe(200);
+
+    const boarding = await app.request(`/api/v1/transport/trips/${trip.id}/boarding`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-driver",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        student_id: STUDENT_A,
+        stop_id: STOP_PICKUP,
+        boarding_status: "boarded",
+      }),
+    });
+    expect(boarding.status).toBe(200);
+    expect((await json(boarding)).data.boardingStatus).toBe("boarded");
+
+    const live = await app.request(
+      `/api/v1/transport/portal/learner-transport/live?institute_id=${INST_A}&student_id=${STUDENT_A}`,
+      { headers: { Authorization: "Bearer token-parent" } },
+    );
+    expect(live.status).toBe(200);
+    const liveBody = await json(live);
+    expect(liveBody.data.activeTrip?.id).toBe(trip.id);
+    expect(liveBody.data.boarding?.boardingStatus).toBe("boarded");
+
+    const adminTrips = await app.request(
+      `/api/v1/transport/trips?institute_id=${INST_A}&trip_date=${today}`,
+      { headers: { Authorization: "Bearer token-admin" } },
+    );
+    expect(adminTrips.status).toBe(200);
+    expect((await json(adminTrips)).data).toHaveLength(1);
+  });
+
+  it("driver triggers emergency and admin resolves it", async () => {
+    const db = baseDb();
+    db.route[0] = { ...db.route[0], driver_id: DRIVER_A };
+    const app = appWithDb(db);
+
+    const create = await app.request("/api/v1/transport/emergencies", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-driver",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        driver_id: DRIVER_A,
+        vehicle_id: VEHICLE_A,
+        note: "Flat tire",
+        latitude: 12.97,
+        longitude: 77.59,
+      }),
+    });
+    expect(create.status).toBe(201);
+    const emergency = (await json(create)).data;
+    expect(emergency.status).toBe("active");
+
+    const ack = await app.request(
+      `/api/v1/transport/emergencies/${emergency.id}/acknowledge`,
+      {
+        method: "POST",
+        headers: { Authorization: "Bearer token-admin" },
+      },
+    );
+    expect(ack.status).toBe(200);
+    expect((await json(ack)).data.status).toBe("acknowledged");
+
+    const resolve = await app.request(
+      `/api/v1/transport/emergencies/${emergency.id}/resolve`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer token-admin",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ resolve_note: "Help dispatched" }),
+      },
+    );
+    expect(resolve.status).toBe(200);
+    expect((await json(resolve)).data.status).toBe("resolved");
   });
 });

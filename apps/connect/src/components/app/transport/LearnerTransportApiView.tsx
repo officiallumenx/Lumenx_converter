@@ -14,6 +14,7 @@ import { loadLearnerTransport } from "@/lib/transport";
 import type { LearnerTransportSummary } from "@/lib/transport";
 import {
   buildLiveTracking,
+  loadLearnerTransportLive,
   mapLearnerSummaryToAssignment,
   subscribeLearnerLiveTrip,
   summaryStopsToTimeline,
@@ -36,6 +37,7 @@ export function LearnerTransportApiView({
   viewer = "parent",
 }: Props) {
   const [summary, setSummary] = useState<LearnerTransportSummary | null>(null);
+  const [live, setLive] = useState<Awaited<ReturnType<typeof loadLearnerTransportLive>>>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [empty, setEmpty] = useState<string | null>(null);
@@ -45,9 +47,11 @@ export function LearnerTransportApiView({
     setLoading(true);
     setError(null);
     setEmpty(null);
-    void loadLearnerTransport({ instituteId, studentId }).then((state) => {
+    void loadLearnerTransport({ instituteId, studentId }).then(async (state) => {
       if (state.status === "ready") {
         setSummary(state.summary);
+        const liveData = await loadLearnerTransportLive({ instituteId, studentId });
+        setLive(liveData);
         setLoading(false);
         return;
       }
@@ -89,8 +93,8 @@ export function LearnerTransportApiView({
     [summary],
   );
   const tracking = useMemo(
-    () => (summary && assignment ? buildLiveTracking(summary, assignment) : null),
-    [summary, assignment, liveTick],
+    () => (summary && assignment ? buildLiveTracking(summary, assignment, live) : null),
+    [summary, assignment, live, liveTick],
   );
 
   if (loading) {

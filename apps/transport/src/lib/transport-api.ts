@@ -135,3 +135,192 @@ export async function submitTransportEnrollment(input: {
     },
   });
 }
+
+export type TransportTripDto = {
+  id: string;
+  instituteId: string;
+  routeId: string;
+  vehicleId: string;
+  driverId: string;
+  slot: "morning" | "evening";
+  tripDate: string;
+  phase: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  currentStopId: string | null;
+  currentStopIndex: number;
+  finalized: boolean;
+};
+
+export type TransportBoardingEventDto = {
+  id: string;
+  tripId: string;
+  studentId: string;
+  stopId: string;
+  boardingStatus: "pending" | "boarded" | "not_boarded";
+  droppingStatus: "pending" | "dropped" | "not_dropped";
+  boardedAt: string | null;
+  droppedAt: string | null;
+  finalized: boolean;
+  studentName?: string | null;
+  stopName?: string | null;
+};
+
+export type TransportEmergencyDto = {
+  id: string;
+  status: "active" | "acknowledged" | "resolved";
+  emergencyType: string;
+  note: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  vehicleId: string;
+  driverId: string;
+};
+
+export async function startTransportTrip(input: {
+  instituteId: string;
+  routeId: string;
+  vehicleId: string;
+  driverId: string;
+  slot?: "morning" | "evening";
+  tripDate?: string;
+}): Promise<TransportTripDto> {
+  return transportFetch<TransportTripDto>(`/api/v1/transport/trips`, {
+    method: "POST",
+    body: {
+      institute_id: input.instituteId,
+      route_id: input.routeId,
+      vehicle_id: input.vehicleId,
+      driver_id: input.driverId,
+      slot: input.slot,
+      trip_date: input.tripDate,
+    },
+  });
+}
+
+export async function updateTransportTripPhase(
+  tripId: string,
+  input: {
+    phase: string;
+    currentStopId?: string | null;
+    currentStopIndex?: number;
+  },
+): Promise<TransportTripDto> {
+  return transportFetch<TransportTripDto>(`/api/v1/transport/trips/${tripId}/phase`, {
+    method: "PATCH",
+    body: {
+      phase: input.phase,
+      current_stop_id: input.currentStopId ?? null,
+      current_stop_index: input.currentStopIndex,
+    },
+  });
+}
+
+export async function endTransportTrip(tripId: string): Promise<TransportTripDto> {
+  return transportFetch<TransportTripDto>(`/api/v1/transport/trips/${tripId}/end`, {
+    method: "POST",
+  });
+}
+
+export async function getActiveTripForVehicle(
+  vehicleId: string,
+): Promise<TransportTripDto | null> {
+  return transportFetch<TransportTripDto | null>(
+    `/api/v1/transport/vehicles/${vehicleId}/active-trip`,
+  );
+}
+
+export async function listTripBoardingEvents(
+  tripId: string,
+): Promise<TransportBoardingEventDto[]> {
+  return transportFetch<TransportBoardingEventDto[]>(
+    `/api/v1/transport/trips/${tripId}/boarding`,
+  );
+}
+
+export async function markTripBoarding(
+  tripId: string,
+  input: {
+    studentId: string;
+    stopId: string;
+    boardingStatus: "pending" | "boarded" | "not_boarded";
+  },
+): Promise<TransportBoardingEventDto> {
+  return transportFetch<TransportBoardingEventDto>(
+    `/api/v1/transport/trips/${tripId}/boarding`,
+    {
+      method: "POST",
+      body: {
+        student_id: input.studentId,
+        stop_id: input.stopId,
+        boarding_status: input.boardingStatus,
+      },
+    },
+  );
+}
+
+export async function markTripDropping(
+  tripId: string,
+  input: {
+    studentId: string;
+    stopId: string;
+    droppingStatus: "pending" | "dropped" | "not_dropped";
+  },
+): Promise<TransportBoardingEventDto> {
+  return transportFetch<TransportBoardingEventDto>(
+    `/api/v1/transport/trips/${tripId}/dropping`,
+    {
+      method: "POST",
+      body: {
+        student_id: input.studentId,
+        stop_id: input.stopId,
+        dropping_status: input.droppingStatus,
+      },
+    },
+  );
+}
+
+export async function createTransportEmergency(input: {
+  instituteId: string;
+  tripId?: string | null;
+  driverId: string;
+  vehicleId: string;
+  note?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+}): Promise<TransportEmergencyDto> {
+  return transportFetch<TransportEmergencyDto>(`/api/v1/transport/emergencies`, {
+    method: "POST",
+    body: {
+      institute_id: input.instituteId,
+      trip_id: input.tripId ?? null,
+      driver_id: input.driverId,
+      vehicle_id: input.vehicleId,
+      note: input.note ?? null,
+      latitude: input.latitude ?? null,
+      longitude: input.longitude ?? null,
+    },
+  });
+}
+
+export async function getOpenEmergencyForVehicle(
+  vehicleId: string,
+): Promise<TransportEmergencyDto | null> {
+  return transportFetch<TransportEmergencyDto | null>(
+    `/api/v1/transport/vehicles/${vehicleId}/open-emergency`,
+  );
+}
+
+export async function pingTripLocation(
+  tripId: string,
+  input: { latitude: number; longitude: number; accuracyM?: number | null },
+): Promise<void> {
+  await transportFetch(`/api/v1/transport/trips/${tripId}/location`, {
+    method: "POST",
+    body: {
+      latitude: input.latitude,
+      longitude: input.longitude,
+      accuracy_m: input.accuracyM ?? null,
+    },
+  });
+}

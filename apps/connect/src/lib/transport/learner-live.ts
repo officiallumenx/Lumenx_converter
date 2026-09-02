@@ -13,7 +13,9 @@ import type {
   TransportStop,
   TransportTracking,
 } from "@/lib/transport/types";
-import type { LearnerTransportSummary } from "./api-types";
+import type { LearnerTransportSummary, LearnerTransportLiveDto } from "./api-types";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { getLearnerTransportLive } from "./api";
 
 function formatDriverPhone(phone: string | null | undefined): string {
   const digits = phone?.replace(/\D/g, "") ?? "";
@@ -81,7 +83,12 @@ export function mapLearnerSummaryToAssignment(
 export function buildLiveTracking(
   summary: LearnerTransportSummary,
   assignment: StudentTransportAssignment,
+  live?: LearnerTransportLiveDto | null,
 ): TransportTracking {
+  if (isApiAuthMode() && live) {
+    return buildLiveTrackingFromApi(summary, assignment, live);
+  }
+
   const vehicleId = summary.vehicleId;
   const trip: SharedTripAttendanceMeta | null = vehicleId
     ? findTripMetaForVehicle(vehicleId)
@@ -155,6 +162,81 @@ export function buildLiveTracking(
     nextStopName: trip.currentStopName || assignment.pickupStop.name,
     lastUpdated: "Just now",
   };
+}
+
+export function buildLiveTrackingFromApi(
+  summary: LearnerTransportSummary,
+  assignment: StudentTransportAssignment,
+  live: LearnerTransportLiveDto,
+): TransportTracking {
+  const trip = live.activeTrip;
+  const boarding = live.boarding;
+  const emergency = live.openEmergency;
+
+  let tracking: TransportTracking = {
+    ...initialTracking,
+    nextStopName: assignment.pickupStop.name,
+    learnerStatus:
+      boarding?.boardingStatus === "boarded"
+        ? "picked_up"
+        : boarding?.droppingStatus === "dropped"
+          ? "reached_school"
+          : "awaiting_pickup",
+  };
+
+  if (emergency) {
+    tracking = {
+      ...tracking,
+      emergencyActive: true,
+      emergencyLabel: `SOS · ${emergency.status}`,
+      runStatus: "delayed",
+      delayMinutes: 1,
+      lastUpdated: "Just now",
+    };
+  }
+
+  if (!trip || trip.finalized || trip.phase === "completed") {
+    return {
+      ...tracking,
+      sharedTripActive: false,
+      runStatus: tracking.learnerStatus === "reached_school" ? "completed" : "scheduled",
+    };
+  }
+
+  const stops = summary.stops;
+  let stopIndex = trip.currentStopIndex ?? 0;
+  if (trip.currentStopId) {
+    const idx = stops.findIndex((s) => s.id === trip.currentStopId);
+    if (idx >= 0) stopIndex = idx;
+  }
+
+  const progressFromStops =
+    stops.length > 1 ? Math.round((stopIndex / (stops.length - 1)) * 100) : 20;
+
+  return {
+    ...tracking,
+    sharedTripActive: true,
+    phase: trip.phase === "dropping" ? "at_school" : "morning_pickup",
+    runStatus:
+      trip.phase === "boarding" || trip.phase === "dropping" ? "at_stop" : "en_route",
+    currentStopIndex: stopIndex,
+    progressPercent: Math.max(10, Math.min(95, progressFromStops)),
+    etaMinutes: Math.max(3, 32 - Math.round(progressFromStops / 3)),
+    nextStopName: assignment.pickupStop.name,
+    lastUpdated: live.latestLocation?.capturedAt ? "Just now" : tracking.lastUpdated,
+  };
+}
+
+export async function loadLearnerTransportLive(input: {
+  instituteId: string;
+  studentId: string;
+}): Promise<LearnerTransportLiveDto | null> {
+  if (!isApiAuthMode()) return null;
+  try {
+    return await getLearnerTransportLive(input);
+  } catch {
+    return null;
+  }
 }
 
 export function subscribeLearnerLiveTrip(listener: () => void): () => void {

@@ -18,6 +18,9 @@ import { TransportAnalyticsView } from "@/components/transport/views/TransportAn
 import { TransportSettingsView } from "@/components/transport/views/TransportSettingsView";
 import { TransportEmergenciesView } from "@/components/transport/views/TransportEmergenciesView";
 import { TransportApprovalApiPanel } from "@/components/transport/TransportApprovalApiPanel";
+import { TransportTripsApiPanel } from "@/components/transport/TransportTripsApiPanel";
+import { TransportAttendanceApiPanel } from "@/components/transport/TransportAttendanceApiPanel";
+import { TransportEmergenciesApiPanel } from "@/components/transport/TransportEmergenciesApiPanel";
 import { TransportReviewsView } from "@/components/transport/views/TransportReviewsView";
 import { parseHubView, validateHubViewSearch } from "@/lib/hub-view-search";
 import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
@@ -987,32 +990,24 @@ function TransportPage() {
         ) : null}
         {view === "trips" ? (
           apiMode ? (
-            <ApiReadUnavailablePanel
-              title="Trips unavailable in API mode"
-              domainLabel="Transport trips"
-              hint="There is no institute-scoped read API for live or historical trips. Demo trip schedules are not shown in API mode."
-            />
+            <TransportTripsApiPanel instituteId={instituteId} />
           ) : (
             <TransportTripsView snapshot={snapshot} />
           )
         ) : null}
         {view === "attendance" ? (
           apiMode ? (
-            <ApiReadUnavailablePanel
-              title="Transport attendance unavailable in API mode"
-              domainLabel="Transport boarding attendance"
-              hint="There is no institute-scoped read API for transport attendance marks. Demo boarding data is not shown in API mode."
-            />
+            <TransportAttendanceApiPanel instituteId={instituteId} />
           ) : (
             <TransportAttendanceView />
           )
         ) : null}
         {view === "emergencies" ? (
           apiMode ? (
-            <ApiReadUnavailablePanel
-              title="Emergencies unavailable in API mode"
-              domainLabel="Transport SOS emergencies"
-              hint="There is no institute-scoped read API for driver SOS cases. Demo emergency records are not shown in API mode."
+            <TransportEmergenciesApiPanel
+              instituteId={instituteId}
+              writesEnabled={writesEnabled}
+              onNotify={notify}
             />
           ) : (
             <TransportEmergenciesView />

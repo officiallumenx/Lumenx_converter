@@ -141,3 +141,86 @@ export type TransportReviewQueueItem =
 export type ListTransportReviewQueueParams = {
   instituteId: string;
 };
+
+export type TripPhase =
+  | "ready"
+  | "starting"
+  | "running"
+  | "boarding"
+  | "dropping"
+  | "completed";
+
+export type TransportTripDto = {
+  id: string;
+  instituteId: string;
+  routeId: string;
+  vehicleId: string;
+  driverId: string;
+  slot: "morning" | "evening";
+  tripDate: string;
+  phase: TripPhase;
+  startedAt: string | null;
+  completedAt: string | null;
+  currentStopId: string | null;
+  currentStopIndex: number;
+  finalized: boolean;
+  routeName?: string | null;
+  vehicleNumber?: string | null;
+  driverName?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TransportBoardingEventDto = {
+  id: string;
+  instituteId: string;
+  tripId: string;
+  studentId: string;
+  stopId: string;
+  boardingStatus: "pending" | "boarded" | "not_boarded";
+  droppingStatus: "pending" | "dropped" | "not_dropped";
+  boardedAt: string | null;
+  droppedAt: string | null;
+  finalized: boolean;
+  studentName?: string | null;
+  stopName?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TransportEmergencyDto = {
+  id: string;
+  instituteId: string;
+  tripId: string | null;
+  driverId: string;
+  vehicleId: string;
+  emergencyType: string;
+  status: "active" | "acknowledged" | "resolved";
+  latitude: number | null;
+  longitude: number | null;
+  note: string | null;
+  acknowledgedAt: string | null;
+  resolvedAt: string | null;
+  resolveNote: string | null;
+  timeline: Array<{ id: string; at: string; label: string; note?: string }>;
+  driverName?: string | null;
+  vehicleNumber?: string | null;
+  routeName?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ListTransportTripsParams = {
+  instituteId: string;
+  tripDate?: string;
+};
+
+export type ListTransportBoardingMarksParams = {
+  instituteId: string;
+  tripDate?: string;
+};
+
+export type ListTransportEmergenciesParams = {
+  instituteId: string;
+  status?: "active" | "acknowledged" | "resolved";
+};

@@ -24,6 +24,25 @@ import {
   rejectTransportStopForActor,
 } from "../../domains/transport/approval-service.js";
 import {
+  acknowledgeEmergencyForActor,
+  createEmergencyForActor,
+  endTripForActor,
+  getActiveTripForVehicleForActor,
+  getOpenEmergencyForVehicleForActor,
+  getLearnerTransportLiveForActor,
+  getTripForActor,
+  listBoardingForTripForActor,
+  listBoardingMarksForInstituteForActor,
+  listEmergenciesForActor,
+  listTripsForActor,
+  pingLocationForActor,
+  resolveEmergencyForActor,
+  startTripForActor,
+  updateTripPhaseForActor,
+  upsertBoardingForActor,
+  upsertDroppingForActor,
+} from "../../domains/transport/ops-service.js";
+import {
   createDriverForActor,
   createEnrollmentForActor,
   createRouteForActor,
@@ -688,6 +707,304 @@ transport.get("/portal/teacher-class-roster", async (c) => {
     sectionLabel: query.section_label,
   });
   return c.json({ data });
+});
+
+transport.get("/portal/learner-transport/live", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(
+    z.object({
+      institute_id: uuid,
+      student_id: uuid,
+    }),
+    c.req.query(),
+  );
+  const data = await getLearnerTransportLiveForActor(admin, actor, {
+    instituteId: query.institute_id,
+    studentId: query.student_id,
+  });
+  return c.json({ data });
+});
+
+// ── Trips & operations ───────────────────────────────────────────
+
+const tripPhaseSchema = z.enum([
+  "ready",
+  "starting",
+  "running",
+  "boarding",
+  "dropping",
+  "completed",
+]);
+const tripSlotSchema = z.enum(["morning", "evening"]);
+const boardingStatusSchema = z.enum(["pending", "boarded", "not_boarded"]);
+const droppingStatusSchema = z.enum(["pending", "dropped", "not_dropped"]);
+const emergencyStatusSchema = z.enum(["active", "acknowledged", "resolved"]);
+const emergencyTypeSchema = z.enum([
+  "general",
+  "breakdown",
+  "medical",
+  "accident",
+  "delay",
+  "route_issue",
+  "other",
+]);
+
+transport.get("/trips", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(
+    z.object({
+      institute_id: uuid,
+      trip_date: dateOnly,
+    }),
+    c.req.query(),
+  );
+  const data = await listTripsForActor(
+    admin,
+    actor,
+    query.institute_id,
+    query.trip_date ?? undefined,
+  );
+  return c.json({ data });
+});
+
+transport.get("/trips/:id", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const data = await getTripForActor(admin, actor, id);
+  return c.json({ data });
+});
+
+transport.get("/vehicles/:id/active-trip", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const data = await getActiveTripForVehicleForActor(admin, actor, id);
+  return c.json({ data });
+});
+
+transport.get("/vehicles/:id/open-emergency", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const data = await getOpenEmergencyForVehicleForActor(admin, actor, id);
+  return c.json({ data });
+});
+
+transport.post("/trips", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const body = validateBody(
+    z.object({
+      institute_id: uuid,
+      route_id: uuid,
+      vehicle_id: uuid,
+      driver_id: uuid,
+      slot: tripSlotSchema.optional(),
+      trip_date: dateOnly,
+    }),
+    await c.req.json(),
+  );
+  const data = await startTripForActor(admin, actor, {
+    instituteId: body.institute_id,
+    routeId: body.route_id,
+    vehicleId: body.vehicle_id,
+    driverId: body.driver_id,
+    slot: body.slot,
+    tripDate: body.trip_date ?? undefined,
+  });
+  return c.json({ data }, 201);
+});
+
+transport.patch("/trips/:id/phase", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const body = validateBody(
+    z.object({
+      phase: tripPhaseSchema,
+      current_stop_id: uuid.nullable().optional(),
+      current_stop_index: z.number().int().min(0).optional(),
+    }),
+    await c.req.json(),
+  );
+  const data = await updateTripPhaseForActor(admin, actor, id, {
+    phase: body.phase,
+    currentStopId: body.current_stop_id,
+    currentStopIndex: body.current_stop_index,
+  });
+  return c.json({ data });
+});
+
+transport.post("/trips/:id/end", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const data = await endTripForActor(admin, actor, id);
+  return c.json({ data });
+});
+
+transport.get("/trips/:id/boarding", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const data = await listBoardingForTripForActor(admin, actor, id);
+  return c.json({ data });
+});
+
+transport.get("/boarding-marks", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(
+    z.object({
+      institute_id: uuid,
+      trip_date: dateOnly,
+    }),
+    c.req.query(),
+  );
+  const data = await listBoardingMarksForInstituteForActor(
+    admin,
+    actor,
+    query.institute_id,
+    query.trip_date ?? undefined,
+  );
+  return c.json({ data });
+});
+
+transport.post("/trips/:id/boarding", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const body = validateBody(
+    z.object({
+      student_id: uuid,
+      stop_id: uuid,
+      boarding_status: boardingStatusSchema,
+    }),
+    await c.req.json(),
+  );
+  const data = await upsertBoardingForActor(admin, actor, id, {
+    studentId: body.student_id,
+    stopId: body.stop_id,
+    boardingStatus: body.boarding_status,
+  });
+  return c.json({ data });
+});
+
+transport.post("/trips/:id/dropping", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const body = validateBody(
+    z.object({
+      student_id: uuid,
+      stop_id: uuid,
+      dropping_status: droppingStatusSchema,
+    }),
+    await c.req.json(),
+  );
+  const data = await upsertDroppingForActor(admin, actor, id, {
+    studentId: body.student_id,
+    stopId: body.stop_id,
+    droppingStatus: body.dropping_status,
+  });
+  return c.json({ data });
+});
+
+transport.get("/emergencies", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(
+    z.object({
+      institute_id: uuid,
+      status: emergencyStatusSchema.optional(),
+    }),
+    c.req.query(),
+  );
+  const data = await listEmergenciesForActor(
+    admin,
+    actor,
+    query.institute_id,
+    query.status,
+  );
+  return c.json({ data });
+});
+
+transport.post("/emergencies", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const body = validateBody(
+    z.object({
+      institute_id: uuid,
+      trip_id: uuid.nullable().optional(),
+      driver_id: uuid,
+      vehicle_id: uuid,
+      emergency_type: emergencyTypeSchema.optional(),
+      latitude: z.number().nullable().optional(),
+      longitude: z.number().nullable().optional(),
+      note: z.string().max(2000).nullable().optional(),
+    }),
+    await c.req.json(),
+  );
+  const data = await createEmergencyForActor(admin, actor, {
+    instituteId: body.institute_id,
+    tripId: body.trip_id,
+    driverId: body.driver_id,
+    vehicleId: body.vehicle_id,
+    emergencyType: body.emergency_type,
+    latitude: body.latitude,
+    longitude: body.longitude,
+    note: body.note,
+  });
+  return c.json({ data }, 201);
+});
+
+transport.post("/emergencies/:id/acknowledge", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const data = await acknowledgeEmergencyForActor(admin, actor, id);
+  return c.json({ data });
+});
+
+transport.post("/emergencies/:id/resolve", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const body = validateBody(
+    z.object({ resolve_note: z.string().max(2000).nullable().optional() }),
+    await c.req.json().catch(() => ({})),
+  );
+  const data = await resolveEmergencyForActor(
+    admin,
+    actor,
+    id,
+    body.resolve_note,
+  );
+  return c.json({ data });
+});
+
+transport.post("/trips/:id/location", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const body = validateBody(
+    z.object({
+      latitude: z.number(),
+      longitude: z.number(),
+      accuracy_m: z.number().nullable().optional(),
+    }),
+    await c.req.json(),
+  );
+  const data = await pingLocationForActor(admin, actor, {
+    tripId: id,
+    latitude: body.latitude,
+    longitude: body.longitude,
+    accuracyM: body.accuracy_m,
+  });
+  return c.json({ data }, 201);
 });
 
 export default transport;

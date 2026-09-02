@@ -102,3 +102,38 @@ export type LearnerTransportParams = {
   instituteId: string;
   studentId: string;
 };
+
+export type LearnerTransportLiveDto = {
+  activeTrip: {
+    id: string;
+    phase: string;
+    startedAt: string | null;
+    completedAt: string | null;
+    currentStopId: string | null;
+    currentStopIndex: number;
+    finalized: boolean;
+    routeName?: string | null;
+    vehicleNumber?: string | null;
+  } | null;
+  boarding: {
+    boardingStatus: "pending" | "boarded" | "not_boarded";
+    droppingStatus: "pending" | "dropped" | "not_dropped";
+    boardedAt: string | null;
+    droppedAt: string | null;
+  } | null;
+  openEmergency: {
+    id: string;
+    status: "active" | "acknowledged" | "resolved";
+    note: string | null;
+  } | null;
+  latestLocation: {
+    latitude: number;
+    longitude: number;
+    capturedAt: string;
+  } | null;
+};
+
+export type LearnerTransportLiveParams = {
+  instituteId: string;
+  studentId: string;
+};

@@ -72,6 +72,10 @@ export type MockDb = {
   stop: Row[];
   transport_enrollment: Row[];
   transport_settings: Row[];
+  transport_trip: Row[];
+  transport_boarding_event: Row[];
+  transport_emergency: Row[];
+  vehicle_location: Row[];
   leave_request: Row[];
   leave_decision: Row[];
   event: Row[];
@@ -178,6 +182,11 @@ class QueryBuilder {
 
   in(column: string, values: unknown[]) {
     this.filters.push((r) => values.includes(r[column]));
+    return this;
+  }
+
+  neq(column: string, value: unknown) {
+    this.filters.push((r) => r[column] !== value);
     return this;
   }
 
@@ -537,6 +546,10 @@ export function emptyMockDb(): MockDb {
     stop: [],
     transport_enrollment: [],
     transport_settings: [],
+    transport_trip: [],
+    transport_boarding_event: [],
+    transport_emergency: [],
+    vehicle_location: [],
     leave_request: [],
     leave_decision: [],
     event: [],

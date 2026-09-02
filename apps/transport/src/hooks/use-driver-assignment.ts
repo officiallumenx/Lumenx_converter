@@ -10,6 +10,9 @@ import {
 import { loadApiDriverAssignment } from "@/lib/transport/driver-assignment-api";
 import { setAttendanceVehicleScope } from "@/lib/transport/attendance/store";
 import { setRouteSetupDriverScope } from "@/lib/transport/route-setup/store";
+import { tripRepository } from "@/lib/transport/trip/repository";
+import { attendanceRepository } from "@/lib/transport/attendance/repository";
+import "@/lib/transport/gps-ping";
 
 function getSnapshot(phone: string | null): DriverAssignment {
   return resolveDriverAssignment(phone);
@@ -120,6 +123,9 @@ export function useDriverAssignment(): DriverAssignment {
         instituteId: user?.instituteId,
       });
       setAttendanceVehicleScope(vehicleId);
+      if (apiMode) {
+        void tripRepository.hydrateFromApi().then(() => attendanceRepository.hydrateFromApi());
+      }
       return;
     }
 
@@ -138,6 +144,7 @@ export function useDriverAssignment(): DriverAssignment {
     licenseNumber,
     driverPhone,
     user?.instituteId,
+    apiMode,
   ]);
 
   if (!hydrated) return LOADING;

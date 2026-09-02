@@ -12,6 +12,8 @@ import {
 } from "@lumenx/utils";
 import type { AttendanceStudentState, BoardingStatus, DroppingStatus } from "../types";
 import { getTripSessionSnapshot, subscribeTripSession } from "../trip/store";
+import { isApiAuthMode } from "@/lib/auth/auth-mode";
+import { listBoardingViaApi } from "../trip/api-ops";
 
 const listeners = new Set<() => void>();
 
@@ -269,6 +271,33 @@ export function peekSharedMark(studentId: string) {
   const trip = getTripSessionSnapshot();
   if (!trip.tripId) return null;
   return getMarkForStudent(trip.tripId, studentId);
+}
+
+export async function hydrateAttendanceFromApi(): Promise<void> {
+  if (!isApiAuthMode()) return;
+  const trip = getTripSessionSnapshot();
+  if (!trip.tripId) {
+    students = createRosterBase();
+    emit();
+    return;
+  }
+  const shared = await listBoardingViaApi(trip.tripId);
+  const base = createRosterBase();
+  const byId = new Map(shared.map((m) => [m.studentId, m]));
+  students = base.map((student) => {
+    const mark = byId.get(student.id);
+    if (!mark) return student;
+    return {
+      ...student,
+      boarding: mark.boardingStatus,
+      dropping: mark.droppingStatus,
+      boardedAt: mark.boardedAt,
+      droppedAt: mark.droppedAt,
+      stopName: mark.stopName || student.stopName,
+      stopId: mark.stopId || student.stopId,
+    };
+  });
+  emit();
 }
 
 /** @deprecated Local key removed — shared SoT is lumenx.transport.trip-attendance.v1 */

@@ -3,6 +3,8 @@ import type { ConnectApiClient } from "@/lib/api";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { isInstituteUuid } from "@/lib/institute-id";
 import type {
+  LearnerTransportLiveDto,
+  LearnerTransportLiveParams,
   LearnerTransportParams,
   LearnerTransportSummary,
   ListTransportEnrollmentsParams,
@@ -75,6 +77,22 @@ export async function getLearnerTransport(
   query.set("student_id", params.studentId.trim());
   return client.get<LearnerTransportSummary>(
     `/api/v1/transport/portal/learner-transport?${query.toString()}`,
+  );
+}
+
+export async function getLearnerTransportLive(
+  params: LearnerTransportLiveParams,
+  client: ConnectApiClient = getConnectApiClient(),
+): Promise<LearnerTransportLiveDto> {
+  assertApiMode();
+  if (!isInstituteUuid(params.instituteId) || !isInstituteUuid(params.studentId)) {
+    throw new Error("institute_id and student_id must be valid UUIDs");
+  }
+  const query = new URLSearchParams();
+  query.set("institute_id", params.instituteId.trim());
+  query.set("student_id", params.studentId.trim());
+  return client.get<LearnerTransportLiveDto>(
+    `/api/v1/transport/portal/learner-transport/live?${query.toString()}`,
   );
 }
 

@@ -1,5 +1,13 @@
 import { getAttendanceSnapshot, resetAttendanceStore, finalizeAttendanceForActiveTrip } from "../attendance/store";
 import { repositoryDelay } from "../utils";
+import { isApiAuthMode } from "@/lib/auth/auth-mode";
+import {
+  advanceStopViaApi,
+  confirmStartTripViaApi,
+  endTripViaApi,
+  hydrateActiveTripFromApi,
+  setLifecyclePhaseViaApi,
+} from "./api-ops";
 import { getAssignmentReadiness } from "./assignment-readiness";
 import { buildTripEndSummary, type TripEndSummary } from "./lifecycle";
 import {
@@ -50,6 +58,11 @@ export const tripRepository = {
 
   async confirmStartTrip(): Promise<TripActionResult> {
     await repositoryDelay(40);
+    if (isApiAuthMode()) {
+      const result = await confirmStartTripViaApi();
+      if (result.ok) resetAttendanceStore();
+      return result;
+    }
     return withFreshAttendance(confirmStartTripSession());
   },
 
@@ -57,16 +70,23 @@ export const tripRepository = {
     phase: "running" | "boarding" | "dropping",
   ): Promise<TripActionResult> {
     await repositoryDelay(20);
+    if (isApiAuthMode()) return setLifecyclePhaseViaApi(phase);
     return setTripLifecyclePhase(phase);
   },
 
   async advanceStop(): Promise<TripActionResult> {
     await repositoryDelay(20);
+    if (isApiAuthMode()) return advanceStopViaApi();
     return advanceTripStop();
   },
 
   async endTrip(summary?: TripEndSummary | null): Promise<TripActionResult> {
     await repositoryDelay(40);
+    if (isApiAuthMode()) {
+      const result = await endTripViaApi();
+      if (result.ok) finalizeAttendanceForActiveTrip();
+      return result;
+    }
     const session = getTripSessionSnapshot();
     const stopsTotal = session.assignment.route.stops.length;
     const stopsCompleted = Math.min(session.currentStopIndex + 1, stopsTotal);
@@ -89,5 +109,9 @@ export const tripRepository = {
   reset() {
     resetTripSession();
     resetAttendanceStore();
+  },
+
+  async hydrateFromApi() {
+    await hydrateActiveTripFromApi();
   },
 };
