@@ -36,6 +36,10 @@ import {
   generateAttendanceReportCsv,
   isAttendanceReportId,
 } from "./generate-attendance.js";
+import {
+  generateTransportOpsReportCsv,
+  isTransportOpsReportId,
+} from "./generate-transport.js";
 import type { GeneratedReportFile } from "./types.js";
 
 function esc(value: string): string {
@@ -78,6 +82,9 @@ const SUPPORTED = new Set([
   "admissions",
   "audit",
   "transport",
+  "transport-trips",
+  "transport-attendance",
+  "transport-emergencies",
   "careers",
   "documents",
 ]);
@@ -93,6 +100,9 @@ export async function generateReportCsv(
 ): Promise<GeneratedReportFile> {
   if (isAttendanceReportId(reportId)) {
     return generateAttendanceReportCsv(admin, instituteId, reportId);
+  }
+  if (isTransportOpsReportId(reportId)) {
+    return generateTransportOpsReportCsv(admin, instituteId, reportId);
   }
 
   switch (reportId) {
@@ -434,6 +444,7 @@ export async function generateReportCsv(
             "",
             "",
             "",
+            "",
           ]);
         } else {
           for (const enrollment of routeEnrollments) {
@@ -446,6 +457,7 @@ export async function generateReportCsv(
               driver?.display_name ?? "",
               enrollment.student_id,
               enrollment.status,
+              enrollment.approval_status,
               enrollment.pickup_stop_id,
             ]);
           }
@@ -464,6 +476,7 @@ export async function generateReportCsv(
             "driver_name",
             "student_id",
             "enrollment_status",
+            "approval_status",
             "pickup_stop_id",
           ],
           rows,

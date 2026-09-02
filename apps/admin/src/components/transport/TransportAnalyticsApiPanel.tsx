@@ -1,21 +1,40 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Card, CardHeader, Kpi, PageStack, Pill } from "@lumenx/ui-admin";
+import { Button, Card, CardHeader, Kpi, PageStack, Pill } from "@lumenx/ui-admin";
 import { Link } from "@tanstack/react-router";
-import { Bus, MapPin, Route, Siren, Users } from "lucide-react";
+import { Bus, Download, MapPin, Route, Siren, Users } from "lucide-react";
 import { subscribeTransportRealtime } from "@lumenx/utils";
 import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
+import { saveBlobAsFile } from "@/lib/reports";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
-import { getTransportAnalytics } from "@/lib/transport/ops-api";
+import {
+  exportTransportReport,
+  getTransportAnalytics,
+  type TransportExportReportId,
+} from "@/lib/transport/ops-api";
 import type { TransportAnalyticsDto } from "@/lib/transport/types";
 
 type Props = {
   instituteId: string;
+  writesEnabled?: boolean;
+  onNotify?: (message: string) => void;
 };
 
-export function TransportAnalyticsApiPanel({ instituteId }: Props) {
+const EXPORT_OPTIONS: Array<{ id: TransportExportReportId; label: string }> = [
+  { id: "transport", label: "Route ridership" },
+  { id: "transport-trips", label: "Trip log" },
+  { id: "transport-attendance", label: "Boarding marks" },
+  { id: "transport-emergencies", label: "SOS register" },
+];
+
+export function TransportAnalyticsApiPanel({
+  instituteId,
+  writesEnabled = true,
+  onNotify,
+}: Props) {
   const [analytics, setAnalytics] = useState<TransportAnalyticsDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [exportingId, setExportingId] = useState<TransportExportReportId | null>(null);
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   const reload = useCallback(async () => {
@@ -48,6 +67,19 @@ export function TransportAnalyticsApiPanel({ instituteId }: Props) {
       return undefined;
     }
   }, [instituteId, reload]);
+
+  const handleExport = async (reportId: TransportExportReportId, label: string) => {
+    setExportingId(reportId);
+    try {
+      const { fileName, blob } = await exportTransportReport(instituteId, reportId);
+      saveBlobAsFile(blob, fileName);
+      onNotify?.(`Downloaded ${label} · ${fileName}`);
+    } catch (err) {
+      onNotify?.(err instanceof Error ? err.message : "Export failed");
+    } finally {
+      setExportingId(null);
+    }
+  };
 
   if (loading) {
     return <p className="text-sm text-muted-foreground">Loading analytics…</p>;
@@ -86,6 +118,27 @@ export function TransportAnalyticsApiPanel({ instituteId }: Props) {
         />
       </div>
 
+      {writesEnabled ? (
+        <Card>
+          <CardHeader title="Export CSV" hint="Institute-scoped reports via Reporting Center jobs" />
+          <div className="flex flex-wrap gap-2 px-4 pb-5 sm:px-5">
+            {EXPORT_OPTIONS.map((option) => (
+              <Button
+                key={option.id}
+                size="sm"
+                variant="outline"
+                loading={exportingId === option.id}
+                disabled={exportingId !== null}
+                onClick={() => void handleExport(option.id, option.label)}
+              >
+                <Download className="size-3.5" />
+                {option.label}
+              </Button>
+            ))}
+          </div>
+        </Card>
+      ) : null}
+
       <Card className="mt-4">
         <CardHeader
           title="Transport insights"
@@ -94,8 +147,8 @@ export function TransportAnalyticsApiPanel({ instituteId }: Props) {
         <div className="space-y-3 px-5 pb-5 text-xs text-muted-foreground">
           <p>
             Counts reflect approved routes, stops, and enrollments plus operational trip data
-            for {analytics.tripDate}. This view is analytics only — download Excel, PDF, or CSV
-            from the Reporting Center.
+            for {analytics.tripDate}. Use the export buttons above or the full catalog in{" "}
+            {M.reports}.
           </p>
           <ul className="list-disc space-y-1 pl-4">
             <li>
@@ -112,7 +165,7 @@ export function TransportAnalyticsApiPanel({ instituteId }: Props) {
             <Link to="/reports" className="font-medium text-primary hover:underline">
               Open {M.reports}
             </Link>{" "}
-            for transport exports.
+            for all institute exports.
           </p>
         </div>
       </Card>

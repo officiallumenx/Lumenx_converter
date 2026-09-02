@@ -35,6 +35,13 @@ const REPORT_CATALOG: Array<Omit<ReportDefinitionDto, "generationSupported">> = 
   { id: "attendance-section", name: "Section attendance history", module: "Attendance" },
   { id: "marks", name: "Exam results by class", module: "Marks" },
   { id: "transport", name: "Route ridership & compliance", module: "Transport" },
+  { id: "transport-trips", name: "Trip log & run status", module: "Transport" },
+  {
+    id: "transport-attendance",
+    name: "Boarding & dropping marks",
+    module: "Transport",
+  },
+  { id: "transport-emergencies", name: "SOS emergency register", module: "Transport" },
   { id: "admissions", name: "Application funnel", module: "Admissions" },
   { id: "careers", name: "Hiring pipeline", module: "Careers" },
   { id: "complaints", name: "SLA & resolution summary", module: "Complaints" },

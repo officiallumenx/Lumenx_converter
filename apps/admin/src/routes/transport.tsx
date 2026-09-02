@@ -1016,7 +1016,11 @@ function TransportPage() {
         ) : null}
         {view === "analytics" ? (
           apiMode ? (
-            <TransportAnalyticsApiPanel instituteId={instituteId} />
+            <TransportAnalyticsApiPanel
+              instituteId={instituteId}
+              writesEnabled={writesEnabled}
+              onNotify={notify}
+            />
           ) : (
             <TransportAnalyticsView snapshot={snapshot} />
           )

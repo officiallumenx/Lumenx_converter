@@ -102,3 +102,23 @@ export async function getTransportAnalytics(
     `/api/v1/transport/analytics?${query.toString()}`,
   );
 }
+
+export type TransportExportReportId =
+  | "transport"
+  | "transport-trips"
+  | "transport-attendance"
+  | "transport-emergencies";
+
+export async function exportTransportReport(
+  instituteId: string,
+  reportId: TransportExportReportId,
+): Promise<{ fileName: string; blob: Blob }> {
+  assertApiMode();
+  const { createReportJob, downloadReportJob } = await import("@/lib/reports/api");
+  const job = await createReportJob({ instituteId, reportId });
+  if (job.status !== "ready") {
+    throw new Error(job.errorMessage ?? `Export failed for ${reportId}`);
+  }
+  const { blob, fileName } = await downloadReportJob(job.id);
+  return { fileName, blob };
+}

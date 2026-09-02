@@ -492,6 +492,147 @@ describe("reports — durable jobs and download", () => {
     expect(await csvFor("attendance-daily")).toContain("attendance_pct");
   });
 
+  it("generates transport ops CSV exports", async () => {
+    const db = baseDb();
+    const routeId = "af111111-1111-4111-8111-111111111111";
+    const vehicleId = "ee111111-1111-4111-8111-111111111111";
+    const driverId = "d1111111-1111-4111-8111-111111111111";
+    const tripId = "tr111111-1111-4111-8111-111111111111";
+    db.route = [
+      {
+        id: routeId,
+        institute_id: INST_A,
+        name: "North Loop",
+        vehicle_id: vehicleId,
+        driver_id: driverId,
+        status: "active",
+        config_status: "configured",
+        locked_at: null,
+        locked_by_user_id: null,
+        setup_finished_at: null,
+        approval_status: "approved",
+        submitted_by_user_id: null,
+        reviewed_by_user_id: null,
+        reviewed_at: null,
+        rejection_reason: null,
+        created_at: "2026-08-01T00:00:00.000Z",
+        updated_at: "2026-08-01T00:00:00.000Z",
+        deleted_at: null,
+      },
+    ];
+    db.vehicle = [
+      {
+        id: vehicleId,
+        institute_id: INST_A,
+        vehicle_number: "BUS-1",
+        registration_number: "KA01AB1234",
+        capacity: 40,
+        status: "active",
+        notes: null,
+        created_at: "2026-08-01T00:00:00.000Z",
+        updated_at: "2026-08-01T00:00:00.000Z",
+        deleted_at: null,
+      },
+    ];
+    db.driver = [
+      {
+        id: driverId,
+        institute_id: INST_A,
+        user_profile_id: null,
+        display_name: "Driver A",
+        phone: "9999999999",
+        license_number: "DL-1",
+        license_expiry: null,
+        status: "active",
+        notes: null,
+        created_at: "2026-08-01T00:00:00.000Z",
+        updated_at: "2026-08-01T00:00:00.000Z",
+        deleted_at: null,
+      },
+    ];
+    db.transport_trip = [
+      {
+        id: tripId,
+        institute_id: INST_A,
+        route_id: routeId,
+        vehicle_id: vehicleId,
+        driver_id: driverId,
+        slot: "morning",
+        trip_date: "2026-08-20",
+        phase: "running",
+        started_at: "2026-08-20T06:00:00.000Z",
+        completed_at: null,
+        current_stop_id: null,
+        current_stop_index: 0,
+        finalized: false,
+        created_at: "2026-08-20T06:00:00.000Z",
+        updated_at: "2026-08-20T06:00:00.000Z",
+        deleted_at: null,
+      },
+    ];
+    db.transport_boarding_event = [
+      {
+        id: "tb111111-1111-4111-8111-111111111111",
+        institute_id: INST_A,
+        trip_id: tripId,
+        student_id: STUDENT_A,
+        stop_id: "b0111111-1111-4111-8111-111111111111",
+        boarding_status: "boarded",
+        dropping_status: "pending",
+        boarded_at: "2026-08-20T06:15:00.000Z",
+        dropped_at: null,
+        finalized: false,
+        created_at: "2026-08-20T06:15:00.000Z",
+        updated_at: "2026-08-20T06:15:00.000Z",
+      },
+    ];
+    db.transport_emergency = [
+      {
+        id: "em111111-1111-4111-8111-111111111111",
+        institute_id: INST_A,
+        trip_id: tripId,
+        driver_id: driverId,
+        vehicle_id: vehicleId,
+        emergency_type: "general",
+        status: "active",
+        latitude: 12.97,
+        longitude: 77.59,
+        note: "Flat tire",
+        acknowledged_at: null,
+        acknowledged_by_user_id: null,
+        resolved_at: null,
+        resolved_by_user_id: null,
+        resolve_note: null,
+        timeline: [],
+        created_at: "2026-08-20T06:30:00.000Z",
+        updated_at: "2026-08-20T06:30:00.000Z",
+        deleted_at: null,
+      },
+    ];
+
+    const app = appWithDb(db);
+    const headers = jsonHeaders("token-admin");
+
+    async function csvFor(reportId: string): Promise<string> {
+      const created = await app.request("/api/v1/reports/jobs", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ institute_id: INST_A, report_id: reportId }),
+      });
+      expect(created.status).toBe(201);
+      const job = (await json(created)).data;
+      expect(job.status).toBe("ready");
+      const dl = await app.request(`/api/v1/reports/jobs/${job.id}/download`, {
+        headers: auth("token-admin"),
+      });
+      return dl.text();
+    }
+
+    expect(await csvFor("transport-trips")).toContain("North Loop");
+    expect(await csvFor("transport-attendance")).toContain("boarded");
+    expect(await csvFor("transport-emergencies")).toContain("Flat tire");
+  });
+
   it("rejects unknown catalog ids and isolates institutes; validates ids", async () => {
     const db = baseDb();
     const app = appWithDb(db);

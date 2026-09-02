@@ -350,6 +350,18 @@ export async function findLatestLocationForTrip(
   return (result.data as VehicleLocationRow | null) ?? null;
 }
 
+export async function listBoardingEventsForInstitute(
+  admin: SupabaseClient,
+  instituteId: string,
+): Promise<TransportBoardingEventRow[]> {
+  const result = await admin
+    .from("transport_boarding_event")
+    .select(BOARDING_COLS)
+    .eq("institute_id", instituteId)
+    .order("created_at", { ascending: false });
+  return ensureDbOk(result) as TransportBoardingEventRow[];
+}
+
 export async function findActiveTripForStudent(
   admin: SupabaseClient,
   instituteId: string,
