@@ -14,6 +14,7 @@ import {
   LogIn,
   BriefcaseBusiness,
   Calendar,
+  Search,
   Moon,
   Sun,
 } from "lucide-react";
@@ -68,6 +69,7 @@ const RECRUITER_PRIMARY_NAV: NavItem[] = [
   { to: "/recruiter", label: "Workspace", icon: LayoutDashboard, auth: true },
   { to: "/recruiter/jobs", label: "My jobs", icon: Briefcase, auth: true },
   { to: "/recruiter/applicants", label: "Applications", icon: FolderOpen, auth: true },
+  { to: "/jobs", label: "Browse market", icon: Search, auth: true },
 ];
 
 const RECRUITER_MORE_NAV: NavItem[] = [
@@ -202,7 +204,7 @@ export function CareersShell({ children }: { children: React.ReactNode }) {
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Careers
                 </p>
-                <p className="text-sm font-bold leading-tight truncate">LumenX Connect</p>
+                <p className="text-sm font-bold leading-tight truncate">LumenX Careers</p>
               </div>
             </Link>
             <ThemeToggle />

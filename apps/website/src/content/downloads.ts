@@ -35,6 +35,7 @@ export type DownloadChannel = {
 };
 
 const CONNECT_WEB = readUrl(import.meta.env.VITE_CONNECT_ORIGIN);
+const CAREERS_WEB = readUrl(import.meta.env.VITE_CAREERS_ORIGIN) ?? CONNECT_WEB;
 
 export const DOWNLOADS: Record<ProductId, DownloadChannel> = {
   connect: {
@@ -93,14 +94,14 @@ export const DOWNLOADS: Record<ProductId, DownloadChannel> = {
     id: "careers",
     slug: "careers",
     description: PRODUCT_PAGES.careers.purpose,
-    webNote: "Connect portal. There is no separate APK or store listing.",
-    webUrl: CONNECT_WEB,
+    webNote: "Standalone Careers web app. No separate APK or store listing yet.",
+    webUrl: CAREERS_WEB,
     apkUrl: null,
     playStoreUrl: null,
     appStoreUrl: null,
     iosUrl: null,
     version: null,
-    platforms: { web: "via-connect", android: "via-connect", ios: "via-connect" },
+    platforms: { web: "web", android: "not-offered", ios: "not-offered" },
   },
   nexus: {
     id: "nexus",

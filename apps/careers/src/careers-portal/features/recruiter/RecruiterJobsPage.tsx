@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   AlertDialog,
@@ -14,6 +14,7 @@ import {
 } from "@lumenx/ui";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { SectionCard } from "@/components/app/SectionCard";
 import { JobCard } from "@/careers-portal/shared/ui/CareersShellWidgets";
 import { useCareersAuth } from "@/careers-portal/core/CareersAuthProvider";
@@ -22,9 +23,11 @@ import { getApplicationsForOrganization } from "@/lib/careers/repositories";
 import {
   countApplicantsForJob,
   deleteRecruiterJob,
-  getRecruiterJobsForOrg,
   updateRecruiterJobStatus,
 } from "@/lib/careers/recruiter-jobs-store";
+import { deleteCareerJob, updateCareerJob } from "@/lib/careers/api";
+import { useCareersJobs } from "@/hooks/use-careers-jobs";
+import { useCareersApplications } from "@/hooks/use-careers-applications";
 import type { JobPosting, RecruiterJobStatus } from "@/lib/careers/types";
 
 const STATUS_TONE: Record<RecruiterJobStatus, "default" | "secondary" | "outline"> = {
@@ -35,32 +38,62 @@ const STATUS_TONE: Record<RecruiterJobStatus, "default" | "secondary" | "outline
 
 export function RecruiterJobsPage() {
   const { user } = useCareersAuth();
-  const [refresh, setRefresh] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState<JobPosting | null>(null);
+  const { jobs, loading, reload, apiMode } = useCareersJobs({
+    recruiterScope: true,
+    openOnly: false,
+  });
+  const { applications: orgApps } = useCareersApplications({ scope: "recruiter" });
 
   const orgId = user?.organizationId ?? "";
-  const jobs = useMemo(() => (orgId ? getRecruiterJobsForOrg(orgId) : []), [orgId, refresh]);
 
   if (!user?.organizationId) return null;
 
-  const apps = getApplicationsForOrganization(orgId);
+  const apps = apiMode ? orgApps : getApplicationsForOrganization(orgId);
 
-  const setStatus = (jobId: string, status: RecruiterJobStatus) => {
+  const setStatus = async (jobId: string, status: RecruiterJobStatus) => {
+    if (apiMode) {
+      try {
+        await updateCareerJob(jobId, { status });
+        reload();
+        toast.success(`Job marked ${status}`);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Could not update job");
+      }
+      return;
+    }
     updateRecruiterJobStatus(jobId, status);
-    setRefresh((n) => n + 1);
+    reload();
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!deleteTarget) return;
+    if (isApiAuthMode()) {
+      try {
+        await deleteCareerJob(deleteTarget.id);
+        toast.success(`${deleteTarget.title} deleted`);
+        reload();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Could not delete this job");
+      }
+      setDeleteTarget(null);
+      return;
+    }
     const ok = deleteRecruiterJob(deleteTarget.id, orgId);
     if (ok) {
       toast.success(`${deleteTarget.title} deleted`);
-      setRefresh((n) => n + 1);
+      reload();
     } else {
       toast.error("Could not delete this job");
     }
     setDeleteTarget(null);
   };
+
+  if (loading) {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">Loading your job posts…</div>
+    );
+  }
 
   return (
     <div className="animate-in fade-in duration-300 space-y-6">

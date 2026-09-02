@@ -88,30 +88,29 @@ export function scoreJobForCandidate(
 export function getRecommendedJobs(
   profile: CandidateProfile | null,
   limit = 6,
-  excludeIds: string[] = [],
+  source: JobPosting[] = getJobs(),
 ): RecommendedJob[] {
-  return getJobs()
-    .filter((j) => !excludeIds.includes(j.id))
+  return source
     .map((job) => scoreJobForCandidate(job, profile))
     .filter((r) => r.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 }
 
-export function getFeaturedJobs() {
-  const featured = getJobs().filter((j) => j.featured);
+export function getFeaturedJobs(source: JobPosting[] = getJobs()) {
+  const featured = source.filter((j) => j.featured);
   if (featured.length > 0) return featured;
-  return getRecentJobs(6);
+  return getRecentJobs(6, source);
 }
 
-export function getTrendingJobs() {
-  const trending = getJobs().filter((j) => j.trending);
+export function getTrendingJobs(source: JobPosting[] = getJobs()) {
+  const trending = source.filter((j) => j.trending);
   if (trending.length > 0) return trending;
-  return getRecentJobs(6);
+  return getRecentJobs(6, source);
 }
 
-export function getRecentJobs(limit = 6) {
-  return [...getJobs()].sort((a, b) => b.postedAt.localeCompare(a.postedAt)).slice(0, limit);
+export function getRecentJobs(limit = 6, source: JobPosting[] = getJobs()) {
+  return [...source].sort((a, b) => b.postedAt.localeCompare(a.postedAt)).slice(0, limit);
 }
 
 export function getJobsByInstitute(instituteId: string) {

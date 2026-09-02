@@ -280,7 +280,7 @@ export const MODULE_SECTIONS: ModuleSection[] = [
   {
     id: "careers",
     title: "Careers",
-    lede: "Hiring and opportunity boards — job seekers and recruiters in Connect portals.",
+    lede: "Hiring and opportunity boards — job seekers and recruiters in the standalone Careers app.",
     product: "careers",
     buckets: [
       {
@@ -310,6 +310,7 @@ export const MODULE_SECTIONS: ModuleSection[] = [
           { name: "My jobs", blurb: "Jobs the institute is hiring for." },
           { name: "Applications", blurb: "Review candidates for each role." },
           { name: "Discover talent", blurb: "Find candidates beyond a single posting." },
+          { name: "Browse market", blurb: "Research open roles across the market." },
           { name: "Careers home", blurb: "Public careers landing." },
           { name: "Settings", blurb: "Recruiter account preferences." },
         ],

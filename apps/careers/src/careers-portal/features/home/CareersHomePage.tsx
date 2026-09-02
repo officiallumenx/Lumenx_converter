@@ -59,7 +59,7 @@ export function CareersHomePage() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    nav({ to: "/jobs" });
+    nav({ to: "/jobs", search: { q: keyword.trim() || undefined } });
   };
 
   return (

@@ -110,6 +110,12 @@ export function createApiClient(config: ApiClientConfig) {
       request<T>(path, { ...options, method: "GET" }),
     post: <T>(path: string, body?: unknown, options?: Omit<ApiRequestOptions, "method" | "body">) =>
       request<T>(path, { ...options, method: "POST", body }),
+    put: <T>(path: string, body?: unknown, options?: Omit<ApiRequestOptions, "method" | "body">) =>
+      request<T>(path, { ...options, method: "PUT", body }),
+    patch: <T>(path: string, body?: unknown, options?: Omit<ApiRequestOptions, "method" | "body">) =>
+      request<T>(path, { ...options, method: "PATCH", body }),
+    delete: <T>(path: string, options?: Omit<ApiRequestOptions, "method" | "body">) =>
+      request<T>(path, { ...options, method: "DELETE" }),
   };
 }
 

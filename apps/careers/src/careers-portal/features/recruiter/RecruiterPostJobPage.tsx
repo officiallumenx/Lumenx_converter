@@ -12,6 +12,7 @@ import {
   Textarea,
 } from "@lumenx/ui";
 import { toast } from "sonner";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { toLocalIsoDate } from "@lumenx/utils";
 import { useCareersAuth } from "@/careers-portal/core/CareersAuthProvider";
 import { CareersPageHeader } from "@/careers-portal/shared/ui/CareersPageHeader";
@@ -23,6 +24,9 @@ import {
   updateRecruiterJob,
   type RecruiterJobInput,
 } from "@/lib/careers/recruiter-jobs-store";
+import { createCareerJob, updateCareerJob } from "@/lib/careers/api";
+import { resolveCareersInstituteId } from "@/lib/careers/institute-context";
+import { useCareersJob } from "@/hooks/use-careers-jobs";
 import type {
   EmploymentType,
   JobCategory,
@@ -87,9 +91,34 @@ export function RecruiterPostJobPage({ editJobId }: { editJobId?: string }) {
   const [benefits, setBenefits] = useState("");
   const [publishNow, setPublishNow] = useState(true);
   const [jobStatus, setJobStatus] = useState<RecruiterJobStatus>("open");
+  const { job: apiJob, status: apiJobStatus } = useCareersJob(editJobId);
 
   useEffect(() => {
     if (!isEdit || !editJobId || !user?.organizationId) return;
+
+    if (isApiAuthMode()) {
+      if (apiJobStatus !== "ready" || !apiJob) return;
+      if (apiJob.instituteId !== user.organizationId) {
+        toast.error("Job not found or you cannot edit this listing");
+        nav({ to: "/recruiter/jobs" });
+        return;
+      }
+      const defaultLocation = `${apiJob.city}, ${apiJob.state}`;
+      setTitle(apiJob.title);
+      setDepartment(apiJob.department);
+      setCategory(apiJob.category);
+      setEmploymentType(apiJob.employmentType);
+      setWorkMode(apiJob.workMode);
+      setExperienceRequired(apiJob.experienceRequired);
+      setCity(apiJob.city);
+      setState(apiJob.state);
+      setLocationDetail(apiJob.location !== defaultLocation ? apiJob.location : "");
+      setOverview(apiJob.overview);
+      setDescription(apiJob.description ?? "");
+      setJobStatus(apiJob.recruiterJobStatus ?? "draft");
+      setReady(true);
+      return;
+    }
 
     const job = getRecruiterJobById(editJobId);
     if (!job || job.instituteId !== user.organizationId || !job.postedByRecruiterId) {
@@ -120,7 +149,7 @@ export function RecruiterPostJobPage({ editJobId }: { editJobId?: string }) {
     setBenefits(listToLines(job.benefits));
     setJobStatus(job.recruiterJobStatus ?? "draft");
     setReady(true);
-  }, [isEdit, editJobId, user?.organizationId, nav]);
+  }, [isEdit, editJobId, user?.organizationId, nav, apiJob, apiJobStatus]);
 
   if (!user?.organizationId) return null;
   const organizationId = user.organizationId;
@@ -128,7 +157,7 @@ export function RecruiterPostJobPage({ editJobId }: { editJobId?: string }) {
 
   const selectedExperience = JOB_EXPERIENCE_OPTIONS.find((o) => o.value === experienceRequired);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (
       !title.trim() ||
@@ -177,6 +206,49 @@ export function RecruiterPostJobPage({ editJobId }: { editJobId?: string }) {
       location: locationDetail || undefined,
       jobStatus: isEdit ? jobStatus : publishNow ? "open" : "draft",
     };
+
+    if (isApiAuthMode()) {
+      const instituteId = resolveCareersInstituteId(user) ?? organizationId;
+      const locationLabel = [city.trim(), state.trim()].filter(Boolean).join(", ");
+      const fullDescription = [
+        overview.trim(),
+        description.trim(),
+        linesToList(responsibilities).map((line) => `- ${line}`).join("\n"),
+        linesToList(qualifications).map((line) => `- ${line}`).join("\n"),
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+      try {
+        if (isEdit && editJobId) {
+          await updateCareerJob(editJobId, {
+            title: title.trim(),
+            description: fullDescription,
+            category: department.trim() || category,
+            employmentType,
+            workMode,
+            locationLabel: locationLabel || null,
+            status: jobStatus,
+          });
+          toast.success("Job updated");
+          return;
+        }
+        await createCareerJob({
+          instituteId,
+          title: title.trim(),
+          description: fullDescription,
+          category: department.trim() || category,
+          employmentType,
+          workMode,
+          locationLabel: locationLabel || null,
+          openNow: publishNow,
+        });
+        toast.success(publishNow ? "Job published" : "Draft saved");
+        nav({ to: "/recruiter/jobs" });
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Could not save job");
+      }
+      return;
+    }
 
     if (isEdit && editJobId) {
       const updated = updateRecruiterJob(editJobId, organizationId, input);

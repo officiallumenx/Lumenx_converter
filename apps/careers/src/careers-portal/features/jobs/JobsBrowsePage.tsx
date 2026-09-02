@@ -22,7 +22,7 @@ import {
   saveJobsScroll,
   type ExperienceBand,
 } from "@/lib/careers/jobs-data";
-import { filterAllJobs, getJobs } from "@/lib/careers/repositories";
+import { filterAllJobs } from "@/lib/careers/repositories";
 import {
   getFeaturedJobs,
   getTrendingJobs,
@@ -31,11 +31,13 @@ import {
 } from "@/lib/careers/recommendations";
 import { getCandidateProfile } from "@/lib/careers/profile-repository";
 import type { JobCategory } from "@/lib/careers/types";
+import { useCareersJobs } from "@/hooks/use-careers-jobs";
 
-export function JobsBrowsePage() {
+export function JobsBrowsePage({ initialQuery = "" }: { initialQuery?: string }) {
   const { user } = useCareersAuth();
   const recruiter = isRecruiter(user);
-  const [q, setQ] = useState("");
+  const { jobs: allJobs, loading, status, errorMessage } = useCareersJobs();
+  const [q, setQ] = useState(initialQuery);
   const [state, setState] = useState("all");
   const [city, setCity] = useState("all");
   const [category, setCategory] = useState<JobCategory | "all">("all");
@@ -48,15 +50,17 @@ export function JobsBrowsePage() {
   const restored = useRef(false);
 
   const profile = user && !recruiter ? getCandidateProfile(user.id) : null;
-  const allJobs = useMemo(() => getJobs(), []);
-  const featured = useMemo(() => getFeaturedJobs(), [allJobs.length]);
-  const trending = useMemo(() => getTrendingJobs(), [allJobs.length]);
-  const recent = useMemo(() => getRecentJobs(4), [allJobs.length]);
-  const recommended = useMemo(() => (profile ? getRecommendedJobs(profile, 3) : []), [profile]);
+  const featured = useMemo(() => getFeaturedJobs(allJobs), [allJobs]);
+  const trending = useMemo(() => getTrendingJobs(allJobs), [allJobs]);
+  const recent = useMemo(() => getRecentJobs(4, allJobs), [allJobs]);
+  const recommended = useMemo(
+    () => (profile ? getRecommendedJobs(profile, 3, allJobs) : []),
+    [profile, allJobs],
+  );
 
   const jobs = useMemo(
-    () => filterAllJobs({ q, state, city, category, employmentType, workMode, experience, sort }),
-    [q, state, city, category, employmentType, workMode, experience, sort],
+    () => filterAllJobs({ q, state, city, category, employmentType, workMode, experience, sort }, allJobs),
+    [q, state, city, category, employmentType, workMode, experience, sort, allJobs],
   );
 
   const hasFilters =
@@ -67,6 +71,10 @@ export function JobsBrowsePage() {
     employmentType !== "all" ||
     workMode !== "all" ||
     experience !== "all";
+
+  useEffect(() => {
+    setQ(initialQuery);
+  }, [initialQuery]);
 
   useEffect(() => {
     setShowSections(!hasFilters);
@@ -88,6 +96,30 @@ export function JobsBrowsePage() {
   }, []);
 
   const cardProps = recruiter ? { browseMarket: true as const } : {};
+
+  if (loading) {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">Loading jobs…</div>
+    );
+  }
+
+  if (status === "needs_institute") {
+    return (
+      <div className="py-12 text-center space-y-2">
+        <p className="text-sm text-muted-foreground">
+          Sign in with an institute membership to browse live job listings.
+        </p>
+      </div>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <div className="py-12 text-center space-y-2">
+        <p className="text-sm text-destructive">{errorMessage ?? "Could not load jobs."}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)] lg:h-[calc(100vh-4rem)] min-h-0">

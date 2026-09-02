@@ -6,11 +6,28 @@ import { SaveJobButton } from "@/careers-portal/shared/ui/CareersShellWidgets";
 import { useCareersAuth } from "@/careers-portal/core/CareersAuthProvider";
 import { toast } from "sonner";
 import { JOB_CATEGORY_LABEL } from "@/lib/careers/jobs-data";
-import { getJobById } from "@/lib/careers/repositories";
+import { useCareersJob } from "@/hooks/use-careers-jobs";
 
 export function JobDetailPage({ jobId }: { jobId: string }) {
   const { user } = useCareersAuth();
-  const job = getJobById(jobId);
+  const { job, status, errorMessage } = useCareersJob(jobId);
+
+  if (status === "loading") {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">Loading job…</div>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <div className="text-center py-12">
+        <p className="text-destructive">{errorMessage ?? "Could not load job."}</p>
+        <Button className="mt-4" asChild>
+          <Link to="/jobs">Browse jobs</Link>
+        </Button>
+      </div>
+    );
+  }
 
   if (!job) {
     return (

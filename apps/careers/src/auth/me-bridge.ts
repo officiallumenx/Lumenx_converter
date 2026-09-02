@@ -36,6 +36,12 @@ function isActiveRecruiterMembership(m: MeInstituteMembership): boolean {
   return m.roles.some((role) => CAREERS_RECRUITER_ROLE_CODES.has(role));
 }
 
+function pickFirstActiveMembership(
+  institutes: MeInstituteMembership[],
+): MeInstituteMembership | null {
+  return institutes.find((m) => ACTIVE_MEMBERSHIP.has(m.status)) ?? null;
+}
+
 export function pickRecruiterMembership(
   institutes: MeInstituteMembership[],
   preferredInstituteId?: string | null,
@@ -69,6 +75,8 @@ export function careersUserFromMe(
     accountType === "recruiter"
       ? pickRecruiterMembership(me.institutes, options.preferredInstituteId)
       : null;
+  const activeMembership =
+    recruiterMembership ?? pickFirstActiveMembership(me.institutes);
 
   return {
     id: me.user.id,
@@ -87,7 +95,7 @@ export function careersUserFromMe(
       accountType === "recruiter"
         ? (options.organizationType ?? "education")
         : undefined,
-    activeInstituteId: recruiterMembership?.instituteId,
+    activeInstituteId: activeMembership?.instituteId,
     profileComplete: accountType === "recruiter" ? 100 : 25,
     emailVerified: me.profile.status === "active",
     phoneVerified: Boolean(options.phone),

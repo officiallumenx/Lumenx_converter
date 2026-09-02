@@ -18,7 +18,7 @@ import {
 import { Briefcase, CheckCircle2, FileText, MapPin, User } from "lucide-react";
 
 import { toast } from "sonner";
-
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { useCareersAuth } from "@/careers-portal/core/CareersAuthProvider";
 
 import { DocumentUploadCard } from "@/careers-portal/shared/ui/CareersShellWidgets";
@@ -35,7 +35,11 @@ import {
 
 import type { ApplicationDraft, CareerDocumentType } from "@/lib/careers/types";
 
-import { clearDraft, getJobById, getJobs, submitApplication } from "@/lib/careers/repositories";
+import { clearDraft, submitApplication } from "@/lib/careers/repositories";
+import { createCareerApplication } from "@/lib/careers/api";
+import { resolveCareersInstituteId } from "@/lib/careers/institute-context";
+import { useCareersJobs } from "@/hooks/use-careers-jobs";
+import { useCareersJob } from "@/hooks/use-careers-jobs";
 
 import { getCandidateProfile } from "@/lib/careers/profile-repository";
 
@@ -63,15 +67,13 @@ export function ApplyWizardPage({ jobId }: { jobId?: string }) {
   const [coverLetter, setCoverLetter] = useState("");
 
   const [submittedId, setSubmittedId] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const jobs = getJobs();
-
+  const { jobs } = useCareersJobs();
   const activeJobId = jobId ?? pickedJobId;
-
-  const selectedJob = useMemo(
-    () => (activeJobId ? getJobById(activeJobId) : undefined),
-    [activeJobId],
-  );
+  const { job: apiSelectedJob } = useCareersJob(activeJobId || undefined);
+  const selectedJob =
+    apiSelectedJob ?? jobs.find((job) => job.id === activeJobId);
 
   const profile = user ? getCandidateProfile(user.id) : null;
 
@@ -103,7 +105,7 @@ export function ApplyWizardPage({ jobId }: { jobId?: string }) {
   const update = (patch: Partial<ApplicationDraft>) =>
     setDraft((d) => (d ? { ...d, ...patch } : d));
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!user || !draft || !selectedJob || !activeJobId) return;
 
     if (missing.length > 0) {
@@ -120,7 +122,41 @@ export function ApplyWizardPage({ jobId }: { jobId?: string }) {
       return;
     }
 
-    const docTypes: CareerDocumentType[] = [
+    setSubmitting(true);
+    try {
+      const salary = extras.expectedSalary?.trim() || draft.professional?.expectedSalary || "—";
+      const payload = {
+        name: draft.personal?.name ?? user.name,
+        email: draft.personal?.email ?? user.email ?? "",
+        mobile: draft.personal?.mobile ?? user.phone ?? "",
+        jobTitle: selectedJob.title,
+        instituteName: selectedJob.instituteName,
+        city: draft.address?.city ?? profile?.city ?? "—",
+        state: draft.address?.state ?? profile?.state ?? "—",
+        coverLetter: coverLetter.trim() || undefined,
+        extras,
+      };
+
+      if (isApiAuthMode()) {
+        const instituteId = resolveCareersInstituteId(user) ?? selectedJob.instituteId;
+        if (!instituteId) {
+          toast.error("Institute context is required to submit in API mode.");
+          return;
+        }
+        const created = await createCareerApplication({
+          instituteId,
+          jobId: activeJobId,
+          coverLetter: coverLetter.trim() || null,
+          payload,
+          submitNow: true,
+        });
+        clearDraft(user.id);
+        setSubmittedId(created.id);
+        toast.success("Application submitted");
+        return;
+      }
+
+      const docTypes: CareerDocumentType[] = [
       "resume",
       "certificates",
       "experience_letters",
@@ -131,24 +167,15 @@ export function ApplyWizardPage({ jobId }: { jobId?: string }) {
     ];
 
     const docs = docTypes
-
       .filter((type) => draft.documents?.[type])
-
       .map((type) => ({
         id: `doc-${type}`,
-
         type,
-
         label: type.replace(/_/g, " "),
-
         fileName: draft.documents![type]!.fileName,
-
         status: "uploaded" as const,
-
         uploadedAt: new Date().toISOString().slice(0, 10),
       }));
-
-    const salary = extras.expectedSalary?.trim() || draft.professional?.expectedSalary || "—";
 
     const app = submitApplication(user.id, {
       jobId: activeJobId,
@@ -217,8 +244,10 @@ export function ApplyWizardPage({ jobId }: { jobId?: string }) {
     });
 
     setSubmittedId(app.id);
-
     toast.success("Application submitted!");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (submittedId) {

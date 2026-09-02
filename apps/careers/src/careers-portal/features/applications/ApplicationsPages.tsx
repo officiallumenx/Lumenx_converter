@@ -9,8 +9,8 @@ import {
   DemoClassCard,
 } from "@/careers-portal/shared/ui/v2/CareersV2Widgets";
 import { useCareersAuth } from "@/careers-portal/core/CareersAuthProvider";
-import { getApplicationById, getApplicationsForUser } from "@/lib/careers/repositories";
 import { getInstituteProfile } from "@/lib/careers/institute-profiles";
+import { useCareersApplication, useCareersApplications } from "@/hooks/use-careers-applications";
 import {
   getStatusProgress,
   interviewModeLabel,
@@ -20,7 +20,23 @@ import {
 
 export function ApplicationsListPage() {
   const { user } = useCareersAuth();
-  const apps = user ? getApplicationsForUser(user.id) : [];
+  const { applications: apps, loading, status, errorMessage } = useCareersApplications({
+    scope: "candidate",
+  });
+
+  if (loading) {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">Loading applications…</div>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <div className="py-12 text-center text-sm text-destructive">
+        {errorMessage ?? "Could not load applications."}
+      </div>
+    );
+  }
 
   return (
     <div className="animate-in fade-in duration-300">
@@ -70,8 +86,25 @@ export function ApplicationsListPage() {
 }
 
 export function ApplicationDetailPage({ applicationId }: { applicationId: string }) {
-  const app = getApplicationById(applicationId);
+  const { application: app, status, errorMessage } = useCareersApplication(applicationId);
   const institute = app?.instituteId ? getInstituteProfile(app.instituteId) : undefined;
+
+  if (status === "loading") {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">Loading application…</div>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <div className="text-center py-12">
+        <p className="text-destructive">{errorMessage ?? "Could not load application."}</p>
+        <Button className="mt-4" asChild>
+          <Link to="/applications">Back to list</Link>
+        </Button>
+      </div>
+    );
+  }
 
   if (!app) {
     return (

@@ -453,11 +453,11 @@ export const PRODUCT_PAGES: Record<ProductId, ProductPageContent> = {
       "Careers helps institutes hire — jobs, applications, profiles, and interviews in one place. Admin turns an approved hire into a teacher. It is not the teacher classroom app.",
     replaces: "Side-channel job posts and CV inboxes",
     doesNotReplace: "Teacher records and class assignment in Admin",
-    delivery: "connect-portal",
-    deliveryNote: "Connect portal. There is no separate APK or store URL.",
+    delivery: "app",
+    deliveryNote: "Standalone Careers web app. Connect links here; there is no separate store listing yet.",
     device: "tablet",
     android: false,
-    demoProduct: "connect",
+    demoProduct: "careers",
     capabilities: [
       { title: "Jobs", body: "Openings the institute publishes. Candidates browse, save, and apply." },
       { title: "Applications", body: "A pipeline the recruiter and the office can see — including waitlist and approval stages." },
@@ -495,7 +495,7 @@ export const PRODUCT_PAGES: Record<ProductId, ProductPageContent> = {
       },
     ],
     connections: [
-      { product: "connect", body: "Careers is a Connect portal with its own shell — not mixed into parent or student nav." },
+      { product: "connect", body: "Connect can link to the Careers portal for hiring — separate from parent or student navigation." },
       { product: "admin", body: "Admin converts approved hires to teachers. It does not replace the recruiter workspace." },
       { product: "nexus", body: "Nexus enables Careers per institute. It does not screen candidates." },
     ],
@@ -511,7 +511,7 @@ export const PRODUCT_PAGES: Record<ProductId, ProductPageContent> = {
     ],
     getStarted: {
       title: "Hire into the same institute directory.",
-      body: "Careers is enabled per institute and opens as a Connect portal. Start a trial, then turn the module on.",
+      body: "Careers is enabled per institute and opens as the standalone Careers app. Start a trial, then turn the module on.",
     },
   },
   nexus: {

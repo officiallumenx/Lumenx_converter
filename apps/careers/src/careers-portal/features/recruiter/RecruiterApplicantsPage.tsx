@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { CareersPageHeader } from "@/careers-portal/shared/ui/CareersPageHeader";
 import { RecruiterApplicationDossier } from "@/careers-portal/features/recruiter/RecruiterApplicationDossier";
 import { useCareersAuth } from "@/careers-portal/core/CareersAuthProvider";
@@ -30,12 +31,13 @@ import {
   type AdminCareerStage,
 } from "@/lib/careers/admin-bridge";
 import {
-  getRecruiterJobsForOrg,
-} from "@/lib/careers/recruiter-jobs-store";
-import {
   getApplicationsForOrganization,
   updateApplicationStatusByRecruiter,
 } from "@/lib/careers/repositories";
+import { transitionCareerApplication } from "@/lib/careers/api";
+import { getRecruiterJobsForOrg } from "@/lib/careers/recruiter-jobs-store";
+import { useCareersApplications } from "@/hooks/use-careers-applications";
+import { useCareersJobs } from "@/hooks/use-careers-jobs";
 import type { JobApplication, JobPosting } from "@/lib/careers/types";
 
 /** Careers pipeline — includes Interview (Admissions does not). */
@@ -87,24 +89,38 @@ function countAppsForJob(apps: JobApplication[], jobId: string): number {
 export function RecruiterApplicantsPage() {
   const { user } = useCareersAuth();
   const orgId = user?.organizationId ?? "";
+  const apiMode = isApiAuthMode();
   const [tick, setTick] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  /** `null` = all applications; otherwise filter by job id */
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const {
+    applications: apiApps,
+    loading,
+    reload: reloadApps,
+  } = useCareersApplications({ scope: "recruiter" });
+  const { jobs: apiRoles } = useCareersJobs({
+    recruiterScope: true,
+    openOnly: false,
+  });
 
   const apps = useMemo(() => {
+    if (apiMode) {
+      const myJobIds = new Set(apiRoles.map((j) => j.id));
+      return apiApps.filter((a) => myJobIds.has(a.jobId));
+    }
     void tick;
     if (!orgId) return [];
     const myJobIds = new Set(getRecruiterJobsForOrg(orgId).map((j) => j.id));
     return getApplicationsForOrganization(orgId).filter((a) => myJobIds.has(a.jobId));
-  }, [orgId, tick]);
+  }, [apiMode, apiApps, apiRoles, orgId, tick]);
 
   const roles = useMemo(() => {
+    if (apiMode) return [...apiRoles].sort((a, b) => a.title.localeCompare(b.title));
     void tick;
     return orgId
       ? getRecruiterJobsForOrg(orgId).sort((a, b) => a.title.localeCompare(b.title))
       : [];
-  }, [orgId, tick]);
+  }, [apiMode, apiRoles, orgId, tick]);
 
   const filteredApps = useMemo(() => {
     if (!selectedJobId) return apps;
@@ -132,7 +148,20 @@ export function RecruiterApplicantsPage() {
   const canReject =
     Boolean(selected) && selectedStage !== "rejected" && selectedStage !== "approved";
 
-  const moveToStage = (id: string, stage: BoardStage, message: string) => {
+  const moveToStage = async (id: string, stage: BoardStage, message: string) => {
+    if (apiMode) {
+      try {
+        await transitionCareerApplication(id, {
+          status: STAGE_TO_STATUS[stage],
+          decisionNote: message,
+        });
+        reloadApps();
+        toast.success(message);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Could not update application");
+      }
+      return;
+    }
     updateApplicationStatusByRecruiter(id, STAGE_TO_STATUS[stage], message);
     setTick((t) => t + 1);
     toast.success(message);
@@ -143,6 +172,12 @@ export function RecruiterApplicantsPage() {
       <div className="py-12 text-center text-sm text-muted-foreground">
         Recruiter access required.
       </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">Loading applications…</div>
     );
   }
 

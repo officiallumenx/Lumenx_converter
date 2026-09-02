@@ -35,7 +35,6 @@ import {
   uploadDocument,
 } from "@/lib/careers/repositories";
 import { documentStatusLabel } from "@/lib/careers/status-utils";
-import { isApiAuthMode } from "@/auth/auth-mode";
 import { useCareersApiInbox } from "@/hooks/use-careers-api-inbox";
 import { formatCareersNotificationTime } from "@/lib/notification-inbox";
 
