@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { SectionCard } from "@/components/app/SectionCard";
@@ -9,6 +9,9 @@ import {
 } from "@/components/app/attendance/AttendanceDatePicker";
 import { Button, cn, Badge } from "@lumenx/ui";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@lumenx/ui";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { useApp } from "@/lib/app-state";
+import { loadInstituteHolidays } from "@/lib/events";
 import {
   buildAttendanceDays,
   buildLearnerAttendanceDays,
@@ -25,7 +28,7 @@ import {
   normalizeIsoRange,
   shiftMonth,
 } from "@/lib/attendance/calendar";
-import type { AttendanceDay, AttendanceDayStatus } from "@/lib/attendance/types";
+import type { AttendanceDay, AttendanceDayStatus, InstituteHoliday } from "@/lib/attendance/types";
 
 type AttendanceOverviewProps = {
   title?: string;
@@ -54,6 +57,25 @@ export function AttendanceOverview({
   const [month, setMonth] = useState(initialMonth ?? now.getMonth());
   const [rangeStart, setRangeStart] = useState("");
   const [rangeEnd, setRangeEnd] = useState("");
+  const { activeInstituteId } = useApp();
+  const [apiHolidays, setApiHolidays] = useState<InstituteHoliday[] | null>(null);
+
+  useEffect(() => {
+    if (!isApiAuthMode()) {
+      setApiHolidays(null);
+      return;
+    }
+    let cancelled = false;
+    void loadInstituteHolidays({ instituteId: activeInstituteId }).then((items) => {
+      if (cancelled) return;
+      setApiHolidays(items.length > 0 ? items : []);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeInstituteId]);
+
+  const holidayList = isApiAuthMode() && apiHolidays !== null ? apiHolidays : undefined;
 
   const historyBounds = useMemo(() => attendanceHistoryBounds(12), []);
   const days = useMemo(() => {
@@ -63,10 +85,11 @@ export function AttendanceOverview({
         month,
         studentId,
         sectionKey,
+        holidays: holidayList,
       });
     }
-    return buildAttendanceDays(year, month);
-  }, [year, month, studentId, sectionKey]);
+    return buildAttendanceDays(year, month, holidayList);
+  }, [year, month, studentId, sectionKey, holidayList]);
   const leadingBlanks = calendarLeadingBlanks(year, month);
   const selectableMonths = useMemo(() => listSelectableMonths(12), []);
 
@@ -91,6 +114,7 @@ export function AttendanceOverview({
             month: m,
             studentId,
             sectionKey,
+            holidays: holidayList,
           });
           const hit = monthDays.find((d) => d.day === day);
           if (hit) scoped.push(hit);
@@ -98,19 +122,19 @@ export function AttendanceOverview({
         }
         return computeAttendanceSummary(scoped, year, month, dayRange);
       }
-      return computeAttendanceSummaryForRange(dayRange.startIso, dayRange.endIso);
+      return computeAttendanceSummaryForRange(dayRange.startIso, dayRange.endIso, holidayList);
     }
     return computeAttendanceSummary(days, year, month);
-  }, [dayRange, days, year, month, studentId, sectionKey]);
+  }, [dayRange, days, year, month, studentId, sectionKey, holidayList]);
 
   const monthHolidays = useMemo(() => {
     if (dayRange) {
-      return holidaysInRange(dayRange.startIso, dayRange.endIso).filter((h) =>
+      return holidaysInRange(dayRange.startIso, dayRange.endIso, holidayList).filter((h) =>
         h.date.startsWith(`${year}-${String(month + 1).padStart(2, "0")}-`),
       );
     }
-    return holidaysInMonth(year, month);
-  }, [year, month, dayRange]);
+    return holidaysInMonth(year, month, holidayList);
+  }, [year, month, dayRange, holidayList]);
 
   const today = now.getDate();
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();

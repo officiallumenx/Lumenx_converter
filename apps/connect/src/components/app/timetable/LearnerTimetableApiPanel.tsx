@@ -1,15 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { AppShell } from "@/components/app/AppShell";
+import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { TimetableDayPicker } from "@/components/app/timetable/TimetableDayPicker";
-import { LearnerTimetableApiPanel } from "@/components/app/timetable/LearnerTimetableApiPanel";
 import { buildStudentPeriodRows, PeriodTimeline } from "@/components/app/timetable/PeriodTimeline";
 import { useApp } from "@/lib/app-state";
-import { isApiAuthMode } from "@/auth/auth-mode";
-import { useParentPortal } from "@/context/ParentPortalContext";
-import { useStudentPortal } from "@/context/StudentPortalContext";
-import { days, studentTimetable } from "@/lib/mock-data";
+import { loadLearnerTimetable } from "@/lib/timetable";
 import {
   getCurrentAndNextPeriod,
   getDefaultTimetableDay,
@@ -17,81 +11,57 @@ import {
   splitPeriodTime,
   subjectStyle,
 } from "@/lib/student/timetable-utils";
-import { TeacherTimetablePage } from "@/teacher-portal";
 import { Badge, cn } from "@lumenx/ui";
 import { Clock, User } from "lucide-react";
 
-export const Route = createFileRoute("/timetable")({
-  head: () => ({ meta: [{ title: "Timetable — LumenX Connect" }] }),
-  component: () => (
-    <AppShell>
-      <TimetablePage />
-    </AppShell>
-  ),
-});
-
-function TimetablePage() {
-  const { role } = useApp();
-  if (role === "teacher") return <TeacherTimetablePage />;
-  return <LearnerTimetablePage />;
-}
-
-function LearnerTimetablePage() {
-  const parentPortal = useParentPortal();
-  const studentPortal = useStudentPortal();
-  const { role } = useApp();
-
-  const parentSnap = role === "parent" && parentPortal.isParent ? parentPortal.snapshot : null;
-  const studentSnap = role === "student" && studentPortal.isStudent ? studentPortal.snapshot : null;
-
-  const apiStudentId = parentSnap?.child.id ?? studentSnap?.profile.id ?? null;
-  const subtitle = parentSnap
-    ? `${parentSnap.child.name} · ${parentSnap.classTag}`
-    : studentSnap
-      ? `${studentSnap.profile.name} · ${studentSnap.profile.class} ${studentSnap.profile.section}`
-      : "Your weekly schedule at a glance";
-
-  if (isApiAuthMode() && apiStudentId) {
-    return <LearnerTimetableApiPanel studentId={apiStudentId} subtitle={subtitle} />;
-  }
-
-  return (
-    <DemoLearnerTimetablePage
-      parentSnap={parentSnap}
-      studentSnap={studentSnap}
-      subtitle={subtitle}
-    />
-  );
-}
-
-function DemoLearnerTimetablePage({
-  parentSnap,
-  studentSnap,
-  subtitle,
-}: {
-  parentSnap: ReturnType<typeof useParentPortal>["snapshot"];
-  studentSnap: ReturnType<typeof useStudentPortal>["snapshot"];
+type LearnerTimetableApiPanelProps = {
+  studentId: string;
   subtitle: string;
-}) {
-  const data = useMemo(() => {
-    if (parentSnap) return parentSnap.timetable;
-    if (studentSnap) return studentSnap.timetable;
-    return studentTimetable;
-  }, [parentSnap, studentSnap]);
+};
 
+export function LearnerTimetableApiPanel({ studentId, subtitle }: LearnerTimetableApiPanelProps) {
+  const { activeInstituteId } = useApp();
+  const [status, setStatus] = useState<string>("loading");
+  const [error, setError] = useState<string | null>(null);
+  const [schedule, setSchedule] = useState<
+    Record<string, Array<{ time: string; subject: string; teacher: string }>>
+  >({});
+  const [weekdays, setWeekdays] = useState<string[]>([]);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    setStatus("loading");
+    void loadLearnerTimetable({ instituteId: activeInstituteId, studentId }).then((result) => {
+      if (cancelled) return;
+      setSchedule(result.schedule);
+      setWeekdays(result.weekdays);
+      setStatus(result.status);
+      setError(result.errorMessage);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeInstituteId, studentId, reloadKey]);
+
+  const days = weekdays.length > 0 ? weekdays : Object.keys(schedule);
   const todayName = getTodayDayName();
-  const [day, setDay] = useState(() => getDefaultTimetableDay(days));
-  // Only "today" when the real weekday is an actual school day (avoids flagging Monday as
-  // today on a Sunday, when there are no classes).
+  const [day, setDay] = useState(() => getDefaultTimetableDay(days.length ? days : ["Monday"]));
   const isToday = day === todayName && days.includes(todayName);
+
+  useEffect(() => {
+    if (days.length > 0) {
+      setDay((current) => (days.includes(current) ? current : getDefaultTimetableDay(days)));
+    }
+  }, [days]);
 
   const periodCounts = useMemo(
     () =>
-      Object.fromEntries(days.map((d) => [d, (data[d] ?? []).length])) as Record<string, number>,
-    [data],
+      Object.fromEntries(days.map((d) => [d, (schedule[d] ?? []).length])) as Record<string, number>,
+    [days, schedule],
   );
 
-  const dayPeriods = (data[day] ?? []) as { time: string; subject: string; teacher: string }[];
+  const dayPeriods = schedule[day] ?? [];
 
   const { current, next } = useMemo(
     () => (isToday ? getCurrentAndNextPeriod(dayPeriods) : { current: null, next: null }),
@@ -102,6 +72,45 @@ function DemoLearnerTimetablePage({
     () => buildStudentPeriodRows(dayPeriods, { isToday, current, next }),
     [dayPeriods, isToday, current, next],
   );
+
+  if (status === "loading") {
+    return (
+      <div className="min-w-0 max-w-full space-y-4">
+        <PageHeader title="Timetable" subtitle={subtitle} />
+        <p className="text-sm text-muted-foreground px-1">Loading timetable…</p>
+      </div>
+    );
+  }
+
+  if (status === "needs_institute") {
+    return (
+      <div className="min-w-0 max-w-full space-y-4">
+        <PageHeader title="Timetable" subtitle={subtitle} />
+        <p className="text-sm text-muted-foreground px-1">Select an institute to view timetable.</p>
+      </div>
+    );
+  }
+
+  if (status === "forbidden" || status === "error") {
+    return (
+      <div className="min-w-0 max-w-full space-y-4">
+        <PageHeader
+          title="Timetable"
+          subtitle={subtitle}
+          action={
+            <button
+              type="button"
+              className="text-sm text-primary underline"
+              onClick={() => setReloadKey((k) => k + 1)}
+            >
+              Retry
+            </button>
+          }
+        />
+        <p className="text-sm text-destructive px-1">{error ?? "Failed to load timetable."}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-w-0 max-w-full space-y-4">
@@ -144,7 +153,9 @@ function DemoLearnerTimetablePage({
 
         <PeriodTimeline
           periods={periodRows}
-          emptyMessage={`No classes on ${day}.`}
+          emptyMessage={
+            status === "empty" ? "No timetable published yet." : `No classes on ${day}.`
+          }
           showPastMuted={isToday}
         />
       </section>

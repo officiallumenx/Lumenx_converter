@@ -23,6 +23,7 @@ const TEACHER_B = "bb222222-2222-4222-8222-222222222222";
 const SECTION_A = "cc111111-1111-4111-8111-111111111111";
 const SECTION_B = "cc222222-2222-4222-8222-222222222222";
 const SUBJECT_A = "dd111111-1111-4111-8111-111111111111";
+const SUBJECT_B = "dd222222-2222-4222-8222-222222222222";
 const YEAR_A = "ee111111-1111-4111-8111-111111111111";
 const YEAR_B = "ee222222-2222-4222-8222-222222222222";
 const CLASS_A = "ff111111-1111-4111-8111-111111111111";
@@ -114,6 +115,28 @@ function baseDb(): MockDb {
       status: "active",
       deleted_at: null,
     },
+  ];
+  db.academic_year = [
+    { id: YEAR_A, institute_id: INST_A, deleted_at: null },
+    { id: YEAR_B, institute_id: INST_B, deleted_at: null },
+  ];
+  db.class = [
+    {
+      id: CLASS_A,
+      institute_id: INST_A,
+      academic_year_id: YEAR_A,
+      deleted_at: null,
+    },
+    {
+      id: CLASS_B,
+      institute_id: INST_B,
+      academic_year_id: YEAR_B,
+      deleted_at: null,
+    },
+  ];
+  db.subject = [
+    { id: SUBJECT_A, institute_id: INST_A, deleted_at: null },
+    { id: SUBJECT_B, institute_id: INST_A, deleted_at: null },
   ];
   db.section = [
     {
@@ -320,6 +343,45 @@ describe("timetable — read authorization", () => {
     expect(body.data[0].sectionId).toBe(SECTION_A);
     expect(body.data[0].teacherId).toBe(TEACHER_A);
   });
+
+  it("allows staff to create a teacher assignment", async () => {
+    const app = appWithDb(baseDb());
+    const res = await app.request("/api/v1/timetable/assignments", {
+      method: "POST",
+      headers: { ...auth("token-admin"), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        academic_year_id: YEAR_A,
+        class_id: CLASS_A,
+        section_id: SECTION_A,
+        subject_id: SUBJECT_B,
+        teacher_id: TEACHER_A,
+      }),
+    });
+    expect(res.status).toBe(201);
+    const body = await json(res);
+    expect(body.data.sectionId).toBe(SECTION_A);
+    expect(body.data.subjectId).toBe(SUBJECT_B);
+    expect(body.data.teacherId).toBe(TEACHER_A);
+  });
+
+  it("forbids teacher from creating assignments", async () => {
+    const app = appWithDb(baseDb());
+    const res = await app.request("/api/v1/timetable/assignments", {
+      method: "POST",
+      headers: { ...auth("token-teacher"), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        academic_year_id: YEAR_A,
+        class_id: CLASS_A,
+        section_id: SECTION_A,
+        subject_id: SUBJECT_B,
+        teacher_id: TEACHER_A,
+      }),
+    });
+    expect(res.status).toBe(403);
+    expect((await json(res)).error.code).toBe("FORBIDDEN");
+  });
 });
 
 describe("timetable — write authorization", () => {
@@ -490,6 +552,20 @@ describe("timetable — database error mapping", () => {
     const body = await json(res);
     expect(body.error.code).toBe("INTERNAL_ERROR");
     expect(JSON.stringify(body)).not.toMatch(/postgresql:\/\//i);
+  });
+});
+
+describe("timetable — portal routes", () => {
+  it("returns teacher portal timetable for signed-in teacher", async () => {
+    const app = appWithDb(baseDb());
+    const res = await app.request(
+      `/api/v1/timetable/portal/teacher?institute_id=${INST_A}`,
+      { headers: auth("token-teacher") },
+    );
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(body.data.periods.length).toBeGreaterThan(0);
+    expect(body.data.weekdays.length).toBeGreaterThan(0);
   });
 });
 

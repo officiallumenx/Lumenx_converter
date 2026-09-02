@@ -36,6 +36,8 @@ import {
 } from "@lumenx/ui";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@lumenx/ui";
 import { useApp } from "@/lib/app-state";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { LearnerEventsApiPanel } from "@/components/app/events/LearnerEventsApiPanel";
 import { cn } from "@lumenx/ui";
 import { toast } from "sonner";
 import type { SchoolEvent } from "@lumenx/types";
@@ -276,6 +278,7 @@ function EventsPage() {
   );
 
   if (role === "teacher") return <TeacherEventsPage />;
+  if (isApiAuthMode()) return <LearnerEventsApiPanel />;
 
   const upcoming = list.filter((e) => new Date(e.date) >= startOfDay(today));
   const past = list.filter((e) => new Date(e.date) < startOfDay(today));

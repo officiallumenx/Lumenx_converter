@@ -1,6 +1,7 @@
 import {
   Bell,
   Bus,
+  CalendarDays,
   CircleHelp,
   ClipboardCheck,
   Grid2X2,
@@ -26,6 +27,7 @@ export const ROUTES = {
   profile: "/more/profile",
   settings: "/more/settings",
   support: "/more/support",
+  schoolCalendar: "/more/calendar",
 } as const;
 
 export type AppRoutePath = (typeof ROUTES)[keyof typeof ROUTES];
@@ -95,6 +97,14 @@ export const MORE_NAV: MoreNavItem[] = [
     path: ROUTES.routeSetup,
     icon: MapPinned,
     moduleColor: MODULE_COLORS.transport,
+  },
+  {
+    id: "school-calendar",
+    label: "School Calendar",
+    description: "Institute events, holidays, and notices",
+    path: ROUTES.schoolCalendar,
+    icon: CalendarDays,
+    moduleColor: MODULE_COLORS.primary,
   },
   {
     id: "profile",

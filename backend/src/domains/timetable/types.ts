@@ -87,5 +87,35 @@ export type ListTeacherAssignmentsFilter = {
   academicYearId?: string;
   sectionId?: string;
   classId?: string;
+  teacherId?: string;
   status?: "active" | "inactive";
+};
+
+export type CreateTeacherAssignmentInput = {
+  instituteId: string;
+  academicYearId: string;
+  classId: string;
+  sectionId: string;
+  subjectId: string;
+  teacherId: string;
+  status?: "active" | "inactive";
+};
+
+export type PortalTimetablePeriodDto = {
+  id: string;
+  dayOfWeek: number;
+  dayLabel: string;
+  periodIndex: number;
+  time: string;
+  subject: string;
+  teacher: string;
+  room: string | null;
+};
+
+export type PortalTimetableDto = {
+  instituteId: string;
+  studentId: string | null;
+  sectionId: string | null;
+  periods: PortalTimetablePeriodDto[];
+  weekdays: string[];
 };

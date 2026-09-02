@@ -4,6 +4,8 @@ import { PageHeader } from "@/components/app/PageHeader";
 import { TimetableDayPicker } from "@/components/app/timetable/TimetableDayPicker";
 import { PeriodTimeline, type PeriodRow } from "@/components/app/timetable/PeriodTimeline";
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { TeacherTimetableApiPanel } from "./TeacherTimetableApiPanel";
 import {
   DAYS,
   getDefaultTeacherDay,
@@ -26,6 +28,16 @@ import type { TimetableSlot } from "@/lib/teacher/types";
 
 export function TeacherTimetablePage() {
   const portal = useTeacherPortal();
+  if (!portal.isTeacher) return null;
+  if (isApiAuthMode()) return <TeacherTimetableApiPanel />;
+  return <TeacherTimetableDemoPage portal={portal} />;
+}
+
+function TeacherTimetableDemoPage({
+  portal,
+}: {
+  portal: ReturnType<typeof useTeacherPortal>;
+}) {
   const [mode, setMode] = useState<"my" | "class">("my");
   const [view, setView] = useState<"daily" | "weekly">("daily");
   const [day, setDay] = useState(getDefaultTeacherDay());

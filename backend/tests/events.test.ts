@@ -377,6 +377,61 @@ describe("events api", () => {
     expect(teacher.status).toBe(200);
   });
 
+  it("lets institute driver read all published calendar events", async () => {
+    const db = baseDb();
+    const USER_DRIVER = "66666666-6666-4666-8666-666666666666";
+    const MEMBER_DRIVER = "aa666666-6666-4666-8666-666666666666";
+    db.user_profile.push({
+      id: USER_DRIVER,
+      display_name: "Driver",
+      email: "d@x.com",
+      status: "active",
+      deleted_at: null,
+    });
+    db.membership.push({
+      id: MEMBER_DRIVER,
+      user_id: USER_DRIVER,
+      institute_id: INST_A,
+      status: "active",
+      deleted_at: null,
+    });
+    db.membership_role.push({ membership_id: MEMBER_DRIVER, role_code: "driver" });
+
+    const env = loadEnv({ NODE_ENV: "test", LOG_LEVEL: "error" });
+    const app = createApp(
+      env,
+      silentLogger,
+      createMockSupabaseClients({
+        tokens: {
+          "token-admin": USER_ADMIN,
+          "token-teacher": USER_TEACHER,
+          "token-parent": USER_PARENT,
+          "token-other": USER_OTHER,
+          "token-driver": USER_DRIVER,
+        },
+        db,
+      }),
+    );
+
+    const calendar = await app.request(`/api/v1/events/calendar?institute_id=${INST_A}`, {
+      headers: { Authorization: "Bearer token-driver" },
+    });
+    expect(calendar.status).toBe(200);
+    const calendarIds = (await json(calendar)).data.map((e: { id: string }) => e.id);
+    expect(calendarIds).toContain(EVENT_HOLIDAY);
+    expect(calendarIds).toContain("ae555555-5555-4555-8555-555555555555");
+    expect(calendarIds).not.toContain(EVENT_DRAFT);
+
+    const events = await app.request(`/api/v1/events?institute_id=${INST_A}`, {
+      headers: { Authorization: "Bearer token-driver" },
+    });
+    expect(events.status).toBe(200);
+    const eventIds = (await json(events)).data.map((e: { id: string }) => e.id);
+    expect(eventIds).toContain(EVENT_PUB);
+    expect(eventIds).toContain("ae555555-5555-4555-8555-555555555555");
+    expect(eventIds).not.toContain(EVENT_DRAFT);
+  });
+
   it("soft-deletes unpublished drafts only", async () => {
     const app = appWithDb(baseDb());
 

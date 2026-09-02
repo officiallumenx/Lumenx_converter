@@ -2,6 +2,7 @@ import type {
   AttendanceDay,
   AttendanceDayStatus,
   AttendancePeriodSummary,
+  InstituteHoliday,
 } from "./types";
 import { computeAttendancePct, resolveStudentStatusFromRegisters } from "@lumenx/module-attendance";
 import { formatDisplayDate as formatDisplayDateShared } from "@lumenx/utils";
@@ -37,21 +38,29 @@ export function isoFromParts(year: number, month: number, day: number) {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
-export function holidaysInMonth(year: number, month: number) {
+export function holidaysInMonth(
+  year: number,
+  month: number,
+  holidays: InstituteHoliday[] = INSTITUTE_HOLIDAYS,
+) {
   const prefix = `${year}-${String(month + 1).padStart(2, "0")}-`;
-  return INSTITUTE_HOLIDAYS.filter((h) => h.date.startsWith(prefix)).sort((a, b) =>
+  return holidays.filter((h) => h.date.startsWith(prefix)).sort((a, b) =>
     a.date.localeCompare(b.date),
   );
 }
 
-export function holidaysInRange(startIso: string, endIso: string) {
-  return INSTITUTE_HOLIDAYS.filter((h) => h.date >= startIso && h.date <= endIso).sort((a, b) =>
+export function holidaysInRange(
+  startIso: string,
+  endIso: string,
+  holidays: InstituteHoliday[] = INSTITUTE_HOLIDAYS,
+) {
+  return holidays.filter((h) => h.date >= startIso && h.date <= endIso).sort((a, b) =>
     a.date.localeCompare(b.date),
   );
 }
 
-function holidayOnDate(iso: string) {
-  return INSTITUTE_HOLIDAYS.find((h) => h.date === iso);
+function holidayOnDate(iso: string, holidays: InstituteHoliday[] = INSTITUTE_HOLIDAYS) {
+  return holidays.find((h) => h.date === iso);
 }
 
 function isSunday(year: number, month: number, day: number) {
@@ -62,6 +71,7 @@ function getAttendanceDayStatus(
   year: number,
   month: number,
   day: number,
+  holidays: InstituteHoliday[] = INSTITUTE_HOLIDAYS,
 ): AttendanceDay {
   const iso = isoFromParts(year, month, day);
   const now = new Date();
@@ -72,7 +82,7 @@ function getAttendanceDayStatus(
     return { day, status: "future" as AttendanceDayStatus };
   }
 
-  const listed = holidayOnDate(iso);
+  const listed = holidayOnDate(iso, holidays);
   if (listed) {
     return { day, status: "holiday", holidayTitle: listed.title };
   }
@@ -89,11 +99,15 @@ function getAttendanceDayStatus(
  * Build calendar skeleton for a month (holidays / future / unknown).
  * Does not invent present/absent/leave — use `overlayRegisterAttendanceDays`.
  */
-export function buildAttendanceDays(year: number, month: number): AttendanceDay[] {
+export function buildAttendanceDays(
+  year: number,
+  month: number,
+  holidays: InstituteHoliday[] = INSTITUTE_HOLIDAYS,
+): AttendanceDay[] {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   return Array.from({ length: daysInMonth }, (_, i) => {
     const day = i + 1;
-    return getAttendanceDayStatus(year, month, day);
+    return getAttendanceDayStatus(year, month, day, holidays);
   });
 }
 
@@ -143,6 +157,7 @@ function summarizeAttendanceDays(
 export function computeAttendanceSummaryForRange(
   startIso: string,
   endIso: string,
+  holidays: InstituteHoliday[] = INSTITUTE_HOLIDAYS,
 ): AttendancePeriodSummary {
   const start = new Date(`${startIso}T12:00:00`);
   const end = new Date(`${endIso}T12:00:00`);
@@ -151,7 +166,12 @@ export function computeAttendanceSummaryForRange(
 
   while (cursor <= end) {
     scoped.push(
-      getAttendanceDayStatus(cursor.getFullYear(), cursor.getMonth(), cursor.getDate()),
+      getAttendanceDayStatus(
+        cursor.getFullYear(),
+        cursor.getMonth(),
+        cursor.getDate(),
+        holidays,
+      ),
     );
     cursor.setDate(cursor.getDate() + 1);
   }
@@ -288,8 +308,12 @@ export function buildLearnerAttendanceDays(input: {
   month: number;
   studentId: string;
   sectionKey: string;
+  holidays?: InstituteHoliday[];
 }): AttendanceDay[] {
-  return overlayRegisterAttendanceDays(buildAttendanceDays(input.year, input.month), input);
+  return overlayRegisterAttendanceDays(
+    buildAttendanceDays(input.year, input.month, input.holidays),
+    input,
+  );
 }
 
 export type LearnerAttendanceTrendPoint = { week: string; pct: number };

@@ -1,4 +1,5 @@
 import { Link, useLocation } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import {
   ClipboardCheck,
   GraduationCap,
@@ -31,6 +32,9 @@ import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from "rec
 import { AchievementBadge } from "@/components/app/motivation/AchievementBadge";
 import { useSyncExternalStore } from "react";
 import { useApp } from "@/lib/app-state";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { loadConnectEvents, pickUpcomingEvents, type ConnectEventItem } from "@/lib/events";
+import { formatEventDate } from "@/components/app/events/events-shared";
 import { PageSkeleton, EmptyState } from "@/student-portal/shared/ui";
 import {
   STUDENT_MODULE_COLORS,
@@ -125,6 +129,27 @@ export function StudentDashboardPage() {
   const portal = useStudentPortal();
   const { activeInstituteId } = useApp();
   const { pathname } = useLocation();
+  const [apiUpcomingEvents, setApiUpcomingEvents] = useState<ConnectEventItem[] | null>(null);
+
+  useEffect(() => {
+    if (!isApiAuthMode()) {
+      setApiUpcomingEvents(null);
+      return;
+    }
+    let cancelled = false;
+    void loadConnectEvents({ instituteId: activeInstituteId }).then((result) => {
+      if (cancelled) return;
+      if (result.status === "ready" || result.status === "empty") {
+        setApiUpcomingEvents(pickUpcomingEvents(result.items, 3));
+      } else {
+        setApiUpcomingEvents([]);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeInstituteId]);
+
   const notifications = useSyncExternalStore(
     studentNotificationStore.subscribe,
     studentNotificationStore.getItems,
@@ -141,7 +166,8 @@ export function StudentDashboardPage() {
   const recentAch = snap.achievements.filter((a) => !a.progress).slice(0, 3);
   const publishedCard = [...snap.reportCards].filter((r) => r.status === "published").at(-1);
   const upcomingExams = snap.exams.slice(0, 3);
-  const upcomingEvents = snap.schoolEvents.filter((e) => e.kind !== "holiday").slice(0, 3);
+  const demoUpcomingEvents = snap.schoolEvents.filter((e) => e.kind !== "holiday").slice(0, 3);
+  const upcomingEvents = apiUpcomingEvents ?? demoUpcomingEvents;
   const recentNotifications = notifications.slice(0, 4);
   const unreadNotifications = notifications.filter((n) => n.unread).length;
   const firstName = snap.profile.name.split(" ")[0];
@@ -450,9 +476,15 @@ export function StudentDashboardPage() {
                       <div className="min-w-0 flex-1 space-y-2">
                         {upcomingEvents.map((e) => (
                           <div key={e.id} className="student-list-row rounded-xl border border-border p-3.5">
-                            <div className="text-xs text-muted-foreground">{e.date}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {apiUpcomingEvents
+                                ? formatEventDate((e as ConnectEventItem).date)
+                                : (e as { date: string }).date}
+                            </div>
                             <div className="mt-0.5 font-medium leading-snug">{e.title}</div>
-                            {e.venue && <div className="mt-0.5 text-xs text-muted-foreground">{e.venue}</div>}
+                            {"venue" in e && e.venue ? (
+                              <div className="mt-0.5 text-xs text-muted-foreground">{e.venue}</div>
+                            ) : null}
                           </div>
                         ))}
                       </div>

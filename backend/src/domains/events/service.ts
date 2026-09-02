@@ -26,6 +26,11 @@ import type {
   ListEventsFilter,
   UpdateEventInput,
 } from "./types.js";
+import {
+  emitEventCancelledNotifications,
+  emitEventPublishedNotifications,
+  emitEventUpdatedNotifications,
+} from "./notifications.js";
 
 export const EVENT_WRITE_ROLES = [
   "institute_admin",
@@ -162,6 +167,10 @@ async function assertCanReadEvent(
   }
 }
 
+function isInstituteDriver(actor: Actor, instituteId: string): boolean {
+  return actorHasInstituteRole(actor, instituteId, "driver");
+}
+
 async function filterLearnerVisible(
   admin: SupabaseClient,
   rows: EventRow[],
@@ -169,6 +178,9 @@ async function filterLearnerVisible(
   instituteId: string,
 ): Promise<EventRow[]> {
   if (isStaffReader(actor, instituteId)) return rows;
+  if (isInstituteDriver(actor, instituteId)) {
+    return rows.filter((row) => row.published && !row.cancelled);
+  }
   const out: EventRow[] = [];
   for (const row of rows) {
     if (!row.published || row.cancelled) continue;
@@ -353,6 +365,26 @@ export async function updateEventForActor(
 
   const updated = await updateEventFields(admin, id, patch);
   if (!updated) throw AppError.notFound("Event not found");
+  if (existing.published && !existing.cancelled) {
+    const changes: string[] = [];
+    if (input.startsOn !== undefined && input.startsOn !== existing.starts_on) {
+      changes.push("date/time");
+    }
+    if (input.title !== undefined && input.title.trim() !== existing.title) {
+      changes.push("title");
+    }
+    if (input.location !== undefined && input.location !== existing.location) {
+      changes.push("venue");
+    }
+    if (changes.length > 0) {
+      await emitEventUpdatedNotifications(
+        admin,
+        actor.userId,
+        updated,
+        changes.join(", "),
+      );
+    }
+  }
   return toEventDto(updated);
 }
 
@@ -378,6 +410,7 @@ export async function publishEventForActor(
     published_at: new Date().toISOString(),
   });
   if (!updated) throw AppError.notFound("Event not found");
+  await emitEventPublishedNotifications(admin, actor.userId, updated);
   return toEventDto(updated);
 }
 
@@ -404,6 +437,7 @@ export async function cancelEventForActor(
     published: false,
   });
   if (!updated) throw AppError.notFound("Event not found");
+  await emitEventCancelledNotifications(admin, actor.userId, updated);
   return toEventDto(updated);
 }
 
