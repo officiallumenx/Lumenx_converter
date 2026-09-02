@@ -28,12 +28,12 @@ import {
   CAREERS_CONTACT,
 } from "@/careers-portal/features/support/careers-support-content";
 import {
-  getAllDocumentsForUser,
   getNotifications,
   markAllNotificationsRead,
   markNotificationRead,
   uploadDocument,
 } from "@/lib/careers/repositories";
+import { useCareersApplications } from "@/hooks/use-careers-applications";
 import { documentStatusLabel } from "@/lib/careers/status-utils";
 import { useCareersApiInbox } from "@/hooks/use-careers-api-inbox";
 import { formatCareersNotificationTime } from "@/lib/notification-inbox";
@@ -41,7 +41,20 @@ import { formatCareersNotificationTime } from "@/lib/notification-inbox";
 export function DocumentsPage() {
   const { user } = useCareersAuth();
   const [tick, setTick] = useState(0);
-  const groups = user ? getAllDocumentsForUser(user.id) : [];
+  const { applications, loading } = useCareersApplications({ scope: "candidate" });
+  const groups = user
+    ? applications.map((a) => ({
+        applicationId: a.id,
+        jobTitle: a.jobTitle,
+        documents: a.documents,
+      }))
+    : [];
+
+  if (loading) {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">Loading documents…</div>
+    );
+  }
 
   return (
     <div className="animate-in fade-in duration-300" key={tick}>

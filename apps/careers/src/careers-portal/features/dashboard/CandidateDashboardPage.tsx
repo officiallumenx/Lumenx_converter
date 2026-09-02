@@ -17,15 +17,17 @@ import { useCareersAuth } from "@/careers-portal/core/CareersAuthProvider";
 import { CareersPageHeader } from "@/careers-portal/shared/ui/CareersPageHeader";
 import { JobCard } from "@/careers-portal/shared/ui/CareersShellWidgets";
 import { ProfileStrengthBadge } from "@/careers-portal/shared/ui/v2/CareersV2Widgets";
+import { useCareersApplications } from "@/hooks/use-careers-applications";
+import { useCareersJobs } from "@/hooks/use-careers-jobs";
+import { useCareersProfile } from "@/hooks/use-careers-profile";
+import { useCareersSaved } from "@/hooks/use-careers-saved";
+import { useCareersApiInbox } from "@/hooks/use-careers-api-inbox";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { unreadNotificationCount } from "@/lib/careers/repositories";
 import {
-  getApplicationsForUser,
-  getSavedJobs,
-  unreadNotificationCount,
-} from "@/lib/careers/repositories";
-import {
-  getCandidateProfile,
   computeProfileCompletion,
   computeProfileStrength,
+  getCandidateProfile,
   profileStrengthLabel,
 } from "@/lib/careers/profile-repository";
 import { getTalentPoolEntries, isInTalentPool } from "@/lib/careers/talent-pool-store";
@@ -34,12 +36,19 @@ import { statusLabel, statusTone } from "@/lib/careers/status-utils";
 
 export function CandidateDashboardPage() {
   const { user } = useCareersAuth();
+  const { applications: apps, loading: appsLoading } = useCareersApplications({
+    scope: "candidate",
+  });
+  const { savedJobs: saved } = useCareersSaved();
+  const { profile: apiProfile } = useCareersProfile();
+  const { jobs: allJobs } = useCareersJobs();
+  const apiInbox = useCareersApiInbox(user?.id ?? null);
   if (!user) return null;
 
-  const apps = getApplicationsForUser(user.id);
-  const saved = getSavedJobs(user.id);
-  const unread = unreadNotificationCount(user.id);
-  const profile = getCandidateProfile(user.id);
+  const profile = apiProfile ?? getCandidateProfile(user.id);
+  const unread = isApiAuthMode()
+    ? apiInbox.items.filter((n) => !n.read).length
+    : unreadNotificationCount(user.id);
   const pct = computeProfileCompletion(profile);
   const strength = profileStrengthLabel(computeProfileStrength(profile));
   const talentPool = getTalentPoolEntries(user.id);
@@ -47,7 +56,13 @@ export function CandidateDashboardPage() {
     a.documents.some((d) => d.status === "requires_resubmission" || d.status === "uploaded"),
   ).length;
   const upcomingInterviews = apps.filter((a) => a.interview?.status === "scheduled").length;
-  const recommended = getRecommendedJobs(profile, 3);
+  const recommended = getRecommendedJobs(profile, 3, allJobs);
+
+  if (appsLoading) {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">Loading dashboard…</div>
+    );
+  }
 
   return (
     <div className="animate-in fade-in duration-300 space-y-8">

@@ -77,7 +77,7 @@ export function defaultCandidateProfile(candidateId: string): CandidateProfile {
 }
 
 /** Migrate legacy stored profiles to the current schema. */
-function normalizeProfile(raw: Record<string, unknown>, candidateId: string): CandidateProfile {
+export function normalizeProfile(raw: Record<string, unknown>, candidateId: string): CandidateProfile {
   const base = defaultCandidateProfile(candidateId);
   const merged = { ...base, ...raw, candidateId } as CandidateProfile & { languages?: string[] };
 

@@ -23,53 +23,71 @@ import {
   PROFILE_SECTIONS,
   computeProfileCompletion,
   computeProfileStrength,
-  getCandidateProfile,
   getNextProfileSection,
   getPrevProfileSection,
   getProfileSectionIndex,
   getProfileSectionLabel,
   profileStrengthLabel,
-  saveCandidateProfile,
   type ProfileSectionId,
 } from "@/lib/careers/profile-repository";
 import { updateUserProfileComplete } from "@/lib/careers/repositories";
 import type { CandidateProfile } from "@/lib/careers/types";
+import { useCareersProfile } from "@/hooks/use-careers-profile";
 
 export function CandidateProfilePage() {
   const { user, refresh } = useCareersAuth();
-  const [profile, setProfile] = useState<CandidateProfile | null>(() =>
-    user ? getCandidateProfile(user.id) : null,
-  );
+  const { profile: loadedProfile, loading, save: saveProfile, setProfile } = useCareersProfile();
+  const [profile, setLocalProfile] = useState<CandidateProfile | null>(null);
   const [activeSection, setActiveSection] = useState<ProfileSectionId>("overview");
   const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
   const sectionTopRef = useRef<HTMLDivElement>(null);
 
+  const activeProfile = profile ?? loadedProfile;
+
   const patchProfile = useCallback((patch: Partial<CandidateProfile>) => {
-    setProfile((p) => (p ? { ...p, ...patch } : p));
+    setLocalProfile((p) => {
+      const base = p ?? loadedProfile;
+      return base ? { ...base, ...patch } : p;
+    });
     setDirty(true);
-  }, []);
+  }, [loadedProfile]);
 
   const goToSection = useCallback((id: ProfileSectionId) => {
     setActiveSection(id);
     sectionTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
-  if (!user || !profile) return null;
+  if (!user || loading || !activeProfile) {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">
+        {loading ? "Loading profile…" : null}
+      </div>
+    );
+  }
 
-  const pct = computeProfileCompletion(profile);
-  const strength = computeProfileStrength(profile);
+  const pct = computeProfileCompletion(activeProfile);
+  const strength = computeProfileStrength(activeProfile);
   const sectionIndex = getProfileSectionIndex(activeSection);
   const nextSection = getNextProfileSection(activeSection);
   const prevSection = getPrevProfileSection(activeSection);
   const isLast = !nextSection;
 
-  const save = () => {
-    const saved = saveCandidateProfile(profile);
-    setProfile(saved);
-    updateUserProfileComplete(user.id, computeProfileCompletion(saved));
-    refresh();
-    setDirty(false);
-    toast.success("Profile saved");
+  const save = async () => {
+    setSaving(true);
+    try {
+      const saved = await saveProfile(activeProfile);
+      setLocalProfile(saved);
+      setProfile(saved);
+      updateUserProfileComplete(user.id, computeProfileCompletion(saved));
+      refresh();
+      setDirty(false);
+      toast.success("Profile saved");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not save profile");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleNext = () => {
@@ -87,7 +105,7 @@ export function CandidateProfilePage() {
           title="Professional profile"
           subtitle="Fill each section step by step — use Next at the bottom or swipe the tabs above."
         />
-        <Button onClick={save} size="sm" disabled={!dirty} className="shrink-0">
+        <Button onClick={() => void save()} size="sm" disabled={!dirty || saving} className="shrink-0">
           <Save className="size-4 mr-1" /> Save changes
         </Button>
       </div>
@@ -97,7 +115,7 @@ export function CandidateProfilePage() {
           <div>
             <p className="text-sm font-medium">{user.name}</p>
             <p className="text-xs text-muted-foreground">
-              {profile.headline || "Add a headline to stand out"}
+              {activeProfile.headline || "Add a headline to stand out"}
             </p>
           </div>
           <ProfileStrengthBadge strength={profileStrengthLabel(strength)} percent={pct} />
@@ -115,11 +133,11 @@ export function CandidateProfilePage() {
 
       <div className="space-y-4 pt-2">
         {activeSection === "overview" && (
-          <ProfileOverviewSection profile={profile} userName={user.name} onChange={patchProfile} />
+          <ProfileOverviewSection profile={activeProfile} userName={user.name} onChange={patchProfile} />
         )}
         {activeSection === "contact" && (
           <ProfileContactAddressSection
-            profile={profile}
+            profile={activeProfile}
             email={user.email}
             phone={user.phone}
             onChange={patchProfile}
@@ -127,34 +145,34 @@ export function CandidateProfilePage() {
         )}
         {activeSection === "experience" && (
           <ProfileWorkSection
-            experience={profile.experience}
-            internships={profile.internships}
+            experience={activeProfile.experience}
+            internships={activeProfile.internships}
             onChange={patchProfile}
           />
         )}
         {activeSection === "education" && (
           <ProfileEducationSection
-            qualifications={profile.qualifications}
+            qualifications={activeProfile.qualifications}
             onChange={(qualifications) => patchProfile({ qualifications })}
           />
         )}
         {activeSection === "certifications" && (
           <ProfileCertificationsAchievementsSection
-            certifications={profile.certifications}
-            achievements={profile.achievements}
+            certifications={activeProfile.certifications}
+            achievements={activeProfile.achievements}
             onChange={patchProfile}
           />
         )}
         {activeSection === "skills" && (
           <ProfileSkillsLanguagesSection
-            skills={profile.skills}
-            softSkills={profile.softSkills}
-            languageSkills={profile.languageSkills}
+            skills={activeProfile.skills}
+            softSkills={activeProfile.softSkills}
+            languageSkills={activeProfile.languageSkills}
             onChange={patchProfile}
           />
         )}
         {activeSection === "documents" && (
-          <ProfileResumeLinksSection profile={profile} onChange={patchProfile} />
+          <ProfileResumeLinksSection profile={activeProfile} onChange={patchProfile} />
         )}
 
         <ProfileSectionFooter
@@ -164,14 +182,14 @@ export function CandidateProfilePage() {
           nextLabel={nextSection ? getProfileSectionLabel(nextSection) : undefined}
           onPrevious={prevSection ? handlePrevious : undefined}
           onNext={nextSection ? handleNext : undefined}
-          onSave={isLast ? save : undefined}
+          onSave={isLast ? () => void save() : undefined}
           isLast={isLast}
           dirty={dirty}
         />
       </div>
 
       <div className="flex flex-wrap gap-3 pt-2 border-t border-border">
-        <Button onClick={save} disabled={!dirty}>
+        <Button onClick={() => void save()} disabled={!dirty || saving}>
           <Save className="size-4 mr-2" /> Save profile
         </Button>
         <p className="text-xs text-muted-foreground self-center">

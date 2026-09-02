@@ -5,26 +5,37 @@ import { StatCard } from "@/components/app/StatCard";
 import { SectionCard } from "@/components/app/SectionCard";
 import { useCareersAuth } from "@/careers-portal/core/CareersAuthProvider";
 import { CareersPageHeader } from "@/careers-portal/shared/ui/CareersPageHeader";
-import { getApplicationsForOrganization } from "@/lib/careers/repositories";
-import { getRecruiterJobsForOrg } from "@/lib/careers/recruiter-jobs-store";
-import { discoverTalentForOrg } from "@/lib/careers/recruiter-talent";
+import { useCareersApplications } from "@/hooks/use-careers-applications";
+import { useCareersJobs } from "@/hooks/use-careers-jobs";
+import { useCareersTalent } from "@/hooks/use-careers-talent";
 import { statusLabel, statusTone } from "@/lib/careers/status-utils";
 
 export function RecruiterWorkspacePage() {
   const { user } = useCareersAuth();
+  const { jobs, loading: jobsLoading } = useCareersJobs({
+    recruiterScope: true,
+    openOnly: false,
+  });
+  const { applications: apps, loading: appsLoading } = useCareersApplications({
+    scope: "recruiter",
+  });
+  const { talent } = useCareersTalent();
+
   if (!user || user.accountType !== "recruiter" || !user.organizationId) return null;
 
-  const orgId = user.organizationId;
-  const jobs = getRecruiterJobsForOrg(orgId);
   const openJobs = jobs.filter((j) => j.recruiterJobStatus === "open");
-  const apps = getApplicationsForOrganization(orgId);
-  const talent = discoverTalentForOrg(orgId, apps);
   const inInterview = apps.filter(
     (a) => a.status === "interview_scheduled" || a.status === "interview_completed",
   ).length;
   const offers = apps.filter(
     (a) => a.status === "offer_sent" || a.status === "offer_accepted",
   ).length;
+
+  if (jobsLoading || appsLoading) {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">Loading workspace…</div>
+    );
+  }
 
   return (
     <div className="animate-in fade-in duration-300 space-y-8">
@@ -62,56 +73,46 @@ export function RecruiterWorkspacePage() {
       </div>
 
       <SectionCard title="Quick actions">
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          <Button className="h-auto py-3 justify-start" asChild>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild>
             <Link to="/recruiter/jobs/new">
-              <Plus className="size-4 mr-2 shrink-0" />
-              Post a job
+              <Plus className="size-4 mr-2" /> Post a job
             </Link>
           </Button>
-          <Button variant="outline" className="h-auto py-3 justify-start" asChild>
-            <Link to="/recruiter/jobs">
-              <Briefcase className="size-4 mr-2 shrink-0" />
-              Manage listings
-            </Link>
+          <Button variant="outline" asChild>
+            <Link to="/recruiter/applicants">Review applications</Link>
           </Button>
-          <Button variant="outline" className="h-auto py-3 justify-start" asChild>
-            <Link to="/recruiter/applicants">
-              <FolderOpen className="size-4 mr-2 shrink-0" />
-              Applicant pipeline
-            </Link>
+          <Button variant="outline" asChild>
+            <Link to="/recruiter/talent">Discover talent ({talent.length})</Link>
           </Button>
-          <Button variant="outline" className="h-auto py-3 justify-start" asChild>
-            <Link to="/recruiter/talent">
-              <Users className="size-4 mr-2 shrink-0" />
-              Discover talent ({talent.length})
-            </Link>
+          <Button variant="outline" asChild>
+            <Link to="/jobs">Browse market</Link>
           </Button>
         </div>
       </SectionCard>
 
-      {apps.length > 0 && (
-        <SectionCard
-          title="Recent applicants"
-          link="/recruiter/applicants"
-          linkLabel="View pipeline"
-        >
+      <SectionCard title="Recent applicants" link="/recruiter/applicants" linkLabel="View all">
+        {apps.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No applications yet.</p>
+        ) : (
           <div className="space-y-2">
             {apps.slice(0, 5).map((app) => (
               <div
                 key={app.id}
-                className="flex items-center justify-between rounded-xl border border-border p-3 text-sm"
+                className="flex items-center justify-between rounded-xl border border-border p-3"
               >
                 <div className="min-w-0">
-                  <p className="font-medium truncate">{app.personal.name}</p>
-                  <p className="text-xs text-muted-foreground truncate">{app.jobTitle}</p>
+                  <p className="font-medium text-sm truncate">{app.personal.name}</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {app.jobTitle} · {app.id}
+                  </p>
                 </div>
                 <Badge variant={statusTone(app.status)}>{statusLabel(app.status)}</Badge>
               </div>
             ))}
           </div>
-        </SectionCard>
-      )}
+        )}
+      </SectionCard>
     </div>
   );
 }

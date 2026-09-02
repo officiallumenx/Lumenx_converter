@@ -45,6 +45,11 @@ export {
 } from "./map";
 
 export {
+  candidateProfileDtoToProfile,
+  candidateProfileToUpsertInput,
+} from "./profile-map";
+
+export {
   loadCareerApplicationById,
   loadCareerApplications,
   loadCareerJobById,

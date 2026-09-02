@@ -5,20 +5,20 @@ import { SectionCard } from "@/components/app/SectionCard";
 import { useCareersAuth } from "@/careers-portal/core/CareersAuthProvider";
 import { CareersPageHeader } from "@/careers-portal/shared/ui/CareersPageHeader";
 import { ProfileStrengthBadge } from "@/careers-portal/shared/ui/v2/CareersV2Widgets";
-import { getApplicationsForOrganization } from "@/lib/careers/repositories";
-import { discoverTalentForOrg } from "@/lib/careers/recruiter-talent";
+import { useCareersTalent } from "@/hooks/use-careers-talent";
 
 export function RecruiterTalentPage() {
   const { user } = useCareersAuth();
   const [q, setQ] = useState("");
-
-  const talent = useMemo(() => {
-    if (!user?.organizationId) return [];
-    const apps = getApplicationsForOrganization(user.organizationId);
-    return discoverTalentForOrg(user.organizationId, apps, { q: q || undefined });
-  }, [user?.organizationId, q]);
+  const { talent, loading, errorMessage } = useCareersTalent(q || undefined);
 
   if (!user?.organizationId) return null;
+
+  if (loading) {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">Loading talent…</div>
+    );
+  }
 
   return (
     <div className="animate-in fade-in duration-300 space-y-6">
@@ -37,6 +37,8 @@ export function RecruiterTalentPage() {
           onChange={(e) => setQ(e.target.value)}
         />
       </div>
+
+      {errorMessage && <p className="text-sm text-destructive">{errorMessage}</p>}
 
       <SectionCard title={`Candidates (${talent.length})`}>
         {talent.length === 0 ? (

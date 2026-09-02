@@ -6,9 +6,11 @@ import { useCareersAuth } from "@/careers-portal/core/CareersAuthProvider";
 import { isRecruiter } from "@/lib/careers/auth-utils";
 import { JOB_CATEGORY_LABEL } from "@/lib/careers/jobs-data";
 import { isJobSaved, toggleSavedJob } from "@/lib/careers/repositories";
+import { useCareersSaved } from "@/hooks/use-careers-saved";
 import type { JobPosting } from "@/lib/careers/types";
 import { useState } from "react";
 import { toast } from "sonner";
+import { isApiAuthMode } from "@/auth/auth-mode";
 
 export function JobCard({
   job,
@@ -33,15 +35,30 @@ export function JobCard({
     !!user?.organizationId &&
     job.instituteId === user.organizationId &&
     !!job.postedByRecruiterId;
+  const { isSaved: isSavedApi, toggleSaved } = useCareersSaved();
   const [saved, setSaved] = useState(() =>
-    user && !browseMarket ? isJobSaved(user.id, job.id) : false,
+    user && !browseMarket
+      ? isApiAuthMode()
+        ? isSavedApi(job.id)
+        : isJobSaved(user.id, job.id)
+      : false,
   );
 
-  const toggleSave = (e: React.MouseEvent) => {
+  const toggleSave = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (!user) {
       toast.message("Sign in to save jobs");
+      return;
+    }
+    if (isApiAuthMode()) {
+      try {
+        const next = await toggleSaved(job.id);
+        setSaved(next);
+        toast.success(next ? "Job saved" : "Removed from saved");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Could not update saved jobs");
+      }
       return;
     }
     const next = toggleSavedJob(user.id, job.id);
@@ -184,11 +201,22 @@ export function JobCard({
 
 export function SaveJobButton({ jobId }: { jobId: string }) {
   const { user } = useCareersAuth();
-  const [saved, setSaved] = useState(() => (user ? isJobSaved(user.id, jobId) : false));
+  const { isSaved: isSavedApi, toggleSaved } = useCareersSaved();
+  const [saved, setSaved] = useState(() =>
+    user ? (isApiAuthMode() ? isSavedApi(jobId) : isJobSaved(user.id, jobId)) : false,
+  );
 
-  const toggle = () => {
+  const toggle = async () => {
     if (!user) {
       toast.message("Sign in to save jobs");
+      return;
+    }
+    if (isApiAuthMode()) {
+      try {
+        setSaved(await toggleSaved(jobId));
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Could not update saved jobs");
+      }
       return;
     }
     setSaved(toggleSavedJob(user.id, jobId));
