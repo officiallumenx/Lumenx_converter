@@ -17,6 +17,8 @@ import {
 } from "@lumenx/ui-admin";
 import { HardDrive, Save } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { isNexusApiMode } from "@/lib/auth-mode";
+import { NexusStorageQuotasApiPanel } from "@/components/policies/NexusStorageQuotasApiPanel";
 import { subscribeInstituteDirectory } from "@/lib/institute-directory-store";
 import { subscribeLicenses } from "@/lib/institute-licensing-store";
 import {
@@ -42,6 +44,20 @@ export const Route = createFileRoute("/storage")({
 type StatusFilter = "all" | QuotaStatus;
 
 function StorageQuotasPage() {
+  if (isNexusApiMode()) {
+    return (
+      <AppShell
+        title="Storage Quotas"
+        subtitle="Plan limits via platform policy · live usage from stored assets"
+      >
+        <NexusStorageQuotasApiPanel />
+      </AppShell>
+    );
+  }
+  return <StorageQuotasDemoPage />;
+}
+
+function StorageQuotasDemoPage() {
   const [tick, setTick] = useState(0);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [draftLimits, setDraftLimits] = useState<PlanStorageLimits>(() => loadPlanStorageLimits());

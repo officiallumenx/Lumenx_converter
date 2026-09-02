@@ -529,6 +529,12 @@ export async function createApplicationForActor(
     payload: input.payload ?? {},
     submittedAt: submitNow ? new Date().toISOString() : null,
   });
+  if (submitNow) {
+    const { emitAdmissionApplicationCreatedNotification } = await import(
+      "./notifications.js"
+    );
+    await emitAdmissionApplicationCreatedNotification(admin, actor.userId, row);
+  }
   return toApplicationDto(row);
 }
 
@@ -582,6 +588,15 @@ export async function transitionApplicationForActor(
 
   const updated = await updateApplicationFields(admin, id, patch);
   if (!updated) throw AppError.notFound("Admission application not found");
+  if (updated.status !== existing.status) {
+    const { emitAdmissionApplicationTransitionNotification } = await import(
+      "./notifications.js"
+    );
+    await emitAdmissionApplicationTransitionNotification(admin, actor.userId, {
+      application: updated,
+      previousStatus: existing.status,
+    });
+  }
   return toApplicationDto(updated);
 }
 

@@ -14,6 +14,9 @@ import { AuthStepBar } from "@/auth/components/AuthStepBar";
 import { PasswordStrength } from "@/auth/components/PasswordStrength";
 import { PinInput } from "@/auth/components/PinInput";
 import { useAuth } from "@/auth/AuthContext";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { isAppLockRequired } from "@/auth/app-lock-policy";
+import { resolvePostSignupRoute } from "@/auth/signup-routing";
 import { useTheme } from "@/components/theme-provider";
 import { IconChip } from "@/components/IconChip";
 import {
@@ -139,11 +142,13 @@ function validateStep3(d: Step3): Errors<Step3> {
   else if (pwdErrors.length > 0)          e.password        = pwdErrors[0];
   if (!d.confirmPassword)                 e.confirmPassword = "Please confirm your password";
   else if (d.password !== d.confirmPassword) e.confirmPassword = "Passwords do not match";
-  if (!d.pin)                             e.pin             = "Security PIN is required";
-  else if (d.pin.length < 6)              e.pin             = "PIN must be exactly 6 digits";
-  else if (!/^\d{6}$/.test(d.pin))        e.pin             = "PIN must contain only digits";
-  if (!d.confirmPin)                      e.confirmPin      = "Please confirm your PIN";
-  else if (d.pin !== d.confirmPin)        e.confirmPin      = "PINs do not match";
+  if (isAppLockRequired()) {
+    if (!d.pin)                             e.pin             = "Security PIN is required";
+    else if (d.pin.length < 6)              e.pin             = "PIN must be exactly 6 digits";
+    else if (!/^\d{6}$/.test(d.pin))        e.pin             = "PIN must contain only digits";
+    if (!d.confirmPin)                      e.confirmPin      = "Please confirm your PIN";
+    else if (d.pin !== d.confirmPin)        e.confirmPin      = "PINs do not match";
+  }
   if (!d.acceptTerms)                     e.acceptTerms     = "You must accept the terms to continue";
   return e;
 }
@@ -526,7 +531,9 @@ function Step3({
         }
       />
 
-      {/* PIN section */}
+      {/* PIN section — demo mode local app lock only */}
+      {isAppLockRequired() && (
+      <>
       <div className="pt-2">
         <AuthSectionHeader
           icon={ShieldCheck}
@@ -575,6 +582,8 @@ function Step3({
           </div>
         ))}
       </div>
+      </>
+      )}
 
       {/* Password strength reminder */}
       {pwdStrength < 3 && data.password && (
@@ -693,6 +702,23 @@ function SignUpPage() {
     setLoading(true);
     clearError();
     try {
+      const registrationPayload = {
+        instituteName: s1.instituteName.trim(),
+        instituteType: s1.instituteType || undefined,
+        educationBoard: s1.educationBoard || undefined,
+        country: s2.country || undefined,
+        state: s2.state || undefined,
+        district: s2.district || undefined,
+        city: s2.city || undefined,
+        address: s2.address || undefined,
+        pincode: s2.pincode || undefined,
+        website: s2.website || undefined,
+        principalName: s2.principalName.trim(),
+        principalEmail: s2.email.trim().toLowerCase(),
+        principalMobile: s2.mobile.trim(),
+        principalDesignation: "Principal",
+        logoPreview: s1.logoPreview || undefined,
+      };
       await signUp({
         fullName:        s2.principalName,
         email:           s2.email,
@@ -702,9 +728,14 @@ function SignUpPage() {
         password:        s3.password,
         confirmPassword: s3.confirmPassword,
         acceptTerms:     s3.acceptTerms,
-        securityPin:     s3.pin,
+        securityPin:     isAppLockRequired() ? s3.pin : undefined,
         instituteName:   s1.instituteName,
+        registrationPayload,
       });
+      if (isApiAuthMode()) {
+        navigate({ to: resolvePostSignupRoute(true), replace: true });
+        return;
+      }
       const { saveOtpPending } = await import("@/auth/otp-service");
       const { saveSetupDraft, createEmptySetupForm } = await import("@/auth/institute-setup-store");
       saveOtpPending({

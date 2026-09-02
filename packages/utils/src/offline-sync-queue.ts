@@ -6,7 +6,7 @@
  * No backend — flush simulates successful sync with progress events.
  */
 
-export type OfflineSyncApp = "connect" | "admin" | "transport";
+export type OfflineSyncApp = "connect" | "admin" | "transport" | "careers";
 
 export const OFFLINE_SYNC_QUEUE_KEY = "lumenx.offline-sync-queue.v1";
 export const OFFLINE_SYNC_META_KEY = "lumenx.offline-sync-meta.v1";

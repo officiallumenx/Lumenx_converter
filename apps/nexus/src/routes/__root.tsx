@@ -11,6 +11,10 @@ import {
 import appCss from "../styles.css?url";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TypographyProvider } from "@lumenx/ui";
+import { Toaster } from "@lumenx/ui/sonner";
+import { InAppAlertListener } from "@/components/InAppAlertListener";
+import { PushDeviceTokenRegistration } from "@/components/PushDeviceTokenRegistration";
+import { NexusPoliciesNavBadgeSync } from "@/components/NexusPoliciesNavBadgeSync";
 
 function NotFoundComponent() {
   return (
@@ -83,8 +87,12 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <TypographyProvider>
+          <InAppAlertListener />
+          <PushDeviceTokenRegistration enabled />
+          <NexusPoliciesNavBadgeSync />
           <Outlet />
         </TypographyProvider>
+        <Toaster position="top-center" richColors />
       </ThemeProvider>
     </QueryClientProvider>
   );

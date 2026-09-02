@@ -21,6 +21,7 @@ import {
   softDeleteDiaryDay,
   updateDiaryDayFields,
 } from "./repository.js";
+import { processDiaryRemindersForActor } from "./reminders.js";
 import type {
   CreateDiaryDayInput,
   DiaryDayDto,
@@ -293,6 +294,7 @@ export async function listDiaryDaysForActor(
   filter: ListDiaryFilter,
 ): Promise<DiaryDayDto[]> {
   const instituteId = requireInstituteId(actor, filter.instituteId);
+  await processDiaryRemindersForActor(admin, actor, instituteId);
   const days = await listDiaryDays(admin, { ...filter, instituteId });
   const visible = filterDaysForActor(actor, instituteId, days);
   const allRows = await listRowsForDayIds(

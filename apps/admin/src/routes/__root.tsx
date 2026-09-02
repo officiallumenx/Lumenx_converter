@@ -22,6 +22,10 @@ import {
   registrationGatePath,
   resolveRegistrationGate,
 } from "@/auth/registration-gate";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { resolveDemoAuthRouteBlock } from "@/auth/demo-auth-guard";
+import { isAppLockRequired, resolveAppLockDemoRouteBlock } from "@/auth/app-lock-policy";
+import { useApiRegistrationSync } from "@/auth/use-api-registration-sync";
 import {
   isAppUnlocked,
   setAppUnlocked,
@@ -31,6 +35,9 @@ import { AppLockScreen } from "@/auth/components/AppLockScreen";
 import { useRolePermission } from "@/lib/roles-access";
 import { LumenXNativeShell } from "@lumenx/capacitor/native-shell";
 import { OfflineSyncHost, TypographyProvider } from "@lumenx/ui";
+import { Toaster } from "@lumenx/ui/sonner";
+import { InAppAlertListener } from "@/components/InAppAlertListener";
+import { PushDeviceTokenRegistration } from "@/components/PushDeviceTokenRegistration";
 import { subscribeInstituteRegistrations } from "@lumenx/utils";
 import { useState } from "react";
 import { syncAdminTenantForUser } from "@/lib/sync-admin-tenant";
@@ -119,12 +126,17 @@ function RootShell({ children }: { children: React.ReactNode }) {
  * • Loading → minimal spinner
  */
 function AuthGate() {
-  const { isAuthenticated, isLoading, status, user } = useAuth();
+  const { isAuthenticated, isLoading, status, user, patchAuthenticatedUser } = useAuth();
   const pathname  = useRouterState({ select: (s) => s.location.pathname });
   const navigate  = useNavigate();
+  const appLockRequired = isAppLockRequired();
   const appUnlocked = useSyncExternalStore(subscribeAppUnlock, isAppUnlocked, () => false);
+  const effectivelyUnlocked = !appLockRequired || appUnlocked;
   const routePermission = useRolePermission(user?.accessRoleId, pathname);
   const [, setRegTick] = useState(0);
+  useApiRegistrationSync(isApiAuthMode() && isAuthenticated ? user : null, {
+    onActivated: patchAuthenticatedUser,
+  });
 
   useEffect(
     () => subscribeInstituteRegistrations(() => setRegTick((t) => t + 1)),
@@ -134,6 +146,20 @@ function AuthGate() {
   const isAuthRoute = (AUTH_ROUTES as readonly string[]).includes(pathname);
   const registrationGate = resolveRegistrationGate(user);
   const gateRedirect = registrationGatePath(registrationGate.kind);
+  const demoRouteBlock = resolveDemoAuthRouteBlock(pathname);
+  const appLockRouteBlock = resolveAppLockDemoRouteBlock(pathname);
+
+  useEffect(() => {
+    if (isAuthenticated && !appLockRequired) {
+      setAppUnlocked(true);
+    }
+  }, [isAuthenticated, appLockRequired]);
+
+  useEffect(() => {
+    const redirect = appLockRouteBlock ?? demoRouteBlock;
+    if (!redirect || pathname === redirect) return;
+    navigate({ to: redirect, replace: true });
+  }, [appLockRouteBlock, demoRouteBlock, pathname, navigate]);
 
   useEffect(() => {
     if (!isAuthenticated || !user) return;
@@ -156,6 +182,10 @@ function AuthGate() {
     if (!isAuthenticated) return;
 
     // Incomplete registration: force OTP → setup → pending (no dashboard).
+    if (registrationGate.kind === "loading") {
+      return;
+    }
+
     if (registrationGate.kind !== "allow" && gateRedirect && pathname !== gateRedirect) {
       navigate({ to: gateRedirect, replace: true });
       return;
@@ -172,7 +202,7 @@ function AuthGate() {
         navigate({ to: "/", replace: true });
         return;
       }
-      if (appUnlocked && isPostAuthLanding(pathname)) {
+      if (effectivelyUnlocked && isPostAuthLanding(pathname)) {
         navigate({ to: "/", replace: true });
       }
     }
@@ -182,7 +212,7 @@ function AuthGate() {
     pathname,
     status,
     navigate,
-    appUnlocked,
+    effectivelyUnlocked,
     registrationGate.kind,
     gateRedirect,
   ]);
@@ -191,7 +221,7 @@ function AuthGate() {
     if (
       isAuthenticated &&
       registrationGate.kind === "allow" &&
-      appUnlocked &&
+      effectivelyUnlocked &&
       user?.accessRoleId &&
       !isAuthRoute &&
       routePermission === "none" &&
@@ -202,7 +232,7 @@ function AuthGate() {
   }, [
     isAuthenticated,
     registrationGate.kind,
-    appUnlocked,
+    effectivelyUnlocked,
     user?.accessRoleId,
     isAuthRoute,
     routePermission,
@@ -239,6 +269,17 @@ function AuthGate() {
 
   if (!isAuthenticated) return null;
 
+  if (registrationGate.kind === "loading") {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background px-4 text-center">
+        <div className="size-8 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+        <p className="text-sm text-muted-foreground">
+          Loading institute registration status…
+        </p>
+      </div>
+    );
+  }
+
   // Block Admin chrome until Nexus approves — redirect (layout effect) + fallback UI
   if (registrationGate.kind !== "allow") {
     return (
@@ -248,11 +289,15 @@ function AuthGate() {
           <p className="text-sm font-medium text-foreground">
             {registrationGate.kind === "rejected"
               ? "Registration was declined"
-              : "Waiting for Nexus approval"}
+              : registrationGate.kind === "error"
+                ? "Registration status unavailable"
+                : "Institute Registration Under Review"}
           </p>
           <p className="text-[11px] text-muted-foreground">
-            Dashboard stays locked until your institute is approved. You can
-            check status on the pending page.
+            {registrationGate.kind === "error"
+              ? registrationGate.errorMessage ??
+                "Could not load registration status from the API."
+              : "Dashboard stays locked until your institute is approved. You can check status on the pending page."}
           </p>
           {gateRedirect && (
             <Link
@@ -268,7 +313,7 @@ function AuthGate() {
   }
 
   // Session active but app not unlocked this launch → PIN screen
-  if (!appUnlocked) {
+  if (!effectivelyUnlocked) {
     return <AppLockScreen onUnlocked={handleUnlocked} />;
   }
 
@@ -288,9 +333,12 @@ function RootComponent() {
             <AdminActionToastProvider>
               <OfflineSyncHost app="admin" seedDemo={false} topStatus={false} className="min-h-screen-dvh">
                 <TypographyProvider>
+                  <InAppAlertListener />
+                  <PushDeviceTokenRegistration enabled />
                   <AuthGate />
                 </TypographyProvider>
               </OfflineSyncHost>
+              <Toaster position="top-center" richColors />
             </AdminActionToastProvider>
           </DemoProfileProvider>
         </AuthProvider>

@@ -69,10 +69,16 @@ export {
   notifyTeacherLeavePending,
   notifyTeacherOfStudentLeave,
 } from "./leave";
+export {
+  notifyDiaryReminderDemo,
+  type DiaryReminderScope,
+} from "./diary/notify";
 export { NOTIFICATION_CATEGORY as ANNOUNCEMENTS_NOTIFICATION_CATEGORY } from "./announcements";
 export {
   ANNOUNCEMENTS_TEMPLATES,
   publishBroadcastNotification,
+  notifyAnnouncementPublished,
+  type AnnouncementAudienceScope,
   type BroadcastAudienceKind,
   type PublishBroadcastInput,
 } from "./announcements";
@@ -140,6 +146,28 @@ export {
   ensureNotificationHref,
   dedupeNotificationsById,
   isImportantNotification,
+  isAlertNotification,
+  isAlertPresentationPayload,
+  ALERT_PRESENTATION,
+  ALERT_ROW_CLASS,
+  ALERT_ICON_CHIP_CLASS,
+  ALERT_BADGE_CLASS,
+  playAlertChime,
+  playNotificationChime,
+  playChimeForVariant,
+  setAlertChimesEnabled,
+  areAlertChimesEnabled,
+  loadAlertChimesPreference,
+  saveAlertChimesPreference,
+  bootstrapAlertChimesPreference,
+  dispatchInAppAlert,
+  subscribeInAppAlerts,
+  IN_APP_ALERT_EVENT,
+  bootstrapPushDeviceToken,
+  type DeviceApp,
+  type DevicePlatform,
+  type RegisterDeviceTokenFn,
+  type InAppAlertEventDetail,
 } from "./shared/consumption";
 export { NOTIFICATION_CATEGORY as SYSTEM_NOTIFICATION_CATEGORY } from "./system";
 export {

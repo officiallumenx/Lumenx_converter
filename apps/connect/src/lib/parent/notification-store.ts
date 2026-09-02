@@ -4,6 +4,7 @@ import {
   applyStarredFlags,
   setNotificationStarred,
   softDeleteNotification,
+  type RetentionAwareNotification,
 } from "@lumenx/utils";
 
 type Listener = () => void;
@@ -46,7 +47,9 @@ function applyReadState(list: AppNotification[]): AppNotification[] {
 }
 
 function withLifecycle(list: AppNotification[]): AppNotification[] {
-  return applyNotificationRetention(applyStarredFlags(applyReadState(list)));
+  return applyNotificationRetention(
+    applyStarredFlags(applyReadState(list) as unknown as RetentionAwareNotification[]),
+  ) as unknown as AppNotification[];
 }
 
 export const parentNotificationStore = {
@@ -113,7 +116,7 @@ export const parentNotificationStore = {
   softDelete: (id: string) => {
     const current = items.find((n) => n.id === id);
     if (!current) return;
-    softDeleteNotification(current);
+    softDeleteNotification(current as unknown as RetentionAwareNotification);
     items = items.filter((n) => n.id !== id);
     notify();
   },

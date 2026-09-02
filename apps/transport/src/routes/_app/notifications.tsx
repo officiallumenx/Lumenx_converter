@@ -1,13 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-
-import { APP_NAME } from "@/constants";
-import { NotificationsPage } from "@/features/notifications";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_app/notifications")({
-  head: () => ({ meta: [{ title: `Notifications — ${APP_NAME}` }] }),
-  component: NotificationsRoute,
+  beforeLoad: () => {
+    throw redirect({ to: "/alerts" });
+  },
 });
-
-function NotificationsRoute() {
-  return <NotificationsPage />;
-}

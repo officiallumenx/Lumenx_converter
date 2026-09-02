@@ -15,6 +15,7 @@ import {
   deleteParentForActor,
   getParentForActor,
   listParentsForActor,
+  provisionParentAccessForActor,
   updateGuardianLinkForActor,
   updateParentForActor,
 } from "../../domains/parents/service.js";
@@ -59,6 +60,21 @@ const createSchema = z.object({
   access_status: accessSchema.optional(),
   legacy_code: z.string().max(100).nullable().optional(),
   user_profile_id: uuid.nullable().optional(),
+  password: z.string().min(8).max(200).optional(),
+  initial_links: z
+    .array(
+      z.object({
+        student_id: uuid,
+        relationship: relationshipSchema,
+        is_primary: z.boolean().optional(),
+        is_emergency_contact: z.boolean().optional(),
+      }),
+    )
+    .optional(),
+});
+
+const provisionSchema = z.object({
+  password: z.string().min(8).max(200),
 });
 
 const updateSchema = z
@@ -129,6 +145,13 @@ parents.post("/", async (c) => {
     accessStatus: body.access_status,
     legacyCode: body.legacy_code,
     userProfileId: body.user_profile_id,
+    password: body.password,
+    initialLinks: body.initial_links?.map((link) => ({
+      studentId: link.student_id,
+      relationship: link.relationship,
+      isPrimary: link.is_primary,
+      isEmergencyContact: link.is_emergency_contact,
+    })),
   });
   return c.json({ data }, 201);
 });
@@ -193,6 +216,15 @@ parents.delete("/:id/links/:linkId", async (c) => {
   const { id, linkId } = validateParams(linkParamsSchema, c.req.param());
   await deleteGuardianLinkForActor(admin, actor, id, linkId);
   return c.json({ data: { ok: true } });
+});
+
+parents.post("/:id/provision-access", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const body = validateBody(provisionSchema, await c.req.json());
+  const data = await provisionParentAccessForActor(admin, actor, id, body.password);
+  return c.json({ data });
 });
 
 export default parents;

@@ -1,9 +1,13 @@
 import { memo, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Link } from "@tanstack/react-router";
 import { BookOpen, Plus, Trash2, AlertTriangle, Send, CheckCircle2 } from "lucide-react";
-import { Button, Input, Textarea, cn } from "@lumenx/ui";
+import { Button, Input, Textarea, cn, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@lumenx/ui";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/app/PageHeader";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { notifyDiaryReminderDemo } from "@lumenx/module-notifications";
+import { useDiaryApiSession } from "@/hooks/use-diary-api-session";
+import type { DiarySectionOption } from "@/lib/diary/types";
 import {
   diaryRepository,
   formatDiaryDayLabel,
@@ -26,14 +30,20 @@ type Props = {
 const DiaryClassRow = memo(function DiaryClassRow({
   row,
   index,
+  scope,
+  sectionOptions,
   onPatch,
   onRemove,
 }: {
   row: DiaryRow;
   index: number;
+  scope: DiaryScope;
+  sectionOptions: DiarySectionOption[];
   onPatch: (id: string, patch: Partial<DiaryRow>) => void;
   onRemove: (id: string) => void;
 }) {
+  const showSectionPicker = scope === "subject" && sectionOptions.length > 0;
+
   return (
     <li className="rounded-2xl border border-border bg-card p-3 shadow-soft sm:p-4">
       <div className="mb-2 flex items-center justify-between gap-2">
@@ -52,12 +62,36 @@ const DiaryClassRow = memo(function DiaryClassRow({
         </Button>
       </div>
       <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Class</label>
-      <Input
-        value={row.className}
-        onChange={(e) => onPatch(row.id, { className: e.target.value })}
-        placeholder="e.g. 8-A / U14 Football"
-        className="mb-3"
-      />
+      {showSectionPicker ? (
+        <Select
+          value={row.sectionId ?? ""}
+          onValueChange={(sectionId) => {
+            const option = sectionOptions.find((o) => o.sectionId === sectionId);
+            onPatch(row.id, {
+              sectionId,
+              className: option?.label ?? row.className,
+            });
+          }}
+        >
+          <SelectTrigger className="mb-3">
+            <SelectValue placeholder="Select your section" />
+          </SelectTrigger>
+          <SelectContent>
+            {sectionOptions.map((option) => (
+              <SelectItem key={option.sectionId} value={option.sectionId}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ) : (
+        <Input
+          value={row.className}
+          onChange={(e) => onPatch(row.id, { className: e.target.value })}
+          placeholder={scope === "activity" ? "e.g. U14 Football" : "e.g. 8-A"}
+          className="mb-3"
+        />
+      )}
       <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
         Description
       </label>
@@ -79,11 +113,15 @@ export function DiaryOverdueBanner({
   scope: DiaryScope;
   href: string;
 }) {
+  const { ready } = useDiaryApiSession(scope);
+
   useSyncExternalStore(
     diaryRepository.subscribe,
     diaryRepository.getSnapshot,
     diaryRepository.getSnapshot,
   );
+
+  if (!ready) return null;
 
   const overdue = diaryRepository.isYesterdayOverdue(scope);
   if (!overdue) return null;
@@ -108,12 +146,15 @@ export function DiaryOverdueBanner({
 }
 
 export function DiaryBookPage({ scope, className }: Props) {
+  const apiMode = isApiAuthMode();
+  const { ready: apiReady, sectionOptions } = useDiaryApiSession(scope);
   const today = todayIso();
   const yesterday = yesterdayIso();
   const [selectedDate, setSelectedDate] = useState(today);
   const [rows, setRows] = useState<DiaryRow[]>(() => diaryRepository.ensureDay(scope, today).rows);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [submitting, setSubmitting] = useState(false);
+  const [loadingDay, setLoadingDay] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipNextPersist = useRef(true);
 
@@ -124,13 +165,44 @@ export function DiaryBookPage({ scope, className }: Props) {
   );
 
   useEffect(() => {
-    const day = diaryRepository.ensureDay(scope, selectedDate);
-    skipNextPersist.current = true;
-    setRows(day.rows.map((r) => ({ ...r })));
-    setSaveState("idle");
-  }, [scope, selectedDate]);
+    if (apiMode || !diaryRepository.isYesterdayOverdue(scope)) return;
+    notifyDiaryReminderDemo({
+      scope,
+      diaryDate: yesterdayIso(),
+      overdue: true,
+      href: scope === "activity" ? "/activity/diary" : "/diary",
+    });
+  }, [apiMode, scope]);
 
   useEffect(() => {
+    if (!apiReady) return;
+
+    let cancelled = false;
+    setLoadingDay(true);
+    void diaryRepository
+      .loadDay(scope, selectedDate)
+      .then((day) => {
+        if (cancelled) return;
+        skipNextPersist.current = true;
+        setRows(day.rows.map((r) => ({ ...r })));
+        setSaveState("idle");
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          toast.error(err instanceof Error ? err.message : "Failed to load diary");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingDay(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiReady, scope, selectedDate]);
+
+  useEffect(() => {
+    if (!apiReady) return;
     if (skipNextPersist.current) {
       skipNextPersist.current = false;
       return;
@@ -138,13 +210,15 @@ export function DiaryBookPage({ scope, className }: Props) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     setSaveState("saving");
     debounceRef.current = setTimeout(() => {
-      diaryRepository.saveRows(scope, selectedDate, rows);
-      setSaveState("saved");
+      void diaryRepository.saveRows(scope, selectedDate, rows).then(
+        () => setSaveState("saved"),
+        () => setSaveState("idle"),
+      );
     }, SAVE_DEBOUNCE_MS);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [rows, scope, selectedDate]);
+  }, [rows, scope, selectedDate, apiReady]);
 
   const canSubmit = isDiaryDayReady({ date: selectedDate, scope, rows, updatedAt: "" });
   const storedDay = diaryRepository.getDay(scope, selectedDate);
@@ -194,6 +268,14 @@ export function DiaryBookPage({ scope, className }: Props) {
       setSubmitting(false);
     }
   };
+
+  if (!apiReady || loadingDay) {
+    return (
+      <div className={cn("min-w-0 px-1 py-8 text-sm text-muted-foreground", className)}>
+        Loading diary…
+      </div>
+    );
+  }
 
   return (
     <div className={cn("min-w-0 space-y-5", className)}>
@@ -248,6 +330,8 @@ export function DiaryBookPage({ scope, className }: Props) {
             key={row.id}
             row={row}
             index={index}
+            scope={scope}
+            sectionOptions={sectionOptions}
             onPatch={updateRow}
             onRemove={removeRow}
           />

@@ -1,0 +1,422 @@
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
+import {
+  Home,
+  Briefcase,
+  LayoutDashboard,
+  FilePlus,
+  FolderOpen,
+  MoreHorizontal,
+  Users,
+  Bell,
+  FileText,
+  User,
+  Settings,
+  LogIn,
+  BriefcaseBusiness,
+  Calendar,
+  Moon,
+  Sun,
+} from "lucide-react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import {
+  Button,
+  PendingSyncBadge,
+  Sheet,
+  SheetTrigger,
+  cn,
+  useIsMobile,
+  useSwipeNavigation,
+  type SwipeNavItem,
+  ModuleTransitionRoot,
+  navigateWithModuleTransition,
+  getModuleNavDirection,
+} from "@lumenx/ui";
+import { MobileMoreSheetContent } from "@/components/app/MobileMoreSheetContent";
+import { useCareersAuth } from "@/careers-portal/core/CareersAuthProvider";
+import { useCareersTheme } from "@/careers-portal/core/CareersThemeProvider";
+import { LumenXLogo } from "@/components/app/LumenXLogo";
+import { isMinimalShellRoute } from "@/careers-portal/core/guards";
+import { isRecruiter } from "@/lib/careers/auth-utils";
+import { unreadNotificationCount } from "@/lib/careers/repositories";
+
+type NavItem = {
+  to: string;
+  label: string;
+  icon: typeof Home;
+  exact?: boolean;
+  auth?: boolean;
+};
+
+const JOB_SEEKER_PRIMARY_NAV: NavItem[] = [
+  { to: "/", label: "Home", icon: Home, exact: true },
+  { to: "/jobs", label: "Jobs", icon: Briefcase },
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, auth: true },
+  { to: "/applications", label: "Applications", icon: FolderOpen, auth: true },
+];
+
+const JOB_SEEKER_MORE_NAV: NavItem[] = [
+  { to: "/apply", label: "Apply", icon: FilePlus, auth: true },
+  { to: "/saved", label: "Saved jobs", icon: BriefcaseBusiness, auth: true },
+  { to: "/interviews", label: "Interviews", icon: Calendar, auth: true },
+  { to: "/documents", label: "Documents", icon: FileText, auth: true },
+  { to: "/notifications", label: "Notifications", icon: Bell, auth: true },
+  { to: "/profile", label: "Profile", icon: User, auth: true },
+  { to: "/settings", label: "Settings", icon: Settings, auth: true },
+];
+
+const RECRUITER_PRIMARY_NAV: NavItem[] = [
+  { to: "/recruiter", label: "Workspace", icon: LayoutDashboard, auth: true },
+  { to: "/recruiter/jobs", label: "My jobs", icon: Briefcase, auth: true },
+  { to: "/recruiter/applicants", label: "Applications", icon: FolderOpen, auth: true },
+];
+
+const RECRUITER_MORE_NAV: NavItem[] = [
+  { to: "/recruiter/talent", label: "Discover talent", icon: Users, auth: true },
+  { to: "/", label: "Careers home", icon: Home, exact: true },
+  { to: "/settings", label: "Settings", icon: Settings, auth: true },
+];
+
+function navTarget(item: NavItem, user: ReturnType<typeof useCareersAuth>["user"]) {
+  if (item.auth && !user) {
+    return { to: "/login" as const, search: { redirect: item.to } };
+  }
+  return { to: item.to as "/" };
+}
+
+function isActive(pathname: string, to: string, exact?: boolean) {
+  if (exact) return pathname === to || pathname === `${to}/`;
+  if (to === "/jobs") {
+    return pathname === to || pathname.startsWith("/jobs/");
+  }
+  if (to === "/recruiter") {
+    return pathname === to || pathname === `${to}/`;
+  }
+  if (to.startsWith("/recruiter/")) {
+    return pathname === to || pathname.startsWith(`${to}/`);
+  }
+  return pathname === to || pathname.startsWith(`${to}/`);
+}
+
+function ThemeToggle({ className }: { className?: string }) {
+  const { theme, setTheme } = useCareersTheme();
+  const toggle = () => setTheme(theme === "dark" ? "light" : "dark");
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={toggle}
+      aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+      className={className}
+    >
+      {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+    </Button>
+  );
+}
+
+export function CareersShell({ children }: { children: React.ReactNode }) {
+  const loc = useLocation();
+  const nav = useNavigate();
+  const { user, signOut } = useCareersAuth();
+  const [moreOpen, setMoreOpen] = useState(false);
+  const minimal = isMinimalShellRoute(loc.pathname);
+  const unread = user && !isRecruiter(user) ? unreadNotificationCount(user.id) : 0;
+  const primaryNav = isRecruiter(user) ? RECRUITER_PRIMARY_NAV : JOB_SEEKER_PRIMARY_NAV;
+  const moreNav = isRecruiter(user) ? RECRUITER_MORE_NAV : JOB_SEEKER_MORE_NAV;
+  const mainRef = useRef<HTMLElement>(null);
+  const isMobile = useIsMobile();
+
+  const swipePrimaryPaths = useMemo((): SwipeNavItem[] => {
+    return primaryNav.map((item) => ({ path: item.to, exact: item.exact }));
+  }, [primaryNav]);
+
+  const swipeMorePaths = useMemo((): SwipeNavItem[] => {
+    return moreNav.map((item) => ({ path: item.to, exact: item.exact }));
+  }, [moreNav]);
+
+  const onSwipeNavigate = useCallback(
+    (to: string) => {
+      setMoreOpen(false);
+      const item = [...primaryNav, ...moreNav].find((n) => n.to === to);
+      const run = () => {
+        if (item) {
+          const target = navTarget(item, user);
+          void nav({
+            to: target.to,
+            search: "search" in target ? target.search : undefined,
+          });
+          return;
+        }
+        void nav({ to });
+      };
+      const direction = getModuleNavDirection(loc.pathname, to, swipePrimaryPaths, swipeMorePaths, {
+        isActive,
+        settingsPath: moreNav.find((n) => n.label === "Settings")?.to,
+      });
+      navigateWithModuleTransition(run, direction);
+    },
+    [loc.pathname, moreNav, nav, primaryNav, swipeMorePaths, swipePrimaryPaths, user],
+  );
+
+  useSwipeNavigation({
+    containerRef: mainRef,
+    pathname: loc.pathname,
+    primaryPaths: swipePrimaryPaths,
+    morePaths: swipeMorePaths,
+    enabled: isMobile && !minimal,
+    isActive,
+    settingsPath: moreNav.find((item) => item.label === "Settings")?.to,
+    homePath: swipePrimaryPaths[0]?.path,
+    onNavigate: onSwipeNavigate,
+  });
+
+  const NavLink = (item: NavItem) => {
+    const { to, label, icon: Icon, exact } = item;
+    const target = navTarget(item, user);
+    const active = isActive(loc.pathname, to, exact);
+    return (
+      <Link
+        to={target.to}
+        search={"search" in target ? target.search : undefined}
+        onClick={() => setMoreOpen(false)}
+        className={cn(
+          "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors min-h-10",
+          active
+            ? "bg-primary/10 text-primary font-medium"
+            : "text-muted-foreground hover:bg-muted hover:text-foreground",
+        )}
+      >
+        <Icon className="size-4 shrink-0" />
+        {label}
+      </Link>
+    );
+  };
+
+  if (minimal) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="sticky top-0 z-20 border-b border-border bg-background/90 backdrop-blur-md">
+          <div className="mx-auto flex h-14 max-w-lg items-center justify-between gap-2 px-4">
+            <Link to="/" className="flex items-center gap-2 min-w-0">
+              <LumenXLogo size="sm" />
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Careers
+                </p>
+                <p className="text-sm font-bold leading-tight truncate">LumenX Connect</p>
+              </div>
+            </Link>
+            <ThemeToggle />
+          </div>
+        </header>
+        <main ref={mainRef} className="mx-auto max-w-lg px-4 py-6">
+          {children}
+        </main>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-screen bg-background">
+      <aside className="hidden lg:flex w-60 shrink-0 flex-col border-r border-border bg-sidebar h-screen sticky top-0">
+        <div className="flex h-16 shrink-0 items-center justify-between gap-2 border-b border-border px-4">
+          <Link to="/" className="flex items-center gap-2 min-w-0">
+            <LumenXLogo size="sm" />
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Careers
+              </p>
+              <p className="text-sm font-bold truncate">LumenX</p>
+            </div>
+          </Link>
+          <div className="flex items-center gap-1.5">
+            <PendingSyncBadge />
+            <ThemeToggle />
+          </div>
+        </div>
+        <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 space-y-1">
+          {primaryNav.map((item) => (
+            <NavLink key={item.to} {...item} />
+          ))}
+          <div className="my-2 border-t border-border pt-2">
+            <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              More
+            </p>
+            {moreNav.map((item) => (
+              <NavLink key={item.to} {...item} />
+            ))}
+          </div>
+        </nav>
+        <div className="shrink-0 border-t border-border p-3">
+          {user ? (
+            <Button
+              variant="ghost"
+              className="w-full justify-start"
+              onClick={() => {
+                signOut();
+                nav({ to: "/" });
+              }}
+            >
+              Sign out
+            </Button>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <Button className="w-full" asChild>
+                <Link to="/signup" search={{ type: "job_seeker" }}>
+                  <LogIn className="size-4 mr-2" /> Sign up
+                </Link>
+              </Button>
+              <Button variant="outline" className="w-full" asChild>
+                <Link to="/login">Sign in</Link>
+              </Button>
+            </div>
+          )}
+        </div>
+      </aside>
+
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between border-b border-border bg-background/90 px-4 backdrop-blur-md lg:hidden">
+          <Link to="/" className="flex items-center gap-2 min-w-0">
+            <LumenXLogo size="sm" className="h-8" />
+            <span className="truncate text-sm font-bold">Careers</span>
+          </Link>
+          <div className="flex items-center gap-1">
+            <PendingSyncBadge />
+            <ThemeToggle />
+            {user && !isRecruiter(user) && (
+              <Link
+                to="/notifications"
+                className="relative flex size-9 items-center justify-center rounded-lg border border-border"
+              >
+                <Bell className="size-4" />
+                {unread > 0 && (
+                  <span className="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground">
+                    {unread > 9 ? "9+" : unread}
+                  </span>
+                )}
+              </Link>
+            )}
+            {!user && (
+              <Button size="sm" variant="outline" asChild>
+                <Link to="/login">Sign in</Link>
+              </Button>
+            )}
+          </div>
+        </header>
+
+        <main
+          ref={mainRef}
+          className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 pb-24 lg:pb-8 lg:px-8 min-w-0"
+        >
+          <div className="lx-module-swipe-stage min-w-0 w-full">
+            <ModuleTransitionRoot
+              pathname={loc.pathname}
+              primaryPaths={swipePrimaryPaths}
+              morePaths={swipeMorePaths}
+              settingsPath={moreNav.find((item) => item.label === "Settings")?.to}
+              isActive={isActive}
+              enabled={isMobile && !minimal}
+              className="min-w-0"
+            >
+              {children}
+            </ModuleTransitionRoot>
+          </div>
+        </main>
+
+        <nav className="fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-background/95 backdrop-blur-md lg:hidden safe-area-pb">
+          <div className="mx-auto flex max-w-lg items-stretch justify-around px-1 py-1">
+            {[
+              primaryNav[0],
+              primaryNav[1],
+              user ? primaryNav[2] : { ...primaryNav[2], login: true },
+              user ? primaryNav[3] : null,
+            ]
+              .filter(Boolean)
+              .map((item) => {
+                const navItem = item as NavItem & { login?: boolean };
+                const target = navItem.login
+                  ? { to: "/login" as const, search: { redirect: navItem.to } }
+                  : navTarget(navItem, user);
+                const active = isActive(loc.pathname, navItem.to, navItem.exact);
+                const Icon = navItem.icon;
+                return (
+                  <Link
+                    key={navItem.to}
+                    to={target.to}
+                    search={"search" in target ? target.search : undefined}
+                    className={cn(
+                      "flex flex-1 flex-col items-center gap-0.5 rounded-lg py-2 text-[10px] transition-colors min-w-0",
+                      active ? "text-primary font-medium" : "text-muted-foreground",
+                    )}
+                  >
+                    <Icon className={cn("size-5 shrink-0", active && "scale-110")} />
+                    <span className="truncate max-w-full px-0.5">{navItem.label}</span>
+                  </Link>
+                );
+              })}
+            <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
+              <SheetTrigger asChild>
+                <button
+                  type="button"
+                  className={cn(
+                    "flex flex-1 flex-col items-center gap-0.5 rounded-lg py-2 text-[10px] min-w-0",
+                    moreNav.some((m) => isActive(loc.pathname, m.to))
+                      ? "text-primary font-medium"
+                      : "text-muted-foreground",
+                  )}
+                >
+                  <MoreHorizontal className="size-5" />
+                  More
+                </button>
+              </SheetTrigger>
+              <MobileMoreSheetContent title="More">
+                <div className="grid grid-cols-2 gap-2">
+                  {moreNav.map((item) => {
+                    const target = navTarget(item, user);
+                    return (
+                      <Link
+                        key={item.to}
+                        to={target.to}
+                        search={"search" in target ? target.search : undefined}
+                        onClick={() => setMoreOpen(false)}
+                        className="flex items-center gap-2 rounded-xl border border-border p-3 text-sm"
+                      >
+                        <item.icon className="size-4 text-primary shrink-0" />
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                  {!user && (
+                    <>
+                      <Link
+                        to="/login"
+                        onClick={() => setMoreOpen(false)}
+                        className="flex items-center gap-2 rounded-xl border border-border p-3 text-sm"
+                      >
+                        <LogIn className="size-4" /> Sign in
+                      </Link>
+                      <Link
+                        to="/signup"
+                        search={{ type: "job_seeker" }}
+                        onClick={() => setMoreOpen(false)}
+                        className="flex items-center gap-2 rounded-xl border border-border p-3 text-sm"
+                      >
+                        <User className="size-4" /> Sign up
+                      </Link>
+                    </>
+                  )}
+                </div>
+              </MobileMoreSheetContent>
+            </Sheet>
+          </div>
+        </nav>
+      </div>
+    </div>
+  );
+}
+
+export {
+  JobCard,
+  ApplicationTimeline,
+  DocumentUploadCard,
+  SaveJobButton,
+} from "./CareersShellWidgets";

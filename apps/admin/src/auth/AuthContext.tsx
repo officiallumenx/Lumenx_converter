@@ -27,9 +27,11 @@ import {
   mockForgotPin,
 } from "./auth-store";
 import { AUTH_REMEMBER_KEY } from "./constants";
-import { isApiAuthMode } from "./auth-mode";
+import { isApiAuthMode, assertProductionApiAuthMode } from "./auth-mode";
 import {
   apiSignInWithPassword,
+  apiSignInWithStaffOtp,
+  apiSignInWithStaffPassword,
   apiSignOut,
   tryHydrateApiSession,
 } from "./api-auth";
@@ -40,6 +42,9 @@ import {
   clearApiActiveInstituteSession,
 } from "./api-active-institute";
 import { setAdminApiUnauthorizedHandler } from "@/lib/admin-api";
+import { bindApiRegistrationUser } from "./api-registration-state";
+import { finalizeApiAuthUser } from "./api-auth-finalize";
+import { runApiInstituteSignUp } from "./api-signup-flow";
 
 // ── Context ───────────────────────────────────────────────────
 
@@ -59,6 +64,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearAppUnlock();
     setUser(null);
     setStatus("unauthenticated");
+  }, []);
+
+  useEffect(() => {
+    assertProductionApiAuthMode();
   }, []);
 
   useEffect(() => {
@@ -85,11 +94,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const hydrated = await tryHydrateApiSession();
           if (cancelled) return;
           if (hydrated) {
+            bindApiRegistrationUser(hydrated.user.id);
+            const user = await finalizeApiAuthUser(hydrated);
+            if (cancelled) return;
             const remember =
               typeof localStorage !== "undefined" &&
               localStorage.getItem(AUTH_REMEMBER_KEY) === "1";
-            saveSession(hydrated.user, remember, { authSource: "api" });
-            setUser(hydrated.user);
+            saveSession(user, remember, { authSource: "api" });
+            setUser(user);
             setStatus("authenticated");
             return;
           }
@@ -137,10 +149,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         if (isApiAuthMode()) {
           const hydrated = await apiSignInWithPassword(identifier, password);
-          saveSession(hydrated.user, remember, { authSource: "api" });
+          bindApiRegistrationUser(hydrated.user.id);
+          const user = await finalizeApiAuthUser(hydrated);
+          saveSession(user, remember, { authSource: "api" });
           clearLoginFlowDraft();
           clearAppUnlock();
-          setUser(hydrated.user);
+          setUser(user);
           setStatus("authenticated");
           return;
         }
@@ -150,6 +164,76 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearLoginFlowDraft();
         clearAppUnlock();
         setUser(authUser);
+        setStatus("authenticated");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Login failed. Please try again.");
+        setStatus("unauthenticated");
+        throw err;
+      }
+    },
+    [],
+  );
+
+  const signInWithStaffOtp = useCallback(
+    async (input: {
+      instituteId: string;
+      identifier: string;
+      otp: string;
+      password: string;
+      remember?: boolean;
+    }) => {
+      setStatus("loading");
+      setError(null);
+      try {
+        if (!isApiAuthMode()) {
+          throw new Error("Staff OTP login is only available in API mode.");
+        }
+        const hydrated = await apiSignInWithStaffOtp({
+          instituteId: input.instituteId,
+          identifier: input.identifier,
+          otp: input.otp,
+          password: input.password,
+        });
+        bindApiRegistrationUser(hydrated.user.id);
+        const user = await finalizeApiAuthUser(hydrated);
+        saveSession(user, input.remember ?? false, { authSource: "api" });
+        clearLoginFlowDraft();
+        clearAppUnlock();
+        setUser(user);
+        setStatus("authenticated");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Login failed. Please try again.");
+        setStatus("unauthenticated");
+        throw err;
+      }
+    },
+    [],
+  );
+
+  const signInWithStaffPassword = useCallback(
+    async (input: {
+      instituteId: string;
+      identifier: string;
+      password: string;
+      remember?: boolean;
+    }) => {
+      setStatus("loading");
+      setError(null);
+      try {
+        if (!isApiAuthMode()) {
+          throw new Error("Staff password login is only available in API mode.");
+        }
+        const hydrated = await apiSignInWithStaffPassword({
+          instituteId: input.instituteId,
+          identifier: input.identifier,
+          password: input.password,
+        });
+        bindApiRegistrationUser(hydrated.user.id);
+        const user = await finalizeApiAuthUser(hydrated);
+        saveSession(user, input.remember ?? false, { authSource: "api" });
+        clearLoginFlowDraft();
+        clearAppUnlock();
+        setUser(user);
         setStatus("authenticated");
       } catch (err) {
         setError(err instanceof Error ? err.message : "Login failed. Please try again.");
@@ -207,6 +291,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (instituteId: string, instituteName: string) => {
       const next = tryApplyApiActiveInstituteSession(instituteId, instituteName);
       if (next) setUser(next);
+      void import("@/lib/access-roles").then(({ syncApiAccessPermissions }) => {
+        void syncApiAccessPermissions(instituteId);
+      });
     },
     [],
   );
@@ -219,8 +306,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = useCallback(async (data: SignUpFormData) => {
     if (isApiAuthMode()) {
-      setError("Institute sign-up via API mode is not enabled in this cutover. Use demo mode or an existing account.");
-      throw new Error("API-mode sign-up is not enabled in Stage 8.1B");
+      setStatus("loading");
+      setError(null);
+      try {
+        const hydrated = await runApiInstituteSignUp(data);
+        saveSession(hydrated.user, false, { authSource: "api" });
+        clearAppUnlock();
+        setUser(hydrated.user);
+        setStatus("authenticated");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Sign up failed. Please try again.");
+        setStatus("unauthenticated");
+        throw err;
+      }
+      return;
     }
     setStatus("loading");
     setError(null);
@@ -294,6 +393,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isLoading: status === "loading" || status === "idle",
       error,
       signIn,
+      signInWithStaffOtp,
+      signInWithStaffPassword,
       completeSignIn,
       patchAuthenticatedUser,
       applyApiActiveInstitute,
@@ -309,6 +410,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       error,
       signIn,
+      signInWithStaffOtp,
+      signInWithStaffPassword,
       completeSignIn,
       patchAuthenticatedUser,
       applyApiActiveInstitute,

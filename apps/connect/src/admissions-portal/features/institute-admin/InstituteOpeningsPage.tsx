@@ -21,8 +21,10 @@ import {
   Textarea,
 } from "@lumenx/ui";
 import { DoorOpen, Pencil, Plus, Trash2 } from "lucide-react";
+import { toLocalIsoDate } from "@lumenx/utils";
 import { toast } from "sonner";
 import { useAdmissionsAuth } from "@/admissions-portal/core/AdmissionsAuthProvider";
+import { ConnectDatePicker } from "@/components/app/attendance/AttendanceDatePicker";
 import { AdmissionsPageHeader } from "@/admissions-portal/shared/ui/AdmissionsPageHeader";
 import type { AdmissionOpening, AdmissionOpeningStatus } from "@/lib/admissions/types";
 import {
@@ -331,14 +333,15 @@ export function InstituteOpeningsPage() {
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">Application deadline</Label>
-              <Input
-                className="mt-1"
-                type="date"
-                value={toDateInputValue(form.applicationDeadline)}
-                onChange={(e) =>
-                  setForm({ ...form, applicationDeadline: e.target.value })
-                }
-              />
+              <div className="mt-1">
+                <ConnectDatePicker
+                  label="Application deadline"
+                  hideLabel
+                  value={toDateInputValue(form.applicationDeadline)}
+                  min={toLocalIsoDate(new Date())}
+                  onChange={(iso) => setForm({ ...form, applicationDeadline: iso })}
+                />
+              </div>
               {form.applicationDeadline ? (
                 <p className="mt-1 text-xs text-muted-foreground">
                   {formatDeadline(form.applicationDeadline)}

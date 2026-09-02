@@ -20,12 +20,15 @@ import {
   listDeviceTokensForUser,
   listNotificationsByIds,
   listRecipientsForUser,
+  listRecipientsForUserAll,
   listTemplates,
   softDeleteDeviceToken,
   softDeleteRecipient,
   updateRecipientFields,
   upsertDeviceToken,
+  userHasNotificationRecipientAtInstitute,
 } from "./repository.js";
+import { enqueueFcmDeliveryAttempts } from "./fcm-enqueue.js";
 import type {
   DeviceTokenDto,
   DeviceTokenRow,
@@ -129,6 +132,30 @@ function isStaffReader(actor: Actor, instituteId: string): boolean {
   );
 }
 
+async function assertCanAccessInboxInstitute(
+  admin: SupabaseClient,
+  actor: Actor,
+  instituteId: string,
+): Promise<void> {
+  if (actor.isPlatformOperator) return;
+  if (actor.memberships.some((m) => m.instituteId === instituteId)) return;
+  const hasRecipient = await userHasNotificationRecipientAtInstitute(
+    admin,
+    actor.userId,
+    instituteId,
+  );
+  if (hasRecipient) return;
+  throw AppError.forbidden("Not a member of this institute");
+}
+
+function assertCanReadInboxItem(actor: Actor, recipient: RecipientRow): void {
+  if (recipient.user_profile_id === actor.userId) return;
+  assertInstituteAccess(actor, recipient.institute_id);
+  if (!isStaffReader(actor, recipient.institute_id)) {
+    throw AppError.forbidden("Insufficient permissions");
+  }
+}
+
 function assertCanEmit(actor: Actor, instituteId: string): void {
   requireInstituteId(actor, instituteId);
   assertInstituteRoles(actor, instituteId, [...NOTIFICATION_EMIT_ROLES]);
@@ -159,11 +186,27 @@ export async function listInboxForActor(
   actor: Actor,
   filter: ListInboxFilter,
 ): Promise<InboxItemDto[]> {
-  const instituteId = requireInstituteId(actor, filter.instituteId);
+  const instituteId = filter.instituteId?.trim();
+  if (!instituteId) {
+    return listInboxAllForActor(admin, actor, { unreadOnly: filter.unreadOnly });
+  }
+  await assertCanAccessInboxInstitute(admin, actor, instituteId);
   const recipients = await listRecipientsForUser(admin, {
     ...filter,
     instituteId,
     userProfileId: actor.userId,
+  });
+  return buildInboxItems(admin, recipients);
+}
+
+export async function listInboxAllForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  filter: { unreadOnly?: boolean } = {},
+): Promise<InboxItemDto[]> {
+  const recipients = await listRecipientsForUserAll(admin, {
+    userProfileId: actor.userId,
+    unreadOnly: filter.unreadOnly,
   });
   return buildInboxItems(admin, recipients);
 }
@@ -176,12 +219,7 @@ export async function getInboxItemForActor(
   const recipient = await findRecipientById(admin, recipientId);
   if (!recipient) throw AppError.notFound("Notification not found");
 
-  assertInstituteAccess(actor, recipient.institute_id);
-
-  const isOwner = recipient.user_profile_id === actor.userId;
-  if (!isOwner && !isStaffReader(actor, recipient.institute_id)) {
-    throw AppError.forbidden("Insufficient permissions");
-  }
+  assertCanReadInboxItem(actor, recipient);
 
   const notification = await findNotificationById(
     admin,
@@ -204,7 +242,6 @@ export async function updateInboxItemForActor(
   if (recipient.user_profile_id !== actor.userId) {
     throw AppError.forbidden("Can only update own inbox items");
   }
-  assertInstituteAccess(actor, recipient.institute_id);
 
   const fieldPatch: Record<string, unknown> = {};
   if (patch.read !== undefined) {
@@ -239,7 +276,6 @@ export async function deleteInboxItemForActor(
   if (recipient.user_profile_id !== actor.userId) {
     throw AppError.forbidden("Can only delete own inbox items");
   }
-  assertInstituteAccess(actor, recipient.institute_id);
 
   const deleted = await softDeleteRecipient(admin, recipientId);
   if (!deleted) throw AppError.conflict("Notification was already deleted");
@@ -305,12 +341,14 @@ async function emitNotificationInternal(
     });
   }
 
-  const members = await findActiveMemberUserIds(admin, instituteId, recipientIds);
-  const nonMembers = recipientIds.filter((id) => !members.has(id));
-  if (nonMembers.length > 0) {
-    throw AppError.validation("Referenced resource is invalid", {
-      recipient_user_ids: ["One or more recipients are not active institute members"],
-    });
+  if (input.audience) {
+    const members = await findActiveMemberUserIds(admin, instituteId, recipientIds);
+    const nonMembers = recipientIds.filter((id) => !members.has(id));
+    if (nonMembers.length > 0) {
+      throw AppError.validation("Referenced resource is invalid", {
+        recipient_user_ids: ["One or more recipients are not active institute members"],
+      });
+    }
   }
 
   if (input.templateId) {
@@ -340,6 +378,12 @@ async function emitNotificationInternal(
   });
 
   await insertInAppDeliveryAttempts(admin, {
+    instituteId,
+    notificationId: notification.id,
+    recipients,
+  });
+
+  await enqueueFcmDeliveryAttempts(admin, {
     instituteId,
     notificationId: notification.id,
     recipients,

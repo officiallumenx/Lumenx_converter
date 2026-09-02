@@ -1,20 +1,20 @@
-import { createFileRoute, Outlet } from "@tanstack/react-router";
-import { CareersAuthProvider } from "@/careers-portal/core/CareersAuthProvider";
-import { CareersThemeProvider } from "@/careers-portal/core/CareersThemeProvider";
-import { CareersShell } from "@/careers-portal/shared/ui/CareersShell";
+import { createFileRoute } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { redirectToCareersPortal } from "@/lib/careers-origin";
 
 export const Route = createFileRoute("/careers")({
-  component: CareersLayout,
+  head: () => ({ meta: [{ title: "Redirecting — LumenX Careers" }] }),
+  component: CareersRootRedirect,
 });
 
-function CareersLayout() {
+function CareersRootRedirect() {
+  useEffect(() => {
+    redirectToCareersPortal("/");
+  }, []);
+
   return (
-    <CareersThemeProvider>
-      <CareersAuthProvider>
-        <CareersShell>
-          <Outlet />
-        </CareersShell>
-      </CareersAuthProvider>
-    </CareersThemeProvider>
+    <div className="flex min-h-screen items-center justify-center bg-background px-6">
+      <p className="text-sm text-muted-foreground">Redirecting to LumenX Careers…</p>
+    </div>
   );
 }

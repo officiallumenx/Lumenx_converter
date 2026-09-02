@@ -17,6 +17,7 @@ import {
   updateAssetForActor,
   uploadAssetForActor,
 } from "../../domains/assets/service.js";
+import { resolveUploadPurpose } from "../../domains/storage/service.js";
 
 const assets = new Hono<AppBindings>();
 assets.use("*", requireAuth);
@@ -138,17 +139,40 @@ assets.post("/upload", async (c) => {
   const admin = requireAdmin(c);
   const form = await c.req.parseBody({ all: true });
   const instituteIdRaw = form["institute_id"];
+  const fileRaw = form["file"];
+  const purposeRaw = form["purpose"];
   const bucketRaw = form["bucket"];
   const categoryRaw = form["category"];
-  const fileRaw = form["file"];
-  if (
-    typeof instituteIdRaw !== "string" ||
-    typeof bucketRaw !== "string" ||
-    typeof categoryRaw !== "string" ||
-    !(fileRaw instanceof File)
-  ) {
+
+  if (typeof instituteIdRaw !== "string" || !(fileRaw instanceof File)) {
     throw AppError.validation("Invalid multipart upload", {
-      file: ["institute_id, bucket, category, and file are required"],
+      file: ["institute_id and file are required"],
+    });
+  }
+
+  let bucket: z.infer<typeof bucketSchema>;
+  let category: z.infer<typeof categorySchema>;
+
+  if (typeof purposeRaw === "string" && purposeRaw.trim()) {
+    const purpose = validateBody(
+      z.object({ purpose: z.enum(["logo", "general"]) }),
+      { purpose: purposeRaw.trim() },
+    ).purpose;
+    const resolved = resolveUploadPurpose(purpose);
+    bucket = resolved.bucket;
+    category = resolved.category;
+  } else if (typeof bucketRaw === "string" && typeof categoryRaw === "string") {
+    bucket = validateBody(
+      z.object({ bucket: bucketSchema }),
+      { bucket: bucketRaw },
+    ).bucket;
+    category = validateBody(
+      z.object({ category: categorySchema }),
+      { category: categoryRaw },
+    ).category;
+  } else {
+    throw AppError.validation("Invalid multipart upload", {
+      file: ["purpose (logo|general) or bucket+category are required"],
     });
   }
 
@@ -163,14 +187,8 @@ assets.post("/upload", async (c) => {
       z.object({ institute_id: uuid }),
       { institute_id: instituteIdRaw },
     ).institute_id,
-    bucket: validateBody(
-      z.object({ bucket: bucketSchema }),
-      { bucket: bucketRaw },
-    ).bucket,
-    category: validateBody(
-      z.object({ category: categorySchema }),
-      { category: categoryRaw },
-    ).category,
+    bucket,
+    category,
     fileName: fileRaw.name,
     contentType: fileRaw.type || "application/octet-stream",
     byteSize: fileRaw.size,

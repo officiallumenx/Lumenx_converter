@@ -21,7 +21,7 @@ import {
   type AssetsLoadStatus,
   type StorageUsageSummary,
 } from "@/lib/assets";
-import { HardDrive, RefreshCw, Trash2, Upload } from "lucide-react";
+import { HardDrive, Download, RefreshCw, Trash2, Upload } from "lucide-react";
 
 function fmtBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -64,6 +64,7 @@ export function StorageApiUsagePanel() {
   const [reloadKey, setReloadKey] = useState(0);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadPurpose, setUploadPurpose] = useState<"logo" | "general">("logo");
   const [refreshing, setRefreshing] = useState(false);
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
@@ -171,17 +172,11 @@ export function StorageApiUsagePanel() {
     try {
       const asset = await uploadAsset({
         instituteId: instituteCtx.activeInstituteId,
-        bucket: "institute-branding",
-        category: "logo",
+        purpose: uploadPurpose,
         file,
         visibility: "institute",
       });
-      const signed = await getAssetSignedUrl(asset.id);
       notify(`Uploaded ${asset.fileName ?? file.name}`);
-      if (signed.signedUrl.startsWith("http")) {
-        // Signed URL minted — private bucket access confirmed.
-        void signed;
-      }
       setReloadKey((k) => k + 1);
     } catch (err) {
       notify(err instanceof Error ? err.message : "Upload failed");
@@ -190,21 +185,45 @@ export function StorageApiUsagePanel() {
     }
   };
 
+  const download = async (asset: AssetDto) => {
+    try {
+      const signed = await getAssetSignedUrl(asset.id);
+      window.open(signed.signedUrl, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Download failed");
+    }
+  };
+
   return (
     <div className="space-y-4">
       <Card>
         <CardHeader
           title="Asset storage"
-          hint="POST /assets/upload · private buckets · signed URLs via GET /assets/:id/signed-url"
+          hint="Real usage from stored files · upload via Logo or General"
           action={
             <div className="flex flex-wrap items-center gap-2">
               <Pill tone="neutral">API mode</Pill>
               {writesEnabled ? (
                 <>
+                  <select
+                    value={uploadPurpose}
+                    onChange={(e) =>
+                      setUploadPurpose(e.target.value as "logo" | "general")
+                    }
+                    className="h-8 rounded-md border border-border bg-background px-2 text-xs"
+                    aria-label="Upload type"
+                  >
+                    <option value="logo">Logo</option>
+                    <option value="general">General / Other</option>
+                  </select>
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    accept={
+                      uploadPurpose === "logo"
+                        ? "image/png,image/jpeg,image/webp,image/svg+xml"
+                        : undefined
+                    }
                     className="hidden"
                     disabled={uploading}
                     onChange={(e) => {
@@ -218,7 +237,7 @@ export function StorageApiUsagePanel() {
                     loading={uploading}
                     onClick={() => fileInputRef.current?.click()}
                   >
-                    <Upload className="size-3.5" /> Upload logo
+                    <Upload className="size-3.5" /> Upload
                   </Button>
                 </>
               ) : null}
@@ -260,6 +279,25 @@ export function StorageApiUsagePanel() {
           ) : null}
         </div>
       </Card>
+
+      {displaySummary && displaySummary.byBucket.length > 0 ? (
+        <Card>
+          <CardHeader title="By bucket" hint="Internal storage grouping" />
+          <div className="px-4 pb-4 divide-y divide-border">
+            {displaySummary.byBucket.map((row) => (
+              <div
+                key={row.bucket}
+                className="flex items-center justify-between py-2.5 text-sm first:pt-0 last:pb-0"
+              >
+                <span className="font-medium">{row.bucket.replace(/-/g, " ")}</span>
+                <span className="text-muted-foreground tabular-nums">
+                  {row.count} files · {fmtBytes(row.bytes)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      ) : null}
 
       {displaySummary && displaySummary.byCategory.length > 0 ? (
         <Card>
@@ -310,6 +348,13 @@ export function StorageApiUsagePanel() {
                   </div>
                   <Pill tone="neutral">{a.category.replace(/_/g, " ")}</Pill>
                   <Pill tone="info">{a.visibility}</Pill>
+                  <Button
+                    variant="outline"
+                    onClick={() => void download(a)}
+                    aria-label={`Download ${a.fileName ?? a.id}`}
+                  >
+                    <Download className="size-3.5" />
+                  </Button>
                   {writesEnabled ? (
                     <Button
                       variant="outline"

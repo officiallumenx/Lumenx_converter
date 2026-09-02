@@ -35,6 +35,9 @@ import {
   uploadDocument,
 } from "@/lib/careers/repositories";
 import { documentStatusLabel } from "@/lib/careers/status-utils";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { useCareersApiInbox } from "@/hooks/use-careers-api-inbox";
+import { formatCareersNotificationTime } from "@/lib/notification-inbox";
 
 export function DocumentsPage() {
   const { user } = useCareersAuth();
@@ -101,8 +104,27 @@ const CAREERS_TYPE_LABELS: Record<
 
 export function NotificationsPage() {
   const { user } = useCareersAuth();
+  const apiMode = isApiAuthMode();
+  const apiInbox = useCareersApiInbox(user?.id ?? null);
   const [tick, setTick] = useState(0);
-  const items = user ? getNotifications(user.id) : [];
+  const demoItems = user && !apiMode ? getNotifications(user.id) : [];
+  const items = apiMode ? apiInbox.items : demoItems;
+
+  if (apiMode && apiInbox.loading) {
+    return (
+      <div className="animate-in fade-in duration-300 text-center py-16">
+        <p className="text-sm text-muted-foreground">Loading notifications…</p>
+      </div>
+    );
+  }
+
+  if (apiMode && apiInbox.error) {
+    return (
+      <div className="animate-in fade-in duration-300 text-center py-16">
+        <p className="text-sm text-destructive">{apiInbox.error}</p>
+      </div>
+    );
+  }
 
   if (items.length === 0) {
     return (
@@ -127,7 +149,9 @@ export function NotificationsPage() {
           size="sm"
           className="mb-4"
           onClick={() => {
-            if (user) {
+            if (apiMode) {
+              void apiInbox.markAllRead();
+            } else if (user) {
               markAllNotificationsRead(user.id);
               setTick((t) => t + 1);
             }
@@ -142,8 +166,12 @@ export function NotificationsPage() {
             key={n.id}
             type="button"
             onClick={() => {
-              markNotificationRead(n.id);
-              setTick((t) => t + 1);
+              if (apiMode) {
+                void apiInbox.markRead(n.id);
+              } else {
+                markNotificationRead(n.id);
+                setTick((t) => t + 1);
+              }
             }}
             className={`w-full rounded-2xl border p-4 text-left transition-colors ${n.read ? "border-border bg-card" : "border-primary/20 bg-primary/5"}`}
           >

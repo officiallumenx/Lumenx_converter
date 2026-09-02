@@ -15,12 +15,16 @@ import {
   insertStorageQuota,
   listPolicyRules,
   listStorageQuotas,
+  listPlatformAlertAcks,
+  reopenPlatformAlertAck,
+  upsertPlatformAlertHandled,
   softDeletePolicyRule,
   updatePolicyRuleFields,
   updateStorageQuotaFields,
 } from "./repository.js";
 import type {
   CreatePolicyRuleInput,
+  DerivedPlatformAlertDto,
   PolicyRuleDto,
   PolicyRuleKind,
   PolicyRuleRow,
@@ -31,6 +35,7 @@ import type {
   UpdatePolicyRuleInput,
   UpsertStorageQuotaInput,
 } from "./types.js";
+import { derivePlatformAlerts } from "./derive-alerts.js";
 
 const KINDS: PolicyRuleKind[] = [
   "payment_overdue",
@@ -253,4 +258,58 @@ export async function upsertQuotaForActor(
     updatedByUserId: actor.userId,
   });
   return toStorageQuotaDto(created);
+}
+
+export async function listDerivedAlertsForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+): Promise<DerivedPlatformAlertDto[]> {
+  assertPoliciesReader(actor);
+  const [alerts, acks] = await Promise.all([
+    derivePlatformAlerts(admin),
+    listPlatformAlertAcks(admin),
+  ]);
+  const ackByKey = new Map(acks.map((ack) => [ack.alert_key, ack]));
+  return alerts.map((alert) => {
+    const ack = ackByKey.get(alert.id);
+    if (!ack?.handled_at || ack.reopened_at) {
+      return { ...alert, handledAt: null, handledByUserId: null };
+    }
+    return {
+      ...alert,
+      handledAt: ack.handled_at,
+      handledByUserId: ack.handled_by_user_profile_id,
+    };
+  });
+}
+
+export async function handlePlatformAlertForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  alertKey: string,
+): Promise<{ alertKey: string; handledAt: string }> {
+  assertPoliciesWriter(actor);
+  const key = alertKey.trim();
+  if (!key) {
+    throw AppError.validation("alert_key is required", { alert_key: ["Required"] });
+  }
+  const ack = await upsertPlatformAlertHandled(admin, {
+    alertKey: key,
+    handledByUserProfileId: actor.userId,
+  });
+  return { alertKey: key, handledAt: ack.handled_at ?? new Date().toISOString() };
+}
+
+export async function reopenPlatformAlertForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  alertKey: string,
+): Promise<{ alertKey: string; reopenedAt: string | null }> {
+  assertPoliciesWriter(actor);
+  const key = alertKey.trim();
+  if (!key) {
+    throw AppError.validation("alert_key is required", { alert_key: ["Required"] });
+  }
+  const ack = await reopenPlatformAlertAck(admin, key);
+  return { alertKey: key, reopenedAt: ack?.reopened_at ?? new Date().toISOString() };
 }

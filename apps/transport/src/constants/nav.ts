@@ -20,6 +20,7 @@ export const ROUTES = {
   login: "/login",
   home: "/",
   attendance: "/attendance",
+  alerts: "/alerts",
   notifications: "/notifications",
   emergency: "/emergency",
   more: "/more",
@@ -35,7 +36,7 @@ export const ROUTES = {
 export type AppRoutePath = (typeof ROUTES)[keyof typeof ROUTES];
 
 export interface PrimaryNavItem {
-  id: keyof Pick<typeof ROUTES, "home" | "attendance" | "notifications" | "emergency" | "more">;
+  id: keyof Pick<typeof ROUTES, "home" | "attendance" | "alerts" | "emergency" | "more">;
   label: string;
   path: AppRoutePath;
   icon: LucideIcon;
@@ -57,9 +58,9 @@ export const PRIMARY_NAV: PrimaryNavItem[] = [
     moduleColor: MODULE_COLORS.success,
   },
   {
-    id: "notifications",
-    label: "Notifications",
-    path: ROUTES.notifications,
+    id: "alerts",
+    label: "Alerts",
+    path: ROUTES.alerts,
     icon: Bell,
     moduleColor: MODULE_COLORS.warning,
   },
@@ -146,7 +147,9 @@ export const MORE_NAV: MoreNavItem[] = [
 export function getActivePrimaryNavId(pathname: string): PrimaryNavItem["id"] {
   if (pathname === ROUTES.home) return "home";
   if (pathname.startsWith(ROUTES.attendance)) return "attendance";
-  if (pathname.startsWith(ROUTES.notifications)) return "notifications";
+  if (pathname.startsWith(ROUTES.alerts) || pathname.startsWith(ROUTES.notifications)) {
+    return "alerts";
+  }
   if (pathname.startsWith(ROUTES.emergency)) return "emergency";
   if (pathname.startsWith(ROUTES.more)) return "more";
   return "home";

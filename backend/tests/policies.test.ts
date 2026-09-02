@@ -377,4 +377,208 @@ describe("nexus policies api", () => {
     });
     expect(res.status).toBe(404);
   });
+
+  it("derives read-only alerts from subscriptions and support", async () => {
+    const db = baseDb();
+    const threadId = "f0111111-1111-4111-8111-111111111111";
+    const subId = "b0111111-1111-4111-8111-111111111111";
+    const now = new Date();
+    const trialEnd = new Date(now);
+    trialEnd.setUTCDate(trialEnd.getUTCDate() + 5);
+
+    db.subscription = [
+      {
+        id: subId,
+        institute_id: INST_A,
+        lifecycle_status: "trial_expiring",
+        assigned_rate_inr: 12,
+        active_student_count: 0,
+        trial_start_at: "2026-01-01T00:00:00.000Z",
+        trial_end_at: trialEnd.toISOString(),
+        grace_ends_at: null,
+        current_period_id: null,
+        created_at: "2025-01-01T00:00:00.000Z",
+        updated_at: "2026-01-01T00:00:00.000Z",
+        deleted_at: null,
+      },
+    ];
+    db.license = [
+      {
+        id: "c0111111-1111-4111-8111-111111111111",
+        institute_id: INST_A,
+        plan: "core",
+        cadence: "yearly",
+        starts_on: "2026-01-01",
+        reminder_days: [30, 14, 7],
+        created_at: "2026-01-01T00:00:00.000Z",
+        updated_at: "2026-01-01T00:00:00.000Z",
+        deleted_at: null,
+      },
+    ];
+    db.support_thread = [
+      {
+        id: threadId,
+        institute_id: INST_A,
+        subject: "Billing help",
+        category: "issue",
+        status: "open",
+        priority: "high",
+        assignee_handle: null,
+        assignee_user_id: null,
+        created_by_user_id: USER_ROOT,
+        last_message_at: now.toISOString(),
+        created_at: new Date(now.getTime() - 6 * 60 * 60 * 1000).toISOString(),
+        updated_at: now.toISOString(),
+        deleted_at: null,
+      },
+    ];
+    db.policy_rule.push({
+      id: "d0222222-2222-4222-8222-222222222222",
+      kind: "renewal_approaching",
+      name: "Renewal approaching",
+      description: "Renewal window",
+      condition_text: "days_until_renewal ≤ 30",
+      severity_default: "medium",
+      enabled: true,
+      updated_by_user_id: null,
+      created_at: "2026-01-01T00:00:00.000Z",
+      updated_at: "2026-01-01T00:00:00.000Z",
+      deleted_at: null,
+    });
+    db.policy_rule.push({
+      id: "d0333333-3333-4333-8333-333333333333",
+      kind: "support_escalation",
+      name: "Support escalation",
+      description: "High priority support",
+      condition_text: "priority = high",
+      severity_default: "high",
+      enabled: true,
+      updated_by_user_id: null,
+      created_at: "2026-01-01T00:00:00.000Z",
+      updated_at: "2026-01-01T00:00:00.000Z",
+      deleted_at: null,
+    });
+    db.policy_rule.push({
+      id: "d0444444-4444-4444-8444-444444444444",
+      kind: "institute_usage_risk",
+      name: "Usage risk",
+      description: "Zero students",
+      condition_text: "active_student_count = 0",
+      severity_default: "medium",
+      enabled: true,
+      updated_by_user_id: null,
+      created_at: "2026-01-01T00:00:00.000Z",
+      updated_at: "2026-01-01T00:00:00.000Z",
+      deleted_at: null,
+    });
+
+    const app = appWithDb(db);
+    const res = await app.request("/api/nexus/policies/alerts", {
+      headers: { Authorization: "Bearer token-ops" },
+    });
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    const kinds = body.data.map((a: { kind: string }) => a.kind);
+    expect(kinds).toContain("renewal_approaching");
+    expect(kinds).toContain("support_escalation");
+    expect(kinds).toContain("institute_usage_risk");
+  });
+});
+
+describe("Platform alert ack", () => {
+  it("handles and reopens derived platform alerts", async () => {
+    const db = baseDb();
+    const now = new Date("2026-09-02T12:00:00.000Z");
+    const threadId = "b0111111-1111-4111-8111-111111111111";
+    db.license = [
+      {
+        id: "c0111111-1111-4111-8111-111111111111",
+        institute_id: INST_A,
+        plan: "core",
+        cadence: "yearly",
+        starts_on: "2026-01-01",
+        reminder_days: [30, 14, 7],
+        created_at: "2026-01-01T00:00:00.000Z",
+        updated_at: "2026-01-01T00:00:00.000Z",
+        deleted_at: null,
+      },
+    ];
+    db.support_thread = [
+      {
+        id: threadId,
+        institute_id: INST_A,
+        subject: "Billing help",
+        category: "issue",
+        status: "open",
+        priority: "high",
+        assignee_handle: null,
+        assignee_user_id: null,
+        created_by_user_id: USER_ROOT,
+        last_message_at: now.toISOString(),
+        created_at: new Date(now.getTime() - 6 * 60 * 60 * 1000).toISOString(),
+        updated_at: now.toISOString(),
+        deleted_at: null,
+      },
+    ];
+    db.policy_rule.push({
+      id: "d0333333-3333-4333-8333-333333333333",
+      kind: "support_escalation",
+      name: "Support escalation",
+      description: "High priority support",
+      condition_text: "priority = high",
+      severity_default: "high",
+      enabled: true,
+      updated_by_user_id: null,
+      created_at: "2026-01-01T00:00:00.000Z",
+      updated_at: "2026-01-01T00:00:00.000Z",
+      deleted_at: null,
+    });
+
+    const app = appWithDb(db);
+    const listBefore = await app.request("/api/nexus/policies/alerts", {
+      headers: { Authorization: "Bearer token-ops" },
+    });
+    expect(listBefore.status).toBe(200);
+    const beforeBody = await json(listBefore);
+    const alertKey = beforeBody.data.find(
+      (a: { kind: string }) => a.kind === "support_escalation",
+    )?.id as string;
+    expect(alertKey).toBeTruthy();
+
+    const handleRes = await app.request(
+      `/api/nexus/policies/alerts/${encodeURIComponent(alertKey)}/handle`,
+      {
+        method: "POST",
+        headers: { Authorization: "Bearer token-ops" },
+      },
+    );
+    expect(handleRes.status).toBe(200);
+    const handleBody = await json(handleRes);
+    expect(handleBody.data.alertKey).toBe(alertKey);
+    expect(handleBody.data.handledAt).toBeTruthy();
+
+    const listHandled = await app.request("/api/nexus/policies/alerts", {
+      headers: { Authorization: "Bearer token-ops" },
+    });
+    const handledBody = await json(listHandled);
+    const handled = handledBody.data.find((a: { id: string }) => a.id === alertKey);
+    expect(handled.handledAt).toBeTruthy();
+    expect(handled.handledByUserId).toBe(USER_OPS);
+
+    const reopenRes = await app.request(
+      `/api/nexus/policies/alerts/${encodeURIComponent(alertKey)}/reopen`,
+      {
+        method: "POST",
+        headers: { Authorization: "Bearer token-ops" },
+      },
+    );
+    expect(reopenRes.status).toBe(200);
+
+    const listReopened = await app.request("/api/nexus/policies/alerts", {
+      headers: { Authorization: "Bearer token-ops" },
+    });
+    const reopenedBody = await json(listReopened);
+    const reopened = reopenedBody.data.find((a: { id: string }) => a.id === alertKey);
+    expect(reopened.handledAt).toBeNull();
+  });
 });

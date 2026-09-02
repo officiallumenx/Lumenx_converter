@@ -16,6 +16,7 @@ import { Route as AppNotificationsRouteImport } from './routes/_app/notification
 import { Route as AppMoreRouteImport } from './routes/_app/more'
 import { Route as AppEmergencyRouteImport } from './routes/_app/emergency'
 import { Route as AppAttendanceRouteImport } from './routes/_app/attendance'
+import { Route as AppAlertsRouteImport } from './routes/_app/alerts'
 import { Route as AppMoreIndexRouteImport } from './routes/_app/more/index'
 import { Route as AppMoreSupportRouteImport } from './routes/_app/more/support'
 import { Route as AppMoreSettingsRouteImport } from './routes/_app/more/settings'
@@ -57,6 +58,11 @@ const AppEmergencyRoute = AppEmergencyRouteImport.update({
 const AppAttendanceRoute = AppAttendanceRouteImport.update({
   id: '/attendance',
   path: '/attendance',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAlertsRoute = AppAlertsRouteImport.update({
+  id: '/alerts',
+  path: '/alerts',
   getParentRoute: () => AppRoute,
 } as any)
 const AppMoreIndexRoute = AppMoreIndexRouteImport.update({
@@ -103,6 +109,7 @@ const AppMoreBusInformationRoute = AppMoreBusInformationRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
+  '/alerts': typeof AppAlertsRoute
   '/attendance': typeof AppAttendanceRoute
   '/emergency': typeof AppEmergencyRoute
   '/more': typeof AppMoreRouteWithChildren
@@ -118,6 +125,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/alerts': typeof AppAlertsRoute
   '/attendance': typeof AppAttendanceRoute
   '/emergency': typeof AppEmergencyRoute
   '/notifications': typeof AppNotificationsRoute
@@ -135,6 +143,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
+  '/_app/alerts': typeof AppAlertsRoute
   '/_app/attendance': typeof AppAttendanceRoute
   '/_app/emergency': typeof AppEmergencyRoute
   '/_app/more': typeof AppMoreRouteWithChildren
@@ -154,6 +163,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/alerts'
     | '/attendance'
     | '/emergency'
     | '/more'
@@ -169,6 +179,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
+    | '/alerts'
     | '/attendance'
     | '/emergency'
     | '/notifications'
@@ -185,6 +196,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_app'
     | '/login'
+    | '/_app/alerts'
     | '/_app/attendance'
     | '/_app/emergency'
     | '/_app/more'
@@ -254,6 +266,13 @@ declare module '@tanstack/react-router' {
       path: '/attendance'
       fullPath: '/attendance'
       preLoaderRoute: typeof AppAttendanceRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/alerts': {
+      id: '/_app/alerts'
+      path: '/alerts'
+      fullPath: '/alerts'
+      preLoaderRoute: typeof AppAlertsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/more/': {
@@ -341,6 +360,7 @@ const AppMoreRouteWithChildren =
   AppMoreRoute._addFileChildren(AppMoreRouteChildren)
 
 interface AppRouteChildren {
+  AppAlertsRoute: typeof AppAlertsRoute
   AppAttendanceRoute: typeof AppAttendanceRoute
   AppEmergencyRoute: typeof AppEmergencyRoute
   AppMoreRoute: typeof AppMoreRouteWithChildren
@@ -349,6 +369,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAlertsRoute: AppAlertsRoute,
   AppAttendanceRoute: AppAttendanceRoute,
   AppEmergencyRoute: AppEmergencyRoute,
   AppMoreRoute: AppMoreRouteWithChildren,

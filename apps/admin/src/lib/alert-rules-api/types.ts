@@ -33,6 +33,8 @@ export type AlertFireDto = {
   title: string;
   at: string;
   complaintId?: string;
+  resolvedAt?: string | null;
+  detail?: string;
 };
 
 export type AlertEvaluateResultDto = {

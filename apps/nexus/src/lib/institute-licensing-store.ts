@@ -159,7 +159,7 @@ export const NEXUS_MODULE_CATALOG: NexusModuleDef[] = [
   // IDs align with Admin MODULE_CATALOG so entitlement hides the same nav items.
   { id: "students", label: "Students", description: "Directory, admissions, 360 profiles", group: "Core", minPlan: "core" },
   { id: "teachers", label: "Teachers", description: "Faculty records, workload, ratings", group: "Core", minPlan: "core" },
-  { id: "parents", label: "Parents", description: "Guardian accounts and child linking", group: "Core", minPlan: "core" },
+  { id: "parents", label: "Parents", description: "Parent portal access (managed in Admin)", group: "Core", minPlan: "core" },
   { id: "classes", label: "Classes & Sections", description: "Class structure and section assignments", group: "Core", minPlan: "core" },
   { id: "academic-management", label: "Academic Management", description: "Years, promotion, graduation", group: "Core", minPlan: "core" },
   { id: "subjects", label: "Subjects", description: "Subject catalog and assignment", group: "Core", minPlan: "core" },

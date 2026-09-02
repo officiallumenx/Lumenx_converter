@@ -17,6 +17,7 @@ import { Route as StudentsRouteImport } from './routes/students'
 import { Route as StorageRouteImport } from './routes/storage'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as RegistrationsRouteImport } from './routes/registrations'
+import { Route as RecycleRouteImport } from './routes/recycle'
 import { Route as PoliciesRouteImport } from './routes/policies'
 import { Route as PlatformUsersRouteImport } from './routes/platform-users'
 import { Route as PermissionsRouteImport } from './routes/permissions'
@@ -26,6 +27,7 @@ import { Route as NotificationTemplatesRouteImport } from './routes/notification
 import { Route as ModulesRouteImport } from './routes/modules'
 import { Route as InstitutesRouteImport } from './routes/institutes'
 import { Route as HealthRisksRouteImport } from './routes/health-risks'
+import { Route as GuardianLinksRouteImport } from './routes/guardian-links'
 import { Route as ExamsRouteImport } from './routes/exams'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as ComplaintsRouteImport } from './routes/complaints'
@@ -84,6 +86,11 @@ const RegistrationsRoute = RegistrationsRouteImport.update({
   path: '/registrations',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RecycleRoute = RecycleRouteImport.update({
+  id: '/recycle',
+  path: '/recycle',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PoliciesRoute = PoliciesRouteImport.update({
   id: '/policies',
   path: '/policies',
@@ -127,6 +134,11 @@ const InstitutesRoute = InstitutesRouteImport.update({
 const HealthRisksRoute = HealthRisksRouteImport.update({
   id: '/health-risks',
   path: '/health-risks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuardianLinksRoute = GuardianLinksRouteImport.update({
+  id: '/guardian-links',
+  path: '/guardian-links',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ExamsRoute = ExamsRouteImport.update({
@@ -230,6 +242,7 @@ export interface FileRoutesByFullPath {
   '/complaints': typeof ComplaintsRoute
   '/events': typeof EventsRoute
   '/exams': typeof ExamsRoute
+  '/guardian-links': typeof GuardianLinksRoute
   '/health-risks': typeof HealthRisksRoute
   '/institutes': typeof InstitutesRouteWithChildren
   '/modules': typeof ModulesRoute
@@ -239,6 +252,7 @@ export interface FileRoutesByFullPath {
   '/permissions': typeof PermissionsRoute
   '/platform-users': typeof PlatformUsersRoute
   '/policies': typeof PoliciesRoute
+  '/recycle': typeof RecycleRoute
   '/registrations': typeof RegistrationsRoute
   '/settings': typeof SettingsRoute
   '/storage': typeof StorageRoute
@@ -266,6 +280,7 @@ export interface FileRoutesByTo {
   '/complaints': typeof ComplaintsRoute
   '/events': typeof EventsRoute
   '/exams': typeof ExamsRoute
+  '/guardian-links': typeof GuardianLinksRoute
   '/health-risks': typeof HealthRisksRoute
   '/modules': typeof ModulesRoute
   '/notification-templates': typeof NotificationTemplatesRoute
@@ -274,6 +289,7 @@ export interface FileRoutesByTo {
   '/permissions': typeof PermissionsRoute
   '/platform-users': typeof PlatformUsersRoute
   '/policies': typeof PoliciesRoute
+  '/recycle': typeof RecycleRoute
   '/registrations': typeof RegistrationsRoute
   '/settings': typeof SettingsRoute
   '/storage': typeof StorageRoute
@@ -302,6 +318,7 @@ export interface FileRoutesById {
   '/complaints': typeof ComplaintsRoute
   '/events': typeof EventsRoute
   '/exams': typeof ExamsRoute
+  '/guardian-links': typeof GuardianLinksRoute
   '/health-risks': typeof HealthRisksRoute
   '/institutes': typeof InstitutesRouteWithChildren
   '/modules': typeof ModulesRoute
@@ -311,6 +328,7 @@ export interface FileRoutesById {
   '/permissions': typeof PermissionsRoute
   '/platform-users': typeof PlatformUsersRoute
   '/policies': typeof PoliciesRoute
+  '/recycle': typeof RecycleRoute
   '/registrations': typeof RegistrationsRoute
   '/settings': typeof SettingsRoute
   '/storage': typeof StorageRoute
@@ -340,6 +358,7 @@ export interface FileRouteTypes {
     | '/complaints'
     | '/events'
     | '/exams'
+    | '/guardian-links'
     | '/health-risks'
     | '/institutes'
     | '/modules'
@@ -349,6 +368,7 @@ export interface FileRouteTypes {
     | '/permissions'
     | '/platform-users'
     | '/policies'
+    | '/recycle'
     | '/registrations'
     | '/settings'
     | '/storage'
@@ -376,6 +396,7 @@ export interface FileRouteTypes {
     | '/complaints'
     | '/events'
     | '/exams'
+    | '/guardian-links'
     | '/health-risks'
     | '/modules'
     | '/notification-templates'
@@ -384,6 +405,7 @@ export interface FileRouteTypes {
     | '/permissions'
     | '/platform-users'
     | '/policies'
+    | '/recycle'
     | '/registrations'
     | '/settings'
     | '/storage'
@@ -411,6 +433,7 @@ export interface FileRouteTypes {
     | '/complaints'
     | '/events'
     | '/exams'
+    | '/guardian-links'
     | '/health-risks'
     | '/institutes'
     | '/modules'
@@ -420,6 +443,7 @@ export interface FileRouteTypes {
     | '/permissions'
     | '/platform-users'
     | '/policies'
+    | '/recycle'
     | '/registrations'
     | '/settings'
     | '/storage'
@@ -448,6 +472,7 @@ export interface RootRouteChildren {
   ComplaintsRoute: typeof ComplaintsRoute
   EventsRoute: typeof EventsRoute
   ExamsRoute: typeof ExamsRoute
+  GuardianLinksRoute: typeof GuardianLinksRoute
   HealthRisksRoute: typeof HealthRisksRoute
   InstitutesRoute: typeof InstitutesRouteWithChildren
   ModulesRoute: typeof ModulesRoute
@@ -457,6 +482,7 @@ export interface RootRouteChildren {
   PermissionsRoute: typeof PermissionsRoute
   PlatformUsersRoute: typeof PlatformUsersRoute
   PoliciesRoute: typeof PoliciesRoute
+  RecycleRoute: typeof RecycleRoute
   RegistrationsRoute: typeof RegistrationsRoute
   SettingsRoute: typeof SettingsRoute
   StorageRoute: typeof StorageRoute
@@ -525,6 +551,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RegistrationsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/recycle': {
+      id: '/recycle'
+      path: '/recycle'
+      fullPath: '/recycle'
+      preLoaderRoute: typeof RecycleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/policies': {
       id: '/policies'
       path: '/policies'
@@ -586,6 +619,13 @@ declare module '@tanstack/react-router' {
       path: '/health-risks'
       fullPath: '/health-risks'
       preLoaderRoute: typeof HealthRisksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guardian-links': {
+      id: '/guardian-links'
+      path: '/guardian-links'
+      fullPath: '/guardian-links'
+      preLoaderRoute: typeof GuardianLinksRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/exams': {
@@ -751,6 +791,7 @@ const rootRouteChildren: RootRouteChildren = {
   ComplaintsRoute: ComplaintsRoute,
   EventsRoute: EventsRoute,
   ExamsRoute: ExamsRoute,
+  GuardianLinksRoute: GuardianLinksRoute,
   HealthRisksRoute: HealthRisksRoute,
   InstitutesRoute: InstitutesRouteWithChildren,
   ModulesRoute: ModulesRoute,
@@ -760,6 +801,7 @@ const rootRouteChildren: RootRouteChildren = {
   PermissionsRoute: PermissionsRoute,
   PlatformUsersRoute: PlatformUsersRoute,
   PoliciesRoute: PoliciesRoute,
+  RecycleRoute: RecycleRoute,
   RegistrationsRoute: RegistrationsRoute,
   SettingsRoute: SettingsRoute,
   StorageRoute: StorageRoute,

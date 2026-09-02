@@ -27,6 +27,7 @@ import {
   uploadDocument,
 } from "@/lib/admissions/repositories";
 import { isApiAuthMode } from "@/auth/auth-mode";
+import { useAdmissionsApiInbox } from "@/hooks/use-admissions-api-inbox";
 import {
   loadApplicationDocuments,
   uploadApplicationDocument,
@@ -190,13 +191,36 @@ const ADMISSIONS_TYPE_LABELS: Record<
 
 export function AdmissionsNotificationsPage() {
   const { user } = useAdmissionsAuth();
+  const apiMode = isApiAuthMode();
+  const apiInbox = useAdmissionsApiInbox(user?.id ?? null);
   const [filter, setFilter] = useState<(typeof NOTIF_FILTERS)[number]["key"]>("all");
   const [tick, setTick] = useState(0);
-  const persistedItems = user ? getNotifications(user.id) : [];
-  const transientReminders = user ? getTransientParentConfirmationReminders(user.id) : [];
-  const items = [...transientReminders, ...persistedItems].sort((a, b) =>
-    b.createdAt.localeCompare(a.createdAt),
-  );
+  const demoPersisted = user && !apiMode ? getNotifications(user.id) : [];
+  const demoTransient = user && !apiMode ? getTransientParentConfirmationReminders(user.id) : [];
+  const items = apiMode
+    ? apiInbox.items
+    : [...demoTransient, ...demoPersisted].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+  if (apiMode && apiInbox.loading) {
+    return (
+      <EmptyState
+        icon={<Bell className="size-6" />}
+        title="Loading notifications"
+        hint="Fetching your latest updates…"
+      />
+    );
+  }
+
+  if (apiMode && apiInbox.error) {
+    return (
+      <EmptyState
+        icon={<Bell className="size-6" />}
+        title="Could not load notifications"
+        hint={apiInbox.error}
+      />
+    );
+  }
+
   const filtered =
     filter === "all"
       ? items
@@ -226,7 +250,9 @@ export function AdmissionsNotificationsPage() {
             variant="outline"
             size="sm"
             onClick={() => {
-              if (user) {
+              if (apiMode) {
+                void apiInbox.markAllRead();
+              } else if (user) {
                 markAllNotificationsRead(user.id);
                 setTick((t) => t + 1);
               }
@@ -260,9 +286,13 @@ export function AdmissionsNotificationsPage() {
               type="button"
               onClick={() => {
                 if (!n.id.startsWith("transient-reminder-")) {
-                  markNotificationRead(n.id);
+                  if (apiMode) {
+                    void apiInbox.markRead(n.id);
+                  } else {
+                    markNotificationRead(n.id);
+                    setTick((t) => t + 1);
+                  }
                 }
-                setTick((t) => t + 1);
               }}
               className={`w-full rounded-2xl border p-4 text-left transition-colors ${n.read ? "border-border bg-card" : "border-primary/20 bg-primary/5"}`}
             >

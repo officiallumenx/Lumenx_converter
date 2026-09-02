@@ -38,6 +38,7 @@ export function authUserFromMe(
   me: MeResponse,
   activeInstituteId: string | null,
   instituteName: string,
+  accessRoleId?: string | null,
 ): AuthUser {
   const { role, title } = pickUiRole(me.institutes, activeInstituteId);
   return {
@@ -53,6 +54,7 @@ export function authUserFromMe(
     mfaEnabled: false,
     createdAt: new Date().toISOString(),
     lastLoginAt: new Date().toISOString(),
+    accessRoleId: accessRoleId ?? undefined,
   };
 }
 

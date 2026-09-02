@@ -146,8 +146,7 @@ function ConnectProvidersFallback() {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const isolated =
-    pathname.startsWith("/careers") || pathname.startsWith("/admissions");
+  const isolated = pathname.startsWith("/admissions");
 
   return (
     <QueryClientProvider client={queryClient}>

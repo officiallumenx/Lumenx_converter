@@ -6,6 +6,7 @@ import {
 import { useEffect, useState, type ReactNode } from "react";
 import { useTheme } from "@/components/theme-provider";
 import { nexusNav, NEXUS_SEARCH_PLACEHOLDER } from "@/lib/nexus-nav";
+import { useNexusPoliciesNavBadge } from "@/lib/use-nexus-policies-nav-badge";
 import { NexusGlobalSearch } from "@/components/NexusGlobalSearch";
 import {
   getActiveNexusOperator,
@@ -48,6 +49,7 @@ export function AppShell({ children, title, subtitle, actions }: {
 
   void operatorTick;
   const operator = getActiveNexusOperator();
+  const policiesNavBadge = useNexusPoliciesNavBadge();
   const operatorInitials = (operator?.displayName ?? "PO")
     .split(/\s+/)
     .filter(Boolean)
@@ -89,6 +91,11 @@ export function AppShell({ children, title, subtitle, actions }: {
                   >
                     <Icon className={`size-4 shrink-0 transition-transform ${active ? "scale-110 text-sidebar-primary" : "group-hover:scale-105"}`} strokeWidth={active ? 2.25 : 1.75} />
                     <span className="flex-1">{item.label}</span>
+                    {item.to === "/policies" && policiesNavBadge > 0 ? (
+                      <span className="flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold leading-none text-destructive-foreground">
+                        {policiesNavBadge > 99 ? "99+" : policiesNavBadge}
+                      </span>
+                    ) : null}
                     {active && <ChevronRight className="size-3.5 opacity-70 text-sidebar-primary" />}
                   </Link>
                 );

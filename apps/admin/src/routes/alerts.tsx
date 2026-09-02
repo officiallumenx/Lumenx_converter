@@ -36,6 +36,7 @@ import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
 import { useEffect, useMemo, useState } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { AlertsApiRulesPanel } from "@/components/alerts/AlertsApiRulesPanel";
+import { AlertsBroadcastPanel } from "@/components/alerts/AlertsBroadcastPanel";
 import { useAdminToast } from "@/components/AdminActionToast";
 import {
   addAlertRule,
@@ -66,7 +67,11 @@ const RULE_ICONS: Record<AlertRuleIconKey, typeof ClipboardCheck> = {
 function AlertsPage() {
   if (isApiAuthMode()) {
     return (
-      <AppShell title={M.alerts} subtitle="Operational and emergency alert rules">
+      <AppShell
+        title={M.alerts}
+        subtitle="Broadcast holidays & emergencies · configure alert rules"
+      >
+        <AlertsBroadcastPanel />
         <AlertsApiRulesPanel />
       </AppShell>
     );

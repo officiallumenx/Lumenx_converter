@@ -167,14 +167,11 @@ export function validateAdmissionConvertDraft(draft: AdmissionConvertDraft): str
 
   if (draft.createParentAccount) {
     if (!/^\d{10}$/.test(student.parentPhone)) {
-      errors.push("Parent mobile (10 digits) is required — parents log in with phone only.");
+      errors.push("Parent mobile (10 digits) is required — parents sign in with OTP.");
     }
     const email = draft.parentEmail.trim();
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       errors.push("Enter a valid parent email address.");
-    }
-    if (draft.parentPassword.length < 8) {
-      errors.push("Parent Connect password must contain at least 8 characters.");
     }
   }
   return errors;

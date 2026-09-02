@@ -3,8 +3,10 @@
  */
 import { clearSession } from "./auth-store";
 import { clearStoredActiveInstituteId } from "@/lib/active-institute";
+import { clearApiRegistrationSnapshot } from "./api-registration-state";
 
 export function clearApiModeLocalIdentity(): void {
   clearSession();
   clearStoredActiveInstituteId();
+  clearApiRegistrationSnapshot();
 }

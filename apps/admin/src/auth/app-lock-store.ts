@@ -6,6 +6,7 @@
 
 import { DEMO_USERS } from "./constants";
 import { notifyAccountSecurityChange, notifySecurityEvent } from "@lumenx/module-notifications";
+import { isAppLockRequired, isLocalPinStorageAllowed } from "./app-lock-policy";
 
 export const APP_UNLOCK_SESSION_KEY = "lx_app_unlocked_session_v1";
 export const USER_PINS_STORAGE_KEY  = "lx_user_security_pins_v1";
@@ -35,8 +36,9 @@ function writePins(pins: UserPinMap): void {
   }
 }
 
-/** Seed demo user PINs on first run. */
+/** Seed demo user PINs on first run (demo mode only). */
 export function ensureDemoPinsSeeded(): void {
+  if (!isLocalPinStorageAllowed()) return;
   const pins = loadPins();
   let changed = false;
   for (const demo of DEMO_USERS) {
@@ -49,6 +51,7 @@ export function ensureDemoPinsSeeded(): void {
 }
 
 export function saveUserPin(userId: string, pin: string, email?: string): void {
+  if (!isLocalPinStorageAllowed()) return;
   const pins = loadPins();
   const hadPin = Boolean(pins[userId]);
   pins[userId] = pin;
@@ -74,6 +77,7 @@ export function saveUserPin(userId: string, pin: string, email?: string): void {
 }
 
 export function getUserSecurityPin(userId: string, email?: string): string | null {
+  if (!isLocalPinStorageAllowed()) return null;
   ensureDemoPinsSeeded();
   const pins = loadPins();
   if (pins[userId]) return pins[userId] ?? null;
@@ -85,6 +89,10 @@ export function getUserSecurityPin(userId: string, email?: string): string | nul
 }
 
 export function verifyUserPin(userId: string, pin: string, email?: string): boolean {
+  if (!isAppLockRequired()) {
+    // API mode: local PIN must never verify identity or unlock the app.
+    return false;
+  }
   ensureDemoPinsSeeded();
   const stored = getUserSecurityPin(userId, email);
   if (!stored) return pin === DEMO_SECURITY_PIN;

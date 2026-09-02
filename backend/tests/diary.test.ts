@@ -629,6 +629,29 @@ describe("diary — soft delete", () => {
       (await app.request(`/api/v1/diary/${DAY_DELETED}`, { headers: auth("token-admin") })).status,
     ).toBe(404);
   });
+
+  it("emits end-of-day diary reminder notifications for teachers on list", async () => {
+    const db = baseDb();
+    db.diary_day = db.diary_day.filter((d) => d.id !== DAY_SUBMITTED);
+    db.notification = [];
+    db.notification_recipient = [];
+    const app = appWithDb(db);
+
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayKey = yesterday.toISOString().slice(0, 10);
+
+    const res = await app.request(
+      `/api/v1/diary?institute_id=${INST_A}&diary_date=${yesterdayKey}`,
+      { headers: { Authorization: "Bearer token-teacher" } },
+    );
+    expect(res.status).toBe(200);
+    expect(db.notification.length).toBeGreaterThan(0);
+    expect(db.notification.some((n) => n.category === "leave")).toBe(true);
+    expect(
+      db.notification_recipient.some((r) => r.user_profile_id === USER_TEACHER),
+    ).toBe(true);
+  });
 });
 
 describe("diary — client teacher_id spoofing", () => {

@@ -8,7 +8,10 @@ import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/active-institute";
 import { listParents, getParent } from "./api";
 import { parentDtosToListItems, parentDtoToDetailItem } from "./map";
+import { enrichParentDetailWithStudents, enrichParentListItemsWithStudents } from "./enrich-links";
 import type { ParentDetailItem, ParentListItem } from "./types";
+import { listStudents } from "@/lib/students/api";
+import { studentDtosToListItems } from "@/lib/students/map";
 
 export type ParentsListStatus =
   | "demo"
@@ -64,9 +67,16 @@ export async function loadParentDetail(
         errorMessage: "Parent not found for the active institute.",
       };
     }
+    let parent = parentDtoToDetailItem(dto);
+    if (activeInstituteId && isInstituteUuid(activeInstituteId)) {
+      const studentDtos = await listStudents({ instituteId: activeInstituteId }).catch(
+        () => [],
+      );
+      parent = enrichParentDetailWithStudents(parent, studentDtosToListItems(studentDtos));
+    }
     return {
       status: "ready",
-      parent: parentDtoToDetailItem(dto),
+      parent,
       errorMessage: null,
     };
   } catch (err) {
@@ -91,8 +101,16 @@ export async function loadParentDetail(
   }
 }
 
+export type ListParentsLoadParams = {
+  instituteId: string;
+  inviteStatus?: import("./types").PortalInviteStatus;
+  accessStatus?: import("./types").PortalAccessStatus;
+  q?: string;
+};
+
 export async function loadParentsList(
   activeInstituteId: string | null,
+  filters: Omit<ListParentsLoadParams, "instituteId"> = {},
 ): Promise<ParentsListState> {
   if (!isApiAuthMode()) {
     return { status: "demo", items: [], errorMessage: null };
@@ -107,8 +125,20 @@ export async function loadParentsList(
   }
 
   try {
-    const dtos = await listParents({ instituteId: activeInstituteId });
-    const items = parentDtosToListItems(dtos);
+    const [dtos, studentDtos] = await Promise.all([
+      listParents({
+        instituteId: activeInstituteId,
+        inviteStatus: filters.inviteStatus,
+        accessStatus: filters.accessStatus,
+        q: filters.q,
+      }),
+      listStudents({ instituteId: activeInstituteId }).catch(() => []),
+    ]);
+    const students = studentDtosToListItems(studentDtos);
+    const items = enrichParentListItemsWithStudents(
+      parentDtosToListItems(dtos),
+      students,
+    );
     return {
       status: items.length === 0 ? "empty" : "ready",
       items,

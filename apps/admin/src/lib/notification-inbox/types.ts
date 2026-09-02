@@ -66,6 +66,8 @@ export type NotificationInboxListItem = {
   createdAt: string;
   href?: string;
   templateId?: string;
+  /** Raw notification payload — used for alert presentation detection in API mode. */
+  payload?: Record<string, unknown>;
 };
 
 export type ListInboxParams = {

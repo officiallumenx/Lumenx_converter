@@ -57,7 +57,7 @@ const categorySchema = z.enum([
 ]);
 const prioritySchema = z.enum(["normal", "important", "critical", "success"]);
 const templateStatusSchema = z.enum(["draft", "published", "archived"]);
-const deviceAppSchema = z.enum(["connect", "admin", "transport", "nexus"]);
+const deviceAppSchema = z.enum(["connect", "admin", "transport", "nexus", "careers"]);
 const devicePlatformSchema = z.enum(["android", "ios", "web"]);
 
 // Static paths BEFORE /:id
@@ -119,7 +119,7 @@ notifications.get("/", async (c) => {
   const admin = requireAdmin(c);
   const query = validateQuery(
     z.object({
-      institute_id: uuid,
+      institute_id: uuid.optional(),
       unread_only: z.enum(["true", "false"]).optional(),
     }),
     c.req.query(),

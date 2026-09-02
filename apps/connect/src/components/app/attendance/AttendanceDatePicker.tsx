@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { CalendarDays } from "lucide-react";
-import { Button, Calendar, Popover, PopoverContent, PopoverTrigger, cn } from "@lumenx/ui";
+import { Button, Calendar, Popover, PopoverContent, PopoverTrigger, cn, resolveCalendarMonthBounds } from "@lumenx/ui";
 import { formatDisplayDate, parseIsoParts } from "@/lib/attendance/calendar";
 import {
   connectCalendarClassNames,
@@ -49,6 +49,7 @@ export function AttendanceDatePicker({
     (viewYear != null && viewMonth != null
       ? new Date(viewYear, viewMonth, 1)
       : new Date());
+  const { startMonth, endMonth } = resolveCalendarMonthBounds(min, max);
 
   return (
     <div className="min-w-0 flex-1">
@@ -74,6 +75,8 @@ export function AttendanceDatePicker({
             mode="single"
             weekStartsOn={1}
             selected={selected}
+            startMonth={startMonth}
+            endMonth={endMonth}
             onSelect={(date) => {
               if (!date) return;
               const iso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;

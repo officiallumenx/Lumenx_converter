@@ -17,6 +17,9 @@ import { LINKED_CHILD_IDS, resolveLinkedChildId } from "./parent-portal-data";
 import { appLockStore } from "./app-lock-store";
 import { awaitConnectStoreReset, resetAllConnectStores } from "./reset-stores";
 import { isRole, isThemeMode, parsePersistedUser } from "./session-validation";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { apiSignOut, tryHydrateApiSession } from "@/auth/api-auth";
+import { setConnectApiUnauthorizedHandler } from "@/lib/connect-api";
 
 function resolveInstitute(id: string | null): Institute | null {
   if (!id) return null;
@@ -37,6 +40,7 @@ interface AppState {
   setActiveChildId: (id: string) => void;
   setStudentIncludedMode: (value: boolean) => void;
   signIn: (phone: string, role: Role, instituteId: string, opts?: { displayName?: string }) => void;
+  signInApi: (user: User, role: Role, instituteId: string) => void;
   updateProfile: (
     patch: Partial<Pick<User, "name" | "phone" | "email" | "address" | "avatar">>,
   ) => void;
@@ -68,32 +72,56 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    try {
-      const persistedUser = parsePersistedUser(localStorage.getItem(CONNECT_STORAGE_KEYS.user));
-      const persistedRole = localStorage.getItem(CONNECT_STORAGE_KEYS.role);
-      const persistedTheme = localStorage.getItem(CONNECT_STORAGE_KEYS.theme);
-      const c = localStorage.getItem(CONNECT_STORAGE_KEYS.child);
-      const ins = localStorage.getItem(CONNECT_STORAGE_KEYS.institute);
-      const sim = localStorage.getItem(CONNECT_STORAGE_KEYS.studentIncluded);
+    setConnectApiUnauthorizedHandler(() => {
+      clearAuthStorage();
+      setUser(null);
+      setRoleState(null);
+      setActiveInstituteIdState(null);
+    });
+    return () => setConnectApiUnauthorizedHandler(null);
+  }, []);
 
-      const roleOk = isRole(persistedRole);
-      if (persistedUser && roleOk) {
-        setUser(persistedUser);
-        setRoleState(persistedRole);
-        if (ins) setActiveInstituteIdState(ins);
-        else if (registeredInstitutes[0]) setActiveInstituteIdState(registeredInstitutes[0].id);
-      } else if (persistedUser || persistedRole) {
-        // Corrupted / hand-edited session — stay signed out.
+  useEffect(() => {
+    const bootstrap = async () => {
+      try {
+        const persistedUser = parsePersistedUser(localStorage.getItem(CONNECT_STORAGE_KEYS.user));
+        const persistedRole = localStorage.getItem(CONNECT_STORAGE_KEYS.role);
+        const persistedTheme = localStorage.getItem(CONNECT_STORAGE_KEYS.theme);
+        const c = localStorage.getItem(CONNECT_STORAGE_KEYS.child);
+        const ins = localStorage.getItem(CONNECT_STORAGE_KEYS.institute);
+        const sim = localStorage.getItem(CONNECT_STORAGE_KEYS.studentIncluded);
+
+        const roleOk = isRole(persistedRole);
+
+        if (isApiAuthMode() && roleOk) {
+          const session = await tryHydrateApiSession(persistedRole, ins);
+          if (session) {
+            setUser(session.user);
+            setRoleState(persistedRole);
+            setActiveInstituteIdState(session.instituteId);
+            localStorage.setItem(CONNECT_STORAGE_KEYS.institute, session.instituteId);
+          } else if (persistedUser && roleOk) {
+            clearAuthStorage();
+          }
+        } else if (persistedUser && roleOk) {
+          setUser(persistedUser);
+          setRoleState(persistedRole);
+          if (ins) setActiveInstituteIdState(ins);
+          else if (registeredInstitutes[0]) setActiveInstituteIdState(registeredInstitutes[0].id);
+        } else if (persistedUser || persistedRole) {
+          clearAuthStorage();
+        }
+
+        if (isThemeMode(persistedTheme)) setTheme(persistedTheme);
+        if (c) setActiveChildIdState(resolveLinkedChildId(c));
+        if (sim === "1") setStudentIncludedModeState(true);
+      } catch {
         clearAuthStorage();
       }
+      setHydrated(true);
+    };
 
-      if (isThemeMode(persistedTheme)) setTheme(persistedTheme);
-      if (c) setActiveChildIdState(resolveLinkedChildId(c));
-      if (sim === "1") setStudentIncludedModeState(true);
-    } catch {
-      clearAuthStorage();
-    }
-    setHydrated(true);
+    void bootstrap();
   }, []);
 
   useEffect(() => {
@@ -135,8 +163,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     void awaitConnectStoreReset().then(apply);
   }, []);
 
+  const signInApi = useCallback((u: User, r: Role, instituteId: string) => {
+    const apply = () => {
+      setUser(u);
+      setRoleState(r);
+      setActiveInstituteIdState(instituteId);
+      localStorage.setItem(CONNECT_STORAGE_KEYS.user, JSON.stringify(u));
+      localStorage.setItem(CONNECT_STORAGE_KEYS.role, r);
+      localStorage.setItem(CONNECT_STORAGE_KEYS.institute, instituteId);
+    };
+    void awaitConnectStoreReset().then(apply);
+  }, []);
+
   const signOut = useCallback(() => {
     appLockStore.lockSession();
+    if (isApiAuthMode()) {
+      void apiSignOut();
+    }
     setUser(null);
     setRoleState(null);
     setActiveInstituteIdState(null);
@@ -197,6 +240,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setActiveChildId,
       setStudentIncludedMode,
       signIn,
+      signInApi,
       updateProfile,
       signOut,
       toggleTheme,
@@ -213,6 +257,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setActiveChildId,
       setStudentIncludedMode,
       signIn,
+      signInApi,
       updateProfile,
       signOut,
       toggleTheme,

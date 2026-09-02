@@ -54,7 +54,7 @@ export async function findRecipientById(
 
 export async function listRecipientsForUser(
   admin: SupabaseClient,
-  filter: ListInboxFilter & { userProfileId: string },
+  filter: { instituteId: string; unreadOnly?: boolean; userProfileId: string },
 ): Promise<RecipientRow[]> {
   let query = admin
     .from("notification_recipient")
@@ -69,6 +69,47 @@ export async function listRecipientsForUser(
 
   const result = await query;
   return ensureDbOk(result) as RecipientRow[];
+}
+
+export async function listRecipientsForUserAll(
+  admin: SupabaseClient,
+  filter: {
+    userProfileId: string;
+    instituteId?: string;
+    unreadOnly?: boolean;
+  },
+): Promise<RecipientRow[]> {
+  let query = admin
+    .from("notification_recipient")
+    .select(RECIPIENT_COLS)
+    .eq("user_profile_id", filter.userProfileId)
+    .is("deleted_at", null);
+
+  if (filter.instituteId) {
+    query = query.eq("institute_id", filter.instituteId);
+  }
+  if (filter.unreadOnly) {
+    query = query.is("read_at", null);
+  }
+
+  const result = await query.order("created_at", { ascending: false });
+  return ensureDbOk(result) as RecipientRow[];
+}
+
+export async function userHasNotificationRecipientAtInstitute(
+  admin: SupabaseClient,
+  userProfileId: string,
+  instituteId: string,
+): Promise<boolean> {
+  const result = await admin
+    .from("notification_recipient")
+    .select("id")
+    .eq("user_profile_id", userProfileId)
+    .eq("institute_id", instituteId)
+    .is("deleted_at", null)
+    .limit(1);
+  const rows = ensureDbOk(result) as Array<{ id: string }>;
+  return rows.length > 0;
 }
 
 export async function listNotificationsByIds(
@@ -149,6 +190,104 @@ export async function insertInAppDeliveryAttempts(
       error: null,
     })),
   );
+  ensureDbOk(result);
+}
+
+export async function listValidDeviceTokensForUsers(
+  admin: SupabaseClient,
+  userProfileIds: string[],
+): Promise<DeviceTokenRow[]> {
+  if (userProfileIds.length === 0) return [];
+  const result = await admin
+    .from("device_token")
+    .select(DEVICE_COLS)
+    .in("user_profile_id", userProfileIds)
+    .eq("valid", true)
+    .is("deleted_at", null);
+  return ensureDbOk(result) as DeviceTokenRow[];
+}
+
+export async function insertFcmDeliveryAttempts(
+  admin: SupabaseClient,
+  rows: Array<{
+    instituteId: string;
+    notificationId: string;
+    notificationRecipientId: string;
+    deviceTokenId: string;
+  }>,
+): Promise<void> {
+  if (rows.length === 0) return;
+  const result = await admin.from("notification_delivery_attempt").insert(
+    rows.map((row) => ({
+      institute_id: row.instituteId,
+      notification_id: row.notificationId,
+      notification_recipient_id: row.notificationRecipientId,
+      device_token_id: row.deviceTokenId,
+      channel: "fcm",
+      status: "pending",
+      error: null,
+    })),
+  );
+  ensureDbOk(result);
+}
+
+export type DeliveryAttemptRow = {
+  id: string;
+  institute_id: string;
+  notification_id: string;
+  notification_recipient_id: string | null;
+  device_token_id: string | null;
+  channel: string;
+  status: string;
+  error: string | null;
+  attempted_at: string;
+  created_at: string;
+};
+
+export async function listPendingFcmDeliveryAttempts(
+  admin: SupabaseClient,
+  limit = 50,
+): Promise<DeliveryAttemptRow[]> {
+  const result = await admin
+    .from("notification_delivery_attempt")
+    .select(
+      "id, institute_id, notification_id, notification_recipient_id, device_token_id, channel, status, error, attempted_at, created_at",
+    )
+    .eq("channel", "fcm")
+    .eq("status", "pending")
+    .order("attempted_at", { ascending: true })
+    .limit(limit);
+  return ensureDbOk(result) as DeliveryAttemptRow[];
+}
+
+export async function updateDeliveryAttemptStatus(
+  admin: SupabaseClient,
+  id: string,
+  patch: { status: "sent" | "failed" | "skipped"; error?: string | null },
+): Promise<void> {
+  const result = await admin
+    .from("notification_delivery_attempt")
+    .update({
+      status: patch.status,
+      error: patch.error ?? null,
+      attempted_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+  ensureDbOk(result);
+}
+
+export async function softInvalidateDeviceToken(
+  admin: SupabaseClient,
+  id: string,
+): Promise<void> {
+  const result = await admin
+    .from("device_token")
+    .update({
+      valid: false,
+      deleted_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .is("deleted_at", null);
   ensureDbOk(result);
 }
 

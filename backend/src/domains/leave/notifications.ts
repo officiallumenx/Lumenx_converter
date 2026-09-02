@@ -101,6 +101,8 @@ async function emitLeaveNotification(
     dedupeKey: string;
     leaveId: string;
     kind: string;
+    /** When true, surfaces as urgent in-app alert (teachers on /alerts). */
+    asAlert?: boolean;
   },
 ): Promise<void> {
   if (input.recipientUserIds.length === 0) return;
@@ -109,12 +111,14 @@ async function emitLeaveNotification(
       instituteId: input.instituteId,
       recipientUserIds: input.recipientUserIds,
       category: "leave",
-      priority: "important",
+      priority: input.asAlert ? "critical" : "important",
       title: input.title,
       body: input.body,
-      deepLink: "/leave",
+      deepLink: input.asAlert ? "/alerts" : "/leave",
       dedupeKey: input.dedupeKey,
-      payload: { leaveId: input.leaveId, kind: input.kind },
+      payload: input.asAlert
+        ? { leaveId: input.leaveId, kind: input.kind, presentation: "alert" }
+        : { leaveId: input.leaveId, kind: input.kind },
     });
   } catch {
     /* notification delivery must not block leave writes */
@@ -146,6 +150,7 @@ export async function emitStudentLeaveCreatedNotifications(
     dedupeKey: `leave-student-req:${request.id}`,
     leaveId: request.id,
     kind: "student_request",
+    asAlert: true,
   });
 
   const parentIds = await listParentUserIdsForStudent(

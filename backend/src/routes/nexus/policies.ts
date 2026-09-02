@@ -14,6 +14,9 @@ import {
   getRuleForActor,
   listQuotasForActor,
   listRulesForActor,
+  listDerivedAlertsForActor,
+  handlePlatformAlertForActor,
+  reopenPlatformAlertForActor,
   updateRuleForActor,
   upsertQuotaForActor,
 } from "../../domains/policies/service.js";
@@ -53,6 +56,30 @@ policies.get("/rules", async (c) => {
   const actor = assertAuthenticated(c);
   const admin = requireAdmin(c);
   const data = await listRulesForActor(admin, actor);
+  return c.json({ data });
+});
+
+/** Derived read-only platform alerts from live billing/support/storage signals. */
+policies.get("/alerts", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const data = await listDerivedAlertsForActor(admin, actor);
+  return c.json({ data });
+});
+
+policies.post("/alerts/:alertKey/handle", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const alertKey = decodeURIComponent(c.req.param("alertKey") ?? "").trim();
+  const data = await handlePlatformAlertForActor(admin, actor, alertKey);
+  return c.json({ data });
+});
+
+policies.post("/alerts/:alertKey/reopen", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const alertKey = decodeURIComponent(c.req.param("alertKey") ?? "").trim();
+  const data = await reopenPlatformAlertForActor(admin, actor, alertKey);
   return c.json({ data });
 });
 

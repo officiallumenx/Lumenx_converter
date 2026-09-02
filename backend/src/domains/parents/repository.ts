@@ -64,6 +64,22 @@ export async function listParents(
   return rows;
 }
 
+export async function findParentByPhoneInInstitute(
+  admin: SupabaseClient,
+  phone: string,
+  instituteId: string,
+): Promise<ParentRow | null> {
+  const result = await admin
+    .from("parent")
+    .select(PARENT_COLS)
+    .eq("institute_id", instituteId)
+    .eq("phone", phone)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (result.data as ParentRow | null) ?? null;
+}
+
 export async function findParentById(
   admin: SupabaseClient,
   id: string,
@@ -189,6 +205,22 @@ export async function listLinksForStudent(
     .from("guardian_link")
     .select(LINK_COLS)
     .eq("student_id", studentId)
+    .eq("institute_id", instituteId)
+    .eq("status", "active")
+    .is("deleted_at", null);
+  return ensureDbOk(result) as GuardianLinkRow[];
+}
+
+export async function listLinksForStudentIds(
+  admin: SupabaseClient,
+  studentIds: string[],
+  instituteId: string,
+): Promise<GuardianLinkRow[]> {
+  if (studentIds.length === 0) return [];
+  const result = await admin
+    .from("guardian_link")
+    .select(LINK_COLS)
+    .in("student_id", studentIds)
     .eq("institute_id", instituteId)
     .eq("status", "active")
     .is("deleted_at", null);

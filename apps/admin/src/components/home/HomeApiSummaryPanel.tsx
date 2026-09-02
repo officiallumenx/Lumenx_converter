@@ -42,7 +42,7 @@ function emptyWidgets(): DashboardWidgetsState {
   return {
     status: "loading",
     birthdays: { status: "empty", rows: [], errorMessage: null },
-    diary: { status: "empty", rows: [], todaySubmittedCount: 0, errorMessage: null },
+    diary: { status: "empty", rows: [], todaySubmittedCount: 0, missingYesterdayCount: 0, errorMessage: null },
     attendanceDrafts: { status: "empty", rows: [], errorMessage: null },
     marksPending: { status: "empty", rows: [], errorMessage: null },
     errorMessage: null,
@@ -195,6 +195,17 @@ export function HomeApiSummaryPanel() {
         label: "Mark entries awaiting publish",
         count: n,
         to: "/marks",
+      });
+    }
+  }
+  if (widgetsValid && widgets.diary.status !== "error") {
+    const n = widgets.diary.missingYesterdayCount;
+    if (n > 0) {
+      attentionItems.push({
+        id: "diary-missing",
+        label: "Teachers missing yesterday diary",
+        count: n,
+        to: "/diary",
       });
     }
   }

@@ -7,6 +7,12 @@ import {
   normalizeAttendanceSectionKeys,
 } from "@lumenx/module-attendance";
 import { normalizePhoneDigits } from "@lumenx/utils";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import {
+  getApiAccessRevision,
+  getApiRolePermission,
+  subscribeApiAccess,
+} from "@/lib/access-roles/runtime-permissions";
 
 export type AccessPermission = "full" | "read" | "none";
 
@@ -342,7 +348,25 @@ export function useRolePermission(
   pathname: string,
 ): AccessPermission {
   useRolesAccessRevision();
+  useSyncExternalStore(subscribeApiAccess, getApiAccessRevision, () => 0);
   return getRolePermission(roleId, pathname);
+}
+
+export function getRolePermission(
+  roleId: string | undefined,
+  pathname: string,
+): AccessPermission {
+  if (isApiAuthMode()) {
+    return getApiRolePermission(pathname);
+  }
+  if (!roleId || pathname === "/") return "full";
+  const role = getAccessRole(roleId);
+  if (!role) return "full";
+  const module = ACCESS_MODULES.filter(
+    (item) => pathname === item.route || pathname.startsWith(`${item.route}/`),
+  ).sort((a, b) => b.route.length - a.route.length)[0];
+  if (!module) return "full";
+  return role.permissions[module.route] ?? "none";
 }
 
 export function saveAccessRole(role: AccessRole): void {
@@ -433,20 +457,6 @@ export function findAccessAssignee(identifier: string): AccessAssignee | null {
 export function getAccessRole(roleId?: string): AccessRole | null {
   if (!roleId) return null;
   return getRolesAccessState().roles.find((role) => role.id === roleId) ?? null;
-}
-
-export function getRolePermission(
-  roleId: string | undefined,
-  pathname: string,
-): AccessPermission {
-  if (!roleId || pathname === "/") return "full";
-  const role = getAccessRole(roleId);
-  if (!role) return "full";
-  const module = ACCESS_MODULES.filter(
-    (item) => pathname === item.route || pathname.startsWith(`${item.route}/`),
-  ).sort((a, b) => b.route.length - a.route.length)[0];
-  if (!module) return "full";
-  return role.permissions[module.route] ?? "none";
 }
 
 export function normalizePhone(value: string): string {

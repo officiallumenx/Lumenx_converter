@@ -16,6 +16,7 @@ import {
   OtpVerificationStep,
 } from "@/auth/components";
 import { useAuth } from "@/auth/AuthContext";
+import { resolveDemoAuthRouteBlock } from "@/auth/demo-auth-guard";
 import {
   loadOtpPending,
   saveOtpPending,
@@ -31,6 +32,13 @@ function VerifyMobileOtpPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [completed, setCompleted] = useState(false);
+
+  useEffect(() => {
+    const redirect = resolveDemoAuthRouteBlock("/verify-mobile-otp");
+    if (redirect) {
+      navigate({ to: redirect, replace: true });
+    }
+  }, [navigate]);
 
   const pending = loadOtpPending();
   const mobile = pending?.mobile || user?.phone || "";

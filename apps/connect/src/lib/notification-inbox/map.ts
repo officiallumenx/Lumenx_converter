@@ -1,0 +1,84 @@
+import type { AppNotification, NotificationCategory } from "@lumenx/types";
+import type {
+  BackendNotificationCategory,
+  BackendNotificationPriority,
+  InboxItemDto,
+} from "./types";
+
+const BACKEND_TO_UI_CATEGORY: Record<
+  BackendNotificationCategory,
+  NotificationCategory
+> = {
+  attendance: "attendance",
+  homework: "assignments",
+  fees: "fees",
+  exams: "exams",
+  events: "events",
+  transport: "circulars",
+  leave: "circulars",
+  announcements: "circulars",
+  messages: "circulars",
+  complaints: "circulars",
+  admissions: "academic",
+  careers: "circulars",
+  certificates: "academic",
+  documents: "academic",
+  timetable: "academic",
+  system: "emergency",
+  nexus: "circulars",
+};
+
+export function relativeInboxTimeLabel(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(ms)) return iso;
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 60) return mins <= 1 ? "Just now" : `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function uiCategory(category: BackendNotificationCategory): NotificationCategory {
+  return BACKEND_TO_UI_CATEGORY[category] ?? "circulars";
+}
+
+function presentationType(priority: BackendNotificationPriority): AppNotification["type"] {
+  if (priority === "critical" || priority === "important") return "warning";
+  if (priority === "success") return "positive";
+  return "info";
+}
+
+export function inboxItemDtoToAppNotification(dto: InboxItemDto): AppNotification {
+  const body = dto.notification.body?.trim() || "";
+  const title = dto.notification.title?.trim() || "Notification";
+  const createdAt = dto.notification.createdAt || dto.createdAt;
+
+  return {
+    id: dto.id,
+    title,
+    desc: body,
+    detail: body,
+    time: relativeInboxTimeLabel(createdAt),
+    type: presentationType(dto.notification.priority),
+    category: uiCategory(dto.notification.category),
+    unread: dto.readAt == null,
+    priority:
+      dto.notification.priority === "critical" || dto.notification.priority === "important"
+        ? "high"
+        : "normal",
+    createdAt,
+    href: dto.notification.deepLink?.trim() || undefined,
+    templateId: dto.notification.templateId?.trim() || undefined,
+  };
+}
+
+export function inboxItemDtosToAppNotifications(dtos: InboxItemDto[]): AppNotification[] {
+  return dtos.map(inboxItemDtoToAppNotification);
+}

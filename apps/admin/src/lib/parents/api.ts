@@ -27,6 +27,9 @@ export async function listParents(
 
   const query = new URLSearchParams();
   query.set("institute_id", params.instituteId.trim());
+  if (params.inviteStatus) query.set("invite_status", params.inviteStatus);
+  if (params.accessStatus) query.set("access_status", params.accessStatus);
+  if (params.q?.trim()) query.set("q", params.q.trim());
 
   return client.get<ParentDto[]>(`/api/v1/parents?${query.toString()}`);
 }

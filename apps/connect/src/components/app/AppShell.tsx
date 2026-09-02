@@ -117,6 +117,7 @@ import { PORTAL_LABEL, PortalMark } from "@/components/app/PortalMark";
 import { useParentPortal } from "@/context/ParentPortalContext";
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
 import { formatUnreadBadgeCount, useConnectUnreadBadge } from "@/lib/use-connect-unread-badge";
+import { useConnectAlertBadge } from "@/lib/use-connect-alert-badge";
 
 const NAV: { to: string; label: string; icon: typeof Home; roles: Role[] }[] = [
   { to: "/", label: "Home", icon: Home, roles: ["parent", "teacher", "student"] },
@@ -420,6 +421,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
 
   const portal = useParentPortal();
   const headerUnread = useConnectUnreadBadge(role, portal);
+  const alertUnread = useConnectAlertBadge(role);
   const appLockEnabled = useSyncExternalStore(
     appLockStore.subscribe,
     appLockStore.isEnabled,
@@ -450,6 +452,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
     const active = isNavActive(loc.pathname, n.to);
     const moduleColor = useModuleColors ? n.moduleColor : undefined;
     const isColoredMobile = useModuleColors && compact === "mobile" && moduleColor;
+    const showAlertBadge = n.to === "/alerts" && alertUnread > 0;
 
     if (isColoredMobile) {
       const shortLabel =
@@ -466,7 +469,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
           to={n.to}
           preload="intent"
           className={cn(
-            "connect-nav-item student-mobile-nav-item",
+            "connect-nav-item student-mobile-nav-item relative",
             active && "student-mobile-nav-item--active",
           )}
           style={
@@ -489,6 +492,11 @@ export function AppShell({ children }: { children?: ReactNode }) {
             style={studentMobileNavIconStyle(moduleColor, active)}
           >
             <n.icon className={cn("size-[1.125rem]", active && "stroke-[2.5]")} />
+            {showAlertBadge ? (
+              <span className="absolute -top-0.5 right-2 flex min-w-[1rem] h-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-destructive-foreground">
+                {formatUnreadBadgeCount(alertUnread)}
+              </span>
+            ) : null}
           </span>
             <span className="student-mobile-nav-label">{shortLabel}</span>
         </Link>
@@ -525,6 +533,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
           "connect-nav-item",
           base,
           activeCls,
+          showAlertBadge && "relative",
           coloredSidebarActive &&
             "bg-white dark:bg-card shadow-sm ring-1 ring-border font-medium",
         )}
@@ -582,6 +591,11 @@ export function AppShell({ children }: { children?: ReactNode }) {
             </span>
           </>
         )}
+        {showAlertBadge ? (
+          <span className="absolute top-1.5 right-2 flex min-w-[1rem] h-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-destructive-foreground">
+            {formatUnreadBadgeCount(alertUnread)}
+          </span>
+        ) : null}
       </Link>
     );
   };
@@ -657,7 +671,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
               >
                 <Bell className="size-5" />
                 {headerUnread > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 flex min-w-[1.125rem] h-[1.125rem] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold leading-none text-destructive-foreground">
+                  <span className="absolute -top-0.5 -right-0.5 flex min-w-[1.125rem] h-[1.125rem] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-primary-foreground">
                     {formatUnreadBadgeCount(headerUnread)}
                   </span>
                 )}

@@ -1,7 +1,7 @@
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/active-institute";
-import { evaluateAlertRules, listAlertRules } from "./api";
+import { evaluateAlertRules, listAlertFires, listAlertRules } from "./api";
 import type { AlertFireDto, AlertRuleDto } from "./types";
 
 export type AlertRulesLoadStatus =
@@ -31,11 +31,14 @@ export async function loadAlertRules(
     return { status: "needs_institute", rules: [], fired: [], errorMessage: null };
   }
   try {
-    const rules = await listAlertRules(activeInstituteId);
+    const [rules, fired] = await Promise.all([
+      listAlertRules(activeInstituteId),
+      listAlertFires(activeInstituteId),
+    ]);
     return {
       status: rules.length === 0 ? "empty" : "ready",
       rules,
-      fired: [],
+      fired,
       errorMessage: null,
     };
   } catch (err) {

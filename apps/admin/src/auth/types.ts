@@ -106,9 +106,29 @@ export interface SignUpStep2Data {
   acceptTerms: boolean;
 }
 
+export type SignUpRegistrationPayload = {
+  instituteName: string;
+  instituteType?: string;
+  educationBoard?: string;
+  country?: string;
+  state?: string;
+  district?: string;
+  city?: string;
+  address?: string;
+  pincode?: string;
+  website?: string;
+  principalName?: string;
+  principalEmail?: string;
+  principalMobile?: string;
+  principalDesignation?: string;
+  employeeId?: string;
+};
+
 export type SignUpFormData = SignUpStep1Data & SignUpStep2Data & {
   securityPin?: string;
   instituteName?: string;
+  /** Full institute payload for POST /api/v1/registrations (API mode only). */
+  registrationPayload?: SignUpRegistrationPayload;
 };
 
 export interface SignUpStep1Errors {
@@ -176,6 +196,21 @@ export interface AuthContextValue {
   isLoading: boolean;
   error: string | null;
   signIn(identifier: string, password: string, remember?: boolean): Promise<void>;
+  /** API staff login: institute + identifier OTP + password every session. */
+  signInWithStaffOtp(input: {
+    instituteId: string;
+    identifier: string;
+    otp: string;
+    password: string;
+    remember?: boolean;
+  }): Promise<void>;
+  /** API principal / institute-wide login: institute + identifier + password (no OTP). */
+  signInWithStaffPassword(input: {
+    instituteId: string;
+    identifier: string;
+    password: string;
+    remember?: boolean;
+  }): Promise<void>;
   completeSignIn(user: AuthUser, remember?: boolean): void;
   /** Update session user without clearing app lock (e.g. Nexus approval). */
   patchAuthenticatedUser(user: AuthUser): void;

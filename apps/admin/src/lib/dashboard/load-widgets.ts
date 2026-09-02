@@ -51,7 +51,10 @@ export type WidgetSlice<T> = {
 export type DashboardWidgetsState = {
   status: DashboardLoadStatus;
   birthdays: WidgetSlice<BirthdayRow[]>;
-  diary: WidgetSlice<DiaryWidgetRow[]> & { todaySubmittedCount: number };
+  diary: WidgetSlice<DiaryWidgetRow[]> & {
+    todaySubmittedCount: number;
+    missingYesterdayCount: number;
+  };
   attendanceDrafts: WidgetSlice<AttendanceDraftRow[]>;
   marksPending: WidgetSlice<MarksPendingRow[]>;
   errorMessage: string | null;
@@ -63,10 +66,14 @@ const emptyBirthdays = (): WidgetSlice<BirthdayRow[]> => ({
   errorMessage: null,
 });
 
-const emptyDiary = (): WidgetSlice<DiaryWidgetRow[]> & { todaySubmittedCount: number } => ({
+const emptyDiary = (): WidgetSlice<DiaryWidgetRow[]> & {
+  todaySubmittedCount: number;
+  missingYesterdayCount: number;
+} => ({
   status: "empty",
   rows: [],
   todaySubmittedCount: 0,
+  missingYesterdayCount: 0,
   errorMessage: null,
 });
 
@@ -110,6 +117,7 @@ function apiErrorMessage(err: unknown, fallback: string): { message: string; for
 type SliceResult<T> = WidgetSlice<T> & { forbidden?: boolean };
 type DiarySliceResult = WidgetSlice<DiaryWidgetRow[]> & {
   todaySubmittedCount: number;
+  missingYesterdayCount: number;
   forbidden?: boolean;
 };
 
@@ -145,12 +153,21 @@ async function loadDiarySlice(
   onDate: Date,
 ): Promise<DiarySliceResult> {
   try {
-    const days = await listDiaryDays({
-      instituteId,
-      submitted: true,
-      dateFrom: daysAgoYmd(6, onDate),
-      dateTo: today,
-    });
+    const yesterday = daysAgoYmd(1, onDate);
+    const [days, teachers, submittedYesterday] = await Promise.all([
+      listDiaryDays({
+        instituteId,
+        submitted: true,
+        dateFrom: daysAgoYmd(6, onDate),
+        dateTo: today,
+      }),
+      listTeachers({ instituteId }),
+      listDiaryDays({
+        instituteId,
+        diaryDate: yesterday,
+        submitted: true,
+      }),
+    ]);
     const sorted = [...days].sort((a, b) => {
       const aKey = a.submittedAt ?? a.diaryDate;
       const bKey = b.submittedAt ?? b.diaryDate;
@@ -165,10 +182,16 @@ async function loadDiarySlice(
       rowCount: d.rows?.length ?? 0,
     }));
     const todaySubmittedCount = days.filter((d) => d.diaryDate === today).length;
+    const submittedTeacherIds = new Set(submittedYesterday.map((d) => d.teacherId));
+    const missingYesterdayCount =
+      teachers.length === 0
+        ? 0
+        : teachers.filter((t) => !submittedTeacherIds.has(t.id)).length;
     return {
       status: rows.length === 0 ? "empty" : "ready",
       rows,
       todaySubmittedCount,
+      missingYesterdayCount,
       errorMessage: null,
     };
   } catch (err) {
@@ -177,6 +200,7 @@ async function loadDiarySlice(
       status: "error",
       rows: [],
       todaySubmittedCount: 0,
+      missingYesterdayCount: 0,
       errorMessage: message,
       forbidden,
     };

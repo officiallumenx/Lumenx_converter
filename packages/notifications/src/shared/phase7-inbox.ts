@@ -1,8 +1,9 @@
 /**
- * Shared multi-audience inbox for Phase 7 (exams / events / timetable).
+ * Shared multi-audience inbox for Phase 7 (exams / events / timetable / announcements).
  * One stable notification id per event; audiences stored as metadata (Phase 9).
  */
 import type { AppNotification } from "@lumenx/types";
+import { postDemoSync } from "@lumenx/utils";
 
 export const PHASE7_INBOX_KEY = "lumenx.phase7.notifications.v1";
 
@@ -12,7 +13,7 @@ export type Phase7InboxRow = AppNotification & {
   /** @deprecated Prefer `audiences` — kept for legacy rows. */
   audience?: Phase7Audience;
   audiences?: Phase7Audience[];
-  module: "exams" | "events" | "timetable";
+  module: "exams" | "events" | "timetable" | "announcements";
 };
 
 function canUseStorage(): boolean {
@@ -59,6 +60,9 @@ export function pushPhase7Inbox(row: Phase7InboxRow): void {
   };
   const all = loadAll().filter((r) => r.id !== normalized.id);
   saveAll([normalized, ...all]);
+  if (normalized.module === "announcements") {
+    postDemoSync("announcements", { id: normalized.id, audiences });
+  }
 }
 
 export function listPhase7Inbox(audience?: Phase7Audience): Phase7InboxRow[] {

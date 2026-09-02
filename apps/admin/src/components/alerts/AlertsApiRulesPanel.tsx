@@ -19,6 +19,7 @@ import {
   loadAlertRules,
   resolveAlertRulesView,
   runAlertRulesEvaluation,
+  resolveAlertFire,
   shouldCommitAlertRulesLoad,
   updateAlertRule,
   type AlertFireDto,
@@ -106,7 +107,7 @@ export function AlertsApiRulesPanel() {
         return;
       }
       setRules(next.rules);
-      setFired([]);
+      setFired(next.fired);
       setLoadStatus(next.status);
       setLoadError(next.errorMessage);
       setResolvedForInstituteId(requestInstituteId);
@@ -228,14 +229,39 @@ export function AlertsApiRulesPanel() {
         setFired(nextFired);
         notify(
           nextFired.length === 0
-            ? "Evaluation complete · no rules fired"
-            : `Evaluation complete · ${nextFired.length} fired`,
+            ? "Evaluation complete · no active fires"
+            : `${nextFired.length} active alert fire(s)`,
         );
+        if (nextFired.length > 0) {
+          void import("@lumenx/notifications").then(({ dispatchInAppAlert }) => {
+            const first = nextFired[0]!;
+            dispatchInAppAlert({
+              title: first.title,
+              body:
+                nextFired.length === 1
+                  ? "Alert rule fired — review on Alerts"
+                  : `${nextFired.length} alert rules fired — review on Alerts`,
+              href: "/alerts",
+              variant: "alert",
+              severity: "mandatory",
+            });
+          });
+        }
       })
       .catch((err) => {
         notify(err instanceof Error ? err.message : "Failed to evaluate alert rules");
       })
       .finally(() => setEvaluating(false));
+  };
+
+  const markFireHandled = async (fire: AlertFireDto) => {
+    try {
+      await resolveAlertFire(fire.id);
+      setFired((prev) => prev.filter((row) => row.id !== fire.id));
+      notify("Alert marked handled");
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Failed to mark handled");
+    }
   };
 
   return (
@@ -258,7 +284,7 @@ export function AlertsApiRulesPanel() {
       <Card>
         <CardHeader
           title="Alert rules"
-          hint="Rules persist in alert_rule. Evaluate is on-demand (not stored) and only fires for complaint-trigger rules vs open high-priority complaints."
+          hint="Rules persist in alert_rule. Evaluate checks attendance, complaints, transport emergencies, and school emergencies. Active fires persist until marked handled."
           action={
             <div className="flex flex-wrap gap-2">
               {writesEnabled ? (
@@ -293,7 +319,7 @@ export function AlertsApiRulesPanel() {
                     <div className="text-sm font-medium">{r.name}</div>
                     <Pill tone={r.priority === "P0" ? "danger" : "warning"}>{r.priority}</Pill>
                     <Pill tone={r.iconKey === "complaint" ? "success" : "neutral"}>
-                      {r.iconKey === "complaint" ? "complaint · evaluated" : `${r.iconKey} · stored only`}
+                      {r.iconKey} · evaluated
                     </Pill>
                     {r.channels.map((c) => (
                       <Pill key={c} tone="neutral">
@@ -335,12 +361,25 @@ export function AlertsApiRulesPanel() {
 
       {view.fired.length > 0 ? (
         <Card className="mt-6">
-          <CardHeader title="Evaluation results" hint="In-memory for this session. Fires are not written to the database." />
+          <CardHeader title="Active alert fires" hint="Persisted evaluation results. Mark handled when resolved." />
           <div className="px-5 pb-5 space-y-2">
             {view.fired.map((f) => (
-              <div key={f.id} className="text-sm border border-border rounded-lg p-3">
-                <div className="font-medium">{f.title}</div>
-                <div className="text-[11px] text-muted-foreground mt-1">{f.at}</div>
+              <div
+                key={f.id}
+                className="flex items-start justify-between gap-3 text-sm border border-border rounded-lg p-3"
+              >
+                <div className="min-w-0">
+                  <div className="font-medium">{f.title}</div>
+                  {f.detail ? (
+                    <div className="text-xs text-muted-foreground mt-1">{f.detail}</div>
+                  ) : null}
+                  <div className="text-[11px] text-muted-foreground mt-1">{f.at}</div>
+                </div>
+                {writesEnabled ? (
+                  <Button size="sm" onClick={() => void markFireHandled(f)}>
+                    Mark handled
+                  </Button>
+                ) : null}
               </div>
             ))}
           </div>
@@ -396,10 +435,10 @@ export function AlertsApiRulesPanel() {
               }
             >
               <option value="complaint">Open high-priority complaints (evaluated)</option>
-              <option value="warning">Warning (stored only · not evaluated)</option>
-              <option value="attendance">Attendance (stored only · not evaluated)</option>
-              <option value="security">Security (stored only · not evaluated)</option>
-              <option value="emergency">Emergency (stored only · not evaluated)</option>
+              <option value="warning">Warning (open issues)</option>
+              <option value="attendance">Attendance (below threshold)</option>
+              <option value="security">Security (transport emergencies)</option>
+              <option value="emergency">Emergency (school broadcasts)</option>
             </Select>
           </Field>
           <Field label="Description">

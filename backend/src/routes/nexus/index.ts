@@ -29,6 +29,9 @@ import platformAudit from "./audit.js";
 import billing from "./billing.js";
 import support from "./support.js";
 import policies from "./policies.js";
+import registrations from "./registrations.js";
+import recycle from "./recycle.js";
+import storage from "./storage.js";
 
 const uuid = z.string().uuid();
 const idParamsSchema = z.object({ id: uuid });
@@ -317,5 +320,8 @@ nexus.route("/audit", platformAudit);
 nexus.route("/billing", billing);
 nexus.route("/support", support);
 nexus.route("/policies", policies);
+nexus.route("/registrations", registrations);
+nexus.route("/recycle", recycle);
+nexus.route("/storage", storage);
 
 export default nexus;

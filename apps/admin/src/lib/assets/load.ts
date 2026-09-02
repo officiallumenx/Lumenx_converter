@@ -1,8 +1,8 @@
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/active-institute";
+import { getStorageUsage } from "@/lib/storage/api";
 import { listAssets } from "./api";
-import { summarizeStorageUsage } from "./map";
 import type { AssetDto, StorageUsageSummary } from "./types";
 
 export type AssetsLoadStatus =
@@ -36,8 +36,24 @@ export async function loadStorageUsage(
     };
   }
   try {
-    const assets = await listAssets({ instituteId: activeInstituteId });
-    const summary = summarizeStorageUsage(assets);
+    const [assets, usage] = await Promise.all([
+      listAssets({ instituteId: activeInstituteId }),
+      getStorageUsage(activeInstituteId),
+    ]);
+    const summary: StorageUsageSummary = {
+      totalAssets: usage.totalAssets,
+      totalBytes: usage.totalBytes,
+      byCategory: usage.byCategory.map((row) => ({
+        category: row.key as StorageUsageSummary["byCategory"][number]["category"],
+        count: row.count,
+        bytes: row.bytes,
+      })),
+      byBucket: usage.byBucket.map((row) => ({
+        bucket: row.key as StorageUsageSummary["byBucket"][number]["bucket"],
+        count: row.count,
+        bytes: row.bytes,
+      })),
+    };
     return {
       status: assets.length === 0 ? "empty" : "ready",
       summary,

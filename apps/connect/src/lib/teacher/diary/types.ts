@@ -3,9 +3,11 @@ export type DiaryScope = "subject" | "activity";
 
 export type DiaryRow = {
   id: string;
-  /** Class / group / session label (free text). */
+  /** Class / group / session label (free text or section label). */
   className: string;
   description: string;
+  /** Subject diary — required when submitting in API mode. */
+  sectionId?: string | null;
 };
 
 /** One diary entry per calendar day per scope. */
@@ -14,6 +16,8 @@ export type DiaryDay = {
   scope: DiaryScope;
   rows: DiaryRow[];
   updatedAt: string;
+  /** Backend diary_day id (API mode). */
+  apiId?: string;
   /** Set when teacher submits — syncs into principal admin diary. */
   submittedAt?: string;
 };

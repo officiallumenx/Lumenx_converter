@@ -37,6 +37,12 @@ describe("api-registration-state", () => {
     expect(second).toBe(first);
   });
 
+  it("returns a stable server snapshot reference", async () => {
+    const { getApiRegistrationServerSnapshot } = await import("./api-registration-state");
+
+    expect(getApiRegistrationServerSnapshot()).toBe(getApiRegistrationServerSnapshot());
+  });
+
   it("resets loaded snapshot when user id changes", async () => {
     const {
       bindApiRegistrationUser,

@@ -18,6 +18,7 @@ import {
   ShieldAlert,
   ScrollText,
   HardDrive,
+  Trash2,
   LifeBuoy,
   BarChart3,
   Settings,
@@ -134,6 +135,12 @@ export const nexusNav: readonly NexusNavGroup[] = [
         responsibility: "Plan storage ceilings and institute quota monitoring",
       },
       {
+        to: "/recycle",
+        label: "Recycle Bin",
+        icon: Trash2,
+        responsibility: "Cross-institute soft-delete oversight · restore in Admin",
+      },
+      {
         to: "/notification-templates",
         label: "Notification Templates",
         icon: LayoutTemplate,
@@ -189,6 +196,7 @@ export const nexusLegacyInstituteRoutes = [
   "/announcements",
   "/events",
   "/complaints",
+  "/guardian-links",
   "/permissions",
   "/alerts",
   "/templates",

@@ -171,3 +171,62 @@ export async function updateStorageQuotaFields(
   if (result.error) ensureDbOk(result);
   return (result.data as StorageQuotaRow | null) ?? null;
 }
+
+const ACK_COLS =
+  "id, alert_key, handled_at, handled_by_user_profile_id, reopened_at, created_at, updated_at";
+
+export type PlatformAlertAckRow = {
+  id: string;
+  alert_key: string;
+  handled_at: string | null;
+  handled_by_user_profile_id: string | null;
+  reopened_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function listPlatformAlertAcks(
+  admin: SupabaseClient,
+): Promise<PlatformAlertAckRow[]> {
+  const result = await admin.from("platform_alert_ack").select(ACK_COLS);
+  return (result.data ?? []) as PlatformAlertAckRow[];
+}
+
+export async function upsertPlatformAlertHandled(
+  admin: SupabaseClient,
+  input: { alertKey: string; handledByUserProfileId: string },
+): Promise<PlatformAlertAckRow> {
+  const now = new Date().toISOString();
+  const result = await admin
+    .from("platform_alert_ack")
+    .upsert(
+      {
+        alert_key: input.alertKey,
+        handled_at: now,
+        handled_by_user_profile_id: input.handledByUserProfileId,
+        reopened_at: null,
+      },
+      { onConflict: "alert_key" },
+    )
+    .select(ACK_COLS)
+    .single();
+  return ensureDbOk(result, "Failed to handle platform alert") as PlatformAlertAckRow;
+}
+
+export async function reopenPlatformAlertAck(
+  admin: SupabaseClient,
+  alertKey: string,
+): Promise<PlatformAlertAckRow | null> {
+  const now = new Date().toISOString();
+  const result = await admin
+    .from("platform_alert_ack")
+    .update({
+      handled_at: null,
+      handled_by_user_profile_id: null,
+      reopened_at: now,
+    })
+    .eq("alert_key", alertKey)
+    .select(ACK_COLS)
+    .maybeSingle();
+  return (result.data as PlatformAlertAckRow | null) ?? null;
+}

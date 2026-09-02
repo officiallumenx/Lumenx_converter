@@ -5,7 +5,7 @@ import {
   assertInstituteRoles,
   requireInstituteId,
 } from "../../authorization/index.js";
-import { listComplaintsForActor } from "../complaints/service.js";
+import { emitNotificationForActor } from "../notifications/service.js";
 import { STUDENT_STAFF_READ_ROLES } from "../students/service.js";
 import {
   configFromJson,
@@ -16,6 +16,14 @@ import {
   toAlertRuleUpdatePatch,
   updateAlertRuleFields,
 } from "./repository.js";
+import {
+  findAlertFireById,
+  insertAlertFire,
+  listAlertFires,
+  resolveAlertFire,
+  type AlertFireRow,
+} from "./fire-repository.js";
+import { collectCandidateFires } from "./evaluate-rules.js";
 import type {
   AlertEvaluateResultDto,
   AlertFireDto,
@@ -52,6 +60,18 @@ export function toAlertRuleDto(row: AlertRuleRow): AlertRuleDto {
   };
 }
 
+function toAlertFireDto(row: AlertFireRow): AlertFireDto {
+  return {
+    id: row.id,
+    ruleId: row.rule_id,
+    title: row.title,
+    at: row.fired_at,
+    complaintId: row.complaint_id ?? undefined,
+    resolvedAt: row.resolved_at,
+    detail: row.detail,
+  };
+}
+
 function assertReader(actor: Actor, instituteId: string): void {
   requireInstituteId(actor, instituteId);
   if (actor.isPlatformOperator) return;
@@ -64,6 +84,14 @@ function assertWriter(actor: Actor, instituteId: string): void {
   assertInstituteRoles(actor, instituteId, [...WRITE_ROLES]);
 }
 
+function audienceForRule(rule: AlertRuleRow): "teachers" | "parents" | "students" | "everyone" {
+  const aud = rule.audience.toLowerCase();
+  if (aud.includes("parent")) return "parents";
+  if (aud.includes("student")) return "students";
+  if (aud.includes("teacher")) return "teachers";
+  return "everyone";
+}
+
 export async function listAlertRulesForActor(
   admin: SupabaseClient,
   actor: Actor,
@@ -73,6 +101,32 @@ export async function listAlertRulesForActor(
   assertReader(actor, instituteId);
   const rows = await listAlertRules(admin, instituteId);
   return rows.map(toAlertRuleDto);
+}
+
+export async function listAlertFiresForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  instituteIdRaw: string,
+): Promise<AlertFireDto[]> {
+  const instituteId = requireInstituteId(actor, instituteIdRaw);
+  assertReader(actor, instituteId);
+  const rows = await listAlertFires(admin, instituteId, { unresolvedOnly: true });
+  return rows.map(toAlertFireDto);
+}
+
+export async function resolveAlertFireForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  fireId: string,
+): Promise<AlertFireDto> {
+  const existing = await findAlertFireById(admin, fireId);
+  if (!existing) throw AppError.notFound("Alert fire not found");
+  assertWriter(actor, existing.institute_id);
+  const resolved = await resolveAlertFire(admin, fireId, actor.userId);
+  if (!resolved) {
+    throw AppError.conflict("Alert fire is already resolved");
+  }
+  return toAlertFireDto(resolved);
 }
 
 export async function createAlertRuleForActor(
@@ -166,8 +220,7 @@ export async function deleteAlertRuleForActor(
 }
 
 /**
- * Evaluate active rules. Fires from open high-priority complaints when a
- * complaint-type rule is active; otherwise returns { fired: [] }.
+ * Evaluate active rules, persist new fires, and notify institute staff.
  */
 export async function evaluateAlertRulesForActor(
   admin: SupabaseClient,
@@ -177,42 +230,61 @@ export async function evaluateAlertRulesForActor(
   const instituteId = requireInstituteId(actor, instituteIdRaw);
   assertReader(actor, instituteId);
 
-  const rules = (await listAlertRules(admin, instituteId)).filter(
-    (r) => r.active,
-  );
-  const complaintRules = rules.filter((r) => r.icon_key === "complaint");
-  if (complaintRules.length === 0) {
+  const rules = (await listAlertRules(admin, instituteId)).filter((r) => r.active);
+  if (rules.length === 0) {
     return { fired: [] };
   }
 
-  let complaints: Awaited<ReturnType<typeof listComplaintsForActor>> = [];
-  try {
-    complaints = await listComplaintsForActor(admin, actor, { instituteId });
-  } catch {
-    return { fired: [] };
-  }
-
-  const openHigh = complaints.filter(
-    (c) =>
-      c.priority === "high" &&
-      (c.status === "pending" ||
-        c.status === "review" ||
-        c.status === "forwarded"),
+  const candidates = await collectCandidateFires(admin, actor, instituteId, rules);
+  const existing = await listAlertFires(admin, instituteId, { unresolvedOnly: true });
+  const existingKeys = new Set(
+    existing.map((row) => {
+      const meta = row.metadata ?? {};
+      return typeof meta.dedupeKey === "string" ? meta.dedupeKey : row.id;
+    }),
   );
 
-  const fired: AlertFireDto[] = [];
-  const now = new Date().toISOString();
-  for (const rule of complaintRules) {
-    for (const c of openHigh) {
-      fired.push({
-        id: crypto.randomUUID(),
-        ruleId: rule.id,
-        title: `${rule.name}: ${c.title}`,
-        at: now,
-        complaintId: c.id,
+  const ruleById = new Map(rules.map((r) => [r.id, r]));
+  const persisted: AlertFireDto[] = [];
+
+  for (const candidate of candidates) {
+    if (existingKeys.has(candidate.dedupeKey)) continue;
+    const rule = ruleById.get(candidate.ruleId);
+    if (!rule) continue;
+
+    const row = await insertAlertFire(admin, {
+      instituteId,
+      ruleId: candidate.ruleId,
+      title: candidate.title,
+      detail: candidate.detail,
+      complaintId: candidate.complaintId ?? null,
+      metadata: { ...candidate.metadata, dedupeKey: candidate.dedupeKey },
+    });
+    existingKeys.add(candidate.dedupeKey);
+    persisted.push(toAlertFireDto(row));
+
+    try {
+      await emitNotificationForActor(admin, actor, {
+        instituteId,
+        category: "system",
+        priority: rule.priority === "P0" ? "critical" : "important",
+        title: rule.name,
+        body: candidate.title,
+        deepLink: "/alerts",
+        payload: {
+          presentation: "alert",
+          alertSeverity: rule.priority === "P0" ? "emergency" : "mandatory",
+          ruleId: rule.id,
+          alertFireId: row.id,
+        },
+        audience: audienceForRule(rule),
+        dedupeKey: `alert-fire:${row.id}`,
       });
+    } catch {
+      // Evaluation still returns persisted fires when notify fan-out fails.
     }
   }
 
-  return { fired };
+  const unresolved = await listAlertFires(admin, instituteId, { unresolvedOnly: true });
+  return { fired: unresolved.map(toAlertFireDto) };
 }

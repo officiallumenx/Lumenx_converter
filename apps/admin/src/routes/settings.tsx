@@ -3,7 +3,7 @@ import { AppShell } from "@/components/AppShell";
 import { IconChip } from "@/components/IconChip";
 import { Card, CardHeader, Button, PageStack, Pill, Select } from "@lumenx/ui-admin";
 import { useTheme } from "@/components/theme-provider";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   User, Palette, HelpCircle, MessageSquarePlus, Phone, Camera, Check, ChevronDown,
   ChevronRight, Mail, Globe, MapPin, Clock, Sun, Moon,
@@ -29,6 +29,10 @@ import {
   notificationRetentionSummary,
   savePlatformReadOnlyState,
 } from "@lumenx/utils";
+import {
+  loadAlertChimesPreference,
+  saveAlertChimesPreference,
+} from "@lumenx/notifications";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "Settings — LumenX Admin" }] }),
@@ -328,6 +332,11 @@ function AppearanceTab() {
   const { theme, set } = useTheme();
   const [density, setDensity] = useState<"compact" | "default" | "comfortable">("default");
   const [colorScheme, setColorScheme] = useState("indigo");
+  const [alertChimes, setAlertChimes] = useState(() => loadAlertChimesPreference());
+
+  useEffect(() => {
+    saveAlertChimesPreference(alertChimes);
+  }, [alertChimes]);
 
   const themes = [
     { id: "light" as const, label: "Light", icon: Sun },
@@ -397,6 +406,29 @@ function AppearanceTab() {
             ))}
           </div>
           <p className="text-[11px] text-muted-foreground mt-3">Color changes apply after page refresh.</p>
+        </div>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Alert sounds"
+          hint="Urgent double-tone for red alerts · soft tone for normal notifications"
+        />
+        <div className="px-5 pb-5">
+          <Row
+            label="Play alert chime"
+            hint="Applies to holidays, emergencies, and other important broadcasts"
+          >
+            <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={alertChimes}
+                onChange={(e) => setAlertChimes(e.target.checked)}
+                className="size-4 rounded border-border"
+              />
+              {alertChimes ? "On" : "Off"}
+            </label>
+          </Row>
         </div>
       </Card>
 

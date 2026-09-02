@@ -87,6 +87,21 @@ describe("communication notifications (phase 5)", () => {
     expect(loadBroadcastInbox()[0]?.title).toBe("PTM Saturday");
   });
 
+  it("fans out institute announcements to phase7 parent/student/teacher inboxes", async () => {
+    const { notifyAnnouncementPublished } = await import("./announcements/notify");
+    const { listPhase7Inbox } = await import("./shared/phase7-inbox");
+    notifyAnnouncementPublished({
+      id: "ann-demo-1",
+      title: "Term starts Monday",
+      body: "Please arrive by 8am.",
+      audienceLabel: "All",
+      audienceScope: "all",
+    });
+    expect(listPhase7Inbox("parent").some((n) => n.id === "ann-ann-demo-1")).toBe(true);
+    expect(listPhase7Inbox("student").some((n) => n.id === "ann-ann-demo-1")).toBe(true);
+    expect(listPhase7Inbox("teacher").some((n) => n.id === "ann-ann-demo-1")).toBe(true);
+  });
+
   it("builds DM pointer without embedding full message body", async () => {
     const { notifyDirectMessage } = await import("./messages/notify");
     const result = notifyDirectMessage({

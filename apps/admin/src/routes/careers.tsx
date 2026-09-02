@@ -422,11 +422,11 @@ function CareersPage() {
       actions={
         writesEnabled ? (
           <>
-            <Button onClick={() => openCareersFromAdmin("applicants")}>
+            <Button onClick={() => void openCareersFromAdmin("applicants")}>
               <ClipboardList className="size-3.5" /> Review applicants
               <ExternalLink className="size-3.5 opacity-70" />
             </Button>
-            <Button variant="primary" onClick={() => openCareersFromAdmin("recruiter")}>
+            <Button variant="primary" onClick={() => void openCareersFromAdmin("recruiter")}>
               Open Careers portal
               <ExternalLink className="size-3.5 opacity-70" />
             </Button>
@@ -451,7 +451,7 @@ function CareersPage() {
             </div>
             {writesEnabled ? (
             <div className="flex shrink-0 flex-wrap gap-2">
-              <Button variant="primary" onClick={() => openCareersFromAdmin("recruiter")}>
+              <Button variant="primary" onClick={() => void openCareersFromAdmin("recruiter")}>
                 Go to Careers portal <ArrowRight className="size-3.5" />
               </Button>
             </div>
@@ -574,7 +574,7 @@ function CareersPage() {
             }
             action={
               writesEnabled ? (
-              <Button size="sm" onClick={() => openCareersFromAdmin("applicants")}>
+              <Button size="sm" onClick={() => void openCareersFromAdmin("applicants")}>
                 Review applicants <ExternalLink className="size-3 opacity-70" />
               </Button>
               ) : undefined
@@ -594,7 +594,7 @@ function CareersPage() {
               <Button
                 className="mt-4"
                 variant="primary"
-                onClick={() => openCareersFromAdmin("applicants")}
+                onClick={() => void openCareersFromAdmin("applicants")}
               >
                 Review applicants <ExternalLink className="size-3.5 opacity-70" />
               </Button>
@@ -684,7 +684,7 @@ function CareersPage() {
           <button
             type="button"
             className="text-primary font-medium hover:underline inline-flex items-center gap-1"
-            onClick={() => openCareersFromAdmin("jobs")}
+            onClick={() => void openCareersFromAdmin("jobs")}
           >
             Careers <Briefcase className="size-3" />
           </button>

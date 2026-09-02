@@ -112,6 +112,10 @@ export type MockDb = {
   policy_rule: Row[];
   storage_quota: Row[];
   alert_rule: Row[];
+  school_alert: Row[];
+  school_alert_recipient: Row[];
+  platform_alert_ack: Row[];
+  alert_fire: Row[];
   report_job: Row[];
   institute_registration: Row[];
 };
@@ -130,9 +134,10 @@ function newId(): string {
 
 class QueryBuilder {
   private filters: Array<(r: Row) => boolean> = [];
-  private mutateMode: "none" | "insert" | "update" | "delete" = "none";
+  private mutateMode: "none" | "insert" | "update" | "delete" | "upsert" = "none";
   private insertRows: Row[] = [];
   private updatePatch: Row = {};
+  private upsertConflictColumn: string | null = null;
   private pendingError: PendingError = null;
 
   constructor(
@@ -156,6 +161,13 @@ class QueryBuilder {
   update(patch: Row) {
     this.mutateMode = "update";
     this.updatePatch = patch;
+    return this;
+  }
+
+  upsert(payload: Row | Row[], opts?: { onConflict?: string }) {
+    this.mutateMode = "upsert";
+    this.insertRows = Array.isArray(payload) ? payload : [payload];
+    this.upsertConflictColumn = opts?.onConflict ?? "id";
     return this;
   }
 
@@ -262,6 +274,27 @@ class QueryBuilder {
         Object.assign(row, this.updatePatch, { updated_at: now });
       }
       return { data: matched.map((r) => ({ ...r })), error: null };
+    }
+
+    if (this.mutateMode === "upsert") {
+      const conflictCol = this.upsertConflictColumn ?? "id";
+      const upserted = this.insertRows.map((row) => {
+        const now = new Date().toISOString();
+        const existing = rows.find((r) => r[conflictCol] === row[conflictCol]);
+        if (existing) {
+          Object.assign(existing, row, { updated_at: now });
+          return { ...existing };
+        }
+        const next: Row = {
+          id: (row.id as string) ?? newId(),
+          created_at: now,
+          updated_at: now,
+          ...row,
+        };
+        rows.push(next);
+        return next;
+      });
+      return { data: upserted, error: null };
     }
 
     if (this.mutateMode === "delete") {
@@ -586,6 +619,10 @@ export function emptyMockDb(): MockDb {
     policy_rule: [],
     storage_quota: [],
     alert_rule: [],
+    school_alert: [],
+    school_alert_recipient: [],
+    platform_alert_ack: [],
+    alert_fire: [],
     report_job: [],
     institute_registration: [],
   };

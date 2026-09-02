@@ -30,6 +30,8 @@ export type CreateParentInput = {
   accessStatus?: PortalAccessStatus;
   legacyCode?: string | null;
   userProfileId?: string | null;
+  password?: string;
+  initialLinks?: CreateGuardianLinkInput[];
 };
 
 export type UpdateParentInput = Partial<Omit<CreateParentInput, "instituteId" | "userProfileId">>;
@@ -47,7 +49,7 @@ export type UpdateGuardianLinkInput = Partial<
 >;
 
 function toCreateBody(input: CreateParentInput): Record<string, unknown> {
-  return {
+  const body: Record<string, unknown> = {
     institute_id: input.instituteId.trim(),
     name: input.name.trim(),
     phone: input.phone.trim(),
@@ -58,6 +60,16 @@ function toCreateBody(input: CreateParentInput): Record<string, unknown> {
     legacy_code: input.legacyCode ?? null,
     user_profile_id: input.userProfileId ?? null,
   };
+  if (input.password) body.password = input.password;
+  if (input.initialLinks?.length) {
+    body.initial_links = input.initialLinks.map((link) => ({
+      student_id: link.studentId.trim(),
+      relationship: link.relationship,
+      is_primary: link.isPrimary,
+      is_emergency_contact: link.isEmergencyContact,
+    }));
+  }
+  return body;
 }
 
 function toUpdateBody(input: UpdateParentInput): Record<string, unknown> {
@@ -186,5 +198,23 @@ export async function deleteParentLink(
   }
   await client.delete(
     `/api/v1/parents/${parentId.trim()}/links/${linkId.trim()}`,
+  );
+}
+
+export async function provisionParentAccess(
+  parentId: string,
+  password: string,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<ParentDto> {
+  assertApiMode();
+  if (!isInstituteUuid(parentId)) {
+    throw new Error("parent_id must be a valid UUID");
+  }
+  if (password.length < 8) {
+    throw new Error("Password must contain at least 8 characters");
+  }
+  return client.post<ParentDto>(
+    `/api/v1/parents/${parentId.trim()}/provision-access`,
+    { password },
   );
 }

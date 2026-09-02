@@ -9,7 +9,15 @@ import { alertsRepository } from "@/lib/transport";
 
 import { TransportNotificationCard } from "./TransportNotificationCard";
 
-export function NotificationsPage() {
+type NotificationsPageProps = {
+  title?: string;
+  subtitle?: string;
+};
+
+export function NotificationsPage({
+  title = "Notifications",
+  subtitle = "Route updates, reminders, and school notices",
+}: NotificationsPageProps) {
   const notifications = useAlerts();
   const unreadCount = notifications.filter((notification) => notification.unread).length;
 
@@ -26,11 +34,11 @@ export function NotificationsPage() {
       <SectionHeader
         as="h1"
         size="page"
-        title="Notifications"
+        title={title}
         subtitle={
           unreadCount > 0
-            ? `${unreadCount} unread · Route updates, reminders, and school notices`
-            : "Route updates, reminders, and school notices"
+            ? `${unreadCount} unread · ${subtitle}`
+            : subtitle
         }
         action={
           unreadCount > 0 ? (

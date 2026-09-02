@@ -5,6 +5,7 @@ import {
   applyStarredFlags,
   setNotificationStarred,
   softDeleteNotification,
+  type RetentionAwareNotification,
 } from "@lumenx/utils";
 
 type Listener = () => void;
@@ -15,9 +16,9 @@ function seedItems(): AppNotification[] {
       categorizedNotifications.student.map((n) => ({
         ...n,
         createdAt: n.createdAt ?? new Date().toISOString(),
-      })),
+      })) as unknown as RetentionAwareNotification[],
     ),
-  );
+  ) as unknown as AppNotification[];
 }
 
 let items: AppNotification[] = seedItems();
@@ -39,9 +40,9 @@ export const studentNotificationStore = {
         source.map((n) => ({
           ...n,
           createdAt: n.createdAt ?? new Date().toISOString(),
-        })),
+        })) as unknown as RetentionAwareNotification[],
       ),
-    );
+    ) as unknown as AppNotification[];
     notify();
   },
   getItems: (): AppNotification[] => items,
@@ -65,7 +66,7 @@ export const studentNotificationStore = {
   softDelete: (id: string) => {
     const current = items.find((n) => n.id === id);
     if (!current) return;
-    softDeleteNotification(current);
+    softDeleteNotification(current as unknown as RetentionAwareNotification);
     items = items.filter((n) => n.id !== id);
     notify();
   },
@@ -75,8 +76,8 @@ export const studentNotificationStore = {
       applyStarredFlags([
         { ...notification, createdAt: notification.createdAt ?? new Date().toISOString() },
         ...items,
-      ]),
-    );
+      ] as unknown as RetentionAwareNotification[]),
+    ) as unknown as AppNotification[];
     notify();
   },
   subscribe: (listener: Listener) => {

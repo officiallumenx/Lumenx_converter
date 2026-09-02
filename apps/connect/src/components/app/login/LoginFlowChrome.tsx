@@ -16,7 +16,8 @@ export type LoginStep =
   // Portal (parent/student/teacher) OTP-only flow
   | "portalOtp"
   | "portalPinSetup"
-  | "portalPinVerify";
+  | "portalPinVerify"
+  | "api-sign-in";
 
 export type LoginMode = "signIn" | "firstSetup" | "forgotPassword";
 

@@ -13,12 +13,13 @@ import {
   SimpleFileUpload,
   type SimpleUploadValue,
 } from "@lumenx/ui";
-import { isAllowedSimpleUploadName } from "@lumenx/utils";
+import { isAllowedSimpleUploadName, toLocalIsoDate } from "@lumenx/utils";
 import { CheckCircle2, ChevronLeft, ChevronRight, Plus, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { useAdmissionsAuth } from "@/admissions-portal/core/AdmissionsAuthProvider";
 import { DocumentUploadCard } from "@/admissions-portal/shared/ui/AdmissionsShellWidgets";
 import { AdmissionsPageHeader } from "@/admissions-portal/shared/ui/AdmissionsPageHeader";
+import { ConnectDatePicker } from "@/components/app/attendance/AttendanceDatePicker";
 import {
   APPLY_STEPS,
   academicStepSchema,
@@ -628,12 +629,14 @@ export function ApplyWizardPage({
                 </Select>
               </Field>
               <Field label="Date of birth">
-                <Input
-                  type="date"
+                <ConnectDatePicker
+                  label="Date of birth"
+                  hideLabel
                   value={activeChild.student.dateOfBirth ?? ""}
-                  onChange={(e) =>
+                  max={toLocalIsoDate(new Date())}
+                  onChange={(iso) =>
                     updateActiveChild({
-                      student: { ...activeChild.student, dateOfBirth: e.target.value },
+                      student: { ...activeChild.student, dateOfBirth: iso },
                     })
                   }
                 />

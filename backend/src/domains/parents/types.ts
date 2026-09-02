@@ -74,6 +74,9 @@ export type CreateParentInput = {
   legacyCode?: string | null;
   /** Ignored — never trust client. */
   userProfileId?: string | null;
+  /** When set, provisions Supabase Auth login after create (no invite email). */
+  password?: string;
+  initialLinks?: CreateGuardianLinkInput[];
 };
 
 export type UpdateParentInput = {

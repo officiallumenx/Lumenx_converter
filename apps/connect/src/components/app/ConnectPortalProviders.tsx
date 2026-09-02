@@ -1,4 +1,7 @@
 import type { ReactNode } from "react";
+import { InAppAlertListener } from "@/components/app/InAppAlertListener";
+import { PushDeviceTokenRegistration } from "@/components/app/PushDeviceTokenRegistration";
+import { ConnectSchoolAlertsSync } from "@/components/app/ConnectSchoolAlertsSync";
 import { AppProvider } from "@/lib/app-state";
 import { ParentPortalRegistry } from "@/context/ParentPortalContext";
 import { TeacherPortalRegistry } from "@/context/TeacherPortalContext";
@@ -21,7 +24,12 @@ export function ConnectPortalProviders({
         <TeacherPortalRegistry>
           <TeacherSessionRegistry>
             <StudentPortalRegistry>
-              <ActivityWorkspaceRegistry>{children}</ActivityWorkspaceRegistry>
+              <ActivityWorkspaceRegistry>
+              <InAppAlertListener />
+              <PushDeviceTokenRegistration enabled />
+              <ConnectSchoolAlertsSync />
+              {children}
+            </ActivityWorkspaceRegistry>
             </StudentPortalRegistry>
           </TeacherSessionRegistry>
         </TeacherPortalRegistry>

@@ -10,6 +10,12 @@
  */
 
 import type { AuthUser } from "@/auth/types";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { getApiAccessState } from "@/lib/access-roles/runtime-permissions";
+import {
+  demoRoleIdForSystemKey,
+  isAttendanceCoordinatorSystemKey,
+} from "@/lib/access-roles/system-keys";
 import {
   ATTENDANCE_COORDINATOR_ROLE_ID,
   findAccessAssignee,
@@ -110,6 +116,27 @@ export function getAttendanceModuleAccess(
       assignee: null,
       isAttendanceCoordinator: false,
       permission: "none",
+    };
+  }
+
+  if (isApiAuthMode()) {
+    const api = getApiAccessState();
+    const effectiveRoleId =
+      user.accessRoleId ?? demoRoleIdForSystemKey(api.accessRoleSystemKey);
+    const persona = isAttendanceCoordinatorSystemKey(api.accessRoleSystemKey)
+      ? "attendance_coordinator"
+      : resolveAdminAttendancePersona({ ...user, accessRoleId: effectiveRoleId }, null);
+    const assignedSectionKeys =
+      persona === "attendance_coordinator" ? [...api.assignedSectionKeys] : [];
+    const decision = resolveAttendancePermission({
+      persona,
+      assignedSectionKeys,
+    });
+    return {
+      ...decision,
+      assignee: null,
+      isAttendanceCoordinator: persona === "attendance_coordinator",
+      permission: decision.routeCaps.studentAttendance,
     };
   }
 

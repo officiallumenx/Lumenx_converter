@@ -138,6 +138,8 @@ export const studentRepository = {
       };
     }
 
+    const profile = getConnectStudentProfile();
+
     const modules = STUDENT_ALL_NAV.filter((n) => n.label.toLowerCase().includes(q)).map((n) => ({
       label: n.label,
       path: n.to,

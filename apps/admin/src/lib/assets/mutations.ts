@@ -110,6 +110,14 @@ export async function deleteAsset(
 
 export type UploadAssetInput = {
   instituteId: string;
+  file: File;
+  purpose: "logo" | "general";
+  visibility?: "private" | "institute" | "staff";
+};
+
+/** @deprecated Prefer purpose-based upload — bucket mapping is server-side. */
+export type LegacyUploadAssetInput = {
+  instituteId: string;
   bucket: AssetBucket;
   category: AssetCategory;
   file: File;
@@ -126,8 +134,7 @@ export async function uploadAsset(
   }
   const form = new FormData();
   form.set("institute_id", input.instituteId.trim());
-  form.set("bucket", input.bucket);
-  form.set("category", input.category);
+  form.set("purpose", input.purpose);
   form.set("file", input.file);
   if (input.visibility) form.set("visibility", input.visibility);
   return client.uploadForm<AssetDto>("/api/v1/assets/upload", form);

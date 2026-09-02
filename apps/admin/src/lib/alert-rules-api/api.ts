@@ -105,3 +105,27 @@ export async function evaluateAlertRules(
     {},
   );
 }
+
+export async function listAlertFires(
+  instituteId: string,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<AlertFireDto[]> {
+  assertApiMode();
+  if (!isInstituteUuid(instituteId)) {
+    throw new Error("institute_id must be a valid UUID");
+  }
+  const query = new URLSearchParams();
+  query.set("institute_id", instituteId.trim());
+  return client.get<AlertFireDto[]>(`/api/v1/alert-rules/fires?${query.toString()}`);
+}
+
+export async function resolveAlertFire(
+  fireId: string,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<AlertFireDto> {
+  assertApiMode();
+  if (!isInstituteUuid(fireId)) {
+    throw new Error("fire id must be a valid UUID");
+  }
+  return client.patch<AlertFireDto>(`/api/v1/alert-rules/fires/${fireId.trim()}/resolve`, {});
+}

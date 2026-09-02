@@ -9,6 +9,7 @@ import homework from "./homework.js";
 import diary from "./diary.js";
 import students from "./students.js";
 import parents from "./parents.js";
+import parentAuth from "./parent-auth.js";
 import teachers from "./teachers.js";
 import staff from "./staff.js";
 import {
@@ -35,12 +36,21 @@ import careers from "./careers.js";
 import activity from "./activity.js";
 import messages from "./messages.js";
 import assets from "./assets.js";
+import storage from "./storage.js";
 import recycle from "./recycle.js";
 import analytics from "./analytics.js";
 import reports from "./reports.js";
 import teacherPerformance from "./teacher-performance.js";
 import alertRules from "./alert-rules.js";
+import schoolAlerts from "./school-alerts.js";
 import subscriptions from "./subscriptions.js";
+import registrations from "./registrations.js";
+import {
+  accessRoles,
+  accessAssignees,
+  myAccess,
+  staffAuth,
+} from "./access-roles.js";
 import type { AppBindings } from "../../types/app.js";
 
 /**
@@ -84,12 +94,16 @@ v1.route("/health", health);
 
 // ── Session / actor ──────────────────────────────────────────────
 v1.route("/me", me);
+v1.route("/me/access", myAccess);
 
 // ── Identity / tenancy ───────────────────────────────────────────
+v1.route("/registrations", registrations);
 v1.route("/institutes", institutes);
 v1.route("/profiles", profiles);
 v1.route("/memberships", memberships);
 v1.route("/roles", roles);
+v1.route("/access-roles", accessRoles);
+v1.route("/access-assignees", accessAssignees);
 
 // ── Academic domains ─────────────────────────────────────────────
 v1.route("/timetable", timetable);
@@ -100,6 +114,8 @@ v1.route("/homework", homework);
 v1.route("/diary", diary);
 v1.route("/students", students);
 v1.route("/parents", parents);
+v1.route("/auth/parent", parentAuth);
+v1.route("/auth/staff", staffAuth);
 v1.route("/teachers", teachers);
 v1.route("/staff", staff);
 v1.route("/academic-years", academicYears);
@@ -123,11 +139,13 @@ v1.route("/careers", careers);
 v1.route("/activity", activity);
 v1.route("/messages", messages);
 v1.route("/assets", assets);
+v1.route("/storage", storage);
 v1.route("/recycle", recycle);
 v1.route("/analytics", analytics);
 v1.route("/reports", reports);
 v1.route("/teacher-performance", teacherPerformance);
 v1.route("/alert-rules", alertRules);
+v1.route("/school-alerts", schoolAlerts);
 v1.route("/subscriptions", subscriptions);
 
 export default v1;

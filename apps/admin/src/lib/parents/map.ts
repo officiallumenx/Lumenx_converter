@@ -62,6 +62,8 @@ export function parentDtoToListItem(dto: ParentDto): ParentListItem {
     linkedStudentIds,
     linkedChildrenCount: count,
     linkedChildrenLabel: linkedChildrenLabel(count),
+    linkedChildrenDisplay: linkedChildrenLabel(count),
+    hasPortalLogin: Boolean(dto.userProfileId),
     password: "",
     identityLabel: parentIdentityLabel(dto),
   };

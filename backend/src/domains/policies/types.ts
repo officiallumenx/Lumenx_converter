@@ -84,3 +84,18 @@ export type UpsertStorageQuotaInput = {
   limitGb: number;
   warningPct?: number;
 };
+
+/** Read-only alert derived from live platform signals (not persisted). */
+export type DerivedPlatformAlertDto = {
+  id: string;
+  kind: PolicyRuleKind;
+  title: string;
+  summary: string;
+  severity: PolicySeverity;
+  instituteId: string | null;
+  instituteName: string | null;
+  ruleId: string;
+  detectedAt: string;
+  handledAt: string | null;
+  handledByUserId: string | null;
+};

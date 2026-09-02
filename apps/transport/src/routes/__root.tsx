@@ -15,6 +15,9 @@ import { Toaster } from "@lumenx/ui/sonner";
 
 import { APP_NAME } from "@/constants";
 import { TransportAuthProvider } from "@/lib/auth";
+import { InAppAlertListener } from "@/components/app/InAppAlertListener";
+import { PushDeviceTokenRegistration } from "@/components/app/PushDeviceTokenRegistration";
+import { TransportAlertsSync } from "@/components/app/TransportAlertsSync";
 import { useSettings } from "@/hooks/use-settings";
 import { applyThemeMode } from "@/lib/transport/settings";
 import appCss from "../styles.css?url";
@@ -136,6 +139,9 @@ function RootComponent() {
         <LumenXNativeShell />
         <OfflineSyncHost app="transport" className="min-h-dvh">
           <TypographyProvider>
+            <InAppAlertListener />
+            <PushDeviceTokenRegistration enabled />
+            <TransportAlertsSync />
             <Outlet />
           </TypographyProvider>
         </OfflineSyncHost>

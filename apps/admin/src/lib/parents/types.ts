@@ -53,6 +53,10 @@ export type ParentListItem = {
   linkedStudentIds: string[];
   linkedChildrenCount: number;
   linkedChildrenLabel: string;
+  /** Human-readable linked children — populated when student roster is joined client-side. */
+  linkedChildrenDisplay: string;
+  /** True when parent.userProfileId is set (Connect login enabled). */
+  hasPortalLogin: boolean;
   /** Demo-compat — not populated from API. */
   password: string;
   /** Short identity label for list rows (legacy code / prefix). */
@@ -64,10 +68,15 @@ export type ParentDetailItem = ParentListItem & {
   legacyCode: string | null;
   updatedAt: string;
   links: GuardianLinkDto[];
+  /** Populated when student roster is joined — keyed by studentId. */
+  linkStudentLabels?: Record<string, string>;
 };
 
 export type ListParentsParams = {
   instituteId: string;
+  inviteStatus?: PortalInviteStatus;
+  accessStatus?: PortalAccessStatus;
+  q?: string;
 };
 
 export type { PortalAccessStatus, PortalInviteStatus };

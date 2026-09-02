@@ -20,6 +20,8 @@ const detailA: ParentDetailItem = {
   linkedStudentIds: [],
   linkedChildrenCount: 1,
   linkedChildrenLabel: "1 child",
+  linkedChildrenDisplay: "1 child",
+  hasPortalLogin: true,
   password: "",
   links: [],
   updatedAt: "2026-06-01T10:00:00Z",

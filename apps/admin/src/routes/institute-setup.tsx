@@ -4,7 +4,7 @@
  * ───────────────────────────────────────────────────────────── */
 
 import { IconChip } from "@/components/IconChip";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, Navigate, useNavigate } from "@tanstack/react-router";
 import { useState, useRef, useCallback, useEffect } from "react";
 import {
   Sparkles,
@@ -604,23 +604,8 @@ const STEP_HINTS = [
 ] as const;
 
 function InstituteSetupPage() {
-  // API mode: demo registration wizard must not run (localStorage / Nexus cookie funnel).
   if (isApiAuthMode()) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-6 bg-background">
-        <div className="max-w-md space-y-3 text-center">
-          <h1 className="text-lg font-semibold">Institute setup (demo only)</h1>
-          <p className="text-sm text-muted-foreground">
-            API auth mode uses platform institute create on the Institute page
-            (platform operators) and memberships under Accounts. The demo
-            registration wizard is disabled.
-          </p>
-          <Link to="/" className="text-sm text-primary hover:underline">
-            Back to dashboard
-          </Link>
-        </div>
-      </div>
-    );
+    return <Navigate to="/pending-verification" replace />;
   }
 
   return <InstituteSetupDemoPage />;

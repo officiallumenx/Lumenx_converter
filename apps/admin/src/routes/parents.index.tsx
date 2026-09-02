@@ -12,7 +12,6 @@ import {
   createParent as createParentApi,
   updateParent as updateParentApi,
   deleteParent as deleteParentApi,
-  createParentLink as createParentLinkApi,
   type GuardianRelationship,
   type ParentListItem,
   type ParentsListStatus,
@@ -67,6 +66,7 @@ import {
   type StudentDirectoryRecord,
 } from "@/lib/student-directory-store";
 import { PeopleDirectoryCard } from "@/components/people/PeopleDirectoryCard";
+import { StudentMultiLinkPicker } from "@/components/parents/StudentLinkPicker";
 
 export const Route = createFileRoute("/parents/")({
   head: () => ({ meta: [{ title: "Parents — LumenX Admin" }] }),
@@ -91,6 +91,9 @@ function parentLinkedChildrenText(
   parent: ParentRow,
   visibleChildren: StudentDirectoryRecord[],
 ): string {
+  if ("linkedChildrenDisplay" in parent && parent.linkedChildrenDisplay) {
+    return parent.linkedChildrenDisplay;
+  }
   if ("linkedChildrenLabel" in parent) {
     return parent.linkedChildrenLabel;
   }
@@ -109,7 +112,7 @@ type NewParentDraft = {
   phone: string;
   password: string;
   address: string;
-  linkedStudentIds: string;
+  linkedStudentIds: string[];
 };
 
 const EMPTY_DRAFT: NewParentDraft = {
@@ -119,7 +122,7 @@ const EMPTY_DRAFT: NewParentDraft = {
   phone: "",
   password: "Parent@123",
   address: "",
-  linkedStudentIds: "",
+  linkedStudentIds: [],
 };
 
 function ParentsPage() {
@@ -458,39 +461,26 @@ function ParentsPage() {
         notify("Select an institute before creating a parent");
         return;
       }
-      const linkIds = draft.linkedStudentIds
-        .split(",")
-        .map((id) => id.trim())
-        .filter(Boolean);
-      const invalidLinks = linkIds.filter((id) => !isInstituteUuid(id));
-      if (invalidLinks.length > 0) {
-        return setError(
-          `Student IDs must be UUIDs in API mode: ${invalidLinks.join(", ")}`,
-        );
-      }
+      const linkIds = draft.linkedStudentIds.filter(Boolean);
+      const relationship = relationshipToApi(draft.relationship);
       void createParentApi({
         instituteId,
         name: draft.name.trim(),
         phone,
         email: email || null,
         address: draft.address.trim() || null,
-        inviteStatus: "pending",
-        accessStatus: "active",
+        initialLinks: linkIds.map((studentId, index) => ({
+          studentId,
+          relationship,
+          isPrimary: index === 0,
+        })),
       })
-        .then(async (created) => {
-          const relationship = relationshipToApi(draft.relationship);
-          for (const studentId of linkIds) {
-            await createParentLinkApi(created.id, {
-              studentId,
-              relationship,
-              isPrimary: true,
-            });
-          }
+        .then((created) => {
           setDraft(EMPTY_DRAFT);
           setError("");
           setOpen(false);
           setReloadKey((k) => k + 1);
-          notify(`${created.name} created · invite pending`);
+          notify(`${created.name} created · parent can sign in with mobile OTP`);
         })
         .catch((err) => {
           notify(err instanceof Error ? err.message : "Failed to create parent");
@@ -499,7 +489,6 @@ function ParentsPage() {
     }
 
     const linkedStudentIds = draft.linkedStudentIds
-      .split(",")
       .map((id) => id.trim().toUpperCase())
       .filter(Boolean);
     if (draft.password.length < 8) return setError("Password must contain at least 8 characters.");
@@ -883,17 +872,36 @@ function ParentsPage() {
                 onChange={(event) => setDraft({ ...draft, password: event.target.value })}
               />
             </Field>
-          ) : null}
-          <Field
-            label="Link child IDs"
-            hint={apiMode ? "Comma-separated student UUIDs" : "Comma-separated student IDs"}
-          >
-            <TextInput
-              value={draft.linkedStudentIds}
-              onChange={(event) => setDraft({ ...draft, linkedStudentIds: event.target.value })}
-              placeholder={apiMode ? "uuid, uuid…" : "STU-1042, STU-1099"}
-            />
-          </Field>
+          ) : (
+            <Field label="Connect login" hint="Parent signs in with this mobile + OTP in Connect">
+              <TextInput value="OTP only — no password" disabled readOnly />
+            </Field>
+          )}
+          {apiMode && instituteCtx.activeInstituteId ? (
+            <div className="sm:col-span-2">
+              <StudentMultiLinkPicker
+                instituteId={instituteCtx.activeInstituteId}
+                values={draft.linkedStudentIds}
+                onChange={(linkedStudentIds) => setDraft({ ...draft, linkedStudentIds })}
+              />
+            </div>
+          ) : (
+            <Field label="Link child IDs" hint="Comma-separated student IDs">
+              <TextInput
+                value={draft.linkedStudentIds.join(", ")}
+                onChange={(event) =>
+                  setDraft({
+                    ...draft,
+                    linkedStudentIds: event.target.value
+                      .split(",")
+                      .map((id) => id.trim())
+                      .filter(Boolean),
+                  })
+                }
+                placeholder="STU-1042, STU-1099"
+              />
+            </Field>
+          )}
           <div className="sm:col-span-2">
             <Field label="Address">
               <TextArea

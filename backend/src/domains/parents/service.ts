@@ -35,6 +35,7 @@ import type {
   UpdateGuardianLinkInput,
   UpdateParentInput,
 } from "./types.js";
+import { provisionParentAccess } from "./provision.js";
 
 export const PARENT_STAFF_WRITE_ROLES = [
   "institute_admin",
@@ -236,13 +237,60 @@ export async function createParentForActor(
     });
   }
 
-  const row = await insertParent(admin, {
+  let row = await insertParent(admin, {
     ...input,
     instituteId,
     name,
     phone,
   });
-  return toParentDto(row, []);
+
+  const links: GuardianLinkRow[] = [];
+  const initialLinks = input.initialLinks ?? [];
+  for (let i = 0; i < initialLinks.length; i++) {
+    const linkInput = initialLinks[i]!;
+    const link = await createGuardianLinkForActor(admin, actor, row.id, {
+      ...linkInput,
+      isPrimary: linkInput.isPrimary ?? i === 0,
+    });
+    links.push({
+      id: link.id,
+      institute_id: instituteId,
+      student_id: link.studentId,
+      parent_id: row.id,
+      relationship: link.relationship,
+      is_primary: link.isPrimary,
+      is_emergency_contact: link.isEmergencyContact,
+      status: link.status,
+      created_at: link.createdAt,
+      updated_at: link.updatedAt,
+      deleted_at: null,
+    });
+  }
+
+  if (input.password) {
+    row = await provisionParentAccess(admin, {
+      parentId: row.id,
+      password: input.password,
+    });
+  }
+
+  return toParentDto(row, links);
+}
+
+export async function provisionParentAccessForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  parentId: string,
+  password: string,
+): Promise<ParentDto> {
+  const existing = await findParentById(admin, parentId);
+  if (!existing) throw AppError.notFound("Parent not found");
+
+  assertStaffWriter(actor, existing.institute_id);
+
+  const row = await provisionParentAccess(admin, { parentId, password });
+  const links = await listLinksForParent(admin, row.id, row.institute_id);
+  return toParentDto(row, links);
 }
 
 export async function updateParentForActor(

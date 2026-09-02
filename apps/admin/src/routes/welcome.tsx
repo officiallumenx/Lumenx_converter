@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { AuthButton } from "@/auth/components/AuthButton";
 import { IconChip } from "@/components/IconChip";
+import { RegistrationOnboardingCallout } from "@/components/registration/RegistrationOnboardingCallout";
 
 export const Route = createFileRoute("/welcome")({
   head: () => ({ meta: [{ title: "Welcome — LumenX Admin" }] }),
@@ -113,10 +114,11 @@ function WelcomePage() {
         <div className="max-w-3xl mx-auto rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/[0.06] to-chart-5/[0.04] p-10 text-center">
           <IconChip icon={Award} size="lg" className="mx-auto mb-4" />
           <h3 className="text-xl font-bold">Ready to transform your institute?</h3>
-          <p className="text-sm text-muted-foreground mt-2 mb-6 max-w-sm mx-auto">
+          <p className="text-sm text-muted-foreground mt-2 mb-4 max-w-sm mx-auto">
             Create your institute account and start managing academics, people, and operations.
           </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          <RegistrationOnboardingCallout variant="welcome" />
+          <div className="flex flex-col sm:flex-row gap-3 justify-center mt-6">
             <Link to="/signup">
               <AuthButton variant="primary" fullWidth={false}>
                 Create your account <ArrowRight className="size-4" />

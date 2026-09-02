@@ -17,7 +17,6 @@ import {
 } from "@lumenx/ui-admin";
 import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
-import { isInstituteUuid } from "@/lib/active-institute";
 import {
   createParentLink,
   deleteParent,
@@ -33,9 +32,9 @@ import {
   type ParentDetailItem,
   type ParentsListStatus,
   type PortalAccessStatus,
-  type PortalInviteStatus,
 } from "@/lib/parents";
 import { normalizeParentPhone } from "@/lib/parent-directory-store";
+import { StudentLinkPicker } from "@/components/parents/StudentLinkPicker";
 
 function detailHint(status: ParentsListStatus, errorMessage: string | null): string | null {
   if (status === "loading") return "Loading parent profile…";
@@ -62,7 +61,6 @@ type EditDraft = {
   phone: string;
   email: string;
   address: string;
-  inviteStatus: PortalInviteStatus;
   accessStatus: PortalAccessStatus;
 };
 
@@ -89,6 +87,8 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
   const [linkStudentId, setLinkStudentId] = useState("");
   const [linkRelationship, setLinkRelationship] =
     useState<GuardianRelationship>("guardian");
+  const [linkPrimary, setLinkPrimary] = useState(false);
+  const [linkEmergency, setLinkEmergency] = useState(false);
   const [linkBusy, setLinkBusy] = useState(false);
 
   const detailView = resolveParentsDetailView({
@@ -180,7 +180,6 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
       phone: displayParent.phone,
       email: displayParent.email,
       address: displayParent.address,
-      inviteStatus: displayParent.inviteStatus,
       accessStatus: displayParent.accessStatus,
     });
     setSaveError("");
@@ -214,7 +213,6 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
       phone,
       email: email || null,
       address: draft.address.trim() || null,
-      inviteStatus: draft.inviteStatus,
       accessStatus: draft.accessStatus,
     })
       .then(() => {
@@ -243,20 +241,19 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
   };
 
   const addLink = () => {
-    if (!writesEnabled) return;
-    if (!isInstituteUuid(linkStudentId.trim())) {
-      notify("Student ID must be a valid UUID");
-      return;
-    }
+    if (!writesEnabled || !linkStudentId.trim()) return;
     setLinkBusy(true);
     void createParentLink(parentId, {
       studentId: linkStudentId.trim(),
       relationship: linkRelationship,
-      isPrimary: false,
+      isPrimary: linkPrimary,
+      isEmergencyContact: linkEmergency,
       status: "active",
     })
       .then(() => {
         setLinkStudentId("");
+        setLinkPrimary(false);
+        setLinkEmergency(false);
         setReloadKey((k) => k + 1);
         notify("Student link created");
       })
@@ -266,12 +263,20 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
       .finally(() => setLinkBusy(false));
   };
 
-  const setLinkStatus = (linkId: string, nextStatus: GuardianLinkStatus) => {
+  const patchLink = (
+    linkId: string,
+    patch: {
+      relationship?: GuardianRelationship;
+      isPrimary?: boolean;
+      isEmergencyContact?: boolean;
+      status?: GuardianLinkStatus;
+    },
+  ) => {
     if (!writesEnabled) return;
-    void updateParentLink(parentId, linkId, { status: nextStatus })
+    void updateParentLink(parentId, linkId, patch)
       .then(() => {
         setReloadKey((k) => k + 1);
-        notify(nextStatus === "active" ? "Link activated" : "Link deactivated");
+        notify("Link updated");
       })
       .catch((err) => {
         notify(err instanceof Error ? err.message : "Failed to update link");
@@ -289,6 +294,10 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
         notify(err instanceof Error ? err.message : "Failed to remove link");
       });
   };
+
+  const linkedStudentLabel = (studentId: string) =>
+    displayParent?.linkStudentLabels?.[studentId] ??
+    `Student · ${studentId.slice(0, 8)}…`;
 
   return (
     <AppShell
@@ -362,20 +371,6 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
                   onChange={(e) => setDraft({ ...draft, email: e.target.value })}
                 />
               </Field>
-              <Field label="Invite status">
-                <Select
-                  value={draft.inviteStatus}
-                  onChange={(e) =>
-                    setDraft({
-                      ...draft,
-                      inviteStatus: e.target.value as PortalInviteStatus,
-                    })
-                  }
-                >
-                  <option value="pending">pending</option>
-                  <option value="active">active</option>
-                </Select>
-              </Field>
               <Field label="Access status">
                 <Select
                   value={draft.accessStatus}
@@ -413,18 +408,26 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
                     <Pill tone={displayParent.accessStatus === "active" ? "success" : "warning"}>
                       {displayParent.accessStatus}
                     </Pill>
-                    <Pill tone={displayParent.inviteStatus === "active" ? "success" : "neutral"}>
-                      {displayParent.inviteStatus}
+                    <Pill tone="info">OTP login</Pill>
+                    <Pill tone={displayParent.hasPortalLogin ? "success" : "neutral"}>
+                      {displayParent.hasPortalLogin ? "Session ready" : "OTP on first sign-in"}
                     </Pill>
                   </div>
                 }
               />
               <div className="grid gap-4 px-4 pb-5 sm:grid-cols-2 sm:px-5 lg:grid-cols-3">
                 <DetailField label="Phone" value={displayParent.phone} />
+                <DetailField
+                  label="Connect sign-in"
+                  value="Mobile OTP only (select institute + this number in Connect)"
+                />
                 <DetailField label="Email" value={displayParent.email} />
                 <DetailField label="Address" value={displayParent.address} />
                 <DetailField label="Legacy code" value={displayParent.legacyCode} />
-                <DetailField label="Linked children" value={displayParent.linkedChildrenLabel} />
+                <DetailField
+                  label="Linked children"
+                  value={displayParent.linkedChildrenDisplay}
+                />
               </div>
             </Card>
             <Card>
@@ -433,14 +436,14 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
                 hint={`Last updated ${new Date(displayParent.updatedAt).toLocaleString()}`}
               />
               {displayParent.links.length === 0 ? (
-                <div className="px-5 pb-5 text-sm text-muted-foreground">No active student links.</div>
+                <div className="px-5 pb-5 text-sm text-muted-foreground">No student links.</div>
               ) : (
                 <ul className="divide-y divide-border px-4 pb-4 sm:px-5">
                   {displayParent.links.map((link) => (
-                    <li key={link.id} className="flex items-center justify-between gap-3 py-3">
+                    <li key={link.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <div className="text-sm font-medium">
-                          Student · {link.studentId.slice(0, 8)}…
+                          {linkedStudentLabel(link.studentId)}
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {relationshipToLabel(link.relationship)}
@@ -454,14 +457,43 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
                         </Pill>
                         {writesEnabled ? (
                           <>
+                            <Select
+                              value={link.relationship}
+                              onChange={(e) =>
+                                patchLink(link.id, {
+                                  relationship: e.target.value as GuardianRelationship,
+                                })
+                              }
+                            >
+                              <option value="mother">mother</option>
+                              <option value="father">father</option>
+                              <option value="guardian">guardian</option>
+                            </Select>
+                            <Button
+                              size="sm"
+                              variant={link.isPrimary ? "primary" : "outline"}
+                              onClick={() => patchLink(link.id, { isPrimary: !link.isPrimary })}
+                            >
+                              Primary
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant={link.isEmergencyContact ? "primary" : "outline"}
+                              onClick={() =>
+                                patchLink(link.id, {
+                                  isEmergencyContact: !link.isEmergencyContact,
+                                })
+                              }
+                            >
+                              Emergency
+                            </Button>
                             <Button
                               size="sm"
                               variant="outline"
                               onClick={() =>
-                                setLinkStatus(
-                                  link.id,
-                                  link.status === "active" ? "inactive" : "active",
-                                )
+                                patchLink(link.id, {
+                                  status: link.status === "active" ? "inactive" : "active",
+                                })
                               }
                             >
                               {link.status === "active" ? "Deactivate" : "Activate"}
@@ -481,15 +513,14 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
                   ))}
                 </ul>
               )}
-              {writesEnabled ? (
-                <div className="grid gap-3 border-t border-border px-4 py-4 sm:grid-cols-[1fr_auto_auto] sm:px-5">
-                  <Field label="Student UUID">
-                    <TextInput
-                      value={linkStudentId}
-                      onChange={(e) => setLinkStudentId(e.target.value)}
-                      placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                    />
-                  </Field>
+              {writesEnabled && instituteCtx.activeInstituteId ? (
+                <div className="grid gap-3 border-t border-border px-4 py-4 sm:grid-cols-2 sm:px-5">
+                  <StudentLinkPicker
+                    instituteId={instituteCtx.activeInstituteId}
+                    value={linkStudentId}
+                    onChange={setLinkStudentId}
+                    excludeIds={displayParent.links.map((link) => link.studentId)}
+                  />
                   <Field label="Relationship">
                     <Select
                       value={linkRelationship}
@@ -502,7 +533,23 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
                       <option value="guardian">guardian</option>
                     </Select>
                   </Field>
-                  <div className="flex items-end">
+                  <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
+                    <label className="flex items-center gap-2 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={linkPrimary}
+                        onChange={(e) => setLinkPrimary(e.target.checked)}
+                      />
+                      Primary guardian
+                    </label>
+                    <label className="flex items-center gap-2 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={linkEmergency}
+                        onChange={(e) => setLinkEmergency(e.target.checked)}
+                      />
+                      Emergency contact
+                    </label>
                     <Button
                       variant="primary"
                       onClick={addLink}

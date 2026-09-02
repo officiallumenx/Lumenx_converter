@@ -14,6 +14,8 @@ export {
   updateAlertRule,
   deleteAlertRule,
   evaluateAlertRules,
+  listAlertFires,
+  resolveAlertFire,
 } from "./api";
 export {
   loadAlertRules,

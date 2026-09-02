@@ -40,6 +40,7 @@ import {
   type AnnouncementListItem,
   type AnnouncementsListStatus,
 } from "@/lib/announcements";
+import { notifyAnnouncementPublished } from "@lumenx/notifications";
 
 export const Route = createFileRoute("/announcements")({
   head: () => ({ meta: [{ title: "Announcements — LumenX Admin" }] }),
@@ -270,6 +271,23 @@ function AnnouncementsPage() {
     return `Classes · ${examClassDisplayLabel("selected", classSectionKeys)}`;
   };
 
+  const fanOutDemoAnnouncement = (input: {
+    id: string;
+    title: string;
+    body?: string;
+    audience: string;
+    audienceScope: AnnouncementAudienceScope;
+  }) => {
+    notifyAnnouncementPublished({
+      id: input.id,
+      title: input.title,
+      body: input.body,
+      audienceLabel: input.audience,
+      audienceScope: input.audienceScope,
+      sender: "Admin",
+    });
+  };
+
   const resetForm = () => {
     setTitle("");
     setBody("");
@@ -368,6 +386,15 @@ function AnnouncementsPage() {
             : a,
         ),
       );
+      if (!asDraft && !scheduled) {
+        fanOutDemoAnnouncement({
+          id: editingId,
+          title: title.trim(),
+          body: body.trim(),
+          audience,
+          audienceScope: mapAudienceScope(),
+        });
+      }
       resetForm();
       setOpen(false);
       notify("Announcement updated");
@@ -391,6 +418,13 @@ function AnnouncementsPage() {
     } else if (scheduled) {
       notify(`"${entry.title}" scheduled · ${audience}`);
     } else {
+      fanOutDemoAnnouncement({
+        id: entry.id,
+        title: entry.title,
+        body: body.trim(),
+        audience,
+        audienceScope: mapAudienceScope(),
+      });
       notify(`"${entry.title}" published immediately · ${audience}`);
     }
   };

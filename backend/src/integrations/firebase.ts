@@ -1,9 +1,10 @@
 import { initializeApp, cert, deleteApp, type App } from "firebase-admin/app";
+import { getMessaging, type Messaging } from "firebase-admin/messaging";
 import type { Env } from "../config/env.js";
 import type { Logger } from "../logger/logger.js";
 
 export type { App } from "firebase-admin/app";
-export { deleteApp } from "firebase-admin/app";
+export { deleteApp, getMessaging, type Messaging } from "firebase-admin/messaging";
 
 /**
  * Validate that all required Firebase env vars are present.
@@ -72,4 +73,13 @@ export function initFirebaseAdmin(
   logger.info({ msg: "firebase_initialized", projectId: config.projectId });
 
   return app;
+}
+
+export function getFirebaseMessaging(app: App | null): Messaging | null {
+  if (!app) return null;
+  try {
+    return getMessaging(app);
+  } catch {
+    return null;
+  }
 }

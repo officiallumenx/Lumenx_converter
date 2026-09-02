@@ -12,7 +12,9 @@ import {
   createAlertRuleForActor,
   deleteAlertRuleForActor,
   evaluateAlertRulesForActor,
+  listAlertFiresForActor,
   listAlertRulesForActor,
+  resolveAlertFireForActor,
   updateAlertRuleForActor,
 } from "../../domains/alert-rules/service.js";
 
@@ -113,6 +115,25 @@ alertRules.post("/evaluate", async (c) => {
     actor,
     query.institute_id,
   );
+  return c.json({ data });
+});
+
+alertRules.get("/fires", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(
+    z.object({ institute_id: uuid }),
+    c.req.query(),
+  );
+  const data = await listAlertFiresForActor(admin, actor, query.institute_id);
+  return c.json({ data });
+});
+
+alertRules.patch("/fires/:id/resolve", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const data = await resolveAlertFireForActor(admin, actor, id);
   return c.json({ data });
 });
 

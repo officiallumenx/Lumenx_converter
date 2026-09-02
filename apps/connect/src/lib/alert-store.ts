@@ -6,6 +6,16 @@ type Listener = () => void;
 let items: SchoolAlert[] = [];
 let initialized = false;
 const listeners = new Set<Listener>();
+let ackHandler: ((id: string) => void | Promise<void>) | null = null;
+let ackAllHandler: (() => void | Promise<void>) | null = null;
+
+export function setAlertStoreAckHandlers(handlers: {
+  onAck?: ((id: string) => void | Promise<void>) | null;
+  onAckAll?: (() => void | Promise<void>) | null;
+}): void {
+  ackHandler = handlers.onAck ?? null;
+  ackAllHandler = handlers.onAckAll ?? null;
+}
 
 function notify() {
   listeners.forEach((l) => l());
@@ -64,6 +74,8 @@ export const alertStore = {
   reset() {
     items = [];
     initialized = false;
+    ackHandler = null;
+    ackAllHandler = null;
     notify();
   },
   getItems: (): SchoolAlert[] => items,
@@ -73,10 +85,12 @@ export const alertStore = {
   acknowledge: (id: string) => {
     items = items.map((a) => (a.id === id ? { ...a, acknowledged: true, unread: false } : a));
     notify();
+    void ackHandler?.(id);
   },
   acknowledgeAll: () => {
     items = items.map((a) => ({ ...a, acknowledged: true, unread: false }));
     notify();
+    void ackAllHandler?.();
   },
   /** Resolve any still-actionable alerts tied to a leave request (after approve/reject/dismiss). */
   resolveByLeaveId: (leaveId: string) => {
@@ -91,8 +105,24 @@ export const alertStore = {
     if (changed) notify();
   },
   addAlert: (alert: SchoolAlert) => {
-    items = [alert, ...items];
+    const existed = items.some((entry) => entry.id === alert.id);
+    items = [alert, ...items.filter((entry) => entry.id !== alert.id)];
     notify();
+    if (
+      !existed &&
+      !alert.acknowledged &&
+      (alert.severity === "emergency" || alert.severity === "mandatory")
+    ) {
+      import("@lumenx/notifications").then(({ dispatchInAppAlert }) => {
+        dispatchInAppAlert({
+          title: alert.title,
+          body: alert.summary,
+          href: "/alerts",
+          variant: "alert",
+          severity: alert.severity,
+        });
+      });
+    }
   },
   updateAlert: (id: string, patch: Partial<SchoolAlert>) => {
     items = items.map((a) => (a.id === id ? { ...a, ...patch } : a));

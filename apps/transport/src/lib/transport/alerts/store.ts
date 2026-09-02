@@ -7,10 +7,51 @@ import {
   type TransportWorkflowNotification,
 } from "@lumenx/utils";
 
+import { isApiAuthMode } from "@/lib/auth/auth-mode";
 import { transportSeed } from "../mock/seed";
 import type { TransportNotification, TransportNotificationKind } from "../types";
 
 const listeners = new Set<() => void>();
+
+/** API inbox rows hydrated by TransportAlertsSync. */
+let apiNotifications: TransportNotification[] = [];
+
+export function setApiTransportNotifications(items: TransportNotification[]): void {
+  apiNotifications = items;
+  invalidate();
+  emit();
+}
+
+/** Track urgent ids we've already surfaced with in-app alert + chime. */
+let surfacedUrgentIds = new Set<string>();
+let skipInitialUrgentSurfacing = true;
+
+function notifyNewUrgentItems(notifications: TransportNotification[]): void {
+  if (typeof window === "undefined") return;
+  if (skipInitialUrgentSurfacing) {
+    skipInitialUrgentSurfacing = false;
+    surfacedUrgentIds = new Set(
+      notifications.filter((n) => n.kind === "urgent").map((n) => n.id),
+    );
+    return;
+  }
+  for (const n of notifications) {
+    if (n.kind !== "urgent" || !n.unread || surfacedUrgentIds.has(n.id)) continue;
+    surfacedUrgentIds.add(n.id);
+    void import("@lumenx/notifications").then(({ dispatchInAppAlert }) => {
+      dispatchInAppAlert({
+        title: n.title,
+        body: n.message,
+        href: n.href ?? "/alerts",
+        variant: "alert",
+        severity: "critical",
+      });
+    });
+  }
+  surfacedUrgentIds = new Set(
+    notifications.filter((n) => n.kind === "urgent").map((n) => n.id),
+  );
+}
 
 /** Seed chrome notifications (demo). Workflow events come from the shared bridge. */
 let seedNotifications: TransportNotification[] = transportSeed.notifications.map((n) => ({
@@ -68,6 +109,8 @@ function workflowToAlert(n: TransportWorkflowNotification): TransportNotificatio
 }
 
 function emit() {
+  const snapshot = mergeSnapshot();
+  notifyNewUrgentItems(snapshot);
   listeners.forEach((listener) => listener());
 }
 
@@ -75,7 +118,13 @@ function mergeSnapshot(): TransportNotification[] {
   const workflow = listTransportNotifications("driver").map(workflowToAlert);
   const seedIds = new Set(workflow.map((n) => n.id));
   const seeds = seedNotifications.filter((n) => !seedIds.has(n.id));
-  return [...workflow, ...seeds];
+  const apiIds = new Set(apiNotifications.map((n) => n.id));
+  const filteredSeeds = seeds.filter((n) => !apiIds.has(n.id));
+  const filteredWorkflow = workflow.filter((n) => !apiIds.has(n.id));
+  if (isApiAuthMode()) {
+    return [...apiNotifications, ...filteredWorkflow, ...(apiNotifications.length === 0 ? filteredSeeds : [])];
+  }
+  return [...filteredWorkflow, ...filteredSeeds];
 }
 
 let cached: TransportNotification[] | null = null;
@@ -107,6 +156,9 @@ export function getUnreadAlertCount(): number {
 
 export function resetAlertsStore() {
   seedNotifications = transportSeed.notifications.map((n) => ({ ...n }));
+  apiNotifications = [];
+  surfacedUrgentIds = new Set();
+  skipInitialUrgentSurfacing = true;
   invalidate();
   emit();
 }

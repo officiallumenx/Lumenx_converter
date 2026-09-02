@@ -13,6 +13,18 @@ const THREAD_COLS =
 const MESSAGE_COLS =
   "id, institute_id, thread_id, author_user_id, author_role, author_label, body, is_internal, sent_at, created_at, updated_at, deleted_at";
 
+export async function listOpenSupportThreadsForPlatform(
+  admin: SupabaseClient,
+): Promise<SupportThreadRow[]> {
+  const result = await admin
+    .from("support_thread")
+    .select(THREAD_COLS)
+    .is("deleted_at", null)
+    .in("status", ["open", "in_progress", "waiting"])
+    .order("updated_at", { ascending: false });
+  return ensureDbOk(result) as SupportThreadRow[];
+}
+
 export async function listThreadsByInstitute(
   admin: SupabaseClient,
   instituteId: string,

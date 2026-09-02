@@ -2,6 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import type { NotificationCategory } from "@lumenx/types";
 import {
+  ALERT_ICON_CHIP_CLASS,
+  ALERT_ROW_CLASS,
+  isAlertPresentationPayload,
+} from "@lumenx/notifications";
+import {
   Button,
   Card,
   CardBody,
@@ -50,6 +55,15 @@ const CATEGORY_OPTIONS: { value: NotificationCategory | "all"; label: string }[]
 ];
 
 type InboxRow = AdminNotification | NotificationInboxListItem;
+
+function isInboxAlertRow(n: InboxRow): boolean {
+  if (n.category === "emergency") return true;
+  if (n.priority === "high" && n.type === "warning") return true;
+  if ("payload" in n && n.payload) {
+    return isAlertPresentationPayload(n.payload);
+  }
+  return false;
+}
 
 function TypeIcon({ type }: { type: InboxRow["type"] }) {
   if (type === "warning") return <AlertTriangle className="size-4" />;
@@ -298,18 +312,26 @@ export function NotificationCenterInbox({
             />
           ) : (
             <ul className="divide-y divide-border">
-              {filtered.map((n) => (
+              {filtered.map((n) => {
+                const isAlert = isInboxAlertRow(n);
+                return (
                 <li key={n.id}>
                   <button
                     type="button"
                     onClick={() => openDetails(n)}
                     className={`w-full text-left px-4 sm:px-5 py-3.5 hover:bg-muted/40 transition-colors flex gap-3 ${
-                      n.unread ? "bg-primary/[0.03]" : ""
+                      isAlert
+                        ? ALERT_ROW_CLASS
+                        : n.unread
+                          ? "bg-primary/[0.03]"
+                          : ""
                     }`}
                   >
                     <div
                       className={`mt-0.5 size-9 shrink-0 rounded-lg border flex items-center justify-center ${
-                        n.type === "warning"
+                        isAlert
+                          ? ALERT_ICON_CHIP_CLASS
+                          : n.type === "warning"
                           ? "bg-amber-500/10 border-amber-500/25 text-amber-700 dark:text-amber-400"
                           : n.type === "positive"
                             ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-700 dark:text-emerald-400"
@@ -322,15 +344,20 @@ export function NotificationCenterInbox({
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         {n.unread ? (
-                          <span className="size-1.5 rounded-full bg-primary shrink-0" aria-label="Unread" />
+                          <span
+                            className={`size-1.5 rounded-full shrink-0 ${
+                              isAlert ? "bg-destructive" : "bg-primary"
+                            }`}
+                            aria-label="Unread"
+                          />
                         ) : null}
-                        <span className={`text-sm ${n.unread ? "font-semibold" : "font-medium"}`}>
+                        <span className={`text-sm ${n.unread ? "font-semibold" : "font-medium"} ${isAlert ? "text-destructive" : ""}`}>
                           {n.title}
                         </span>
-                        <Pill tone={typeTone(n.type)}>
-                          {ADMIN_NOTIFICATION_CATEGORY_LABELS[n.category]}
+                        <Pill tone={isAlert ? "danger" : typeTone(n.type)}>
+                          {isAlert ? "Alert" : ADMIN_NOTIFICATION_CATEGORY_LABELS[n.category]}
                         </Pill>
-                        {n.priority === "high" ? <Pill tone="warning">High</Pill> : null}
+                        {n.priority === "high" && !isAlert ? <Pill tone="warning">High</Pill> : null}
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{n.desc}</p>
                       <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
@@ -342,7 +369,8 @@ export function NotificationCenterInbox({
                     </div>
                   </button>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
         </CardBody>

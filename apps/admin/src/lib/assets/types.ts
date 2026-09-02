@@ -49,4 +49,5 @@ export type StorageUsageSummary = {
   totalAssets: number;
   totalBytes: number;
   byCategory: Array<{ category: AssetCategory; count: number; bytes: number }>;
+  byBucket: Array<{ bucket: AssetBucket; count: number; bytes: number }>;
 };

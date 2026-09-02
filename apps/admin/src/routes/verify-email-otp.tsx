@@ -8,6 +8,7 @@ import { useEffect } from "react";
 import { Mail, ArrowLeft } from "lucide-react";
 
 import { useAuth } from "@/auth/AuthContext";
+import { resolveDemoAuthRouteBlock } from "@/auth/demo-auth-guard";
 import {
   AuthOtpLayout,
   AuthPageHeader,
@@ -28,6 +29,13 @@ export const Route = createFileRoute("/verify-email-otp")({
 function VerifyEmailOtpPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
+
+  useEffect(() => {
+    const redirect = resolveDemoAuthRouteBlock("/verify-email-otp");
+    if (redirect) {
+      navigate({ to: redirect, replace: true });
+    }
+  }, [navigate]);
 
   const pending = loadOtpPending();
   const email = pending?.email || user?.email || "";

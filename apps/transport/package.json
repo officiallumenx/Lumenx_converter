@@ -31,6 +31,7 @@
     "@lumenx/capacitor": "*",
     "@lumenx/config": "*",
     "@lumenx/module-notifications": "*",
+    "@lumenx/notifications": "*",
     "@lumenx/types": "*",
     "@lumenx/ui": "*",
     "@lumenx/utils": "*",

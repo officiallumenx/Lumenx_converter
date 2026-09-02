@@ -21,8 +21,9 @@ export const CONNECT_FEATURE_BOUNDARIES = {
     data: "@/lib/admissions",
   },
   careersPortal: {
-    publicApi: "@/careers-portal",
-    data: "@/lib/careers",
+    /** Standalone @lumenx/app-careers — deep links via careersPortalUrl() in connect-portal-links. */
+    publicApi: "@lumenx/app-careers",
+    data: "@lumenx/app-careers",
   },
   activityWorkspace: {
     publicApi: "@/activity-workspace",

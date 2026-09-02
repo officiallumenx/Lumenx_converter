@@ -560,6 +560,12 @@ export async function createApplicationForActor(
     payload: input.payload ?? {},
     submittedAt: submitNow ? new Date().toISOString() : null,
   });
+  if (submitNow) {
+    const { emitCareerApplicationCreatedNotification } = await import(
+      "./notifications.js"
+    );
+    await emitCareerApplicationCreatedNotification(admin, actor.userId, row);
+  }
   return toApplicationDto(row);
 }
 
@@ -611,6 +617,15 @@ export async function transitionApplicationForActor(
 
   const updated = await updateApplicationFields(admin, id, patch);
   if (!updated) throw AppError.notFound("Career application not found");
+  if (updated.status !== existing.status) {
+    const { emitCareerApplicationTransitionNotification } = await import(
+      "./notifications.js"
+    );
+    await emitCareerApplicationTransitionNotification(admin, actor.userId, {
+      application: updated,
+      previousStatus: existing.status,
+    });
+  }
   return toApplicationDto(updated);
 }
 

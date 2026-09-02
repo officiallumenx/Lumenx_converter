@@ -2,7 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo } from "react";
 import { AppShell } from "@/components/app/AppShell";
 import { AlertsCenterView, useAlertStoreInit } from "@/components/app/alerts/AlertsCenterView";
+import { LearnerAlertsApiPanel } from "@/components/app/alerts/LearnerAlertsApiPanel";
 import { useApp } from "@/lib/app-state";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { schoolAlerts } from "@/lib/mock-data";
 import { useParentPortal } from "@/context/ParentPortalContext";
 import { TeacherLeaveAlertsView } from "@/components/app/leave/TeacherLeaveAlertsView";
@@ -27,7 +29,7 @@ function AlertsRoutePage() {
     return [];
   }, [role]);
 
-  useAlertStoreInit(seed);
+  useAlertStoreInit(isApiAuthMode() ? [] : seed);
 
   useEffect(() => {
     if (role === "teacher" || role === "parent") leaveStore.init();
@@ -35,6 +37,24 @@ function AlertsRoutePage() {
 
   if (role === "teacher") {
     return <TeacherLeaveAlertsView />;
+  }
+
+  if (isApiAuthMode() && (role === "parent" || role === "student")) {
+    const childName =
+      role === "parent" && portal.isParent && portal.snapshot
+        ? portal.snapshot.shortName
+        : undefined;
+    return (
+      <LearnerAlertsApiPanel
+        showChildSwitcher={role === "parent"}
+        childId={activeChildId}
+        subtitle={
+          childName
+            ? `For ${childName} · Emergency = act now · Mandatory = respond within 24h`
+            : "Emergency alerts need immediate action · Mandatory alerts within 24h"
+        }
+      />
+    );
   }
 
   if (role === "parent") {

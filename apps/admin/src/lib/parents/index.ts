@@ -18,11 +18,17 @@ export {
   createParentLink,
   updateParentLink,
   deleteParentLink,
+  provisionParentAccess,
   type CreateParentInput,
   type UpdateParentInput,
   type CreateGuardianLinkInput,
   type UpdateGuardianLinkInput,
 } from "./mutations";
+export {
+  enrichParentDetailWithStudents,
+  enrichParentListItemsWithStudents,
+  linkedChildrenDisplayForParent,
+} from "./enrich-links";
 export {
   activeLinks,
   linkedChildrenLabel,

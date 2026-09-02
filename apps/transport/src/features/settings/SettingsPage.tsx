@@ -1,17 +1,20 @@
 import {
   Bell,
   ClipboardCheck,
+  LogOut,
   MapPin,
   Moon,
   Route,
   Sun,
 } from "lucide-react";
-import { Switch, TextSizeControl, cn } from "@lumenx/ui";
+import { Switch, TextSizeControl, cn, LumenXFeedbackForm } from "@lumenx/ui";
+import { useNavigate } from "@tanstack/react-router";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { IconWell } from "@/components/ui/icon-well";
 import { SectionHeader } from "@/components/ui/section-header";
 import { useSettings } from "@/hooks/use-settings";
+import { useTransportAuth } from "@/lib/auth/transport-auth";
 import { settingsRepository } from "@/lib/transport/settings";
 import type { NotificationPrefs, ThemeMode } from "@/lib/transport/types";
 import { MODULE_COLORS, type ModuleColor } from "@/theme/colors";
@@ -52,9 +55,16 @@ function ToggleRow({
 
 export function SettingsPage() {
   const { theme, notifications } = useSettings();
+  const { signOut } = useTransportAuth();
+  const navigate = useNavigate();
 
   const setToggle = (key: keyof NotificationPrefs, value: boolean) => {
     void settingsRepository.setNotificationPref(key, value);
+  };
+
+  const handleSignOut = () => {
+    signOut();
+    void navigate({ to: "/login" });
   };
 
   return (
@@ -153,6 +163,35 @@ export function SettingsPage() {
             color={MODULE_COLORS.success}
           />
         </div>
+      </section>
+
+      <section className="space-y-3">
+        <SectionHeader
+          title="Feedback"
+          subtitle="Send product feedback to LumenX (not your school)"
+        />
+        <Card className="border-border shadow-soft">
+          <CardContent className="p-4 sm:p-5">
+            <LumenXFeedbackForm source="transport" compact />
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="space-y-3">
+        <SectionHeader title="Account" subtitle="End your driver session on this device" />
+        <button
+          type="button"
+          onClick={handleSignOut}
+          className="transport-pressable flex w-full items-center gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 px-4 py-3.5 text-left shadow-soft"
+        >
+          <IconWell icon={LogOut} size="md" color={MODULE_COLORS.danger} />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-destructive sm:text-base">Sign out</p>
+            <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground sm:text-sm">
+              Clears this device session and returns to login
+            </p>
+          </div>
+        </button>
       </section>
 
       <Card className="border-dashed">

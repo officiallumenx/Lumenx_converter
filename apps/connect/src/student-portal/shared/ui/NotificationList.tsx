@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { AppNotification, NotificationCategory } from "@lumenx/types";
+import { isAlertNotification } from "@lumenx/notifications";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, Badge, cn } from "@lumenx/ui";
 import { Bell, Sparkles, AlertTriangle, Info, Flame, ChevronRight } from "lucide-react";
 import { STUDENT_NOTIFICATION_COLOR, studentModuleIconStyle } from "@/lib/student/nav";
@@ -47,6 +48,20 @@ const TYPE_STYLES = {
   },
 } as const;
 
+function notificationMeta(n: AppNotification) {
+  if (isAlertNotification(n) || n.category === "emergency") {
+    return {
+      icon: AlertTriangle,
+      tone: "bg-destructive/15 text-destructive border-destructive/40",
+      label: "Important alert",
+      labelClass: "text-destructive",
+      unreadRow: "border-destructive/45 bg-destructive/[0.07] ring-1 ring-destructive/20",
+      barClass: "bg-destructive",
+    };
+  }
+  return TYPE_STYLES[n.type];
+}
+
 export function NotificationList({
   list,
   onSelect,
@@ -83,7 +98,7 @@ export function NotificationList({
     <>
       <div className="min-w-0 space-y-2">
         {list.map((n) => {
-          const meta = TYPE_STYLES[n.type];
+          const meta = notificationMeta(n);
           const Icon = meta.icon;
           return (
             <button
@@ -237,7 +252,7 @@ function NotificationDetailDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   if (!notification) return null;
-  const meta = TYPE_STYLES[notification.type];
+  const meta = notificationMeta(notification);
   const Icon = meta.icon;
 
   return (

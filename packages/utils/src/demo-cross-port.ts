@@ -7,6 +7,7 @@ export type DemoSyncKind =
   | "leave"
   | "marks"
   | "broadcast"
+  | "announcements"
   | "complaints"
   | "careers"
   | "emergency";

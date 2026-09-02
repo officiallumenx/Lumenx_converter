@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   Circle,
   Loader2,
+  AlertCircle,
   Mail,
   Phone,
   Globe,
@@ -27,6 +28,10 @@ import {
 
 import { AuthButton } from "@/auth/components/AuthButton";
 import { useAuth } from "@/auth/AuthContext";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { useApiRegistrationSync } from "@/auth/use-api-registration-sync";
+import { activateApprovedApiRegistration } from "@/auth/api-registration-activation";
+import { getApiRegistrationView } from "@/auth/api-registration-state";
 import { useSignOut } from "@/auth/hooks/useSignOut";
 import {
   applyApprovedRegistrationToUser,
@@ -42,6 +47,8 @@ import {
   formatTimelineTime,
   SUPPORT_CONTACT,
 } from "@/auth/pending-verification-data";
+import { RegistrationOnboardingCallout } from "@/components/registration/RegistrationOnboardingCallout";
+import { RegistrationResubmitPanel } from "@/components/registration/RegistrationResubmitPanel";
 import {
   subscribeInstituteRegistrations,
 } from "@lumenx/utils";
@@ -280,9 +287,19 @@ function PendingVerificationPage() {
   const navigate = useNavigate();
   const { user, patchAuthenticatedUser } = useAuth();
   const signOut = useSignOut();
+  const [activationError, setActivationError] = useState<string | null>(null);
+  const [resubmitTick, setResubmitTick] = useState(0);
+  const apiRegistration = useApiRegistrationSync(user, {
+    onActivated: (next) => {
+      setActivationError(null);
+      patchAuthenticatedUser(next);
+    },
+    onActivationFailed: (message) => setActivationError(message),
+  });
   const [status, setStatus] = useState<DemoApplicationStatus>(() =>
     getApplicationStatusForEmail(user?.email),
   );
+  const [initialLoading, setInitialLoading] = useState(isApiAuthMode());
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
   const [supportOpen, setSupportOpen] = useState(false);
@@ -290,8 +307,32 @@ function PendingVerificationPage() {
   const name = user?.name?.split(" ")[0] ?? "there";
 
   const unlockIfApproved = useCallback(
-    (next: DemoApplicationStatus) => {
+    async (next: DemoApplicationStatus) => {
       if (next.overallStatus !== "approved" || !user) return;
+
+      if (isApiAuthMode()) {
+        const registration = getApiRegistrationView().snapshot;
+        if (!registration || registration.status !== "approved") return;
+        const activated = await activateApprovedApiRegistration(registration);
+        if (!activated.ok) {
+          setActivationError(activated.message);
+          return;
+        }
+        setActivationError(null);
+        patchAuthenticatedUser(activated.user);
+        if (activated.activeInstituteId) {
+          setAdminBoundNexusInstituteId(activated.activeInstituteId);
+          bindRegisteredAdminTenant({
+            instituteId: activated.activeInstituteId,
+            instituteName: activated.user.instituteName,
+            principalName: activated.user.name,
+            principalEmail: activated.user.email,
+            principalMobile: activated.user.phone,
+          });
+        }
+        return;
+      }
+
       const instituteId =
         next.approvedInstituteId ||
         next.application?.approvedInstituteId ||
@@ -318,14 +359,34 @@ function PendingVerificationPage() {
   );
 
   useEffect(() => {
-    const sync = () => {
-      const next = getApplicationStatusForEmail(user?.email);
-      setStatus(next);
-      unlockIfApproved(next);
-    };
-    sync();
-    return subscribeInstituteRegistrations(sync);
+    if (!isApiAuthMode()) {
+      const sync = () => {
+        const next = getApplicationStatusForEmail(user?.email);
+        setStatus(next);
+        void unlockIfApproved(next);
+      };
+      sync();
+      return subscribeInstituteRegistrations(sync);
+    }
+    return undefined;
   }, [user?.email, unlockIfApproved]);
+
+  useEffect(() => {
+    if (!isApiAuthMode()) return;
+    const next = getApplicationStatusForEmail(user?.email);
+    setStatus(next);
+    if (apiRegistration.loaded && !apiRegistration.syncing) {
+      setInitialLoading(false);
+      void unlockIfApproved(next);
+    }
+  }, [
+    user?.email,
+    apiRegistration.loaded,
+    apiRegistration.syncing,
+    apiRegistration.snapshot,
+    apiRegistration.syncError,
+    unlockIfApproved,
+  ]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -333,37 +394,49 @@ function PendingVerificationPage() {
     try {
       const next = await refreshApplicationStatus(user?.email);
       setStatus(next);
-      unlockIfApproved(next);
-      if (next.overallStatus === "approved") {
+      await unlockIfApproved(next);
+      if (next.loadState === "error") {
+        setRefreshMsg(next.errorMessage ?? "Unable to load registration status.");
+      } else if (next.overallStatus === "approved") {
         setRefreshMsg("Approved — you can enter the Admin dashboard.");
       } else if (next.overallStatus === "rejected") {
         setRefreshMsg(next.rejectionReason || "Application was declined.");
       } else {
-        setRefreshMsg("Still under review in Nexus — dashboard stays locked.");
+        setRefreshMsg("Institute registration is still under review.");
       }
     } finally {
       setRefreshing(false);
     }
   }, [user?.email, unlockIfApproved]);
 
-  const handleEnterDashboard = () => {
+  useEffect(() => {
+    if (!isApiAuthMode() || !user?.id || initialLoading) return;
+    if (status.loadState === "ready") return;
+    void handleRefresh();
+  }, [user?.id, initialLoading, status.loadState, handleRefresh]);
+
+  const handleEnterDashboard = async () => {
     const next = getApplicationStatusForEmail(user?.email);
     if (next.overallStatus !== "approved" && status.overallStatus !== "approved") {
       return;
     }
-    // Ensure session is marked verified + tenant bound before leaving pending
-    // (avoids PIN unlock bouncing back when the shared store briefly lags).
-    unlockIfApproved(
+    await unlockIfApproved(
       next.overallStatus === "approved" ? next : status,
     );
-    // Enter dashboard should open the app — unlock this tab so PIN is not
-    // required again on the same continuous approval → dashboard flow.
     setAppUnlocked(true);
     navigate({ to: "/", replace: true });
   };
 
-  const approved = status.overallStatus === "approved";
-  const rejected = status.overallStatus === "rejected";
+  const loading = status.loadState === "loading" || initialLoading;
+  const apiError = status.loadState === "error";
+  const approved = status.overallStatus === "approved" && !apiError && !loading;
+  const rejected = status.overallStatus === "rejected" && !apiError && !loading;
+  const apiRegistrationSnapshot =
+    isApiAuthMode() && apiRegistration.loaded ? apiRegistration.snapshot : null;
+  const showResubmit =
+    rejected &&
+    isApiAuthMode() &&
+    apiRegistrationSnapshot?.status === "rejected";
 
   return (
     <div className="min-h-screen-dvh bg-background text-foreground flex flex-col">
@@ -390,7 +463,63 @@ function PendingVerificationPage() {
 
       <main className="relative z-10 flex-1 px-4 sm:px-6 py-8 lg:py-12">
         <div className="max-w-5xl mx-auto">
-          {approved && (
+          {loading && (
+            <div className="mb-6 rounded-xl border border-border bg-muted/20 px-4 py-8 flex flex-col items-center gap-3">
+              <Loader2 className="size-6 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">
+                Loading registration status from the server…
+              </p>
+            </div>
+          )}
+
+          {apiError && (
+            <div className="mb-6 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="size-4 text-destructive shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-semibold text-destructive">
+                    Could not load registration status
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    {status.errorMessage ?? "The registration API returned an error."}
+                  </p>
+                </div>
+              </div>
+              <AuthButton
+                type="button"
+                variant="outline"
+                fullWidth={false}
+                loading={refreshing}
+                onClick={handleRefresh}
+              >
+                Retry
+              </AuthButton>
+            </div>
+          )}
+
+          {!loading && approved && activationError && (
+            <div className="mb-6 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="size-4 text-destructive shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-semibold text-destructive">
+                    Approved, but dashboard binding failed
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-1">{activationError}</p>
+                </div>
+              </div>
+              <AuthButton
+                type="button"
+                variant="outline"
+                fullWidth={false}
+                onClick={() => void unlockIfApproved(status)}
+              >
+                Retry activation
+              </AuthButton>
+            </div>
+          )}
+
+          {!loading && approved && !activationError && (
             <div className="mb-6 rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
@@ -411,13 +540,25 @@ function PendingVerificationPage() {
             </div>
           )}
 
-          {rejected && (
-            <div className="mb-6 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-4">
-              <p className="text-xs font-semibold text-destructive">Application declined</p>
-              <p className="text-[11px] text-muted-foreground mt-1">
-                {status.rejectionReason ||
-                  "Nexus declined this registration. Contact support for next steps."}
-              </p>
+          {!loading && rejected && (
+            <div className="mb-6 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-4 space-y-4">
+              <div>
+                <p className="text-xs font-semibold text-destructive">Application declined</p>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  {status.rejectionReason ||
+                    "Nexus declined this registration. You can update your details and apply again, or contact support for help."}
+                </p>
+              </div>
+              {showResubmit && apiRegistrationSnapshot ? (
+                <RegistrationResubmitPanel
+                  key={`${apiRegistrationSnapshot.id}-${resubmitTick}`}
+                  registration={apiRegistrationSnapshot}
+                  onResubmitted={() => {
+                    setResubmitTick((t) => t + 1);
+                    void handleRefresh();
+                  }}
+                />
+              ) : null}
             </div>
           )}
 
@@ -446,11 +587,15 @@ function PendingVerificationPage() {
               </div>
 
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight leading-tight">
-                {approved
-                  ? "You're ready to go"
-                  : rejected
-                    ? "Registration not approved"
-                    : "Institute Under Review"}
+                {loading
+                  ? "Institute Registration Under Review"
+                  : apiError
+                    ? "Registration status unavailable"
+                    : approved
+                      ? "You're ready to go"
+                      : rejected
+                        ? "Registration not approved"
+                        : "Institute Registration Under Review"}
               </h1>
               <p className="mt-3 text-sm text-muted-foreground leading-relaxed max-w-md mx-auto lg:mx-0">
                 Hi {name}, your application for{" "}
@@ -487,6 +632,8 @@ function PendingVerificationPage() {
                   </div>
                 </div>
               )}
+
+              <RegistrationOnboardingCallout variant="pending" />
             </div>
 
             {/* ── Right column: timeline + actions ────────── */}
@@ -499,7 +646,16 @@ function PendingVerificationPage() {
               </div>
 
               <div className="px-5 py-5">
-                <StatusTimeline steps={status.timeline} />
+                {loading ? (
+                  <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
+                    <Loader2 className="size-6 animate-spin text-primary" />
+                    <p className="text-xs text-muted-foreground">
+                      Fetching status from GET /api/v1/registrations/me…
+                    </p>
+                  </div>
+                ) : (
+                  <StatusTimeline steps={status.timeline} />
+                )}
               </div>
 
               {status.lastCheckedAt && (

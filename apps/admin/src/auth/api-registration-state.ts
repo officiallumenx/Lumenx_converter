@@ -61,6 +61,11 @@ export function getApiRegistrationView(): ApiRegistrationView {
   return refreshCachedView();
 }
 
+/** Stable SSR / hydration snapshot for useSyncExternalStore. */
+export function getApiRegistrationServerSnapshot(): ApiRegistrationView {
+  return EMPTY_VIEW;
+}
+
 /** @deprecated Prefer getApiRegistrationView().snapshot */
 export function getApiRegistrationSnapshot():
   | InstituteRegistrationDto

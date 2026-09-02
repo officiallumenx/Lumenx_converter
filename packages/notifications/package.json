@@ -38,5 +38,8 @@
   "devDependencies": {
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"
+  },
+  "optionalDependencies": {
+    "@capacitor/push-notifications": "^7.0.7"
   }
 }

@@ -20,6 +20,8 @@ const rowA: ParentListItem = {
   linkedStudentIds: [],
   linkedChildrenCount: 0,
   linkedChildrenLabel: "No linked children",
+  linkedChildrenDisplay: "No linked children",
+  hasPortalLogin: false,
   password: "",
   identityLabel: "PAR-1",
 };

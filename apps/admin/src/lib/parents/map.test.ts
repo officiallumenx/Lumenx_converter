@@ -53,6 +53,7 @@ describe("parents DTO mapping", () => {
     expect(item.accessStatus).toBe("active");
     expect(item.linkedChildrenCount).toBe(1);
     expect(item.linkedChildrenLabel).toBe("1 linked child");
+    expect(item.hasPortalLogin).toBe(false);
     expect(item.linkedStudentIds).toEqual([
       "ac111111-1111-4111-8111-111111111111",
     ]);

@@ -35,6 +35,7 @@ import {
 import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-labels";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { AccountsApiMembershipsPanel } from "@/components/accounts/AccountsApiMembershipsPanel";
+import { AccountsApiStaffPanel } from "@/components/accounts/AccountsApiStaffPanel";
 
 export const Route = createFileRoute("/accounts")({
   head: () => ({ meta: [{ title: adminPageTitle("/accounts") }] }),
@@ -432,9 +433,12 @@ function AccountsPage() {
     return (
       <AppShell
         title={M.accounts}
-        subtitle="Institute memberships · attach existing Auth users · no demo provisioning"
+        subtitle="Staff Admin accounts · institute memberships · roles managed under Roles & Access"
       >
-        <AccountsApiMembershipsPanel />
+        <AccountsApiStaffPanel />
+        <div className="mt-6">
+          <AccountsApiMembershipsPanel />
+        </div>
       </AppShell>
     );
   }

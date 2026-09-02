@@ -19,5 +19,6 @@ export function summarizeStorageUsage(assets: AssetDto[]): StorageUsageSummary {
       count: stats.count,
       bytes: stats.bytes,
     })),
+    byBucket: [],
   };
 }

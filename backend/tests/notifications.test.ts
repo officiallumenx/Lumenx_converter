@@ -233,7 +233,7 @@ describe("notifications — tenant isolation", () => {
           }),
         })
       ).status,
-    ).toBe(400);
+    ).toBe(201);
   });
 });
 
@@ -310,6 +310,68 @@ describe("notifications — auth and validation", () => {
       (await app.request("/api/v1/notifications/NOTIF-1", { headers: auth("token-admin") }))
         .status,
     ).toBe(400);
+  });
+});
+
+describe("notifications — external recipient inbox", () => {
+  const USER_APPLICANT = "66666666-6666-4666-8666-666666666666";
+
+  it("lists and marks read without institute membership when user has recipients", async () => {
+    const db = baseDb();
+    db.user_profile.push({
+      id: USER_APPLICANT,
+      display_name: "Applicant",
+      email: "applicant@x.com",
+      status: "active",
+      deleted_at: null,
+    });
+    const app = createApp(
+      loadEnv({ NODE_ENV: "test", LOG_LEVEL: "error" }),
+      silentLogger,
+      createMockSupabaseClients({
+        tokens: {
+          "token-admin": USER_ADMIN,
+          "token-applicant": USER_APPLICANT,
+        },
+        db,
+      }),
+    );
+
+    const emitted = await app.request("/api/v1/notifications", {
+      method: "POST",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify({
+        institute_id: INST_A,
+        category: "admissions",
+        title: "Application update",
+        body: "Your application moved to review.",
+        recipient_user_ids: [USER_APPLICANT],
+      }),
+    });
+    expect(emitted.status).toBe(201);
+
+    const scoped = await app.request(
+      `/api/v1/notifications?institute_id=${INST_A}`,
+      { headers: auth("token-applicant") },
+    );
+    expect(scoped.status).toBe(200);
+    expect((await json(scoped)).data).toHaveLength(1);
+
+    const all = await app.request("/api/v1/notifications", {
+      headers: auth("token-applicant"),
+    });
+    expect(all.status).toBe(200);
+    const allPayload = await json(all);
+    expect(allPayload.data).toHaveLength(1);
+
+    const recipientId = allPayload.data[0].id as string;
+    const marked = await app.request(`/api/v1/notifications/${recipientId}`, {
+      method: "PATCH",
+      headers: jsonHeaders("token-applicant"),
+      body: JSON.stringify({ read: true }),
+    });
+    expect(marked.status).toBe(200);
+    expect((await json(marked)).data.readAt).toBeTruthy();
   });
 });
 

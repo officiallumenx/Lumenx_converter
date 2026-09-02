@@ -43,3 +43,34 @@ export function dedupeNotificationsById(rows: AppNotification[]): AppNotificatio
 export function isImportantNotification(n: AppNotification): boolean {
   return n.priority === "high" || n.category === "emergency" || n.type === "warning";
 }
+
+export {
+  isAlertNotification,
+  isAlertPresentationPayload,
+  ALERT_PRESENTATION,
+  ALERT_ROW_CLASS,
+  ALERT_ICON_CHIP_CLASS,
+  ALERT_BADGE_CLASS,
+} from "./alert-presentation";
+export {
+  playAlertChime,
+  playNotificationChime,
+  playChimeForVariant,
+  setAlertChimesEnabled,
+  areAlertChimesEnabled,
+  loadAlertChimesPreference,
+  saveAlertChimesPreference,
+  bootstrapAlertChimesPreference,
+} from "./alert-chime";
+export {
+  dispatchInAppAlert,
+  subscribeInAppAlerts,
+  IN_APP_ALERT_EVENT,
+  type InAppAlertEventDetail,
+} from "./in-app-alert";
+export {
+  bootstrapPushDeviceToken,
+  type DeviceApp,
+  type DevicePlatform,
+  type RegisterDeviceTokenFn,
+} from "./push-device-token";

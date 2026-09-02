@@ -82,6 +82,8 @@ import {
   getAdminSectionItems,
   isRouteActive,
 } from "@/lib/admin-section-nav";
+import { AdminAlertsNavBadgeSync } from "@/components/AdminAlertsNavBadgeSync";
+import { useAdminAlertsNavBadge } from "@/lib/use-admin-alerts-nav-badge";
 
 function AcademicYearLockSync() {
   const { profile } = useDemoProfile();
@@ -292,6 +294,7 @@ export function AdminChrome() {
   const writeBlockReason = adminWriteBlockReason(user?.accessRoleId, path);
   const displayInitials = user?.initials ?? getInitials(displayName, 2);
   const apiMode = isApiAuthMode();
+  const alertsNavBadge = useAdminAlertsNavBadge();
 
   // Close profile menu on outside click
   useEffect(() => {
@@ -419,6 +422,11 @@ export function AdminChrome() {
                           active={active}
                         />
                         <span className="flex-1">{item.label}</span>
+                        {item.to === "/alerts" && alertsNavBadge > 0 ? (
+                          <span className="flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold leading-none text-destructive-foreground">
+                            {alertsNavBadge > 99 ? "99+" : alertsNavBadge}
+                          </span>
+                        ) : null}
                         {navPending && (
                           <span className="size-1.5 rounded-full bg-primary lx-nav-pulse" aria-hidden />
                         )}
@@ -504,6 +512,7 @@ export function AdminChrome() {
   return (
     <InstituteContextProvider>
     <AcademicYearLockSync />
+    <AdminAlertsNavBadgeSync />
     <AdminWriteAccessProvider writesAllowed={writesAllowed} reason={writeBlockReason}>
       <div
       className="flex h-screen-svh max-h-screen-svh w-full overflow-hidden bg-background text-foreground"
@@ -627,7 +636,7 @@ export function AdminChrome() {
                 >
                   <Bell className="size-5" />
                   {notifUnread > 0 ? (
-                    <span className="absolute -top-0.5 -right-0.5 flex h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold leading-none text-destructive-foreground">
+                    <span className="absolute -top-0.5 -right-0.5 flex h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-primary-foreground">
                       {notifUnread > 99 ? "99+" : notifUnread > 9 ? "9+" : notifUnread}
                     </span>
                   ) : null}
@@ -741,7 +750,7 @@ export function AdminChrome() {
                     aria-current={active ? "page" : undefined}
                     aria-label={item.label}
                     className={cn(
-                      "lx-admin-nav-item",
+                      "lx-admin-nav-item relative",
                       active && "lx-admin-nav-item--active",
                     )}
                     style={
@@ -754,6 +763,11 @@ export function AdminChrome() {
                       <Icon className={cn("size-[1.125rem]", active && "stroke-[2.5]")} />
                     </span>
                     <span className="lx-admin-nav-label">{item.label}</span>
+                    {item.to === "/alerts" && alertsNavBadge > 0 ? (
+                      <span className="absolute -top-0.5 right-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-destructive-foreground">
+                        {alertsNavBadge > 99 ? "99+" : alertsNavBadge}
+                      </span>
+                    ) : null}
                   </Link>
                 );
               })}

@@ -385,4 +385,35 @@ describe("admissions api", () => {
     expect(adminRespond.status).toBe(200);
     expect((await json(adminRespond)).data.status).toBe("responded");
   });
+
+  it("emits admissions inbox notification on staff transition", async () => {
+    const db = baseDb();
+    const app = appWithDb(db);
+
+    const review = await app.request(
+      `/api/v1/admissions/applications/${APP_PARENT}/transition`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer token-admin",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ status: "review" }),
+      },
+    );
+    expect(review.status).toBe(200);
+    expect(db.notification.some((n) => n.category === "admissions")).toBe(true);
+    expect(
+      db.notification_recipient.some((r) => r.user_profile_id === USER_PARENT),
+    ).toBe(true);
+
+    const inbox = await app.request("/api/v1/notifications", {
+      headers: { Authorization: "Bearer token-parent" },
+    });
+    expect(inbox.status).toBe(200);
+    const rows = (await json(inbox)).data as Array<{
+      notification: { category: string; title: string };
+    }>;
+    expect(rows.some((r) => r.notification.category === "admissions")).toBe(true);
+  });
 });

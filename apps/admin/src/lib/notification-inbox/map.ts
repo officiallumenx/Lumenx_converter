@@ -89,6 +89,7 @@ export function inboxItemDtoToListItem(
     createdAt,
     href,
     templateId,
+    payload: dto.notification.payload ?? undefined,
   };
 }
 

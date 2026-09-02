@@ -1,4 +1,4 @@
-import { memo, useMemo, useSyncExternalStore } from "react";
+import { memo, useEffect, useMemo, useSyncExternalStore } from "react";
 import { prefersReducedMotion } from "@/lib/prefers-reduced-motion";
 import { getInitials } from "@lumenx/utils";
 import { Link, useLocation } from "@tanstack/react-router";
@@ -20,8 +20,10 @@ import { children as allChildren, days, schoolAlerts } from "@/lib/mock-data";
 import type { StudentAssignment } from "@/lib/mock-data";
 import { useApp } from "@/lib/app-state";
 import { useParentPortal } from "@/context/ParentPortalContext";
-import { AlertsDashboardPanel, useAlertStoreInit } from "@/components/app/alerts/AlertsCenterView";
+import { AlertsDashboardPanel } from "@/components/app/alerts/AlertsCenterView";
 import { alertStore } from "@/lib/alert-store";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { loadPortalSchoolAlerts } from "@/lib/school-alerts";
 import {
   todayWorkForChild,
 } from "@/lib/assignment-status";
@@ -96,7 +98,24 @@ const PARENT_HOME_WIDGETS: DashboardWidgetDef[] = [
 export const ParentDashboardPage = memo(function ParentDashboardPage() {
   const { activeChildId, activeInstituteId } = useApp();
   const { pathname } = useLocation();
-  useAlertStoreInit(schoolAlerts.parent);
+
+  useEffect(() => {
+    if (!isApiAuthMode()) {
+      alertStore.initOnce(schoolAlerts.parent);
+      return;
+    }
+    let cancelled = false;
+    void loadPortalSchoolAlerts({ instituteId: activeInstituteId }).then((result) => {
+      if (cancelled) return;
+      if (result.status === "ready" || result.status === "empty") {
+        alertStore.initOnce(result.alerts);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeInstituteId]);
+
   const portalAlerts = useSyncExternalStore(
     alertStore.subscribe,
     alertStore.getItems,

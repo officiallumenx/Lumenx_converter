@@ -1,6 +1,6 @@
 /**
- * Admin registration access gate — OTP → setup → Nexus approval.
- * API auth mode skips this demo registration funnel (Supabase Auth is authoritative).
+ * Admin registration access gate — OTP → setup → Nexus approval (demo)
+ * or GET /api/v1/registrations/me (API mode).
  */
 
 import {
@@ -8,6 +8,8 @@ import {
   type InstituteRegistrationApplication,
 } from "@lumenx/utils";
 import { isApiAuthMode } from "./auth-mode";
+import { approvedRegistrationNeedsActivation } from "./api-registration-activation";
+import { getApiRegistrationView } from "./api-registration-state";
 import { loadSession } from "./auth-store";
 import { loadOtpPending } from "./otp-service";
 import { isRegistrationSubmitted } from "./institute-setup-store";
@@ -15,6 +17,8 @@ import type { AuthUser } from "./types";
 
 export type RegistrationGateKind =
   | "allow"
+  | "loading"
+  | "error"
   | "verify_email"
   | "verify_mobile"
   | "institute_setup"
@@ -24,12 +28,11 @@ export type RegistrationGateKind =
 export type RegistrationGate = {
   kind: RegistrationGateKind;
   application: InstituteRegistrationApplication | null;
+  errorMessage?: string;
 };
 
 function sessionActivated(user: AuthUser): boolean {
   if (user.isVerified) return true;
-  // `patchAuthenticatedUser` writes session before React context re-renders —
-  // treat a matching saved session as already activated.
   try {
     const session = loadSession();
     return (
@@ -43,19 +46,47 @@ function sessionActivated(user: AuthUser): boolean {
   }
 }
 
-/**
- * Resolve where a signed-in Admin user should be routed.
- * Demo seed users (isVerified + no application) keep dashboard access.
- *
- * After Nexus approval, `unlockIfApproved` sets `user.isVerified`. That session
- * flag must win over a briefly stale "pending" row in the shared store (cookie
- * lag / slim), otherwise PIN unlock appears to hang on a spinner or bounce
- * back to pending-verification.
- */
-export function resolveRegistrationGate(user: AuthUser | null): RegistrationGate {
-  // API mode: never route through demo OTP / local institute-setup / Nexus cookie funnel.
-  if (isApiAuthMode()) {
+function resolveApiRegistrationGate(user: AuthUser | null): RegistrationGate {
+  if (!user?.email) {
     return { kind: "allow", application: null };
+  }
+
+  const { boundUserId, snapshot, syncError, loaded, syncing } =
+    getApiRegistrationView();
+
+  if (boundUserId && boundUserId !== user.id) {
+    return { kind: "loading", application: null };
+  }
+
+  if (!loaded || syncing || snapshot === undefined) {
+    return { kind: "loading", application: null };
+  }
+
+  if (syncError && !snapshot) {
+    return { kind: "error", application: null, errorMessage: syncError };
+  }
+
+  if (snapshot?.status === "pending") {
+    return { kind: "pending", application: null };
+  }
+  if (snapshot?.status === "rejected") {
+    return { kind: "rejected", application: null };
+  }
+
+  if (snapshot?.status === "approved") {
+    if (approvedRegistrationNeedsActivation(user, snapshot)) {
+      return { kind: "loading", application: null };
+    }
+    return { kind: "allow", application: null };
+  }
+
+  // No registration row (existing admin account).
+  return { kind: "allow", application: null };
+}
+
+export function resolveRegistrationGate(user: AuthUser | null): RegistrationGate {
+  if (isApiAuthMode()) {
+    return resolveApiRegistrationGate(user);
   }
 
   if (!user?.email) {
@@ -71,8 +102,6 @@ export function resolveRegistrationGate(user: AuthUser | null): RegistrationGate
     return { kind: "rejected", application };
   }
 
-  // Session already activated (Nexus approve patched the user) — allow even if
-  // the shared registration row still reads pending for a poll cycle.
   if (sessionActivated(user)) {
     return { kind: "allow", application };
   }
@@ -92,7 +121,6 @@ export function resolveRegistrationGate(user: AuthUser | null): RegistrationGate
     return { kind: "institute_setup", application: null };
   }
 
-  // Submitted locally but shared store missing — treat as pending
   return { kind: "pending", application: null };
 }
 
@@ -106,6 +134,7 @@ export function registrationGatePath(kind: RegistrationGateKind): string | null 
       return "/institute-setup";
     case "pending":
     case "rejected":
+    case "error":
       return "/pending-verification";
     default:
       return null;

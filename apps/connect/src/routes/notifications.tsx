@@ -20,6 +20,21 @@ import {
   subscribeAttendanceInbox,
 } from "@/lib/attendance/notification-bridge";
 import { listFeesParentInbox, listPhase7Inbox, listPhase8Inbox, dedupeNotificationsById, isImportantNotification } from "@lumenx/module-notifications";
+import {
+  announcementInboxEpoch,
+  subscribeAnnouncementInboxSync,
+} from "@/lib/announcements/inbox-sync";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { useConnectApiInbox } from "@/hooks/use-connect-api-inbox";
+
+function combinedInboxSubscribe(onStoreChange: () => void) {
+  const unsubAttendance = subscribeAttendanceInbox(onStoreChange);
+  const unsubAnnouncements = subscribeAnnouncementInboxSync(onStoreChange);
+  return () => {
+    unsubAttendance();
+    unsubAnnouncements();
+  };
+}
 
 export const Route = createFileRoute("/notifications")({
   head: () => ({ meta: [{ title: "Notifications — LumenX Connect" }] }),
@@ -49,7 +64,7 @@ function parentInboxEpoch(): string {
   const items = listAttendanceNotificationInbox("parent");
   const p7 = listPhase7Inbox("parent");
   const p8 = listPhase8Inbox("parent");
-  return `${items.length}:${items[0]?.id ?? ""}:${p7.length}:${p7[0]?.id ?? ""}:${p8.length}:${p8[0]?.id ?? ""}`;
+  return `${items.length}:${items[0]?.id ?? ""}:${p7.length}:${p7[0]?.id ?? ""}:${p8.length}:${p8[0]?.id ?? ""}:${announcementInboxEpoch()}`;
 }
 
 function NotificationsPage() {
@@ -72,20 +87,22 @@ function NotificationsPage() {
 
 function ParentNotifications() {
   const portal = useParentPortal();
-  const { activeChildId } = useApp();
+  const { activeChildId, activeInstituteId } = useApp();
+  const apiMode = isApiAuthMode();
+  const apiInbox = useConnectApiInbox(apiMode ? activeInstituteId : null);
 
   const snapshot = portal.isParent ? portal.snapshot : null;
   const syncChildId =
     snapshot && snapshot.child.id === activeChildId ? snapshot.child.id : null;
 
   const inboxEpoch = useSyncExternalStore(
-    subscribeAttendanceInbox,
+    combinedInboxSubscribe,
     parentInboxEpoch,
     () => "0",
   );
 
   useEffect(() => {
-    if (!syncChildId || !snapshot) return;
+    if (apiMode || !syncChildId || !snapshot) return;
     const attendanceStudentId = resolveParentChildAttendanceStudentId(snapshot.child);
     const merged = mergePortalNotificationsWithAttendanceInbox({
       recipient: "parent",
@@ -101,13 +118,14 @@ function ParentNotifications() {
         ...merged,
       ]),
     );
-  }, [syncChildId, snapshot, inboxEpoch]);
+  }, [apiMode, syncChildId, snapshot, inboxEpoch]);
 
-  const all = useSyncExternalStore(
+  const demoAll = useSyncExternalStore(
     parentNotificationStore.subscribe,
     parentNotificationStore.getItems,
     parentNotificationStore.getItems,
   );
+  const all = apiMode ? apiInbox.items : demoAll;
 
   const [filter, setFilter] = useState<(typeof PARENT_CATEGORIES)[number]["id"]>("all");
 
@@ -126,6 +144,14 @@ function ParentNotifications() {
         ? all.filter(isImportantNotification)
         : all.filter((n) => n.category === filter);
 
+  if (apiMode && apiInbox.loading) {
+    return (
+      <div className="min-w-0 max-w-full px-1 py-8 text-sm text-muted-foreground">
+        Loading notifications…
+      </div>
+    );
+  }
+
   return (
     <div className="min-w-0 max-w-full">
       <PageHeader
@@ -140,7 +166,9 @@ function ParentNotifications() {
             <Button
               variant="outline"
               className="rounded-xl gap-2"
-              onClick={() => parentNotificationStore.markAllRead()}
+              onClick={() =>
+                apiMode ? void apiInbox.markAllRead() : parentNotificationStore.markAllRead()
+              }
             >
               <CheckCheck className="size-4" /> Mark all read
             </Button>
@@ -180,8 +208,11 @@ function ParentNotifications() {
 
       <NotificationList
         list={list}
-        onSelect={(id) => parentNotificationStore.markRead(id)}
+        onSelect={(id) => (apiMode ? void apiInbox.markRead(id) : parentNotificationStore.markRead(id))}
       />
+      {apiMode && apiInbox.error ? (
+        <p className="mt-3 text-sm text-destructive">{apiInbox.error}</p>
+      ) : null}
     </div>
   );
 }

@@ -9,6 +9,10 @@ import { renderNotificationTemplate } from "../shared/registry";
 import { NOTIFICATION_TEMPLATE_IDS as IDS } from "../shared/registry/ids";
 import type { LumenXNotification } from "../shared/types";
 import type { AppNotification } from "@lumenx/types";
+import {
+  pushPhase7Inbox,
+  type Phase7Audience,
+} from "../shared/phase7-inbox";
 
 export type BroadcastAudienceKind =
   | "everyone"
@@ -117,4 +121,90 @@ export function publishBroadcastNotification(input: PublishBroadcastInput): Publ
   );
 
   return { broadcast, foundation, appNotification };
+}
+
+export type AnnouncementAudienceScope =
+  | "all"
+  | "students"
+  | "parents"
+  | "teachers"
+  | "classes";
+
+const ALL_PORTAL_AUDIENCES: Phase7Audience[] = ["parent", "student", "teacher"];
+
+function mapBroadcastAudienceKind(
+  scope: AnnouncementAudienceScope | undefined,
+  label: string,
+): BroadcastAudienceKind {
+  if (scope === "students") return "students";
+  if (scope === "parents") return "parents";
+  if (scope === "teachers") return "teachers";
+  const t = label.toLowerCase();
+  if (t.includes("student") && !t.includes("parent") && !t.includes("teacher")) {
+    return "students";
+  }
+  if (t.includes("parent") && !t.includes("student") && !t.includes("teacher")) {
+    return "parents";
+  }
+  if (t.includes("teacher") || t.includes("staff")) return "teachers";
+  return "everyone";
+}
+
+function resolvePortalAudiences(
+  scope: AnnouncementAudienceScope | undefined,
+  label: string,
+): Phase7Audience[] {
+  if (scope === "students") return ["student"];
+  if (scope === "parents") return ["parent"];
+  if (scope === "teachers") return ["teacher"];
+  if (scope === "classes") return ["parent", "student"];
+  const t = label.toLowerCase();
+  if (t.includes("student") && !t.includes("parent") && !t.includes("teacher")) {
+    return ["student"];
+  }
+  if (t.includes("parent") && !t.includes("student") && !t.includes("teacher")) {
+    return ["parent"];
+  }
+  if (t.includes("teacher") || t.includes("staff")) return ["teacher"];
+  return ALL_PORTAL_AUDIENCES;
+}
+
+/** Institute announcement published — fan-out to Connect teacher / parent / student inboxes. */
+export function notifyAnnouncementPublished(input: {
+  id: string;
+  title: string;
+  body?: string | null;
+  audienceLabel: string;
+  audienceScope?: AnnouncementAudienceScope;
+  sender?: string;
+  priority?: "normal" | "high" | "critical";
+  pinned?: boolean;
+}): PublishBroadcastResult {
+  const bodyPreview = (input.body ?? input.title).trim();
+  const audiences = resolvePortalAudiences(input.audienceScope, input.audienceLabel);
+  const result = publishBroadcastNotification({
+    id: input.id,
+    title: input.title.trim(),
+    message: bodyPreview,
+    audienceLabel: input.audienceLabel,
+    audienceKind: mapBroadcastAudienceKind(input.audienceScope, input.audienceLabel),
+    sender: input.sender ?? "Admin",
+    priority: input.pinned ? "high" : (input.priority ?? "normal"),
+    href: `/announcements/${input.id}`,
+  });
+
+  pushPhase7Inbox({
+    ...result.appNotification,
+    id: `ann-${input.id}`,
+    audiences,
+    audience: audiences[0],
+    module: "announcements",
+    category: "circulars",
+    desc: bodyPreview,
+    time: "Just now",
+    unread: true,
+    href: `/announcements/${input.id}`,
+  });
+
+  return result;
 }

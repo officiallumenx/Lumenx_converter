@@ -7,6 +7,14 @@ import {
 import { authUserFromMe, fetchInstituteName, fetchMe } from "@/auth/me-bridge";
 import type { AuthUser } from "@/auth/types";
 import { ApiClientError } from "@/lib/api";
+import {
+  clearApiAccessState,
+  getApiAccessState,
+  syncApiAccessPermissions,
+  verifyStaffLogin,
+  verifyStaffPasswordLogin,
+} from "@/lib/access-roles";
+import { demoRoleIdForSystemKey } from "@/lib/access-roles/system-keys";
 
 export type ApiAuthHydration = {
   user: AuthUser;
@@ -42,6 +50,7 @@ export async function apiSignInWithPassword(
 
 export async function hydrateFromAccessToken(
   accessToken: string,
+  preferredInstituteId?: string | null,
 ): Promise<ApiAuthHydration> {
   let me;
   try {
@@ -56,21 +65,76 @@ export async function hydrateFromAccessToken(
     throw err;
   }
 
+  if (preferredInstituteId) {
+    try {
+      selectActiveInstitute(preferredInstituteId, me.institutes);
+    } catch {
+      // Fall back to stored / single-institute resolution.
+    }
+  }
+
   const resolved = resolveActiveInstitute(me.institutes);
   let instituteName = "";
   if (resolved.instituteId) {
     instituteName = await fetchInstituteName(resolved.instituteId, accessToken);
   }
 
-  const user = authUserFromMe(me, resolved.instituteId, instituteName || "Institute");
+  await syncApiAccessPermissions(resolved.instituteId);
+  const access = getApiAccessState();
+  const user = authUserFromMe(
+    me,
+    resolved.instituteId,
+    instituteName || "Institute",
+    access.accessRoleId ?? demoRoleIdForSystemKey(access.accessRoleSystemKey),
+  );
   return {
-    user,
+    user: {
+      ...user,
+      accessRoleId: user.accessRoleId ?? access.accessRoleId ?? undefined,
+    },
     meInstitutes: me.institutes,
     activeInstituteId: resolved.instituteId,
   };
 }
 
-/** Bootstrap: if Supabase has a session, hydrate /me; otherwise null. */
+/**
+ * Staff Admin login: institute + email/mobile OTP + password every session.
+ */
+export async function apiSignInWithStaffOtp(input: {
+  instituteId: string;
+  identifier: string;
+  otp: string;
+  password: string;
+}): Promise<ApiAuthHydration> {
+  const session = await verifyStaffLogin(input);
+  const supabase = getSupabaseBrowserClient();
+  const { error } = await supabase.auth.setSession({
+    access_token: session.accessToken,
+    refresh_token: session.refreshToken,
+  });
+  if (error) {
+    throw new Error(error.message || "Unable to establish staff session.");
+  }
+  return hydrateFromAccessToken(session.accessToken, input.instituteId);
+}
+
+export async function apiSignInWithStaffPassword(input: {
+  instituteId: string;
+  identifier: string;
+  password: string;
+}): Promise<ApiAuthHydration> {
+  const session = await verifyStaffPasswordLogin(input);
+  const supabase = getSupabaseBrowserClient();
+  const { error } = await supabase.auth.setSession({
+    access_token: session.accessToken,
+    refresh_token: session.refreshToken,
+  });
+  if (error) {
+    throw new Error(error.message || "Unable to establish staff session.");
+  }
+  return hydrateFromAccessToken(session.accessToken, input.instituteId);
+}
+
 export async function tryHydrateApiSession(): Promise<ApiAuthHydration | null> {
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase.auth.getSession();
@@ -86,6 +150,7 @@ export async function apiSignOut(): Promise<void> {
     // still clear local API state
   }
   clearStoredActiveInstituteId();
+  clearApiAccessState();
 }
 
 export function setApiActiveInstitute(

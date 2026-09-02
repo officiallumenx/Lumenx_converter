@@ -190,7 +190,7 @@ function HeaderSettingsMenu() {
             <DropdownMenuItem
               onSelect={() => {
                 signOut();
-                nav({ to: "/admissions/login" });
+                nav({ to: "/admissions/institutes" });
               }}
             >
               <LogOut className="size-4 mr-2" />
@@ -375,7 +375,7 @@ export function AdmissionsShell({ children }: { children: React.ReactNode }) {
               className="w-full justify-start"
               onClick={() => {
                 signOut();
-                nav({ to: "/admissions/login" });
+                nav({ to: "/admissions/institutes" });
               }}
             >
               Sign out

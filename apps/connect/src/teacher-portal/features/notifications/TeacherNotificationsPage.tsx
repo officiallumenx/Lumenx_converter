@@ -7,6 +7,10 @@ import { EmptyState } from "@/teacher-portal/shared/ui/EmptyState";
 import { Button, cn } from "@lumenx/ui";
 import { Bell, CheckCheck } from "lucide-react";
 import type { TeacherNotification } from "@/lib/teacher/types";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { useApp } from "@/lib/app-state";
+import { useConnectApiInbox } from "@/hooks/use-connect-api-inbox";
+import { appNotificationToTeacherNotification } from "@/lib/connect-inbox/map-teacher";
 
 const FILTERS = [
   { id: "all", label: "All" },
@@ -21,11 +25,15 @@ const FILTERS = [
 ] as const;
 
 export function TeacherNotificationsPage() {
+  const { activeInstituteId } = useApp();
+  const apiMode = isApiAuthMode();
+  const apiInbox = useConnectApiInbox(apiMode ? activeInstituteId : null);
   const [items, setItems] = useState<TeacherNotification[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!apiMode);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["id"]>("all");
 
   const load = () => {
+    if (apiMode) return;
     setLoading(true);
     teacherRepository.getNotifications().then((n) => {
       setItems(n);
@@ -34,33 +42,47 @@ export function TeacherNotificationsPage() {
   };
 
   useEffect(() => {
+    if (apiMode) return;
     load();
-    // Reflect notifications added/changed elsewhere (announcements, mark-all-read, etc.)
-    // without a full skeleton reload.
     const unsub = teacherRepository.subscribeNotifications(() => {
       teacherRepository.getNotifications().then(setItems);
     });
     return () => {
       void unsub();
     };
-  }, []);
+  }, [apiMode]);
+
+  const apiItems = useMemo(
+    () => apiInbox.items.map(appNotificationToTeacherNotification),
+    [apiInbox.items],
+  );
+  const resolvedItems = apiMode ? apiItems : items;
+  const resolvedLoading = apiMode ? apiInbox.loading : loading;
 
   const filtered = useMemo(() => {
-    if (filter === "all") return items;
+    if (filter === "all") return resolvedItems;
     if (filter === "important") {
-      return items.filter((n) => n.category === "urgent" || n.category === "exam_updates");
+      return resolvedItems.filter((n) => n.category === "urgent" || n.category === "exam_updates");
     }
-    return items.filter((n) => n.category === filter);
-  }, [items, filter]);
+    return resolvedItems.filter((n) => n.category === filter);
+  }, [resolvedItems, filter]);
 
-  const unread = items.filter((n) => n.unread).length;
+  const unread = resolvedItems.filter((n) => n.unread).length;
 
   const markRead = (id: string) => {
+    if (apiMode) {
+      void apiInbox.markRead(id);
+      return;
+    }
     setItems((prev) => prev.map((n) => (n.id === id ? { ...n, unread: false } : n)));
     void teacherRepository.markNotificationRead(id);
   };
 
   const markAllRead = async () => {
+    if (apiMode) {
+      await apiInbox.markAllRead();
+      return;
+    }
     setItems((prev) => prev.map((n) => ({ ...n, unread: false })));
     await teacherRepository.markAllNotificationsRead();
   };
@@ -92,7 +114,7 @@ export function TeacherNotificationsPage() {
         ))}
       </div>
 
-      {loading ? (
+      {resolvedLoading ? (
         <PageSkeleton rows={5} />
       ) : filtered.length ? (
         <div className="space-y-2">
@@ -104,7 +126,11 @@ export function TeacherNotificationsPage() {
         <EmptyState
           icon={Bell}
           title="No notifications"
-          description="You're all caught up in this category."
+          description={
+            apiMode && apiInbox.error
+              ? apiInbox.error
+              : "You're all caught up in this category."
+          }
         />
       )}
     </div>

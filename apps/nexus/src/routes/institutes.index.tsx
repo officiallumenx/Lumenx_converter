@@ -27,6 +27,8 @@ import {
   listPendingInstituteRegistrations,
   subscribeInstituteRegistrations,
 } from "@lumenx/utils";
+import { isNexusApiMode } from "@/lib/auth-mode";
+import { countApplications, loadRegistrationsQueue } from "@/lib/registrations/load-queue";
 
 export const Route = createFileRoute("/institutes/")({
   head: () => ({ meta: [{ title: "Institutes — LumenX Nexus" }] }),
@@ -41,13 +43,25 @@ function InstitutesIndexPage() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [createOpen, setCreateOpen] = useState(false);
+  const [apiPendingCount, setApiPendingCount] = useState<number | null>(null);
+  const apiMode = isNexusApiMode();
 
   useEffect(() => subscribeInstituteDirectory(() => setTick((t) => t + 1)), []);
   useEffect(() => subscribeInstituteRegistrations(() => setTick((t) => t + 1)), []);
 
+  useEffect(() => {
+    if (!apiMode) return;
+    void loadRegistrationsQueue().then((queue) => {
+      if (queue.status === "ready") {
+        setApiPendingCount(countApplications(queue.applications).pending);
+      }
+    });
+  }, [apiMode, tick]);
+
   const all = useMemo(() => listPlatformInstitutes(), [tick]);
   const stats = useMemo(() => directoryStats(all), [all]);
   const pendingRegistrations = useMemo(() => listPendingInstituteRegistrations(), [tick]);
+  const pendingCount = apiMode ? (apiPendingCount ?? 0) : pendingRegistrations.length;
 
   const list = useMemo(() => {
     const query = q.trim().toLowerCase();
@@ -69,15 +83,15 @@ function InstitutesIndexPage() {
         </Button>
       }
     >
-      {pendingRegistrations.length > 0 ? (
+      {pendingCount > 0 ? (
         <div
           role="status"
           className="mb-4 rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-sm"
         >
           <div className="font-semibold text-amber-950 dark:text-amber-100 flex items-center gap-2">
             <ClipboardList className="size-4 shrink-0" />
-            {pendingRegistrations.length} Admin registration
-            {pendingRegistrations.length === 1 ? "" : "s"} waiting
+            {pendingCount} Admin registration
+            {pendingCount === 1 ? "" : "s"} waiting
           </div>
           <p className="mt-1 text-[12px] text-muted-foreground leading-relaxed">
             Self-registered institutes appear under Registrations first. Approve there to add them

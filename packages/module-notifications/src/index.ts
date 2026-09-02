@@ -35,6 +35,7 @@ export {
   notifyAdminOfTeacherLeave,
   notifyTeacherLeavePending,
   notifyTeacherLeaveDecision,
+  notifyDiaryReminderDemo,
   notifyExamTimetablePublished,
   notifyExamReminder,
   notifyExamScheduleChange,
