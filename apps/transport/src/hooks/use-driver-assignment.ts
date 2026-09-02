@@ -7,9 +7,13 @@ import {
   subscribeDriverAssignment,
   type DriverAssignment,
 } from "@/lib/transport/driver-assignment";
-import { loadApiDriverAssignment } from "@/lib/transport/driver-assignment-api";
+import {
+  loadApiDriverAssignment,
+  loadDriverRosterForHydrate,
+} from "@/lib/transport/driver-assignment-api";
 import { setAttendanceVehicleScope } from "@/lib/transport/attendance/store";
 import { setRouteSetupDriverScope } from "@/lib/transport/route-setup/store";
+import { hydrateRouteSetupFromApi } from "@/lib/transport/route-setup/api-sync";
 import { tripRepository } from "@/lib/transport/trip/repository";
 import { attendanceRepository } from "@/lib/transport/attendance/repository";
 import "@/lib/transport/gps-ping";
@@ -109,7 +113,7 @@ export function useDriverAssignment(): DriverAssignment {
       employeeId &&
       licenseNumber
     ) {
-      setRouteSetupDriverScope({
+      const scope = {
         routeId,
         routeCode,
         routeName,
@@ -121,9 +125,13 @@ export function useDriverAssignment(): DriverAssignment {
         employeeId,
         licenseNumber,
         instituteId: user?.instituteId,
-      });
+      };
+      setRouteSetupDriverScope(scope);
       setAttendanceVehicleScope(vehicleId);
-      if (apiMode) {
+      if (apiMode && user?.instituteId) {
+        void loadDriverRosterForHydrate(user.instituteId).then((roster) =>
+          hydrateRouteSetupFromApi(scope, roster),
+        );
         void tripRepository.hydrateFromApi().then(() => attendanceRepository.hydrateFromApi());
       }
       return;

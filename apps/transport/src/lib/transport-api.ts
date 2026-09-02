@@ -79,6 +79,47 @@ export async function getDriverMe(instituteId: string): Promise<DriverMe> {
   return transportFetch<DriverMe>(`/api/v1/transport/drivers/me?${query.toString()}`);
 }
 
+export type DriverRouteRosterStop = {
+  id: string;
+  name: string;
+  locationLabel: string;
+  latitude: number;
+  longitude: number;
+  routeOrder: number;
+  approvalStatus: string;
+  createdAt: string;
+};
+
+export type DriverRouteRosterStudent = {
+  enrollmentId: string;
+  studentId: string;
+  studentName: string;
+  rollNo: string;
+  classLabel: string;
+  pickupStopId: string;
+  dropStopId: string;
+  pickupStopName: string | null;
+  status: string;
+  approvalStatus: string;
+};
+
+export type DriverRouteRoster = {
+  driverId: string;
+  routeId: string | null;
+  routeName: string | null;
+  vehicleId: string | null;
+  locked: boolean;
+  stops: DriverRouteRosterStop[];
+  students: DriverRouteRosterStudent[];
+};
+
+export async function getDriverRouteRoster(instituteId: string): Promise<DriverRouteRoster> {
+  const query = new URLSearchParams({ institute_id: instituteId });
+  return transportFetch<DriverRouteRoster>(
+    `/api/v1/transport/portal/driver-route-roster?${query.toString()}`,
+  );
+}
+
 export async function submitTransportRoute(input: {
   instituteId: string;
   name: string;
@@ -131,6 +172,8 @@ export type StopDto = {
   routeId: string;
   name: string;
   locationLabel: string;
+  latitude: number;
+  longitude: number;
   routeOrder: number;
   approvalStatus: string;
 };

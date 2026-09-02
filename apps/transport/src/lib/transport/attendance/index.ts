@@ -5,6 +5,7 @@ export {
   markBoardingInStore,
   markDroppingInStore,
   resetAttendanceStore,
+  setApiAttendanceRoster,
   setAttendanceVehicleScope,
   subscribeAttendanceStore,
 } from "./store";

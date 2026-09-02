@@ -31,6 +31,7 @@ import {
   type TransportSnapshot,
 } from "@/lib/transport-store";
 import { useAdminToast } from "@/components/AdminActionToast";
+import { isApiAuthMode } from "@/auth/auth-mode";
 
 type Props = {
   snapshot: TransportSnapshot;
@@ -392,7 +393,9 @@ export function TransportDriversView({
                   </Button>
                 </div>
                 <p className="text-[11px]">
-                  Driver signs in with this mobile and the demo OTP. No backend authentication.
+                  {isApiAuthMode()
+                    ? "Driver signs in on the Transport app with this mobile (API auth)."
+                    : "Driver signs in with this mobile and the demo OTP. No backend authentication."}
                 </p>
               </div>
             ) : draft.id ? (
@@ -411,7 +414,9 @@ export function TransportDriversView({
                   onChange={(e) => setCreateAccount(e.target.checked)}
                 />
                 <span>
-                  Create Transport app account for this driver (mobile login + demo OTP)
+                  {isApiAuthMode()
+                    ? "Create Transport app account for this driver (mobile login)"
+                    : "Create Transport app account for this driver (mobile login + demo OTP)"}
                 </span>
               </label>
             )}

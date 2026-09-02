@@ -318,6 +318,135 @@ export async function getDriverMeForActor(
   };
 }
 
+export type DriverRouteRosterStop = {
+  id: string;
+  name: string;
+  locationLabel: string;
+  latitude: number;
+  longitude: number;
+  routeOrder: number;
+  approvalStatus: TransportApprovalStatus;
+  createdAt: string;
+};
+
+export type DriverRouteRosterStudent = {
+  enrollmentId: string;
+  studentId: string;
+  studentName: string;
+  rollNo: string;
+  classLabel: string;
+  pickupStopId: string;
+  dropStopId: string;
+  pickupStopName: string | null;
+  status: string;
+  approvalStatus: TransportApprovalStatus;
+};
+
+export type DriverRouteRoster = {
+  driverId: string;
+  routeId: string | null;
+  routeName: string | null;
+  vehicleId: string | null;
+  locked: boolean;
+  stops: DriverRouteRosterStop[];
+  students: DriverRouteRosterStudent[];
+};
+
+/** Stops + enrolled students (with names) for the signed-in driver's assigned route. */
+export async function getDriverRouteRosterForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  instituteId: string,
+): Promise<DriverRouteRoster> {
+  const id = requireInstituteId(actor, instituteId);
+  if (!isDriverForInstitute(actor, id) && !isTransportWriter(actor, id)) {
+    throw AppError.forbidden("Insufficient permissions");
+  }
+  const driver = await findDriverByUserProfileId(admin, actor.userId, id);
+  if (!driver) throw AppError.notFound("Driver profile not linked");
+
+  const routes = await listRoutes(admin, id);
+  const route =
+    routes.find(
+      (r) => r.driver_id === driver.id && r.approval_status === "approved",
+    ) ??
+    routes.find((r) => r.driver_id === driver.id) ??
+    null;
+
+  if (!route) {
+    return {
+      driverId: driver.id,
+      routeId: null,
+      routeName: null,
+      vehicleId: null,
+      locked: false,
+      stops: [],
+      students: [],
+    };
+  }
+
+  const stopRows = await listStopsForRoute(admin, route.id);
+  const visibleStops = isTransportWriter(actor, id)
+    ? stopRows
+    : stopRows.filter(
+        (s) =>
+          s.approval_status === "approved" ||
+          s.submitted_by_user_id === actor.userId,
+      );
+
+  const enrollments = (await listEnrollments(admin, id)).filter(
+    (e) =>
+      e.route_id === route.id &&
+      e.status === "active" &&
+      (e.approval_status === "approved" ||
+        e.submitted_by_user_id === actor.userId ||
+        isTransportWriter(actor, id)),
+  );
+
+  const students = await listStudents(admin, { instituteId: id });
+  const studentById = new Map(students.map((s) => [s.id, s]));
+  const stopNameById = new Map(visibleStops.map((s) => [s.id, s.name]));
+
+  return {
+    driverId: driver.id,
+    routeId: route.id,
+    routeName: route.name,
+    vehicleId: route.vehicle_id,
+    locked: route.config_status === "locked",
+    stops: visibleStops
+      .slice()
+      .sort((a, b) => a.route_order - b.route_order)
+      .map((s) => ({
+        id: s.id,
+        name: s.name,
+        locationLabel: s.location_label,
+        latitude: s.latitude,
+        longitude: s.longitude,
+        routeOrder: s.route_order,
+        approvalStatus: s.approval_status,
+        createdAt: s.created_at,
+      })),
+    students: enrollments.map((e) => {
+      const student = studentById.get(e.student_id);
+      return {
+        enrollmentId: e.id,
+        studentId: e.student_id,
+        studentName:
+          student?.display_name?.trim() ||
+          `${student?.first_name ?? ""} ${student?.surname ?? ""}`.trim() ||
+          "Student",
+        rollNo: student?.roll_no?.trim() || "—",
+        classLabel: student?.class_label?.trim() || "—",
+        pickupStopId: e.pickup_stop_id,
+        dropStopId: e.drop_stop_id,
+        pickupStopName: stopNameById.get(e.pickup_stop_id) ?? null,
+        status: e.status,
+        approvalStatus: e.approval_status,
+      };
+    }),
+  };
+}
+
 export async function listTeacherClassTransportForActor(
   admin: SupabaseClient,
   actor: Actor,

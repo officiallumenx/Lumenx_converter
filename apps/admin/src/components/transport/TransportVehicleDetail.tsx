@@ -20,6 +20,7 @@ import {
   type PendingRouteStop,
   type PendingStudentAssignment,
 } from "@/lib/transport-approval-store";
+import { isApiAuthMode } from "@/auth/auth-mode";
 
 type Props = {
   snapshot: TransportSnapshot;
@@ -109,7 +110,10 @@ export function TransportVehicleDetail({ snapshot, vehicleId, onEdit }: Props) {
         </Card>
 
         <Card>
-          <CardHeader title="Transport app account" hint="Driver login · demo OTP" />
+          <CardHeader
+            title="Transport app account"
+            hint={isApiAuthMode() ? "Driver login · API auth" : "Driver login · demo OTP"}
+          />
           <div className="grid grid-cols-1 gap-3 px-5 pb-5 sm:grid-cols-2">
             {driverAccount ? (
               <>

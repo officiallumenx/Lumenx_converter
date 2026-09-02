@@ -9,7 +9,7 @@ async function pingOnce() {
   const trip = getTripSessionSnapshot();
   if (!trip.tripId || trip.phase === "completed" || trip.phase === "ready") return;
   try {
-    const fix = await captureCurrentGps({ allowDemo: true });
+    const fix = await captureCurrentGps({ allowDemo: false });
     await pingTripLocation(trip.tripId, {
       latitude: fix.latitude,
       longitude: fix.longitude,

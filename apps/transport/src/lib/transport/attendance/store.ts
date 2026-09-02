@@ -10,7 +10,7 @@ import {
   TRANSPORT_OPS_CHANGED_EVENT,
   type AttendanceMarkResult,
 } from "@lumenx/utils";
-import type { AttendanceStudentState, BoardingStatus, DroppingStatus } from "../types";
+import type { AttendanceStudentState, BoardingStatus, DroppingStatus, RosterStudent } from "../types";
 import { getTripSessionSnapshot, subscribeTripSession } from "../trip/store";
 import { isApiAuthMode } from "@/lib/auth/auth-mode";
 import { listBoardingViaApi } from "../trip/api-ops";
@@ -20,7 +20,19 @@ const listeners = new Set<() => void>();
 /** Active bus for attendance — set from logged-in driver assignment. */
 let activeVehicleId: string | null = null;
 
+/** API-mode roster seeded from driver-route-roster (not ops localStorage). */
+let apiRosterBase: RosterStudent[] | null = null;
+
 function createRosterBase(): AttendanceStudentState[] {
+  if (isApiAuthMode() && apiRosterBase) {
+    return apiRosterBase.map((student) => ({
+      ...student,
+      boarding: "pending" as const,
+      dropping: "pending" as const,
+      boardedAt: null,
+      droppedAt: null,
+    }));
+  }
   if (!activeVehicleId) return [];
   const enrollments = enrollmentsForVehicle(activeVehicleId);
   return enrollments.map((student) => ({
@@ -35,6 +47,17 @@ function createRosterBase(): AttendanceStudentState[] {
     boardedAt: null,
     droppedAt: null,
   }));
+}
+
+/** Seed attendance roster from transport API enrollments (API auth mode). */
+export function setApiAttendanceRoster(roster: RosterStudent[]): void {
+  apiRosterBase = roster.map((s) => ({ ...s }));
+  hydrateFromShared();
+  emit();
+}
+
+export function clearApiAttendanceRoster(): void {
+  apiRosterBase = null;
 }
 
 let students: AttendanceStudentState[] = createRosterBase();

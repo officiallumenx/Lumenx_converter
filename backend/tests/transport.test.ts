@@ -688,4 +688,30 @@ describe("transport api", () => {
     expect(body.data.configuredRoutes).toBe(1);
     expect(body.data.tripDate).toBe(today);
   });
+
+  it("driver route roster returns stops and named students for assigned route", async () => {
+    const db = baseDb();
+    db.route[0] = { ...db.route[0], driver_id: DRIVER_A };
+    const app = appWithDb(db);
+
+    const res = await app.request(
+      `/api/v1/transport/portal/driver-route-roster?institute_id=${INST_A}`,
+      { headers: { Authorization: "Bearer token-driver" } },
+    );
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(body.data.driverId).toBe(DRIVER_A);
+    expect(body.data.routeId).toBe(ROUTE_A);
+    expect(body.data.stops.length).toBeGreaterThanOrEqual(2);
+    expect(body.data.students.length).toBe(2);
+    expect(body.data.students.some((s: { studentName: string }) => s.studentName === "Kid A")).toBe(
+      true,
+    );
+
+    const forbidden = await app.request(
+      `/api/v1/transport/portal/driver-route-roster?institute_id=${INST_A}`,
+      { headers: { Authorization: "Bearer token-parent" } },
+    );
+    expect(forbidden.status).toBe(403);
+  });
 });

@@ -57,10 +57,10 @@ export function TeacherTransportPage() {
   }, [apiMode, activeInstituteId, reloadApiRoster]);
 
   useEffect(() => {
-    if (hasTransport) {
+    if (hasTransport && !apiMode) {
       transportStore.init(undefined, "teacher");
     }
-  }, [hasTransport]);
+  }, [hasTransport, apiMode]);
 
   const routeOverview = useSyncExternalStore(
     transportStore.subscribe,
@@ -107,6 +107,76 @@ export function TeacherTransportPage() {
     );
   }
 
+  if (apiMode) {
+    const assignedCount = apiRoster.filter((r) => r.busNumber).length;
+    return (
+      <div className="min-w-0 max-w-full space-y-5">
+        <PageHeader
+          title="Transport management"
+          subtitle="Bus assignments for students in your classes"
+        />
+
+        <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
+          <StatCard
+            icon={Users}
+            label="Students listed"
+            value={String(apiRoster.length)}
+            hint="From approved enrollments"
+            tone="primary"
+          />
+          <StatCard
+            icon={Bus}
+            label="With bus assigned"
+            value={String(assignedCount)}
+            hint="Active route enrollments"
+            tone="success"
+          />
+        </div>
+
+        <div className="rounded-xl border border-border bg-card p-4">
+          <h2 className="text-sm font-semibold text-foreground">Class bus assignments</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Approved enrollments from the institute transport API. Live ETA and trip tracking are not
+            shown here yet.
+          </p>
+          {apiRosterLoading ? (
+            <p className="mt-3 text-sm text-muted-foreground">Loading roster…</p>
+          ) : apiRoster.length === 0 ? (
+            <p className="mt-3 text-sm text-muted-foreground">No bus assignments found.</p>
+          ) : (
+            <div className="mt-3 overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-border text-muted-foreground">
+                    <th className="py-2 pr-4 font-medium">Student</th>
+                    <th className="py-2 pr-4 font-medium">Class</th>
+                    <th className="py-2 pr-4 font-medium">Roll</th>
+                    <th className="py-2 pr-4 font-medium">Route</th>
+                    <th className="py-2 font-medium">Bus</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {apiRoster.map((row) => (
+                    <tr key={row.studentId} className="border-b border-border/60">
+                      <td className="py-2 pr-4">{row.studentName}</td>
+                      <td className="py-2 pr-4">
+                        {row.classLabel}
+                        {row.sectionLabel !== "—" ? ` · ${row.sectionLabel}` : ""}
+                      </td>
+                      <td className="py-2 pr-4">{row.rollNo}</td>
+                      <td className="py-2 pr-4">{row.routeName ?? "—"}</td>
+                      <td className="py-2">{row.busNumber ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   const pickupStop = routeOverview.stops[0];
   const dropStop = routeOverview.stops[routeOverview.stops.length - 1];
 
@@ -135,46 +205,6 @@ export function TeacherTransportPage() {
         title="Transport management"
         subtitle={`Monitor ${routeOverview.routeName} · pickup status for students in your classes`}
       />
-
-      {apiMode ? (
-        <div className="rounded-xl border border-border bg-card p-4">
-          <h2 className="text-sm font-semibold text-foreground">Class bus assignments</h2>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Approved enrollments from the institute transport API.
-          </p>
-          {apiRosterLoading ? (
-            <p className="mt-3 text-sm text-muted-foreground">Loading roster…</p>
-          ) : apiRoster.length === 0 ? (
-            <p className="mt-3 text-sm text-muted-foreground">No bus assignments found.</p>
-          ) : (
-            <div className="mt-3 overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-border text-muted-foreground">
-                    <th className="py-2 pr-4 font-medium">Student</th>
-                    <th className="py-2 pr-4 font-medium">Class</th>
-                    <th className="py-2 pr-4 font-medium">Roll</th>
-                    <th className="py-2 font-medium">Bus</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {apiRoster.map((row) => (
-                    <tr key={row.studentId} className="border-b border-border/60">
-                      <td className="py-2 pr-4">{row.studentName}</td>
-                      <td className="py-2 pr-4">
-                        {row.classLabel}
-                        {row.sectionLabel !== "—" ? ` · ${row.sectionLabel}` : ""}
-                      </td>
-                      <td className="py-2 pr-4">{row.rollNo}</td>
-                      <td className="py-2">{row.busNumber ?? "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      ) : null}
 
       <TransportEtaBanner tracking={tracking} />
 

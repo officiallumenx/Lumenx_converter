@@ -312,6 +312,142 @@ export function setRouteSetupDriverScope(next: RouteSetupDriverScope): void {
   persistLocalOnly();
 }
 
+/** Merge API-approved stops + enrollments into the active route-setup record. */
+export function applyApiApprovedHydration(input: {
+  lockedByAdmin: boolean;
+  stops: Array<{
+    id: string;
+    name: string;
+    locationLabel: string;
+    latitude: number;
+    longitude: number;
+    routeOrder: number;
+    approvalStatus: string;
+    createdAt: string;
+  }>;
+  students: Array<{
+    enrollmentId: string;
+    studentId: string;
+    studentName: string;
+    classLabel: string;
+    pickupStopId: string;
+    approvalStatus: string;
+  }>;
+}): void {
+  if (!scope) return;
+
+  const apiById = new Map(input.stops.map((s) => [s.id, s]));
+  const nextStops = record.stops.map((local) => {
+    const api =
+      apiById.get(local.id) ??
+      (local.apiStopId ? apiById.get(local.apiStopId) : undefined);
+    if (!api) return local;
+    const status: SubmissionStatus =
+      api.approvalStatus === "approved"
+        ? "approved"
+        : api.approvalStatus === "rejected"
+          ? "rejected"
+          : local.status === "draft"
+            ? "pending"
+            : local.status;
+    return {
+      ...local,
+      apiStopId: api.id,
+      name: api.name,
+      locationLabel: api.locationLabel || local.locationLabel,
+      latitude: api.latitude,
+      longitude: api.longitude,
+      routeOrder: api.routeOrder + 1,
+      status,
+      updatedAt: new Date().toISOString(),
+    };
+  });
+
+  const knownIds = new Set(
+    nextStops.flatMap((s) => [s.id, s.apiStopId].filter(Boolean) as string[]),
+  );
+  const imported: RouteSetupStop[] = input.stops
+    .filter((s) => s.approvalStatus === "approved" && !knownIds.has(s.id))
+    .map((s) => ({
+      id: s.id,
+      name: s.name,
+      locationLabel: s.locationLabel || defaultLocationLabel(s.latitude, s.longitude),
+      latitude: s.latitude,
+      longitude: s.longitude,
+      timestampCreated: s.createdAt,
+      updatedAt: s.createdAt,
+      createdBy: "api",
+      studentIds: input.students
+        .filter((st) => st.pickupStopId === s.id && st.approvalStatus === "approved")
+        .map((st) => st.studentId),
+      routeOrder: s.routeOrder + 1,
+      status: "approved" as const,
+      submittedAt: s.createdAt,
+      apiStopId: s.id,
+    }));
+
+  const mergedStops = renumber([...nextStops, ...imported]);
+  const stopNameById = new Map(mergedStops.map((s) => [s.id, s.name]));
+  const assignmentKeys = new Set(
+    record.assignments.map((a) => `${a.studentId}:${a.stopId}`),
+  );
+  const importedAssignments: StudentStopAssignment[] = [];
+  const now = new Date().toISOString();
+
+  for (const student of input.students.filter((s) => s.approvalStatus === "approved")) {
+    const stopId = student.pickupStopId;
+    if (!mergedStops.some((s) => s.id === stopId || s.apiStopId === stopId)) continue;
+    const key = `${student.studentId}:${stopId}`;
+    if (assignmentKeys.has(key)) continue;
+    importedAssignments.push({
+      id: uid("asn"),
+      studentId: student.studentId,
+      studentName: student.studentName,
+      studentClass: student.classLabel,
+      stopId,
+      stopName: stopNameById.get(stopId) ?? "Stop",
+      status: "approved",
+      createdAt: now,
+      updatedAt: now,
+      apiEnrollmentId: student.enrollmentId,
+    });
+    assignmentKeys.add(key);
+  }
+
+  const nextAssignments = record.assignments.map((a) => {
+    const match = input.students.find(
+      (s) =>
+        s.studentId === a.studentId &&
+        (s.pickupStopId === a.stopId || s.enrollmentId === a.apiEnrollmentId),
+    );
+    if (!match) return a;
+    return {
+      ...a,
+      apiEnrollmentId: match.enrollmentId,
+      studentName: match.studentName,
+      studentClass: match.classLabel,
+      status:
+        match.approvalStatus === "approved"
+          ? ("approved" as const)
+          : a.status,
+    };
+  });
+
+  record = {
+    ...record,
+    lockedByAdmin: input.lockedByAdmin,
+    stops: mergedStops,
+    assignments: [...nextAssignments, ...importedAssignments],
+    status:
+      mergedStops.some((s) => s.status === "approved") || record.status === "configured"
+        ? "configured"
+        : record.status,
+  };
+  byRoute[scope.routeId] = record;
+  persistLocalOnly();
+  emit();
+}
+
 export function getRouteSetupDriverScope(): RouteSetupDriverScope | null {
   return scope;
 }

@@ -1,11 +1,16 @@
 import { isApiAuthMode } from "@/lib/auth/auth-mode";
 import {
+  getDriverRouteRoster,
   listTransportStops,
   submitTransportEnrollment,
   submitTransportStop,
+  type DriverRouteRoster,
   type StopDto,
 } from "@/lib/transport-api";
-import type { RouteSetupDriverScope } from "./store";
+import {
+  applyApiApprovedHydration,
+  type RouteSetupDriverScope,
+} from "./store";
 import type { RouteSetupStop, StudentStopAssignment } from "./types";
 
 const UUID_RE =
@@ -20,6 +25,24 @@ async function resolveDropStopId(routeId: string, pickupStopId: string): Promise
   if (stops.length === 0) return pickupStopId;
   const sorted = [...stops].sort((a, b) => b.routeOrder - a.routeOrder);
   return sorted[0]?.id ?? pickupStopId;
+}
+
+/** Pull approved stops + enrollments from the API into the local route-setup store. */
+export async function hydrateRouteSetupFromApi(
+  scope: RouteSetupDriverScope,
+  roster?: DriverRouteRoster | null,
+): Promise<void> {
+  if (!isApiAuthMode() || !scope.instituteId || !isUuid(scope.routeId)) return;
+  const data =
+    roster && roster.routeId === scope.routeId
+      ? roster
+      : await getDriverRouteRoster(scope.instituteId);
+  if (!data.routeId || data.routeId !== scope.routeId) return;
+  applyApiApprovedHydration({
+    lockedByAdmin: data.locked,
+    stops: data.stops,
+    students: data.students,
+  });
 }
 
 /** Push a pending stop and its student enrollments to the transport API. */
