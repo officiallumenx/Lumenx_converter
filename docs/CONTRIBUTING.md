@@ -44,6 +44,7 @@ gh pr create --title "…" --body "…"
 ## Module-specific notes
 
 - **Careers** (`apps/careers`): see [CAREERS_PORTAL_RELEASE.md](./CAREERS_PORTAL_RELEASE.md) for auth modes, API wiring, and test commands.
+- **Admissions** (`apps/admissions`): see [ADMISSIONS_PORTAL_RELEASE.md](./ADMISSIONS_PORTAL_RELEASE.md) — standalone app on port 5177; Connect redirects `/admissions/*`.
 - **Backend** (`backend/`): run `npm test --workspace=backend` for route/domain tests.
 
 ## Commits

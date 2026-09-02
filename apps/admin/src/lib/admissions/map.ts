@@ -1,8 +1,10 @@
+import type { AdminAdmissionDetail, AdminAdmissionDocument } from "@/lib/admissions-application-details";
 import type {
   AdmissionApplicationDto,
   AdmissionApplicationListItem,
   AdmissionApplicationStage,
   AdmissionApplicationStatus,
+  AdmissionDocumentDto,
   AdmissionOpeningDto,
   AdmissionOpeningListItem,
   AdmissionProgramDto,
@@ -133,4 +135,113 @@ export function admissionOpeningDtosToListItems(
     throw new TypeError("Admissions openings API response must be an array");
   }
   return rows.map(admissionOpeningDtoToListItem);
+}
+
+function payloadRecord(payload: unknown): Record<string, unknown> {
+  if (!payload || typeof payload !== "object") return {};
+  return payload as Record<string, unknown>;
+}
+
+function payloadSection(payload: unknown, key: string): Record<string, unknown> {
+  const section = payloadRecord(payload)[key];
+  if (!section || typeof section !== "object") return {};
+  return section as Record<string, unknown>;
+}
+
+function payloadString(payload: unknown, ...keys: string[]): string {
+  const record = payloadRecord(payload);
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+function payloadStringFromSection(
+  payload: unknown,
+  sectionKey: string,
+  ...keys: string[]
+): string {
+  const section = payloadSection(payload, sectionKey);
+  for (const key of keys) {
+    const value = section[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+function admissionDocumentDtoToAdminDoc(
+  dto: AdmissionDocumentDto,
+  applicationId: string,
+  studentName: string,
+): AdminAdmissionDocument {
+  return {
+    id: dto.id,
+    type: dto.docType,
+    label: dto.label?.trim() || dto.docType.replace(/_/g, " "),
+    fileName: dto.fileName?.trim() || "—",
+    kind: dto.docType === "student_photo" ? "image" : "pdf",
+    status: dto.status,
+    uploadedAt: dto.updatedAt.slice(0, 10),
+    note: dto.note ?? undefined,
+    applicantName: studentName,
+    applicationId,
+  };
+}
+
+/** Map API application + documents into Admin convert/detail shape. */
+export function admissionApplicationDtoToAdminDetail(
+  dto: AdmissionApplicationDto,
+  documents: AdmissionDocumentDto[] = [],
+  programName?: string,
+): AdminAdmissionDetail {
+  const payload = dto.payload;
+  const studentName =
+    payloadStringFromSection(payload, "student", "name") ||
+    dto.studentDisplayName?.trim() ||
+    "Applicant";
+
+  return {
+    id: dto.id,
+    programName:
+      programName ??
+      (payloadString(payload, "programName", "programLabel") || "—"),
+    academicYear: payloadString(payload, "academicYear") || "2026–27",
+    grade: gradeFromPayload(payload),
+    student: {
+      name: studentName,
+      gender: payloadStringFromSection(payload, "student", "gender"),
+      dateOfBirth: payloadStringFromSection(payload, "student", "dateOfBirth"),
+      nationality: payloadStringFromSection(payload, "student", "nationality"),
+      bloodGroup: payloadStringFromSection(payload, "student", "bloodGroup"),
+    },
+    parent: {
+      fatherName: payloadStringFromSection(payload, "parent", "fatherName"),
+      motherName: payloadStringFromSection(payload, "parent", "motherName"),
+      guardianName: payloadStringFromSection(payload, "parent", "guardianName"),
+      mobile: payloadStringFromSection(payload, "parent", "mobile"),
+      email: payloadStringFromSection(payload, "parent", "email"),
+      occupation: payloadStringFromSection(payload, "parent", "occupation"),
+    },
+    address: {
+      address: payloadStringFromSection(payload, "address", "address"),
+      city: payloadStringFromSection(payload, "address", "city"),
+      state: payloadStringFromSection(payload, "address", "state"),
+      country: payloadStringFromSection(payload, "address", "country"),
+      postalCode: payloadStringFromSection(payload, "address", "postalCode"),
+    },
+    academic: {
+      currentSchool: payloadStringFromSection(payload, "academic", "currentSchool"),
+      currentGrade: payloadStringFromSection(payload, "academic", "currentGrade"),
+      previousResults: payloadStringFromSection(payload, "academic", "previousResults"),
+      performance: payloadStringFromSection(payload, "academic", "performance"),
+    },
+    documents: documents.map((doc) =>
+      admissionDocumentDtoToAdminDoc(doc, dto.id, studentName),
+    ),
+    timeline: dto.submittedAt
+      ? [{ label: "Application submitted", at: dto.submittedAt }]
+      : [{ label: "Application created", at: dto.createdAt }],
+    adminNotes: dto.decisionNote ? [dto.decisionNote] : undefined,
+  };
 }

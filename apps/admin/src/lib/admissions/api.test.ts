@@ -49,6 +49,26 @@ describe("admissions api repository", () => {
     expect(url).toContain(`institute_id=${INST}`);
   });
 
+  it("gets a single application by id in API mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const { getAdmissionApplication } = await import("./api");
+    const payload = dto();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ data: payload }),
+    });
+    const client = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => "tok",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    const result = await getAdmissionApplication(payload.id, client);
+    expect(result).toEqual(payload);
+    const url = fetchMock.mock.calls[0][0] as string;
+    expect(url).toBe(`http://api.test/api/v1/admissions/applications/${payload.id}`);
+  });
+
   it("lists programs with institute_id in API mode", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const { listAdmissionPrograms } = await import("./api");

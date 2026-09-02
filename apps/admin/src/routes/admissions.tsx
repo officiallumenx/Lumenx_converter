@@ -26,6 +26,7 @@ import { getAdmissionsPortalWindow } from "@/lib/admissions-portal-window";
 import { ConvertToStudentDialog } from "@/components/admissions/ConvertToStudentDialog";
 import { AdmissionDocumentsApiPanel } from "@/components/admissions/AdmissionDocumentsApiPanel";
 import { getAdminAdmissionDetail } from "@/lib/admissions-application-details";
+import type { AdminAdmissionDetail } from "@/lib/admissions-application-details";
 import type { AdmissionConvertDraft } from "@/lib/admission-to-student";
 import { validateAdmissionConvertDraft } from "@/lib/admission-to-student";
 import { convertAdmissionApplicationToStudent } from "@/lib/admissions/convert-to-student-api";
@@ -91,6 +92,9 @@ import {
   transitionAdmissionApplication,
   updateAdmissionOpening,
   updateAdmissionProgram,
+  getAdmissionApplication,
+  listAdmissionDocuments,
+  admissionApplicationDtoToAdminDetail,
   type AdmissionApplicationListItem,
   type AdmissionOpeningListItem,
   type AdmissionOpeningStatus,
@@ -528,13 +532,40 @@ function AdmissionsPage() {
   );
 
   const selected = useMemo(
-    () => (selectedId ? apps.find((a) => a.id === selectedId) ?? null : null),
-    [apps, selectedId],
+    () => (selectedId ? displayApps.find((a) => a.id === selectedId) ?? null : null),
+    [displayApps, selectedId],
   );
-  const selectedDetail = useMemo(
-    () => (selectedId ? getAdminAdmissionDetail(selectedId) : null),
-    [selectedId],
+  const [apiSelectedDetail, setApiSelectedDetail] = useState<AdminAdmissionDetail | null>(null);
+  const demoSelectedDetail = useMemo(
+    () => (selectedId && !apiMode ? getAdminAdmissionDetail(selectedId) : null),
+    [selectedId, apiMode],
   );
+  const selectedDetail = apiMode ? apiSelectedDetail : demoSelectedDetail;
+
+  useEffect(() => {
+    if (!apiMode || !selectedId || !convertOpen) {
+      if (!convertOpen) setApiSelectedDetail(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const app = await getAdmissionApplication(selectedId);
+        const docs = await listAdmissionDocuments(selectedId);
+        const programName = programNameById.get(app.programId);
+        if (!cancelled) {
+          setApiSelectedDetail(
+            admissionApplicationDtoToAdminDetail(app, docs, programName),
+          );
+        }
+      } catch {
+        if (!cancelled) setApiSelectedDetail(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [apiMode, selectedId, convertOpen, programNameById]);
 
   useEffect(() => {
     if (apiMode) return;

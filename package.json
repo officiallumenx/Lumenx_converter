@@ -2,6 +2,7 @@
   "name": "lumenx",
   "private": true,
   "scripts": {
+    "dev:admissions": "npm run dev --workspace=@lumenx/app-admissions",
     "dev:careers": "npm run dev --workspace=@lumenx/app-careers",
     "dev:connect": "npm run dev --workspace=@lumenx/app-connect",
     "dev:admin": "npm run dev --workspace=@lumenx/app-admin",
@@ -9,6 +10,7 @@
     "dev:transport": "npm run dev --workspace=@lumenx/app-transport",
     "dev:website": "npm run dev --workspace=@lumenx/app-website",
     "build": "npm run build --workspaces --if-present",
+    "build:admissions": "npm run build --workspace=@lumenx/app-admissions",
     "build:careers": "npm run build --workspace=@lumenx/app-careers",
     "build:careers:capacitor": "npm run build:capacitor --workspace=@lumenx/app-careers",
     "build:connect": "npm run build --workspace=@lumenx/app-connect",

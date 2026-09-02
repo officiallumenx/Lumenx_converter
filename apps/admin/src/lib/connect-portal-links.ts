@@ -52,11 +52,28 @@ export function careersPortalUrl(path: string): string {
   return `${getCareersOrigin()}${normalized}`;
 }
 
-/** Institute admissions dashboard — pipeline lives here. */
-export const CONNECT_ADMISSIONS_INSTITUTE = "/admissions/institute/";
+export function getAdmissionsOrigin(): string {
+  const fromEnv = import.meta.env.VITE_ADMISSIONS_ORIGIN as string | undefined;
+  if (fromEnv?.trim()) return fromEnv.replace(/\/$/, "");
+  if (typeof window !== "undefined") {
+    const { protocol, hostname } = window.location;
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return `${protocol}//${hostname}:5177`;
+    }
+  }
+  return "https://admissions.lumenx.app";
+}
+
+export function admissionsPortalUrl(path: string): string {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  return `${getAdmissionsOrigin()}${normalized}`;
+}
+
+/** Institute admissions dashboard — pipeline lives in standalone Admissions app. */
+export const CONNECT_ADMISSIONS_INSTITUTE = "/institute/";
 
 /** Institute application review board. */
-export const CONNECT_ADMISSIONS_APPLICATIONS = "/admissions/institute/applications/";
+export const CONNECT_ADMISSIONS_APPLICATIONS = "/institute/applications/";
 
 /** Careers recruiter workspace — jobs & hiring pipeline live here. */
 export const CONNECT_CAREERS_RECRUITER = "/recruiter/";
@@ -80,6 +97,8 @@ export type AdmissionsAdminHandoff = {
   instituteName: string;
   dest: AdmissionsHandoffDest;
   exp: number;
+  accessToken?: string;
+  refreshToken?: string;
 };
 
 export function encodeAdmissionsAdminHandoff(payload: AdmissionsAdminHandoff): string {
@@ -127,10 +146,10 @@ function currentInstituteProfileForHandoff() {
 export function openAdmissionsFromAdmin(dest: AdmissionsHandoffDest = "institute"): void {
   const session = loadSession();
   if (!session?.email) {
-    openConnectPortal("/admissions/login");
+    window.open(admissionsPortalUrl("/login"), "lumenx-admissions");
     return;
   }
-  const handoff = encodeAdmissionsAdminHandoff({
+  const handoff: AdmissionsAdminHandoff = {
     email: session.email,
     name: session.name,
     phone: session.phone,
@@ -138,9 +157,35 @@ export function openAdmissionsFromAdmin(dest: AdmissionsHandoffDest = "institute
     instituteName: session.instituteName,
     dest,
     exp: Date.now() + 10 * 60 * 1000,
-  });
-  const path = `/admissions/setup-from-admin?handoff=${encodeURIComponent(handoff)}`;
-  const url = connectPortalUrl(path);
+  };
+
+  if (isApiAuthMode()) {
+    void (async () => {
+      try {
+        const supabase = getSupabaseBrowserClient();
+        const { data } = await supabase.auth.getSession();
+        if (data.session?.access_token) {
+          handoff.accessToken = data.session.access_token;
+          handoff.refreshToken = data.session.refresh_token ?? undefined;
+        }
+      } catch {
+        /* demo handoff still works */
+      }
+      openAdmissionsHandoffWindow(handoff);
+    })();
+    return;
+  }
+
+  openAdmissionsHandoffWindow(handoff);
+}
+
+function openAdmissionsHandoffWindow(handoff: AdmissionsAdminHandoff): void {
+  const session = loadSession();
+  if (!session?.email) return;
+
+  const encoded = encodeAdmissionsAdminHandoff(handoff);
+  const path = `/setup-from-admin?handoff=${encodeURIComponent(encoded)}`;
+  const url = admissionsPortalUrl(path);
   const child = window.open(url, "lumenx-admissions");
   setAdmissionsPortalWindow(child);
 
@@ -166,7 +211,6 @@ export function openAdmissionsFromAdmin(dest: AdmissionsHandoffDest = "institute
   };
   window.addEventListener("message", onReady);
 
-  // Fallback if ready signal is missed (e.g. slow load)
   window.setTimeout(() => {
     try {
       const message: InstituteProfileSyncMessage = {

@@ -2,6 +2,7 @@ import type { DemoAcademicConfig } from "@lumenx/types";
 
 import type { AdminAdmissionDetail } from "@/lib/admissions-application-details";
 import type { AdminSyncRow } from "@/lib/admissions-sync";
+import type { AdmissionApplicationListItem } from "@/lib/admissions";
 import type { ParentRelationship } from "@/lib/parent-directory-store";
 import {
   normalizePhone,
@@ -83,7 +84,7 @@ function emptyStudentConnectFields(): Pick<
 
 /** Prefill convert draft from an admissions application dossier. */
 export function convertDraftFromAdmission(
-  row: AdminSyncRow,
+  row: AdminSyncRow | AdmissionApplicationListItem,
   detail: AdminAdmissionDetail | null,
   academic: DemoAcademicConfig,
 ): AdmissionConvertDraft {

@@ -12,6 +12,7 @@ import {
 
 import type { AdminAdmissionDetail } from "@/lib/admissions-application-details";
 import type { AdminSyncRow } from "@/lib/admissions-sync";
+import type { AdmissionApplicationListItem } from "@/lib/admissions";
 import {
   convertDraftFromAdmission,
   fillParentAccountFromAdmission,
@@ -34,7 +35,7 @@ export function ConvertToStudentDialog({
   onConvert,
 }: {
   open: boolean;
-  row: AdminSyncRow | null;
+  row: AdminSyncRow | AdmissionApplicationListItem | null;
   detail: AdminAdmissionDetail | null;
   academic: DemoAcademicConfig;
   onClose: () => void;

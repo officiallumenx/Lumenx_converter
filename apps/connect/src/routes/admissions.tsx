@@ -1,24 +1,20 @@
-import { createFileRoute, Outlet } from "@tanstack/react-router";
-import { InAppAlertListener } from "@/components/app/InAppAlertListener";
-import { PushDeviceTokenRegistration } from "@/components/app/PushDeviceTokenRegistration";
-import { AdmissionsAuthProvider } from "@/admissions-portal/core/AdmissionsAuthProvider";
-import { AdmissionsThemeProvider } from "@/admissions-portal/core/AdmissionsThemeProvider";
-import { AdmissionsShell } from "@/admissions-portal/shared/ui/AdmissionsShell";
+import { createFileRoute } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { redirectToAdmissionsPortal } from "@/lib/admissions-origin";
 
 export const Route = createFileRoute("/admissions")({
-  component: AdmissionsLayout,
+  head: () => ({ meta: [{ title: "Redirecting — LumenX Admissions" }] }),
+  component: AdmissionsRootRedirect,
 });
 
-function AdmissionsLayout() {
+function AdmissionsRootRedirect() {
+  useEffect(() => {
+    redirectToAdmissionsPortal("/");
+  }, []);
+
   return (
-    <AdmissionsThemeProvider>
-      <AdmissionsAuthProvider>
-        <PushDeviceTokenRegistration enabled />
-        <InAppAlertListener />
-        <AdmissionsShell>
-          <Outlet />
-        </AdmissionsShell>
-      </AdmissionsAuthProvider>
-    </AdmissionsThemeProvider>
+    <div className="flex min-h-screen items-center justify-center bg-background px-6">
+      <p className="text-sm text-muted-foreground">Redirecting to LumenX Admissions…</p>
+    </div>
   );
 }

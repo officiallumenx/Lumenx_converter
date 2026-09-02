@@ -17,6 +17,7 @@ export type {
 export {
   assertApiMode,
   listAdmissionApplications,
+  getAdmissionApplication,
   listAdmissionDocuments,
   getAdmissionDocumentSignedUrl,
   listAdmissionOpenings,
@@ -49,6 +50,7 @@ export {
 export {
   admissionApplicationDtoToListItem,
   admissionApplicationDtosToListItems,
+  admissionApplicationDtoToAdminDetail,
   admissionOpeningDtoToListItem,
   admissionOpeningDtosToListItems,
   admissionProgramDtoToListItem,

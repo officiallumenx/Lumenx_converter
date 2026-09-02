@@ -37,6 +37,19 @@ export async function listAdmissionApplications(
   );
 }
 
+export async function getAdmissionApplication(
+  applicationId: string,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<AdmissionApplicationDto> {
+  assertApiMode();
+  if (!isInstituteUuid(applicationId)) {
+    throw new Error("application_id must be a valid UUID");
+  }
+  return client.get<AdmissionApplicationDto>(
+    `/api/v1/admissions/applications/${applicationId.trim()}`,
+  );
+}
+
 export async function listAdmissionPrograms(
   params: ListAdmissionProgramsParams,
   client: AdminApiClient = getAdminApiClient(),

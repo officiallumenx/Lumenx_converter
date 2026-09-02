@@ -44,31 +44,12 @@ import { Route as ActivitiesRouteImport } from './routes/activities'
 import { Route as AchievementsRouteImport } from './routes/achievements'
 import { Route as AcademicHistoryRouteImport } from './routes/academic-history'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AdmissionsIndexRouteImport } from './routes/admissions/index'
 import { Route as ActivityIndexRouteImport } from './routes/activity/index'
 import { Route as VerifyStudentIdRouteImport } from './routes/verify.$studentId'
 import { Route as StudentsStudentIdRouteImport } from './routes/students.$studentId'
 import { Route as CareersSplatRouteImport } from './routes/careers/$'
 import { Route as AnnouncementsIdRouteImport } from './routes/announcements.$id'
-import { Route as AdmissionsTermsRouteImport } from './routes/admissions/terms'
-import { Route as AdmissionsSignupRouteImport } from './routes/admissions/signup'
-import { Route as AdmissionsSetupFromAdminRouteImport } from './routes/admissions/setup-from-admin'
-import { Route as AdmissionsSettingsRouteImport } from './routes/admissions/settings'
-import { Route as AdmissionsProgramsRouteImport } from './routes/admissions/programs'
-import { Route as AdmissionsProfileRouteImport } from './routes/admissions/profile'
-import { Route as AdmissionsPrivacyRouteImport } from './routes/admissions/privacy'
-import { Route as AdmissionsNotificationsRouteImport } from './routes/admissions/notifications'
-import { Route as AdmissionsLoginRouteImport } from './routes/admissions/login'
-import { Route as AdmissionsInterviewsRouteImport } from './routes/admissions/interviews'
-import { Route as AdmissionsInstituteRouteImport } from './routes/admissions/institute'
-import { Route as AdmissionsInquiriesRouteImport } from './routes/admissions/inquiries'
-import { Route as AdmissionsForgotPasswordRouteImport } from './routes/admissions/forgot-password'
-import { Route as AdmissionsFaqRouteImport } from './routes/admissions/faq'
-import { Route as AdmissionsDocumentsRouteImport } from './routes/admissions/documents'
-import { Route as AdmissionsDashboardRouteImport } from './routes/admissions/dashboard'
-import { Route as AdmissionsContactRouteImport } from './routes/admissions/contact'
-import { Route as AdmissionsApplyRouteImport } from './routes/admissions/apply'
-import { Route as AdmissionsApplicationsRouteImport } from './routes/admissions/applications'
+import { Route as AdmissionsSplatRouteImport } from './routes/admissions/$'
 import { Route as ActivitySportsRouteImport } from './routes/activity/sports'
 import { Route as ActivityProfileRouteImport } from './routes/activity/profile'
 import { Route as ActivityPracticeRouteImport } from './routes/activity/practice'
@@ -81,18 +62,6 @@ import { Route as ActivityCalendarRouteImport } from './routes/activity/calendar
 import { Route as ActivityAttendanceRouteImport } from './routes/activity/attendance'
 import { Route as ActivityAnnouncementsRouteImport } from './routes/activity/announcements'
 import { Route as ActivityAchievementsRouteImport } from './routes/activity/achievements'
-import { Route as AdmissionsInstitutesIndexRouteImport } from './routes/admissions/institutes/index'
-import { Route as AdmissionsInstituteIndexRouteImport } from './routes/admissions/institute/index'
-import { Route as AdmissionsProgramsProgramIdRouteImport } from './routes/admissions/programs/$programId'
-import { Route as AdmissionsInstitutesInstituteIdRouteImport } from './routes/admissions/institutes/$instituteId'
-import { Route as AdmissionsInstituteSettingsRouteImport } from './routes/admissions/institute/settings'
-import { Route as AdmissionsInstituteProfileRouteImport } from './routes/admissions/institute/profile'
-import { Route as AdmissionsInstituteOpeningsRouteImport } from './routes/admissions/institute/openings'
-import { Route as AdmissionsInstituteFormRouteImport } from './routes/admissions/institute/form'
-import { Route as AdmissionsInstituteApplicationsRouteImport } from './routes/admissions/institute/applications'
-import { Route as AdmissionsApplicationsApplicationIdRouteImport } from './routes/admissions/applications/$applicationId'
-import { Route as AdmissionsInstituteApplicationsIndexRouteImport } from './routes/admissions/institute/applications/index'
-import { Route as AdmissionsInstituteApplicationsApplicationIdRouteImport } from './routes/admissions/institute/applications/$applicationId'
 
 const VerifyCertificateRoute = VerifyCertificateRouteImport.update({
   id: '/verify-certificate',
@@ -269,11 +238,6 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AdmissionsIndexRoute = AdmissionsIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AdmissionsRoute,
-} as any)
 const ActivityIndexRoute = ActivityIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -299,101 +263,9 @@ const AnnouncementsIdRoute = AnnouncementsIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => AnnouncementsRoute,
 } as any)
-const AdmissionsTermsRoute = AdmissionsTermsRouteImport.update({
-  id: '/terms',
-  path: '/terms',
-  getParentRoute: () => AdmissionsRoute,
-} as any)
-const AdmissionsSignupRoute = AdmissionsSignupRouteImport.update({
-  id: '/signup',
-  path: '/signup',
-  getParentRoute: () => AdmissionsRoute,
-} as any)
-const AdmissionsSetupFromAdminRoute =
-  AdmissionsSetupFromAdminRouteImport.update({
-    id: '/setup-from-admin',
-    path: '/setup-from-admin',
-    getParentRoute: () => AdmissionsRoute,
-  } as any)
-const AdmissionsSettingsRoute = AdmissionsSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => AdmissionsRoute,
-} as any)
-const AdmissionsProgramsRoute = AdmissionsProgramsRouteImport.update({
-  id: '/programs',
-  path: '/programs',
-  getParentRoute: () => AdmissionsRoute,
-} as any)
-const AdmissionsProfileRoute = AdmissionsProfileRouteImport.update({
-  id: '/profile',
-  path: '/profile',
-  getParentRoute: () => AdmissionsRoute,
-} as any)
-const AdmissionsPrivacyRoute = AdmissionsPrivacyRouteImport.update({
-  id: '/privacy',
-  path: '/privacy',
-  getParentRoute: () => AdmissionsRoute,
-} as any)
-const AdmissionsNotificationsRoute = AdmissionsNotificationsRouteImport.update({
-  id: '/notifications',
-  path: '/notifications',
-  getParentRoute: () => AdmissionsRoute,
-} as any)
-const AdmissionsLoginRoute = AdmissionsLoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => AdmissionsRoute,
-} as any)
-const AdmissionsInterviewsRoute = AdmissionsInterviewsRouteImport.update({
-  id: '/interviews',
-  path: '/interviews',
-  getParentRoute: () => AdmissionsRoute,
-} as any)
-const AdmissionsInstituteRoute = AdmissionsInstituteRouteImport.update({
-  id: '/institute',
-  path: '/institute',
-  getParentRoute: () => AdmissionsRoute,
-} as any)
-const AdmissionsInquiriesRoute = AdmissionsInquiriesRouteImport.update({
-  id: '/inquiries',
-  path: '/inquiries',
-  getParentRoute: () => AdmissionsRoute,
-} as any)
-const AdmissionsForgotPasswordRoute =
-  AdmissionsForgotPasswordRouteImport.update({
-    id: '/forgot-password',
-    path: '/forgot-password',
-    getParentRoute: () => AdmissionsRoute,
-  } as any)
-const AdmissionsFaqRoute = AdmissionsFaqRouteImport.update({
-  id: '/faq',
-  path: '/faq',
-  getParentRoute: () => AdmissionsRoute,
-} as any)
-const AdmissionsDocumentsRoute = AdmissionsDocumentsRouteImport.update({
-  id: '/documents',
-  path: '/documents',
-  getParentRoute: () => AdmissionsRoute,
-} as any)
-const AdmissionsDashboardRoute = AdmissionsDashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
-  getParentRoute: () => AdmissionsRoute,
-} as any)
-const AdmissionsContactRoute = AdmissionsContactRouteImport.update({
-  id: '/contact',
-  path: '/contact',
-  getParentRoute: () => AdmissionsRoute,
-} as any)
-const AdmissionsApplyRoute = AdmissionsApplyRouteImport.update({
-  id: '/apply',
-  path: '/apply',
-  getParentRoute: () => AdmissionsRoute,
-} as any)
-const AdmissionsApplicationsRoute = AdmissionsApplicationsRouteImport.update({
-  id: '/applications',
-  path: '/applications',
+const AdmissionsSplatRoute = AdmissionsSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
   getParentRoute: () => AdmissionsRoute,
 } as any)
 const ActivitySportsRoute = ActivitySportsRouteImport.update({
@@ -456,77 +328,6 @@ const ActivityAchievementsRoute = ActivityAchievementsRouteImport.update({
   path: '/achievements',
   getParentRoute: () => ActivityRoute,
 } as any)
-const AdmissionsInstitutesIndexRoute =
-  AdmissionsInstitutesIndexRouteImport.update({
-    id: '/institutes/',
-    path: '/institutes/',
-    getParentRoute: () => AdmissionsRoute,
-  } as any)
-const AdmissionsInstituteIndexRoute =
-  AdmissionsInstituteIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AdmissionsInstituteRoute,
-  } as any)
-const AdmissionsProgramsProgramIdRoute =
-  AdmissionsProgramsProgramIdRouteImport.update({
-    id: '/$programId',
-    path: '/$programId',
-    getParentRoute: () => AdmissionsProgramsRoute,
-  } as any)
-const AdmissionsInstitutesInstituteIdRoute =
-  AdmissionsInstitutesInstituteIdRouteImport.update({
-    id: '/institutes/$instituteId',
-    path: '/institutes/$instituteId',
-    getParentRoute: () => AdmissionsRoute,
-  } as any)
-const AdmissionsInstituteSettingsRoute =
-  AdmissionsInstituteSettingsRouteImport.update({
-    id: '/settings',
-    path: '/settings',
-    getParentRoute: () => AdmissionsInstituteRoute,
-  } as any)
-const AdmissionsInstituteProfileRoute =
-  AdmissionsInstituteProfileRouteImport.update({
-    id: '/profile',
-    path: '/profile',
-    getParentRoute: () => AdmissionsInstituteRoute,
-  } as any)
-const AdmissionsInstituteOpeningsRoute =
-  AdmissionsInstituteOpeningsRouteImport.update({
-    id: '/openings',
-    path: '/openings',
-    getParentRoute: () => AdmissionsInstituteRoute,
-  } as any)
-const AdmissionsInstituteFormRoute = AdmissionsInstituteFormRouteImport.update({
-  id: '/form',
-  path: '/form',
-  getParentRoute: () => AdmissionsInstituteRoute,
-} as any)
-const AdmissionsInstituteApplicationsRoute =
-  AdmissionsInstituteApplicationsRouteImport.update({
-    id: '/applications',
-    path: '/applications',
-    getParentRoute: () => AdmissionsInstituteRoute,
-  } as any)
-const AdmissionsApplicationsApplicationIdRoute =
-  AdmissionsApplicationsApplicationIdRouteImport.update({
-    id: '/$applicationId',
-    path: '/$applicationId',
-    getParentRoute: () => AdmissionsApplicationsRoute,
-  } as any)
-const AdmissionsInstituteApplicationsIndexRoute =
-  AdmissionsInstituteApplicationsIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AdmissionsInstituteApplicationsRoute,
-  } as any)
-const AdmissionsInstituteApplicationsApplicationIdRoute =
-  AdmissionsInstituteApplicationsApplicationIdRouteImport.update({
-    id: '/$applicationId',
-    path: '/$applicationId',
-    getParentRoute: () => AdmissionsInstituteApplicationsRoute,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -576,49 +377,19 @@ export interface FileRoutesByFullPath {
   '/activity/practice': typeof ActivityPracticeRoute
   '/activity/profile': typeof ActivityProfileRoute
   '/activity/sports': typeof ActivitySportsRoute
-  '/admissions/applications': typeof AdmissionsApplicationsRouteWithChildren
-  '/admissions/apply': typeof AdmissionsApplyRoute
-  '/admissions/contact': typeof AdmissionsContactRoute
-  '/admissions/dashboard': typeof AdmissionsDashboardRoute
-  '/admissions/documents': typeof AdmissionsDocumentsRoute
-  '/admissions/faq': typeof AdmissionsFaqRoute
-  '/admissions/forgot-password': typeof AdmissionsForgotPasswordRoute
-  '/admissions/inquiries': typeof AdmissionsInquiriesRoute
-  '/admissions/institute': typeof AdmissionsInstituteRouteWithChildren
-  '/admissions/interviews': typeof AdmissionsInterviewsRoute
-  '/admissions/login': typeof AdmissionsLoginRoute
-  '/admissions/notifications': typeof AdmissionsNotificationsRoute
-  '/admissions/privacy': typeof AdmissionsPrivacyRoute
-  '/admissions/profile': typeof AdmissionsProfileRoute
-  '/admissions/programs': typeof AdmissionsProgramsRouteWithChildren
-  '/admissions/settings': typeof AdmissionsSettingsRoute
-  '/admissions/setup-from-admin': typeof AdmissionsSetupFromAdminRoute
-  '/admissions/signup': typeof AdmissionsSignupRoute
-  '/admissions/terms': typeof AdmissionsTermsRoute
+  '/admissions/$': typeof AdmissionsSplatRoute
   '/announcements/$id': typeof AnnouncementsIdRoute
   '/careers/$': typeof CareersSplatRoute
   '/students/$studentId': typeof StudentsStudentIdRoute
   '/verify/$studentId': typeof VerifyStudentIdRoute
   '/activity/': typeof ActivityIndexRoute
-  '/admissions/': typeof AdmissionsIndexRoute
-  '/admissions/applications/$applicationId': typeof AdmissionsApplicationsApplicationIdRoute
-  '/admissions/institute/applications': typeof AdmissionsInstituteApplicationsRouteWithChildren
-  '/admissions/institute/form': typeof AdmissionsInstituteFormRoute
-  '/admissions/institute/openings': typeof AdmissionsInstituteOpeningsRoute
-  '/admissions/institute/profile': typeof AdmissionsInstituteProfileRoute
-  '/admissions/institute/settings': typeof AdmissionsInstituteSettingsRoute
-  '/admissions/institutes/$instituteId': typeof AdmissionsInstitutesInstituteIdRoute
-  '/admissions/programs/$programId': typeof AdmissionsProgramsProgramIdRoute
-  '/admissions/institute/': typeof AdmissionsInstituteIndexRoute
-  '/admissions/institutes/': typeof AdmissionsInstitutesIndexRoute
-  '/admissions/institute/applications/$applicationId': typeof AdmissionsInstituteApplicationsApplicationIdRoute
-  '/admissions/institute/applications/': typeof AdmissionsInstituteApplicationsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/academic-history': typeof AcademicHistoryRoute
   '/achievements': typeof AchievementsRoute
   '/activities': typeof ActivitiesRoute
+  '/admissions': typeof AdmissionsRouteWithChildren
   '/alerts': typeof AlertsRoute
   '/announcements': typeof AnnouncementsRouteWithChildren
   '/assignments': typeof AssignmentsRoute
@@ -660,41 +431,12 @@ export interface FileRoutesByTo {
   '/activity/practice': typeof ActivityPracticeRoute
   '/activity/profile': typeof ActivityProfileRoute
   '/activity/sports': typeof ActivitySportsRoute
-  '/admissions/applications': typeof AdmissionsApplicationsRouteWithChildren
-  '/admissions/apply': typeof AdmissionsApplyRoute
-  '/admissions/contact': typeof AdmissionsContactRoute
-  '/admissions/dashboard': typeof AdmissionsDashboardRoute
-  '/admissions/documents': typeof AdmissionsDocumentsRoute
-  '/admissions/faq': typeof AdmissionsFaqRoute
-  '/admissions/forgot-password': typeof AdmissionsForgotPasswordRoute
-  '/admissions/inquiries': typeof AdmissionsInquiriesRoute
-  '/admissions/interviews': typeof AdmissionsInterviewsRoute
-  '/admissions/login': typeof AdmissionsLoginRoute
-  '/admissions/notifications': typeof AdmissionsNotificationsRoute
-  '/admissions/privacy': typeof AdmissionsPrivacyRoute
-  '/admissions/profile': typeof AdmissionsProfileRoute
-  '/admissions/programs': typeof AdmissionsProgramsRouteWithChildren
-  '/admissions/settings': typeof AdmissionsSettingsRoute
-  '/admissions/setup-from-admin': typeof AdmissionsSetupFromAdminRoute
-  '/admissions/signup': typeof AdmissionsSignupRoute
-  '/admissions/terms': typeof AdmissionsTermsRoute
+  '/admissions/$': typeof AdmissionsSplatRoute
   '/announcements/$id': typeof AnnouncementsIdRoute
   '/careers/$': typeof CareersSplatRoute
   '/students/$studentId': typeof StudentsStudentIdRoute
   '/verify/$studentId': typeof VerifyStudentIdRoute
   '/activity': typeof ActivityIndexRoute
-  '/admissions': typeof AdmissionsIndexRoute
-  '/admissions/applications/$applicationId': typeof AdmissionsApplicationsApplicationIdRoute
-  '/admissions/institute/form': typeof AdmissionsInstituteFormRoute
-  '/admissions/institute/openings': typeof AdmissionsInstituteOpeningsRoute
-  '/admissions/institute/profile': typeof AdmissionsInstituteProfileRoute
-  '/admissions/institute/settings': typeof AdmissionsInstituteSettingsRoute
-  '/admissions/institutes/$instituteId': typeof AdmissionsInstitutesInstituteIdRoute
-  '/admissions/programs/$programId': typeof AdmissionsProgramsProgramIdRoute
-  '/admissions/institute': typeof AdmissionsInstituteIndexRoute
-  '/admissions/institutes': typeof AdmissionsInstitutesIndexRoute
-  '/admissions/institute/applications/$applicationId': typeof AdmissionsInstituteApplicationsApplicationIdRoute
-  '/admissions/institute/applications': typeof AdmissionsInstituteApplicationsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -745,43 +487,12 @@ export interface FileRoutesById {
   '/activity/practice': typeof ActivityPracticeRoute
   '/activity/profile': typeof ActivityProfileRoute
   '/activity/sports': typeof ActivitySportsRoute
-  '/admissions/applications': typeof AdmissionsApplicationsRouteWithChildren
-  '/admissions/apply': typeof AdmissionsApplyRoute
-  '/admissions/contact': typeof AdmissionsContactRoute
-  '/admissions/dashboard': typeof AdmissionsDashboardRoute
-  '/admissions/documents': typeof AdmissionsDocumentsRoute
-  '/admissions/faq': typeof AdmissionsFaqRoute
-  '/admissions/forgot-password': typeof AdmissionsForgotPasswordRoute
-  '/admissions/inquiries': typeof AdmissionsInquiriesRoute
-  '/admissions/institute': typeof AdmissionsInstituteRouteWithChildren
-  '/admissions/interviews': typeof AdmissionsInterviewsRoute
-  '/admissions/login': typeof AdmissionsLoginRoute
-  '/admissions/notifications': typeof AdmissionsNotificationsRoute
-  '/admissions/privacy': typeof AdmissionsPrivacyRoute
-  '/admissions/profile': typeof AdmissionsProfileRoute
-  '/admissions/programs': typeof AdmissionsProgramsRouteWithChildren
-  '/admissions/settings': typeof AdmissionsSettingsRoute
-  '/admissions/setup-from-admin': typeof AdmissionsSetupFromAdminRoute
-  '/admissions/signup': typeof AdmissionsSignupRoute
-  '/admissions/terms': typeof AdmissionsTermsRoute
+  '/admissions/$': typeof AdmissionsSplatRoute
   '/announcements/$id': typeof AnnouncementsIdRoute
   '/careers/$': typeof CareersSplatRoute
   '/students/$studentId': typeof StudentsStudentIdRoute
   '/verify/$studentId': typeof VerifyStudentIdRoute
   '/activity/': typeof ActivityIndexRoute
-  '/admissions/': typeof AdmissionsIndexRoute
-  '/admissions/applications/$applicationId': typeof AdmissionsApplicationsApplicationIdRoute
-  '/admissions/institute/applications': typeof AdmissionsInstituteApplicationsRouteWithChildren
-  '/admissions/institute/form': typeof AdmissionsInstituteFormRoute
-  '/admissions/institute/openings': typeof AdmissionsInstituteOpeningsRoute
-  '/admissions/institute/profile': typeof AdmissionsInstituteProfileRoute
-  '/admissions/institute/settings': typeof AdmissionsInstituteSettingsRoute
-  '/admissions/institutes/$instituteId': typeof AdmissionsInstitutesInstituteIdRoute
-  '/admissions/programs/$programId': typeof AdmissionsProgramsProgramIdRoute
-  '/admissions/institute/': typeof AdmissionsInstituteIndexRoute
-  '/admissions/institutes/': typeof AdmissionsInstitutesIndexRoute
-  '/admissions/institute/applications/$applicationId': typeof AdmissionsInstituteApplicationsApplicationIdRoute
-  '/admissions/institute/applications/': typeof AdmissionsInstituteApplicationsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -833,49 +544,19 @@ export interface FileRouteTypes {
     | '/activity/practice'
     | '/activity/profile'
     | '/activity/sports'
-    | '/admissions/applications'
-    | '/admissions/apply'
-    | '/admissions/contact'
-    | '/admissions/dashboard'
-    | '/admissions/documents'
-    | '/admissions/faq'
-    | '/admissions/forgot-password'
-    | '/admissions/inquiries'
-    | '/admissions/institute'
-    | '/admissions/interviews'
-    | '/admissions/login'
-    | '/admissions/notifications'
-    | '/admissions/privacy'
-    | '/admissions/profile'
-    | '/admissions/programs'
-    | '/admissions/settings'
-    | '/admissions/setup-from-admin'
-    | '/admissions/signup'
-    | '/admissions/terms'
+    | '/admissions/$'
     | '/announcements/$id'
     | '/careers/$'
     | '/students/$studentId'
     | '/verify/$studentId'
     | '/activity/'
-    | '/admissions/'
-    | '/admissions/applications/$applicationId'
-    | '/admissions/institute/applications'
-    | '/admissions/institute/form'
-    | '/admissions/institute/openings'
-    | '/admissions/institute/profile'
-    | '/admissions/institute/settings'
-    | '/admissions/institutes/$instituteId'
-    | '/admissions/programs/$programId'
-    | '/admissions/institute/'
-    | '/admissions/institutes/'
-    | '/admissions/institute/applications/$applicationId'
-    | '/admissions/institute/applications/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/academic-history'
     | '/achievements'
     | '/activities'
+    | '/admissions'
     | '/alerts'
     | '/announcements'
     | '/assignments'
@@ -917,41 +598,12 @@ export interface FileRouteTypes {
     | '/activity/practice'
     | '/activity/profile'
     | '/activity/sports'
-    | '/admissions/applications'
-    | '/admissions/apply'
-    | '/admissions/contact'
-    | '/admissions/dashboard'
-    | '/admissions/documents'
-    | '/admissions/faq'
-    | '/admissions/forgot-password'
-    | '/admissions/inquiries'
-    | '/admissions/interviews'
-    | '/admissions/login'
-    | '/admissions/notifications'
-    | '/admissions/privacy'
-    | '/admissions/profile'
-    | '/admissions/programs'
-    | '/admissions/settings'
-    | '/admissions/setup-from-admin'
-    | '/admissions/signup'
-    | '/admissions/terms'
+    | '/admissions/$'
     | '/announcements/$id'
     | '/careers/$'
     | '/students/$studentId'
     | '/verify/$studentId'
     | '/activity'
-    | '/admissions'
-    | '/admissions/applications/$applicationId'
-    | '/admissions/institute/form'
-    | '/admissions/institute/openings'
-    | '/admissions/institute/profile'
-    | '/admissions/institute/settings'
-    | '/admissions/institutes/$instituteId'
-    | '/admissions/programs/$programId'
-    | '/admissions/institute'
-    | '/admissions/institutes'
-    | '/admissions/institute/applications/$applicationId'
-    | '/admissions/institute/applications'
   id:
     | '__root__'
     | '/'
@@ -1001,43 +653,12 @@ export interface FileRouteTypes {
     | '/activity/practice'
     | '/activity/profile'
     | '/activity/sports'
-    | '/admissions/applications'
-    | '/admissions/apply'
-    | '/admissions/contact'
-    | '/admissions/dashboard'
-    | '/admissions/documents'
-    | '/admissions/faq'
-    | '/admissions/forgot-password'
-    | '/admissions/inquiries'
-    | '/admissions/institute'
-    | '/admissions/interviews'
-    | '/admissions/login'
-    | '/admissions/notifications'
-    | '/admissions/privacy'
-    | '/admissions/profile'
-    | '/admissions/programs'
-    | '/admissions/settings'
-    | '/admissions/setup-from-admin'
-    | '/admissions/signup'
-    | '/admissions/terms'
+    | '/admissions/$'
     | '/announcements/$id'
     | '/careers/$'
     | '/students/$studentId'
     | '/verify/$studentId'
     | '/activity/'
-    | '/admissions/'
-    | '/admissions/applications/$applicationId'
-    | '/admissions/institute/applications'
-    | '/admissions/institute/form'
-    | '/admissions/institute/openings'
-    | '/admissions/institute/profile'
-    | '/admissions/institute/settings'
-    | '/admissions/institutes/$instituteId'
-    | '/admissions/programs/$programId'
-    | '/admissions/institute/'
-    | '/admissions/institutes/'
-    | '/admissions/institute/applications/$applicationId'
-    | '/admissions/institute/applications/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1326,13 +947,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admissions/': {
-      id: '/admissions/'
-      path: '/'
-      fullPath: '/admissions/'
-      preLoaderRoute: typeof AdmissionsIndexRouteImport
-      parentRoute: typeof AdmissionsRoute
-    }
     '/activity/': {
       id: '/activity/'
       path: '/'
@@ -1368,137 +982,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AnnouncementsIdRouteImport
       parentRoute: typeof AnnouncementsRoute
     }
-    '/admissions/terms': {
-      id: '/admissions/terms'
-      path: '/terms'
-      fullPath: '/admissions/terms'
-      preLoaderRoute: typeof AdmissionsTermsRouteImport
-      parentRoute: typeof AdmissionsRoute
-    }
-    '/admissions/signup': {
-      id: '/admissions/signup'
-      path: '/signup'
-      fullPath: '/admissions/signup'
-      preLoaderRoute: typeof AdmissionsSignupRouteImport
-      parentRoute: typeof AdmissionsRoute
-    }
-    '/admissions/setup-from-admin': {
-      id: '/admissions/setup-from-admin'
-      path: '/setup-from-admin'
-      fullPath: '/admissions/setup-from-admin'
-      preLoaderRoute: typeof AdmissionsSetupFromAdminRouteImport
-      parentRoute: typeof AdmissionsRoute
-    }
-    '/admissions/settings': {
-      id: '/admissions/settings'
-      path: '/settings'
-      fullPath: '/admissions/settings'
-      preLoaderRoute: typeof AdmissionsSettingsRouteImport
-      parentRoute: typeof AdmissionsRoute
-    }
-    '/admissions/programs': {
-      id: '/admissions/programs'
-      path: '/programs'
-      fullPath: '/admissions/programs'
-      preLoaderRoute: typeof AdmissionsProgramsRouteImport
-      parentRoute: typeof AdmissionsRoute
-    }
-    '/admissions/profile': {
-      id: '/admissions/profile'
-      path: '/profile'
-      fullPath: '/admissions/profile'
-      preLoaderRoute: typeof AdmissionsProfileRouteImport
-      parentRoute: typeof AdmissionsRoute
-    }
-    '/admissions/privacy': {
-      id: '/admissions/privacy'
-      path: '/privacy'
-      fullPath: '/admissions/privacy'
-      preLoaderRoute: typeof AdmissionsPrivacyRouteImport
-      parentRoute: typeof AdmissionsRoute
-    }
-    '/admissions/notifications': {
-      id: '/admissions/notifications'
-      path: '/notifications'
-      fullPath: '/admissions/notifications'
-      preLoaderRoute: typeof AdmissionsNotificationsRouteImport
-      parentRoute: typeof AdmissionsRoute
-    }
-    '/admissions/login': {
-      id: '/admissions/login'
-      path: '/login'
-      fullPath: '/admissions/login'
-      preLoaderRoute: typeof AdmissionsLoginRouteImport
-      parentRoute: typeof AdmissionsRoute
-    }
-    '/admissions/interviews': {
-      id: '/admissions/interviews'
-      path: '/interviews'
-      fullPath: '/admissions/interviews'
-      preLoaderRoute: typeof AdmissionsInterviewsRouteImport
-      parentRoute: typeof AdmissionsRoute
-    }
-    '/admissions/institute': {
-      id: '/admissions/institute'
-      path: '/institute'
-      fullPath: '/admissions/institute'
-      preLoaderRoute: typeof AdmissionsInstituteRouteImport
-      parentRoute: typeof AdmissionsRoute
-    }
-    '/admissions/inquiries': {
-      id: '/admissions/inquiries'
-      path: '/inquiries'
-      fullPath: '/admissions/inquiries'
-      preLoaderRoute: typeof AdmissionsInquiriesRouteImport
-      parentRoute: typeof AdmissionsRoute
-    }
-    '/admissions/forgot-password': {
-      id: '/admissions/forgot-password'
-      path: '/forgot-password'
-      fullPath: '/admissions/forgot-password'
-      preLoaderRoute: typeof AdmissionsForgotPasswordRouteImport
-      parentRoute: typeof AdmissionsRoute
-    }
-    '/admissions/faq': {
-      id: '/admissions/faq'
-      path: '/faq'
-      fullPath: '/admissions/faq'
-      preLoaderRoute: typeof AdmissionsFaqRouteImport
-      parentRoute: typeof AdmissionsRoute
-    }
-    '/admissions/documents': {
-      id: '/admissions/documents'
-      path: '/documents'
-      fullPath: '/admissions/documents'
-      preLoaderRoute: typeof AdmissionsDocumentsRouteImport
-      parentRoute: typeof AdmissionsRoute
-    }
-    '/admissions/dashboard': {
-      id: '/admissions/dashboard'
-      path: '/dashboard'
-      fullPath: '/admissions/dashboard'
-      preLoaderRoute: typeof AdmissionsDashboardRouteImport
-      parentRoute: typeof AdmissionsRoute
-    }
-    '/admissions/contact': {
-      id: '/admissions/contact'
-      path: '/contact'
-      fullPath: '/admissions/contact'
-      preLoaderRoute: typeof AdmissionsContactRouteImport
-      parentRoute: typeof AdmissionsRoute
-    }
-    '/admissions/apply': {
-      id: '/admissions/apply'
-      path: '/apply'
-      fullPath: '/admissions/apply'
-      preLoaderRoute: typeof AdmissionsApplyRouteImport
-      parentRoute: typeof AdmissionsRoute
-    }
-    '/admissions/applications': {
-      id: '/admissions/applications'
-      path: '/applications'
-      fullPath: '/admissions/applications'
-      preLoaderRoute: typeof AdmissionsApplicationsRouteImport
+    '/admissions/$': {
+      id: '/admissions/$'
+      path: '/$'
+      fullPath: '/admissions/$'
+      preLoaderRoute: typeof AdmissionsSplatRouteImport
       parentRoute: typeof AdmissionsRoute
     }
     '/activity/sports': {
@@ -1585,90 +1073,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ActivityAchievementsRouteImport
       parentRoute: typeof ActivityRoute
     }
-    '/admissions/institutes/': {
-      id: '/admissions/institutes/'
-      path: '/institutes'
-      fullPath: '/admissions/institutes/'
-      preLoaderRoute: typeof AdmissionsInstitutesIndexRouteImport
-      parentRoute: typeof AdmissionsRoute
-    }
-    '/admissions/institute/': {
-      id: '/admissions/institute/'
-      path: '/'
-      fullPath: '/admissions/institute/'
-      preLoaderRoute: typeof AdmissionsInstituteIndexRouteImport
-      parentRoute: typeof AdmissionsInstituteRoute
-    }
-    '/admissions/programs/$programId': {
-      id: '/admissions/programs/$programId'
-      path: '/$programId'
-      fullPath: '/admissions/programs/$programId'
-      preLoaderRoute: typeof AdmissionsProgramsProgramIdRouteImport
-      parentRoute: typeof AdmissionsProgramsRoute
-    }
-    '/admissions/institutes/$instituteId': {
-      id: '/admissions/institutes/$instituteId'
-      path: '/institutes/$instituteId'
-      fullPath: '/admissions/institutes/$instituteId'
-      preLoaderRoute: typeof AdmissionsInstitutesInstituteIdRouteImport
-      parentRoute: typeof AdmissionsRoute
-    }
-    '/admissions/institute/settings': {
-      id: '/admissions/institute/settings'
-      path: '/settings'
-      fullPath: '/admissions/institute/settings'
-      preLoaderRoute: typeof AdmissionsInstituteSettingsRouteImport
-      parentRoute: typeof AdmissionsInstituteRoute
-    }
-    '/admissions/institute/profile': {
-      id: '/admissions/institute/profile'
-      path: '/profile'
-      fullPath: '/admissions/institute/profile'
-      preLoaderRoute: typeof AdmissionsInstituteProfileRouteImport
-      parentRoute: typeof AdmissionsInstituteRoute
-    }
-    '/admissions/institute/openings': {
-      id: '/admissions/institute/openings'
-      path: '/openings'
-      fullPath: '/admissions/institute/openings'
-      preLoaderRoute: typeof AdmissionsInstituteOpeningsRouteImport
-      parentRoute: typeof AdmissionsInstituteRoute
-    }
-    '/admissions/institute/form': {
-      id: '/admissions/institute/form'
-      path: '/form'
-      fullPath: '/admissions/institute/form'
-      preLoaderRoute: typeof AdmissionsInstituteFormRouteImport
-      parentRoute: typeof AdmissionsInstituteRoute
-    }
-    '/admissions/institute/applications': {
-      id: '/admissions/institute/applications'
-      path: '/applications'
-      fullPath: '/admissions/institute/applications'
-      preLoaderRoute: typeof AdmissionsInstituteApplicationsRouteImport
-      parentRoute: typeof AdmissionsInstituteRoute
-    }
-    '/admissions/applications/$applicationId': {
-      id: '/admissions/applications/$applicationId'
-      path: '/$applicationId'
-      fullPath: '/admissions/applications/$applicationId'
-      preLoaderRoute: typeof AdmissionsApplicationsApplicationIdRouteImport
-      parentRoute: typeof AdmissionsApplicationsRoute
-    }
-    '/admissions/institute/applications/': {
-      id: '/admissions/institute/applications/'
-      path: '/'
-      fullPath: '/admissions/institute/applications/'
-      preLoaderRoute: typeof AdmissionsInstituteApplicationsIndexRouteImport
-      parentRoute: typeof AdmissionsInstituteApplicationsRoute
-    }
-    '/admissions/institute/applications/$applicationId': {
-      id: '/admissions/institute/applications/$applicationId'
-      path: '/$applicationId'
-      fullPath: '/admissions/institute/applications/$applicationId'
-      preLoaderRoute: typeof AdmissionsInstituteApplicationsApplicationIdRouteImport
-      parentRoute: typeof AdmissionsInstituteApplicationsRoute
-    }
   }
 }
 
@@ -1708,120 +1112,12 @@ const ActivityRouteWithChildren = ActivityRoute._addFileChildren(
   ActivityRouteChildren,
 )
 
-interface AdmissionsApplicationsRouteChildren {
-  AdmissionsApplicationsApplicationIdRoute: typeof AdmissionsApplicationsApplicationIdRoute
-}
-
-const AdmissionsApplicationsRouteChildren: AdmissionsApplicationsRouteChildren =
-  {
-    AdmissionsApplicationsApplicationIdRoute:
-      AdmissionsApplicationsApplicationIdRoute,
-  }
-
-const AdmissionsApplicationsRouteWithChildren =
-  AdmissionsApplicationsRoute._addFileChildren(
-    AdmissionsApplicationsRouteChildren,
-  )
-
-interface AdmissionsInstituteApplicationsRouteChildren {
-  AdmissionsInstituteApplicationsApplicationIdRoute: typeof AdmissionsInstituteApplicationsApplicationIdRoute
-  AdmissionsInstituteApplicationsIndexRoute: typeof AdmissionsInstituteApplicationsIndexRoute
-}
-
-const AdmissionsInstituteApplicationsRouteChildren: AdmissionsInstituteApplicationsRouteChildren =
-  {
-    AdmissionsInstituteApplicationsApplicationIdRoute:
-      AdmissionsInstituteApplicationsApplicationIdRoute,
-    AdmissionsInstituteApplicationsIndexRoute:
-      AdmissionsInstituteApplicationsIndexRoute,
-  }
-
-const AdmissionsInstituteApplicationsRouteWithChildren =
-  AdmissionsInstituteApplicationsRoute._addFileChildren(
-    AdmissionsInstituteApplicationsRouteChildren,
-  )
-
-interface AdmissionsInstituteRouteChildren {
-  AdmissionsInstituteApplicationsRoute: typeof AdmissionsInstituteApplicationsRouteWithChildren
-  AdmissionsInstituteFormRoute: typeof AdmissionsInstituteFormRoute
-  AdmissionsInstituteOpeningsRoute: typeof AdmissionsInstituteOpeningsRoute
-  AdmissionsInstituteProfileRoute: typeof AdmissionsInstituteProfileRoute
-  AdmissionsInstituteSettingsRoute: typeof AdmissionsInstituteSettingsRoute
-  AdmissionsInstituteIndexRoute: typeof AdmissionsInstituteIndexRoute
-}
-
-const AdmissionsInstituteRouteChildren: AdmissionsInstituteRouteChildren = {
-  AdmissionsInstituteApplicationsRoute:
-    AdmissionsInstituteApplicationsRouteWithChildren,
-  AdmissionsInstituteFormRoute: AdmissionsInstituteFormRoute,
-  AdmissionsInstituteOpeningsRoute: AdmissionsInstituteOpeningsRoute,
-  AdmissionsInstituteProfileRoute: AdmissionsInstituteProfileRoute,
-  AdmissionsInstituteSettingsRoute: AdmissionsInstituteSettingsRoute,
-  AdmissionsInstituteIndexRoute: AdmissionsInstituteIndexRoute,
-}
-
-const AdmissionsInstituteRouteWithChildren =
-  AdmissionsInstituteRoute._addFileChildren(AdmissionsInstituteRouteChildren)
-
-interface AdmissionsProgramsRouteChildren {
-  AdmissionsProgramsProgramIdRoute: typeof AdmissionsProgramsProgramIdRoute
-}
-
-const AdmissionsProgramsRouteChildren: AdmissionsProgramsRouteChildren = {
-  AdmissionsProgramsProgramIdRoute: AdmissionsProgramsProgramIdRoute,
-}
-
-const AdmissionsProgramsRouteWithChildren =
-  AdmissionsProgramsRoute._addFileChildren(AdmissionsProgramsRouteChildren)
-
 interface AdmissionsRouteChildren {
-  AdmissionsApplicationsRoute: typeof AdmissionsApplicationsRouteWithChildren
-  AdmissionsApplyRoute: typeof AdmissionsApplyRoute
-  AdmissionsContactRoute: typeof AdmissionsContactRoute
-  AdmissionsDashboardRoute: typeof AdmissionsDashboardRoute
-  AdmissionsDocumentsRoute: typeof AdmissionsDocumentsRoute
-  AdmissionsFaqRoute: typeof AdmissionsFaqRoute
-  AdmissionsForgotPasswordRoute: typeof AdmissionsForgotPasswordRoute
-  AdmissionsInquiriesRoute: typeof AdmissionsInquiriesRoute
-  AdmissionsInstituteRoute: typeof AdmissionsInstituteRouteWithChildren
-  AdmissionsInterviewsRoute: typeof AdmissionsInterviewsRoute
-  AdmissionsLoginRoute: typeof AdmissionsLoginRoute
-  AdmissionsNotificationsRoute: typeof AdmissionsNotificationsRoute
-  AdmissionsPrivacyRoute: typeof AdmissionsPrivacyRoute
-  AdmissionsProfileRoute: typeof AdmissionsProfileRoute
-  AdmissionsProgramsRoute: typeof AdmissionsProgramsRouteWithChildren
-  AdmissionsSettingsRoute: typeof AdmissionsSettingsRoute
-  AdmissionsSetupFromAdminRoute: typeof AdmissionsSetupFromAdminRoute
-  AdmissionsSignupRoute: typeof AdmissionsSignupRoute
-  AdmissionsTermsRoute: typeof AdmissionsTermsRoute
-  AdmissionsIndexRoute: typeof AdmissionsIndexRoute
-  AdmissionsInstitutesInstituteIdRoute: typeof AdmissionsInstitutesInstituteIdRoute
-  AdmissionsInstitutesIndexRoute: typeof AdmissionsInstitutesIndexRoute
+  AdmissionsSplatRoute: typeof AdmissionsSplatRoute
 }
 
 const AdmissionsRouteChildren: AdmissionsRouteChildren = {
-  AdmissionsApplicationsRoute: AdmissionsApplicationsRouteWithChildren,
-  AdmissionsApplyRoute: AdmissionsApplyRoute,
-  AdmissionsContactRoute: AdmissionsContactRoute,
-  AdmissionsDashboardRoute: AdmissionsDashboardRoute,
-  AdmissionsDocumentsRoute: AdmissionsDocumentsRoute,
-  AdmissionsFaqRoute: AdmissionsFaqRoute,
-  AdmissionsForgotPasswordRoute: AdmissionsForgotPasswordRoute,
-  AdmissionsInquiriesRoute: AdmissionsInquiriesRoute,
-  AdmissionsInstituteRoute: AdmissionsInstituteRouteWithChildren,
-  AdmissionsInterviewsRoute: AdmissionsInterviewsRoute,
-  AdmissionsLoginRoute: AdmissionsLoginRoute,
-  AdmissionsNotificationsRoute: AdmissionsNotificationsRoute,
-  AdmissionsPrivacyRoute: AdmissionsPrivacyRoute,
-  AdmissionsProfileRoute: AdmissionsProfileRoute,
-  AdmissionsProgramsRoute: AdmissionsProgramsRouteWithChildren,
-  AdmissionsSettingsRoute: AdmissionsSettingsRoute,
-  AdmissionsSetupFromAdminRoute: AdmissionsSetupFromAdminRoute,
-  AdmissionsSignupRoute: AdmissionsSignupRoute,
-  AdmissionsTermsRoute: AdmissionsTermsRoute,
-  AdmissionsIndexRoute: AdmissionsIndexRoute,
-  AdmissionsInstitutesInstituteIdRoute: AdmissionsInstitutesInstituteIdRoute,
-  AdmissionsInstitutesIndexRoute: AdmissionsInstitutesIndexRoute,
+  AdmissionsSplatRoute: AdmissionsSplatRoute,
 }
 
 const AdmissionsRouteWithChildren = AdmissionsRoute._addFileChildren(
