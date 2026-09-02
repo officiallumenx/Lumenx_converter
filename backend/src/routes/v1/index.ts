@@ -44,6 +44,7 @@ import teacherPerformance from "./teacher-performance.js";
 import alertRules from "./alert-rules.js";
 import schoolAlerts from "./school-alerts.js";
 import subscriptions from "./subscriptions.js";
+import productFeedback from "./product-feedback.js";
 import registrations from "./registrations.js";
 import {
   accessRoles,
@@ -147,5 +148,6 @@ v1.route("/teacher-performance", teacherPerformance);
 v1.route("/alert-rules", alertRules);
 v1.route("/school-alerts", schoolAlerts);
 v1.route("/subscriptions", subscriptions);
+v1.route("/product-feedback", productFeedback);
 
 export default v1;

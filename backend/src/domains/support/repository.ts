@@ -25,6 +25,23 @@ export async function listOpenSupportThreadsForPlatform(
   return ensureDbOk(result) as SupportThreadRow[];
 }
 
+/** Platform inbox: all non-deleted threads (newest first). */
+export async function listAllThreadsForPlatform(
+  admin: SupabaseClient,
+  opts?: { status?: string; category?: string; limit?: number },
+): Promise<SupportThreadRow[]> {
+  let q = admin
+    .from("support_thread")
+    .select(THREAD_COLS)
+    .is("deleted_at", null)
+    .order("updated_at", { ascending: false })
+    .limit(opts?.limit ?? 200);
+  if (opts?.status) q = q.eq("status", opts.status);
+  if (opts?.category) q = q.eq("category", opts.category);
+  const result = await q;
+  return ensureDbOk(result) as SupportThreadRow[];
+}
+
 export async function listThreadsByInstitute(
   admin: SupabaseClient,
   instituteId: string,

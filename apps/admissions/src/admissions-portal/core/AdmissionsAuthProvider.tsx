@@ -27,6 +27,9 @@ import {
   tryHydrateApiSession,
 } from "@/auth/api-auth";
 import { setAdmissionsApiUnauthorizedHandler } from "@/lib/admissions-api";
+import { getAdmissionsApiClient } from "@/lib/admissions-api";
+import { setLumenXFeedbackTransport } from "@lumenx/utils";
+import { isInstituteUuid } from "@/lib/institute-id";
 
 interface AdmissionsAuthContextValue {
   user: AdmissionsUser | null;
@@ -76,6 +79,28 @@ export function AdmissionsAuthProvider({ children }: { children: ReactNode }) {
     });
     return () => setAdmissionsApiUnauthorizedHandler(null);
   }, [clearLocal]);
+
+  useEffect(() => {
+    if (!isApiAuthMode()) {
+      setLumenXFeedbackTransport(null);
+      return () => setLumenXFeedbackTransport(null);
+    }
+    setLumenXFeedbackTransport({
+      resolveInstituteId: () =>
+        isInstituteUuid(user?.instituteId) ? user!.instituteId!.trim() : null,
+      submit: async (input) => {
+        await getAdmissionsApiClient().post("/api/v1/product-feedback", {
+          institute_id: input.instituteId,
+          source: input.source,
+          kind: input.kind,
+          rating: input.rating,
+          message: input.message.trim(),
+          screenshot_file_name: input.screenshotFileName ?? null,
+        });
+      },
+    });
+    return () => setLumenXFeedbackTransport(null);
+  }, [user?.instituteId]);
 
   useEffect(() => {
     if (bootstrapped.current) return;

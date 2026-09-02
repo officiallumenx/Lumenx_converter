@@ -1,13 +1,13 @@
 /**
  * LumenX product feedback — goes to LumenX, not the school.
  * Rating · Bug · Feature Request · Experience · optional screenshot.
- * Frontend only (localStorage via @lumenx/utils).
+ * Demo: localStorage. API: via setLumenXFeedbackTransport (apps register).
  */
 import { useState, type ReactNode } from "react";
 import { Check, MessageSquarePlus, Star } from "lucide-react";
 import {
   LUMENX_FEEDBACK_KINDS,
-  submitLumenXFeedback,
+  submitLumenXFeedbackAsync,
   type LumenXFeedbackKind,
   type LumenXFeedbackSource,
 } from "@lumenx/utils";
@@ -46,6 +46,8 @@ export function LumenXFeedbackForm({
   const [screenshot, setScreenshot] = useState<SimpleUploadValue | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [submitMode, setSubmitMode] = useState<"api" | "demo" | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const reset = () => {
     setRating(0);
@@ -54,6 +56,8 @@ export function LumenXFeedbackForm({
     setScreenshot(null);
     setError(null);
     setSubmitted(false);
+    setSubmitMode(null);
+    setSaving(false);
   };
 
   const submit = () => {
@@ -66,16 +70,26 @@ export function LumenXFeedbackForm({
       setError("Please write at least 12 characters.");
       return;
     }
-    submitLumenXFeedback({
+    setSaving(true);
+    void submitLumenXFeedbackAsync({
       source,
       kind,
       rating,
       message,
       screenshotFileName: screenshot?.fileName ?? null,
       screenshotDataUrl: screenshot?.dataUrl ?? null,
-    });
-    setSubmitted(true);
-    onSubmitted?.();
+    })
+      .then((result) => {
+        setSubmitMode(result.mode);
+        setSubmitted(true);
+        onSubmitted?.();
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Failed to submit feedback");
+      })
+      .finally(() => {
+        setSaving(false);
+      });
   };
 
   if (submitted) {
@@ -86,8 +100,9 @@ export function LumenXFeedbackForm({
         </div>
         <h3 className="text-base font-semibold">Thank you for your feedback</h3>
         <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
-          Sent to the LumenX product team — not your school. Frontend demo only; nothing was emailed
-          or posted to a server.
+          {submitMode === "api"
+            ? "Sent to the LumenX product team — not your school. Our team can review it in Nexus Support."
+            : "Saved locally for this demo session. In API mode it posts to the LumenX support inbox."}
         </p>
         <Button type="button" className="mt-6 rounded-xl" onClick={reset}>
           Submit another
@@ -164,8 +179,13 @@ export function LumenXFeedbackForm({
 
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
 
-      <Button type="button" className="w-full rounded-xl sm:w-auto" onClick={submit}>
-        Submit to LumenX
+      <Button
+        type="button"
+        className="w-full rounded-xl sm:w-auto"
+        onClick={submit}
+        disabled={saving}
+      >
+        {saving ? "Submitting…" : "Submit to LumenX"}
       </Button>
     </div>
   );

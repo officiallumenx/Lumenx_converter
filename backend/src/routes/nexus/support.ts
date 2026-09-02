@@ -43,20 +43,22 @@ const categorySchema = z.enum([
 const statusSchema = z.enum(["open", "in_progress", "waiting", "resolved"]);
 const prioritySchema = z.enum(["low", "medium", "high"]);
 
-const instituteQuerySchema = z.object({
-  institute_id: uuid,
+const listQuerySchema = z.object({
+  institute_id: uuid.optional(),
   status: statusSchema.optional(),
+  category: categorySchema.optional(),
 });
 
 support.get("/threads", async (c) => {
   const actor = assertAuthenticated(c);
   const admin = requireAdmin(c);
-  const query = validateQuery(instituteQuerySchema, c.req.query());
+  const query = validateQuery(listQuerySchema, c.req.query());
   const data = await listThreadsForActor(
     admin,
     actor,
     query.institute_id,
     query.status,
+    query.category,
   );
   return c.json({ data });
 });

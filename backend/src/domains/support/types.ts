@@ -84,6 +84,16 @@ export type CreateSupportThreadInput = {
   authorLabel?: string;
 };
 
+/** Product feedback from any LumenX app — lands in Nexus support inbox. */
+export type CreateProductFeedbackInput = {
+  instituteId: string;
+  source: "admin" | "connect" | "transport" | "admissions" | "careers" | "nexus";
+  kind: "bug" | "feature" | "experience";
+  rating: number;
+  message: string;
+  screenshotFileName?: string | null;
+};
+
 export type UpdateSupportThreadInput = {
   status?: SupportStatus;
   priority?: SupportPriority;

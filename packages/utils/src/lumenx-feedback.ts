@@ -1,6 +1,6 @@
 /**
- * LumenX product feedback — frontend only (localStorage).
- * Goes to LumenX platform, not the school institute.
+ * LumenX product feedback — frontend form + optional API transport.
+ * Demo: localStorage. API mode: apps register a transport that POSTs /api/v1/product-feedback.
  */
 
 export const LUMENX_FEEDBACK_STORAGE_KEY = "lumenx.platform.feedback.v1";
@@ -13,7 +13,8 @@ export type LumenXFeedbackSource =
   | "connect"
   | "transport"
   | "admissions"
-  | "careers";
+  | "careers"
+  | "nexus";
 
 export type LumenXFeedbackEntry = {
   id: string;
@@ -34,6 +35,28 @@ export type CreateLumenXFeedbackInput = {
   screenshotFileName?: string | null;
   screenshotDataUrl?: string | null;
 };
+
+export type LumenXFeedbackTransport = {
+  /** Resolve institute UUID for the current session; null → cannot use API. */
+  resolveInstituteId: () => string | null | Promise<string | null>;
+  /** POST to backend. Throw on failure. */
+  submit: (
+    input: CreateLumenXFeedbackInput & { instituteId: string },
+  ) => Promise<void>;
+};
+
+let feedbackTransport: LumenXFeedbackTransport | null = null;
+
+/** Apps call this once in API auth mode (e.g. from a root provider). */
+export function setLumenXFeedbackTransport(
+  transport: LumenXFeedbackTransport | null,
+): void {
+  feedbackTransport = transport;
+}
+
+export function getLumenXFeedbackTransport(): LumenXFeedbackTransport | null {
+  return feedbackTransport;
+}
 
 function canUseStorage(): boolean {
   return typeof localStorage !== "undefined";
@@ -66,6 +89,7 @@ function saveLumenXFeedback(entries: LumenXFeedbackEntry[]): void {
   }
 }
 
+/** Demo / offline path — always writes localStorage. */
 export function submitLumenXFeedback(input: CreateLumenXFeedbackInput): LumenXFeedbackEntry {
   const entry: LumenXFeedbackEntry = {
     id: `fb-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -80,6 +104,29 @@ export function submitLumenXFeedback(input: CreateLumenXFeedbackInput): LumenXFe
   const next = [entry, ...loadLumenXFeedback()];
   saveLumenXFeedback(next);
   return entry;
+}
+
+export type SubmitLumenXFeedbackResult = {
+  mode: "api" | "demo";
+  entry?: LumenXFeedbackEntry;
+};
+
+/**
+ * Prefer API transport when configured + institute id available.
+ * Falls back to localStorage demo otherwise.
+ */
+export async function submitLumenXFeedbackAsync(
+  input: CreateLumenXFeedbackInput,
+): Promise<SubmitLumenXFeedbackResult> {
+  const transport = feedbackTransport;
+  if (transport) {
+    const instituteId = await transport.resolveInstituteId();
+    if (instituteId) {
+      await transport.submit({ ...input, instituteId });
+      return { mode: "api" };
+    }
+  }
+  return { mode: "demo", entry: submitLumenXFeedback(input) };
 }
 
 export function lumenXFeedbackKindLabel(kind: LumenXFeedbackKind): string {

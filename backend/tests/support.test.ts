@@ -442,3 +442,76 @@ describe("nexus support api", () => {
     expect(note.status).toBe(403);
   });
 });
+
+describe("product feedback api", () => {
+  it("lets institute admin submit feedback into support inbox", async () => {
+    const app = appWithDb(baseDb());
+
+    const created = await app.request("/api/v1/product-feedback", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-admin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        source: "admin",
+        kind: "feature",
+        rating: 4,
+        message: "Please add dark mode for the analytics charts.",
+      }),
+    });
+    expect(created.status).toBe(201);
+    const thread = (await json(created)).data;
+    expect(thread.category).toBe("feature_request");
+    expect(thread.subject).toContain("[admin]");
+    expect(thread.subject).toContain("4/5");
+    expect(thread.messages).toHaveLength(1);
+
+    const inbox = await app.request("/api/nexus/support/threads", {
+      headers: { Authorization: "Bearer token-support" },
+    });
+    expect(inbox.status).toBe(200);
+    const rows = (await json(inbox)).data as { id: string }[];
+    expect(rows.some((r) => r.id === thread.id)).toBe(true);
+  });
+
+  it("rejects feedback when actor is not linked to institute", async () => {
+    const app = appWithDb(baseDb());
+    const res = await app.request("/api/v1/product-feedback", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-admin-b",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        source: "connect",
+        kind: "bug",
+        rating: 2,
+        message: "Login button does nothing on mobile safari.",
+      }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("maps experience kind to feedback category", async () => {
+    const app = appWithDb(baseDb());
+    const created = await app.request("/api/v1/product-feedback", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-admin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        source: "careers",
+        kind: "experience",
+        rating: 5,
+        message: "The recruiter board feels fast and clear.",
+      }),
+    });
+    expect(created.status).toBe(201);
+    expect((await json(created)).data.category).toBe("feedback");
+  });
+});

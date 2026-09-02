@@ -18,16 +18,20 @@ import {
   ToolbarSpacer,
 } from "@lumenx/ui-admin";
 import {
+  AlertCircle,
   CheckCircle2,
   LifeBuoy,
+  Loader2,
   Lock,
   MessageSquare,
   Plus,
+  RefreshCw,
   RotateCcw,
   Send,
   StickyNote,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { isNexusApiMode } from "@/lib/auth-mode";
 import { listPlatformInstitutes } from "@/lib/institute-directory-store";
 import {
   NEXUS_OPERATORS,
@@ -39,7 +43,6 @@ import {
   labelCategory,
   labelPriority,
   labelStatus,
-  listSupportThreads,
   markThreadResolved,
   priorityTone,
   reopenThread,
@@ -48,12 +51,24 @@ import {
   setThreadStatus,
   statusTone,
   subscribeSupportThreads,
-  supportStats,
   type SupportCategory,
   type SupportPriority,
   type SupportStatus,
   type SupportThread,
 } from "@/lib/support-center-store";
+import {
+  computeSupportStats,
+  loadSupportInbox,
+  loadSupportThreadDetail,
+  type SupportInboxLoadState,
+} from "@/lib/support";
+import {
+  createSupportThreadApi,
+  noteSupportThreadApi,
+  replySupportThreadApi,
+  updateSupportThreadApi,
+} from "@/lib/support/api";
+import { supportThreadDtoToUi } from "@/lib/support/map";
 
 export const Route = createFileRoute("/support")({
   head: () => ({ meta: [{ title: "Support Center — LumenX Nexus" }] }),
@@ -69,30 +84,58 @@ const COMPOSER_MODES = [
 ] as const;
 
 function SupportCenterPage() {
+  const apiMode = isNexusApiMode();
   const [tick, setTick] = useState(0);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [loadState, setLoadState] = useState<SupportInboxLoadState>(() =>
+    apiMode
+      ? { status: "loading", threads: [], errorMessage: null }
+      : { status: "demo", threads: [], errorMessage: null },
+  );
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedDetail, setSelectedDetail] = useState<SupportThread | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [composerMode, setComposerMode] = useState<"reply" | "internal">("reply");
   const [draft, setDraft] = useState("");
   const [operator, setOperator] = useState<string>(NEXUS_OPERATORS[0]);
   const [createOpen, setCreateOpen] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => subscribeSupportThreads(() => setTick((t) => t + 1)), []);
+  const reload = useCallback(() => {
+    setReloadKey((k) => k + 1);
+  }, []);
 
-  const threads = useMemo(() => listSupportThreads(), [tick]);
-  const stats = useMemo(() => supportStats(threads), [threads]);
+  useEffect(() => {
+    if (apiMode) return;
+    return subscribeSupportThreads(() => setTick((t) => t + 1));
+  }, [apiMode]);
 
-  const filtered = useMemo(() => {
-    return threads.filter((t) => {
-      if (statusFilter !== "all" && t.status !== statusFilter) return false;
-      if (categoryFilter !== "all" && t.category !== categoryFilter) return false;
-      return true;
+  useEffect(() => {
+    let cancelled = false;
+    if (apiMode) {
+      setLoadState((prev) => ({ ...prev, status: "loading", errorMessage: null }));
+    }
+    void loadSupportInbox({
+      status: statusFilter === "all" ? undefined : statusFilter,
+      category: categoryFilter === "all" ? undefined : categoryFilter,
+    }).then((next) => {
+      if (!cancelled) setLoadState(next);
     });
-  }, [threads, statusFilter, categoryFilter]);
+    return () => {
+      cancelled = true;
+    };
+  }, [apiMode, reloadKey, tick, statusFilter, categoryFilter]);
 
-  const selected = useMemo(() => {
+  const threads = loadState.threads;
+  const stats = useMemo(() => computeSupportStats(threads), [threads]);
+
+  const filtered = threads;
+
+  const listSelected = useMemo(() => {
     if (selectedId) {
       const fromAll = threads.find((t) => t.id === selectedId);
       if (fromAll) return fromAll;
@@ -105,35 +148,116 @@ function SupportCenterPage() {
   }, [selectedId, filtered]);
 
   useEffect(() => {
+    const id = listSelected?.id;
+    if (!id) {
+      setSelectedDetail(null);
+      return;
+    }
+    if (!apiMode) {
+      setSelectedDetail(listSelected);
+      return;
+    }
+    let cancelled = false;
+    setDetailLoading(true);
+    void loadSupportThreadDetail(id).then((detail) => {
+      if (!cancelled) {
+        setSelectedDetail(detail);
+        setDetailLoading(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiMode, listSelected?.id, reloadKey]);
+
+  const selected = apiMode ? selectedDetail ?? listSelected : listSelected;
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [selected?.id, selected?.messages.length]);
 
-  function afterMutate(id: string) {
+  async function refreshDetail(id: string) {
+    if (!apiMode) {
+      setTick((t) => t + 1);
+      setSelectedId(id);
+      return;
+    }
+    const detail = await loadSupportThreadDetail(id);
+    if (detail) setSelectedDetail(detail);
     setSelectedId(id);
+    reload();
   }
 
-  function send() {
+  async function send() {
     if (!selected || !draft.trim()) return;
-    const next =
-      composerMode === "internal"
-        ? addInternalNote(selected.id, draft, operator)
-        : replyToThread(selected.id, draft, operator);
-    if (next) {
+    setActionError(null);
+    setSaving(true);
+    try {
+      if (!apiMode) {
+        const next =
+          composerMode === "internal"
+            ? addInternalNote(selected.id, draft, operator)
+            : replyToThread(selected.id, draft, operator);
+        if (next) {
+          setDraft("");
+          setSelectedId(next.id);
+          setTick((t) => t + 1);
+        }
+        return;
+      }
+      if (composerMode === "internal") {
+        await noteSupportThreadApi(selected.id, draft, operator);
+      } else {
+        await replySupportThreadApi(selected.id, draft, operator);
+      }
       setDraft("");
-      afterMutate(next.id);
+      await refreshDetail(selected.id);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to send");
+    } finally {
+      setSaving(false);
     }
   }
 
   return (
     <AppShell
       title="Support Center"
-      subtitle="Institute threads · issues, requests, feedback · no person-level records"
+      subtitle={
+        apiMode
+          ? "API · institute threads · product feedback from Admin / Connect / Transport / Admissions / Careers"
+          : "Demo · institute threads · issues, requests, feedback · no person-level records"
+      }
       actions={
-        <Button variant="primary" onClick={() => setCreateOpen(true)}>
-          <Plus className="size-3.5" /> New thread
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {apiMode ? (
+            <Button onClick={reload} disabled={loadState.status === "loading"}>
+              <RefreshCw className="size-3.5" /> Refresh
+            </Button>
+          ) : null}
+          <Button variant="primary" onClick={() => setCreateOpen(true)}>
+            <Plus className="size-3.5" /> New thread
+          </Button>
+        </div>
       }
     >
+      {loadState.status === "error" ? (
+        <Card className="mb-4 border-destructive/30">
+          <div className="flex items-start gap-3 p-4 text-sm text-destructive">
+            <AlertCircle className="size-4 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-medium">Could not load support inbox</p>
+              <p className="text-xs mt-1 opacity-90">{loadState.errorMessage}</p>
+            </div>
+          </div>
+        </Card>
+      ) : null}
+
+      {actionError ? (
+        <Card className="mb-4 border-destructive/30">
+          <div className="p-3 text-xs text-destructive">{actionError}</div>
+        </Card>
+      ) : null}
+
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
         <Kpi label="Threads" value={String(stats.total)} icon={<LifeBuoy className="size-3.5" />} />
         <Kpi label="Open" value={String(stats.open)} />
@@ -176,20 +300,28 @@ function SupportCenterPage() {
               <option value="improvement_request">Improvement Request</option>
             </Select>
           </ToolbarGroup>
-          <ToolbarMeta>{filtered.length} threads</ToolbarMeta>
+          <ToolbarMeta>
+            {loadState.status === "loading" ? "Loading…" : `${filtered.length} threads`}
+          </ToolbarMeta>
         </PageToolbar>
       </Card>
 
       <div className="grid grid-cols-12 gap-4 min-h-[640px]">
-        {/* Thread list */}
         <Card className="col-span-12 lg:col-span-4 flex flex-col overflow-hidden">
           <div className="px-4 py-3 border-b border-border flex items-center gap-2">
             <MessageSquare className="size-3.5 text-muted-foreground" />
             <span className="text-xs font-medium">Threads</span>
+            {loadState.status === "loading" ? (
+              <Loader2 className="size-3.5 animate-spin text-muted-foreground ml-auto" />
+            ) : null}
           </div>
           <div className="flex-1 overflow-y-auto max-h-[70vh] divide-y divide-border">
             {filtered.length === 0 ? (
-              <p className="p-6 text-xs text-muted-foreground text-center">No threads match filters.</p>
+              <p className="p-6 text-xs text-muted-foreground text-center">
+                {loadState.status === "loading"
+                  ? "Loading threads…"
+                  : "No threads match filters. Product feedback from apps appears here in API mode."}
+              </p>
             ) : (
               filtered.map((t) => (
                 <button
@@ -197,13 +329,17 @@ function SupportCenterPage() {
                   type="button"
                   onClick={() => setSelectedId(t.id)}
                   className={`w-full text-left px-4 py-3 transition-colors ${
-                    selected?.id === t.id ? "bg-primary/8 border-l-2 border-l-primary" : "hover:bg-surface-hover border-l-2 border-l-transparent"
+                    selected?.id === t.id
+                      ? "bg-primary/8 border-l-2 border-l-primary"
+                      : "hover:bg-surface-hover border-l-2 border-l-transparent"
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="text-xs font-medium truncate">{t.subject}</div>
-                      <div className="text-[10px] text-muted-foreground mt-0.5 truncate">{t.instituteName}</div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                        {t.instituteName}
+                      </div>
                     </div>
                     <Pill tone={statusTone(t.status)}>{labelStatus(t.status)}</Pill>
                   </div>
@@ -222,19 +358,26 @@ function SupportCenterPage() {
           </div>
         </Card>
 
-        {/* Conversation */}
         <Card className="col-span-12 lg:col-span-8 flex flex-col overflow-hidden min-h-[640px]">
           {!selected ? (
             <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground p-8">
               Select a thread to open the conversation.
+            </div>
+          ) : detailLoading && apiMode && !selectedDetail ? (
+            <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground p-8 gap-2">
+              <Loader2 className="size-4 animate-spin" /> Loading conversation…
             </div>
           ) : (
             <>
               <ThreadHeader
                 thread={selected}
                 operator={operator}
+                apiMode={apiMode}
                 onOperatorChange={setOperator}
-                onChange={() => afterMutate(selected.id)}
+                onChanged={async () => {
+                  await refreshDetail(selected.id);
+                }}
+                onError={setActionError}
               />
               <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-background/30 max-h-[48vh] lg:max-h-none">
                 {selected.messages.map((m) => (
@@ -267,12 +410,16 @@ function SupportCenterPage() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                       e.preventDefault();
-                      send();
+                      void send();
                     }
                   }}
                 />
                 <div className="flex justify-end">
-                  <Button variant="primary" onClick={send} disabled={!draft.trim()}>
+                  <Button
+                    variant="primary"
+                    onClick={() => void send()}
+                    disabled={!draft.trim() || saving}
+                  >
                     {composerMode === "internal" ? (
                       <>
                         <StickyNote className="size-3.5" /> Add note
@@ -292,12 +439,19 @@ function SupportCenterPage() {
 
       <CreateThreadModal
         open={createOpen}
+        apiMode={apiMode}
         onClose={() => setCreateOpen(false)}
-        onCreated={(id) => {
+        onCreated={async (id) => {
           setCreateOpen(false);
           setSelectedId(id);
-          setTick((t) => t + 1);
+          if (apiMode) {
+            reload();
+            await refreshDetail(id);
+          } else {
+            setTick((t) => t + 1);
+          }
         }}
+        onError={setActionError}
       />
     </AppShell>
   );
@@ -306,14 +460,39 @@ function SupportCenterPage() {
 function ThreadHeader({
   thread,
   operator,
+  apiMode,
   onOperatorChange,
-  onChange,
+  onChanged,
+  onError,
 }: {
   thread: SupportThread;
   operator: string;
+  apiMode: boolean;
   onOperatorChange: (v: string) => void;
-  onChange: () => void;
+  onChanged: () => void | Promise<void>;
+  onError: (message: string | null) => void;
 }) {
+  const patch = async (input: {
+    status?: SupportStatus;
+    priority?: SupportPriority;
+    assigneeHandle?: string | null;
+  }) => {
+    onError(null);
+    try {
+      if (!apiMode) {
+        if (input.status !== undefined) setThreadStatus(thread.id, input.status);
+        if (input.priority !== undefined) setThreadPriority(thread.id, input.priority);
+        if (input.assigneeHandle !== undefined) assignThread(thread.id, input.assigneeHandle);
+        await onChanged();
+        return;
+      }
+      await updateSupportThreadApi(thread.id, input);
+      await onChanged();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Failed to update thread");
+    }
+  };
+
   return (
     <div className="px-4 py-3 border-b border-border space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -346,8 +525,7 @@ function ThreadHeader({
           <Select
             value={thread.status}
             onChange={(e) => {
-              setThreadStatus(thread.id, e.target.value as SupportStatus);
-              onChange();
+              void patch({ status: e.target.value as SupportStatus });
             }}
           >
             <option value="open">Open</option>
@@ -360,8 +538,7 @@ function ThreadHeader({
           <Select
             value={thread.priority}
             onChange={(e) => {
-              setThreadPriority(thread.id, e.target.value as SupportPriority);
-              onChange();
+              void patch({ priority: e.target.value as SupportPriority });
             }}
           >
             <option value="low">Low</option>
@@ -373,8 +550,7 @@ function ThreadHeader({
           <Select
             value={thread.assignee ?? ""}
             onChange={(e) => {
-              assignThread(thread.id, e.target.value || null);
-              onChange();
+              void patch({ assigneeHandle: e.target.value || null });
             }}
           >
             <option value="">Unassigned</option>
@@ -398,8 +574,12 @@ function ThreadHeader({
           {thread.status !== "resolved" ? (
             <Button
               onClick={() => {
-                markThreadResolved(thread.id);
-                onChange();
+                if (!apiMode) {
+                  markThreadResolved(thread.id);
+                  void onChanged();
+                  return;
+                }
+                void patch({ status: "resolved" });
               }}
             >
               <CheckCircle2 className="size-3.5" /> Mark resolved
@@ -407,8 +587,12 @@ function ThreadHeader({
           ) : (
             <Button
               onClick={() => {
-                reopenThread(thread.id);
-                onChange();
+                if (!apiMode) {
+                  reopenThread(thread.id);
+                  void onChanged();
+                  return;
+                }
+                void patch({ status: "open" });
               }}
             >
               <RotateCcw className="size-3.5" /> Reopen
@@ -436,7 +620,9 @@ function MessageBubble({
           <Lock className="size-3" /> Internal · {message.authorLabel}
         </div>
         <p className="text-xs mt-1.5 leading-relaxed whitespace-pre-wrap">{message.body}</p>
-        <p className="text-[10px] font-mono text-muted-foreground mt-1.5">{formatSupportTime(message.createdAt)}</p>
+        <p className="text-[10px] font-mono text-muted-foreground mt-1.5">
+          {formatSupportTime(message.createdAt)}
+        </p>
       </div>
     );
   }
@@ -464,12 +650,16 @@ function MessageBubble({
 
 function CreateThreadModal({
   open,
+  apiMode,
   onClose,
   onCreated,
+  onError,
 }: {
   open: boolean;
+  apiMode: boolean;
   onClose: () => void;
-  onCreated: (id: string) => void;
+  onCreated: (id: string) => void | Promise<void>;
+  onError: (message: string | null) => void;
 }) {
   const institutes = useMemo(
     () =>
@@ -483,37 +673,67 @@ function CreateThreadModal({
   const [category, setCategory] = useState<SupportCategory>("issue");
   const [priority, setPriority] = useState<SupportPriority>("medium");
   const [body, setBody] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (open) {
-      setInstituteId(institutes[0]?.id ?? "");
+      setInstituteId(apiMode ? "" : (institutes[0]?.id ?? ""));
       setSubject("");
       setCategory("issue");
       setPriority("medium");
       setBody("");
     }
-  }, [open, institutes]);
+  }, [open, institutes, apiMode]);
 
-  function submit() {
-    const t = createSupportThread({ instituteId, subject, category, priority, body });
-    if (t) onCreated(t.id);
+  async function submit() {
+    onError(null);
+    if (!instituteId || !subject.trim() || !body.trim()) return;
+    setSaving(true);
+    try {
+      if (!apiMode) {
+        const t = createSupportThread({ instituteId, subject, category, priority, body });
+        if (t) await onCreated(t.id);
+        return;
+      }
+      const created = await createSupportThreadApi({
+        instituteId: instituteId.trim(),
+        subject: subject.trim(),
+        category,
+        priority,
+        body: body.trim(),
+      });
+      await onCreated(supportThreadDtoToUi(created).id);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Failed to create thread");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
     <Modal open={open} onClose={onClose} title="New support thread" size="md">
       <p className="text-[11px] text-muted-foreground mb-4">
-        Simulates an institute submission. Categories: Issue, Feature Request, Feedback, Improvement
-        Request. No personal student/teacher/parent data.
+        {apiMode
+          ? "Creates a live support thread. Prefer product feedback from apps for customer input — it lands here automatically."
+          : "Simulates an institute submission. Categories: Issue, Feature Request, Feedback, Improvement Request."}
       </p>
       <FormGrid>
         <Field label="Institute" className="sm:col-span-2">
-          <Select value={instituteId} onChange={(e) => setInstituteId(e.target.value)}>
-            {institutes.map((i) => (
-              <option key={i.id} value={i.id}>
-                {i.name}
-              </option>
-            ))}
-          </Select>
+          {apiMode ? (
+            <TextInput
+              value={instituteId}
+              onChange={(e) => setInstituteId(e.target.value)}
+              placeholder="Institute UUID"
+            />
+          ) : (
+            <Select value={instituteId} onChange={(e) => setInstituteId(e.target.value)}>
+              {institutes.map((i) => (
+                <option key={i.id} value={i.id}>
+                  {i.name}
+                </option>
+              ))}
+            </Select>
+          )}
         </Field>
         <Field label="Category">
           <Select value={category} onChange={(e) => setCategory(e.target.value as SupportCategory)}>
@@ -531,7 +751,11 @@ function CreateThreadModal({
           </Select>
         </Field>
         <Field label="Subject" className="sm:col-span-2">
-          <TextInput value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Short subject…" />
+          <TextInput
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            placeholder="Short subject…"
+          />
         </Field>
         <Field label="Message" className="sm:col-span-2">
           <TextArea
@@ -544,8 +768,12 @@ function CreateThreadModal({
       </FormGrid>
       <div className="flex justify-end gap-2 mt-5">
         <Button onClick={onClose}>Cancel</Button>
-        <Button variant="primary" onClick={submit} disabled={!instituteId || !subject.trim() || !body.trim()}>
-          Create thread
+        <Button
+          variant="primary"
+          onClick={() => void submit()}
+          disabled={!instituteId || !subject.trim() || !body.trim() || saving}
+        >
+          {saving ? "Creating…" : "Create thread"}
         </Button>
       </div>
     </Modal>

@@ -20,6 +20,8 @@ import {
   apiSignOut,
   hydrateApiTransportSession,
 } from "@/lib/auth/api-auth";
+import { setLumenXFeedbackTransport } from "@lumenx/utils";
+import { getSupabaseAccessToken } from "@/lib/supabase-browser";
 
 import { isValidIndianMobile, type DemoDriver } from "./demo-drivers";
 
@@ -107,6 +109,50 @@ export function TransportAuthProvider({ children }: { children: ReactNode }) {
       cancelled = true;
     };
   }, [apiMode]);
+
+  useEffect(() => {
+    if (!apiMode) {
+      setLumenXFeedbackTransport(null);
+      return () => setLumenXFeedbackTransport(null);
+    }
+    const instituteId = user?.instituteId?.trim() ?? "";
+    const UUID_RE =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    setLumenXFeedbackTransport({
+      resolveInstituteId: () => (UUID_RE.test(instituteId) ? instituteId : null),
+      submit: async (input) => {
+        const token = await getSupabaseAccessToken();
+        if (!token) throw new Error("Authentication required");
+        const base = (import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8787").replace(
+          /\/+$/,
+          "",
+        );
+        const res = await fetch(`${base}/api/v1/product-feedback`, {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            institute_id: input.instituteId,
+            source: input.source,
+            kind: input.kind,
+            rating: input.rating,
+            message: input.message.trim(),
+            screenshot_file_name: input.screenshotFileName ?? null,
+          }),
+        });
+        if (!res.ok) {
+          const json = (await res.json().catch(() => ({}))) as {
+            error?: { message?: string };
+          };
+          throw new Error(json.error?.message ?? `Request failed (${res.status})`);
+        }
+      },
+    });
+    return () => setLumenXFeedbackTransport(null);
+  }, [apiMode, user?.instituteId]);
 
   const signIn = useCallback((driver: DemoDriver) => {
     const sessionUser = toSessionUser(driver);

@@ -8,6 +8,7 @@ import { TeacherPortalRegistry } from "@/context/TeacherPortalContext";
 import { StudentPortalRegistry } from "@/context/StudentPortalContext";
 import { TeacherSessionRegistry } from "@/context/TeacherSessionContext";
 import { ActivityWorkspaceRegistry } from "@/context/ActivityWorkspaceContext";
+import { ConnectFeedbackTransportBridge } from "@/components/app/ConnectFeedbackTransportBridge";
 
 /**
  * Connect session + portal registries for all non-isolated routes.
@@ -25,6 +26,7 @@ export function ConnectPortalProviders({
           <TeacherSessionRegistry>
             <StudentPortalRegistry>
               <ActivityWorkspaceRegistry>
+              <ConnectFeedbackTransportBridge />
               <InAppAlertListener />
               <PushDeviceTokenRegistration enabled />
               <ConnectSchoolAlertsSync />

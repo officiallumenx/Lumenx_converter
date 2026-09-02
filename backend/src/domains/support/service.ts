@@ -12,6 +12,7 @@ import {
   findThreadById,
   insertMessage,
   insertThread,
+  listAllThreadsForPlatform,
   listMessagesForThread,
   listThreadsByInstitute,
   softDeleteThread,
@@ -19,9 +20,11 @@ import {
 } from "./repository.js";
 import type {
   CreateInternalNoteInput,
+  CreateProductFeedbackInput,
   CreateSupportMessageInput,
   CreateSupportThreadInput,
   SupportAuthorRole,
+  SupportCategory,
   SupportMessageDto,
   SupportMessageRow,
   SupportPriority,
@@ -178,17 +181,137 @@ function nextStatusAfterPublicMessage(
 export async function listThreadsForActor(
   admin: SupabaseClient,
   actor: Actor,
-  instituteId: string,
+  instituteId: string | null | undefined,
   status?: string,
+  category?: string,
 ): Promise<SupportThreadDto[]> {
-  if (!canReadSupport(actor, instituteId)) {
-    throw AppError.notFound("Support thread not found");
-  }
   if (status && !STATUSES.includes(status as SupportStatus)) {
     throw AppError.validation("Invalid status filter");
   }
+  if (category && !CATEGORIES.includes(category as SupportCategory)) {
+    throw AppError.validation("Invalid category filter");
+  }
+
+  // Platform operators may omit institute_id to load the full inbox.
+  if (!instituteId) {
+    if (!isPlatform(actor)) {
+      throw AppError.validation("institute_id is required");
+    }
+    const rows = await listAllThreadsForPlatform(admin, {
+      status,
+      category,
+      limit: 200,
+    });
+    return rows.map((r) => toThreadDto(r));
+  }
+
+  if (!canReadSupport(actor, instituteId)) {
+    throw AppError.notFound("Support thread not found");
+  }
   const rows = await listThreadsByInstitute(admin, instituteId, status);
-  return rows.map((r) => toThreadDto(r));
+  const filtered = category
+    ? rows.filter((r) => r.category === category)
+    : rows;
+  return filtered.map((r) => toThreadDto(r));
+}
+
+function actorLinkedToInstitute(actor: Actor, instituteId: string): boolean {
+  if (isPlatform(actor)) return true;
+  if (
+    actor.memberships.some(
+      (m) => m.instituteId === instituteId && m.status === "active",
+    )
+  ) {
+    return true;
+  }
+  if (actor.teachers.some((t) => t.instituteId === instituteId)) return true;
+  if (actor.students.some((s) => s.instituteId === instituteId)) return true;
+  if (actor.parents.some((p) => p.instituteId === instituteId)) return true;
+  if (actor.staff.some((s) => s.instituteId === instituteId)) return true;
+  return false;
+}
+
+function feedbackCategory(kind: CreateProductFeedbackInput["kind"]): SupportCategory {
+  if (kind === "bug") return "issue";
+  if (kind === "feature") return "feature_request";
+  return "feedback";
+}
+
+function feedbackSubject(input: CreateProductFeedbackInput): string {
+  const kindLabel =
+    input.kind === "bug"
+      ? "Bug"
+      : input.kind === "feature"
+        ? "Feature request"
+        : "Experience";
+  return `[${input.source}] ${kindLabel} · ${input.rating}/5`;
+}
+
+/**
+ * Any authenticated user linked to the institute (or platform operator)
+ * can submit product feedback. Creates a support_thread for the Nexus inbox.
+ */
+export async function createProductFeedbackForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  input: CreateProductFeedbackInput,
+): Promise<SupportThreadDto> {
+  const message = input.message.trim();
+  if (message.length < 12) {
+    throw AppError.validation("message must be at least 12 characters");
+  }
+  if (!Number.isFinite(input.rating) || input.rating < 1 || input.rating > 5) {
+    throw AppError.validation("rating must be 1–5");
+  }
+
+  const institute = await findInstituteById(admin, input.instituteId);
+  if (!institute || institute.deleted_at) {
+    throw AppError.notFound("Institute not found");
+  }
+  if (!actorLinkedToInstitute(actor, input.instituteId)) {
+    throw AppError.forbidden("Not linked to this institute");
+  }
+
+  const category = feedbackCategory(input.kind);
+  const screenshotLine = input.screenshotFileName?.trim()
+    ? `\n\nScreenshot: ${input.screenshotFileName.trim()}`
+    : "";
+  const body = [
+    `Source app: ${input.source}`,
+    `Type: ${input.kind}`,
+    `Rating: ${input.rating}/5`,
+    "",
+    message,
+    screenshotLine,
+  ]
+    .join("\n")
+    .trim();
+
+  const authorLabel =
+    actor.displayName?.trim() ||
+    actor.email?.trim() ||
+    (isPlatform(actor) ? "Platform operator" : "LumenX user");
+
+  const thread = await insertThread(admin, {
+    instituteId: input.instituteId,
+    subject: feedbackSubject(input),
+    category,
+    priority: "medium",
+    body,
+    createdByUserId: actor.userId,
+  });
+
+  const msg = await insertMessage(admin, {
+    instituteId: thread.institute_id,
+    threadId: thread.id,
+    authorUserId: actor.userId,
+    authorRole: "institute",
+    authorLabel,
+    body,
+    isInternal: false,
+  });
+
+  return toThreadDto(thread, [toMessageDto(msg)]);
 }
 
 export async function getThreadForActor(

@@ -74,6 +74,7 @@ import { startTransportAdminNotificationSync } from "@/lib/transport-notificatio
 import { ApiInstituteSwitcher } from "@/components/ApiInstituteSwitcher";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { InstituteContextProvider, useInstituteContext } from "@/lib/institutes";
+import { AdminFeedbackTransportBridge } from "@/components/AdminFeedbackTransportBridge";
 import { warnAdminNavContractIfNeeded } from "@/lib/admin-navigation-contract";
 import { useAdminMountTrace, useAdminRouteTransitionTrace } from "@/hooks/useAdminPerformanceTrace";
 import { AdminWriteAccessProvider } from "@/components/admin-write/AdminWriteAccessContext";
@@ -511,6 +512,7 @@ export function AdminChrome() {
 
   return (
     <InstituteContextProvider>
+    <AdminFeedbackTransportBridge />
     <AcademicYearLockSync />
     <AdminAlertsNavBadgeSync />
     <AdminWriteAccessProvider writesAllowed={writesAllowed} reason={writeBlockReason}>
