@@ -13,10 +13,10 @@ import {
   teachersWithPendingMarks,
 } from "./home-data";
 import { getMarkEntriesSnapshot, subscribeMarkEntries } from "@/lib/marks-entry-store";
-import { loadPendingReviews, subscribePendingReviews } from "@/lib/pending-reviews";
+import { syncPendingReviewsComplaintsApi, loadPendingReviews, subscribePendingReviews } from "@/lib/pending-reviews";
+import { HomeApiSummaryPanel } from "@/components/home/HomeApiSummaryPanel";
 import { buildAdminAttendanceDashboard } from "@lumenx/module-attendance";
 import { listAttendanceReportSections } from "@/lib/attendance-report-demo";
-import type { LucideIcon } from "lucide-react";
 import {
   Users,
   ClipboardCheck,
@@ -40,8 +40,6 @@ import {
 import { useMemo, useSyncExternalStore, useEffect } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
-import { syncPendingReviewsComplaintsApi } from "@/lib/pending-reviews";
-import { HomeApiSummaryPanel } from "@/components/home/HomeApiSummaryPanel";
 import {
   DashboardCustomizeActions,
   DashboardLayoutProvider,
@@ -104,23 +102,113 @@ function todayLabel(): string {
 
 function HomeApiPage() {
   const instituteCtx = useInstituteContext();
+  const pendingReviews = useSyncExternalStore(
+    subscribePendingReviews,
+    loadPendingReviews,
+    () => [],
+  );
+
   useEffect(() => {
     if (instituteCtx.status === "ready" && instituteCtx.activeInstituteId) {
       syncPendingReviewsComplaintsApi(instituteCtx.activeInstituteId);
     }
   }, [instituteCtx.status, instituteCtx.activeInstituteId]);
+
   const instituteLabel =
     instituteCtx.status === "ready" && instituteCtx.activeInstitute
       ? instituteCtx.activeInstitute.name
       : "Institute";
+
+  const apiWidgetBody = (id: string) => {
+    if (id === "overview") {
+      return <HomeApiSummaryPanel />;
+    }
+    if (id === "pending-reviews") {
+      return (
+        <Card>
+          <CardHeader
+            title="Pending reviews"
+            hint="Admissions, careers, marks, leave, transport approvals"
+            action={
+              pendingReviews.length > 0 ? (
+                <Pill tone="warning">{pendingReviews.length} queues</Pill>
+              ) : null
+            }
+          />
+          <div className="px-3 pb-3">
+            {pendingReviews.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nothing awaiting review.</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {pendingReviews.map((item) => (
+                  <li key={item.id}>
+                    <Link
+                      to={item.to}
+                      search={item.search}
+                      className="flex items-center gap-2.5 rounded-lg border border-border bg-background/40 px-2.5 py-2 transition-colors hover:border-border-strong hover:bg-surface-hover"
+                    >
+                      <IconChip icon={ClipboardList} size="sm" variant="soft" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-semibold text-foreground">
+                          {item.label}
+                        </span>
+                        <span className="block text-[11px] text-muted-foreground">{item.detail}</span>
+                      </span>
+                      <Pill tone="warning">{item.count}</Pill>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </Card>
+      );
+    }
+    if (id === "quick-actions") {
+      return <HomeQuickActionsCard />;
+    }
+    if (id === "shortcuts") {
+      return (
+        <Card>
+          <CardHeader title="Shortcuts" hint="Jump to modules" />
+          <div className="px-3 pb-3">
+            <div className="flex flex-wrap gap-1.5">
+              {SHORTCUTS.map((s) => {
+                const Icon = s.icon;
+                return (
+                  <Link key={s.label} to={s.to}>
+                    <Button size="sm" variant="outline" className="gap-1.5">
+                      <Icon className="size-3.5" />
+                      {s.label}
+                    </Button>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </Card>
+      );
+    }
+    return null;
+  };
+
   return (
-    <DashboardLayoutProvider storageKey="admin.home.api" widgets={[{ id: "summary", label: "Overview" }]}>
+    <DashboardLayoutProvider
+      storageKey="admin.home.api"
+      widgets={[
+        { id: "overview", label: "Overview" },
+        { id: "pending-reviews", label: "Reviews" },
+        { id: "quick-actions", label: "Quick Actions" },
+        { id: "shortcuts", label: "Shortcuts" },
+      ]}
+    >
       <AppShell
         title="Home"
         subtitle={`What should I do today? · ${instituteLabel} · ${todayLabel()}`}
+        titleActions={<DashboardCustomizeActions />}
       >
         <PageStack>
-          <HomeApiSummaryPanel />
+          <DashboardWidgets render={apiWidgetBody} />
         </PageStack>
       </AppShell>
     </DashboardLayoutProvider>

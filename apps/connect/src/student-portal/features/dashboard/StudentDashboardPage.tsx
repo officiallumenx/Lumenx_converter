@@ -1,5 +1,4 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
 import {
   ClipboardCheck,
   GraduationCap,
@@ -32,10 +31,6 @@ import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from "rec
 import { AchievementBadge } from "@/components/app/motivation/AchievementBadge";
 import { useSyncExternalStore } from "react";
 import { useApp } from "@/lib/app-state";
-import { isApiAuthMode } from "@/auth/auth-mode";
-import { loadConnectEvents, pickUpcomingEvents, type ConnectEventItem } from "@/lib/events";
-import { loadLearnerExamSchedules, type LearnerExamSchedule } from "@/lib/exams";
-import { loadLearnerTimetable, pickTodayPeriods } from "@/lib/timetable";
 import { getTodayDayName } from "@/lib/student/timetable-utils";
 import { formatEventDate } from "@/components/app/events/events-shared";
 import { PageSkeleton, EmptyState } from "@/student-portal/shared/ui";
@@ -132,79 +127,6 @@ export function StudentDashboardPage() {
   const portal = useStudentPortal();
   const { activeInstituteId } = useApp();
   const { pathname } = useLocation();
-  const [apiUpcomingEvents, setApiUpcomingEvents] = useState<ConnectEventItem[] | null>(null);
-  const [apiUpcomingExams, setApiUpcomingExams] = useState<LearnerExamSchedule[] | null>(null);
-  const [apiTodayClasses, setApiTodayClasses] = useState<
-    Array<{ time: string; subject: string; teacher: string }> | null
-  >(null);
-
-  useEffect(() => {
-    if (!isApiAuthMode()) {
-      setApiUpcomingEvents(null);
-      setApiUpcomingExams(null);
-      return;
-    }
-    let cancelled = false;
-    void loadConnectEvents({ instituteId: activeInstituteId }).then((result) => {
-      if (cancelled) return;
-      if (result.status === "ready" || result.status === "empty") {
-        setApiUpcomingEvents(pickUpcomingEvents(result.items, 3));
-      } else {
-        setApiUpcomingEvents([]);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeInstituteId]);
-
-  useEffect(() => {
-    if (!isApiAuthMode() || !activeInstituteId || !portal.snapshot) {
-      setApiUpcomingExams(null);
-      return;
-    }
-    let cancelled = false;
-    void loadLearnerExamSchedules({
-      instituteId: activeInstituteId,
-      classGrade: portal.snapshot.profile.class,
-    }).then((result) => {
-      if (cancelled) return;
-      if (result.status === "ready" || result.status === "empty") {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        setApiUpcomingExams(
-          result.schedules.filter((s) => new Date(s.endDate) >= today).slice(0, 3),
-        );
-      } else {
-        setApiUpcomingExams([]);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeInstituteId, portal.snapshot?.profile.class]);
-
-  useEffect(() => {
-    if (!isApiAuthMode() || !activeInstituteId || !portal.snapshot?.profile.id) {
-      setApiTodayClasses(null);
-      return;
-    }
-    let cancelled = false;
-    void loadLearnerTimetable({
-      instituteId: activeInstituteId,
-      studentId: portal.snapshot.profile.id,
-    }).then((result) => {
-      if (cancelled) return;
-      if (result.status === "ready" || result.status === "empty") {
-        setApiTodayClasses(pickTodayPeriods(result.schedule, getTodayDayName()));
-      } else {
-        setApiTodayClasses([]);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeInstituteId, portal.snapshot?.profile.id]);
 
   const notifications = useSyncExternalStore(
     studentNotificationStore.subscribe,
@@ -216,18 +138,14 @@ export function StudentDashboardPage() {
   if (portal.isLoading || !portal.snapshot) return <PageSkeleton rows={5} />;
 
   const snap = portal.snapshot;
-  const today = days[Math.max(0, Math.min(5, new Date().getDay() - 1))];
-  const todayClasses = apiTodayClasses ?? snap.timetable[today] ?? [];
+  const today = getTodayDayName();
+  const todayClasses = snap.timetable[today] ?? snap.timetable[days[Math.max(0, Math.min(5, new Date().getDay() - 1))]] ?? [];
   const weak = [...snap.performance].sort((a, b) => a.score - b.score).slice(0, 2);
   const recentAch = snap.achievements.filter((a) => !a.progress).slice(0, 3);
   const publishedCard = [...snap.reportCards].filter((r) => r.status === "published").at(-1);
-  const upcomingExams = apiUpcomingExams ?? snap.exams.slice(0, 3);
-  const upcomingExamCount =
-    apiUpcomingExams !== null
-      ? apiUpcomingExams.length
-      : snap.exams.length;
-  const demoUpcomingEvents = snap.schoolEvents.filter((e) => e.kind !== "holiday").slice(0, 3);
-  const upcomingEvents = apiUpcomingEvents ?? demoUpcomingEvents;
+  const upcomingExams = snap.exams.slice(0, 3);
+  const upcomingExamCount = snap.exams.length;
+  const upcomingEvents = snap.schoolEvents.filter((e) => e.kind !== "holiday").slice(0, 3);
   const recentNotifications = notifications.slice(0, 4);
   const unreadNotifications = notifications.filter((n) => n.unread).length;
   const firstName = snap.profile.name.split(" ")[0];
@@ -337,12 +255,12 @@ export function StudentDashboardPage() {
                           : card.valueKey === "exams"
                             ? String(upcomingExamCount)
                             : String(snap.certificates.length);
-                    const nextExam = apiUpcomingExams?.[0] ?? snap.exams[0];
+                    const nextExam = snap.exams[0];
                     const hint =
                       card.valueKey === "score" && publishedCard
                         ? `${publishedCard.grade} grade`
                         : card.valueKey === "exams" && nextExam
-                          ? `Next: ${"subject" in nextExam ? nextExam.subject : nextExam.examName}`
+                          ? `Next: ${nextExam.subject}`
                           : card.hint;
 
                     return (
@@ -538,9 +456,7 @@ export function StudentDashboardPage() {
                         {upcomingEvents.map((e) => (
                           <div key={e.id} className="student-list-row rounded-xl border border-border p-3.5">
                             <div className="text-xs text-muted-foreground">
-                              {apiUpcomingEvents
-                                ? formatEventDate((e as ConnectEventItem).date)
-                                : (e as { date: string }).date}
+                              {formatEventDate(e.date)}
                             </div>
                             <div className="mt-0.5 font-medium leading-snug">{e.title}</div>
                             {"venue" in e && e.venue ? (

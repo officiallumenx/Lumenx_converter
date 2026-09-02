@@ -11,6 +11,7 @@ import {
   studentDtoToProfile,
   studentDtoToTeacherDetail,
 } from "./map";
+import { enrichStudentDashboardSnapshot } from "@/lib/dashboard";
 import type { StudentDto, StudentGuardianDto } from "./types";
 
 export type StudentsLoadStatus =
@@ -118,9 +119,14 @@ export async function loadStudentPortalSnapshot(input: {
     if (input.userDisplayName?.trim()) {
       profile.name = input.userDisplayName.trim();
     }
+    const base = buildEmptyStudentSnapshot(profile);
+    const snapshot = await enrichStudentDashboardSnapshot({
+      instituteId: input.instituteId,
+      snapshot: base,
+    });
     return {
       status: "ready",
-      snapshot: buildEmptyStudentSnapshot(profile),
+      snapshot,
       errorMessage: null,
     };
   } catch (err) {

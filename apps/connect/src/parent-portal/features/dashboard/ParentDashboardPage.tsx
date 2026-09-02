@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { StatCard } from "@/components/app/StatCard";
 import { ChildSwitcher } from "@/components/app/ChildSwitcher";
-import { children as allChildren, days, schoolAlerts } from "@/lib/mock-data";
+import { days, schoolAlerts } from "@/lib/mock-data";
 import type { StudentAssignment } from "@/lib/mock-data";
 import { useApp } from "@/lib/app-state";
 import { useParentPortal } from "@/context/ParentPortalContext";
@@ -96,7 +96,7 @@ const PARENT_HOME_WIDGETS: DashboardWidgetDef[] = [
 ];
 
 export const ParentDashboardPage = memo(function ParentDashboardPage() {
-  const { activeChildId, activeInstituteId } = useApp();
+  const { activeChildId, activeInstituteId, linkedChildren } = useApp();
   const { pathname } = useLocation();
 
   useEffect(() => {
@@ -123,8 +123,8 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
   );
   const portal = useParentPortal();
   const child = useMemo(
-    () => allChildren.find((c) => c.id === activeChildId) ?? allChildren[0],
-    [activeChildId],
+    () => linkedChildren.find((c) => c.id === activeChildId) ?? linkedChildren[0],
+    [activeChildId, linkedChildren],
   );
 
   const snap = portal.isParent ? portal.snapshot : null;

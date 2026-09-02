@@ -11,6 +11,12 @@ import {
   refreshAdminComplaintsPendingCount,
   subscribeAdminComplaintsPendingCount,
 } from "@/lib/complaints/pending-count-store";
+import {
+  getPendingReviewsApiCounts,
+  refreshPendingReviewsApi,
+  subscribePendingReviewsApi,
+  syncPendingReviewsApi,
+} from "@/lib/pending-reviews-api-store";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import {
   readAdminCareerSyncRows,
@@ -178,12 +184,22 @@ function invalidatePendingReviewsSnapshot(): void {
 function readPendingReviewInputs() {
   const teacherLeave = loadTeacherLeaveSnapshot(getInitialTeacherLeave());
   const complaints = loadDemoComplaints(DEMO_COMPLAINTS_SEED);
+  if (isApiAuthMode()) {
+    const apiCounts = getPendingReviewsApiCounts();
+    return {
+      submittedMarks: apiCounts.submittedMarks,
+      pendingTeacherLeave: apiCounts.pendingTeacherLeave,
+      adminComplaints: getAdminComplaintsPendingCount(),
+      pendingAdmissionConverts: apiCounts.pendingAdmissionConverts,
+      pendingCareerHires: apiCounts.pendingCareerHires,
+      pendingTransportStops: apiCounts.pendingTransportStops,
+      pendingTransportAssignments: apiCounts.pendingTransportAssignments,
+    };
+  }
   return {
     submittedMarks: countSubmittedMarks(getMarkEntriesSnapshot()),
     pendingTeacherLeave: countPendingTeacherLeave(teacherLeave),
-    adminComplaints: isApiAuthMode()
-      ? getAdminComplaintsPendingCount()
-      : countAdminComplaints(complaints),
+    adminComplaints: countAdminComplaints(complaints),
     pendingAdmissionConverts: countPendingAdmissionConverts(),
     pendingCareerHires: countPendingCareerHires(),
     pendingTransportStops: loadPendingStops().length,
@@ -192,9 +208,13 @@ function readPendingReviewInputs() {
 }
 
 /** Call when institute context is ready in API mode. */
-export function syncPendingReviewsComplaintsApi(instituteId: string | null): void {
+export function syncPendingReviewsComplaintsApi(
+  instituteId: string | null,
+  pendingLeaveFromAnalytics = 0,
+): void {
   if (!isApiAuthMode()) return;
   void refreshAdminComplaintsPendingCount(instituteId);
+  syncPendingReviewsApi(instituteId, pendingLeaveFromAnalytics);
 }
 
 export function loadPendingReviews(): PendingReviewItem[] {
@@ -239,6 +259,7 @@ export function subscribePendingReviews(listener: () => void): () => void {
     listenDemoSync("leave", notify),
     listenDemoSync("complaints", notify),
     subscribeAdminComplaintsPendingCount(notify),
+    subscribePendingReviewsApi(notify),
   ];
 
   return () => {

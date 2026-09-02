@@ -11,6 +11,7 @@ import type { LearnerTeacherCard, PortalTeacherSelfDto } from "./types";
 import type { DashboardSnapshot, TeacherProfile } from "@/lib/teacher/types";
 import { loadTeacherTimetable } from "@/lib/timetable/load";
 import { getTodayDayName } from "@/lib/teacher/repositories";
+import { enrichTeacherDashboardSnapshot } from "@/lib/dashboard";
 
 export type LearnerTeachersLoadStatus =
   | "demo"
@@ -113,10 +114,16 @@ export async function loadTeacherPortalBundle(input: {
     loadTeacherTimetable({ instituteId: input.instituteId }),
   ]);
   const profile = portalTeacherSelfToProfile(portalSelf);
-  const dashboard = buildTeacherDashboardFromApi({
+  const base = buildTeacherDashboardFromApi({
     schedule: timetable.schedule,
     todayName: getTodayDayName(),
     classes: input.classes,
+  });
+  const dashboard = await enrichTeacherDashboardSnapshot({
+    instituteId: input.instituteId,
+    teacherId: portalSelf.teacherId,
+    classes: input.classes,
+    base,
   });
   return { profile, dashboard };
 }

@@ -8,12 +8,13 @@ import {
   type ReactNode,
 } from "react";
 import { Capacitor } from "@capacitor/core";
-import type { Institute, Role, User } from "@lumenx/types";
+import type { Institute, Role, User, Child } from "@lumenx/types";
 import { CONNECT_STORAGE_KEYS } from "@lumenx/auth";
 import { applyTextScale, loadTextScale } from "@lumenx/ui";
 import { recordLocalChangeForSync } from "@lumenx/utils";
-import { registeredInstitutes, children as linkedChildren } from "./mock-data";
+import { registeredInstitutes, children as demoLinkedChildren } from "./mock-data";
 import { LINKED_CHILD_IDS, resolveLinkedChildId } from "./parent-portal-data";
+import { loadLinkedChildrenFromApi } from "@/lib/parents";
 import { appLockStore } from "./app-lock-store";
 import { awaitConnectStoreReset, resetAllConnectStores } from "./reset-stores";
 import { isRole, isThemeMode, parsePersistedUser } from "./session-validation";
@@ -35,6 +36,8 @@ interface AppState {
   institute: Institute | null;
   theme: "light" | "dark";
   activeChildId: string;
+  /** Parent-linked learners — demo mock or API-loaded in auth mode. */
+  linkedChildren: Child[];
   /** Parent: show student-facing nav (growth, ID card) for a child without their own device. */
   studentIncludedMode: boolean;
   setActiveChildId: (id: string) => void;
@@ -67,7 +70,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [role, setRoleState] = useState<Role | null>(null);
   const [activeInstituteId, setActiveInstituteIdState] = useState<string | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">("light");
-  const [activeChildId, setActiveChildIdState] = useState<string>(linkedChildren[0]?.id ?? "C1");
+  const [activeChildId, setActiveChildIdState] = useState<string>(demoLinkedChildren[0]?.id ?? "C1");
+  const [linkedChildren, setLinkedChildren] = useState<Child[]>(
+    isApiAuthMode() ? [] : demoLinkedChildren,
+  );
   const [studentIncludedMode, setStudentIncludedModeState] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
@@ -123,6 +129,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     void bootstrap();
   }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    if (!isApiAuthMode()) {
+      setLinkedChildren(demoLinkedChildren);
+      return;
+    }
+    if (role !== "parent" || !activeInstituteId) {
+      setLinkedChildren([]);
+      return;
+    }
+
+    let cancelled = false;
+    void loadLinkedChildrenFromApi({ instituteId: activeInstituteId }).then((result) => {
+      if (cancelled) return;
+      if (result.status !== "ready" && result.status !== "empty") return;
+      setLinkedChildren(result.children);
+      if (result.children.length === 0) return;
+      setActiveChildIdState((current) => {
+        const valid = result.children.some((child) => child.id === current);
+        const next = valid ? current : result.children[0]!.id;
+        localStorage.setItem(CONNECT_STORAGE_KEYS.child, next);
+        return next;
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrated, role, activeInstituteId]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -183,7 +218,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setRoleState(null);
     setActiveInstituteIdState(null);
-    setActiveChildIdState(linkedChildren[0]?.id ?? "C1");
+    setActiveChildIdState(demoLinkedChildren[0]?.id ?? "C1");
+    setLinkedChildren(isApiAuthMode() ? [] : demoLinkedChildren);
     setStudentIncludedModeState(false);
     clearAuthStorage();
     localStorage.removeItem(CONNECT_STORAGE_KEYS.child);
@@ -196,11 +232,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     void resetAllConnectStores();
   }, []);
 
-  const setActiveChildId = useCallback((id: string) => {
-    if (!LINKED_CHILD_IDS.has(id)) return;
-    setActiveChildIdState(id);
-    localStorage.setItem(CONNECT_STORAGE_KEYS.child, id);
-  }, []);
+  const setActiveChildId = useCallback(
+    (id: string) => {
+      const allowed = isApiAuthMode()
+        ? linkedChildren.some((child) => child.id === id)
+        : LINKED_CHILD_IDS.has(id);
+      if (!allowed) return;
+      setActiveChildIdState(id);
+      localStorage.setItem(CONNECT_STORAGE_KEYS.child, id);
+    },
+    [linkedChildren],
+  );
 
   const setStudentIncludedMode = useCallback((value: boolean) => {
     setStudentIncludedModeState(value);
@@ -236,6 +278,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       institute,
       theme,
       activeChildId,
+      linkedChildren,
       studentIncludedMode,
       setActiveChildId,
       setStudentIncludedMode,
@@ -253,6 +296,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       institute,
       theme,
       activeChildId,
+      linkedChildren,
       studentIncludedMode,
       setActiveChildId,
       setStudentIncludedMode,

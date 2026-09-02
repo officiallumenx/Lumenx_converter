@@ -2,13 +2,12 @@ import { memo } from "react";
 import { Check, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { Avatar, AvatarFallback } from "@lumenx/ui";
 import { useApp } from "@/lib/app-state";
-import { children } from "@/lib/mock-data";
 import { cn } from "@lumenx/ui";
 
 const TREND_ICON = { up: TrendingUp, down: TrendingDown, flat: Minus } as const;
 
 export const ChildSwitcher = memo(function ChildSwitcher() {
-  const { activeChildId, setActiveChildId } = useApp();
+  const { activeChildId, setActiveChildId, linkedChildren } = useApp();
 
   return (
     <section className="min-w-0 rounded-xl border border-border/80 bg-card/80 p-3 shadow-soft backdrop-blur-sm">
@@ -16,7 +15,7 @@ export const ChildSwitcher = memo(function ChildSwitcher() {
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Your children
         </h2>
-        <span className="text-xs text-muted-foreground/90">{children.length} linked</span>
+        <span className="text-xs text-muted-foreground/90">{linkedChildren.length} linked</span>
       </div>
 
       <div
@@ -24,7 +23,7 @@ export const ChildSwitcher = memo(function ChildSwitcher() {
         role="tablist"
         aria-label="Select child"
       >
-        {children.map((c) => {
+        {linkedChildren.map((c) => {
           const active = c.id === activeChildId;
           const Trend = TREND_ICON[c.trend];
 

@@ -23,11 +23,13 @@ import {
   BookMarked,
   ClipboardList,
   FileCheck2,
+  Bus,
 } from "lucide-react";
 import {
   HomeAttendanceMissingSectionsUnavailableCard,
-  HomeTransportSosApiUnavailableCard,
 } from "@/components/home/HomeApiUnavailableCards";
+import { listTransportEmergencies } from "@/lib/transport/ops-api";
+import { syncPendingReviewsComplaintsApi } from "@/lib/pending-reviews";
 import { IconChip } from "@/components/IconChip";
 
 function statusHint(status: DashboardLoadStatus, error: string | null): string {
@@ -69,6 +71,9 @@ export function HomeApiSummaryPanel() {
   const [loadStatus, setLoadStatus] = useState<DashboardLoadStatus>("loading");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [widgets, setWidgets] = useState<DashboardWidgetsState>(emptyWidgets);
+  const [transportEmergencies, setTransportEmergencies] = useState<
+    Awaited<ReturnType<typeof listTransportEmergencies>>
+  >([]);
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(null);
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
@@ -112,7 +117,10 @@ export function HomeApiSummaryPanel() {
     void Promise.all([
       loadDashboardSummary(requestInstituteId),
       loadDashboardWidgets(requestInstituteId),
-    ]).then(([summaryNext, widgetsNext]) => {
+      listTransportEmergencies({ instituteId: requestInstituteId, status: "active" }).catch(
+        () => [],
+      ),
+    ]).then(([summaryNext, widgetsNext, emergencies]) => {
       if (
         !shouldCommitDashboardLoad({
           cancelled,
@@ -126,7 +134,14 @@ export function HomeApiSummaryPanel() {
       setLoadStatus(summaryNext.status);
       setLoadError(summaryNext.errorMessage);
       setWidgets(widgetsNext);
+      setTransportEmergencies(emergencies);
       setResolvedForInstituteId(requestInstituteId);
+      if (summaryNext.summary) {
+        syncPendingReviewsComplaintsApi(
+          requestInstituteId,
+          summaryNext.summary.pendingLeave,
+        );
+      }
     });
     return () => {
       cancelled = true;
@@ -156,7 +171,7 @@ export function HomeApiSummaryPanel() {
     id: string;
     label: string;
     count: number;
-    to: "/complaints" | "/leave" | "/attendance" | "/marks" | "/diary";
+    to: "/complaints" | "/leave" | "/attendance" | "/marks" | "/diary" | "/transport";
   }> = [];
   if (view.rowsValid && view.summary) {
     if (view.summary.openComplaints > 0) {
@@ -208,6 +223,14 @@ export function HomeApiSummaryPanel() {
         to: "/diary",
       });
     }
+  }
+  if (transportEmergencies.length > 0) {
+    attentionItems.push({
+      id: "transport-sos",
+      label: "Transport emergencies",
+      count: transportEmergencies.length,
+      to: "/transport",
+    });
   }
 
   return (
@@ -490,7 +513,46 @@ export function HomeApiSummaryPanel() {
         </Card>
 
         <HomeAttendanceMissingSectionsUnavailableCard />
-        <HomeTransportSosApiUnavailableCard />
+
+        <Card>
+          <CardHeader
+            title="Transport emergencies"
+            hint="Active driver SOS from GET /api/v1/transport/emergencies"
+            action={
+              transportEmergencies.length > 0 ? (
+                <Pill tone="danger">{transportEmergencies.length} active</Pill>
+              ) : (
+                <Pill tone="neutral">0 active</Pill>
+              )
+            }
+          />
+          <div className="px-3 pb-3">
+            {transportEmergencies.length === 0 ? (
+              <p className="text-sm text-muted-foreground px-1">No active transport emergencies.</p>
+            ) : (
+              <ul className="divide-y divide-border rounded-lg border border-border">
+                {transportEmergencies.slice(0, 6).map((row) => (
+                  <li key={row.id} className="flex items-center gap-2.5 px-2.5 py-2">
+                    <IconChip icon={Bus} size="sm" variant="soft" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-medium">
+                        {row.routeName?.trim() || row.vehicleNumber?.trim() || "Emergency"}
+                      </span>
+                      <span className="block text-[11px] text-muted-foreground">
+                        {row.driverName?.trim() || "Driver"} · {row.status}
+                      </span>
+                    </span>
+                    <Link to="/transport" search={{ view: "emergencies" }}>
+                      <Button size="sm" variant="outline">
+                        Open
+                      </Button>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </Card>
       </div>
     </div>
   );

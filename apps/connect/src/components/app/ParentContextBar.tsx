@@ -1,7 +1,6 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { ChevronDown, Home, Loader2 } from "lucide-react";
 import { useApp } from "@/lib/app-state";
-import { children } from "@/lib/mock-data";
 import { Button } from "@lumenx/ui";
 import {
   DropdownMenu,
@@ -16,11 +15,11 @@ import { cn } from "@lumenx/ui";
 
 /** Sticky context for parents: active learner + quick switch (validated IDs only). */
 export function ParentContextBar() {
-  const { activeChildId, setActiveChildId } = useApp();
+  const { activeChildId, setActiveChildId, linkedChildren } = useApp();
   const portal = useParentPortal();
   const loc = useLocation();
   const isHome = loc.pathname === "/";
-  const child = children.find((c) => c.id === activeChildId);
+  const child = linkedChildren.find((c) => c.id === activeChildId);
   if (!child) return null;
 
   const loading = portal.isParent && portal.isLoading && !portal.snapshot;
@@ -62,7 +61,7 @@ export function ParentContextBar() {
                 <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
                   Linked to your account
                 </DropdownMenuLabel>
-                {children.map((c) => (
+                {linkedChildren.map((c) => (
                   <DropdownMenuItem
                     key={c.id}
                     onClick={() => setActiveChildId(c.id)}
