@@ -1,7 +1,10 @@
 # LumenX API — production deploy packaging
 
 This is the Phase 1 Step 5 runbook for shipping `@lumenx/api` as a real process
-(not only local `tsx`). Full ops narrative (OTP / billing lock / cron) is Step 6.
+(not only local `tsx`).
+
+**Day-2 ops** (OTP, billing lock, lifecycle cron): **[OPS.md](./OPS.md)**  
+**Overview / scripts**: **[README.md](./README.md)**
 
 ## 1. Apply Supabase migrations (prod)
 
