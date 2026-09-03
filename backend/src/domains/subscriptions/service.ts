@@ -453,4 +453,6 @@ export {
   deriveFreeMonths,
   toOfflineSubmission,
   findPendingOfflinePair,
+  assertSubscriptionBillingWriter,
+  newInvoiceNumber,
 };

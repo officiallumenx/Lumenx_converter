@@ -700,7 +700,12 @@ export async function createAchievementForActor(
     kind: input.kind ?? "award",
     createdByUserId: actor.userId,
   });
-  return toAchievementDto(row);
+  const dto = toAchievementDto(row);
+  const { emitAchievementAwardedNotifications } = await import(
+    "./notifications.js"
+  );
+  await emitAchievementAwardedNotifications(admin, actor.userId, dto);
+  return dto;
 }
 
 export async function updateAchievementForActor(
@@ -843,7 +848,12 @@ export async function createPracticeSessionForActor(
     createdByUserId: actor.userId,
     status: input.status ?? "scheduled",
   });
-  return toPracticeSessionDto(row);
+  const dto = toPracticeSessionDto(row);
+  const { emitPracticeScheduledNotifications } = await import(
+    "./notifications.js"
+  );
+  await emitPracticeScheduledNotifications(admin, actor.userId, dto);
+  return dto;
 }
 
 export async function updatePracticeSessionForActor(

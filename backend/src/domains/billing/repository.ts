@@ -210,6 +210,22 @@ export async function findPaymentById(
   return (result.data as PaymentRow | null) ?? null;
 }
 
+export async function findPaymentByProviderRef(
+  admin: SupabaseClient,
+  provider: string,
+  providerRef: string,
+): Promise<PaymentRow | null> {
+  const result = await admin
+    .from("payment")
+    .select(PAYMENT_COLS)
+    .eq("provider", provider)
+    .eq("provider_ref", providerRef)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (result.data as PaymentRow | null) ?? null;
+}
+
 export async function insertPayment(
   admin: SupabaseClient,
   input: CreatePaymentInput & { recordedByUserId: string },

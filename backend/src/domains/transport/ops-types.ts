@@ -166,6 +166,14 @@ export type LearnerTransportLiveDto = {
   boarding: TransportBoardingEventDto | null;
   openEmergency: TransportEmergencyDto | null;
   latestLocation: VehicleLocationDto | null;
+  /** Distance / ETA to the learner's pickup stop when live GPS exists. */
+  approach: {
+    stopId: string;
+    stopName: string;
+    distanceM: number;
+    withinRadius: boolean;
+    etaMinutes: number;
+  } | null;
 };
 
 export type StartTripInput = {

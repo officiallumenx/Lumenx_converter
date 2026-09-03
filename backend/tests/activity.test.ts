@@ -504,4 +504,67 @@ describe("activity api", () => {
     });
     expect(patch.status).toBe(404);
   });
+
+  it("practice create notifies team guardians (Phase 2 Step 10)", async () => {
+    const db = baseDb();
+    const app = appWithDb(db);
+
+    const res = await app.request("/api/v1/activity/practice-sessions", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-admin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        team_id: TEAM_ACTIVE,
+        title: "Morning drills",
+        scheduled_on: "2026-09-10",
+        start_time: "07:00",
+        location: "Field A",
+      }),
+    });
+    expect(res.status).toBe(201);
+    const practice = (await json(res)).data;
+    expect(
+      db.notification.some(
+        (n) =>
+          n.dedupe_key === `activity:practice:${practice.id}` &&
+          String(n.title).includes("Morning drills"),
+      ),
+    ).toBe(true);
+    expect(
+      db.notification_recipient.some((r) => r.user_profile_id === USER_PARENT),
+    ).toBe(true);
+  });
+
+  it("achievement create notifies guardians (Phase 2 Step 10)", async () => {
+    const db = baseDb();
+    const app = appWithDb(db);
+
+    const res = await app.request("/api/v1/activity/achievements", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-admin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        student_id: STUDENT_A,
+        title: "Gold medal",
+        kind: "award",
+        awarded_on: "2026-09-01",
+      }),
+    });
+    expect(res.status).toBe(201);
+    const achievement = (await json(res)).data;
+    expect(
+      db.notification.some(
+        (n) => n.dedupe_key === `activity:achievement:${achievement.id}`,
+      ),
+    ).toBe(true);
+    expect(
+      db.notification_recipient.some((r) => r.user_profile_id === USER_PARENT),
+    ).toBe(true);
+  });
 });

@@ -714,4 +714,76 @@ describe("transport api", () => {
     );
     expect(forbidden.status).toBe(403);
   });
+
+  it("GPS ping near stop notifies parent and live returns approach (Phase 2 Step 10)", async () => {
+    const db = baseDb();
+    db.route[0] = { ...db.route[0], driver_id: DRIVER_A };
+    const app = appWithDb(db);
+    const today = new Date().toISOString().slice(0, 10);
+
+    const start = await app.request("/api/v1/transport/trips", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-driver",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        route_id: ROUTE_A,
+        vehicle_id: VEHICLE_A,
+        driver_id: DRIVER_A,
+        trip_date: today,
+      }),
+    });
+    expect(start.status).toBe(201);
+    const trip = (await json(start)).data;
+
+    await app.request(`/api/v1/transport/trips/${trip.id}/phase`, {
+      method: "PATCH",
+      headers: {
+        Authorization: "Bearer token-driver",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ phase: "running", current_stop_index: 0 }),
+    });
+
+    const ping = await app.request(`/api/v1/transport/trips/${trip.id}/location`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-driver",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        latitude: 12.9701,
+        longitude: 77.59,
+        accuracy_m: 10,
+      }),
+    });
+    expect(ping.status).toBe(201);
+
+    expect(
+      db.notification.some(
+        (n) =>
+          typeof n.dedupe_key === "string" &&
+          String(n.dedupe_key).startsWith(`transport:approach5:${trip.id}:`),
+      ),
+    ).toBe(true);
+    expect(
+      db.notification_recipient.some((r) => r.user_profile_id === USER_PARENT),
+    ).toBe(true);
+
+    const live = await app.request(
+      `/api/v1/transport/portal/learner-transport/live?institute_id=${INST_A}&student_id=${STUDENT_A}`,
+      { headers: { Authorization: "Bearer token-parent" } },
+    );
+    expect(live.status).toBe(200);
+    const liveBody = await json(live);
+    expect(liveBody.data.approach).toMatchObject({
+      stopId: STOP_PICKUP,
+      stopName: "Gate A",
+      withinRadius: true,
+    });
+    expect(liveBody.data.approach.distanceM).toBeLessThan(150);
+    expect(liveBody.data.approach.etaMinutes).toBeGreaterThanOrEqual(0);
+  });
 });

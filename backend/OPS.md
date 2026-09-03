@@ -200,7 +200,19 @@ Send `Idempotency-Key` (8–200 chars) on fee payments, offline pay, Nexus billi
 
 ---
 
-## 8. Quick incident order
+## 8. Optional depth (Phase 2 Step 10)
+
+| Module | Workflow |
+|--------|----------|
+| **Activity notify** | Creating a practice session or achievement fans out inbox notifications to team students/guardians |
+| **Online checkout** | `POST /api/v1/subscriptions/online-checkout` (provider `demo`/`webhook`) → recorded online payment; `POST /api/v1/webhooks/payments/:provider` confirms → same verify/activate path as Nexus |
+| **Transport approach** | Driver GPS ping evaluates pickup-stop radius; parents notified once per trip; live portal returns `approach` (distanceM / etaMinutes / withinRadius) |
+
+Deep Sports satellites (tournaments, equipment, …), school-fees gateway, and traffic-grade ETA engines remain intentionally out of scope.
+
+---
+
+## 9. Quick incident order
 
 1. `GET /api/v1/health` and `/api/v1/health/ready`
 2. Confirm `NODE_ENV`, CORS, Supabase, Firebase, OTP providers
@@ -210,4 +222,5 @@ Send `Idempotency-Key` (8–200 chars) on fee payments, offline pay, Nexus billi
 6. Hire / leave 403 / upload 409 → Step 8 gates above
 7. 429 storms → raise `RATE_LIMIT_*` or check abusive IP
 8. Duplicate payments / stuck FCM → Idempotency-Key + FCM retry columns
-9. Deploy path → **DEPLOY.md** (build, Docker, PM2, smoke)
+9. Online pay stuck → `ONLINE_PAYMENT_PROVIDER` + webhook secret + payment `provider_ref`
+10. Deploy path → **DEPLOY.md** (build, Docker, PM2, smoke)

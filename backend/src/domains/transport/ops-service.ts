@@ -579,6 +579,15 @@ export async function pingLocationForActor(
     longitude: input.longitude,
     accuracyM: input.accuracyM ?? null,
   });
+
+  const { evaluateApproachAlertsOnPing } = await import("./approach.js");
+  await evaluateApproachAlertsOnPing(
+    admin,
+    trip,
+    { latitude: input.latitude, longitude: input.longitude },
+    actor.userId,
+  );
+
   return toLocationDto(row);
 }
 
@@ -615,6 +624,7 @@ export async function getLearnerTransportLiveForActor(
 
   let openEmergency: TransportEmergencyDto | null = null;
   let latestLocation: VehicleLocationDto | null = null;
+  let approach: LearnerTransportLiveDto["approach"] = null;
   if (tripRow) {
     const emergencyRow = await findOpenEmergencyForVehicle(
       admin,
@@ -625,9 +635,19 @@ export async function getLearnerTransportLiveForActor(
       : null;
     const locationRow = await findLatestLocationForTrip(admin, tripRow.id);
     latestLocation = locationRow ? toLocationDto(locationRow) : null;
+    if (latestLocation) {
+      const { computeApproachForStudent } = await import("./approach.js");
+      approach = await computeApproachForStudent(admin, {
+        instituteId,
+        routeId: tripRow.route_id,
+        studentId: input.studentId,
+        latitude: latestLocation.latitude,
+        longitude: latestLocation.longitude,
+      });
+    }
   }
 
-  return { activeTrip, boarding, openEmergency, latestLocation };
+  return { activeTrip, boarding, openEmergency, latestLocation, approach };
 }
 
 export async function getOpenEmergencyForVehicleForActor(

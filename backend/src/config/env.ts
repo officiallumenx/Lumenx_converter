@@ -101,6 +101,14 @@ export const envSchema = z.object({
   /** Tighter bucket for /api/v1/auth/* OTP request paths. */
   RATE_LIMIT_AUTH_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   RATE_LIMIT_AUTH_MAX: z.coerce.number().int().nonnegative().default(30),
+
+  /**
+   * Online subscription checkout (Phase 2 Step 10).
+   * none = disabled; demo = local session + webhook confirm; webhook = provider-ready recorded sessions.
+   */
+  ONLINE_PAYMENT_PROVIDER: z.enum(["none", "demo", "webhook"]).default("none"),
+  ONLINE_PAYMENT_WEBHOOK_SECRET: optionalString,
+  ONLINE_PAYMENT_CHECKOUT_BASE_URL: optionalString,
 });
 
 // ── Derived types ───────────────────────────────────────────────────

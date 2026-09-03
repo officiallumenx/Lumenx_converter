@@ -712,9 +712,20 @@ export async function verifyPaymentForActor(
   id: string,
 ): Promise<PaymentDto> {
   assertBillingWriter(actor);
+  return verifyPaymentInternal(admin, id, actor.userId);
+}
 
+/** Webhook / system verify — same activation path as Nexus verify. */
+export async function verifyPaymentInternal(
+  admin: SupabaseClient,
+  id: string,
+  verifiedByUserId: string,
+): Promise<PaymentDto> {
   const existing = await findPaymentById(admin, id);
   if (!existing) throw AppError.notFound("Payment not found");
+  if (existing.status === "verified") {
+    return toPaymentDto(existing);
+  }
   if (existing.status !== "recorded") {
     throw AppError.conflict("Only recorded payments can be verified");
   }
@@ -723,7 +734,7 @@ export async function verifyPaymentForActor(
   const updated = await updatePaymentFields(admin, id, {
     status: "verified",
     verified_at: now,
-    verified_by_user_id: actor.userId,
+    verified_by_user_id: verifiedByUserId,
   });
   if (!updated) throw AppError.notFound("Payment not found");
 
