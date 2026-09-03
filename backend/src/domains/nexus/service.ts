@@ -5,6 +5,7 @@ import {
   assertPlatformOperator,
   assertPlatformRoles,
 } from "../../authorization/index.js";
+import { syncSubscriptionLifecycles } from "../subscriptions/lifecycle-sync.js";
 import { findInstituteById, findProfileById } from "../identity/repository.js";
 import {
   clearCurrentPeriods,
@@ -457,6 +458,16 @@ export async function getSubscriptionForActor(
   const row = await findSubscriptionById(admin, id);
   if (!row) throw AppError.notFound("Subscription not found");
   return loadSubscriptionDto(admin, row);
+}
+
+/** Persist derived commercial lifecycle for all institutes (ops flush). */
+export async function syncSubscriptionLifecyclesForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  now?: Date,
+) {
+  assertNexusCommercialWriter(actor);
+  return syncSubscriptionLifecycles(admin, { now });
 }
 
 export async function upsertSubscriptionForActor(

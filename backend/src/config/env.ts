@@ -71,6 +71,16 @@ export const envSchema = z.object({
   OTP_EMAIL_FROM: optionalString,
   OTP_EMAIL_WEBHOOK_URL: optionalString,
   OTP_EMAIL_WEBHOOK_TOKEN: optionalString,
+
+  /**
+   * How often to persist derived subscription lifecycle (trial → grace → read_only)
+   * and mark overdue renewals. Milliseconds. Default 1 hour. Set 0 to disable the loop.
+   */
+  SUBSCRIPTION_LIFECYCLE_SYNC_MS: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .default(3_600_000),
 });
 
 // ── Derived types ───────────────────────────────────────────────────

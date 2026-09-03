@@ -21,6 +21,7 @@ import {
   listOperatorsForActor,
   listPeriodsForActor,
   listSubscriptionsForActor,
+  syncSubscriptionLifecyclesForActor,
   updateOperatorForActor,
   upsertLicenseForActor,
   upsertSubscriptionForActor,
@@ -223,6 +224,13 @@ subscriptions.get("/", async (c) => {
     actor,
     query.institute_id,
   );
+  return c.json({ data });
+});
+
+subscriptions.post("/sync-lifecycle", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const data = await syncSubscriptionLifecyclesForActor(admin, actor);
   return c.json({ data });
 });
 

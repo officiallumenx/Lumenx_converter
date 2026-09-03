@@ -8,6 +8,7 @@ import { createLogger } from "./logger/logger.js";
 import { createSupabaseClients } from "./integrations/supabase.js";
 import { getFirebaseMessaging, initFirebaseAdmin } from "./integrations/firebase.js";
 import { startFcmWorkerLoop } from "./workers/fcm-worker-runner.js";
+import { startSubscriptionLifecycleLoop } from "./workers/subscription-lifecycle-runner.js";
 
 const env = loadEnv();
 const logger = createLogger(env.LOG_LEVEL);
@@ -26,6 +27,23 @@ if (supabase?.admin && messaging) {
   });
 }
 
+if (supabase?.admin) {
+  startSubscriptionLifecycleLoop({
+    admin: supabase.admin,
+    logger,
+    intervalMs: env.SUBSCRIPTION_LIFECYCLE_SYNC_MS,
+  });
+  logger.info({
+    msg: "subscription_lifecycle_worker_started",
+    intervalMs: env.SUBSCRIPTION_LIFECYCLE_SYNC_MS,
+  });
+} else {
+  logger.warn({
+    msg: "subscription_lifecycle_worker_disabled",
+    hint: "Configure Supabase to enable commercial lifecycle sync.",
+  });
+}
+
 serve({ fetch: app.fetch, port: env.PORT, hostname: env.HOST }, (info) => {
   logger.info({
     msg: "server_started",
@@ -34,5 +52,6 @@ serve({ fetch: app.fetch, port: env.PORT, hostname: env.HOST }, (info) => {
     env: env.NODE_ENV,
     supabase: supabase ? "configured" : "not_configured",
     fcm: messaging ? "enabled" : "disabled",
+    subscriptionLifecycleMs: env.SUBSCRIPTION_LIFECYCLE_SYNC_MS,
   });
 });
