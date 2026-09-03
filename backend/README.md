@@ -1,27 +1,37 @@
 # LumenX API (`@lumenx/api`)
 
-Server-only backend workspace. Frontend apps must never import this package directly.
+Server-only backend workspace. Frontend apps must never import this package directly —
+call it over HTTPS.
 
-## Status
+## Quick start (dev)
 
-Phase 1A — workspace scaffold only. No framework, no integrations, no routes yet.
+```bash
+npm run dev:api
+```
+
+Health: `GET http://127.0.0.1:8787/api/v1/health`
+
+## Production packaging
+
+Build compiled Node and deploy with Docker, PM2, or systemd:
+
+→ **[DEPLOY.md](./DEPLOY.md)** (Phase 1 Step 5)
+
+```bash
+npm run build --workspace=@lumenx/api
+npm run start --workspace=@lumenx/api
+npm run smoke --workspace=@lumenx/api
+```
 
 ## Layout
 
 ```
 backend/
-├── src/
-│   └── index.ts    # Entrypoint (placeholder)
-├── package.json
-├── tsconfig.json
-└── README.md
+├── src/           # Hono API + domains + workers
+├── dist/          # esbuild emit (production start)
+├── deploy/        # docker-compose, PM2, systemd
+├── scripts/       # build, migrations list/bundle, prod smoke
+├── Dockerfile
+├── DEPLOY.md
+└── package.json
 ```
-
-## Phases
-
-- **1A** — This workspace (done)
-- **1B** — Hono core
-- **1C** — Config + security middleware
-- **1D** — Error + logging + validation
-- **1E** — Supabase / Firebase integration boundaries
-- **1F** — Tests + verification

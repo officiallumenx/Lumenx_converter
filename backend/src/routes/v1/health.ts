@@ -12,10 +12,13 @@ const health = new Hono<AppBindings>();
  * Liveness — never depends on Supabase or other integrations.
  */
 health.get("/", (c) => {
+  const env = loadEnv();
   return c.json({
     service: "lumenx-api",
     status: "ok",
     version: "v1",
+    env: env.NODE_ENV,
+    release: process.env.GIT_SHA ?? process.env.npm_package_version ?? null,
   });
 });
 

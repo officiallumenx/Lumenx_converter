@@ -35,6 +35,9 @@ jobs:
       - name: Test Backend API
         run: npm run test --workspace=@lumenx/api
 
+      - name: Build Backend API
+        run: npm run build:api
+
       - name: Build Connect
         run: npm run build:connect
 

@@ -1,0 +1,28 @@
+# Used when building: docker build -f backend/Dockerfile -t lumenx-api .
+.git
+.github
+.cursor
+**/node_modules
+**/dist
+**/coverage
+**/.env
+**/.env.*
+!**/.env.example
+
+# Frontend sources not needed to compile @lumenx/api
+apps/*/src
+apps/*/public
+apps/*/android
+apps/*/ios
+apps/*/dist
+apps/*/.vite
+packages/*/src
+!packages/config/**
+
+# Docs / media noise
+**/*.md
+!backend/DEPLOY.md
+**/*.png
+**/*.jpg
+**/*.webp
+agent-transcripts

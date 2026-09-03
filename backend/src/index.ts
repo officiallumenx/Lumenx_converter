@@ -4,6 +4,7 @@ loadDotenv();
 import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
 import { loadEnv } from "./config/env.js";
+import { assertProductionEnv } from "./config/production.js";
 import { createLogger } from "./logger/logger.js";
 import { createSupabaseClients } from "./integrations/supabase.js";
 import { getFirebaseMessaging, initFirebaseAdmin } from "./integrations/firebase.js";
@@ -11,6 +12,7 @@ import { startFcmWorkerLoop } from "./workers/fcm-worker-runner.js";
 import { startSubscriptionLifecycleLoop } from "./workers/subscription-lifecycle-runner.js";
 
 const env = loadEnv();
+assertProductionEnv(env, process.env as Record<string, string | undefined>);
 const logger = createLogger(env.LOG_LEVEL);
 const supabase = createSupabaseClients(env, logger);
 const app = createApp(env, logger, supabase);

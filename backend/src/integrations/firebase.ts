@@ -4,7 +4,8 @@ import type { Env } from "../config/env.js";
 import type { Logger } from "../logger/logger.js";
 
 export type { App } from "firebase-admin/app";
-export { deleteApp, getMessaging, type Messaging } from "firebase-admin/messaging";
+export { deleteApp } from "firebase-admin/app";
+export { getMessaging, type Messaging } from "firebase-admin/messaging";
 
 /**
  * Validate that all required Firebase env vars are present.

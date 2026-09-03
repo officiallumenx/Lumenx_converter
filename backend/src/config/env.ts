@@ -101,7 +101,18 @@ let cached: Env | null = null;
 export function loadEnv(overrides?: Record<string, string | undefined>): Env {
   if (cached && !overrides) return cached;
 
-  const source = overrides ?? process.env;
+  const source: Record<string, string | undefined> = {
+    ...(overrides ?? process.env),
+  };
+
+  // Containers / VMs must bind publicly unless the operator overrides HOST.
+  if (
+    (source.NODE_ENV ?? "development") === "production" &&
+    (!source.HOST || !String(source.HOST).trim())
+  ) {
+    source.HOST = "0.0.0.0";
+  }
+
   const result = envSchema.safeParse(source);
 
   if (result.success === false) {
@@ -113,6 +124,8 @@ export function loadEnv(overrides?: Record<string, string | undefined>): Env {
 
   // Always cache so domain helpers (OTP delivery mode, etc.) see the active env,
   // including test overrides. Tests must call resetEnvCache() between cases.
+  // Production fail-closed packaging checks run from the process entrypoint
+  // (see assertProductionEnv) — not here — so unit tests can still set NODE_ENV=production.
   cached = result.data;
   return result.data;
 }

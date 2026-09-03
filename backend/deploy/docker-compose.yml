@@ -1,0 +1,31 @@
+# Local production-shaped API stack (TLS terminates at your reverse proxy).
+# From repo root:
+#   docker compose -f backend/deploy/docker-compose.yml up --build
+
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: backend/Dockerfile
+    image: lumenx-api:local
+    ports:
+      - "${PORT:-8787}:8787"
+    env_file:
+      - ../.env
+    environment:
+      NODE_ENV: production
+      HOST: "0.0.0.0"
+      PORT: "8787"
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8787/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 25s

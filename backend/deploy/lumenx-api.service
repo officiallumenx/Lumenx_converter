@@ -1,0 +1,22 @@
+[Unit]
+Description=LumenX API (@lumenx/api)
+After=network.target
+
+[Service]
+Type=simple
+User=lumenx
+WorkingDirectory=/opt/lumenx/backend
+EnvironmentFile=/opt/lumenx/backend/.env
+Environment=NODE_ENV=production
+Environment=HOST=0.0.0.0
+ExecStart=/usr/bin/node dist/index.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+
+# Harden a bit — adjust paths for your host.
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -28,6 +28,8 @@
     "typecheck:website": "npm run typecheck --workspace=@lumenx/app-website",
     "test:connect": "npm run test --workspace=@lumenx/app-connect",
     "dev:api": "npm run dev --workspace=@lumenx/api",
+    "build:api": "npm run build --workspace=@lumenx/api",
+    "start:api": "npm run start --workspace=@lumenx/api",
     "typecheck:api": "npm run typecheck --workspace=@lumenx/api",
     "madge:circular": "npx madge --circular --extensions ts,tsx packages apps/admin/src apps/connect/src"
   },

@@ -50,11 +50,13 @@ describe("Supabase Hono wiring", () => {
     const res = await app.request("/api/v1/health");
     expect(res.status).toBe(200);
     const body = await json(res);
-    expect(body).toEqual({
+    expect(body).toMatchObject({
       service: "lumenx-api",
       status: "ok",
       version: "v1",
     });
+    expect(body).toHaveProperty("env");
+    expect(body).toHaveProperty("release");
   });
 
   it("createRequestScopedClient builds a client without validating the token", () => {

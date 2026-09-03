@@ -34,11 +34,13 @@ describe("/api/v1 namespace", () => {
 
     expect(res.status).toBe(200);
     const body = await json(res);
-    expect(body).toEqual({
+    expect(body).toMatchObject({
       service: "lumenx-api",
       status: "ok",
       version: "v1",
+      env: "test",
     });
+    expect(body).toHaveProperty("release");
   });
 
   it("returns 404 for unimplemented nexus domain routes", async () => {

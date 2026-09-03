@@ -1,0 +1,17 @@
+node_modules
+**/node_modules
+.git
+.github
+**/dist
+**/.env
+**/.env.*
+!**/.env.example
+apps/**/src
+apps/**/public
+apps/**/android
+apps/**/ios
+**/coverage
+**/*.md
+!backend/DEPLOY.md
+agent-transcripts
+.cursor
