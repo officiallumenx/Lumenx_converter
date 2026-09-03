@@ -1,9 +1,10 @@
 import { randomInt } from "node:crypto";
+import { isOtpDemoMode } from "../otp-delivery/index.js";
 
 const OTP_TTL_MS = 5 * 60 * 1000;
 const OTP_RESEND_COOLDOWN_MS = 30 * 1000;
 
-/** Fixed demo OTP for local/dev when SMS/email is not wired. */
+/** Fixed demo OTP for local/dev when delivery mode is demo. */
 export const STAFF_LOGIN_DEMO_OTP = "123456";
 
 type OtpChallenge = {
@@ -23,7 +24,7 @@ function challengeKey(instituteId: string, identifier: string): string {
 }
 
 function generateOtpCode(): string {
-  if (process.env.NODE_ENV !== "production") {
+  if (isOtpDemoMode()) {
     return STAFF_LOGIN_DEMO_OTP;
   }
   return String(randomInt(100000, 999999));
@@ -51,7 +52,11 @@ export type StoreStaffOtpInput = {
 export type StoreStaffOtpResult = {
   maskedDestination: string;
   channel: "email" | "mobile";
-  /** Present only outside production for developer testing. */
+  /** Plain OTP for the delivery layer — never put in HTTP responses. */
+  otp: string;
+  /** True when a new/refreshed challenge must be delivered. */
+  shouldDeliver: boolean;
+  /** Present only in demo delivery mode for developer testing. */
   devOtp?: string;
 };
 
@@ -59,12 +64,15 @@ export function storeStaffLoginOtp(input: StoreStaffOtpInput): StoreStaffOtpResu
   const key = challengeKey(input.instituteId, input.identifier);
   const now = Date.now();
   const existing = challenges.get(key);
+  const demo = isOtpDemoMode();
 
   if (existing && now - existing.lastSentAt < OTP_RESEND_COOLDOWN_MS) {
     return {
       maskedDestination: maskStaffIdentifier(input.identifier, input.channel),
       channel: input.channel,
-      devOtp: process.env.NODE_ENV !== "production" ? existing.otp : undefined,
+      otp: existing.otp,
+      shouldDeliver: false,
+      devOtp: demo ? existing.otp : undefined,
     };
   }
 
@@ -82,7 +90,9 @@ export function storeStaffLoginOtp(input: StoreStaffOtpInput): StoreStaffOtpResu
   return {
     maskedDestination: maskStaffIdentifier(input.identifier, input.channel),
     channel: input.channel,
-    devOtp: process.env.NODE_ENV !== "production" ? otp : undefined,
+    otp,
+    shouldDeliver: true,
+    devOtp: demo ? otp : undefined,
   };
 }
 

@@ -118,4 +118,47 @@ describe("parent login OTP", () => {
     expect(body.data.access_token).toMatch(/^access-/);
     expect(body.data.institute_id).toBe(INST_A);
   });
+
+  it("live delivery mode sends SMS webhook when requesting parent OTP", async () => {
+    resetEnvCache();
+    clearParentLoginOtpStore();
+    const { setOtpDeliveryFetch, resetOtpDeliveryFetch } = await import(
+      "../src/domains/otp-delivery/index.js"
+    );
+    const fetchSpy = vi.fn(async () => new Response("{}", { status: 200 }));
+    setOtpDeliveryFetch(fetchSpy as unknown as typeof fetch);
+
+    const env = loadEnv({
+      NODE_ENV: "production",
+      LOG_LEVEL: "error",
+      OTP_DELIVERY_MODE: "live",
+      OTP_SMS_PROVIDER: "webhook",
+      OTP_SMS_WEBHOOK_URL: "https://hooks.example/parent-sms",
+    });
+    const app = createApp(
+      env,
+      silentLogger,
+      createMockSupabaseClients({ db: baseDb(), tokens: {} }),
+    );
+
+    const hit = await app.request("/api/v1/auth/parent/request-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        phone: "9876512345",
+      }),
+    });
+    expect(hit.status).toBe(200);
+    const body = await hit.json();
+    expect(body.data.devOtp).toBeUndefined();
+    expect(fetchSpy).toHaveBeenCalledOnce();
+    const payload = JSON.parse(String((fetchSpy.mock.calls[0]![1] as RequestInit).body));
+    expect(payload.purpose).toBe("parent_login");
+    expect(payload.otp).toMatch(/^\d{6}$/);
+
+    resetOtpDeliveryFetch();
+    resetEnvCache();
+    clearParentLoginOtpStore();
+  });
 });

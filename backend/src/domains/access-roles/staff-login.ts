@@ -11,6 +11,7 @@ import {
   storeStaffLoginOtp,
   verifyStoredStaffLoginOtp,
 } from "./staff-otp.js";
+import { deliverLoginOtp } from "../otp-delivery/index.js";
 
 const INSTITUTE_WIDE_ROLES = new Set([
   "institute_admin",
@@ -211,6 +212,15 @@ export async function requestStaffLoginOtp(
     channel: resolved.channel,
     userId: resolved.userId,
   });
+
+  if (stored.shouldDeliver) {
+    await deliverLoginOtp({
+      channel: resolved.channel === "email" ? "email" : "sms",
+      destination: resolved.destination,
+      otp: stored.otp,
+      purpose: "staff_login",
+    });
+  }
 
   return {
     maskedDestination:

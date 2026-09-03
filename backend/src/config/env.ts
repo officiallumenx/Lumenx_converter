@@ -46,6 +46,31 @@ export const envSchema = z.object({
   FIREBASE_PROJECT_ID: optionalString,
   FIREBASE_CLIENT_EMAIL: optionalString,
   FIREBASE_PRIVATE_KEY: optionalString,
+
+  /**
+   * OTP delivery:
+   * - demo (default in development/test): no network send; fixed/dev codes OK
+   * - live: send via configured SMS/email providers; random codes; never echo OTP
+   * Production always behaves as live regardless of this flag.
+   */
+  OTP_DELIVERY_MODE: z.enum(["demo", "live"]).default("demo"),
+
+  // SMS — set OTP_SMS_PROVIDER=twilio|webhook for live parent/staff mobile OTPs
+  OTP_SMS_PROVIDER: z.enum(["none", "twilio", "webhook"]).default("none"),
+  TWILIO_ACCOUNT_SID: optionalString,
+  TWILIO_AUTH_TOKEN: optionalString,
+  TWILIO_FROM_NUMBER: optionalString,
+  OTP_SMS_WEBHOOK_URL: optionalString,
+  OTP_SMS_WEBHOOK_TOKEN: optionalString,
+  /** E.164 country prefix applied when destination is a 10-digit IN mobile (default +91). */
+  OTP_SMS_DEFAULT_COUNTRY_CODE: z.string().default("+91"),
+
+  // Email — set OTP_EMAIL_PROVIDER=resend|webhook for live staff email OTPs
+  OTP_EMAIL_PROVIDER: z.enum(["none", "resend", "webhook"]).default("none"),
+  RESEND_API_KEY: optionalString,
+  OTP_EMAIL_FROM: optionalString,
+  OTP_EMAIL_WEBHOOK_URL: optionalString,
+  OTP_EMAIL_WEBHOOK_TOKEN: optionalString,
 });
 
 // ── Derived types ───────────────────────────────────────────────────
@@ -69,14 +94,16 @@ export function loadEnv(overrides?: Record<string, string | undefined>): Env {
   const source = overrides ?? process.env;
   const result = envSchema.safeParse(source);
 
-  if (!result.success) {
+  if (result.success === false) {
     const messages = result.error.issues
       .map((i) => `  ${i.path.join(".")}: ${i.message}`)
       .join("\n");
     throw new Error(`Invalid environment configuration:\n${messages}`);
   }
 
-  if (!overrides) cached = result.data;
+  // Always cache so domain helpers (OTP delivery mode, etc.) see the active env,
+  // including test overrides. Tests must call resetEnvCache() between cases.
+  cached = result.data;
   return result.data;
 }
 

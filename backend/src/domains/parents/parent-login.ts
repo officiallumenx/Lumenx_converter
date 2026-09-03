@@ -11,6 +11,7 @@ import {
   storeParentLoginOtp,
   verifyStoredParentLoginOtp,
 } from "./parent-otp.js";
+import { deliverLoginOtp } from "../otp-delivery/index.js";
 import {
   ensureParentMembership,
   ensureParentProfile,
@@ -103,6 +104,15 @@ export async function requestParentLoginOtp(
     phone,
     parentId: parent.id,
   });
+
+  if (stored.shouldDeliver) {
+    await deliverLoginOtp({
+      channel: "sms",
+      destination: phone,
+      otp: stored.otp,
+      purpose: "parent_login",
+    });
+  }
 
   return {
     maskedPhone: stored.maskedPhone || maskParentPhone(phone),
