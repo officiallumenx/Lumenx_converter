@@ -118,6 +118,7 @@ export type MockDb = {
   alert_fire: Row[];
   report_job: Row[];
   institute_registration: Row[];
+  login_otp_challenge: Row[];
 };
 
 export type MockDbError = { code: string; message?: string };
@@ -625,5 +626,6 @@ export function emptyMockDb(): MockDb {
     alert_fire: [],
     report_job: [],
     institute_registration: [],
+    login_otp_challenge: [],
   };
 }

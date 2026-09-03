@@ -10,3 +10,11 @@ export type {
   OtpDeliveryChannel,
   OtpDeliveryPurpose,
 } from "./types.js";
+export {
+  deleteExpiredLoginOtpChallenges,
+  deleteLoginOtpChallenge,
+  deleteLoginOtpChallengesByPurpose,
+  findLoginOtpChallenge,
+  hashLoginOtp,
+  upsertLoginOtpChallenge,
+} from "./challenge-repository.js";

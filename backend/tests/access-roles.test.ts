@@ -8,7 +8,6 @@ import {
   type MockDb,
 } from "./helpers/mock-supabase.js";
 import {
-  clearStaffLoginOtpStore,
   STAFF_LOGIN_DEMO_OTP,
 } from "../src/domains/access-roles/staff-otp.js";
 
@@ -20,14 +19,12 @@ const TOKEN_ADMIN = "access-admin";
 
 beforeEach(() => {
   resetEnvCache();
-  clearStaffLoginOtpStore();
   vi.spyOn(process.stdout, "write").mockImplementation(() => true);
   vi.spyOn(process.stderr, "write").mockImplementation(() => true);
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
-  clearStaffLoginOtpStore();
 });
 
 function baseDb(): MockDb {

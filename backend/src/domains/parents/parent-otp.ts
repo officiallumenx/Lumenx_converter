@@ -1,23 +1,22 @@
 import { randomInt } from "node:crypto";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeParentPhoneDigits } from "./portal-auth-email.js";
 import { isOtpDemoMode } from "../otp-delivery/index.js";
+import {
+  deleteLoginOtpChallenge,
+  deleteLoginOtpChallengesByPurpose,
+  findLoginOtpChallenge,
+  upsertLoginOtpChallenge,
+  hashLoginOtp,
+} from "../otp-delivery/challenge-repository.js";
 
-const OTP_TTL_MS = 5 * 60 * 1000;
-const OTP_RESEND_COOLDOWN_MS = 30 * 1000;
+export const OTP_TTL_MS = 5 * 60 * 1000;
+export const OTP_RESEND_COOLDOWN_MS = 30 * 1000;
 
 /** Fixed demo OTP for local/dev when delivery mode is demo. */
 export const PARENT_LOGIN_DEMO_OTP = "123456";
 
-type OtpChallenge = {
-  otp: string;
-  expiresAt: number;
-  parentId: string;
-  instituteId: string;
-  phone: string;
-  lastSentAt: number;
-};
-
-const challenges = new Map<string, OtpChallenge>();
+const PURPOSE = "parent_login" as const;
 
 function challengeKey(instituteId: string, phone: string): string {
   return `${instituteId.trim().toLowerCase()}:${normalizeParentPhoneDigits(phone)}`;
@@ -52,30 +51,44 @@ export type StoreParentOtpResult = {
   devOtp?: string;
 };
 
-export function storeParentLoginOtp(input: StoreParentOtpInput): StoreParentOtpResult {
+export async function storeParentLoginOtp(
+  admin: SupabaseClient,
+  input: StoreParentOtpInput,
+): Promise<StoreParentOtpResult> {
   const phone = normalizeParentPhoneDigits(input.phone);
   const key = challengeKey(input.instituteId, phone);
   const now = Date.now();
-  const existing = challenges.get(key);
   const demo = isOtpDemoMode();
+  const existing = await findLoginOtpChallenge(admin, PURPOSE, key);
 
-  if (existing && now - existing.lastSentAt < OTP_RESEND_COOLDOWN_MS) {
-    return {
-      maskedPhone: maskParentPhone(phone),
-      otp: existing.otp,
-      shouldDeliver: false,
-      devOtp: demo ? existing.otp : undefined,
-    };
+  if (existing) {
+    const lastSentMs = Date.parse(existing.last_sent_at);
+    if (
+      Number.isFinite(lastSentMs) &&
+      now - lastSentMs < OTP_RESEND_COOLDOWN_MS &&
+      Date.parse(existing.expires_at) > now
+    ) {
+      const cooldownOtp = demo ? PARENT_LOGIN_DEMO_OTP : "";
+      return {
+        maskedPhone: maskParentPhone(phone),
+        otp: cooldownOtp,
+        shouldDeliver: false,
+        devOtp: demo ? PARENT_LOGIN_DEMO_OTP : undefined,
+      };
+    }
   }
 
   const otp = generateOtpCode();
-  challenges.set(key, {
-    otp,
-    expiresAt: now + OTP_TTL_MS,
-    parentId: input.parentId,
+  await upsertLoginOtpChallenge(admin, {
+    purpose: PURPOSE,
     instituteId: input.instituteId.trim(),
-    phone,
-    lastSentAt: now,
+    challengeKey: key,
+    channel: "sms",
+    destination: phone,
+    subjectId: input.parentId,
+    otp,
+    expiresAt: new Date(now + OTP_TTL_MS).toISOString(),
+    lastSentAt: new Date(now).toISOString(),
   });
 
   return {
@@ -98,32 +111,36 @@ export type VerifiedParentOtp = {
   phone: string;
 };
 
-export function verifyStoredParentLoginOtp(
+export async function verifyStoredParentLoginOtp(
+  admin: SupabaseClient,
   input: VerifyParentOtpInput,
-): VerifiedParentOtp | null {
+): Promise<VerifiedParentOtp | null> {
   const phone = normalizeParentPhoneDigits(input.phone);
   const key = challengeKey(input.instituteId, phone);
-  const challenge = challenges.get(key);
+  const challenge = await findLoginOtpChallenge(admin, PURPOSE, key);
   if (!challenge) return null;
 
-  if (Date.now() > challenge.expiresAt) {
-    challenges.delete(key);
+  if (Date.parse(challenge.expires_at) <= Date.now()) {
+    await deleteLoginOtpChallenge(admin, PURPOSE, key);
     return null;
   }
 
-  if (challenge.otp !== input.otp.trim()) {
+  const expected = hashLoginOtp(PURPOSE, key, input.otp);
+  if (challenge.otp_hash !== expected) {
     return null;
   }
 
-  challenges.delete(key);
+  await deleteLoginOtpChallenge(admin, PURPOSE, key);
   return {
-    parentId: challenge.parentId,
-    instituteId: challenge.instituteId,
-    phone: challenge.phone,
+    parentId: challenge.subject_id,
+    instituteId: challenge.institute_id,
+    phone: challenge.destination,
   };
 }
 
-/** Test helper */
-export function clearParentLoginOtpStore(): void {
-  challenges.clear();
+/** Test helper — clears durable parent OTP rows for the admin client. */
+export async function clearParentLoginOtpStore(
+  admin: SupabaseClient,
+): Promise<void> {
+  await deleteLoginOtpChallengesByPurpose(admin, PURPOSE);
 }

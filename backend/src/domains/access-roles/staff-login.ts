@@ -206,7 +206,7 @@ export async function requestStaffLoginOtp(
     );
   }
 
-  const stored = storeStaffLoginOtp({
+  const stored = await storeStaffLoginOtp(admin, {
     instituteId: input.instituteId.trim(),
     identifier: input.identifier.trim(),
     channel: resolved.channel,
@@ -327,7 +327,7 @@ export async function verifyStaffLogin(
     throw AppError.validation("password is required", { password: ["Required"] });
   }
 
-  const verified = verifyStoredStaffLoginOtp({
+  const verified = await verifyStoredStaffLoginOtp(admin, {
     instituteId: input.instituteId,
     identifier: input.identifier,
     otp: input.otp,

@@ -99,7 +99,7 @@ export async function requestParentLoginOtp(
 
   await ensureParentLoginIdentity(admin, parent.id);
 
-  const stored = storeParentLoginOtp({
+  const stored = await storeParentLoginOtp(admin, {
     instituteId: parent.institute_id,
     phone,
     parentId: parent.id,
@@ -166,7 +166,7 @@ export async function verifyParentLoginOtp(
   admin: SupabaseClient,
   input: VerifyParentOtpInput,
 ): Promise<ParentLoginSession> {
-  const verified = verifyStoredParentLoginOtp(input);
+  const verified = await verifyStoredParentLoginOtp(admin, input);
   if (!verified) {
     throw AppError.validation("Incorrect or expired code. Try again or request a new OTP.");
   }

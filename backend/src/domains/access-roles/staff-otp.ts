@@ -1,23 +1,21 @@
 import { randomInt } from "node:crypto";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { isOtpDemoMode } from "../otp-delivery/index.js";
+import {
+  deleteLoginOtpChallenge,
+  deleteLoginOtpChallengesByPurpose,
+  findLoginOtpChallenge,
+  hashLoginOtp,
+  upsertLoginOtpChallenge,
+} from "../otp-delivery/challenge-repository.js";
 
-const OTP_TTL_MS = 5 * 60 * 1000;
-const OTP_RESEND_COOLDOWN_MS = 30 * 1000;
+export const OTP_TTL_MS = 5 * 60 * 1000;
+export const OTP_RESEND_COOLDOWN_MS = 30 * 1000;
 
 /** Fixed demo OTP for local/dev when delivery mode is demo. */
 export const STAFF_LOGIN_DEMO_OTP = "123456";
 
-type OtpChallenge = {
-  otp: string;
-  expiresAt: number;
-  userId: string;
-  instituteId: string;
-  identifier: string;
-  channel: "email" | "mobile";
-  lastSentAt: number;
-};
-
-const challenges = new Map<string, OtpChallenge>();
+const PURPOSE = "staff_login" as const;
 
 function challengeKey(instituteId: string, identifier: string): string {
   return `${instituteId.trim().toLowerCase()}:${identifier.trim().toLowerCase()}`;
@@ -60,31 +58,48 @@ export type StoreStaffOtpResult = {
   devOtp?: string;
 };
 
-export function storeStaffLoginOtp(input: StoreStaffOtpInput): StoreStaffOtpResult {
+export async function storeStaffLoginOtp(
+  admin: SupabaseClient,
+  input: StoreStaffOtpInput,
+): Promise<StoreStaffOtpResult> {
   const key = challengeKey(input.instituteId, input.identifier);
   const now = Date.now();
-  const existing = challenges.get(key);
   const demo = isOtpDemoMode();
+  const existing = await findLoginOtpChallenge(admin, PURPOSE, key);
 
-  if (existing && now - existing.lastSentAt < OTP_RESEND_COOLDOWN_MS) {
-    return {
-      maskedDestination: maskStaffIdentifier(input.identifier, input.channel),
-      channel: input.channel,
-      otp: existing.otp,
-      shouldDeliver: false,
-      devOtp: demo ? existing.otp : undefined,
-    };
+  if (existing) {
+    const lastSentMs = Date.parse(existing.last_sent_at);
+    if (
+      Number.isFinite(lastSentMs) &&
+      now - lastSentMs < OTP_RESEND_COOLDOWN_MS &&
+      Date.parse(existing.expires_at) > now
+    ) {
+      return {
+        maskedDestination: maskStaffIdentifier(input.identifier, input.channel),
+        channel: input.channel,
+        otp: demo ? STAFF_LOGIN_DEMO_OTP : "",
+        shouldDeliver: false,
+        devOtp: demo ? STAFF_LOGIN_DEMO_OTP : undefined,
+      };
+    }
   }
 
   const otp = generateOtpCode();
-  challenges.set(key, {
-    otp,
-    expiresAt: now + OTP_TTL_MS,
-    userId: input.userId,
+  const destination =
+    input.channel === "email"
+      ? input.identifier.trim().toLowerCase()
+      : input.identifier.replace(/\D/g, "").slice(-10);
+
+  await upsertLoginOtpChallenge(admin, {
+    purpose: PURPOSE,
     instituteId: input.instituteId.trim(),
-    identifier: input.identifier.trim().toLowerCase(),
+    challengeKey: key,
     channel: input.channel,
-    lastSentAt: now,
+    destination,
+    subjectId: input.userId,
+    otp,
+    expiresAt: new Date(now + OTP_TTL_MS).toISOString(),
+    lastSentAt: new Date(now).toISOString(),
   });
 
   return {
@@ -108,31 +123,35 @@ export type VerifiedStaffOtp = {
   identifier: string;
 };
 
-export function verifyStoredStaffLoginOtp(
+export async function verifyStoredStaffLoginOtp(
+  admin: SupabaseClient,
   input: VerifyStaffOtpInput,
-): VerifiedStaffOtp | null {
+): Promise<VerifiedStaffOtp | null> {
   const key = challengeKey(input.instituteId, input.identifier);
-  const challenge = challenges.get(key);
+  const challenge = await findLoginOtpChallenge(admin, PURPOSE, key);
   if (!challenge) return null;
 
-  if (Date.now() > challenge.expiresAt) {
-    challenges.delete(key);
+  if (Date.parse(challenge.expires_at) <= Date.now()) {
+    await deleteLoginOtpChallenge(admin, PURPOSE, key);
     return null;
   }
 
-  if (challenge.otp !== input.otp.trim()) {
+  const expected = hashLoginOtp(PURPOSE, key, input.otp);
+  if (challenge.otp_hash !== expected) {
     return null;
   }
 
-  challenges.delete(key);
+  await deleteLoginOtpChallenge(admin, PURPOSE, key);
   return {
-    userId: challenge.userId,
-    instituteId: challenge.instituteId,
-    identifier: challenge.identifier,
+    userId: challenge.subject_id,
+    instituteId: challenge.institute_id,
+    identifier: challenge.challenge_key.split(":").slice(1).join(":") || challenge.destination,
   };
 }
 
-/** Test helper */
-export function clearStaffLoginOtpStore(): void {
-  challenges.clear();
+/** Test helper — clears durable staff OTP rows for the admin client. */
+export async function clearStaffLoginOtpStore(
+  admin: SupabaseClient,
+): Promise<void> {
+  await deleteLoginOtpChallengesByPurpose(admin, PURPOSE);
 }
