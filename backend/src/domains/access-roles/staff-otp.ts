@@ -2,11 +2,11 @@ import { randomInt } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isOtpDemoMode } from "../otp-delivery/index.js";
 import {
-  deleteLoginOtpChallenge,
   deleteLoginOtpChallengesByPurpose,
   findLoginOtpChallenge,
-  hashLoginOtp,
+  purgeExpiredLoginOtpChallengesBestEffort,
   upsertLoginOtpChallenge,
+  verifyLoginOtpChallenge,
 } from "../otp-delivery/challenge-repository.js";
 
 export const OTP_TTL_MS = 5 * 60 * 1000;
@@ -62,6 +62,8 @@ export async function storeStaffLoginOtp(
   admin: SupabaseClient,
   input: StoreStaffOtpInput,
 ): Promise<StoreStaffOtpResult> {
+  await purgeExpiredLoginOtpChallengesBestEffort(admin);
+
   const key = challengeKey(input.instituteId, input.identifier);
   const now = Date.now();
   const demo = isOtpDemoMode();
@@ -128,24 +130,19 @@ export async function verifyStoredStaffLoginOtp(
   input: VerifyStaffOtpInput,
 ): Promise<VerifiedStaffOtp | null> {
   const key = challengeKey(input.instituteId, input.identifier);
-  const challenge = await findLoginOtpChallenge(admin, PURPOSE, key);
+  const challenge = await verifyLoginOtpChallenge(admin, {
+    purpose: PURPOSE,
+    challengeKey: key,
+    otp: input.otp,
+  });
   if (!challenge) return null;
 
-  if (Date.parse(challenge.expires_at) <= Date.now()) {
-    await deleteLoginOtpChallenge(admin, PURPOSE, key);
-    return null;
-  }
-
-  const expected = hashLoginOtp(PURPOSE, key, input.otp);
-  if (challenge.otp_hash !== expected) {
-    return null;
-  }
-
-  await deleteLoginOtpChallenge(admin, PURPOSE, key);
   return {
     userId: challenge.subject_id,
     instituteId: challenge.institute_id,
-    identifier: challenge.challenge_key.split(":").slice(1).join(":") || challenge.destination,
+    identifier:
+      challenge.challenge_key.split(":").slice(1).join(":") ||
+      challenge.destination,
   };
 }
 

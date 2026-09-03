@@ -3,11 +3,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeParentPhoneDigits } from "./portal-auth-email.js";
 import { isOtpDemoMode } from "../otp-delivery/index.js";
 import {
-  deleteLoginOtpChallenge,
   deleteLoginOtpChallengesByPurpose,
   findLoginOtpChallenge,
+  purgeExpiredLoginOtpChallengesBestEffort,
   upsertLoginOtpChallenge,
-  hashLoginOtp,
+  verifyLoginOtpChallenge,
 } from "../otp-delivery/challenge-repository.js";
 
 export const OTP_TTL_MS = 5 * 60 * 1000;
@@ -55,6 +55,8 @@ export async function storeParentLoginOtp(
   admin: SupabaseClient,
   input: StoreParentOtpInput,
 ): Promise<StoreParentOtpResult> {
+  await purgeExpiredLoginOtpChallengesBestEffort(admin);
+
   const phone = normalizeParentPhoneDigits(input.phone);
   const key = challengeKey(input.instituteId, phone);
   const now = Date.now();
@@ -117,20 +119,13 @@ export async function verifyStoredParentLoginOtp(
 ): Promise<VerifiedParentOtp | null> {
   const phone = normalizeParentPhoneDigits(input.phone);
   const key = challengeKey(input.instituteId, phone);
-  const challenge = await findLoginOtpChallenge(admin, PURPOSE, key);
+  const challenge = await verifyLoginOtpChallenge(admin, {
+    purpose: PURPOSE,
+    challengeKey: key,
+    otp: input.otp,
+  });
   if (!challenge) return null;
 
-  if (Date.parse(challenge.expires_at) <= Date.now()) {
-    await deleteLoginOtpChallenge(admin, PURPOSE, key);
-    return null;
-  }
-
-  const expected = hashLoginOtp(PURPOSE, key, input.otp);
-  if (challenge.otp_hash !== expected) {
-    return null;
-  }
-
-  await deleteLoginOtpChallenge(admin, PURPOSE, key);
   return {
     parentId: challenge.subject_id,
     instituteId: challenge.institute_id,

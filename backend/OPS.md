@@ -42,8 +42,11 @@ Deploy packaging lives in **[DEPLOY.md](./DEPLOY.md)**.
 
 ### Durable store (multi-instance)
 
-- Table: `login_otp_challenge` (migration `20260827470400_login_otp_challenge.sql`)
+- Table: `login_otp_challenge` (migrations `20260827470400_…` + `20260827470500_…_attempts`)
 - OTP stored as **SHA-256 hash** only; service_role access
+- Atomic upsert on `(purpose, challenge_key)` — safe across API instances
+- Timing-safe hash compare on verify
+- **Max 5 failed verifies** then challenge is burned (must request a new OTP)
 - TTL **5 minutes**; resend cooldown **30 seconds**
 - Survives API restart and horizontal scale (shared Postgres)
 

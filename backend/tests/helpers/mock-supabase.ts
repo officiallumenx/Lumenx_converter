@@ -278,10 +278,13 @@ class QueryBuilder {
     }
 
     if (this.mutateMode === "upsert") {
-      const conflictCol = this.upsertConflictColumn ?? "id";
+      const conflictRaw = this.upsertConflictColumn ?? "id";
+      const conflictCols = conflictRaw.split(",").map((c) => c.trim()).filter(Boolean);
       const upserted = this.insertRows.map((row) => {
         const now = new Date().toISOString();
-        const existing = rows.find((r) => r[conflictCol] === row[conflictCol]);
+        const existing = rows.find((r) =>
+          conflictCols.every((col) => r[col] === row[col]),
+        );
         if (existing) {
           Object.assign(existing, row, { updated_at: now });
           return { ...existing };

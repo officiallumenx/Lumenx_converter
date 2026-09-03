@@ -16,5 +16,16 @@ export {
   deleteLoginOtpChallengesByPurpose,
   findLoginOtpChallenge,
   hashLoginOtp,
+  LOGIN_OTP_MAX_VERIFY_ATTEMPTS,
+  otpHashesEqual,
+  purgeExpiredLoginOtpChallengesBestEffort,
   upsertLoginOtpChallenge,
+  verifyLoginOtpChallenge,
+} from "./challenge-repository.js";
+export type {
+  LoginOtpChallengeRow,
+  LoginOtpChannel,
+  LoginOtpPurpose,
+  UpsertLoginOtpChallengeInput,
+  VerifyLoginOtpChallengeInput,
 } from "./challenge-repository.js";
