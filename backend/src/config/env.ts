@@ -91,6 +91,16 @@ export const envSchema = z.object({
     .int()
     .nonnegative()
     .default(60_000),
+
+  /**
+   * Global API rate limit (per client IP). Window ms / max requests.
+   * Set RATE_LIMIT_MAX=0 to disable. Tests default to disabled unless overridden.
+   */
+  RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+  RATE_LIMIT_MAX: z.coerce.number().int().nonnegative().default(120),
+  /** Tighter bucket for /api/v1/auth/* OTP request paths. */
+  RATE_LIMIT_AUTH_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+  RATE_LIMIT_AUTH_MAX: z.coerce.number().int().nonnegative().default(30),
 });
 
 // ── Derived types ───────────────────────────────────────────────────
@@ -132,12 +142,23 @@ export function loadEnv(overrides?: Record<string, string | undefined>): Env {
     throw new Error(`Invalid environment configuration:\n${messages}`);
   }
 
+  const data = result.data;
+  // Avoid flaky suite-wide 429s unless a test opts into rate limits.
+  if (
+    data.NODE_ENV === "test" &&
+    overrides?.RATE_LIMIT_MAX === undefined &&
+    !process.env.RATE_LIMIT_MAX
+  ) {
+    data.RATE_LIMIT_MAX = 0;
+    data.RATE_LIMIT_AUTH_MAX = 0;
+  }
+
   // Always cache so domain helpers (OTP delivery mode, etc.) see the active env,
   // including test overrides. Tests must call resetEnvCache() between cases.
   // Production fail-closed packaging checks run from the process entrypoint
   // (see assertProductionEnv) — not here — so unit tests can still set NODE_ENV=production.
-  cached = result.data;
-  return result.data;
+  cached = data;
+  return data;
 }
 
 /** Reset the cached env — only for tests. */

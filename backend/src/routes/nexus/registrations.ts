@@ -13,6 +13,7 @@ import {
   listRegistrationsForReviewer,
   rejectRegistrationForReviewer,
 } from "../../domains/registrations/review-service.js";
+import { withIdempotency } from "../../domains/idempotency/with-idempotency.js";
 
 const uuid = z.string().uuid();
 const idParamsSchema = z.object({ id: uuid });
@@ -46,11 +47,17 @@ registrations.get("/", async (c) => {
 });
 
 registrations.post("/:id/approve", async (c) => {
-  const actor = assertAuthenticated(c);
-  const admin = requireAdmin(c);
-  const { id } = validateParams(idParamsSchema, c.req.param());
-  const data = await approveRegistrationForReviewer(admin, actor, id);
-  return c.json({ data });
+  return withIdempotency(
+    c,
+    "POST /api/nexus/registrations/:id/approve",
+    async () => {
+      const actor = assertAuthenticated(c);
+      const admin = requireAdmin(c);
+      const { id } = validateParams(idParamsSchema, c.req.param());
+      const data = await approveRegistrationForReviewer(admin, actor, id);
+      return { status: 200, body: { data } };
+    },
+  );
 });
 
 registrations.post("/:id/reject", async (c) => {

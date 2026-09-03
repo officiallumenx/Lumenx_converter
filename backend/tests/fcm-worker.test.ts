@@ -151,4 +151,54 @@ describe("FCM worker — enqueue + flush", () => {
     );
     expect(sent.length).toBe(1);
   });
+
+  it("retries transient FCM failures with backoff instead of failing once", async () => {
+    const db = baseDb();
+    const app = appWithDb(db);
+    const adminClient = createMockSupabaseClients({
+      tokens: { "token-admin": USER_ADMIN },
+      db,
+    }).admin!;
+
+    await app.request("/api/v1/school-alerts/broadcast", {
+      method: "POST",
+      headers: jsonHeaders,
+      body: JSON.stringify({
+        institute_id: INST_A,
+        title: "Retry me",
+        category: "general",
+        audience: "parents",
+      }),
+    });
+
+    const send = vi
+      .fn()
+      .mockRejectedValueOnce(Object.assign(new Error("unavailable"), { code: "messaging/server-unavailable" }))
+      .mockResolvedValueOnce("msg-id-2");
+    const messaging = { send } as unknown as Messaging;
+
+    const first = await flushPendingFcmDeliveries({
+      admin: adminClient,
+      messaging,
+      logger: silentLogger,
+    });
+    expect(first.retried).toBe(1);
+    expect(first.failed).toBe(0);
+    const pending = db.notification_delivery_attempt.find(
+      (row) => row.channel === "fcm" && row.status === "pending",
+    );
+    expect(pending?.attempt_count).toBe(1);
+    expect(pending?.next_attempt_at).toBeTruthy();
+
+    // Make due now so the next flush can pick it up
+    if (pending) pending.next_attempt_at = new Date(Date.now() - 1000).toISOString();
+
+    const second = await flushPendingFcmDeliveries({
+      admin: adminClient,
+      messaging,
+      logger: silentLogger,
+    });
+    expect(second.sent).toBe(1);
+    expect(send).toHaveBeenCalledTimes(2);
+  });
 });

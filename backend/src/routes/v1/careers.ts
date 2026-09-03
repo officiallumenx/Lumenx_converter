@@ -33,6 +33,7 @@ import {
   upsertCandidateProfileForActor,
 } from "../../domains/careers/service.js";
 import { convertApplicationToTeacherForActor } from "../../domains/careers/convert-to-teacher.js";
+import { withIdempotency } from "../../domains/idempotency/with-idempotency.js";
 
 const careers = new Hono<AppBindings>();
 careers.use("*", requireAuth);
@@ -316,39 +317,45 @@ const portalAccessSchema = z.enum([
 const teacherStatusSchema = z.enum(["active", "on_leave", "pending"]);
 
 careers.post("/applications/:id/convert-to-teacher", async (c) => {
-  const actor = assertAuthenticated(c);
-  const admin = requireAdmin(c);
-  const { id } = validateParams(idParamsSchema, c.req.param());
-  const body = validateBody(
-    z.object({
-      display_name: z.string().min(1).max(200),
-      department: z.string().min(1).max(200),
-      teaching_scope: teachingScopeSchema,
-      portal_access_level: portalAccessSchema,
-      status: teacherStatusSchema.optional(),
-      phone: z.string().max(40).nullable().optional(),
-      email: z.string().email().max(200).nullable().optional(),
-      qualification: z.string().max(500).nullable().optional(),
-      date_of_birth: z.string().nullable().optional(),
-      employee_id: z.string().max(100).nullable().optional(),
-      joined_on: z.string().nullable().optional(),
-    }),
-    await c.req.json(),
+  return withIdempotency(
+    c,
+    "POST /api/v1/careers/applications/:id/convert-to-teacher",
+    async () => {
+      const actor = assertAuthenticated(c);
+      const admin = requireAdmin(c);
+      const { id } = validateParams(idParamsSchema, c.req.param());
+      const body = validateBody(
+        z.object({
+          display_name: z.string().min(1).max(200),
+          department: z.string().min(1).max(200),
+          teaching_scope: teachingScopeSchema,
+          portal_access_level: portalAccessSchema,
+          status: teacherStatusSchema.optional(),
+          phone: z.string().max(40).nullable().optional(),
+          email: z.string().email().max(200).nullable().optional(),
+          qualification: z.string().max(500).nullable().optional(),
+          date_of_birth: z.string().nullable().optional(),
+          employee_id: z.string().max(100).nullable().optional(),
+          joined_on: z.string().nullable().optional(),
+        }),
+        await c.req.json(),
+      );
+      const data = await convertApplicationToTeacherForActor(admin, actor, id, {
+        displayName: body.display_name,
+        department: body.department,
+        teachingScope: body.teaching_scope,
+        portalAccessLevel: body.portal_access_level,
+        status: body.status,
+        phone: body.phone,
+        email: body.email,
+        qualification: body.qualification,
+        dateOfBirth: body.date_of_birth,
+        employeeId: body.employee_id,
+        joinedOn: body.joined_on,
+      });
+      return { status: 201, body: { data } };
+    },
   );
-  const data = await convertApplicationToTeacherForActor(admin, actor, id, {
-    displayName: body.display_name,
-    department: body.department,
-    teachingScope: body.teaching_scope,
-    portalAccessLevel: body.portal_access_level,
-    status: body.status,
-    phone: body.phone,
-    email: body.email,
-    qualification: body.qualification,
-    dateOfBirth: body.date_of_birth,
-    employeeId: body.employee_id,
-    joinedOn: body.joined_on,
-  });
-  return c.json({ data }, 201);
 });
 
 // ── Inquiries ────────────────────────────────────────────────────

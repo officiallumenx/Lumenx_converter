@@ -119,6 +119,7 @@ export type MockDb = {
   report_job: Row[];
   institute_registration: Row[];
   login_otp_challenge: Row[];
+  api_idempotency_key: Row[];
 };
 
 export type MockDbError = { code: string; message?: string };
@@ -630,5 +631,6 @@ export function emptyMockDb(): MockDb {
     report_job: [],
     institute_registration: [],
     login_otp_challenge: [],
+    api_idempotency_key: [],
   };
 }

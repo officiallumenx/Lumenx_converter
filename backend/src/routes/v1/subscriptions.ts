@@ -16,6 +16,7 @@ import {
   submitOfflinePaymentForActor,
 } from "../../domains/subscriptions/service.js";
 import { getInstituteRenewalInvoicePdfForActor } from "../../domains/billing/service.js";
+import { withIdempotency } from "../../domains/idempotency/with-idempotency.js";
 
 const subscriptions = new Hono<AppBindings>();
 subscriptions.use("*", requireAuth);
@@ -99,24 +100,30 @@ subscriptions.get("/renewals/:id/pdf", async (c) => {
 });
 
 subscriptions.post("/offline-payments", async (c) => {
-  const actor = assertAuthenticated(c);
-  const admin = requireAdmin(c);
-  const body = validateBody(
-    z.object({
-      institute_id: uuid,
-      duration_months: durationSchema,
-      reference_id: z.string().min(1).max(200),
-      proof_label: z.string().max(500).nullable().optional(),
-    }),
-    await c.req.json(),
+  return withIdempotency(
+    c,
+    "POST /api/v1/subscriptions/offline-payments",
+    async () => {
+      const actor = assertAuthenticated(c);
+      const admin = requireAdmin(c);
+      const body = validateBody(
+        z.object({
+          institute_id: uuid,
+          duration_months: durationSchema,
+          reference_id: z.string().min(1).max(200),
+          proof_label: z.string().max(500).nullable().optional(),
+        }),
+        await c.req.json(),
+      );
+      const data = await submitOfflinePaymentForActor(admin, actor, {
+        instituteId: body.institute_id,
+        durationMonths: body.duration_months,
+        referenceId: body.reference_id,
+        proofLabel: body.proof_label,
+      });
+      return { status: 201, body: { data } };
+    },
   );
-  const data = await submitOfflinePaymentForActor(admin, actor, {
-    instituteId: body.institute_id,
-    durationMonths: body.duration_months,
-    referenceId: body.reference_id,
-    proofLabel: body.proof_label,
-  });
-  return c.json({ data }, 201);
 });
 
 export default subscriptions;

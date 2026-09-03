@@ -226,6 +226,9 @@ export async function insertFcmDeliveryAttempts(
       channel: "fcm",
       status: "pending",
       error: null,
+      attempt_count: 0,
+      next_attempt_at: null,
+      max_attempts: 8,
     })),
   );
   ensureDbOk(result);
@@ -242,6 +245,9 @@ export type DeliveryAttemptRow = {
   error: string | null;
   attempted_at: string;
   created_at: string;
+  attempt_count: number;
+  next_attempt_at: string | null;
+  max_attempts: number;
 };
 
 export async function listPendingFcmDeliveryAttempts(
@@ -251,27 +257,47 @@ export async function listPendingFcmDeliveryAttempts(
   const result = await admin
     .from("notification_delivery_attempt")
     .select(
-      "id, institute_id, notification_id, notification_recipient_id, device_token_id, channel, status, error, attempted_at, created_at",
+      "id, institute_id, notification_id, notification_recipient_id, device_token_id, channel, status, error, attempted_at, created_at, attempt_count, next_attempt_at, max_attempts",
     )
     .eq("channel", "fcm")
     .eq("status", "pending")
     .order("attempted_at", { ascending: true })
-    .limit(limit);
-  return ensureDbOk(result) as DeliveryAttemptRow[];
+    .limit(Math.max(limit * 3, limit));
+  const rows = ensureDbOk(result) as DeliveryAttemptRow[];
+  const now = Date.now();
+  return rows
+    .filter((row) => {
+      if (row.next_attempt_at == null) return true;
+      const at = new Date(row.next_attempt_at).getTime();
+      return Number.isFinite(at) && at <= now;
+    })
+    .slice(0, limit);
 }
 
 export async function updateDeliveryAttemptStatus(
   admin: SupabaseClient,
   id: string,
-  patch: { status: "sent" | "failed" | "skipped"; error?: string | null },
+  patch: {
+    status: "sent" | "failed" | "skipped" | "pending";
+    error?: string | null;
+    attemptCount?: number;
+    nextAttemptAt?: string | null;
+  },
 ): Promise<void> {
+  const update: Record<string, unknown> = {
+    status: patch.status,
+    error: patch.error ?? null,
+    attempted_at: new Date().toISOString(),
+  };
+  if (patch.attemptCount !== undefined) {
+    update.attempt_count = patch.attemptCount;
+  }
+  if (patch.nextAttemptAt !== undefined) {
+    update.next_attempt_at = patch.nextAttemptAt;
+  }
   const result = await admin
     .from("notification_delivery_attempt")
-    .update({
-      status: patch.status,
-      error: patch.error ?? null,
-      attempted_at: new Date().toISOString(),
-    })
+    .update(update)
     .eq("id", id);
   ensureDbOk(result);
 }

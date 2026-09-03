@@ -23,6 +23,7 @@ import {
   getStudentReportCardsForActor,
   getTeacherMarkSheetForActor,
 } from "../../domains/marks/portal.js";
+import { withIdempotency } from "../../domains/idempotency/with-idempotency.js";
 
 const marks = new Hono<AppBindings>();
 
@@ -195,11 +196,17 @@ marks.post("/entries/:id/submit", async (c) => {
 });
 
 marks.post("/entries/:id/publish", async (c) => {
-  const actor = assertAuthenticated(c);
-  const admin = requireAdmin(c);
-  const { id } = validateParams(idParamsSchema, c.req.param());
-  const data = await publishMarkEntryForActor(admin, actor, id);
-  return c.json({ data });
+  return withIdempotency(
+    c,
+    "POST /api/v1/marks/entries/:id/publish",
+    async () => {
+      const actor = assertAuthenticated(c);
+      const admin = requireAdmin(c);
+      const { id } = validateParams(idParamsSchema, c.req.param());
+      const data = await publishMarkEntryForActor(admin, actor, id);
+      return { status: 200, body: { data } };
+    },
+  );
 });
 
 marks.post("/entries/:id/return", async (c) => {

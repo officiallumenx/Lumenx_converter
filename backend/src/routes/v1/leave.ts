@@ -17,6 +17,7 @@ import {
   getLeaveRequestForActor,
   listLeaveRequestsForActor,
 } from "../../domains/leave/service.js";
+import { withIdempotency } from "../../domains/idempotency/with-idempotency.js";
 
 const leave = new Hono<AppBindings>();
 leave.use("*", requireAuth);
@@ -142,21 +143,23 @@ leave.get("/requests/:id/decision", async (c) => {
 });
 
 leave.post("/requests/:id/decide", async (c) => {
-  const actor = assertAuthenticated(c);
-  const admin = requireAdmin(c);
-  const { id } = validateParams(idParamsSchema, c.req.param());
-  const body = validateBody(
-    z.object({
-      outcome: outcomeSchema,
-      note: z.string().max(4000).nullable().optional(),
-    }),
-    await c.req.json(),
-  );
-  const data = await decideLeaveForActor(admin, actor, id, {
-    outcome: body.outcome,
-    note: body.note,
+  return withIdempotency(c, "POST /api/v1/leave/requests/:id/decide", async () => {
+    const actor = assertAuthenticated(c);
+    const admin = requireAdmin(c);
+    const { id } = validateParams(idParamsSchema, c.req.param());
+    const body = validateBody(
+      z.object({
+        outcome: outcomeSchema,
+        note: z.string().max(4000).nullable().optional(),
+      }),
+      await c.req.json(),
+    );
+    const data = await decideLeaveForActor(admin, actor, id, {
+      outcome: body.outcome,
+      note: body.note,
+    });
+    return { status: 200, body: { data } };
   });
-  return c.json({ data });
 });
 
 leave.post("/requests/:id/cancel", async (c) => {

@@ -188,7 +188,19 @@ List endpoints still trigger the same logic for snappy UX; the worker covers ins
 
 ---
 
-## 7. Quick incident order
+## 7. Hardening (Phase 2 Step 9)
+
+| Control | Behavior |
+|---------|----------|
+| **Rate limit** | Per-IP window (`RATE_LIMIT_*`); auth OTP paths use tighter `RATE_LIMIT_AUTH_*`; **429** + `Retry-After` |
+| **Idempotency-Key** | Optional header on payments / approve / convert / notify / leave decide / marks publish — durable replay via `api_idempotency_key` (migration `20260827470600`) |
+| **FCM outbox retry** | Failed sends stay `pending` with backoff (`attempt_count` / `next_attempt_at`); permanent token errors → `failed` (migration `20260827470700`) |
+
+Send `Idempotency-Key` (8–200 chars) on fee payments, offline pay, Nexus billing verify/reject, registration approve, admissions/careers convert, leave decide, mark publish, and notification emit for safe client retries.
+
+---
+
+## 8. Quick incident order
 
 1. `GET /api/v1/health` and `/api/v1/health/ready`
 2. Confirm `NODE_ENV`, CORS, Supabase, Firebase, OTP providers
@@ -196,4 +208,6 @@ List endpoints still trigger the same logic for snappy UX; the worker covers ins
 4. Unexpected locks → Nexus `sync-lifecycle` + check allowlist / offline pay
 5. Missed announcements/alerts/diary nudges → check `background_jobs_worker_started` / `BACKGROUND_JOBS_INTERVAL_MS`
 6. Hire / leave 403 / upload 409 → Step 8 gates above
-7. Deploy path → **DEPLOY.md** (build, Docker, PM2, smoke)
+7. 429 storms → raise `RATE_LIMIT_*` or check abusive IP
+8. Duplicate payments / stuck FCM → Idempotency-Key + FCM retry columns
+9. Deploy path → **DEPLOY.md** (build, Docker, PM2, smoke)

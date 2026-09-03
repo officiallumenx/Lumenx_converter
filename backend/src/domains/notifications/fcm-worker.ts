@@ -15,9 +15,12 @@ export type FcmWorkerResult = {
   sent: number;
   failed: number;
   skipped: number;
+  retried: number;
 };
 
 const DEFAULT_BATCH = 50;
+const BASE_BACKOFF_MS = 30_000;
+const MAX_BACKOFF_MS = 60 * 60 * 1000;
 
 function buildFcmData(notification: {
   id: string;
@@ -47,8 +50,21 @@ function buildFcmData(notification: {
   return data;
 }
 
+function backoffMs(attemptCount: number): number {
+  const exp = Math.min(attemptCount, 10);
+  return Math.min(MAX_BACKOFF_MS, BASE_BACKOFF_MS * 2 ** Math.max(0, exp - 1));
+}
+
+function isPermanentFcmError(code: string): boolean {
+  return (
+    code === "messaging/registration-token-not-registered" ||
+    code === "messaging/invalid-registration-token"
+  );
+}
+
 /**
- * Process pending FCM outbox rows. No-op when messaging is null (Firebase not configured).
+ * Process pending FCM outbox rows with retry/backoff.
+ * No-op when messaging is null (Firebase not configured).
  */
 export async function processPendingFcmDeliveries(
   admin: SupabaseClient,
@@ -56,16 +72,30 @@ export async function processPendingFcmDeliveries(
   logger: Logger,
   options?: { limit?: number },
 ): Promise<FcmWorkerResult> {
-  const result: FcmWorkerResult = { processed: 0, sent: 0, failed: 0, skipped: 0 };
+  const result: FcmWorkerResult = {
+    processed: 0,
+    sent: 0,
+    failed: 0,
+    skipped: 0,
+    retried: 0,
+  };
   if (!messaging) return result;
 
-  const pending = await listPendingFcmDeliveryAttempts(admin, options?.limit ?? DEFAULT_BATCH);
+  const pending = await listPendingFcmDeliveryAttempts(
+    admin,
+    options?.limit ?? DEFAULT_BATCH,
+  );
   if (pending.length === 0) return result;
 
-  const notificationCache = new Map<string, Awaited<ReturnType<typeof findNotificationById>>>();
+  const notificationCache = new Map<
+    string,
+    Awaited<ReturnType<typeof findNotificationById>>
+  >();
 
   for (const attempt of pending) {
     result.processed += 1;
+    const maxAttempts = Math.max(1, Number(attempt.max_attempts) || 8);
+    const priorAttempts = Number(attempt.attempt_count) || 0;
 
     if (!attempt.device_token_id) {
       await updateDeliveryAttemptStatus(admin, attempt.id, {
@@ -95,6 +125,7 @@ export async function processPendingFcmDeliveries(
       await updateDeliveryAttemptStatus(admin, attempt.id, {
         status: "failed",
         error: "notification_not_found",
+        attemptCount: priorAttempts + 1,
       });
       result.failed += 1;
       continue;
@@ -106,7 +137,9 @@ export async function processPendingFcmDeliveries(
       await messaging.send({
         token: tokenRow.token,
         notification: {
-          title: isAlert ? `Important: ${notification.title}` : notification.title,
+          title: isAlert
+            ? `Important: ${notification.title}`
+            : notification.title,
           body: notification.body,
         },
         data: buildFcmData(notification),
@@ -126,7 +159,12 @@ export async function processPendingFcmDeliveries(
           },
         },
       });
-      await updateDeliveryAttemptStatus(admin, attempt.id, { status: "sent", error: null });
+      await updateDeliveryAttemptStatus(admin, attempt.id, {
+        status: "sent",
+        error: null,
+        attemptCount: priorAttempts + 1,
+        nextAttemptAt: null,
+      });
       result.sent += 1;
     } catch (err) {
       const message = err instanceof Error ? err.message : "fcm_send_failed";
@@ -138,19 +176,42 @@ export async function processPendingFcmDeliveries(
           ? (err as { code: string }).code
           : "";
 
-      if (
-        code === "messaging/registration-token-not-registered" ||
-        code === "messaging/invalid-registration-token"
-      ) {
+      const nextCount = priorAttempts + 1;
+      if (isPermanentFcmError(code)) {
         await softInvalidateDeviceToken(admin, tokenRow.id);
+        await updateDeliveryAttemptStatus(admin, attempt.id, {
+          status: "failed",
+          error: message.slice(0, 500),
+          attemptCount: nextCount,
+          nextAttemptAt: null,
+        });
+        result.failed += 1;
+      } else if (nextCount >= maxAttempts) {
+        await updateDeliveryAttemptStatus(admin, attempt.id, {
+          status: "failed",
+          error: message.slice(0, 500),
+          attemptCount: nextCount,
+          nextAttemptAt: null,
+        });
+        result.failed += 1;
+      } else {
+        const delay = backoffMs(nextCount);
+        await updateDeliveryAttemptStatus(admin, attempt.id, {
+          status: "pending",
+          error: message.slice(0, 500),
+          attemptCount: nextCount,
+          nextAttemptAt: new Date(Date.now() + delay).toISOString(),
+        });
+        result.retried += 1;
       }
 
-      await updateDeliveryAttemptStatus(admin, attempt.id, {
-        status: "failed",
-        error: message.slice(0, 500),
+      logger.warn({
+        msg: "fcm_send_failed",
+        attemptId: attempt.id,
+        error: message,
+        code,
+        attemptCount: nextCount,
       });
-      result.failed += 1;
-      logger.warn({ msg: "fcm_send_failed", attemptId: attempt.id, error: message, code });
     }
   }
 

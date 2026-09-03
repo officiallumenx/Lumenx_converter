@@ -29,6 +29,7 @@ import {
   getStudentFeePortalForActor,
   listSectionFeeRosterForActor,
 } from "../../domains/fees/portal.js";
+import { withIdempotency } from "../../domains/idempotency/with-idempotency.js";
 
 const fees = new Hono<AppBindings>();
 fees.use("*", requireAuth);
@@ -317,30 +318,32 @@ fees.get("/payments", async (c) => {
 });
 
 fees.post("/payments", async (c) => {
-  const actor = assertAuthenticated(c);
-  const admin = requireAdmin(c);
-  const body = validateBody(
-    z.object({
-      fee_plan_id: uuid,
-      student_id: uuid,
-      class_id: uuid,
-      amount: z.number().positive(),
-      method: methodSchema,
-      paid_on: dateOnly,
-      note: z.string().max(500).nullable().optional(),
-    }),
-    await c.req.json(),
-  );
-  const data = await recordPaymentForActor(admin, actor, {
-    feePlanId: body.fee_plan_id,
-    studentId: body.student_id,
-    classId: body.class_id,
-    amount: body.amount,
-    method: body.method,
-    paidOn: body.paid_on,
-    note: body.note,
+  return withIdempotency(c, "POST /api/v1/fees/payments", async () => {
+    const actor = assertAuthenticated(c);
+    const admin = requireAdmin(c);
+    const body = validateBody(
+      z.object({
+        fee_plan_id: uuid,
+        student_id: uuid,
+        class_id: uuid,
+        amount: z.number().positive(),
+        method: methodSchema,
+        paid_on: dateOnly,
+        note: z.string().max(500).nullable().optional(),
+      }),
+      await c.req.json(),
+    );
+    const data = await recordPaymentForActor(admin, actor, {
+      feePlanId: body.fee_plan_id,
+      studentId: body.student_id,
+      classId: body.class_id,
+      amount: body.amount,
+      method: body.method,
+      paidOn: body.paid_on,
+      note: body.note,
+    });
+    return { status: 201, body: { data } };
   });
-  return c.json({ data }, 201);
 });
 
 export default fees;

@@ -27,6 +27,7 @@ import {
   updateRenewalForActor,
   verifyPaymentForActor,
 } from "../../domains/billing/service.js";
+import { withIdempotency } from "../../domains/idempotency/with-idempotency.js";
 
 const billing = new Hono<AppBindings>();
 billing.use("*", requireAuth);
@@ -310,44 +311,46 @@ billing.get("/payments", async (c) => {
 });
 
 billing.post("/payments", async (c) => {
-  const actor = assertAuthenticated(c);
-  const admin = requireAdmin(c);
-  const body = validateBody(
-    z
-      .object({
-        institute_id: uuid,
-        subscription_id: uuid.nullable().optional(),
-        renewal_record_id: uuid.nullable().optional(),
-        billing_adjustment_id: uuid.nullable().optional(),
-        amount_inr: z.number().positive(),
-        method: paymentMethodSchema.optional(),
-        provider: z.string().max(100).nullable().optional(),
-        provider_ref: z.string().max(200).nullable().optional(),
-        note: z.string().max(2000).nullable().optional(),
-      })
-      .refine(
-        (v) =>
-          (v.renewal_record_id != null && v.renewal_record_id !== "") ||
-          (v.billing_adjustment_id != null && v.billing_adjustment_id !== ""),
-        {
-          message:
-            "renewal_record_id or billing_adjustment_id is required",
-        },
-      ),
-    await c.req.json(),
-  );
-  const data = await createPaymentForActor(admin, actor, {
-    instituteId: body.institute_id,
-    subscriptionId: body.subscription_id,
-    renewalRecordId: body.renewal_record_id,
-    billingAdjustmentId: body.billing_adjustment_id,
-    amountInr: body.amount_inr,
-    method: body.method,
-    provider: body.provider,
-    providerRef: body.provider_ref,
-    note: body.note,
+  return withIdempotency(c, "POST /api/nexus/billing/payments", async () => {
+    const actor = assertAuthenticated(c);
+    const admin = requireAdmin(c);
+    const body = validateBody(
+      z
+        .object({
+          institute_id: uuid,
+          subscription_id: uuid.nullable().optional(),
+          renewal_record_id: uuid.nullable().optional(),
+          billing_adjustment_id: uuid.nullable().optional(),
+          amount_inr: z.number().positive(),
+          method: paymentMethodSchema.optional(),
+          provider: z.string().max(100).nullable().optional(),
+          provider_ref: z.string().max(200).nullable().optional(),
+          note: z.string().max(2000).nullable().optional(),
+        })
+        .refine(
+          (v) =>
+            (v.renewal_record_id != null && v.renewal_record_id !== "") ||
+            (v.billing_adjustment_id != null && v.billing_adjustment_id !== ""),
+          {
+            message:
+              "renewal_record_id or billing_adjustment_id is required",
+          },
+        ),
+      await c.req.json(),
+    );
+    const data = await createPaymentForActor(admin, actor, {
+      instituteId: body.institute_id,
+      subscriptionId: body.subscription_id,
+      renewalRecordId: body.renewal_record_id,
+      billingAdjustmentId: body.billing_adjustment_id,
+      amountInr: body.amount_inr,
+      method: body.method,
+      provider: body.provider,
+      providerRef: body.provider_ref,
+      note: body.note,
+    });
+    return { status: 201, body: { data } };
   });
-  return c.json({ data }, 201);
 });
 
 billing.get("/payments/:id", async (c) => {
@@ -359,29 +362,41 @@ billing.get("/payments/:id", async (c) => {
 });
 
 billing.post("/payments/:id/verify", async (c) => {
-  const actor = assertAuthenticated(c);
-  const admin = requireAdmin(c);
-  const { id } = validateParams(idParamsSchema, c.req.param());
-  const data = await verifyPaymentForActor(admin, actor, id);
-  return c.json({ data });
+  return withIdempotency(
+    c,
+    "POST /api/nexus/billing/payments/:id/verify",
+    async () => {
+      const actor = assertAuthenticated(c);
+      const admin = requireAdmin(c);
+      const { id } = validateParams(idParamsSchema, c.req.param());
+      const data = await verifyPaymentForActor(admin, actor, id);
+      return { status: 200, body: { data } };
+    },
+  );
 });
 
 billing.post("/payments/:id/reject", async (c) => {
-  const actor = assertAuthenticated(c);
-  const admin = requireAdmin(c);
-  const { id } = validateParams(idParamsSchema, c.req.param());
-  let reason: string | undefined;
-  try {
-    const raw = await c.req.json();
-    if (raw && typeof raw === "object" && "reason" in raw) {
-      const parsed = z.object({ reason: z.string().max(2000) }).safeParse(raw);
-      if (parsed.success) reason = parsed.data.reason;
-    }
-  } catch {
-    // empty body is allowed
-  }
-  const data = await rejectPaymentForActor(admin, actor, id, reason);
-  return c.json({ data });
+  return withIdempotency(
+    c,
+    "POST /api/nexus/billing/payments/:id/reject",
+    async () => {
+      const actor = assertAuthenticated(c);
+      const admin = requireAdmin(c);
+      const { id } = validateParams(idParamsSchema, c.req.param());
+      let reason: string | undefined;
+      try {
+        const raw = await c.req.json();
+        if (raw && typeof raw === "object" && "reason" in raw) {
+          const parsed = z.object({ reason: z.string().max(2000) }).safeParse(raw);
+          if (parsed.success) reason = parsed.data.reason;
+        }
+      } catch {
+        // empty body is allowed
+      }
+      const data = await rejectPaymentForActor(admin, actor, id, reason);
+      return { status: 200, body: { data } };
+    },
+  );
 });
 
 export default billing;

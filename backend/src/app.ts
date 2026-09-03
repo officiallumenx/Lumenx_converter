@@ -9,6 +9,7 @@ import { requestId } from "./middleware/request-id.js";
 import { corsMiddleware } from "./middleware/cors.js";
 import { securityHeaders } from "./middleware/security-headers.js";
 import { requestLogMiddleware } from "./middleware/request-log.js";
+import { rateLimitMiddleware } from "./middleware/rate-limit.js";
 import { supabaseContext } from "./middleware/supabase-context.js";
 import { createErrorHandler, notFoundHandler } from "./errors/error-handler.js";
 import v1 from "./routes/v1/index.js";
@@ -36,6 +37,7 @@ export function createApp(
   app.use("*", requestId);
   app.use("*", corsMiddleware(env));
   app.use("*", securityHeaders);
+  app.use("*", rateLimitMiddleware(env));
   app.use("*", supabaseContext(clients));
   app.use("*", requestLogMiddleware(log));
 

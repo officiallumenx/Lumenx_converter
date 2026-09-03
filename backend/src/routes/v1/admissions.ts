@@ -32,6 +32,7 @@ import {
   updateProgramForActor,
 } from "../../domains/admissions/service.js";
 import { convertApplicationToStudentForActor } from "../../domains/admissions/convert-to-student.js";
+import { withIdempotency } from "../../domains/idempotency/with-idempotency.js";
 
 const admissions = new Hono<AppBindings>();
 admissions.use("*", requireAuth);
@@ -330,49 +331,55 @@ const studentGenderSchema = z.enum([
 ]);
 
 admissions.post("/applications/:id/convert-to-student", async (c) => {
-  const actor = assertAuthenticated(c);
-  const admin = requireAdmin(c);
-  const { id } = validateParams(idParamsSchema, c.req.param());
-  const body = validateBody(
-    z.object({
-      first_name: z.string().min(1).max(200),
-      surname: z.string().min(1).max(200),
-      gender: studentGenderSchema,
-      address: z.string().min(1).max(2000),
-      date_of_birth: z.string().nullable().optional(),
-      class_label: z.string().min(1).max(100),
-      section_label: z.string().min(1).max(100),
-      roll_no: z.string().max(50).nullable().optional(),
-      admission_number: z.string().max(100).nullable().optional(),
-      blood_group: z.string().max(20).nullable().optional(),
-      parent_name: z.string().min(1).max(200),
-      parent_phone: z.string().min(10).max(40),
-      parent_email: z.string().email().max(200).nullable().optional(),
-      parent_password: z.string().min(8).max(200).optional(),
-      parent_relationship: relationshipSchema,
-      create_parent_account: z.boolean(),
-    }),
-    await c.req.json(),
+  return withIdempotency(
+    c,
+    "POST /api/v1/admissions/applications/:id/convert-to-student",
+    async () => {
+      const actor = assertAuthenticated(c);
+      const admin = requireAdmin(c);
+      const { id } = validateParams(idParamsSchema, c.req.param());
+      const body = validateBody(
+        z.object({
+          first_name: z.string().min(1).max(200),
+          surname: z.string().min(1).max(200),
+          gender: studentGenderSchema,
+          address: z.string().min(1).max(2000),
+          date_of_birth: z.string().nullable().optional(),
+          class_label: z.string().min(1).max(100),
+          section_label: z.string().min(1).max(100),
+          roll_no: z.string().max(50).nullable().optional(),
+          admission_number: z.string().max(100).nullable().optional(),
+          blood_group: z.string().max(20).nullable().optional(),
+          parent_name: z.string().min(1).max(200),
+          parent_phone: z.string().min(10).max(40),
+          parent_email: z.string().email().max(200).nullable().optional(),
+          parent_password: z.string().min(8).max(200).optional(),
+          parent_relationship: relationshipSchema,
+          create_parent_account: z.boolean(),
+        }),
+        await c.req.json(),
+      );
+      const data = await convertApplicationToStudentForActor(admin, actor, id, {
+        firstName: body.first_name,
+        surname: body.surname,
+        gender: body.gender,
+        address: body.address,
+        dateOfBirth: body.date_of_birth,
+        classLabel: body.class_label,
+        sectionLabel: body.section_label,
+        rollNo: body.roll_no,
+        admissionNumber: body.admission_number,
+        bloodGroup: body.blood_group,
+        parentName: body.parent_name,
+        parentPhone: body.parent_phone,
+        parentEmail: body.parent_email,
+        parentPassword: body.parent_password,
+        parentRelationship: body.parent_relationship,
+        createParentAccount: body.create_parent_account,
+      });
+      return { status: 201, body: { data } };
+    },
   );
-  const data = await convertApplicationToStudentForActor(admin, actor, id, {
-    firstName: body.first_name,
-    surname: body.surname,
-    gender: body.gender,
-    address: body.address,
-    dateOfBirth: body.date_of_birth,
-    classLabel: body.class_label,
-    sectionLabel: body.section_label,
-    rollNo: body.roll_no,
-    admissionNumber: body.admission_number,
-    bloodGroup: body.blood_group,
-    parentName: body.parent_name,
-    parentPhone: body.parent_phone,
-    parentEmail: body.parent_email,
-    parentPassword: body.parent_password,
-    parentRelationship: body.parent_relationship,
-    createParentAccount: body.create_parent_account,
-  });
-  return c.json({ data }, 201);
 });
 
 admissions.post("/applications/:id/transition", async (c) => {
