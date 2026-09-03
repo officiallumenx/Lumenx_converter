@@ -86,7 +86,7 @@ export async function insertTeacher(
       status: input.status ?? "active",
       subjects: input.subjects ?? null,
       assigned_section_labels: input.assignedSectionLabels ?? null,
-      source_career_application_id: null,
+      source_career_application_id: input.sourceCareerApplicationId ?? null,
     })
     .select(TEACHER_COLS)
     .single();

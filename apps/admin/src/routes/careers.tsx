@@ -53,6 +53,7 @@ import {
   type CareersJobsListStatus,
   type CareersListStatus,
 } from "@/lib/careers";
+import { convertCareerApplicationToTeacher } from "@/lib/careers/convert-to-teacher-api";
 
 export const Route = createFileRoute("/careers")({
   head: () => ({ meta: [{ title: "Careers — LumenX Admin" }] }),
@@ -336,8 +337,13 @@ function CareersPage() {
   }, [activeApps]);
 
   const selected = useMemo(
-    () => (selectedId ? apps.find((a) => a.id === selectedId) ?? null : null),
-    [apps, selectedId],
+    () =>
+      selectedId
+        ? displayApps.find((a) => a.id === selectedId) ??
+          apps.find((a) => a.id === selectedId) ??
+          null
+        : null,
+    [displayApps, apps, selectedId],
   );
   const selectedDetail = useMemo(
     () => (selectedId ? getAdminCareerDetail(selectedId) : null),
@@ -360,9 +366,24 @@ function CareersPage() {
   const convertToTeacher = (draft: CareerConvertDraft) => {
     if (!writesEnabled || !selected || !canConvert) return;
     if (apiMode) {
-      notify(
-        "Hire as teacher is not available via Careers API yet — use Teachers create after selecting in portal",
-      );
+      void convertCareerApplicationToTeacher(selected.id, draft)
+        .then((result) => {
+          setReloadKey((k) => k + 1);
+          setSelectedId(null);
+          setConvertOpen(false);
+          notify(
+            `${draft.name.trim()} hired as teacher${
+              draft.createConnectAccount ? " · Connect account pending" : ""
+            } · id ${result.teacherId.slice(0, 8)}`,
+          );
+        })
+        .catch((err) => {
+          notify(
+            err instanceof Error
+              ? err.message
+              : "Failed to convert application to teacher",
+          );
+        });
       return;
     }
     const roleTitle = selected.role;
@@ -397,12 +418,6 @@ function CareersPage() {
   };
 
   const openConvert = (id: string) => {
-    if (apiMode) {
-      notify(
-        "Hire as teacher is not available via Careers API yet — select in portal, then create the teacher in Teachers",
-      );
-      return;
-    }
     if (!writesEnabled) {
       notify("Convert to teacher is not enabled in API read-only mode");
       return;
@@ -642,28 +657,40 @@ function CareersPage() {
                     </Button>
                     ) : null}
                     {apiMode && writesEnabled ? (
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        onClick={() => {
-                          void transitionCareerApplication(app.id, {
-                            status: "selected",
-                          })
-                            .then(() => {
-                              setReloadKey((k) => k + 1);
-                              notify(`${app.name} marked selected`);
-                            })
-                            .catch((err) => {
-                              notify(
-                                err instanceof Error
-                                  ? err.message
-                                  : "Failed to transition application",
-                              );
-                            });
-                        }}
-                      >
-                        Mark selected
-                      </Button>
+                      <>
+                        {app.stage === "approved" ? (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => openConvert(app.id)}
+                          >
+                            <UserPlus className="size-3.5" /> Convert to teacher
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            onClick={() => {
+                              void transitionCareerApplication(app.id, {
+                                status: "selected",
+                              })
+                                .then(() => {
+                                  setReloadKey((k) => k + 1);
+                                  notify(`${app.name} marked selected`);
+                                })
+                                .catch((err) => {
+                                  notify(
+                                    err instanceof Error
+                                      ? err.message
+                                      : "Failed to transition application",
+                                  );
+                                });
+                            }}
+                          >
+                            Mark selected
+                          </Button>
+                        )}
+                      </>
                     ) : null}
                   </li>
                 );

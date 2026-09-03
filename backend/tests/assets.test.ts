@@ -390,4 +390,39 @@ describe("assets api", () => {
       ).status,
     ).toBe(403);
   });
+
+  it("rejects upload when institute storage quota would be exceeded", async () => {
+    const db = baseDb();
+    db.storage_quota = [
+      {
+        id: "sq111111-1111-4111-8111-111111111111",
+        plan: "core",
+        limit_gb: 1,
+        warning_pct: 80,
+        updated_by_user_id: USER_ADMIN,
+        created_at: "2026-08-01T00:00:00.000Z",
+        updated_at: "2026-08-01T00:00:00.000Z",
+        deleted_at: null,
+      },
+    ];
+    // Already near 1 GB — tiny logo upload must fail
+    db.stored_asset[0].byte_size = 1024 * 1024 * 1024;
+    const app = appWithDb(db);
+
+    const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+    const form = new FormData();
+    form.set("institute_id", INST_A);
+    form.set("bucket", "institute-branding");
+    form.set("category", "logo");
+    form.set("file", new File([png], "logo.png", { type: "image/png" }));
+
+    const uploaded = await app.request("/api/v1/assets/upload", {
+      method: "POST",
+      headers: { Authorization: "Bearer token-admin" },
+      body: form,
+    });
+    expect(uploaded.status).toBe(409);
+    const body = await json(uploaded);
+    expect(body.error?.code ?? body.code).toBeDefined();
+  });
 });

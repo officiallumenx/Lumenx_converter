@@ -77,6 +77,8 @@ export type CreateTeacherInput = {
   assignedSectionLabels?: string[] | null;
   /** Ignored — never trust client. */
   userProfileId?: string | null;
+  /** Server-only — set by careers convert-to-teacher. */
+  sourceCareerApplicationId?: string | null;
 };
 
 export type UpdateTeacherInput = {

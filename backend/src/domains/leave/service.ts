@@ -64,12 +64,17 @@ export const STUDENT_LEAVE_STAFF_CREATE_ROLES = [
   "it_admin",
 ] as const;
 
-/** Teachers + admins may decide student leave (class-teacher scope deferred). */
-export const STUDENT_LEAVE_DECIDE_ROLES = [
+/** Staff who may decide any student leave without section assignment. */
+export const STUDENT_LEAVE_STAFF_DECIDE_ROLES = [
   "institute_admin",
   "principal",
   "vice_principal",
   "coordinator",
+] as const;
+
+/** Teachers (class-teacher scoped) + staff may decide student leave. */
+export const STUDENT_LEAVE_DECIDE_ROLES = [
+  ...STUDENT_LEAVE_STAFF_DECIDE_ROLES,
   "teacher",
 ] as const;
 
@@ -351,6 +356,28 @@ export async function decideLeaveForActor(
 
   if (row.subject_kind === "student") {
     assertInstituteRoles(actor, row.institute_id, [...STUDENT_LEAVE_DECIDE_ROLES]);
+    const isStaffDecider = STUDENT_LEAVE_STAFF_DECIDE_ROLES.some((role) =>
+      actorHasInstituteRole(actor, row.institute_id, role),
+    );
+    if (!isStaffDecider) {
+      if (!row.student_id) {
+        throw AppError.forbidden("Student leave is missing a learner");
+      }
+      const identity = requireTeacherIdentity(actor, row.institute_id);
+      const { teacherCoversStudent } = await import(
+        "../complaints/repository.js"
+      );
+      const covers = await teacherCoversStudent(admin, {
+        instituteId: row.institute_id,
+        teacherId: identity.teacherId,
+        studentId: row.student_id,
+      });
+      if (!covers) {
+        throw AppError.forbidden(
+          "Only the class teacher assigned to this student may decide leave",
+        );
+      }
+    }
   } else {
     assertInstituteRoles(actor, row.institute_id, [...TEACHER_LEAVE_DECIDE_ROLES]);
   }

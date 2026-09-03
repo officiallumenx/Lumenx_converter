@@ -13,6 +13,7 @@ import {
   softDeleteAsset,
   updateAssetFields,
 } from "./repository.js";
+import { assertInstituteStorageQuota } from "../storage/quota.js";
 import {
   assertAssetBucket,
   buildInstituteObjectPath,
@@ -194,6 +195,11 @@ export async function createAssetForActor(
     throw AppError.conflict("Asset already exists for this bucket and path");
   }
 
+  const byteSize = input.byteSize ?? 0;
+  if (byteSize > 0) {
+    await assertInstituteStorageQuota(admin, instituteId, byteSize);
+  }
+
   const row = await insertAsset(admin, {
     ...input,
     instituteId,
@@ -247,6 +253,8 @@ export async function uploadAssetForActor(
       file: [`Max ${MAX_UPLOAD_BYTES} bytes`],
     });
   }
+
+  await assertInstituteStorageQuota(admin, instituteId, input.byteSize);
 
   const linked = assertLinkedPair(
     input.linkedEntityKind,

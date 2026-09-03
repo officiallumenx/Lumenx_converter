@@ -489,4 +489,77 @@ describe("careers api", () => {
     }>;
     expect(rows.some((r) => r.notification.category === "careers")).toBe(true);
   });
+
+  it("converts a selected application into a teacher and links both sides", async () => {
+    const db = baseDb();
+    db.career_application[0].status = "selected";
+    const app = appWithDb(db);
+
+    const converted = await app.request(
+      `/api/v1/careers/applications/${APP_PARENT}/convert-to-teacher`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer token-admin",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          display_name: "Priya Nair",
+          department: "Mathematics",
+          teaching_scope: "subject_teacher",
+          portal_access_level: "faculty_grading",
+          phone: "9876543210",
+          email: "priya@school.test",
+        }),
+      },
+    );
+    expect(converted.status).toBe(201);
+    const body = await json(converted);
+    expect(body.data.teacher.displayName).toBe("Priya Nair");
+    expect(body.data.teacher.sourceCareerApplicationId).toBe(APP_PARENT);
+    expect(body.data.application.convertedTeacherId).toBe(body.data.teacher.id);
+    expect(body.data.application.status).toBe("selected");
+    expect(db.teacher.some((t) => t.source_career_application_id === APP_PARENT)).toBe(
+      true,
+    );
+
+    const again = await app.request(
+      `/api/v1/careers/applications/${APP_PARENT}/convert-to-teacher`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer token-admin",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          display_name: "Priya Nair",
+          department: "Mathematics",
+          teaching_scope: "subject_teacher",
+          portal_access_level: "faculty_grading",
+        }),
+      },
+    );
+    expect(again.status).toBe(409);
+  });
+
+  it("rejects convert when application is not selected", async () => {
+    const app = appWithDb(baseDb());
+    const res = await app.request(
+      `/api/v1/careers/applications/${APP_PARENT}/convert-to-teacher`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer token-admin",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          display_name: "Too Early",
+          department: "Math",
+          teaching_scope: "subject_teacher",
+          portal_access_level: "faculty_grading",
+        }),
+      },
+    );
+    expect(res.status).toBe(400);
+  });
 });

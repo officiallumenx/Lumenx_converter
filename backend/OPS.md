@@ -178,11 +178,22 @@ List endpoints still trigger the same logic for snappy UX; the worker covers ins
 
 ---
 
-## 6. Quick incident order
+## 6. Product gaps (Phase 2 Step 8)
+
+| Module | Workflow |
+|--------|----------|
+| **Careers hire** | `POST /api/v1/careers/applications/:id/convert-to-teacher` after `selected` / `offer_accepted` → creates `teacher`, links `converted_teacher_id` |
+| **Leave decide** | Student leave: staff may decide any; plain teachers only if `teacher_assignment` covers the learner’s section |
+| **Storage upload** | `upload` / metadata create hard-deny with **409** when usage + file would exceed Nexus `storage_quota` for the institute plan |
+
+---
+
+## 7. Quick incident order
 
 1. `GET /api/v1/health` and `/api/v1/health/ready`
 2. Confirm `NODE_ENV`, CORS, Supabase, Firebase, OTP providers
 3. OTP issues → migration + provider credentials
 4. Unexpected locks → Nexus `sync-lifecycle` + check allowlist / offline pay
 5. Missed announcements/alerts/diary nudges → check `background_jobs_worker_started` / `BACKGROUND_JOBS_INTERVAL_MS`
-6. Deploy path → **DEPLOY.md** (build, Docker, PM2, smoke)
+6. Hire / leave 403 / upload 409 → Step 8 gates above
+7. Deploy path → **DEPLOY.md** (build, Docker, PM2, smoke)

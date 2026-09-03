@@ -139,6 +139,16 @@ function baseDb(): MockDb {
       deleted_at: null,
     },
   ];
+  db.teacher_assignment = [
+    {
+      id: "af111111-1111-4111-8111-111111111111",
+      institute_id: INST_A,
+      teacher_id: TEACHER_A,
+      section_id: SECTION_A,
+      status: "active",
+      deleted_at: null,
+    },
+  ];
   db.leave_request = [
     {
       id: LEAVE_STUDENT,
@@ -376,6 +386,67 @@ describe("leave api", () => {
       },
     );
     expect(decideTeacher.status).toBe(403);
+  });
+
+  it("blocks teachers without an assignment covering the student", async () => {
+    const USER_OTHER_TEACHER = "66666666-6666-4666-8666-666666666666";
+    const MEMBER_OTHER_TEACHER = "aa666666-6666-4666-8666-666666666666";
+    const TEACHER_B = "bb222222-2222-4222-8222-222222222222";
+    const db = baseDb();
+    db.user_profile.push({
+      id: USER_OTHER_TEACHER,
+      display_name: "Other Teacher",
+      email: "ot@x.com",
+      status: "active",
+      deleted_at: null,
+    });
+    db.membership.push({
+      id: MEMBER_OTHER_TEACHER,
+      user_id: USER_OTHER_TEACHER,
+      institute_id: INST_A,
+      status: "active",
+      deleted_at: null,
+    });
+    db.membership_role.push({
+      membership_id: MEMBER_OTHER_TEACHER,
+      role_code: "teacher",
+    });
+    db.teacher.push({
+      id: TEACHER_B,
+      institute_id: INST_A,
+      user_profile_id: USER_OTHER_TEACHER,
+      status: "active",
+      deleted_at: null,
+    });
+
+    const env = loadEnv({ NODE_ENV: "test", LOG_LEVEL: "error" });
+    const app = createApp(
+      env,
+      silentLogger,
+      createMockSupabaseClients({
+        tokens: {
+          "token-admin": USER_ADMIN,
+          "token-teacher": USER_TEACHER,
+          "token-other-teacher": USER_OTHER_TEACHER,
+          "token-parent": USER_PARENT,
+          "token-other": USER_OTHER,
+        },
+        db,
+      }),
+    );
+
+    const denied = await app.request(
+      `/api/v1/leave/requests/${LEAVE_STUDENT}/decide`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer token-other-teacher",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ outcome: "approved" }),
+      },
+    );
+    expect(denied.status).toBe(403);
   });
 
   it("admin decides teacher leave and returns decision", async () => {
