@@ -5,8 +5,10 @@ import {
   assertInstituteRoles,
   requireInstituteId,
 } from "../../authorization/index.js";
-import { emitNotificationForActor } from "../notifications/service.js";
+import { emitNotificationForActor, emitNotificationForInstituteSystem } from "../notifications/service.js";
 import { STUDENT_STAFF_READ_ROLES } from "../students/service.js";
+import { listActiveInstitutesForLogin, listMemberships } from "../identity/repository.js";
+import { createSystemWorkerActor } from "../jobs/system-actor.js";
 import {
   configFromJson,
   findAlertRuleById,
@@ -229,7 +231,15 @@ export async function evaluateAlertRulesForActor(
 ): Promise<AlertEvaluateResultDto> {
   const instituteId = requireInstituteId(actor, instituteIdRaw);
   assertReader(actor, instituteId);
+  return evaluateAlertRulesInternal(admin, actor, instituteId, actor.userId);
+}
 
+async function evaluateAlertRulesInternal(
+  admin: SupabaseClient,
+  actor: Actor,
+  instituteId: string,
+  emitAsUserId: string,
+): Promise<AlertEvaluateResultDto & { newlyFired: number }> {
   const rules = (await listAlertRules(admin, instituteId)).filter((r) => r.active);
   if (rules.length === 0) {
     return { fired: [] };
@@ -264,7 +274,7 @@ export async function evaluateAlertRulesForActor(
     persisted.push(toAlertFireDto(row));
 
     try {
-      await emitNotificationForActor(admin, actor, {
+      await emitNotificationForInstituteSystem(admin, emitAsUserId, {
         instituteId,
         category: "system",
         priority: rule.priority === "P0" ? "critical" : "important",
@@ -286,5 +296,36 @@ export async function evaluateAlertRulesForActor(
   }
 
   const unresolved = await listAlertFires(admin, instituteId, { unresolvedOnly: true });
-  return { fired: unresolved.map(toAlertFireDto) };
+  return {
+    fired: unresolved.map(toAlertFireDto),
+    newlyFired: persisted.length,
+  };
+}
+
+/**
+ * Background worker: evaluate alert rules for every active institute.
+ */
+export async function evaluateAlertRulesSystem(
+  admin: SupabaseClient,
+): Promise<{ institutes: number; newlyFired: number }> {
+  const institutes = await listActiveInstitutesForLogin(admin);
+  const systemActor = createSystemWorkerActor();
+  let newlyFired = 0;
+
+  for (const institute of institutes) {
+    const memberships = await listMemberships(admin, {
+      instituteId: institute.id,
+      status: "active",
+    });
+    const emitAsUserId = memberships[0]?.user_id ?? systemActor.userId;
+    const result = await evaluateAlertRulesInternal(
+      admin,
+      systemActor,
+      institute.id,
+      emitAsUserId,
+    );
+    newlyFired += result.newlyFired;
+  }
+
+  return { institutes: institutes.length, newlyFired };
 }

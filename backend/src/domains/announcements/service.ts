@@ -15,11 +15,13 @@ import { listMemberships } from "../activity/repository.js";
 import { resolveActivityTeamRecipientUserIds } from "../activity/service.js";
 import { emitNotificationForActor, emitNotificationForInstituteSystem } from "../notifications/service.js";
 import type { NotificationAudience } from "../notifications/types.js";
+import { createSystemWorkerActor } from "../jobs/system-actor.js";
 import {
   findAnnouncementById,
   incrementAnnouncementViews,
   insertAnnouncement,
   listAnnouncements,
+  listAllDueScheduledAnnouncements,
   listDueScheduledAnnouncements,
   softDeleteAnnouncement,
   toAnnouncementUpdatePatch,
@@ -403,9 +405,40 @@ async function publishDueScheduledAnnouncements(
       archived_at: null,
     });
     if (updated) {
-      await fanOutAnnouncementNotification(admin, actor, updated, { systemEmit: true });
+      await fanOutAnnouncementNotification(admin, actor, updated, {
+        systemEmit: true,
+      });
     }
   }
+}
+
+/**
+ * Background worker: publish all due scheduled announcements across institutes.
+ * Does not require an interactive user session.
+ */
+export async function publishDueScheduledAnnouncementsSystem(
+  admin: SupabaseClient,
+  now: Date = new Date(),
+): Promise<{ scanned: number; published: number }> {
+  const due = await listAllDueScheduledAnnouncements(admin, now.toISOString());
+  let published = 0;
+  const systemActor = createSystemWorkerActor();
+
+  for (const row of due) {
+    const updated = await updateAnnouncementFields(admin, row.id, {
+      status: "published",
+      published_at: now.toISOString(),
+      scheduled_at: null,
+      archived_at: null,
+    });
+    if (!updated) continue;
+    await fanOutAnnouncementNotification(admin, systemActor, updated, {
+      systemEmit: true,
+    });
+    published += 1;
+  }
+
+  return { scanned: due.length, published };
 }
 
 export async function listAnnouncementsForActor(

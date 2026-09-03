@@ -1,3 +1,7 @@
+/**
+ * End-of-day / overdue diary reminders.
+ * Actor-scoped path runs on diary list; system path runs in the background worker.
+ */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AppError } from "../../errors/app-error.js";
 import type { Actor } from "../../auth/types.js";
@@ -7,7 +11,8 @@ import {
   requireTeacherIdentity,
 } from "../../authorization/index.js";
 import { emitNotificationForInstituteSystem } from "../notifications/service.js";
-import { findTeacherById } from "../teachers/repository.js";
+import { listActiveInstitutesForLogin } from "../identity/repository.js";
+import { listTeachers, findTeacherById } from "../teachers/repository.js";
 import { listDiaryDays } from "./repository.js";
 import type { DiaryScope } from "./types.js";
 
@@ -52,7 +57,7 @@ async function emitDiaryReminder(input: {
   scope: DiaryScope;
   diaryDate: string;
   overdue: boolean;
-}): Promise<void> {
+}): Promise<boolean> {
   const label = scopeLabel(input.scope);
   const formatted = input.diaryDate;
   const title = input.overdue ? `${label} overdue` : `${label} due today`;
@@ -76,10 +81,69 @@ async function emitDiaryReminder(input: {
         overdue: input.overdue,
       },
     });
+    return true;
   } catch (err) {
-    if (err instanceof AppError && err.status === 400) return;
+    if (err instanceof AppError && err.status === 400) return false;
     throw err;
   }
+}
+
+/** Core reminder logic for one teacher (used by actor path + worker). */
+export async function processDiaryRemindersForTeacher(
+  admin: SupabaseClient,
+  input: {
+    instituteId: string;
+    teacherId: string;
+    recipientUserId: string;
+    actorUserId: string;
+    now?: Date;
+  },
+): Promise<{ emitted: number }> {
+  const now = input.now ?? new Date();
+  const days = await listDiaryDays(admin, {
+    instituteId: input.instituteId,
+    teacherId: input.teacherId,
+    dateFrom: yesterdayIso(now),
+    dateTo: todayIso(now),
+  });
+
+  const hour = now.getHours();
+  const today = todayIso(now);
+  const yesterday = yesterdayIso(now);
+  let emitted = 0;
+
+  for (const scope of SCOPES) {
+    if (!isSubmittedForDate(days, scope, yesterday)) {
+      const ok = await emitDiaryReminder({
+        admin,
+        actorUserId: input.actorUserId,
+        instituteId: input.instituteId,
+        recipientUserId: input.recipientUserId,
+        scope,
+        diaryDate: yesterday,
+        overdue: true,
+      });
+      if (ok) emitted += 1;
+    }
+
+    if (
+      hour >= DIARY_END_OF_DAY_HOUR &&
+      !isSubmittedForDate(days, scope, today)
+    ) {
+      const ok = await emitDiaryReminder({
+        admin,
+        actorUserId: input.actorUserId,
+        instituteId: input.instituteId,
+        recipientUserId: input.recipientUserId,
+        scope,
+        diaryDate: today,
+        overdue: false,
+      });
+      if (ok) emitted += 1;
+    }
+  }
+
+  return { emitted };
 }
 
 /**
@@ -100,41 +164,48 @@ export async function processDiaryRemindersForActor(
   const teacher = await findTeacherById(admin, identity.teacherId);
   if (!teacher?.user_profile_id) return;
 
-  const days = await listDiaryDays(admin, {
+  await processDiaryRemindersForTeacher(admin, {
     instituteId,
     teacherId: identity.teacherId,
-    dateFrom: yesterdayIso(now),
-    dateTo: todayIso(now),
+    recipientUserId: teacher.user_profile_id,
+    actorUserId: actor.userId,
+    now,
   });
+}
 
-  const recipientUserId = teacher.user_profile_id;
-  const hour = now.getHours();
-  const today = todayIso(now);
-  const yesterday = yesterdayIso(now);
+/**
+ * Background worker: scan active institutes / teachers and emit due diary reminders.
+ */
+export async function processDiaryRemindersSystem(
+  admin: SupabaseClient,
+  now: Date = new Date(),
+): Promise<{ institutes: number; teachers: number; emitted: number }> {
+  const institutes = await listActiveInstitutesForLogin(admin);
+  let teachersScanned = 0;
+  let emitted = 0;
 
-  for (const scope of SCOPES) {
-    if (!isSubmittedForDate(days, scope, yesterday)) {
-      await emitDiaryReminder({
-        admin,
-        actorUserId: actor.userId,
-        instituteId,
-        recipientUserId,
-        scope,
-        diaryDate: yesterday,
-        overdue: true,
+  for (const institute of institutes) {
+    const teachers = await listTeachers(admin, {
+      instituteId: institute.id,
+      status: "active",
+    });
+    for (const teacher of teachers) {
+      if (!teacher.user_profile_id) continue;
+      teachersScanned += 1;
+      const result = await processDiaryRemindersForTeacher(admin, {
+        instituteId: institute.id,
+        teacherId: teacher.id,
+        recipientUserId: teacher.user_profile_id,
+        actorUserId: teacher.user_profile_id,
+        now,
       });
-    }
-
-    if (hour >= DIARY_END_OF_DAY_HOUR && !isSubmittedForDate(days, scope, today)) {
-      await emitDiaryReminder({
-        admin,
-        actorUserId: actor.userId,
-        instituteId,
-        recipientUserId,
-        scope,
-        diaryDate: today,
-        overdue: false,
-      });
+      emitted += result.emitted;
     }
   }
+
+  return {
+    institutes: institutes.length,
+    teachers: teachersScanned,
+    emitted,
+  };
 }

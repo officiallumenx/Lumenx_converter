@@ -164,10 +164,25 @@ Response includes `updated`, `transitions`, `renewalsMarkedOverdue`.
 
 ---
 
-## 4. Quick incident order
+## 5. Background jobs (Phase 2 Step 7)
+
+Interval worker (`BACKGROUND_JOBS_INTERVAL_MS`, default 60s) runs without a user session:
+
+| Job | What it does |
+|-----|----------------|
+| **Announcements** | Publishes `scheduled` rows whose `scheduled_at` ≤ now + fans out notifications |
+| **Alert rules** | Evaluates active rules per institute; persists fires + staff notify |
+| **Diary reminders** | Overdue (yesterday) + end-of-day (today ≥ 16:00) for active teachers |
+
+List endpoints still trigger the same logic for snappy UX; the worker covers institutes that nobody is browsing.
+
+---
+
+## 6. Quick incident order
 
 1. `GET /api/v1/health` and `/api/v1/health/ready`
 2. Confirm `NODE_ENV`, CORS, Supabase, Firebase, OTP providers
 3. OTP issues → migration + provider credentials
 4. Unexpected locks → Nexus `sync-lifecycle` + check allowlist / offline pay
-5. Deploy path → **DEPLOY.md** (build, Docker, PM2, smoke)
+5. Missed announcements/alerts/diary nudges → check `background_jobs_worker_started` / `BACKGROUND_JOBS_INTERVAL_MS`
+6. Deploy path → **DEPLOY.md** (build, Docker, PM2, smoke)

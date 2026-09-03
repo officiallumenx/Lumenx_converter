@@ -148,6 +148,20 @@ export async function listDueScheduledAnnouncements(
   return ensureDbOk(result) as AnnouncementRow[];
 }
 
+/** Cross-institute due scheduled announcements for the background worker. */
+export async function listAllDueScheduledAnnouncements(
+  admin: SupabaseClient,
+  nowIso: string,
+): Promise<AnnouncementRow[]> {
+  const result = await admin
+    .from("announcement")
+    .select(ANNOUNCEMENT_COLS)
+    .eq("status", "scheduled")
+    .lte("scheduled_at", nowIso)
+    .is("deleted_at", null);
+  return ensureDbOk(result) as AnnouncementRow[];
+}
+
 export async function incrementAnnouncementViews(
   admin: SupabaseClient,
   id: string,

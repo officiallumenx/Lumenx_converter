@@ -10,6 +10,7 @@ import { createSupabaseClients } from "./integrations/supabase.js";
 import { getFirebaseMessaging, initFirebaseAdmin } from "./integrations/firebase.js";
 import { startFcmWorkerLoop } from "./workers/fcm-worker-runner.js";
 import { startSubscriptionLifecycleLoop } from "./workers/subscription-lifecycle-runner.js";
+import { startBackgroundJobsLoop } from "./workers/background-jobs-runner.js";
 
 const env = loadEnv();
 assertProductionEnv(env, process.env as Record<string, string | undefined>);
@@ -39,10 +40,24 @@ if (supabase?.admin) {
     msg: "subscription_lifecycle_worker_started",
     intervalMs: env.SUBSCRIPTION_LIFECYCLE_SYNC_MS,
   });
+
+  startBackgroundJobsLoop({
+    admin: supabase.admin,
+    logger,
+    intervalMs: env.BACKGROUND_JOBS_INTERVAL_MS,
+  });
+  logger.info({
+    msg: "background_jobs_worker_started",
+    intervalMs: env.BACKGROUND_JOBS_INTERVAL_MS,
+  });
 } else {
   logger.warn({
     msg: "subscription_lifecycle_worker_disabled",
     hint: "Configure Supabase to enable commercial lifecycle sync.",
+  });
+  logger.warn({
+    msg: "background_jobs_worker_disabled",
+    hint: "Configure Supabase to enable announcement/alert/diary workers.",
   });
 }
 
@@ -55,5 +70,6 @@ serve({ fetch: app.fetch, port: env.PORT, hostname: env.HOST }, (info) => {
     supabase: supabase ? "configured" : "not_configured",
     fcm: messaging ? "enabled" : "disabled",
     subscriptionLifecycleMs: env.SUBSCRIPTION_LIFECYCLE_SYNC_MS,
+    backgroundJobsMs: env.BACKGROUND_JOBS_INTERVAL_MS,
   });
 });

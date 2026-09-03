@@ -81,6 +81,16 @@ export const envSchema = z.object({
     .int()
     .nonnegative()
     .default(3_600_000),
+
+  /**
+   * Interval for announcement publish-due, alert-rule evaluate, and diary reminder workers.
+   * Milliseconds. Default 60s. Set 0 to disable.
+   */
+  BACKGROUND_JOBS_INTERVAL_MS: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .default(60_000),
 });
 
 // ── Derived types ───────────────────────────────────────────────────
