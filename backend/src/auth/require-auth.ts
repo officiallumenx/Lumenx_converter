@@ -4,6 +4,7 @@ import { AppError } from "../errors/app-error.js";
 import type { AppBindings } from "../types/app.js";
 import type { Actor } from "./types.js";
 import { loadActorByUserId } from "../domains/session/repository.js";
+import { enforceSubscriptionWriteGate } from "../middleware/subscription-write-gate.js";
 
 const BEARER_RE = /^Bearer\s+(\S+)$/i;
 
@@ -12,6 +13,7 @@ const BEARER_RE = /^Bearer\s+(\S+)$/i;
  *
  * Verification uses Auth Admin getUser(jwt) — does not trust client claims.
  * Actor rows are loaded with the service_role client after auth succeeds.
+ * Mutating institute calls are blocked when subscription is read-only.
  */
 export const requireAuth = createMiddleware<AppBindings>(async (c, next) => {
   const header = c.req.header("Authorization");
@@ -37,6 +39,7 @@ export const requireAuth = createMiddleware<AppBindings>(async (c, next) => {
 
   const actor = await loadActorByUserId(clients.admin, data.user.id);
   c.set("actor", actor);
+  await enforceSubscriptionWriteGate(c, actor);
   await next();
 });
 

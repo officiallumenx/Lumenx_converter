@@ -33,8 +33,8 @@ export class AppError extends Error {
     return new AppError(401, "UNAUTHENTICATED", message);
   }
 
-  static forbidden(message = "Insufficient permissions") {
-    return new AppError(403, "FORBIDDEN", message);
+  static forbidden(message = "Insufficient permissions", details?: unknown) {
+    return new AppError(403, "FORBIDDEN", message, details);
   }
 
   static notFound(message = "Resource not found") {

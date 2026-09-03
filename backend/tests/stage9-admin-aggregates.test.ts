@@ -76,6 +76,33 @@ function baseDb(): MockDb {
       deleted_at: null,
     },
   ];
+  const PERIOD_A = "p0111111-1111-4111-8111-111111111111";
+  db.subscription_period = [
+    {
+      id: PERIOD_A,
+      institute_id: INST_A,
+      subscription_id: "s0111111-1111-4111-8111-111111111111",
+      duration_months: 12,
+      active_student_count: 250,
+      assigned_rate_inr: 100,
+      monthly_price_inr: 100,
+      regular_amount_inr: 1200,
+      discount_amount_inr: 0,
+      payable_amount_inr: 1200,
+      free_months: 0,
+      starts_at: "2026-01-01T00:00:00.000Z",
+      ends_at: "2027-01-01T00:00:00.000Z",
+      payment_method: "offline",
+      payment_status: "paid",
+      payment_ref: "TEST-PAID",
+      amount_paid_inr: 1200,
+      paid_at: "2026-01-01T00:00:00.000Z",
+      is_current: true,
+      created_at: "2026-08-01T00:00:00.000Z",
+      updated_at: "2026-08-01T00:00:00.000Z",
+      deleted_at: null,
+    },
+  ];
   db.subscription = [
     {
       id: "s0111111-1111-4111-8111-111111111111",
@@ -86,7 +113,7 @@ function baseDb(): MockDb {
       trial_start_at: null,
       trial_end_at: null,
       grace_ends_at: null,
-      current_period_id: null,
+      current_period_id: PERIOD_A,
       created_at: "2026-08-01T00:00:00.000Z",
       updated_at: "2026-08-01T00:00:00.000Z",
       deleted_at: null,
