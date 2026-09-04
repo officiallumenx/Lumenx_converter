@@ -67,7 +67,7 @@ const FALLBACK: AdminCareerSyncRow[] = CAREER_CANDIDATES.map((c) => ({
   stage: c.stage as AdminCareerStage,
   applied: c.applied,
   docs: c.docs,
-  institute: "LumenX Demo Institute",
+  institute: "Test1School",
 }));
 
 function writeAppsSnapshot(next: AdminCareerSyncRow[]) {

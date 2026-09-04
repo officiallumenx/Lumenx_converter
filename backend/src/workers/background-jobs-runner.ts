@@ -43,9 +43,16 @@ export function startBackgroundJobsLoop(input: {
         }
       })
       .catch((err) => {
+        const details =
+          err instanceof Error && "details" in err
+            ? (err as { details?: { dbCode?: string; dbMessage?: string } })
+                .details
+            : undefined;
         input.logger.error({
           msg: "background_jobs_tick_failed",
           error: err instanceof Error ? err.message : String(err),
+          dbCode: details?.dbCode,
+          dbMessage: details?.dbMessage,
         });
       })
       .finally(() => {

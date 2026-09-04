@@ -154,7 +154,7 @@ export function idCardViewFromSyncRow(row: StudentIdCardSyncRow): ConnectIdCardV
     house: displayOrEmpty(row.house),
     issuedOn: displayOrEmpty(row.idCardIssuedOn),
     validTill: displayOrEmpty(row.idCardValidTill),
-    institute: row.institute || "LumenX Academy",
+    institute: row.institute || "Test1School",
     photoDataUrl: row.photoDataUrl,
     fromAdmin: true,
   };

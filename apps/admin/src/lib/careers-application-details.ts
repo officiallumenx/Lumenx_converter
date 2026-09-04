@@ -190,7 +190,7 @@ export const ADMIN_CAREER_DETAILS: Record<string, AdminCareerDetail> = {
     id: "CAN-881",
     initials: "MR",
     jobTitle: "Physics Teacher",
-    instituteName: "LumenX Demo Institute",
+    instituteName: "Test1School",
     personal: {
       name: "Dr. Maya Robinson",
       gender: "Female",
@@ -208,7 +208,7 @@ export const ADMIN_CAREER_DETAILS: Record<string, AdminCareerDetail> = {
     professional: {
       highestQualification: "Ph.D Physics",
       experienceYears: "8",
-      currentEmployer: "Oakridge International",
+      currentEmployer: "Test1School",
       currentRole: "Senior Physics Faculty",
       expectedSalary: "₹85,000 / month",
       noticePeriod: "60 days",
@@ -224,7 +224,7 @@ export const ADMIN_CAREER_DETAILS: Record<string, AdminCareerDetail> = {
     id: "CAN-879",
     initials: "LO",
     jobTitle: "Lab Assistant",
-    instituteName: "LumenX Demo Institute",
+    instituteName: "Test1School",
     personal: {
       name: "Liang Ortega",
       gender: "Male",
@@ -257,7 +257,7 @@ export const ADMIN_CAREER_DETAILS: Record<string, AdminCareerDetail> = {
     id: "CAN-878",
     initials: "RV",
     jobTitle: "Physics Teacher",
-    instituteName: "LumenX Demo Institute",
+    instituteName: "Test1School",
     personal: {
       name: "Rahul Verma",
       gender: "Male",
@@ -290,7 +290,7 @@ export const ADMIN_CAREER_DETAILS: Record<string, AdminCareerDetail> = {
     id: "CAN-876",
     initials: "SG",
     jobTitle: "Sports Coach",
-    instituteName: "LumenX Demo Institute",
+    instituteName: "Test1School",
     personal: {
       name: "Sneha Gupta",
       gender: "Female",
@@ -323,7 +323,7 @@ export const ADMIN_CAREER_DETAILS: Record<string, AdminCareerDetail> = {
     id: "CAN-875",
     initials: "PN",
     jobTitle: "English Faculty",
-    instituteName: "LumenX Demo Institute",
+    instituteName: "Test1School",
     personal: {
       name: "Priya Nair",
       gender: "Female",
@@ -341,7 +341,7 @@ export const ADMIN_CAREER_DETAILS: Record<string, AdminCareerDetail> = {
     professional: {
       highestQualification: "M.A English · B.Ed",
       experienceYears: "7",
-      currentEmployer: "St. Xavier Junior College",
+      currentEmployer: "Test1School",
       currentRole: "English Faculty",
       expectedSalary: "₹65,000 / month",
       noticePeriod: "60 days",
@@ -356,7 +356,7 @@ export const ADMIN_CAREER_DETAILS: Record<string, AdminCareerDetail> = {
     id: "CAN-874",
     initials: "AM",
     jobTitle: "Mathematics Teacher",
-    instituteName: "LumenX Demo Institute",
+    instituteName: "Test1School",
     personal: {
       name: "Arjun Mehta",
       gender: "Male",
@@ -374,7 +374,7 @@ export const ADMIN_CAREER_DETAILS: Record<string, AdminCareerDetail> = {
     professional: {
       highestQualification: "M.Sc Mathematics · B.Ed",
       experienceYears: "9",
-      currentEmployer: "Delhi Public School",
+      currentEmployer: "Test1School",
       currentRole: "Senior Math Teacher",
       expectedSalary: "₹75,000 / month",
       noticePeriod: "90 days",
@@ -389,7 +389,7 @@ export const ADMIN_CAREER_DETAILS: Record<string, AdminCareerDetail> = {
     id: "CAN-873",
     initials: "FK",
     jobTitle: "Front Office Executive",
-    instituteName: "LumenX Demo Institute",
+    instituteName: "Test1School",
     personal: {
       name: "Fatima Khan",
       gender: "Female",
@@ -422,7 +422,7 @@ export const ADMIN_CAREER_DETAILS: Record<string, AdminCareerDetail> = {
     id: "CAN-872",
     initials: "VS",
     jobTitle: "Chemistry Teacher",
-    instituteName: "LumenX Demo Institute",
+    instituteName: "Test1School",
     personal: {
       name: "Vikram Shah",
       gender: "Male",

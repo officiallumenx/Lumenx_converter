@@ -49,7 +49,7 @@ export class AppError extends Error {
     return new AppError(429, "RATE_LIMITED", message);
   }
 
-  static internal(message = "Internal server error") {
-    return new AppError(500, "INTERNAL_ERROR", message);
+  static internal(message = "Internal server error", details?: unknown) {
+    return new AppError(500, "INTERNAL_ERROR", message, details);
   }
 }

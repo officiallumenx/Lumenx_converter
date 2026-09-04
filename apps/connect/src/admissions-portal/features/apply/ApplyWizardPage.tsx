@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { z } from "zod";
 import {
@@ -413,7 +413,7 @@ export function ApplyWizardPage({
         return;
       }
       const program = child.programId ? getProgramById(child.programId) : undefined;
-      const resolvedInstituteId = child.instituteId ?? program?.instituteId ?? "ins-lumenx-academy";
+      const resolvedInstituteId = child.instituteId ?? program?.instituteId ?? "ins-test1school";
       const studentName = child.student.name ?? "";
       const dateOfBirth = child.student.dateOfBirth ?? "";
 
@@ -1180,3 +1180,4 @@ function ReviewRow({
     </div>
   );
 }
+

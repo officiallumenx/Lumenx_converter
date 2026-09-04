@@ -16,32 +16,32 @@ const ADMIN_DEMO_ACCOUNTS = [
     password: "Admin@1234",
     name: "Dr. Ananya Verma",
     phone: "+91 98765 43210",
-    instituteId: "LX-INST-001",
-    instituteName: "LumenX International School",
+    instituteId: "ins-test1school",
+    instituteName: "Test1School",
   },
   {
     email: "vp@lumenx.edu",
     password: "Admin@1234",
     name: "Mr. Rohan Kapoor",
     phone: "+91 98765 43211",
-    instituteId: "LX-INST-001",
-    instituteName: "LumenX International School",
+    instituteId: "ins-test1school",
+    instituteName: "Test1School",
   },
   {
     email: "admissions@lumenx.edu",
     password: "Admin@1234",
     name: "Ms. Priya Nair",
     phone: "+91 98765 43212",
-    instituteId: "LX-INST-001",
-    instituteName: "LumenX International School",
+    instituteId: "ins-test1school",
+    instituteName: "Test1School",
   },
   {
     email: "coordinator@lumenx.edu",
     password: "Admin@1234",
     name: "Mr. Aditya Sharma",
     phone: "+91 98765 43213",
-    instituteId: "LX-INST-001",
-    instituteName: "LumenX International School",
+    instituteId: "ins-test1school",
+    instituteName: "Test1School",
   },
 ] as const;
 
@@ -94,7 +94,7 @@ export function getActiveLumenxAdminSession(): LumenxAdminIdentity | null {
       email: normalizeEmail(session.email),
       name: session.name,
       phone: session.phone,
-      instituteId: session.instituteId ?? "LX-INST-001",
+      instituteId: session.instituteId ?? "ins-test1school",
       instituteName: session.instituteName ?? "LumenX Institute",
     };
   } catch {
@@ -141,7 +141,7 @@ export function verifyLumenxAdminCredentials(
       email: normalizeEmail(match.email),
       name: match.user?.name ?? match.email.split("@")[0] ?? "Institute Admin",
       phone: match.phone ?? match.user?.phone,
-      instituteId: match.user?.instituteId ?? "LX-INST-001",
+      instituteId: match.user?.instituteId ?? "ins-test1school",
       instituteName: match.user?.instituteName ?? "LumenX Institute",
     };
   } catch {

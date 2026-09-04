@@ -1,4 +1,4 @@
-import { ADMISSIONS_STORAGE_KEYS, createBrowserAuthStorage } from "@lumenx/auth";
+﻿import { ADMISSIONS_STORAGE_KEYS, createBrowserAuthStorage } from "@lumenx/auth";
 import type {
   AdmissionType,
   AdmissionApplication,
@@ -799,12 +799,12 @@ export function hasDuplicateActiveApplicationForInstitute(
   studentName: string,
   dateOfBirth: string,
 ): boolean {
-  const targetInstituteId = instituteId || "ins-lumenx-academy";
+  const targetInstituteId = instituteId || "ins-test1school";
   const targetStudentKey = normalizeStudentIdentity(studentName, dateOfBirth);
   return getApplicationsStore().some((app) => {
     if (app.applicantId !== applicantId) return false;
     if (!isActiveAdmissionsStatus(app.status)) return false;
-    const appInstituteId = app.instituteId || "ins-lumenx-academy";
+    const appInstituteId = app.instituteId || "ins-test1school";
     if (appInstituteId !== targetInstituteId) return false;
     return normalizeStudentIdentity(app.student.name, app.student.dateOfBirth) === targetStudentKey;
   });
@@ -1249,7 +1249,7 @@ export function getInstituteWaitlist(instituteId: string): AdmissionApplication[
   return getApplicationsStore()
     .filter(
       (app) =>
-        (app.instituteId ?? "ins-lumenx-academy") === instituteId &&
+        (app.instituteId ?? "ins-test1school") === instituteId &&
         app.status === "waitlisted" &&
         app.waitlist?.active,
     )
@@ -1262,7 +1262,7 @@ export function bulkDeleteInstituteWaitlist(instituteId: string): number {
   let count = 0;
   const updated = apps.map((app) => {
     if (
-      (app.instituteId ?? "ins-lumenx-academy") === instituteId &&
+      (app.instituteId ?? "ins-test1school") === instituteId &&
       app.status === "waitlisted" &&
       app.waitlist?.active
     ) {
@@ -1443,3 +1443,4 @@ export function resubmitRequestedCorrections(input: {
   );
   return updated;
 }
+

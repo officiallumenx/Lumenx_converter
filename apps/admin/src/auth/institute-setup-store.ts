@@ -111,7 +111,7 @@ export type SetupFormErrors = Partial<Record<keyof InstituteSetupForm, string>>;
 // ── Mock preset (demo / quick-fill) ───────────────────────────
 
 export const MOCK_SETUP_PRESET: InstituteSetupForm = {
-  instituteName:        "LumenX International School",
+  instituteName:        "Test1School",
   logoPreview:          "",
   instituteType:        "School (K-12)",
   educationBoard:       "CBSE",

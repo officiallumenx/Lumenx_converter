@@ -172,73 +172,20 @@ export const DEMO_PROFILE_STORAGE_KEY = "lumenx_demo_profile";
 
 export const DEFAULT_DEMO_PROFILE_ID: DemoProfileId = "multi_institute";
 
-const MULTI_INSTITUTES: Institute[] = [
-  {
-    id: "ins-delhi-riverside",
-    name: "Delhi Public School Riverside",
-    code: "DPS-RV",
-    kind: "school",
-  },
-  {
-    id: "ins-lumenx-alpha",
-    name: "LumenX Academy · Alpha",
-    code: "LXA-ALP",
-    kind: "school",
-  },
-  {
-    id: "ins-lumenx-beta",
-    name: "LumenX Academy · Beta",
-    code: "LXA-BET",
-    kind: "school",
-  },
-  {
-    id: "ins-greenfield",
-    name: "Greenfield Public School",
-    code: "GPS-BLR",
-    kind: "school",
-  },
-  {
-    id: "ins-hillcrest",
-    name: "Hillcrest International School",
-    code: "HIS-CHN",
-    kind: "school",
-  },
-];
+/** Single canonical demo institute used by all profiles. */
+const TEST1SCHOOL: Institute = {
+  id: "ins-test1school",
+  name: "Test1School",
+  code: "T1S",
+  kind: "school",
+};
 
-const SINGLE_INSTITUTES: Institute[] = [
-  {
-    id: "ins-lumenx-academy",
-    name: "LumenX Academy",
-    code: "LXA-HYD",
-    kind: "school",
-  },
-];
+const MULTI_INSTITUTES: Institute[] = [TEST1SCHOOL];
+
+const SINGLE_INSTITUTES: Institute[] = [TEST1SCHOOL];
 
 const INTER_COLLEGE_INSTITUTES: Institute[] = [
-  {
-    id: "ins-st-xavier-jc",
-    name: "St. Xavier's Junior College",
-    code: "SX-JC-MUM",
-    kind: "junior_college",
-  },
-  {
-    id: "ins-fergusson",
-    name: "Fergusson College (Autonomous)",
-    code: "FC-PUN",
-    kind: "degree_college",
-  },
-  {
-    id: "ins-vnit",
-    name: "Visvesvaraya National Institute of Technology",
-    code: "VNIT-NGP",
-    kind: "engineering",
-  },
-  {
-    id: "ins-commerce-pune",
-    name: "Pune Commerce College",
-    code: "PCC-PUN",
-    kind: "degree_college",
-  },
+  { ...TEST1SCHOOL, kind: "junior_college" },
 ];
 
 const SCHOOL_STUDENT_PROFILE: DemoConnectStudentProfile = {
@@ -260,7 +207,7 @@ const SCHOOL_STUDENT_PROFILE: DemoConnectStudentProfile = {
   email: "aarav.sharma@student.lumenx.edu",
   bio: "Interested in mathematics and robotics. Member of the school science club.",
   classTeacher: "Ananya Iyer",
-  institute: "LumenX Academy",
+  institute: "Test1School",
   address: "12 Green Park Road, Sector 4, Hyderabad — 500032",
 };
 
@@ -283,7 +230,7 @@ const COLLEGE_STUDENT_PROFILE: DemoConnectStudentProfile = {
   email: "neha.desai@student.lumenx-colleges.edu",
   bio: "MPC 1st year student. Preparing for EAMCET and active in the science club.",
   classTeacher: "Prof. Meera Nair",
-  institute: "St. Xavier's Junior College",
+  institute: "Test1School",
   address: "14 Hill Road, Bandra West, Mumbai — 400050",
 };
 
@@ -486,19 +433,19 @@ export const DEMO_PROFILES: DemoProfile[] = [
     campusKind: "school",
     academic: SCHOOL_ACADEMIC,
     admin: {
-      organizationName: "LumenX International School",
+      organizationName: "Test1School",
       headerSubtitle: "Single institute · School admin",
       principalName: "Dr. Alistair Vance",
       principalTitle: "Principal · Root Admin",
       instituteSummary: {
-        name: "LumenX International School",
+        name: "Test1School",
         students: 2842,
         attendance: 94.2,
         growth: 8.4,
         performance: "high",
       },
       instituteProfile: {
-        name: "LumenX International School",
+        name: "Test1School",
         founded: "1987",
         founder: "Dr. Helena Vance",
         principal: "Dr. Alistair Vance",
@@ -554,19 +501,19 @@ export const DEMO_PROFILES: DemoProfile[] = [
     campusKind: "school",
     academic: SCHOOL_ACADEMIC,
     admin: {
-      organizationName: "LumenX Academy",
+      organizationName: "Test1School",
       headerSubtitle: "Single institute · School admin",
       principalName: "Dr. Priya Menon",
       principalTitle: "Principal · Admin",
       instituteSummary: {
-        name: "LumenX Academy",
+        name: "Test1School",
         students: 1842,
         attendance: 93.8,
         growth: 5.2,
         performance: "high",
       },
       instituteProfile: {
-        name: "LumenX Academy",
+        name: "Test1School",
         founded: "1998",
         founder: "Mrs. Lakshmi Reddy",
         principal: "Dr. Priya Menon",
@@ -574,7 +521,7 @@ export const DEMO_PROFILES: DemoProfile[] = [
         mission:
           "Provide quality CBSE education with strong values, sports, and digital learning on a single campus.",
         ranking: "A+ accredited · State Board · 2025",
-        logo: "LumenX Academy crest",
+        logo: "Test1School crest",
         profilePhoto: "",
         phone: "+91 40 2789 4400",
         email: "principal@lumenx-academy.edu",
@@ -600,7 +547,7 @@ export const DEMO_PROFILES: DemoProfile[] = [
       loginHeroSubtitle:
         "Parents, teachers, and students connected through one institute.",
       institutePickerTitle: "Your school",
-      institutePickerHint: "This demo uses one registered school. Sign in to LumenX Academy.",
+      institutePickerHint: "This demo uses one registered school. Sign in to Test1School.",
       campusKindLabel: "School",
       classLabel: "Class",
       registeredInstitutes: SINGLE_INSTITUTES,
@@ -617,19 +564,19 @@ export const DEMO_PROFILES: DemoProfile[] = [
     campusKind: "college",
     academic: COLLEGE_ACADEMIC,
     admin: {
-      organizationName: "LumenX Junior College",
+      organizationName: "Test1School",
       headerSubtitle: "Single institute · College admin",
       principalName: "Prof. Rajesh Kapoor",
       principalTitle: "Principal · Admin",
       instituteSummary: {
-        name: "LumenX Junior College",
+        name: "Test1School",
         students: 1620,
         attendance: 91.4,
         growth: 4.8,
         performance: "high",
       },
       instituteProfile: {
-        name: "LumenX Junior College",
+        name: "Test1School",
         founded: "1965",
         founder: "Late Prof. Anand Desai",
         principal: "Prof. Rajesh Kapoor",
@@ -637,11 +584,11 @@ export const DEMO_PROFILES: DemoProfile[] = [
         mission:
           "Deliver strong academics, student support, and career preparation within one institute.",
         ranking: "Top-ranked junior college · Western India · 2025",
-        logo: "LumenX Junior College seal",
+        logo: "Test1School seal",
         profilePhoto: "",
         phone: "+91 20 2567 3300",
         email: "director@lumenx-colleges.edu",
-        address: "Fergusson Hill, Pune 411004",
+        address: "14 Knowledge Park Road, Pune 411004",
         history: [
           { year: "1965", event: "Institute founded with science and commerce streams." },
           { year: "1992", event: "Modern laboratories and student activity facilities opened." },

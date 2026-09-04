@@ -17,7 +17,7 @@ export const Route = createFileRoute("/verify/$studentId")({
   head: ({ params }) => ({
     meta: [
       { title: `${params.studentId} — Student profile` },
-      { name: "description", content: "Official student profile from LumenX Academy ID card." },
+      { name: "description", content: "Official student profile from Test1School ID card." },
     ],
   }),
   component: VerifyStudentPage,
@@ -61,7 +61,7 @@ function VerifyStudentPage() {
 
 function PublicProfileShell({
   children,
-  institute = "LumenX Academy",
+  institute = "Test1School",
 }: {
   children: React.ReactNode;
   institute?: string;

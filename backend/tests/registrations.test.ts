@@ -19,7 +19,7 @@ const TOKEN_A = "token-user-a";
 const TOKEN_B = "token-user-b";
 
 const validPayload = {
-  instituteName: "Greenfield Public School",
+  instituteName: "Test1School",
   instituteType: "School (K-12)",
   educationBoard: "CBSE",
   country: "India",

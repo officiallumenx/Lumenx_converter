@@ -177,11 +177,11 @@ describe("birthday workflow", () => {
       daysUntil: 0,
     };
     expect(whatsAppRecipientId(person.phone)).toBe("919876512345");
-    const url = birthdayWhatsAppUrl(person, "LumenX International School");
+    const url = birthdayWhatsAppUrl(person, "Test1School");
     expect(url).toContain("https://wa.me/919876512345?text=");
-    expect(birthdayWishMessage(person, "LumenX International School")).toContain("Aanya Sharma");
-    expect(birthdayWishMessage(person, "LumenX International School")).toContain(
-      "LumenX International School",
+    expect(birthdayWishMessage(person, "Test1School")).toContain("Aanya Sharma");
+    expect(birthdayWishMessage(person, "Test1School")).toContain(
+      "Test1School",
     );
   });
 });

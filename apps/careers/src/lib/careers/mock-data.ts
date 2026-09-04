@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   CareersNotification,
   CareersUser,
   FaqItem,
@@ -59,17 +59,17 @@ export const BENEFITS = [
 export const TESTIMONIALS = [
   {
     name: "Rajesh Kumar",
-    role: "Math Teacher, LumenX Academy",
+    role: "Math Teacher, Test1School",
     quote: "The hiring process was clear — I knew exactly where I stood at every step.",
   },
   {
     name: "Meera Patel",
-    role: "Lab Instructor, Fergusson College",
+    role: "Lab Instructor, Test1School",
     quote: "Applied from my phone during lunch break. Got interview details the same week.",
   },
   {
     name: "Arjun Singh",
-    role: "Sports Coach, Delhi Riverside",
+    role: "Sports Coach, Test1School",
     quote: "Loved being able to compare roles across institutes before choosing.",
   },
 ];
@@ -105,8 +105,8 @@ export const DEMO_RECRUITER: CareersUser = {
   phone: "+91 98765 40001",
   passwordHash: "demo123",
   accountType: "recruiter",
-  organizationId: "ins-lumenx-academy",
-  organizationName: "LumenX Academy",
+  organizationId: "ins-test1school",
+  organizationName: "Test1School",
   organizationType: "education",
   profileComplete: 100,
   emailVerified: true,
@@ -167,8 +167,8 @@ export const DEMO_APPLICATIONS: JobApplication[] = [
     candidateId: DEMO_CANDIDATE.id,
     jobId: "job-english-faculty",
     jobTitle: "English Faculty",
-    instituteId: "ins-st-xavier-jc",
-    instituteName: "St. Xavier Junior College",
+    instituteId: "ins-test1school",
+    instituteName: "Test1School",
     status: "submitted",
     submittedAt: "2026-04-12T14:00:00Z",
     updatedAt: "2026-04-12T14:00:00Z",
@@ -220,9 +220,9 @@ export const DEMO_APPLICATIONS: JobApplication[] = [
     id: "CAPP-2402",
     candidateId: DEMO_CANDIDATE.id,
     jobId: "job-math-teacher",
-    instituteId: "ins-lumenx-academy",
+    instituteId: "ins-test1school",
     jobTitle: "Senior Mathematics Teacher",
-    instituteName: "LumenX Academy",
+    instituteName: "Test1School",
     status: "demo_class",
     submittedAt: "2026-04-05T11:00:00Z",
     updatedAt: "2026-04-18T09:00:00Z",
@@ -289,9 +289,9 @@ export const DEMO_APPLICATIONS: JobApplication[] = [
     id: "CAPP-2403",
     candidateId: DEMO_CANDIDATE.id,
     jobId: "job-sports-coach",
-    instituteId: "ins-delhi-riverside",
+    instituteId: "ins-test1school",
     jobTitle: "Sports Coach — Cricket & Athletics",
-    instituteName: "Delhi Riverside School",
+    instituteName: "Test1School",
     status: "offer_accepted",
     submittedAt: "2026-03-20T09:00:00Z",
     updatedAt: "2026-04-22T16:00:00Z",
@@ -359,7 +359,7 @@ export const DEMO_NOTIFICATIONS: CareersNotification[] = [
     candidateId: DEMO_CANDIDATE.id,
     applicationId: "CAPP-2402",
     title: "Shortlisted",
-    body: "You have been shortlisted for Senior Mathematics Teacher at LumenX Academy.",
+    body: "You have been shortlisted for Senior Mathematics Teacher at Test1School.",
     type: "application",
     read: true,
     createdAt: "2026-04-14T15:00:00Z",
@@ -389,7 +389,7 @@ export const DEMO_NOTIFICATIONS: CareersNotification[] = [
     candidateId: DEMO_CANDIDATE.id,
     applicationId: "CAPP-2403",
     title: "Offer accepted",
-    body: "You accepted the offer for Sports Coach at Delhi Riverside School.",
+    body: "You accepted the offer for Sports Coach at Test1School.",
     type: "offer",
     read: false,
     createdAt: "2026-04-22T16:00:00Z",
@@ -586,3 +586,4 @@ export function buildApplicationTimeline(
 ): TimelineEvent[] {
   return [{ id: "tl-0", status, label: status.replace(/_/g, " "), at: submittedAt }];
 }
+

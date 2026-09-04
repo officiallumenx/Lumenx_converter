@@ -43,7 +43,7 @@ export function downloadStudentCertificateToDevice(
   studentName: string,
 ): { filename: string } {
   const lines = [
-    "LumenX Academy",
+    "Test1School",
     "CERTIFICATE OF ACHIEVEMENT",
     "========================================",
     `Title      : ${cert.title}`,

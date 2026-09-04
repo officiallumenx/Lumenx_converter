@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   Button,
@@ -436,7 +436,7 @@ export function InstituteApplicationReviewPage({ applicationId }: { applicationI
   const displayDocs =
     apiMode && /^[0-9a-f-]{36}$/i.test(applicationId) ? apiDocs : app?.documents ?? [];
 
-  if (!app || (app.instituteId ?? "ins-lumenx-academy") !== instituteId) {
+  if (!app || (app.instituteId ?? "ins-test1school") !== instituteId) {
     return (
       <div className="py-12 text-center">
         <p className="text-muted-foreground">Application not found.</p>
@@ -1375,3 +1375,4 @@ function Row({ label, value }: { label: string; value?: string }) {
     </div>
   );
 }
+

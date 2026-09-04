@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+﻿import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import {
   Card,
@@ -147,7 +147,7 @@ function ModulesDemoPage() {
     [tick],
   );
 
-  const [instituteId, setInstituteId] = useState(() => institutes[0]?.id ?? "ins-delhi-riverside");
+  const [instituteId, setInstituteId] = useState(() => institutes[0]?.id ?? "ins-test1school");
 
   useEffect(() => {
     if (!institutes.some((i) => i.id === instituteId) && institutes[0]) {
@@ -548,4 +548,5 @@ function Toggle({
     </button>
   );
 }
+
 

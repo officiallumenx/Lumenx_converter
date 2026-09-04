@@ -103,7 +103,7 @@ export function MockConnectHome() {
 export function MockNexus() {
   return (
     <ul className="divide-y p-2 text-sm">
-      <li className="px-3 py-3">Oakridge Public · Trial</li>
+      <li className="px-3 py-3">Test1School · Trial</li>
       <li className="px-3 py-3">Harbor Academy · Active</li>
       <li className="px-3 py-3 text-muted-foreground">Modules on per institute</li>
     </ul>

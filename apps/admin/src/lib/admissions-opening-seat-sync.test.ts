@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+﻿import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SCHOOL_ACADEMIC } from "@lumenx/types";
 import {
   applyOpeningSeatUpdateAfterConversion,
@@ -48,7 +48,7 @@ vi.mock("@lumenx/types", async (importOriginal) => {
   };
 });
 
-const INSTITUTE_ID = "ins-lumenx-academy";
+const INSTITUTE_ID = "ins-test1school";
 
 function seedFreshAdminState() {
   store.clear();
@@ -230,3 +230,4 @@ describe("admissions seat availability", () => {
     }
   });
 });
+

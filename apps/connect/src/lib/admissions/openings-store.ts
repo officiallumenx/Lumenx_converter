@@ -1,4 +1,4 @@
-import { ADMISSIONS_STORAGE_KEYS, createBrowserAuthStorage } from "@lumenx/auth";
+﻿import { ADMISSIONS_STORAGE_KEYS, createBrowserAuthStorage } from "@lumenx/auth";
 import type { AdmissionOpening, AdmissionOpeningStatus, AdmissionProgram } from "./types";
 
 const storage = createBrowserAuthStorage();
@@ -176,8 +176,8 @@ export function ensureDemoOpenings(instituteId: string): void {
     return;
   }
 
-  // Seed for demo LumenX institute ids only
-  if (instituteId === "ins-lumenx-academy" || instituteId === "LX-INST-001") {
+  // Seed demo openings for Test1School only
+  if (instituteId === "ins-test1school") {
   createOpening(instituteId, {
     name: "Class 10",
     description: "CBSE Class 10 admissions — limited seats for academic year 2026–27.",
@@ -204,3 +204,4 @@ export function ensureDemoOpenings(instituteId: string): void {
 
   storage.setItem(flagKey, "1");
 }
+

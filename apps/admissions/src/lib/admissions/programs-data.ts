@@ -1,4 +1,4 @@
-import type { AdmissionProgram } from "./types";
+﻿import type { AdmissionProgram } from "./types";
 import { getInstituteById } from "./institutes-data";
 import {
   getOpenPublishedOpenings,
@@ -101,16 +101,16 @@ const PROGRAM_TEMPLATES: Omit<AdmissionProgram, "instituteId" | "id">[] = [
 
 /** Per-institute program catalog — Phase 11 multi-institute foundation */
 export const ADMISSION_PROGRAMS_V2: AdmissionProgram[] = [
-  ...buildProgramsForInstitute("ins-lumenx-academy", [0, 1, 2, 3, 4, 5]),
-  ...buildProgramsForInstitute("ins-delhi-riverside", [0, 1, 2, 3, 4]),
-  ...buildProgramsForInstitute("ins-st-xavier-jc", [3, 4]),
-  ...buildProgramsForInstitute("ins-fergusson", [5]),
-  makeEngineeringProgram("ins-vnit", "B.Tech Computer Science", "btech-cs", 120),
-  makeEngineeringProgram("ins-vnit", "B.Tech Mechanical", "btech-mech", 90),
-  makeEngineeringProgram("ins-vnit", "B.Tech Electrical", "btech-ee", 80),
-  makeUniversityProgram("ins-bhu", "B.A. Humanities", "ba-hum", 200),
-  makeUniversityProgram("ins-bhu", "B.Sc. Sciences", "bsc-sci", 180),
-  makeUniversityProgram("ins-bhu", "B.Com", "bcom", 150),
+  ...buildProgramsForInstitute("ins-test1school", [0, 1, 2, 3, 4, 5]),
+  ...buildProgramsForInstitute("ins-test1school", [0, 1, 2, 3, 4]),
+  ...buildProgramsForInstitute("ins-test1school", [3, 4]),
+  ...buildProgramsForInstitute("ins-test1school", [5]),
+  makeEngineeringProgram("ins-test1school", "B.Tech Computer Science", "btech-cs", 120),
+  makeEngineeringProgram("ins-test1school", "B.Tech Mechanical", "btech-mech", 90),
+  makeEngineeringProgram("ins-test1school", "B.Tech Electrical", "btech-ee", 80),
+  makeUniversityProgram("ins-test1school", "B.A. Humanities", "ba-hum", 200),
+  makeUniversityProgram("ins-test1school", "B.Sc. Sciences", "bsc-sci", 180),
+  makeUniversityProgram("ins-test1school", "B.Com", "bcom", 150),
 ];
 
 function buildProgramsForInstitute(
@@ -186,7 +186,7 @@ export function getProgramsForInstitute(instituteId: string) {
   return [...openings, ...catalog.filter((p) => !seen.has(p.id))];
 }
 
-/** V1 demo IDs → LumenX Academy V2 programs */
+/** V1 demo IDs → Test1School V2 programs */
 const LEGACY_PROGRAM_ID_MAP: Record<string, string> = {
   "prog-pre-primary": "prog-lumenx-academy-pre-primary",
   "prog-primary": "prog-lumenx-academy-primary",
@@ -270,3 +270,4 @@ export function getRelatedPrograms(programId: string, limit = 3) {
     (p) => p.instituteId === prog.instituteId && p.id !== programId,
   ).slice(0, limit);
 }
+

@@ -432,7 +432,7 @@ export const LEAVE_TEACHER = [
 ];
 
 export const INSTITUTE_PROFILE = {
-  name: "LumenX International School",
+  name: "Test1School",
   founded: "1987",
   founder: "Dr. Helena Vance",
   principal: "Dr. Alistair Vance",

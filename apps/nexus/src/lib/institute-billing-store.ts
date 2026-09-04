@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Nexus institute billing — local/demo.
  * Config + immutable invoices + monthly renewals.
  * Overdue billing never auto-suspends an institute.
@@ -397,15 +397,15 @@ function buildSeedState(): BillingState {
   const institutes = listPlatformInstitutes().filter((i) => i.status !== "archived");
   const configs: Record<string, InstituteBillingConfig> = {};
   const rateById: Record<string, number> = {
-    "ins-delhi-riverside": 12,
-    "ins-mumbai-harbor": 14,
-    "ins-bengaluru-oak": 11,
-    "ins-hyderabad-lotus": 15,
-    "ins-chennai-shore": 10,
-    "ins-pune-summit": 12,
-    "ins-jaipur-heritage": 13,
-    "ins-kochi-lagoon": 12,
-    "ins-ahmedabad-north": 10,
+    "ins-test1school": 12,
+    "ins-test1school": 14,
+    "ins-test1school": 11,
+    "ins-test1school": 15,
+    "ins-test1school": 10,
+    "ins-test1school": 12,
+    "ins-test1school": 13,
+    "ins-test1school": 12,
+    "ins-test1school": 10,
   };
 
   for (const inst of institutes) {
@@ -423,9 +423,9 @@ function buildSeedState(): BillingState {
   const payments: BillingPaymentRecord[] = [];
   let seq = 1;
   let paySeq = 1;
-  const delhi = configs["ins-delhi-riverside"];
+  const delhi = configs["ins-test1school"];
   if (delhi) {
-    const inv = seedInvoice("ins-delhi-riverside", delhi, { paidRatio: 1, seq: seq++ });
+    const inv = seedInvoice("ins-test1school", delhi, { paidRatio: 1, seq: seq++ });
     invoices.push(inv);
     if (inv.amountPaidInr > 0) {
       payments.push({
@@ -440,9 +440,9 @@ function buildSeedState(): BillingState {
       });
     }
   }
-  const harbor = configs["ins-mumbai-harbor"];
+  const harbor = configs["ins-test1school"];
   if (harbor) {
-    const inv = seedInvoice("ins-mumbai-harbor", harbor, { paidRatio: 0.45, seq: seq++ });
+    const inv = seedInvoice("ins-test1school", harbor, { paidRatio: 0.45, seq: seq++ });
     invoices.push(inv);
     if (inv.amountPaidInr > 0) {
       payments.push({
@@ -457,12 +457,12 @@ function buildSeedState(): BillingState {
       });
     }
   }
-  const chennai = configs["ins-chennai-shore"];
+  const chennai = configs["ins-test1school"];
   if (chennai) {
-    invoices.push(seedInvoice("ins-chennai-shore", chennai, { paidRatio: 0, overdue: true, seq: seq++ }));
+    invoices.push(seedInvoice("ins-test1school", chennai, { paidRatio: 0, overdue: true, seq: seq++ }));
   }
-  const pune = configs["ins-pune-summit"];
-  if (pune) invoices.push(seedInvoice("ins-pune-summit", pune, { paidRatio: 0, seq: seq++ }));
+  const pune = configs["ins-test1school"];
+  if (pune) invoices.push(seedInvoice("ins-test1school", pune, { paidRatio: 0, seq: seq++ }));
 
   return { configs, invoices, payments, nextInvoiceSeq: seq, nextPaymentSeq: paySeq };
 }
@@ -1186,3 +1186,4 @@ export function updateBillingPlan(
   });
   return next;
 }
+

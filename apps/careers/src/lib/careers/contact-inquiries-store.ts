@@ -1,4 +1,4 @@
-import { CAREERS_STORAGE_KEYS, createBrowserAuthStorage } from "@lumenx/auth";
+﻿import { CAREERS_STORAGE_KEYS, createBrowserAuthStorage } from "@lumenx/auth";
 import type { ContactInquiry, ContactInquiryCategory, ContactInquiryResponse } from "./types";
 
 const storage = createBrowserAuthStorage();
@@ -25,8 +25,8 @@ const DEMO_INQUIRIES: ContactInquiry[] = [
     subject: "Reschedule demo class",
     message: "I need to reschedule my demo class to next week due to a prior commitment.",
     applicationId: "CAPP-2402",
-    instituteId: "ins-delhi-riverside",
-    instituteName: "Delhi Riverside School",
+    instituteId: "ins-test1school",
+    instituteName: "Test1School",
     jobTitle: "Sports Coach",
     createdAt: "2026-05-18T09:00:00Z",
     updatedAt: "2026-05-19T11:30:00Z",
@@ -34,7 +34,7 @@ const DEMO_INQUIRIES: ContactInquiry[] = [
     responses: [
       {
         id: "cr1",
-        from: "Delhi Riverside HR",
+        from: "Test1School HR",
         body: "Your demo class has been moved to Friday, 10:00 AM. You will receive a calendar invite shortly.",
         at: "2026-05-19T11:30:00Z",
       },
@@ -237,3 +237,4 @@ export function submitContactInquiry(input: {
   });
   return true;
 }
+

@@ -740,7 +740,7 @@ function simulateTick() {
         pushAlert(
           "reached_school",
           "Reached school",
-          `${assignment.bus.busNumber} arrived at LumenX Academy. ${assignment.studentName} has reached school safely.`,
+          `${assignment.bus.busNumber} arrived at Test1School. ${assignment.studentName} has reached school safely.`,
           assignment.studentId,
           assignment.studentName,
         );

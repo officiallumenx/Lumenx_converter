@@ -242,7 +242,7 @@ async function evaluateAlertRulesInternal(
 ): Promise<AlertEvaluateResultDto & { newlyFired: number }> {
   const rules = (await listAlertRules(admin, instituteId)).filter((r) => r.active);
   if (rules.length === 0) {
-    return { fired: [] };
+    return { fired: [], newlyFired: 0 };
   }
 
   const candidates = await collectCandidateFires(admin, actor, instituteId, rules);

@@ -9,7 +9,7 @@ export const TEMPLATE_VARIABLES: TemplateVariable[] = [
   { key: "IssueDate", label: "Issue date", sample: "20 Jun 2026" },
   { key: "EventName", label: "Event name", sample: "Annual Sports Meet" },
   { key: "Achievement", label: "Achievement", sample: "Gold Medal — 100m Sprint" },
-  { key: "InstituteName", label: "Institute name", sample: "LumenX International School" },
+  { key: "InstituteName", label: "Institute name", sample: "Test1School" },
   { key: "TeacherName", label: "Teacher name", sample: "Dr. Priya Menon" },
   { key: "CertificateNumber", label: "Certificate number", sample: "LXA/CERT/2026/0142" },
   { key: "PrincipalName", label: "Principal name", sample: "Dr. Alistair Vance" },

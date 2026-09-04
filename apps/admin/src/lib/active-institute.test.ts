@@ -94,7 +94,7 @@ describe("active institute", () => {
   it("filters non-uuid and inactive from accessible list", () => {
     expect(
       accessibleInstituteIds([
-        { instituteId: "LX-INST-001", status: "active" },
+        { instituteId: "ins-test1school", status: "active" },
         { instituteId: A, status: "active" },
         { instituteId: B, status: "invited" },
       ]),

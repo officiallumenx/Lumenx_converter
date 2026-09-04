@@ -21,7 +21,7 @@ function withVisual(
     visualTheme: theme,
     visualFields:
       template.visualFields ??
-      defaultVisualFields(theme, "LumenX International School", "Dr. Alistair Vance"),
+      defaultVisualFields(theme, "Test1School", "Dr. Alistair Vance"),
   };
 }
 

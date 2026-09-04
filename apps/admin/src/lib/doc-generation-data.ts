@@ -136,7 +136,7 @@ export function studentsForScope(
 
 // ─── Variable resolution ─────────────────────────────────────────────────────
 
-const INSTITUTE_NAME = "LumenX International School";
+const INSTITUTE_NAME = "Test1School";
 const INSTITUTE_PRINCIPAL = "Dr. Ramesh Kumar";
 
 /** Return all known variable values for a student. */

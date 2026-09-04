@@ -79,7 +79,7 @@ function ParentIdCardPage() {
         house: "—",
         issuedOn: "—",
         validTill: "—",
-        institute: "LumenX Academy",
+        institute: "Test1School",
         address: CHILD_ADDRESSES[child.id] ?? "—",
         fromAdmin: false,
       };

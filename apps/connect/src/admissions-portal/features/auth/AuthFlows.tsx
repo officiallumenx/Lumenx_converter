@@ -773,7 +773,7 @@ export function InstituteSignupFlow() {
             <Input
               value={instituteName}
               onChange={(e) => setInstituteName(e.target.value)}
-              placeholder="LumenX Academy"
+              placeholder="Test1School"
             />
           </div>
           <div className="space-y-2">

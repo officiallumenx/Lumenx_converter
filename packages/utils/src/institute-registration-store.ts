@@ -432,7 +432,7 @@ export function ensureDemoPendingRegistration(): void {
     referenceId: "LX-REG-DEMO01",
     status: "pending",
     payload: {
-      instituteName: "Greenfield Public School",
+      instituteName: "Test1School",
       instituteType: "School (K-12)",
       educationBoard: "CBSE",
       country: "India",

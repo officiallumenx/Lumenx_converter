@@ -253,7 +253,7 @@ export function TransportSos() {
 export function AdmissionsDiscover() {
   return (
     <ul className="divide-y p-2 text-sm">
-      <li className="px-3 py-3">Oakridge Public · Grade 8 · 4 seats</li>
+      <li className="px-3 py-3">Test1School · Grade 8 · 4 seats</li>
       <li className="px-3 py-3">Harbor Academy · Grade 1 · Open</li>
       <li className="px-3 py-3 text-muted-foreground">Programs and openings before apply.</li>
     </ul>
@@ -336,7 +336,7 @@ export function CareersInterview() {
 export function NexusInstitutes() {
   return (
     <ul className="divide-y p-2 text-sm">
-      <li className="px-3 py-3">Oakridge Public · Trial</li>
+      <li className="px-3 py-3">Test1School · Trial</li>
       <li className="px-3 py-3">Harbor Academy · Active</li>
       <li className="px-3 py-3">LumenX Demo · Active</li>
     </ul>
@@ -369,7 +369,7 @@ export function NexusSupport() {
   return (
     <ul className="divide-y p-2 text-sm">
       <li className="px-3 py-3">Open · billing question · Harbor</li>
-      <li className="px-3 py-3">Feedback · module request · Oakridge</li>
+      <li className="px-3 py-3">Feedback · module request · Test1School</li>
       <li className="px-3 py-3">Resolved · access help · Demo campus</li>
       <li className="px-3 py-3 text-muted-foreground">Platform support & feedback — not classroom complaints.</li>
     </ul>

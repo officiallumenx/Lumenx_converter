@@ -1,4 +1,4 @@
-import { createBrowserAuthStorage } from "@lumenx/auth";
+﻿import { createBrowserAuthStorage } from "@lumenx/auth";
 import type {
   EmploymentType,
   JobApplicationExtras,
@@ -209,8 +209,8 @@ export function seedRecruiterDemoJobs() {
   if (existing.some((j) => j.id === "rec-job-demo-hr-intern")) return;
   const demo: JobPosting = {
     id: "rec-job-demo-hr-intern",
-    instituteId: "ins-lumenx-academy",
-    instituteName: "LumenX Academy",
+    instituteId: "ins-test1school",
+    instituteName: "Test1School",
     city: "Hyderabad",
     state: "Telangana",
     title: "HR Intern (Draft)",
@@ -235,3 +235,4 @@ export function seedRecruiterDemoJobs() {
   };
   writeStore([demo, ...existing]);
 }
+

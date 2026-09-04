@@ -1,4 +1,4 @@
-import { ADMISSIONS_STORAGE_KEYS, createBrowserAuthStorage } from "@lumenx/auth";
+﻿import { ADMISSIONS_STORAGE_KEYS, createBrowserAuthStorage } from "@lumenx/auth";
 import type {
   AdmissionApplication,
   AdmissionFormField,
@@ -197,7 +197,7 @@ export function getApplicationsForInstitute(
 ): AdmissionApplication[] {
   return apps
     .filter((a) => {
-      const id = a.instituteId ?? "ins-lumenx-academy";
+      const id = a.instituteId ?? "ins-test1school";
       return id === instituteId && a.status !== "draft";
     })
     .sort((a, b) => (b.submittedAt ?? b.updatedAt).localeCompare(a.submittedAt ?? a.updatedAt));
@@ -258,3 +258,4 @@ export function updateApplicationByInstituteAdmin(
 export function newFormFieldId(): string {
   return `cf-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 }
+

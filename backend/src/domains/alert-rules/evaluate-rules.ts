@@ -102,7 +102,7 @@ async function evaluateSecurityRules(
   instituteId: string,
   rules: AlertRuleRow[],
 ): Promise<CandidateFire[]> {
-  const open = await listEmergencies(admin, instituteId, "open");
+  const open = await listEmergencies(admin, instituteId, "active");
   if (open.length === 0) return [];
 
   const fires: CandidateFire[] = [];

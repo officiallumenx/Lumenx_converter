@@ -7,7 +7,7 @@ import type { TransportAlert, TransportTracking } from "./types";
 
 export const SCHOOL_STOP = {
   id: "RST-SCHOOL",
-  name: "LumenX Academy",
+  name: "Test1School",
   address: "School Main Gate",
   scheduledTime: "07:45",
   order: 99,

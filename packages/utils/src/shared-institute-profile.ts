@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   DemoInstituteCustomSection,
   DemoInstituteProfile,
   DemoInstituteSectionEntry,
@@ -104,15 +104,15 @@ export function normalizeInstituteProfile(profile: DemoInstituteProfile): DemoIn
 
 /** Map Admin demo profile → Admissions catalog institute id. */
 export function admissionsInstituteIdForDemoProfile(profileId: DemoProfileId): string {
-  if (profileId === "single_institute") return "ins-lumenx-academy";
-  if (profileId === "inter_college") return "ins-st-xavier-jc";
-  return "ins-lumenx-academy";
+  if (profileId === "single_institute") return "ins-test1school";
+  if (profileId === "inter_college") return "ins-test1school";
+  return "ins-test1school";
 }
 
 /** Map Admin session institute id → Admissions catalog id. */
 export function admissionsInstituteIdForAdminInstitute(adminInstituteId: string): string {
-  if (adminInstituteId === "LX-INST-001") return "ins-lumenx-academy";
-  return adminInstituteId || "ins-lumenx-academy";
+  if (adminInstituteId === "ins-test1school") return "ins-test1school";
+  return adminInstituteId || "ins-test1school";
 }
 
 function readBag(): SharedInstituteProfileBag {
@@ -200,3 +200,4 @@ export function applyInstituteProfileSyncMessage(data: unknown): DemoInstitutePr
   if (!isInstituteProfileSyncMessage(data)) return null;
   return saveSharedInstituteProfile(data.admissionsInstituteId, data.profile);
 }
+

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Nexus Support Center — institute conversation threads (demo / localStorage).
  * Institute-level only. No student / teacher / parent personal records.
  * No WhatsApp / email integration.
@@ -73,11 +73,11 @@ function daysAgo(days: number, hour = 10): string {
 function seedThreads(): SupportThread[] {
   const institutes = listPlatformInstitutes().filter((i) => i.status !== "archived");
   const byId = (id: string) => institutes.find((i) => i.id === id);
-  const delhi = byId("ins-delhi-riverside");
-  const oak = byId("ins-bengaluru-oak");
-  const harbor = byId("ins-mumbai-harbor");
-  const lotus = byId("ins-hyderabad-lotus");
-  const jaipur = byId("ins-jaipur-heritage") ?? institutes.find((i) => i.status === "suspended") ?? institutes[0];
+  const delhi = byId("ins-test1school");
+  const oak = byId("ins-test1school");
+  const harbor = byId("ins-test1school");
+  const lotus = byId("ins-test1school");
+  const jaipur = byId("ins-test1school") ?? institutes.find((i) => i.status === "suspended") ?? institutes[0];
 
   const threads: SupportThread[] = [];
 
@@ -105,7 +105,7 @@ function seedThreads(): SupportThread[] {
           id: "m2",
           authorRole: "nexus",
           authorLabel: "ops.priya",
-          body: "Thanks — we’re matching the transfer against the Oakridge Max invoice. Expect an update within one business day.",
+          body: "Thanks — we're matching the transfer against the Test1School Max invoice. Expect an update within one business day.",
           createdAt: daysAgo(5, 14),
         },
         {
@@ -151,7 +151,7 @@ function seedThreads(): SupportThread[] {
           id: "m2",
           authorRole: "nexus",
           authorLabel: "nexus_root",
-          body: "Confirmed — Transport entitlement remains disabled for Delhi Riverside. Data is retained if you re-enable later.",
+          body: "Confirmed — Transport entitlement remains disabled for Test1School. Data is retained if you re-enable later.",
           createdAt: daysAgo(10, 16),
         },
       ],
@@ -175,7 +175,7 @@ function seedThreads(): SupportThread[] {
           id: "m1",
           authorRole: "institute",
           authorLabel: "Institute Admin",
-          body: "Can Analytics be turned on for Harbor without upgrading to Max?",
+          body: "Can Analytics be turned on for Test1School without upgrading to Max?",
           createdAt: daysAgo(4, 15),
         },
         {
@@ -523,3 +523,4 @@ export function formatSupportTime(iso: string): string {
     minute: "2-digit",
   });
 }
+

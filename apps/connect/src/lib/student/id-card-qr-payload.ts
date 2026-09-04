@@ -188,7 +188,7 @@ function payloadFromAdminSync(row: StudentIdCardSyncRow, origin = ""): StudentId
       rollNo: displayOrEmpty(row.rollNo),
       class: displayOrEmpty(row.classLabel),
       section: displayOrEmpty(row.section),
-      institute: row.institute || "LumenX Academy",
+      institute: row.institute || "Test1School",
       address: displayOrEmpty(row.address),
       bloodGroup: displayOrEmpty(row.bloodGroup),
       emergencyContact: displayOrEmpty(row.emergencyContact),

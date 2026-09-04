@@ -722,7 +722,7 @@ function ContactTab() {
           {[
             { icon: Linkedin, label: "LinkedIn", handle: "@lumenxapp", href: "https://www.linkedin.com/company/lumenx" },
             { icon: Twitter, label: "X (Twitter)", handle: "@lumenxhq", href: "https://x.com/lumenxhq" },
-            { icon: Youtube, label: "YouTube", handle: "LumenX Academy", href: "https://www.youtube.com/@lumenx" },
+            { icon: Youtube, label: "YouTube", handle: "Test1School", href: "https://www.youtube.com/@lumenx" },
             { icon: BookOpen, label: "Blog", handle: "blog.lumenx.app", href: "https://lumenx.app" },
           ].map(({ icon: Icon, label, handle, href }) => (
             <a

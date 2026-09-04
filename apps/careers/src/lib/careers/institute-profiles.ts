@@ -1,4 +1,4 @@
-import type { InstituteCareerProfile } from "./types";
+﻿import type { InstituteCareerProfile } from "./types";
 import { JOB_POSTINGS } from "./jobs-data";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { isInstituteUuid } from "@/lib/institute-id";
@@ -11,8 +11,8 @@ function getJobsByInstitute(instituteId: string) {
 
 export const INSTITUTE_CAREER_PROFILES: InstituteCareerProfile[] = [
   {
-    instituteId: "ins-lumenx-academy",
-    name: "LumenX Academy",
+    instituteId: "ins-test1school",
+    name: "Test1School",
     type: "school",
     city: "Hyderabad",
     state: "Telangana",
@@ -20,7 +20,7 @@ export const INSTITUTE_CAREER_PROFILES: InstituteCareerProfile[] = [
     logoGradient: "from-primary/80 to-chart-5/60",
     tagline: "Excellence in K-12 education since 1998",
     about:
-      "LumenX Academy is a premier K-12 institution with integrated digital learning, strong STEM programs, and championship sports teams.",
+      "Test1School is a premier K-12 institution with integrated digital learning, strong STEM programs, and championship sports teams.",
     principalName: "Dr. Alistair Vance",
     principalMessage:
       "We seek passionate educators who put students first. Join a community where innovation meets tradition.",
@@ -49,8 +49,8 @@ export const INSTITUTE_CAREER_PROFILES: InstituteCareerProfile[] = [
     featured: true,
   },
   {
-    instituteId: "ins-delhi-riverside",
-    name: "Delhi Riverside School",
+    instituteId: "ins-test1school",
+    name: "Test1School",
     type: "school",
     city: "New Delhi",
     state: "Delhi",
@@ -81,8 +81,8 @@ export const INSTITUTE_CAREER_PROFILES: InstituteCareerProfile[] = [
     featured: true,
   },
   {
-    instituteId: "ins-st-xavier-jc",
-    name: "St. Xavier Junior College",
+    instituteId: "ins-test1school",
+    name: "Test1School",
     type: "junior_college",
     city: "Mumbai",
     state: "Maharashtra",
@@ -110,8 +110,8 @@ export const INSTITUTE_CAREER_PROFILES: InstituteCareerProfile[] = [
     popular: true,
   },
   {
-    instituteId: "ins-fergusson",
-    name: "Fergusson College",
+    instituteId: "ins-test1school",
+    name: "Test1School",
     type: "degree_college",
     city: "Pune",
     state: "Maharashtra",
@@ -122,7 +122,7 @@ export const INSTITUTE_CAREER_PROFILES: InstituteCareerProfile[] = [
       "One of India's oldest colleges offering undergraduate programs with vibrant campus life and research culture.",
     principalName: "Dr. Ramesh Kulkarni",
     principalMessage:
-      "Fergusson values scholarly faculty who blend teaching with research and student mentorship.",
+      "Test1School values scholarly faculty who blend teaching with research and student mentorship.",
     culture: ["Heritage", "Research", "Debate & culture", "Inclusivity"],
     mission: "Foster critical thinking and civic responsibility through quality higher education.",
     vision: "A globally respected institution rooted in Pune's intellectual tradition.",
@@ -140,8 +140,8 @@ export const INSTITUTE_CAREER_PROFILES: InstituteCareerProfile[] = [
     },
   },
   {
-    instituteId: "ins-vnit",
-    name: "VNIT Nagpur",
+    instituteId: "ins-test1school",
+    name: "Test1School",
     type: "degree_college",
     city: "Nagpur",
     state: "Maharashtra",
@@ -168,8 +168,8 @@ export const INSTITUTE_CAREER_PROFILES: InstituteCareerProfile[] = [
     },
   },
   {
-    instituteId: "ins-bhu",
-    name: "BHU Institute",
+    instituteId: "ins-test1school",
+    name: "Test1School",
     type: "academy",
     city: "Varanasi",
     state: "Uttar Pradesh",
@@ -286,3 +286,4 @@ export const INSTITUTE_TYPE_LABEL: Record<InstituteCareerProfile["type"], string
   academy: "Academy",
   coaching: "Coaching Institute",
 };
+

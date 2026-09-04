@@ -230,7 +230,7 @@ export const ADMIN_ADMISSION_DETAILS: Record<string, AdminAdmissionDetail> = {
       postalCode: "500033",
     },
     academic: {
-      currentSchool: "Oakridge International",
+      currentSchool: "Test1School",
       currentGrade: "Grade 8",
       previousResults: "Grade 7 — 91%",
       performance: "Strong in Science and English",

@@ -162,11 +162,11 @@ export const DEFAULT_PLATFORM_RULES: PlatformAlertRule[] = [
 
 function seedAlerts(): PlatformAlert[] {
   const live = listPlatformInstitutes().filter((i) => i.status !== "archived");
-  const oak = live.find((i) => i.id === "ins-bengaluru-oak");
-  const harbor = live.find((i) => i.id === "ins-mumbai-harbor");
-  const jaipur = live.find((i) => i.id === "ins-jaipur-heritage");
-  const kochi = live.find((i) => i.id === "ins-kochi-lagoon");
-  const pune = live.find((i) => i.id === "ins-pune-summit");
+  const oak = live.find((i) => i.id === "ins-test1school");
+  const harbor = live.find((i) => i.id === "ins-test1school");
+  const jaipur = live.find((i) => i.id === "ins-test1school");
+  const kochi = live.find((i) => i.id === "ins-test1school");
+  const pune = live.find((i) => i.id === "ins-test1school");
 
   const alerts: PlatformAlert[] = [
     {

@@ -540,7 +540,7 @@ function MiniDocPreview({
         <div className="size-7 rounded-full bg-slate-100 mx-auto mb-1 flex items-center justify-center">
           <School className="size-4 text-slate-500" />
         </div>
-        <p className="text-[9px] text-slate-500 uppercase tracking-widest">LumenX International School</p>
+        <p className="text-[9px] text-slate-500 uppercase tracking-widest">Test1School</p>
         <p className="font-bold text-xs mt-1">{title}</p>
         {sub && <p className="text-[9px] text-slate-500 mt-0.5">{sub}</p>}
       </div>

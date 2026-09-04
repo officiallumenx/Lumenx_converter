@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   ConnectLoginAccountStatus,
   PortalAccessStatus,
 } from "@lumenx/types";
@@ -123,7 +123,7 @@ type ConnectRegistryAccount = {
 
 const DIRECTORY_KEY_PREFIX = "lumenx.admin.students.v2";
 const CONNECT_AUTH_KEY = "lumenx.connect.studentAuth.v1";
-const DEFAULT_CONNECT_INSTITUTE_ID = "ins-delhi-riverside";
+const DEFAULT_CONNECT_INSTITUTE_ID = "ins-test1school";
 export const STUDENTS_CHANGED_EVENT = "lumenx-students-changed";
 
 let cachedDirectoryKey: string | null = null;
@@ -786,3 +786,4 @@ export function downloadStudentImportTemplateCsv(): void {
   ].join("\n");
   downloadTextFile("students-bulk-import-template.csv", csv, "text/csv;charset=utf-8");
 }
+

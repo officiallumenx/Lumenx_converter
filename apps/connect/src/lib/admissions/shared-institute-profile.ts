@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Admin ↔ Admissions shared institute profile helpers for Connect.
  * Prefer shared store; seed from Admin demo catalog when empty (mapped institutes only).
  */
@@ -13,8 +13,7 @@ import {
 } from "@lumenx/utils";
 
 const SEED_BY_ADMISSIONS_ID: Record<string, DemoProfileId> = {
-  "ins-lumenx-academy": "single_institute",
-  "ins-st-xavier-jc": "inter_college",
+  "ins-test1school": "multi_institute",
 };
 
 function seedForAdmissionsInstitute(admissionsInstituteId: string): DemoInstituteProfile | null {
@@ -65,3 +64,4 @@ export function subscribeSharedInstituteProfile(
 }
 
 export { admissionsInstituteIdForDemoProfile };
+

@@ -1,4 +1,4 @@
-import { ADMISSIONS_STORAGE_KEYS, createBrowserAuthStorage } from "@lumenx/auth";
+﻿import { ADMISSIONS_STORAGE_KEYS, createBrowserAuthStorage } from "@lumenx/auth";
 import type { AdmissionInquiry, InquiryCategory } from "./types";
 
 const storage = createBrowserAuthStorage();
@@ -21,7 +21,7 @@ const DEMO_INQUIRIES: AdmissionInquiry[] = [
   {
     id: "INQ-001",
     applicantId: "ADM-DEMO-001",
-    instituteId: "ins-lumenx-academy",
+    instituteId: "ins-test1school",
     category: "fees",
     subject: "Installment plan for Grade 9",
     message: "Can we pay the admission fee in two installments?",
@@ -68,3 +68,4 @@ export function createInquiry(input: {
   writeAll([inquiry, ...all]);
   return inquiry;
 }
+

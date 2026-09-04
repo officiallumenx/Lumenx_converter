@@ -7,8 +7,8 @@ import {
 
 describe("institute public profile", () => {
   it("seeds profile from registration payload", () => {
-    const profile = publicProfileFromRegistrationPayload("Greenfield School", {
-      instituteName: "Greenfield School",
+    const profile = publicProfileFromRegistrationPayload("Test1School", {
+      instituteName: "Test1School",
       principalName: "Anita Rao",
       principalEmail: "registrar@greenfield.edu.in",
       principalMobile: "9876543210",
@@ -18,7 +18,7 @@ describe("institute public profile", () => {
       pincode: "560025",
       logoPreview: "data:image/png;base64,abc",
     });
-    expect(profile.name).toBe("Greenfield School");
+    expect(profile.name).toBe("Test1School");
     expect(profile.principal).toBe("Anita Rao");
     expect(profile.address).toContain("Bengaluru");
     expect(profile.logo).toContain("data:image");

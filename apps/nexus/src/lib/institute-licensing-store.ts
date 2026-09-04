@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Nexus institute licensing — plan truth, module entitlement, renewals.
  * Single store for Plans & Modules (demo/localStorage). Admin consumes what Nexus grants.
  */
@@ -192,11 +192,7 @@ export const NEXUS_MODULE_CATALOG: NexusModuleDef[] = [
 ];
 
 export const SEED_INSTITUTES: InstituteSeed[] = [
-  { id: "ins-delhi-riverside", name: "Delhi Riverside Academy", studentCount: 1840, city: "New Delhi" },
-  { id: "ins-mumbai-harbor", name: "Harbor High School", studentCount: 920, city: "Mumbai" },
-  { id: "ins-bengaluru-oak", name: "Oakridge Public School", studentCount: 2105, city: "Bengaluru" },
-  { id: "ins-hyderabad-lotus", name: "Lotus International", studentCount: 640, city: "Hyderabad" },
-  { id: "ins-chennai-shore", name: "Shoreline Senior Secondary", studentCount: 1180, city: "Chennai" },
+  { id: "ins-test1school", name: "Test1School", studentCount: 2842, city: "Bengaluru" },
 ];
 
 const STORAGE_KEY = NEXUS_LICENSE_STORAGE_KEY;
@@ -456,7 +452,7 @@ function seedLicenses(): Record<string, InstituteLicense> {
 function seedLicensesRaw(): Record<string, InstituteLicense> {
   const out: Record<string, InstituteLicense> = {};
   for (const inst of SEED_INSTITUTES) {
-    if (inst.id === "ins-delhi-riverside") {
+    if (inst.id === "ins-test1school") {
       const rateInr = 249999;
       out[inst.id] = {
         ...defaultLicense(inst.id, "max"),
@@ -486,7 +482,7 @@ function seedLicensesRaw(): Record<string, InstituteLicense> {
           transport: { enabled: false },
         },
       };
-    } else if (inst.id === "ins-mumbai-harbor") {
+    } else if (inst.id === "ins-test1school") {
       const rateInr = 25;
       const amountInr = calculateBilledAmount({
         billingModel: "per_student",
@@ -523,7 +519,7 @@ function seedLicensesRaw(): Record<string, InstituteLicense> {
           analytics: false,
         },
       };
-    } else if (inst.id === "ins-bengaluru-oak") {
+    } else if (inst.id === "ins-test1school") {
       const rateInr = 299999;
       out[inst.id] = {
         ...defaultLicense(inst.id, "max"),
@@ -537,7 +533,7 @@ function seedLicensesRaw(): Record<string, InstituteLicense> {
         reminderDays: [30, 14, 7, 1],
         modules: defaultModulesForPlan("max"),
       };
-    } else if (inst.id === "ins-hyderabad-lotus") {
+    } else if (inst.id === "ins-test1school") {
       const rateInr = 165000;
       out[inst.id] = {
         ...defaultLicense(inst.id, "plus"),
@@ -562,7 +558,7 @@ function seedLicensesRaw(): Record<string, InstituteLicense> {
           analytics: false,
         },
       };
-    } else if (inst.id === "ins-chennai-shore") {
+    } else if (inst.id === "ins-test1school") {
       const rateInr = 10;
       const amountInr = calculateBilledAmount({
         billingModel: "per_student",
@@ -1390,3 +1386,4 @@ export function planDistribution(licenses: Record<string, InstituteLicense>): Re
   }
   return out;
 }
+

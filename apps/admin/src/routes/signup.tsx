@@ -265,7 +265,7 @@ function Step1({
         label="Institute Name"
         name="instituteName"
         icon={Building2}
-        placeholder="e.g. LumenX International School"
+        placeholder="e.g. Test1School"
         value={data.instituteName}
         onChange={(e) => onChange("instituteName", e.target.value)}
         error={errors.instituteName}

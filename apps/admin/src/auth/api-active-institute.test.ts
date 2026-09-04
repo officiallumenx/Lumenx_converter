@@ -55,11 +55,11 @@ describe("checkApplyApiActiveInstitute / tryApply", () => {
     writeStoredActiveInstituteId(A);
     saveSession(apiUser, false, { authSource: "api" });
 
-    expect(checkApplyApiActiveInstitute("LX-INST-001", "Forged")).toEqual({
+    expect(checkApplyApiActiveInstitute("ins-test1school", "Forged")).toEqual({
       ok: false,
       reason: "invalid_uuid",
     });
-    expect(tryApplyApiActiveInstituteSession("LX-INST-001", "Forged")).toBeNull();
+    expect(tryApplyApiActiveInstituteSession("ins-test1school", "Forged")).toBeNull();
     expect(loadSession()?.instituteId).toBe("");
   });
 

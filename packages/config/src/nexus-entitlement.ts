@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Nexus → Admin module entitlement bridge (demo/localStorage).
  * Nexus owns entitlement; Admin applies it as a visibility ceiling.
  * Does not delete routes or data — only hides non-entitled modules in Admin nav.
@@ -14,10 +14,10 @@ export const NEXUS_LICENSE_CHANGED_EVENT = "lumenx-nexus-institute-licenses-chan
 
 /**
  * Which Nexus institute the Admin demo session consumes for entitlement.
- * Default matches seeded Delhi Riverside (Transport disabled for the demo story).
+ * Default matches seeded Test1School (Transport disabled for the demo story).
  */
 export const NEXUS_ADMIN_BOUND_INSTITUTE_KEY = "lumenx.nexus.adminBoundInstituteId.v1";
-export const NEXUS_ADMIN_DEFAULT_BOUND_INSTITUTE_ID = "ins-delhi-riverside";
+export const NEXUS_ADMIN_DEFAULT_BOUND_INSTITUTE_ID = "ins-test1school";
 
 export function getAdminBoundNexusInstituteId(): string {
   if (typeof localStorage === "undefined") return NEXUS_ADMIN_DEFAULT_BOUND_INSTITUTE_ID;
@@ -188,3 +188,4 @@ export function subscribeNexusLicenseChanges(listener: () => void): () => void {
     window.removeEventListener("focus", listener);
   };
 }
+

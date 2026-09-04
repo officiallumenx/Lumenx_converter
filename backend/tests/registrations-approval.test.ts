@@ -26,7 +26,7 @@ const TOKEN_APPLICANT = "token-applicant";
 const TOKEN_ADMIN = "token-admin";
 
 const validPayload = {
-  instituteName: "Greenfield Public School",
+  instituteName: "Test1School",
   instituteType: "School (K-12)",
   educationBoard: "CBSE",
   country: "India",

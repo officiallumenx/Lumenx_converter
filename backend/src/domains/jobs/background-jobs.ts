@@ -16,15 +16,55 @@ export type BackgroundJobsResult = {
   diary: { institutes: number; teachers: number; emitted: number };
 };
 
+async function runIsolated<T>(
+  name: string,
+  fn: () => Promise<T>,
+  fallback: T,
+  logger?: Logger,
+): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    const details =
+      err instanceof Error && "details" in err
+        ? (err as { details?: { dbCode?: string; dbMessage?: string } }).details
+        : undefined;
+    logger?.error({
+      msg: "background_jobs_job_failed",
+      job: name,
+      error: err instanceof Error ? err.message : String(err),
+      dbCode: details?.dbCode,
+      dbMessage: details?.dbMessage,
+    });
+    return fallback;
+  }
+}
+
 export async function runBackgroundJobs(
   admin: SupabaseClient,
   options?: { now?: Date; logger?: Logger },
 ): Promise<BackgroundJobsResult> {
   const now = options?.now ?? new Date();
+  const logger = options?.logger;
 
-  const announcements = await publishDueScheduledAnnouncementsSystem(admin, now);
-  const alerts = await evaluateAlertRulesSystem(admin);
-  const diary = await processDiaryRemindersSystem(admin, now);
+  const announcements = await runIsolated(
+    "announcements",
+    () => publishDueScheduledAnnouncementsSystem(admin, now),
+    { scanned: 0, published: 0 },
+    logger,
+  );
+  const alerts = await runIsolated(
+    "alerts",
+    () => evaluateAlertRulesSystem(admin),
+    { institutes: 0, newlyFired: 0 },
+    logger,
+  );
+  const diary = await runIsolated(
+    "diary",
+    () => processDiaryRemindersSystem(admin, now),
+    { institutes: 0, teachers: 0, emitted: 0 },
+    logger,
+  );
 
   return { announcements, alerts, diary };
 }

@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   AdmissionApplication,
   AdmissionsNotification,
   AdmissionsUser,
@@ -9,7 +9,7 @@ import type {
 } from "./types";
 import { statusLabel } from "./status-utils";
 
-export const INSTITUTE_NAME = "LumenX Academy";
+export const INSTITUTE_NAME = "Test1School";
 export const ADMISSIONS_CONTACT = {
   phone: "+91 40 4455 8800",
   email: "admissions@lumenx.edu",
@@ -146,15 +146,15 @@ export const DEMO_INSTITUTE_ADMIN: AdmissionsUser = {
   profileComplete: 100,
   createdAt: "2026-03-01T10:00:00Z",
   accountType: "institute_admin",
-  instituteId: "ins-lumenx-academy",
-  instituteName: "LumenX Academy",
+  instituteId: "ins-test1school",
+  instituteName: "Test1School",
 };
 
 export const DEMO_APPLICATIONS: AdmissionApplication[] = [
   {
     id: "APP-2401",
     applicantId: "ADM-DEMO-001",
-    instituteId: "ins-lumenx-academy",
+    instituteId: "ins-test1school",
     status: "document_verification",
     programId: "prog-lumenx-academy-high-school",
     programName: "High School",
@@ -185,7 +185,7 @@ export const DEMO_APPLICATIONS: AdmissionApplication[] = [
       postalCode: "500032",
     },
     academic: {
-      currentSchool: "Delhi Public School",
+      currentSchool: "Test1School",
       currentGrade: "Grade 8",
       previousResults: "Grade 7 — 88%",
       performance: "Consistent A grade in Mathematics and Science",
@@ -218,7 +218,7 @@ export const DEMO_APPLICATIONS: AdmissionApplication[] = [
   {
     id: "APP-2398",
     applicantId: "ADM-DEMO-001",
-    instituteId: "ins-lumenx-academy",
+    instituteId: "ins-test1school",
     status: "parent_confirmation",
     programId: "prog-lumenx-academy-intermediate",
     programName: "Intermediate",
@@ -281,7 +281,7 @@ export const DEMO_APPLICATIONS: AdmissionApplication[] = [
   {
     id: "APP-2390",
     applicantId: "ADM-DEMO-001",
-    instituteId: "ins-lumenx-academy",
+    instituteId: "ins-test1school",
     status: "approved",
     programId: "prog-lumenx-academy-primary",
     programName: "Primary School",
@@ -325,7 +325,7 @@ export const DEMO_APPLICATIONS: AdmissionApplication[] = [
         status: "approved",
         label: "Admission approved",
         at: "2026-05-20T12:00:00Z",
-        note: "Welcome to LumenX Academy!",
+        note: "Welcome to Test1School!",
       },
     ],
     adminNotes: ["Provisional admission confirmed. Fee payment link sent via email."],
@@ -333,7 +333,7 @@ export const DEMO_APPLICATIONS: AdmissionApplication[] = [
   {
     id: "APP-2385",
     applicantId: "ADM-DEMO-001",
-    instituteId: "ins-lumenx-academy",
+    instituteId: "ins-test1school",
     status: "draft",
     programId: "prog-lumenx-academy-middle",
     programName: "Middle School",
@@ -506,3 +506,4 @@ export function buildTimeline(status: ApplicationStatus): TimelineEvent[] {
 }
 
 export { statusLabel };
+

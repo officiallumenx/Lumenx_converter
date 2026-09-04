@@ -1,4 +1,4 @@
-import type { InstituteKind } from "@lumenx/types";
+﻿import type { InstituteKind } from "@lumenx/types";
 import { ADMISSIONS_STORAGE_KEYS, createBrowserAuthStorage } from "@lumenx/auth";
 import type { InstituteSettingsOverride } from "./types";
 
@@ -28,12 +28,12 @@ export interface AdmissionInstituteProfile {
 
 export const ADMISSION_INSTITUTES: AdmissionInstituteProfile[] = [
   {
-    id: "ins-lumenx-academy",
-    name: "LumenX Academy",
-    code: "LXA-HYD",
+    id: "ins-test1school",
+    name: "Test1School",
+    code: "T1S",
     kind: "school",
-    city: "Hyderabad",
-    state: "Telangana",
+    city: "Bengaluru",
+    state: "Karnataka",
     country: "India",
     tagline: "Where curiosity meets excellence",
     heroStat: "98% pass rate",
@@ -48,176 +48,18 @@ export const ADMISSION_INSTITUTES: AdmissionInstituteProfile[] = [
       { title: "Sports Complex", desc: "Pool, cricket ground, indoor courts." },
     ],
     contact: {
-      phone: "+91 40 4455 8800",
-      email: "admissions@lumenx.edu",
-      address: "Green Park Campus, Hyderabad 500032",
+      phone: "+91 80 4521 8800",
+      email: "office@test1school.edu",
+      address: "12 Knowledge Park, Sector 4, Bengaluru 560001",
     },
     admissionDates: [
       { label: "Applications open", date: "1 Mar 2026" },
       { label: "Deadline", date: "31 May 2026" },
     ],
     about:
-      "LumenX Academy is a premier K-12 institution offering holistic education with integrated digital learning through LumenX Connect.",
-    established: "1998",
+      "Test1School is the single demo institute for LumenX — holistic K-12 education with integrated digital learning through LumenX Connect.",
+    established: "1987",
     accreditation: "CBSE · NAAC A+",
-  },
-  {
-    id: "ins-delhi-riverside",
-    name: "Delhi Public School Riverside",
-    code: "DPS-RV",
-    kind: "school",
-    city: "New Delhi",
-    state: "Delhi",
-    country: "India",
-    tagline: "Learning without boundaries",
-    heroStat: "Top 10 Delhi schools",
-    rating: 4.6,
-    programsCount: 5,
-    seatsOpen: 180,
-    imageGradient: "from-blue-500/20 to-cyan-500/10",
-    highlights: ["IB pathway", "Arts academy", "Global exchange", "Smart classrooms"],
-    achievements: ["CBSE national toppers 2025", "Green campus award"],
-    facilities: [
-      { title: "Arts Academy", desc: "Music, dance, and visual arts." },
-      { title: "Smart Classrooms", desc: "Interactive boards in every room." },
-    ],
-    contact: {
-      phone: "+91 11 4400 2200",
-      email: "admissions@dpsriverside.edu",
-      address: "Riverside Enclave, New Delhi 110021",
-    },
-    admissionDates: [
-      { label: "Early bird", date: "15 Apr 2026" },
-      { label: "Regular", date: "30 Jun 2026" },
-    ],
-    about:
-      "DPS Riverside combines rigorous academics with creative expression and global exposure programs.",
-    established: "2005",
-    accreditation: "CBSE",
-  },
-  {
-    id: "ins-st-xavier-jc",
-    name: "St. Xavier's Junior College",
-    code: "SX-JC-MUM",
-    kind: "junior_college",
-    city: "Mumbai",
-    state: "Maharashtra",
-    country: "India",
-    tagline: "Science & commerce excellence",
-    heroStat: "95% science cutoff",
-    rating: 4.7,
-    programsCount: 4,
-    seatsOpen: 420,
-    imageGradient: "from-amber-500/20 to-orange-500/10",
-    highlights: ["MPC & BiPC", "JEE foundation", "Counselling cell", "Hostel"],
-    achievements: ["State rank holders", "IIT selections every year"],
-    facilities: [
-      { title: "Science Labs", desc: "Physics, chemistry, biology labs." },
-      { title: "Hostel", desc: "Safe residential campus." },
-    ],
-    contact: {
-      phone: "+91 22 2200 3300",
-      email: "admissions@stxaviersjc.edu",
-      address: "Fort, Mumbai 400001",
-    },
-    admissionDates: [{ label: "Merit list", date: "10 Jun 2026" }],
-    about:
-      "St. Xavier's JC prepares students for competitive exams with strong faculty and structured mentoring.",
-    established: "1963",
-    accreditation: "Maharashtra State Board",
-  },
-  {
-    id: "ins-fergusson",
-    name: "Fergusson College (Autonomous)",
-    code: "FC-PUN",
-    kind: "degree_college",
-    city: "Pune",
-    state: "Maharashtra",
-    country: "India",
-    tagline: "Heritage meets innovation",
-    heroStat: "Autonomous since 2016",
-    rating: 4.5,
-    programsCount: 8,
-    seatsOpen: 650,
-    imageGradient: "from-emerald-500/20 to-teal-500/10",
-    highlights: ["Autonomous", "Research labs", "Placement cell", "Heritage campus"],
-    achievements: ["SPPU gold medalists", "Strong alumni network"],
-    facilities: [
-      { title: "Research Labs", desc: "UG research opportunities." },
-      { title: "Library", desc: "Century-old library with digital access." },
-    ],
-    contact: {
-      phone: "+91 20 6600 4400",
-      email: "admissions@fergusson.edu",
-      address: "FC Road, Pune 411004",
-    },
-    admissionDates: [{ label: "UG admissions", date: "1 Jul 2026" }],
-    about:
-      "Fergusson College offers undergraduate programs with a balance of tradition and modern pedagogy.",
-    established: "1885",
-    accreditation: "SPPU · NAAC A",
-  },
-  {
-    id: "ins-vnit",
-    name: "VNIT Nagpur",
-    code: "VNIT-NGP",
-    kind: "engineering",
-    city: "Nagpur",
-    state: "Maharashtra",
-    country: "India",
-    tagline: "Engineering the future",
-    heroStat: "NIRF top 50",
-    rating: 4.4,
-    programsCount: 6,
-    seatsOpen: 890,
-    imageGradient: "from-violet-500/20 to-purple-500/10",
-    highlights: ["B.Tech", "M.Tech", "Incubation center", "Campus placements"],
-    achievements: ["90%+ placement rate", "Strong industry ties"],
-    facilities: [
-      { title: "Incubation Center", desc: "Startup support for students." },
-      { title: "Workshops", desc: "Mechanical & electrical workshops." },
-    ],
-    contact: {
-      phone: "+91 712 2800 5500",
-      email: "admissions@vnit.ac.in",
-      address: "South Ambazari Road, Nagpur 440010",
-    },
-    admissionDates: [{ label: "JEE counselling", date: "Jul 2026" }],
-    about:
-      "Visvesvaraya National Institute of Technology is a premier engineering institute with national recognition.",
-    established: "1960",
-    accreditation: "AICTE · NBA",
-  },
-  {
-    id: "ins-bhu",
-    name: "Banaras Hindu University",
-    code: "BHU-MAIN",
-    kind: "university",
-    city: "Varanasi",
-    state: "Uttar Pradesh",
-    country: "India",
-    tagline: "Knowledge for nation building",
-    heroStat: "Central university",
-    rating: 4.6,
-    programsCount: 12,
-    seatsOpen: 1200,
-    imageGradient: "from-rose-500/20 to-pink-500/10",
-    highlights: ["Multi-faculty", "Residential", "Research", "Cultural heritage"],
-    achievements: ["Institute of Eminence", "Global rankings"],
-    facilities: [
-      { title: "Residential Campus", desc: "Large green campus with hostels." },
-      { title: "Faculties", desc: "Arts, science, law, medicine & more." },
-    ],
-    contact: {
-      phone: "+91 542 6700 6600",
-      email: "admissions@bhu.ac.in",
-      address: "Varanasi 221005",
-    },
-    admissionDates: [{ label: "CUET admissions", date: "Aug 2026" }],
-    about:
-      "BHU is one of India's largest residential universities offering diverse undergraduate and postgraduate programs.",
-    established: "1916",
-    accreditation: "UGC · IoE",
   },
 ];
 
@@ -422,3 +264,4 @@ export function setSelectedInstituteId(id: string) {
     void 0;
   }
 }
+

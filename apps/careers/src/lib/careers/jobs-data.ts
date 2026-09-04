@@ -1,4 +1,4 @@
-import type { JobCategory, JobPosting, FacultyType, WorkMode } from "./types";
+﻿import type { JobCategory, JobPosting, FacultyType, WorkMode } from "./types";
 
 export const JOB_CATEGORY_LABEL: Record<JobCategory, string> = {
   academic_faculty: "Academic Faculty",
@@ -23,8 +23,8 @@ type RawJob = Omit<JobPosting, "facultyType" | "workMode"> &
 const RAW_JOBS: RawJob[] = [
   {
     id: "job-math-teacher",
-    instituteId: "ins-lumenx-academy",
-    instituteName: "LumenX Academy",
+    instituteId: "ins-test1school",
+    instituteName: "Test1School",
     city: "Hyderabad",
     state: "Telangana",
     title: "Senior Mathematics Teacher",
@@ -49,8 +49,8 @@ const RAW_JOBS: RawJob[] = [
   },
   {
     id: "job-physics-lab",
-    instituteId: "ins-lumenx-academy",
-    instituteName: "LumenX Academy",
+    instituteId: "ins-test1school",
+    instituteName: "Test1School",
     city: "Hyderabad",
     state: "Telangana",
     title: "Physics Lab Instructor",
@@ -70,8 +70,8 @@ const RAW_JOBS: RawJob[] = [
   },
   {
     id: "job-sports-coach",
-    instituteId: "ins-delhi-riverside",
-    instituteName: "Delhi Riverside School",
+    instituteId: "ins-test1school",
+    instituteName: "Test1School",
     city: "New Delhi",
     state: "Delhi",
     title: "Sports Coach — Cricket & Athletics",
@@ -91,8 +91,8 @@ const RAW_JOBS: RawJob[] = [
   },
   {
     id: "job-english-faculty",
-    instituteId: "ins-st-xavier-jc",
-    instituteName: "St. Xavier Junior College",
+    instituteId: "ins-test1school",
+    instituteName: "Test1School",
     city: "Mumbai",
     state: "Maharashtra",
     title: "English Literature Faculty",
@@ -112,8 +112,8 @@ const RAW_JOBS: RawJob[] = [
   },
   {
     id: "job-chemistry-lab",
-    instituteId: "ins-fergusson",
-    instituteName: "Fergusson College",
+    instituteId: "ins-test1school",
+    instituteName: "Test1School",
     city: "Pune",
     state: "Maharashtra",
     title: "Chemistry Lab Assistant",
@@ -133,8 +133,8 @@ const RAW_JOBS: RawJob[] = [
   },
   {
     id: "job-admin-coordinator",
-    instituteId: "ins-fergusson",
-    instituteName: "Fergusson College",
+    instituteId: "ins-test1school",
+    instituteName: "Test1School",
     city: "Pune",
     state: "Maharashtra",
     title: "Administrative Coordinator",
@@ -154,8 +154,8 @@ const RAW_JOBS: RawJob[] = [
   },
   {
     id: "job-accountant",
-    instituteId: "ins-vnit",
-    instituteName: "VNIT Nagpur",
+    instituteId: "ins-test1school",
+    instituteName: "Test1School",
     city: "Nagpur",
     state: "Maharashtra",
     title: "Accounts Officer",
@@ -175,8 +175,8 @@ const RAW_JOBS: RawJob[] = [
   },
   {
     id: "job-admissions-officer",
-    instituteId: "ins-bhu",
-    instituteName: "BHU Institute",
+    instituteId: "ins-test1school",
+    instituteName: "Test1School",
     city: "Varanasi",
     state: "Uttar Pradesh",
     title: "Admissions Officer",
@@ -200,8 +200,8 @@ const RAW_JOBS: RawJob[] = [
   },
   {
     id: "job-bus-driver",
-    instituteId: "ins-lumenx-academy",
-    instituteName: "LumenX Academy",
+    instituteId: "ins-test1school",
+    instituteName: "Test1School",
     city: "Hyderabad",
     state: "Telangana",
     title: "School Bus Driver",
@@ -221,8 +221,8 @@ const RAW_JOBS: RawJob[] = [
   },
   {
     id: "job-it-support",
-    instituteId: "ins-delhi-riverside",
-    instituteName: "Delhi Riverside School",
+    instituteId: "ins-test1school",
+    instituteName: "Test1School",
     city: "New Delhi",
     state: "Delhi",
     title: "IT Support Specialist",
@@ -242,8 +242,8 @@ const RAW_JOBS: RawJob[] = [
   },
   {
     id: "job-biology-teacher",
-    instituteId: "ins-st-xavier-jc",
-    instituteName: "St. Xavier Junior College",
+    instituteId: "ins-test1school",
+    instituteName: "Test1School",
     city: "Mumbai",
     state: "Maharashtra",
     title: "Biology Teacher",
@@ -263,8 +263,8 @@ const RAW_JOBS: RawJob[] = [
   },
   {
     id: "job-librarian",
-    instituteId: "ins-vnit",
-    instituteName: "VNIT Nagpur",
+    instituteId: "ins-test1school",
+    instituteName: "Test1School",
     city: "Nagpur",
     state: "Maharashtra",
     title: "Assistant Librarian",
@@ -525,3 +525,4 @@ export function filterJobs(
   }
   return results;
 }
+

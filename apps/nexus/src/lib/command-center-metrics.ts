@@ -159,7 +159,7 @@ export const PLATFORM_ACTIVITY_SEED: PlatformActivityItem[] = [
     kind: "plan_changed",
     title: "Plan changed",
     detail: "Plus → Max",
-    instituteName: "Delhi Riverside Academy",
+    instituteName: "Test1School",
     time: "12m ago",
   },
   {
@@ -167,7 +167,7 @@ export const PLATFORM_ACTIVITY_SEED: PlatformActivityItem[] = [
     kind: "module_toggled",
     title: "Module disabled",
     detail: "Transport entitlement off",
-    instituteName: "Delhi Riverside Academy",
+    instituteName: "Test1School",
     time: "18m ago",
   },
   {
@@ -175,7 +175,7 @@ export const PLATFORM_ACTIVITY_SEED: PlatformActivityItem[] = [
     kind: "payment_status",
     title: "Payment status changed",
     detail: "Marked overdue · renewal window",
-    instituteName: "Oakridge Public School",
+    instituteName: "Test1School",
     time: "41m ago",
   },
   {
@@ -183,7 +183,7 @@ export const PLATFORM_ACTIVITY_SEED: PlatformActivityItem[] = [
     kind: "institute_created",
     title: "Institute created",
     detail: "Trial · Plus plan",
-    instituteName: "Lotus International",
+    instituteName: "Test1School",
     time: "2h ago",
   },
   {
@@ -191,7 +191,7 @@ export const PLATFORM_ACTIVITY_SEED: PlatformActivityItem[] = [
     kind: "module_toggled",
     title: "Module enabled",
     detail: "Analytics entitlement on",
-    instituteName: "Harbor High School",
+    instituteName: "Test1School",
     time: "3h ago",
   },
   {
@@ -199,7 +199,7 @@ export const PLATFORM_ACTIVITY_SEED: PlatformActivityItem[] = [
     kind: "support_ticket",
     title: "Support ticket updated",
     detail: "SLA clock running · P1 billing",
-    instituteName: "Oakridge Public School",
+    instituteName: "Test1School",
     time: "4h ago",
   },
   {
@@ -207,7 +207,7 @@ export const PLATFORM_ACTIVITY_SEED: PlatformActivityItem[] = [
     kind: "payment_status",
     title: "Payment status changed",
     detail: "Partial → pending balance",
-    instituteName: "Harbor High School",
+    instituteName: "Test1School",
     time: "6h ago",
   },
   {
@@ -215,7 +215,7 @@ export const PLATFORM_ACTIVITY_SEED: PlatformActivityItem[] = [
     kind: "plan_changed",
     title: "Plan changed",
     detail: "Core assigned on create",
-    instituteName: "Shoreline Senior Secondary",
+    instituteName: "Test1School",
     time: "1d ago",
   },
 ];

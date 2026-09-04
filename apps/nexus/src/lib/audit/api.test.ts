@@ -15,7 +15,7 @@ function sampleDto(): PlatformAuditEventDto {
     entityId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
     metadata: {
       operator: "ops.priya",
-      targetLabel: "Harbor High School",
+      targetLabel: "Test1School",
       before: "Plus",
       after: "Max",
     },

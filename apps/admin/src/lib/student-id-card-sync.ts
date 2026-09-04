@@ -58,7 +58,7 @@ export type StudentIdCardSyncSnapshot = {
   students: StudentIdCardSyncRow[];
 };
 
-const DEFAULT_INSTITUTE = "LumenX Academy";
+const DEFAULT_INSTITUTE = "Test1School";
 
 function aliasesForStudentId(studentId: string): string[] {
   return Object.entries(CONNECT_LEARNER_TO_STUDENT_ID)

@@ -6,7 +6,7 @@ const STEPS = [
   {
     id: "discover",
     label: "Discover",
-    title: "Oakridge Public · Grade 8",
+    title: "Test1School · Grade 8",
     body: "4 seats open for 2026–27. Programs and openings before apply.",
   },
   {

@@ -1,4 +1,4 @@
-/** Admin view of the institute license assigned in Nexus + secure payment + invoices. */
+﻿/** Admin view of the institute license assigned in Nexus + secure payment + invoices. */
 
 import { syncSubscriptionExpiredFromBilling, formatInrOrDash, formatDateTimeEnIn, downloadTextToDevice } from "@lumenx/utils";
 
@@ -41,8 +41,8 @@ export type InstituteBillingPlan = {
 
 const STORAGE_KEY = "lumenx.admin.instituteBilling.v2";
 
-/** Demo institute — mirrors Nexus seed for Delhi Riverside. */
-export const CURRENT_INSTITUTE_ID = "ins-delhi-riverside";
+/** Demo institute — mirrors Nexus seed for Test1School. */
+export const CURRENT_INSTITUTE_ID = "ins-test1school";
 
 export const BILLING_TERMS_VERSION = "2026.1";
 
@@ -80,7 +80,7 @@ function nowDateTimeLocal(d = new Date()): string {
 function seedPlan(): InstituteBillingPlan {
   return {
     instituteId: CURRENT_INSTITUTE_ID,
-    instituteName: "Delhi Riverside Academy",
+    instituteName: "Test1School",
     studentCount: 1840,
     cadence: "yearly",
     amountInr: 249999,
@@ -241,3 +241,4 @@ export function downloadInvoice(invoice: BillingInvoice): void {
     "text/plain;charset=utf-8",
   );
 }
+

@@ -1,4 +1,4 @@
-import { studentCertificateRecords } from "@/lib/student/mock-data";
+﻿import { studentCertificateRecords } from "@/lib/student/mock-data";
 import { DEFAULT_DEMO_PROFILE_ID, getDemoProfile } from "@lumenx/types";
 import { toLocalIsoDate } from "@/lib/leave-utils";
 import { gradeFor } from "./marks-utils";
@@ -38,7 +38,7 @@ export const studentProfile = {
   email: "aarav.sharma@student.lumenx.edu",
   bio: "Interested in mathematics and robotics. Member of the school science club.",
   classTeacher: "Ananya Iyer",
-  institute: "LumenX Academy",
+  institute: "Test1School",
   address: "12 Green Park Road, Sector 4, Hyderabad — 500032",
 };
 
@@ -1105,34 +1105,10 @@ import type {
 /** Campuses available at Connect sign-in. */
 export const registeredInstitutes: Institute[] = [
   {
-    id: "ins-delhi-riverside",
-    name: "Delhi Public School Riverside",
-    code: "DPS-RV",
+    id: "ins-test1school",
+    name: "Test1School",
+    code: "T1S",
     kind: "school",
-  },
-  {
-    id: "ins-st-xavier-jc",
-    name: "St. Xavier's Junior College",
-    code: "SX-JC-MUM",
-    kind: "junior_college",
-  },
-  {
-    id: "ins-fergusson",
-    name: "Fergusson College (Autonomous)",
-    code: "FC-PUN",
-    kind: "degree_college",
-  },
-  {
-    id: "ins-vnit",
-    name: "Visvesvaraya National Institute of Technology",
-    code: "VNIT-NGP",
-    kind: "engineering",
-  },
-  {
-    id: "ins-bhu",
-    name: "Banaras Hindu University",
-    code: "BHU-MAIN",
-    kind: "university",
   },
 ];
 
@@ -1916,3 +1892,4 @@ export const schoolAlerts: Record<"parent" | "student", import("@lumenx/types").
 };
 
 export const studentCertificates = studentCertificateRecords;
+
