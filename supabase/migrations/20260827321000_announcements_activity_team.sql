@@ -1,6 +1,6 @@
 -- =============================================================================
 -- LumenX Migration — Announcements activity_team audience (Connect Activities V1)
--- Version: 20260827320000
+-- Version: 20260827321000
 --
 -- Adds activity_team_id + activity_team audience scope for team/group notices.
 -- =============================================================================

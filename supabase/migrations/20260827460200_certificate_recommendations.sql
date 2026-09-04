@@ -1,6 +1,6 @@
 -- =============================================================================
 -- LumenX Migration — Certificate recommendations (Activity → Admin queue)
--- Version: 20260827460000
+-- Version: 20260827460200
 -- =============================================================================
 
 CREATE TABLE public.certificate_recommendation (

@@ -1,4 +1,5 @@
 -- Transport operations: trips, boarding marks, emergencies, vehicle GPS.
+-- Version: 20260827221000
 -- Enables cross-device live tracking for Admin, Connect, and Transport app.
 
 CREATE TABLE IF NOT EXISTS public.transport_trip (
