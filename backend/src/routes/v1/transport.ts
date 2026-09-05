@@ -222,6 +222,18 @@ transport.post("/drivers", async (c) => {
   return c.json({ data }, 201);
 });
 
+// Must be registered before /drivers/:id so "me" is not parsed as a UUID.
+transport.get("/drivers/me", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(
+    z.object({ institute_id: uuid }),
+    c.req.query(),
+  );
+  const data = await getDriverMeForActor(admin, actor, query.institute_id);
+  return c.json({ data });
+});
+
 transport.get("/drivers/:id", async (c) => {
   const actor = assertAuthenticated(c);
   const admin = requireAdmin(c);
@@ -663,17 +675,6 @@ transport.delete("/enrollments/:id/rejected", async (c) => {
 });
 
 // ── Portal helpers ───────────────────────────────────────────────
-
-transport.get("/drivers/me", async (c) => {
-  const actor = assertAuthenticated(c);
-  const admin = requireAdmin(c);
-  const query = validateQuery(
-    z.object({ institute_id: uuid }),
-    c.req.query(),
-  );
-  const data = await getDriverMeForActor(admin, actor, query.institute_id);
-  return c.json({ data });
-});
 
 transport.get("/portal/driver-route-roster", async (c) => {
   const actor = assertAuthenticated(c);

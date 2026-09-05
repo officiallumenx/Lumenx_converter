@@ -1,15 +1,24 @@
 import { Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { SectionCard } from "@/components/app/SectionCard";
 import { StatCard } from "@/components/app/StatCard";
 import { prefersReducedMotion } from "@/lib/prefers-reduced-motion";
 import { useStudentPortal } from "@/context/StudentPortalContext";
 import { useParentPortal } from "@/context/ParentPortalContext";
+import { useApp } from "@/lib/app-state";
 import type { ExamHistoryEntry } from "@/lib/student/mock-data";
-import { examHistory as demoExamHistory, academicTermSummaries as demoAcademicTerms } from "@/lib/student/mock-data";
 import { buildLearnerMonthAttendanceSummary } from "@/lib/attendance/calendar";
 import { attendanceSectionKey, toAttendanceStudentId } from "@/lib/attendance/section-key";
+import {
+  loadStudentEnrollmentHistory,
+  type EnrollmentHistoryRow,
+} from "@/lib/academic-history/load-enrollments";
+import {
+  reportCardsToAcademicTerms,
+  reportCardsToExamHistory,
+} from "@/lib/dashboard/map";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { Badge, Tabs, TabsList, TabsTrigger, TabsContent } from "@lumenx/ui";
 import {
   ResponsiveContainer,
@@ -30,24 +39,35 @@ import {
   Trophy,
   ClipboardCheck,
   FileText,
+  Layers,
 } from "lucide-react";
 import { EmptyState, PageSkeleton } from "@/student-portal/shared/ui";
+import type { ReportCard } from "@lumenx/types";
+
+function deriveTerms(reportCards: ReportCard[], attendancePct: number) {
+  return reportCardsToAcademicTerms(reportCards, attendancePct);
+}
+
+function deriveExamHistory(reportCards: ReportCard[], extra: ExamHistoryEntry[] = []) {
+  const fromCards = reportCardsToExamHistory(reportCards);
+  const seen = new Set(fromCards.map((e) => e.id));
+  return [...fromCards, ...extra.filter((e) => !seen.has(e.id))];
+}
 
 export function StudentAcademicHistoryPage({ readOnlyParent = false }: { readOnlyParent?: boolean }) {
+  const { activeInstituteId } = useApp();
   const portal = useStudentPortal();
   const parentPortal = useParentPortal();
   const parentSnap = readOnlyParent && parentPortal.isParent ? parentPortal.snapshot : null;
   const [activeTerm, setActiveTerm] = useState("");
+  const [enrollmentRows, setEnrollmentRows] = useState<EnrollmentHistoryRow[]>([]);
+  const [enrollmentNote, setEnrollmentNote] = useState<string | null>(null);
 
   const snap = readOnlyParent ? parentSnap : portal.isStudent ? portal.snapshot : null;
   const studentSnap = !readOnlyParent && portal.isStudent ? portal.snapshot : null;
   const reportCards = snap?.reportCards ?? [];
   const trend = snap?.trend ?? [];
   const performance = snap?.performance ?? [];
-  const examHistory = readOnlyParent ? demoExamHistory : (studentSnap?.examHistory ?? []);
-  const academicTermSummaries = readOnlyParent
-    ? demoAcademicTerms
-    : (studentSnap?.academicTerms ?? []);
   const studentProfile = readOnlyParent && parentSnap
     ? {
         name: parentSnap.child.name,
@@ -61,6 +81,7 @@ export function StudentAcademicHistoryPage({ readOnlyParent = false }: { readOnl
   const attendancePct = useMemo(() => {
     if (!studentProfile) return 0;
     if (studentSnap?.attendanceSummary) return studentSnap.attendanceSummary.attendancePct;
+    if (parentSnap?.child.attendance != null) return parentSnap.child.attendance;
     const classLabel =
       "class" in studentProfile ? studentProfile.class : (studentProfile as { className?: string }).className;
     const section = studentProfile.section;
@@ -76,7 +97,50 @@ export function StudentAcademicHistoryPage({ readOnlyParent = false }: { readOnl
       }),
       sectionKey: attendanceSectionKey(classLabel, section),
     }).attendancePct;
-  }, [studentProfile, studentSnap?.attendanceSummary]);
+  }, [studentProfile, studentSnap?.attendanceSummary, parentSnap?.child.attendance]);
+
+  const academicTermSummaries = useMemo(() => {
+    if (studentSnap?.academicTerms?.length) return studentSnap.academicTerms;
+    return deriveTerms(reportCards, attendancePct);
+  }, [studentSnap?.academicTerms, reportCards, attendancePct]);
+
+  const examHistory = useMemo(() => {
+    if (studentSnap?.examHistory?.length) return studentSnap.examHistory;
+    return deriveExamHistory(reportCards);
+  }, [studentSnap?.examHistory, reportCards]);
+
+  const instituteId = readOnlyParent
+    ? parentSnap?.instituteId ?? parentPortal.instituteId ?? activeInstituteId
+    : activeInstituteId;
+  const studentId =
+    readOnlyParent && parentSnap
+      ? parentSnap.child.id
+      : studentSnap?.profile.id ?? null;
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!isApiAuthMode()) {
+      setEnrollmentRows([]);
+      setEnrollmentNote(null);
+      return;
+    }
+    void loadStudentEnrollmentHistory({ instituteId, studentId }).then((result) => {
+      if (cancelled) return;
+      if (result.status === "ready") {
+        setEnrollmentRows(result.rows);
+        setEnrollmentNote(null);
+      } else if (result.status === "empty" || result.status === "demo" || result.status === "needs_institute") {
+        setEnrollmentRows([]);
+        setEnrollmentNote(null);
+      } else {
+        setEnrollmentRows([]);
+        setEnrollmentNote(result.message);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [instituteId, studentId]);
 
   const published = useMemo(
     () => reportCards.filter((r) => r.status === "published"),
@@ -178,80 +242,100 @@ export function StudentAcademicHistoryPage({ readOnlyParent = false }: { readOnl
         />
       </div>
 
-      <Tabs value={resolvedTerm} onValueChange={setActiveTerm}>
-        <TabsList className="h-auto w-full flex-wrap justify-start rounded-xl">
+      {visibleTerms.length > 0 ? (
+        <Tabs value={resolvedTerm} onValueChange={setActiveTerm}>
+          <TabsList className="h-auto w-full flex-wrap justify-start rounded-xl">
+            {visibleTerms.map((t) => (
+              <TabsTrigger key={t.id} value={t.id} className="rounded-lg">
+                {t.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+
           {visibleTerms.map((t) => (
-            <TabsTrigger key={t.id} value={t.id} className="rounded-lg">
-              {t.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+            <TabsContent key={t.id} value={t.id} className="mt-4 space-y-4">
+              <div className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-4">
+                <MiniStat label="Average" value={`${t.avgScore}%`} />
+                <MiniStat
+                  label="Rank"
+                  value={t.classSize > 0 ? `#${t.rank} / ${t.classSize}` : `#${t.rank}`}
+                />
+                <MiniStat label="Attendance" value={`${t.attendance}%`} />
+                <MiniStat label="Year" value={t.year} />
+              </div>
 
-        {visibleTerms.map((t) => (
-          <TabsContent key={t.id} value={t.id} className="mt-4 space-y-4">
-            <div className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-4">
-              <MiniStat label="Average" value={`${t.avgScore}%`} />
-              <MiniStat label="Rank" value={`#${t.rank} / ${t.classSize}`} />
-              <MiniStat label="Attendance" value={`${t.attendance}%`} />
-              <MiniStat label="Year" value={t.year} />
-            </div>
-
-            {activeReport && t.id === termSummary?.id && (
-              <SectionCard
-                title="Report card summary"
-                action={
-                  <Link
-                    to="/marks"
-                    className="text-xs text-foreground hover:underline inline-flex items-center gap-1"
-                  >
-                    Full report <ArrowRight className="size-3" />
-                  </Link>
-                }
-              >
-                <div className="space-y-2">
-                  {activeReport.marks.map((m) => (
-                    <div
-                      key={m.subject}
-                      className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm"
+              {activeReport && t.id === termSummary?.id && (
+                <SectionCard
+                  title="Report card summary"
+                  action={
+                    <Link
+                      to="/marks"
+                      className="text-xs text-foreground hover:underline inline-flex items-center gap-1"
                     >
-                      <span className="font-medium">{m.subject}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="tabular-nums text-muted-foreground">{m.total}/100</span>
-                        <Badge variant="outline">{m.grade}</Badge>
+                      Full report <ArrowRight className="size-3" />
+                    </Link>
+                  }
+                >
+                  <div className="space-y-2">
+                    {activeReport.marks.map((m) => (
+                      <div
+                        key={m.subject}
+                        className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm"
+                      >
+                        <span className="font-medium">{m.subject}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="tabular-nums text-muted-foreground">{m.total}/100</span>
+                          <Badge variant="outline">{m.grade}</Badge>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </SectionCard>
-            )}
-          </TabsContent>
-        ))}
-      </Tabs>
+                    ))}
+                  </div>
+                </SectionCard>
+              )}
+            </TabsContent>
+          ))}
+        </Tabs>
+      ) : (
+        <EmptyState
+          icon={History}
+          title="No published terms yet"
+          description="Term summaries appear here after report cards are published."
+        />
+      )}
 
       <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
         <SectionCard title="Growth trend (all terms)">
           <div className="h-48 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trend}>
-                <defs>
-                  <linearGradient id="hist-g" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="oklch(0.55 0.22 260)" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="oklch(0.55 0.22 260)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="term" tickLine={false} axisLine={false} fontSize={11} />
-                <YAxis hide domain={[60, 100]} />
-                <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid var(--border)" }} />
-                <Area
-                  type="monotone"
-                  dataKey="score"
-                  stroke="oklch(0.55 0.22 260)"
-                  strokeWidth={2}
-                  fill="url(#hist-g)"
-                  isAnimationActive={!prefersReducedMotion()}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            {trend.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={trend}>
+                  <defs>
+                    <linearGradient id="hist-g" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="oklch(0.55 0.22 260)" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="oklch(0.55 0.22 260)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="term" tickLine={false} axisLine={false} fontSize={11} />
+                  <YAxis hide domain={[60, 100]} />
+                  <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid var(--border)" }} />
+                  <Area
+                    type="monotone"
+                    dataKey="score"
+                    stroke="oklch(0.55 0.22 260)"
+                    strokeWidth={2}
+                    fill="url(#hist-g)"
+                    isAnimationActive={!prefersReducedMotion()}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <EmptyState
+                icon={TrendingUp}
+                title="No trend data"
+                description="Published report cards will plot here over time."
+                className="h-full border-0 bg-transparent py-8"
+              />
+            )}
           </div>
         </SectionCard>
 
@@ -288,6 +372,44 @@ export function StudentAcademicHistoryPage({ readOnlyParent = false }: { readOnl
         </SectionCard>
       </div>
 
+      <SectionCard title="Enrollment history">
+        <div className="space-y-2">
+          {enrollmentRows.length ? (
+            enrollmentRows.map((row) => (
+              <div
+                key={row.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3 text-sm"
+              >
+                <div className="min-w-0">
+                  <div className="font-medium">
+                    {row.classLabel} · {row.sectionLabel}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Roll {row.rollNo} · Enrolled {row.enrolledOn}
+                    {row.withdrawnOn ? ` · Left ${row.withdrawnOn}` : ""}
+                  </div>
+                </div>
+                <Badge variant="outline" className="capitalize">
+                  {row.status.replace("_", " ")}
+                </Badge>
+              </div>
+            ))
+          ) : (
+            <EmptyState
+              icon={Layers}
+              title={enrollmentNote ? "Could not load enrollments" : "No enrollment records"}
+              description={
+                enrollmentNote ??
+                (isApiAuthMode()
+                  ? "Year and class placements will show here once enrollments exist."
+                  : "Switch to API mode to load live enrollment history.")
+              }
+              className="border-0 bg-transparent py-6"
+            />
+          )}
+        </div>
+      </SectionCard>
+
       <SectionCard title="Exam-wise results">
         <div className="space-y-2">
           {termExams.length ? (
@@ -305,9 +427,16 @@ export function StudentAcademicHistoryPage({ readOnlyParent = false }: { readOnl
 
       <SectionCard title="All completed exams">
         <div className="space-y-2">
-          {completedExams.map((e) => (
-            <ExamRow key={e.id} e={e} />
-          ))}
+          {completedExams.length ? (
+            completedExams.map((e) => <ExamRow key={e.id} e={e} />)
+          ) : (
+            <EmptyState
+              icon={ClipboardCheck}
+              title="No completed exams yet"
+              description="Published subject marks are listed here as exam history."
+              className="border-0 bg-transparent py-6"
+            />
+          )}
         </div>
       </SectionCard>
 

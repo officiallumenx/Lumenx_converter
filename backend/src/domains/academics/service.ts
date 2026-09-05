@@ -53,11 +53,14 @@ import type {
   CreateSubjectInput,
   EnrollmentDto,
   EnrollmentRow,
+  GraduateEnrollmentsInput,
   ListAcademicYearsFilter,
   ListClassesFilter,
   ListEnrollmentsFilter,
   ListSectionsFilter,
   ListSubjectsFilter,
+  PromoteEnrollmentResultItem,
+  PromoteEnrollmentsInput,
   SectionDto,
   SectionRow,
   SubjectDto,
@@ -350,6 +353,18 @@ export async function updateAcademicYearForActor(
 
   if (Object.keys(fieldPatch).length === 0) {
     return toAcademicYearDto(existing);
+  }
+
+  const activating = fieldPatch.status === "active";
+  if (activating) {
+    const activeYears = await listAcademicYears(admin, {
+      instituteId: existing.institute_id,
+      status: "active",
+    });
+    for (const year of activeYears) {
+      if (year.id === yearId) continue;
+      await updateAcademicYearFields(admin, year.id, { status: "completed" });
+    }
   }
 
   const updated = await updateAcademicYearFields(admin, yearId, fieldPatch);
@@ -894,4 +909,168 @@ export async function updateEnrollmentForActor(
 
   const names = await studentNamesByIds(admin, [updated.student_id]);
   return toEnrollmentDto(updated, names.get(updated.student_id));
+}
+
+export async function promoteEnrollmentsForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  input: PromoteEnrollmentsInput,
+): Promise<{ items: PromoteEnrollmentResultItem[] }> {
+  const instituteId = requireInstituteId(actor, input.instituteId);
+  assertStaffWriter(actor, instituteId);
+
+  const sourceYear = await findAcademicYearById(admin, input.sourceAcademicYearId);
+  if (!sourceYear || sourceYear.institute_id !== instituteId) {
+    throw AppError.validation("Referenced resource is invalid", {
+      source_academic_year_id: ["Academic year not found in this institute"],
+    });
+  }
+
+  const targetYear = await findAcademicYearById(admin, input.targetAcademicYearId);
+  if (!targetYear || targetYear.institute_id !== instituteId) {
+    throw AppError.validation("Referenced resource is invalid", {
+      target_academic_year_id: ["Academic year not found in this institute"],
+    });
+  }
+
+  const items: PromoteEnrollmentResultItem[] = [];
+
+  for (const item of input.items) {
+    const existing = await findEnrollmentById(admin, item.enrollmentId);
+    if (
+      !existing ||
+      existing.institute_id !== instituteId ||
+      existing.academic_year_id !== input.sourceAcademicYearId
+    ) {
+      throw AppError.validation("Referenced resource is invalid", {
+        enrollment_id: ["Enrollment not found in source year for this institute"],
+      });
+    }
+
+    if (existing.status !== "active") {
+      throw AppError.validation("Only active enrollments can be promoted", {
+        enrollment_id: ["Enrollment must be active"],
+      });
+    }
+
+    const names = await studentNamesByIds(admin, [existing.student_id]);
+    const sourceDto = toEnrollmentDto(existing, names.get(existing.student_id));
+
+    if (item.action === "hold") {
+      items.push({
+        enrollmentId: item.enrollmentId,
+        action: item.action,
+        sourceEnrollment: sourceDto,
+        targetEnrollment: null,
+      });
+      continue;
+    }
+
+    if (item.action === "transfer" || item.action === "dropout" || item.action === "graduate") {
+      const status =
+        item.action === "transfer"
+          ? "transferred"
+          : item.action === "dropout"
+            ? "dropped_out"
+            : "graduated";
+      const updated = await updateEnrollmentForActor(admin, actor, item.enrollmentId, {
+        status,
+      });
+      items.push({
+        enrollmentId: item.enrollmentId,
+        action: item.action,
+        sourceEnrollment: updated,
+        targetEnrollment: null,
+      });
+      continue;
+    }
+
+    // promote | repeat
+    if (!item.targetClassId || !item.targetSectionId) {
+      throw AppError.validation("target_class_id and target_section_id are required", {
+        target_class_id: !item.targetClassId ? ["Required for promote/repeat"] : undefined,
+        target_section_id: !item.targetSectionId ? ["Required for promote/repeat"] : undefined,
+      });
+    }
+
+    const section = await findSectionById(admin, item.targetSectionId);
+    if (
+      !section ||
+      section.institute_id !== instituteId ||
+      section.academic_year_id !== input.targetAcademicYearId ||
+      section.class_id !== item.targetClassId
+    ) {
+      throw AppError.validation("Referenced resource is invalid", {
+        target_section_id: ["Section does not match institute / target year / class"],
+      });
+    }
+
+    const rollNo = (item.rollNo ?? existing.roll_no).trim();
+    if (!rollNo) {
+      throw AppError.validation("roll_no is required", {
+        roll_no: ["Required"],
+      });
+    }
+
+    const targetEnrollment = await createEnrollmentForActor(admin, actor, {
+      instituteId,
+      academicYearId: input.targetAcademicYearId,
+      studentId: existing.student_id,
+      classId: item.targetClassId,
+      sectionId: item.targetSectionId,
+      rollNo,
+      enrolledOn: todayDateOnly(),
+      status: "active",
+    });
+
+    const sourceEnrollment = await updateEnrollmentForActor(admin, actor, item.enrollmentId, {
+      status: "completed",
+    });
+
+    items.push({
+      enrollmentId: item.enrollmentId,
+      action: item.action,
+      sourceEnrollment,
+      targetEnrollment,
+    });
+  }
+
+  return { items };
+}
+
+export async function graduateEnrollmentsForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  input: GraduateEnrollmentsInput,
+): Promise<EnrollmentDto[]> {
+  const instituteId = requireInstituteId(actor, input.instituteId);
+  assertStaffWriter(actor, instituteId);
+
+  const year = await findAcademicYearById(admin, input.academicYearId);
+  if (!year || year.institute_id !== instituteId) {
+    throw AppError.validation("Referenced resource is invalid", {
+      academic_year_id: ["Academic year not found in this institute"],
+    });
+  }
+
+  const results: EnrollmentDto[] = [];
+  for (const enrollmentId of input.enrollmentIds) {
+    const existing = await findEnrollmentById(admin, enrollmentId);
+    if (
+      !existing ||
+      existing.institute_id !== instituteId ||
+      existing.academic_year_id !== input.academicYearId
+    ) {
+      throw AppError.validation("Referenced resource is invalid", {
+        enrollment_id: ["Enrollment not found in this institute / year"],
+      });
+    }
+
+    const updated = await updateEnrollmentForActor(admin, actor, enrollmentId, {
+      status: "graduated",
+    });
+    results.push(updated);
+  }
+
+  return results;
 }

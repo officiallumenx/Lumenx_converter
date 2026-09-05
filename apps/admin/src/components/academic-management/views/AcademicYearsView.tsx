@@ -58,6 +58,12 @@ import {
   downloadAcademicYearRecordsExcel,
   downloadAcademicYearRecordsPdf,
 } from "@/lib/academic-year-exports";
+import {
+  loadYearEnrollmentRecords,
+  yearRecordUiStatusTone,
+  type YearEnrollmentRecord,
+  type YearRecordUiStatus,
+} from "@/lib/enrollments/year-records-load";
 
 function statusPill(status: AcademicYearStatus) {
   if (status === "active") return <Pill tone="success">Active</Pill>;
@@ -111,7 +117,7 @@ export function AcademicYearsView() {
   const [viewYearId, setViewYearId] = useState<string>("ay-2026-27");
   const [viewClass, setViewClass] = useState<string>("all");
   const [viewSection, setViewSection] = useState<string>("all");
-  const [viewStatus, setViewStatus] = useState<"all" | AcademicYearRecordStatus>("all");
+  const [viewStatus, setViewStatus] = useState<"all" | AcademicYearRecordStatus | YearRecordUiStatus>("all");
   const [modal, setModal] = useState<"create" | "edit" | null>(null);
   const [editing, setEditing] = useState<YearRow | null>(null);
   const [form, setForm] = useState<YearForm>(EMPTY_FORM);
@@ -120,7 +126,11 @@ export function AcademicYearsView() {
   const [confirmText, setConfirmText] = useState("");
   const viewRecordsRef = useRef<HTMLDivElement>(null);
   const today = todayIsoDate();
-  const demoRecordsEnabled = !apiMode;
+  const [apiYearRecords, setApiYearRecords] = useState<YearEnrollmentRecord[]>([]);
+  const [apiRecordsStatus, setApiRecordsStatus] = useState<
+    "idle" | "loading" | "ready" | "empty" | "error"
+  >("idle");
+  const [apiRecordsError, setApiRecordsError] = useState<string | null>(null);
   useEffect(() => {
     if (!apiMode) return;
 
@@ -188,6 +198,43 @@ export function AcademicYearsView() {
   ]);
 
   useEffect(() => {
+    if (!apiMode) return;
+    if (!instituteCtx.activeInstituteId || !viewYearId || !isApiAuthMode()) {
+      setApiYearRecords([]);
+      setApiRecordsStatus("idle");
+      return;
+    }
+    // Skip demo year ids that are not UUIDs
+    if (!/^[0-9a-f-]{36}$/i.test(viewYearId)) {
+      setApiYearRecords([]);
+      setApiRecordsStatus("empty");
+      return;
+    }
+    let cancelled = false;
+    setApiRecordsStatus("loading");
+    setApiRecordsError(null);
+    void loadYearEnrollmentRecords(instituteCtx.activeInstituteId, viewYearId).then(
+      (next) => {
+        if (cancelled) return;
+        setApiYearRecords(next.items);
+        setApiRecordsStatus(
+          next.status === "ready"
+            ? "ready"
+            : next.status === "empty"
+              ? "empty"
+              : next.status === "error" || next.status === "forbidden"
+                ? "error"
+                : "idle",
+        );
+        setApiRecordsError(next.errorMessage);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [apiMode, instituteCtx.activeInstituteId, viewYearId, reloadKey]);
+
+  useEffect(() => {
     setModal(null);
     setEditing(null);
     setForm(EMPTY_FORM);
@@ -223,7 +270,7 @@ export function AcademicYearsView() {
     });
   };
 
-  const openYearRecords = (year: AcademicYear) => {
+  const openYearRecords = (year: YearRow) => {
     setViewYearId(year.id);
     setViewClass("all");
     setViewSection("all");
@@ -244,10 +291,28 @@ export function AcademicYearsView() {
     };
   }, [displayItems, listView.rowsValid]);
 
-  const yearRecords = useMemo(
-    () => getRecordsForAcademicYear(viewYearId),
-    [viewYearId],
-  );
+  type UnifiedYearRecord = {
+    id: string;
+    name: string;
+    rollNo: string;
+    classLabel: string;
+    section: string;
+    status: AcademicYearRecordStatus | YearRecordUiStatus;
+  };
+
+  const yearRecords = useMemo((): UnifiedYearRecord[] => {
+    if (apiMode) {
+      return apiYearRecords.map((r) => ({
+        id: r.id,
+        name: r.name,
+        rollNo: r.rollNo,
+        classLabel: r.classLabel,
+        section: r.section,
+        status: r.status,
+      }));
+    }
+    return getRecordsForAcademicYear(viewYearId);
+  }, [apiMode, apiYearRecords, viewYearId]);
 
   const classOptions = useMemo(() => {
     const set = new Set(yearRecords.map((r) => r.classLabel));
@@ -263,6 +328,12 @@ export function AcademicYearsView() {
     return ["all", ...Array.from(set).sort()];
   }, [yearRecords, viewClass]);
 
+  const recordStatusOptions = useMemo((): Array<"all" | AcademicYearRecordStatus | YearRecordUiStatus> => {
+    if (!apiMode) return ACADEMIC_YEAR_RECORD_STATUS_OPTIONS;
+    const set = new Set(yearRecords.map((r) => r.status));
+    return ["all", ...Array.from(set).sort()];
+  }, [apiMode, yearRecords]);
+
   const filteredRecords = useMemo(() => {
     return yearRecords.filter((r) => {
       if (viewClass !== "all" && r.classLabel !== viewClass) return false;
@@ -273,7 +344,17 @@ export function AcademicYearsView() {
   }, [yearRecords, viewClass, viewSection, viewStatus]);
 
   const viewYearLabel =
-    ACADEMIC_YEAR_VIEW_OPTIONS.find((y) => y.id === viewYearId)?.label ?? viewYearId;
+    displayItems.find((y) => y.id === viewYearId)?.label ??
+    ACADEMIC_YEAR_VIEW_OPTIONS.find((y) => y.id === viewYearId)?.label ??
+    viewYearId;
+
+  // Keep viewYearId synced to first available year in API mode
+  useEffect(() => {
+    if (!apiMode || !listView.rowsValid || displayItems.length === 0) return;
+    if (!displayItems.some((y) => y.id === viewYearId)) {
+      setViewYearId(displayItems[0]!.id);
+    }
+  }, [apiMode, listView.rowsValid, displayItems, viewYearId]);
 
   const filtersSummary = useMemo(() => {
     const parts = [
@@ -530,7 +611,7 @@ export function AcademicYearsView() {
         <Kpi label="Completed / archived" value={countLabel(counts.completed)} />
       </KpiGrid>
 
-      {demoRecordsEnabled ? (
+      {!apiMode ? (
       <Card>
         <CardHeader
           title="Activation rules"
@@ -656,16 +737,13 @@ export function AcademicYearsView() {
                     {writesEnabled ? (
                     <Td>
                       <div className="flex flex-wrap justify-end gap-1.5">
-                        {demoRecordsEnabled &&
-                        ACADEMIC_YEAR_VIEW_OPTIONS.some((y) => y.id === year.id) ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => openYearRecords(year as AcademicYear)}
-                          >
-                            <Eye className="size-3.5" /> View
-                          </Button>
-                        ) : null}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openYearRecords(year)}
+                        >
+                          <Eye className="size-3.5" /> View
+                        </Button>
                         {year.status === "upcoming" || year.status === "active" ? (
                           <Button size="sm" variant="ghost" onClick={() => openEdit(year)}>
                             <Pencil className="size-3.5" /> Edit
@@ -702,12 +780,15 @@ export function AcademicYearsView() {
         </CardBody>
       </Card>
 
-      {demoRecordsEnabled ? (
       <div ref={viewRecordsRef} id="academic-year-records">
         <Card>
           <CardHeader
             title="Select academic year to view"
-            hint="Filter by year, class, section, and status · download Excel or PDF"
+            hint={
+              apiMode
+                ? "Live enrollments for the selected year · filter by class, section, status"
+                : "Filter by year, class, section, and status · download Excel or PDF"
+            }
             action={
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -740,7 +821,7 @@ export function AcademicYearsView() {
                     setViewSection("all");
                   }}
                 >
-                  {ACADEMIC_YEAR_VIEW_OPTIONS.map((y) => (
+                  {(apiMode ? displayItems : ACADEMIC_YEAR_VIEW_OPTIONS).map((y) => (
                     <option key={y.id} value={y.id}>
                       {y.label}
                     </option>
@@ -775,10 +856,12 @@ export function AcademicYearsView() {
                 <Select
                   value={viewStatus}
                   onChange={(e) =>
-                    setViewStatus(e.target.value as "all" | AcademicYearRecordStatus)
+                    setViewStatus(
+                      e.target.value as "all" | AcademicYearRecordStatus | YearRecordUiStatus,
+                    )
                   }
                 >
-                  {ACADEMIC_YEAR_RECORD_STATUS_OPTIONS.map((s) => (
+                  {recordStatusOptions.map((s) => (
                     <option key={s} value={s}>
                       {s === "all" ? "All statuses" : s}
                     </option>
@@ -787,11 +870,11 @@ export function AcademicYearsView() {
               </Field>
             </FormGrid>
             <p className="mt-3 text-xs text-muted-foreground">
-              {filtersSummary}
-              {" · "}
-              {filteredRecords.length} student record
-              {filteredRecords.length === 1 ? "" : "s"}. Excel includes classes studied trail.
-              PDF opens as HTML — use Print → Save as PDF.
+              {apiMode && apiRecordsStatus === "loading"
+                ? "Loading enrollments…"
+                : apiMode && apiRecordsStatus === "error"
+                  ? apiRecordsError ?? "Failed to load enrollments"
+                  : `${filtersSummary} · ${filteredRecords.length} student record${filteredRecords.length === 1 ? "" : "s"}.`}
             </p>
           </CardBody>
           <PageToolbar>
@@ -823,7 +906,15 @@ export function AcademicYearsView() {
                     <Td>{row.classLabel}</Td>
                     <Td>{row.section}</Td>
                     <Td>
-                      <Pill tone={yearRecordStatusTone(row.status)}>{row.status}</Pill>
+                      <Pill
+                        tone={
+                          apiMode
+                            ? yearRecordUiStatusTone(row.status as YearRecordUiStatus)
+                            : yearRecordStatusTone(row.status as AcademicYearRecordStatus)
+                        }
+                      >
+                        {row.status}
+                      </Pill>
                     </Td>
                   </Tr>
                 ))}
@@ -843,7 +934,6 @@ export function AcademicYearsView() {
           </CardBody>
         </Card>
       </div>
-      ) : null}
 
       {writesEnabled ? (
       <>

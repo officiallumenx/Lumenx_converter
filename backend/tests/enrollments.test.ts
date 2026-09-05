@@ -26,6 +26,9 @@ const ENROLL_B_OTHER_INST = "e2222222-2222-4222-8222-222222222222";
 const YEAR_B = "cc222222-2222-4222-8222-222222222222";
 const CLASS_B = "cd222222-2222-4222-8222-222222222222";
 const SECTION_B = "ce222222-2222-4222-8222-222222222222";
+const YEAR_A_NEXT = "cc333333-3333-4333-8333-333333333333";
+const CLASS_A_NEXT = "cd333333-3333-4333-8333-333333333333";
+const SECTION_A_NEXT = "ce333333-3333-4333-8333-333333333333";
 
 beforeEach(() => {
   resetEnvCache();
@@ -70,6 +73,18 @@ function baseDb(): MockDb {
       deleted_at: null,
     },
     {
+      id: YEAR_A_NEXT,
+      institute_id: INST_A,
+      name: "2027",
+      code: "Y27",
+      starts_on: "2027-04-01",
+      ends_on: "2028-03-31",
+      status: "upcoming",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      deleted_at: null,
+    },
+    {
       id: YEAR_B,
       institute_id: INST_B,
       name: "2026B",
@@ -96,6 +111,18 @@ function baseDb(): MockDb {
       deleted_at: null,
     },
     {
+      id: CLASS_A_NEXT,
+      institute_id: INST_A,
+      academic_year_id: YEAR_A_NEXT,
+      name: "Grade 11",
+      code: "G11",
+      sort_order: 1,
+      status: "active",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      deleted_at: null,
+    },
+    {
       id: CLASS_B,
       institute_id: INST_B,
       academic_year_id: YEAR_B,
@@ -114,6 +141,21 @@ function baseDb(): MockDb {
       institute_id: INST_A,
       academic_year_id: YEAR_A,
       class_id: CLASS_A,
+      name: "A",
+      code: "A",
+      capacity: 40,
+      room: null,
+      sort_order: 1,
+      status: "active",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      deleted_at: null,
+    },
+    {
+      id: SECTION_A_NEXT,
+      institute_id: INST_A,
+      academic_year_id: YEAR_A_NEXT,
+      class_id: CLASS_A_NEXT,
       name: "A",
       code: "A",
       capacity: 40,
@@ -331,5 +373,61 @@ describe("enrollments API", () => {
       body: JSON.stringify({ roll_no: "99" }),
     });
     expect(res.status).toBe(403);
+  });
+
+  it("promote creates target enrollment and completes source", async () => {
+    const app = appWithDb(baseDb());
+    const res = await app.request("/api/v1/enrollments/promote", {
+      method: "POST",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify({
+        institute_id: INST_A,
+        source_academic_year_id: YEAR_A,
+        target_academic_year_id: YEAR_A_NEXT,
+        items: [
+          {
+            enrollment_id: ENROLL_A,
+            target_class_id: CLASS_A_NEXT,
+            target_section_id: SECTION_A_NEXT,
+            roll_no: "5",
+            action: "promote",
+          },
+        ],
+      }),
+    });
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(body.data.items).toHaveLength(1);
+    const item = body.data.items[0];
+    expect(item.action).toBe("promote");
+    expect(item.sourceEnrollment.id).toBe(ENROLL_A);
+    expect(item.sourceEnrollment.status).toBe("completed");
+    expect(item.sourceEnrollment.withdrawnOn).toBeTruthy();
+    expect(item.targetEnrollment).toBeTruthy();
+    expect(item.targetEnrollment.academicYearId).toBe(YEAR_A_NEXT);
+    expect(item.targetEnrollment.classId).toBe(CLASS_A_NEXT);
+    expect(item.targetEnrollment.sectionId).toBe(SECTION_A_NEXT);
+    expect(item.targetEnrollment.studentId).toBe(STUDENT_A);
+    expect(item.targetEnrollment.rollNo).toBe("5");
+    expect(item.targetEnrollment.status).toBe("active");
+  });
+
+  it("graduate sets graduated status", async () => {
+    const app = appWithDb(baseDb());
+    const res = await app.request("/api/v1/enrollments/graduate", {
+      method: "POST",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify({
+        institute_id: INST_A,
+        academic_year_id: YEAR_A,
+        enrollment_ids: [ENROLL_A],
+      }),
+    });
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0].id).toBe(ENROLL_A);
+    expect(body.data[0].status).toBe("graduated");
+    expect(body.data[0].withdrawnOn).toBeTruthy();
   });
 });

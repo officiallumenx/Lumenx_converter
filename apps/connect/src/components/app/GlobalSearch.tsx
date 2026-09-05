@@ -377,6 +377,10 @@ export function GlobalSearch() {
                   <ShieldAlert className="size-4 mr-2" />
                   Complaints
                 </CommandItem>
+                <CommandItem onSelect={() => go("/diary", "Class diary")}>
+                  <BookOpen className="size-4 mr-2" />
+                  Class Diary
+                </CommandItem>
                 <CommandItem onSelect={() => go("/academic-history", "Academic history")}>
                   <History className="size-4 mr-2" />
                   Academic History
@@ -423,6 +427,10 @@ export function GlobalSearch() {
                 <CommandItem onSelect={() => go("/marks", "Marks & report cards")}>
                   <GraduationCap className="size-4 mr-2" />
                   Marks & Report cards
+                </CommandItem>
+                <CommandItem onSelect={() => go("/diary", "Class diary")}>
+                  <BookOpen className="size-4 mr-2" />
+                  Class Diary
                 </CommandItem>
                 <CommandItem onSelect={() => go("/academic-history", "Academic history")}>
                   <History className="size-4 mr-2" />

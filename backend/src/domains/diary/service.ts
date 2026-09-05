@@ -8,6 +8,8 @@ import {
   actorHasInstituteRole,
 } from "../../authorization/index.js";
 import { findTeacherById } from "../teachers/repository.js";
+import { resolveAccessibleStudentIds } from "../homework/service.js";
+import { listEnrollmentsForStudents } from "../academics/repository.js";
 import {
   findAcademicYearById,
   findDiaryDayById,
@@ -150,7 +152,28 @@ async function resolveTeacherIdForWrite(
   return teacher.id;
 }
 
+async function resolveLearnerSectionIds(
+  admin: SupabaseClient,
+  actor: Actor,
+  instituteId: string,
+): Promise<Set<string>> {
+  const studentIds = await resolveAccessibleStudentIds(admin, actor, instituteId);
+  if (studentIds.size === 0) return new Set();
+  const enrollments = await listEnrollmentsForStudents(admin, instituteId, [
+    ...studentIds,
+  ]);
+  return new Set(enrollments.map((e) => e.section_id));
+}
+
+function isLearnerOrParentActor(actor: Actor, instituteId: string): boolean {
+  return (
+    actor.students.some((s) => s.instituteId === instituteId) ||
+    actor.parents.some((p) => p.instituteId === instituteId)
+  );
+}
+
 async function assertCanReadDiary(
+  admin: SupabaseClient,
   actor: Actor,
   day: DiaryDayRecord,
 ): Promise<void> {
@@ -164,15 +187,32 @@ async function assertCanReadDiary(
     throw AppError.forbidden("Insufficient permissions");
   }
 
-  // Learners/parents: no diary access (schema + product freeze).
-  throw AppError.forbidden("Insufficient permissions");
+  if (!isLearnerOrParentActor(actor, day.institute_id)) {
+    throw AppError.forbidden("Insufficient permissions");
+  }
+  if (!day.submitted_at) {
+    throw AppError.forbidden("Insufficient permissions");
+  }
+  const sectionIds = await resolveLearnerSectionIds(admin, actor, day.institute_id);
+  if (sectionIds.size === 0) {
+    throw AppError.forbidden("Insufficient permissions");
+  }
+  const rows = await listRowsForDay(admin, day.id);
+  const visible = rows.some(
+    (row) => row.section_id != null && sectionIds.has(row.section_id),
+  );
+  if (!visible) {
+    throw AppError.forbidden("Insufficient permissions");
+  }
 }
 
-function filterDaysForActor(
+async function filterDaysForActor(
+  admin: SupabaseClient,
   actor: Actor,
   instituteId: string,
   rows: DiaryDayRecord[],
-): DiaryDayRecord[] {
+  rowsByDay: Map<string, DiaryDayRowRecord[]>,
+): Promise<DiaryDayRecord[]> {
   if (isFullInstituteReader(actor, instituteId)) return rows;
 
   if (actorHasInstituteRole(actor, instituteId, "teacher")) {
@@ -180,7 +220,20 @@ function filterDaysForActor(
     return rows.filter((r) => r.teacher_id === identity.teacherId);
   }
 
-  throw AppError.forbidden("Insufficient permissions");
+  if (!isLearnerOrParentActor(actor, instituteId)) {
+    throw AppError.forbidden("Insufficient permissions");
+  }
+
+  const sectionIds = await resolveLearnerSectionIds(admin, actor, instituteId);
+  if (sectionIds.size === 0) return [];
+
+  return rows.filter((day) => {
+    if (!day.submitted_at) return false;
+    const dayRows = rowsByDay.get(day.id) ?? [];
+    return dayRows.some(
+      (row) => row.section_id != null && sectionIds.has(row.section_id),
+    );
+  });
 }
 
 async function validateAcademicYear(
@@ -295,11 +348,21 @@ export async function listDiaryDaysForActor(
 ): Promise<DiaryDayDto[]> {
   const instituteId = requireInstituteId(actor, filter.instituteId);
   await processDiaryRemindersForActor(admin, actor, instituteId);
-  const days = await listDiaryDays(admin, { ...filter, instituteId });
-  const visible = filterDaysForActor(actor, instituteId, days);
+
+  const listFilter: ListDiaryFilter = { ...filter, instituteId };
+  // Learners/parents only see submitted class diary for their sections.
+  if (
+    isLearnerOrParentActor(actor, instituteId) &&
+    !isFullInstituteReader(actor, instituteId) &&
+    !actorHasInstituteRole(actor, instituteId, "teacher")
+  ) {
+    listFilter.submitted = true;
+  }
+
+  const days = await listDiaryDays(admin, listFilter);
   const allRows = await listRowsForDayIds(
     admin,
-    visible.map((d) => d.id),
+    days.map((d) => d.id),
   );
   const byDay = new Map<string, DiaryDayRowRecord[]>();
   for (const row of allRows) {
@@ -307,10 +370,23 @@ export async function listDiaryDaysForActor(
     list.push(row);
     byDay.set(row.diary_day_id, list);
   }
+  const visible = await filterDaysForActor(admin, actor, instituteId, days, byDay);
+  const learnerSections =
+    isLearnerOrParentActor(actor, instituteId) &&
+    !isFullInstituteReader(actor, instituteId) &&
+    !actorHasInstituteRole(actor, instituteId, "teacher")
+      ? await resolveLearnerSectionIds(admin, actor, instituteId)
+      : null;
+
   return visible.map((d) => {
-    const rows = (byDay.get(d.id) ?? []).sort(
+    let rows = (byDay.get(d.id) ?? []).sort(
       (a, b) => a.sort_order - b.sort_order,
     );
+    if (learnerSections) {
+      rows = rows.filter(
+        (r) => r.section_id != null && learnerSections.has(r.section_id),
+      );
+    }
     return toDayDto(d, rows);
   });
 }
@@ -323,8 +399,22 @@ export async function getDiaryDayForActor(
   const day = await findDiaryDayById(admin, dayId);
   if (!day) throw AppError.notFound("Diary day not found");
 
-  await assertCanReadDiary(actor, day);
-  const rows = await listRowsForDay(admin, day.id);
+  await assertCanReadDiary(admin, actor, day);
+  let rows = await listRowsForDay(admin, day.id);
+  if (
+    isLearnerOrParentActor(actor, day.institute_id) &&
+    !isFullInstituteReader(actor, day.institute_id) &&
+    !actorHasInstituteRole(actor, day.institute_id, "teacher")
+  ) {
+    const sectionIds = await resolveLearnerSectionIds(
+      admin,
+      actor,
+      day.institute_id,
+    );
+    rows = rows.filter(
+      (row) => row.section_id != null && sectionIds.has(row.section_id),
+    );
+  }
   return toDayDto(day, rows);
 }
 

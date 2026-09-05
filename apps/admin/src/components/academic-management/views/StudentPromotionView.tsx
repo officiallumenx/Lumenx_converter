@@ -22,6 +22,8 @@ import {
 } from "@lumenx/ui-admin";
 import { ArrowUpFromLine } from "lucide-react";
 import { useAdminToast } from "@/components/AdminActionToast";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { StudentPromotionApiView } from "@/components/academic-management/views/StudentPromotionApiView";
 import {
   matchingPromotionReasons,
   PROMOTION_CLASS_OPTIONS,
@@ -53,6 +55,11 @@ const ACTION_LABELS: Record<PromotionReviewAction, string> = {
 };
 
 export function StudentPromotionView() {
+  if (isApiAuthMode()) return <StudentPromotionApiView />;
+  return <StudentPromotionDemoView />;
+}
+
+function StudentPromotionDemoView() {
   const notify = useAdminToast();
 
   const [sourceYearId, setSourceYearId] = useState<string>("ay-2026-27");
@@ -173,8 +180,8 @@ export function StudentPromotionView() {
     if (sourceYearId === targetYearId) {
       errors.push("Source and target academic years must be different.");
     }
-    const sourceOrder = yearOrder.get(sourceYearId);
-    const targetOrder = yearOrder.get(targetYearId);
+    const sourceOrder = yearOrder.get(sourceYearId as (typeof PROMOTION_YEAR_OPTIONS)[number]["id"]);
+    const targetOrder = yearOrder.get(targetYearId as (typeof PROMOTION_YEAR_OPTIONS)[number]["id"]);
     if (
       sourceOrder !== undefined &&
       targetOrder !== undefined &&

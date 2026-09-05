@@ -11,7 +11,9 @@ import {
 import {
   createEnrollmentForActor,
   getEnrollmentForActor,
+  graduateEnrollmentsForActor,
   listEnrollmentsForActor,
+  promoteEnrollmentsForActor,
   updateEnrollmentForActor,
 } from "../../domains/academics/service.js";
 
@@ -38,6 +40,14 @@ const enrollmentStatusSchema = z.enum([
   "dropped_out",
   "graduated",
 ]);
+const promoteActionSchema = z.enum([
+  "promote",
+  "repeat",
+  "hold",
+  "transfer",
+  "dropout",
+  "graduate",
+]);
 
 enrollments.get("/", async (c) => {
   const actor = assertAuthenticated(c);
@@ -61,14 +71,6 @@ enrollments.get("/", async (c) => {
     studentId: query.student_id,
     status: query.status,
   });
-  return c.json({ data });
-});
-
-enrollments.get("/:id", async (c) => {
-  const actor = assertAuthenticated(c);
-  const admin = requireAdmin(c);
-  const { id } = validateParams(idParamsSchema, c.req.param());
-  const data = await getEnrollmentForActor(admin, actor, id);
   return c.json({ data });
 });
 
@@ -99,6 +101,70 @@ enrollments.post("/", async (c) => {
     status: body.status,
   });
   return c.json({ data }, 201);
+});
+
+enrollments.post("/promote", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const body = validateBody(
+    z.object({
+      institute_id: uuid,
+      source_academic_year_id: uuid,
+      target_academic_year_id: uuid,
+      items: z
+        .array(
+          z.object({
+            enrollment_id: uuid,
+            target_class_id: uuid.optional(),
+            target_section_id: uuid.optional(),
+            roll_no: z.string().min(1).max(50).optional(),
+            action: promoteActionSchema,
+          }),
+        )
+        .min(1),
+    }),
+    await c.req.json(),
+  );
+  const data = await promoteEnrollmentsForActor(admin, actor, {
+    instituteId: body.institute_id,
+    sourceAcademicYearId: body.source_academic_year_id,
+    targetAcademicYearId: body.target_academic_year_id,
+    items: body.items.map((item) => ({
+      enrollmentId: item.enrollment_id,
+      targetClassId: item.target_class_id,
+      targetSectionId: item.target_section_id,
+      rollNo: item.roll_no,
+      action: item.action,
+    })),
+  });
+  return c.json({ data });
+});
+
+enrollments.post("/graduate", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const body = validateBody(
+    z.object({
+      institute_id: uuid,
+      academic_year_id: uuid,
+      enrollment_ids: z.array(uuid).min(1),
+    }),
+    await c.req.json(),
+  );
+  const data = await graduateEnrollmentsForActor(admin, actor, {
+    instituteId: body.institute_id,
+    academicYearId: body.academic_year_id,
+    enrollmentIds: body.enrollment_ids,
+  });
+  return c.json({ data });
+});
+
+enrollments.get("/:id", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const data = await getEnrollmentForActor(admin, actor, id);
+  return c.json({ data });
 });
 
 enrollments.patch("/:id", async (c) => {

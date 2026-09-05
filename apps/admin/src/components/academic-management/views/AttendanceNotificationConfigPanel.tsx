@@ -9,6 +9,7 @@ import {
 import { Bell, Sparkles } from "lucide-react";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { useAuth } from "@/auth/AuthContext";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import {
   ATTENDANCE_NOTIFICATION_RECIPIENT_OPTIONS,
   ATTENDANCE_NOTIFICATION_TIMING_OPTIONS,
@@ -55,6 +56,30 @@ const WORKFLOW_STEPS = [
 ] as const;
 
 export function AttendanceNotificationConfigPanel() {
+  if (isApiAuthMode()) {
+    return (
+      <Card>
+        <CardHeader
+          title="Attendance Notifications"
+          hint="Backend outbox · no local demo queue"
+        />
+        <CardBody className="space-y-2">
+          <p className="text-sm text-foreground">
+            Notification delivery is handled by the backend outbox.
+          </p>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Timing, triggers, and recipients are applied server-side when attendance is
+            submitted. There is no localStorage demo queue or emit simulation in API mode.
+          </p>
+        </CardBody>
+      </Card>
+    );
+  }
+
+  return <AttendanceNotificationConfigDemoPanel />;
+}
+
+function AttendanceNotificationConfigDemoPanel() {
   const notify = useAdminToast();
   const { user } = useAuth();
   const [revision, setRevision] = useState(0);

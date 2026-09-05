@@ -8,6 +8,7 @@ import type {
   TimetablePeriod,
   TrendRow,
 } from "@/lib/student/types";
+import type { ExamHistoryEntry } from "@/lib/student/mock-data";
 import type {
   DashboardSnapshot,
   TeacherEvent,
@@ -43,6 +44,62 @@ export function reportCardsToTrend(reportCards: ReportCard[]): TrendRow[] {
   return reportCards
     .filter((c) => c.status === "published")
     .map((c) => ({ term: c.term, score: c.percentage }));
+}
+
+export function reportCardsToAcademicTerms(
+  reportCards: ReportCard[],
+  attendancePct = 0,
+): StudentSnapshot["academicTerms"] {
+  return reportCards
+    .filter((c) => c.status === "published")
+    .map((card) => ({
+      id: card.id,
+      label: card.term,
+      year: card.publishedOn?.slice(0, 4) || card.term,
+      avgScore: card.percentage,
+      rank: card.rank,
+      classSize: 0,
+      attendance: attendancePct,
+      reportCardId: card.id,
+    }));
+}
+
+export function reportCardsToExamHistory(
+  reportCards: ReportCard[],
+): ExamHistoryEntry[] {
+  return reportCards
+    .filter((c) => c.status === "published")
+    .flatMap((card) =>
+      card.marks.map((mark, index) => ({
+        id: `${card.id}:${index}`,
+        title: card.term,
+        term: card.term,
+        subject: mark.subject,
+        date: card.publishedOn,
+        maxMarks: 100,
+        obtained: mark.total,
+        grade: mark.grade,
+        status: "completed" as const,
+      })),
+    );
+}
+
+export function upcomingExamsToHistory(
+  exams: StudentSnapshot["exams"],
+): ExamHistoryEntry[] {
+  return exams.map((exam) => ({
+    id: `upcoming:${exam.id}`,
+    title: exam.title,
+    term: exam.title,
+    subject: exam.subject,
+    date: exam.date,
+    maxMarks: 0,
+    obtained: 0,
+    grade: "—",
+    status: "upcoming" as const,
+    room: exam.room,
+    duration: exam.duration,
+  }));
 }
 
 export function weeklyTimetableToStudentRecord(

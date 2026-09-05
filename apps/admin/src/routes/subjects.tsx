@@ -37,6 +37,14 @@ import {
   type SubjectListItem,
   type SubjectsListStatus,
 } from "@/lib/subjects";
+import {
+  assignTeacherSubjectSection,
+  loadAssignPickers,
+  loadSubjectTeacherAssignments,
+} from "@/lib/timetable";
+import type { ClassDto, SectionDto } from "@/lib/classes/types";
+import type { AcademicYearDto } from "@/lib/academic-years/types";
+import type { TeacherAssignmentListItem } from "@/lib/timetable/types";
 import { useAuth } from "@/auth/AuthContext";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { softDeleteToRecycleBin } from "@lumenx/utils";
@@ -81,7 +89,7 @@ function SubjectsPage() {
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
   const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
-  const teacherAssignEnabled = !apiMode;
+  const teacherAssignEnabled = true;
   const { profileId, profile } = useDemoProfile();
   const { guardWriteAction, writesAllowed, reason } = useAdminWriteAccess();
   const college = isCollegeMode();
@@ -138,6 +146,21 @@ function SubjectsPage() {
   const [status, setStatus] = useState<SubjectCatalogItem["status"]>("active");
   const [selectedGrades, setSelectedGrades] = useState<string[]>([defaultGrade]);
   const [assignIds, setAssignIds] = useState<string[]>([]);
+  const [apiAssignYearId, setApiAssignYearId] = useState("");
+  const [apiAssignClassId, setApiAssignClassId] = useState("");
+  const [apiAssignSectionId, setApiAssignSectionId] = useState("");
+  const [apiAssignTeacherId, setApiAssignTeacherId] = useState("");
+  const [apiAssignYears, setApiAssignYears] = useState<AcademicYearDto[]>([]);
+  const [apiAssignClasses, setApiAssignClasses] = useState<ClassDto[]>([]);
+  const [apiAssignSections, setApiAssignSections] = useState<SectionDto[]>([]);
+  const [apiAssignTeachers, setApiAssignTeachers] = useState<
+    Array<{ id: string; label: string }>
+  >([]);
+  const [apiSubjectAssignments, setApiSubjectAssignments] = useState<
+    Record<string, TeacherAssignmentListItem[]>
+  >({});
+  const [apiAssignExisting, setApiAssignExisting] = useState<TeacherAssignmentListItem[]>([]);
+  const [apiAssignBusy, setApiAssignBusy] = useState(false);
 
   const refresh = () => setCatalog(adminDataFacade.subjects.listCatalog());
   const availableSubjectOptions = useMemo(
@@ -317,6 +340,90 @@ function SubjectsPage() {
     setActiveSubject(subject);
     setAssignIds([...subject.assignedTeacherIds]);
     setAssignOpen(true);
+    if (apiMode && instituteCtx.activeInstituteId) {
+      void loadAssignPickers(instituteCtx.activeInstituteId).then((pickers) => {
+        setApiAssignYears(pickers.years);
+        setApiAssignYearId(pickers.academicYearId);
+        setApiAssignClasses(pickers.classes);
+        setApiAssignSections(pickers.sections);
+        setApiAssignTeachers(pickers.teachers);
+        const firstClass = pickers.classes[0];
+        const firstSection = pickers.sections.find((s) => s.classId === firstClass?.id);
+        setApiAssignClassId(firstClass?.id ?? "");
+        setApiAssignSectionId(firstSection?.id ?? "");
+        setApiAssignTeacherId(pickers.teachers[0]?.id ?? "");
+      });
+      void loadSubjectTeacherAssignments({
+        instituteId: instituteCtx.activeInstituteId,
+        subjectId: subject.id,
+      }).then(setApiAssignExisting);
+    }
+  };
+
+  // Load assignment chips for API subject list
+  useEffect(() => {
+    if (!apiMode || !instituteCtx.activeInstituteId || !listView.rowsValid) return;
+    let cancelled = false;
+    void Promise.all(
+      displayItems.map(async (subject) => {
+        const rows = await loadSubjectTeacherAssignments({
+          instituteId: instituteCtx.activeInstituteId!,
+          subjectId: subject.id,
+        });
+        return [subject.id, rows] as const;
+      }),
+    ).then((pairs) => {
+      if (cancelled) return;
+      const next: Record<string, TeacherAssignmentListItem[]> = {};
+      for (const [id, rows] of pairs) next[id] = rows;
+      setApiSubjectAssignments(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiMode, instituteCtx.activeInstituteId, listView.rowsValid, displayItems, reloadKey]);
+
+  const saveAssignments = () => {
+    if (!activeSubject) return;
+    if (apiMode) {
+      if (!instituteCtx.activeInstituteId) {
+        notify("Select an institute first");
+        return;
+      }
+      if (
+        !apiAssignYearId ||
+        !apiAssignClassId ||
+        !apiAssignSectionId ||
+        !apiAssignTeacherId
+      ) {
+        notify("Choose year, class, section, and teacher");
+        return;
+      }
+      setApiAssignBusy(true);
+      void assignTeacherSubjectSection({
+        instituteId: instituteCtx.activeInstituteId,
+        academicYearId: apiAssignYearId,
+        classId: apiAssignClassId,
+        sectionId: apiAssignSectionId,
+        teacherId: apiAssignTeacherId,
+        subjectId: activeSubject.id,
+      })
+        .then(() => {
+          notify("Teacher assigned to subject section");
+          setAssignOpen(false);
+          setActiveSubject(null);
+          setReloadKey((k) => k + 1);
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Failed to assign teacher");
+        })
+        .finally(() => setApiAssignBusy(false));
+      return;
+    }
+    assignTeachersToSubject(activeSubject.id, assignIds);
+    refresh();
+    setAssignOpen(false);
+    setActiveSubject(null);
   };
 
   const saveForm = () => {
@@ -414,18 +521,6 @@ function SubjectsPage() {
     );
     refresh();
     setDeleteOpen(false);
-    setActiveSubject(null);
-  };
-
-  const saveAssignments = () => {
-    if (!teacherAssignEnabled) {
-      notify("Teacher assignment is not available via API yet");
-      return;
-    }
-    if (!activeSubject) return;
-    assignTeachersToSubject(activeSubject.id, assignIds);
-    refresh();
-    setAssignOpen(false);
     setActiveSubject(null);
   };
 
@@ -545,9 +640,10 @@ function SubjectsPage() {
             </thead>
             <tbody className="divide-y divide-border">
               {list.map((s) => {
-                const assigned = teacherAssignEnabled
-                  ? teachers.filter((t) => s.assignedTeacherIds.includes(t.id))
-                  : [];
+                const assigned = apiMode
+                  ? []
+                  : teachers.filter((t) => s.assignedTeacherIds.includes(t.id));
+                const apiAssigned = apiMode ? apiSubjectAssignments[s.id] ?? [] : [];
                 return (
                   <tr
                     key={s.id}
@@ -583,7 +679,22 @@ function SubjectsPage() {
                     <td className="px-5 py-3 text-xs font-mono">{s.periodsPerWeek}</td>
                     {teacherAssignEnabled ? (
                       <td className="px-5 py-3">
-                        {assigned.length === 0 ? (
+                        {apiMode ? (
+                          apiAssigned.length === 0 ? (
+                            <span className="text-[11px] text-warning">None assigned</span>
+                          ) : (
+                            <div className="flex flex-wrap gap-1">
+                              {apiAssigned.slice(0, 3).map((row) => (
+                                <Pill key={row.id} tone="neutral">
+                                  {row.label}
+                                </Pill>
+                              ))}
+                              {apiAssigned.length > 3 ? (
+                                <Pill tone="neutral">+{apiAssigned.length - 3}</Pill>
+                              ) : null}
+                            </div>
+                          )
+                        ) : assigned.length === 0 ? (
                           <span className="text-[11px] text-warning">None assigned</span>
                         ) : (
                           <div className="flex flex-wrap gap-1">
@@ -792,7 +903,9 @@ function SubjectsPage() {
         title={activeSubject ? `Assign teachers · ${activeSubject.name}` : "Assign teachers"}
         subtitle={
           activeSubject
-            ? `${activeSubject.code} · select all qualified teachers for this subject`
+            ? apiMode
+              ? `${activeSubject.code} · assign a teacher to a class section`
+              : `${activeSubject.code} · select all qualified teachers for this subject`
             : undefined
         }
         size="lg"
@@ -807,13 +920,109 @@ function SubjectsPage() {
             >
               Cancel
             </Button>
-            <Button variant="primary" data-admin-write onClick={() => guardWriteAction(saveAssignments)}>
-              Save assignments
+            <Button
+              variant="primary"
+              data-admin-write
+              disabled={apiMode && apiAssignBusy}
+              onClick={() => guardWriteAction(saveAssignments)}
+            >
+              {apiMode ? (apiAssignBusy ? "Saving…" : "Assign teacher") : "Save assignments"}
             </Button>
           </>
         }
       >
-        {activeSubject && (
+        {activeSubject && apiMode ? (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Assignments are stored as timetable teacher assignments (section-scoped).
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Academic year">
+                <Select
+                  value={apiAssignYearId}
+                  onChange={(e) => {
+                    const yearId = e.target.value;
+                    setApiAssignYearId(yearId);
+                    if (instituteCtx.activeInstituteId) {
+                      void loadAssignPickers(instituteCtx.activeInstituteId, yearId).then(
+                        (pickers) => {
+                          setApiAssignClasses(pickers.classes);
+                          setApiAssignSections(pickers.sections);
+                          const firstClass = pickers.classes[0];
+                          const firstSection = pickers.sections.find(
+                            (s) => s.classId === firstClass?.id,
+                          );
+                          setApiAssignClassId(firstClass?.id ?? "");
+                          setApiAssignSectionId(firstSection?.id ?? "");
+                        },
+                      );
+                    }
+                  }}
+                >
+                  {apiAssignYears.map((y) => (
+                    <option key={y.id} value={y.id}>
+                      {y.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Teacher">
+                <Select
+                  value={apiAssignTeacherId}
+                  onChange={(e) => setApiAssignTeacherId(e.target.value)}
+                >
+                  {apiAssignTeachers.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Class">
+                <Select
+                  value={apiAssignClassId}
+                  onChange={(e) => {
+                    setApiAssignClassId(e.target.value);
+                    const first = apiAssignSections.find((s) => s.classId === e.target.value);
+                    setApiAssignSectionId(first?.id ?? "");
+                  }}
+                >
+                  {apiAssignClasses.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Section">
+                <Select
+                  value={apiAssignSectionId}
+                  onChange={(e) => setApiAssignSectionId(e.target.value)}
+                >
+                  {apiAssignSections
+                    .filter((s) => s.classId === apiAssignClassId)
+                    .map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.code || s.name}
+                      </option>
+                    ))}
+                </Select>
+              </Field>
+            </div>
+            {apiAssignExisting.length > 0 ? (
+              <div className="rounded-lg border border-border p-3 space-y-2">
+                <div className="text-xs font-medium">Current assignments</div>
+                <div className="flex flex-wrap gap-1">
+                  {apiAssignExisting.map((row) => (
+                    <Pill key={row.id} tone="neutral">
+                      {row.label}
+                    </Pill>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : activeSubject ? (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
               Assigned teachers are used by the timetable module for auto-generation and conflict
@@ -857,7 +1066,7 @@ function SubjectsPage() {
               {activeSubject.code}
             </div>
           </div>
-        )}
+        ) : null}
       </Modal>
       </>
       ) : null}

@@ -124,13 +124,20 @@ export async function listSubjects(
 }
 
 export async function listEnrollments(
-  params: { instituteId: string; sectionId: string },
+  params: {
+    instituteId: string;
+    sectionId?: string;
+    studentId?: string;
+    status?: EnrollmentDto["status"];
+  },
   client: ConnectApiClient = getConnectApiClient(),
 ): Promise<EnrollmentDto[]> {
   assertApiMode();
   const query = new URLSearchParams();
   query.set("institute_id", params.instituteId.trim());
-  query.set("section_id", params.sectionId.trim());
-  query.set("status", "active");
+  if (params.sectionId) query.set("section_id", params.sectionId.trim());
+  if (params.studentId) query.set("student_id", params.studentId.trim());
+  if (params.status) query.set("status", params.status);
+  else if (params.sectionId && !params.studentId) query.set("status", "active");
   return client.get<EnrollmentDto[]>(`/api/v1/enrollments?${query.toString()}`);
 }

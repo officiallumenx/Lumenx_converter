@@ -11,5 +11,6 @@ export { StudentNotificationsPage } from "./features/notifications";
 export { StudentAchievementsPage } from "./features/achievements";
 export { StudentCertificatesPage } from "./features/certificates";
 export { StudentAcademicHistoryPage } from "./features/academic-history";
+export { LearnerDiaryPage } from "./features/diary";
 export { StudentIdCardPage, IdCardVisual } from "./features/id-card";
 export { StudentTransportPage } from "./features/transport";

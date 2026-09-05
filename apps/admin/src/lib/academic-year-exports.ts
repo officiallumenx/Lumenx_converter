@@ -1,9 +1,6 @@
 import { downloadTextToDevice } from "@lumenx/utils";
 import { utils, writeFile } from "xlsx";
-import {
-  getClassesStudiedByStudent,
-  type AcademicYearRecordStudent,
-} from "@/lib/academic-management-data";
+import { getClassesStudiedByStudent } from "@/lib/academic-management-data";
 
 function escapeHtml(value: string) {
   return value
@@ -13,9 +10,17 @@ function escapeHtml(value: string) {
     .replaceAll('"', "&quot;");
 }
 
+type YearRecordExportRow = {
+  name: string;
+  rollNo: string;
+  classLabel: string;
+  section: string;
+  status: string;
+};
+
 export function downloadAcademicYearRecordsExcel(
   yearLabel: string,
-  rows: AcademicYearRecordStudent[],
+  rows: YearRecordExportRow[],
 ) {
   const sheetRows = rows.map((r) => ({
     Student: r.name,
@@ -36,7 +41,7 @@ export function downloadAcademicYearRecordsExcel(
 
 export function downloadAcademicYearRecordsPdf(
   yearLabel: string,
-  rows: AcademicYearRecordStudent[],
+  rows: YearRecordExportRow[],
   filtersSummary: string,
 ) {
   const tableRows = rows

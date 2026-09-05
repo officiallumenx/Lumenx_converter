@@ -583,3 +583,31 @@ describe("academics — graph integrity, validation, soft delete", () => {
     ).toBe(404);
   });
 });
+
+describe("academics — single active year invariant", () => {
+  it("activating a year demotes other active years to completed", async () => {
+    const db = baseDb();
+    // YEAR_A is active; YEAR_B is completed — re-activate YEAR_B
+    const app = appWithDb(db);
+
+    const res = await app.request(`/api/v1/academic-years/${YEAR_B}`, {
+      method: "PATCH",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify({ status: "active" }),
+    });
+    expect(res.status).toBe(200);
+    const activated = await json(res);
+    expect(activated.data.id).toBe(YEAR_B);
+    expect(activated.data.status).toBe("active");
+
+    const list = await app.request(`/api/v1/academic-years?institute_id=${INST_A}`, {
+      headers: auth("token-admin"),
+    });
+    expect(list.status).toBe(200);
+    const years = (await json(list)).data as Array<{ id: string; status: string }>;
+    const yearA = years.find((y) => y.id === YEAR_A);
+    const yearB = years.find((y) => y.id === YEAR_B);
+    expect(yearA?.status).toBe("completed");
+    expect(yearB?.status).toBe("active");
+  });
+});

@@ -40,6 +40,8 @@ import {
   validateGraduationSelection,
 } from "@/lib/academic-progression";
 import { STUDENTS_CHANGED_EVENT } from "@/lib/student-directory-store";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { GraduationApiView } from "@/components/academic-management/views/GraduationApiView";
 
 function yearLabel(id: string) {
   return GRADUATION_YEAR_OPTIONS.find((y) => y.id === id)?.label ?? id;
@@ -57,6 +59,11 @@ function formatGraduationDate(iso?: string): string {
 }
 
 export function GraduationView() {
+  if (isApiAuthMode()) return <GraduationApiView />;
+  return <GraduationDemoView />;
+}
+
+function GraduationDemoView() {
   const notify = useAdminToast();
   const [rows, setRows] = useState(() => loadGraduationRows());
 

@@ -21,6 +21,26 @@ export {
   type EnrollmentsListView,
 } from "./list-view";
 export { enrollmentDtoToListItem, enrollmentDtosToListItems } from "./map";
+export {
+  promoteEnrollments,
+  graduateEnrollments,
+  type EnrollmentPromoteAction,
+  type GraduateEnrollmentsInput,
+  type PromoteEnrollmentItemInput,
+  type PromoteEnrollmentResultItem,
+  type PromoteEnrollmentsInput,
+} from "./promote";
+export {
+  loadYearEnrollmentRecords,
+  yearRecordUiStatusTone,
+  type YearEnrollmentRecord,
+  type YearRecordsLoadState,
+  type YearRecordUiStatus,
+} from "./year-records-load";
+export {
+  loadProgressionCatalog,
+  type ProgressionCatalogState,
+} from "./progression-load";
 export type {
   CreateEnrollmentInput,
   EnrollmentDto,

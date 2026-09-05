@@ -104,6 +104,7 @@ export const STUDENT_NAV = [
   { to: "/transport", label: "Transport", icon: Bus, moduleColor: STUDENT_MODULE_COLORS.orange },
   { to: "/assignments", label: "Homework", icon: BookOpen, moduleColor: STUDENT_MODULE_COLORS.purple },
   { to: "/marks", label: "Marks", icon: GraduationCap, moduleColor: STUDENT_MODULE_COLORS.indigo },
+  { to: "/diary", label: "Class Diary", icon: BookOpen, moduleColor: STUDENT_MODULE_COLORS.purple },
   { to: "/timetable", label: "Timetable", icon: Calendar, moduleColor: STUDENT_MODULE_COLORS.blue },
   { to: "/exams", label: "Exams", icon: GraduationCap, moduleColor: STUDENT_MODULE_COLORS.red },
   { to: "/alerts", label: "Alerts", icon: Siren, moduleColor: STUDENT_MODULE_COLORS.rose },

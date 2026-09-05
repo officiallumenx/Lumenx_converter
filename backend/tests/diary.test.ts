@@ -417,8 +417,34 @@ describe("diary — RBAC", () => {
 });
 
 describe("diary — ownership and privacy", () => {
-  it("hides peer teacher diary from teachers; blocks learner/parent entirely", async () => {
-    const app = appWithDb(baseDb());
+  it("hides peer teacher diary from teachers; learners see only submitted section rows", async () => {
+    const db = baseDb();
+    db.enrollment = [
+      {
+        id: "ae111111-1111-4111-8111-111111111111",
+        institute_id: INST_A,
+        academic_year_id: YEAR_A,
+        student_id: STUDENT_A,
+        class_id: CLASS_A,
+        section_id: SECTION_A,
+        roll_no: "1",
+        status: "active",
+        enrolled_on: "2026-04-01",
+        withdrawn_on: null,
+        deleted_at: null,
+      },
+    ];
+    db.guardian_link = [
+      {
+        id: "gl111111-1111-4111-8111-111111111111",
+        institute_id: INST_A,
+        parent_id: PARENT_A,
+        student_id: STUDENT_A,
+        status: "active",
+        deleted_at: null,
+      },
+    ];
+    const app = appWithDb(db);
 
     const teacherList = await app.request(`/api/v1/diary?institute_id=${INST_A}`, {
       headers: auth("token-teacher"),
@@ -444,11 +470,23 @@ describe("diary — ownership and privacy", () => {
     ).toBe(403);
 
     for (const token of ["token-student", "token-parent"]) {
-      expect(
-        (await app.request(`/api/v1/diary?institute_id=${INST_A}`, { headers: auth(token) })).status,
-      ).toBe(403);
+      const list = await app.request(`/api/v1/diary?institute_id=${INST_A}`, {
+        headers: auth(token),
+      });
+      expect(list.status).toBe(200);
+      const ids = ((await json(list)).data as Array<{ id: string }>).map((r) => r.id);
+      expect(ids).toContain(DAY_SUBMITTED);
+      expect(ids).not.toContain(DAY_DRAFT);
+      expect(ids).not.toContain(DAY_OTHER_TEACHER);
+
       expect(
         (await app.request(`/api/v1/diary/${DAY_SUBMITTED}`, { headers: auth(token) })).status,
+      ).toBe(200);
+      expect(
+        (await app.request(`/api/v1/diary/${DAY_DRAFT}`, { headers: auth(token) })).status,
+      ).toBe(403);
+      expect(
+        (await app.request(`/api/v1/diary/${DAY_OTHER_TEACHER}`, { headers: auth(token) })).status,
       ).toBe(403);
     }
 

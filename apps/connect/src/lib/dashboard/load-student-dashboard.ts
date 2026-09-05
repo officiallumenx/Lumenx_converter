@@ -12,8 +12,11 @@ import {
   connectEventsToSchoolEvents,
   learnerSchedulesToStudentExams,
   portalAttendanceToStudentSummary,
+  reportCardsToAcademicTerms,
+  reportCardsToExamHistory,
   reportCardsToPerformance,
   reportCardsToTrend,
+  upcomingExamsToHistory,
   weeklyTimetableToStudentRecord,
 } from "./map";
 
@@ -76,6 +79,16 @@ export async function enrichStudentDashboardSnapshot(input: {
     });
     next = { ...next, ...attendancePatch };
   }
+
+  const attendancePct = next.attendanceSummary?.attendancePct ?? 0;
+  next = {
+    ...next,
+    academicTerms: reportCardsToAcademicTerms(reportCards, attendancePct),
+    examHistory: [
+      ...reportCardsToExamHistory(reportCards),
+      ...upcomingExamsToHistory(exams),
+    ],
+  };
 
   return next;
 }

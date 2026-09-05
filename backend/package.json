@@ -17,6 +17,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "smoke": "node scripts/prod-smoke.mjs",
+    "smoke:login": "node scripts/e2e-login-smoke.mjs",
+    "smoke:tenant": "node scripts/e2e-cross-tenant-probe.mjs",
     "migrations:list": "node scripts/list-migrations.mjs",
     "migrations:bundle": "node scripts/bundle-migrations.mjs"
   },

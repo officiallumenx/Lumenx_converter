@@ -74,11 +74,20 @@ export async function getStudentReportCardsForActor(
     throw AppError.notFound("Student not found");
   }
 
-  const enrollments = await listEnrollments(admin, {
-    instituteId,
-    studentId: input.studentId,
-    status: "active",
-  });
+  // Academic history needs prior-year cards — include completed as well as active.
+  const [activeEnrollments, completedEnrollments] = await Promise.all([
+    listEnrollments(admin, {
+      instituteId,
+      studentId: input.studentId,
+      status: "active",
+    }),
+    listEnrollments(admin, {
+      instituteId,
+      studentId: input.studentId,
+      status: "completed",
+    }),
+  ]);
+  const enrollments = [...activeEnrollments, ...completedEnrollments];
   if (enrollments.length === 0) return [];
 
   const sectionIds = [...new Set(enrollments.map((e) => e.section_id))];

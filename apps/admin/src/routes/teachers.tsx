@@ -54,6 +54,7 @@ import {
 import { listSubjects } from "@/lib/subjects/api";
 import { subjectDtosToListItems } from "@/lib/subjects/map";
 import type { SubjectListItem } from "@/lib/subjects/types";
+import { loadTeacherSubjectAssignments } from "@/lib/timetable";
 import { TEACHERS_CHANGED_EVENT } from "@/lib/career-to-teacher";
 import {
   TEACHER_ROLES,
@@ -405,6 +406,7 @@ function TeachersPage() {
   const [showEditPassword, setShowEditPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [apiSubjectCatalog, setApiSubjectCatalog] = useState<SubjectListItem[]>([]);
+  const [apiAssignmentSubjects, setApiAssignmentSubjects] = useState<string[]>([]);
   const subjectCatalog = useMemo(
     () =>
       apiMode
@@ -525,6 +527,35 @@ function TeachersPage() {
       cancelled = true;
     };
   }, [apiMode, instituteCtx.activeInstituteId, reloadKey]);
+
+  useEffect(() => {
+    if (!apiMode || !instituteCtx.activeInstituteId || !selectedId) {
+      setApiAssignmentSubjects([]);
+      return;
+    }
+    let cancelled = false;
+    void loadTeacherSubjectAssignments({
+      instituteId: instituteCtx.activeInstituteId,
+      teacherId: selectedId,
+    })
+      .then((rows) => {
+        if (cancelled) return;
+        const names = [
+          ...new Set(
+            rows
+              .map((row) => row.label.split("·")[0]?.trim() || row.label)
+              .filter(Boolean),
+          ),
+        ];
+        setApiAssignmentSubjects(names);
+      })
+      .catch(() => {
+        if (!cancelled) setApiAssignmentSubjects([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiMode, instituteCtx.activeInstituteId, selectedId, reloadKey]);
 
   useEffect(() => {
     setSearchQuery("");
@@ -1034,7 +1065,10 @@ function TeachersPage() {
       >
         {selected && !editing && writesEnabled ? (
           apiMode ? (
-            <ApiTeacherProfileSummary teacher={selected} />
+            <ApiTeacherProfileSummary
+              teacher={selected}
+              assignmentSubjects={apiAssignmentSubjects}
+            />
           ) : (
             <TeacherProfileReadonly
               teacher={selected as Teacher}
@@ -1044,7 +1078,10 @@ function TeachersPage() {
           )
         ) : null}
         {selected && !editing && !writesEnabled ? (
-          <ApiTeacherProfileSummary teacher={selected} />
+          <ApiTeacherProfileSummary
+            teacher={selected}
+            assignmentSubjects={apiAssignmentSubjects}
+          />
         ) : null}
 
         {selected && editing && writesEnabled ? (
@@ -1595,7 +1632,15 @@ function TeacherDirectoryCard({
   );
 }
 
-function ApiTeacherProfileSummary({ teacher }: { teacher: TeacherRow }) {
+function ApiTeacherProfileSummary({
+  teacher,
+  assignmentSubjects = [],
+}: {
+  teacher: TeacherRow;
+  assignmentSubjects?: string[];
+}) {
+  const subjects =
+    teacher.subjects.length > 0 ? teacher.subjects : assignmentSubjects;
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-4">
@@ -1626,6 +1671,7 @@ function ApiTeacherProfileSummary({ teacher }: { teacher: TeacherRow }) {
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <TeacherStatTile label="Sections" value={String(teacher.classes)} />
+        <TeacherStatTile label="Subjects" value={String(subjects.length)} />
       </div>
       <div>
         <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
@@ -1638,8 +1684,8 @@ function ApiTeacherProfileSummary({ teacher }: { teacher: TeacherRow }) {
           Subjects
         </div>
         <div className="flex flex-wrap gap-1.5">
-          {teacher.subjects.length > 0 ? (
-            teacher.subjects.map((subject) => (
+          {subjects.length > 0 ? (
+            subjects.map((subject) => (
               <TeacherChip key={subject}>{subject}</TeacherChip>
             ))
           ) : (

@@ -144,6 +144,42 @@ export type UpdateEnrollmentInput = {
   withdrawnOn?: string | null;
 };
 
+export type EnrollmentPromoteAction =
+  | "promote"
+  | "repeat"
+  | "hold"
+  | "transfer"
+  | "dropout"
+  | "graduate";
+
+export type PromoteEnrollmentItemInput = {
+  enrollmentId: string;
+  targetClassId?: string;
+  targetSectionId?: string;
+  rollNo?: string;
+  action: EnrollmentPromoteAction;
+};
+
+export type PromoteEnrollmentsInput = {
+  instituteId: string;
+  sourceAcademicYearId: string;
+  targetAcademicYearId: string;
+  items: PromoteEnrollmentItemInput[];
+};
+
+export type PromoteEnrollmentResultItem = {
+  enrollmentId: string;
+  action: EnrollmentPromoteAction;
+  sourceEnrollment: EnrollmentDto;
+  targetEnrollment: EnrollmentDto | null;
+};
+
+export type GraduateEnrollmentsInput = {
+  instituteId: string;
+  academicYearId: string;
+  enrollmentIds: string[];
+};
+
 export type AcademicYearDto = {
   id: string;
   instituteId: string;

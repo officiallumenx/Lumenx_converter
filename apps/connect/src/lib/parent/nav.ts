@@ -43,6 +43,7 @@ export const PARENT_NAV = [
   { to: "/leave", label: "Leave", icon: CalendarOff, moduleColor: STUDENT_MODULE_COLORS.amber },
   { to: "/assignments", label: "Homework", icon: BookOpen, moduleColor: STUDENT_MODULE_COLORS.purple },
   { to: "/marks", label: "Marks", icon: GraduationCap, moduleColor: STUDENT_MODULE_COLORS.indigo },
+  { to: "/diary", label: "Class Diary", icon: BookOpen, moduleColor: STUDENT_MODULE_COLORS.purple },
   { to: "/academic-history", label: "Academic History", icon: History, moduleColor: STUDENT_MODULE_COLORS.violet },
   { to: "/achievements", label: "Achievements", icon: Award, moduleColor: STUDENT_MODULE_COLORS.gold },
   { to: "/certificates", label: "Certificates", icon: FileText, moduleColor: STUDENT_MODULE_COLORS.fuchsia },
