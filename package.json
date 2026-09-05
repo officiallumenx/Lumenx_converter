@@ -27,6 +27,7 @@
     "typecheck:admin": "npm run typecheck --workspace=@lumenx/app-admin",
     "typecheck:website": "npm run typecheck --workspace=@lumenx/app-website",
     "test:connect": "npm run test --workspace=@lumenx/app-connect",
+    "sync:api-envs": "node scripts/sync-api-mode-envs.mjs",
     "dev:api": "npm run dev --workspace=@lumenx/api",
     "build:api": "npm run build --workspace=@lumenx/api",
     "start:api": "npm run start --workspace=@lumenx/api",

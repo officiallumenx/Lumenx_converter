@@ -1,5 +1,6 @@
 /**
  * Admissions auth mode — demo localStorage vs Supabase + /api/v1/me.
+ * Default is api. Set VITE_ADMISSIONS_AUTH_MODE=demo only for offline demos.
  */
 
 export type AdmissionsAuthMode = "demo" | "api";
@@ -9,7 +10,7 @@ export function getAdmissionsAuthMode(): AdmissionsAuthMode {
     typeof import.meta !== "undefined"
       ? import.meta.env?.VITE_ADMISSIONS_AUTH_MODE?.trim().toLowerCase()
       : undefined;
-  return raw === "api" ? "api" : "demo";
+  return raw === "demo" ? "demo" : "api";
 }
 
 export function isApiAuthMode(): boolean {

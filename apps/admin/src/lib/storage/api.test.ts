@@ -35,9 +35,9 @@ describe("storage api repository", () => {
     vi.doMock("@/lib/admin-api", () => ({
       getAdminApiClient: () =>
         createApiClient({
-          baseUrl: "http://test",
+          getBaseUrl: () => "http://test",
           getAccessToken: async () => "token",
-          fetchFn: async (url) => {
+          fetchImpl: async (url) => {
             expect(String(url)).toContain("/api/v1/storage/usage");
             return new Response(JSON.stringify({ data: usageDto() }), {
               status: 200,

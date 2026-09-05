@@ -166,7 +166,7 @@ export function StudentDetailPanel({
             </DetailSection>
           )}
         </div>
-      )}
+      ) : null}
 
       {onAddRemark && !apiMode ? (
         <div className="space-y-3 rounded-xl border border-border/80 bg-background/40 p-3">

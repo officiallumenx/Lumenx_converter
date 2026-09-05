@@ -9,320 +9,70 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as AcademicManagementRouteImport } from './routes/academic-management'
-import { Route as AccountsRouteImport } from './routes/accounts'
-import { Route as AdmissionsRouteImport } from './routes/admissions'
-import { Route as AlertsRouteImport } from './routes/alerts'
-import { Route as AnalyticsRouteImport } from './routes/analytics'
-import { Route as AnnouncementsRouteImport } from './routes/announcements'
-import { Route as AttendanceRouteImport } from './routes/attendance'
-import { Route as CalendarRouteImport } from './routes/calendar'
-import { Route as CareersRouteImport } from './routes/careers'
-import { Route as ClassesRouteImport } from './routes/classes'
-import { Route as ComplaintsRouteImport } from './routes/complaints'
-import { Route as CookiesRouteImport } from './routes/cookies'
-import { Route as DiaryRouteImport } from './routes/diary'
-import { Route as DocumentsRouteImport } from './routes/documents'
-import { Route as EnrollmentsRouteImport } from './routes/enrollments'
-import { Route as EventsRouteImport } from './routes/events'
-import { Route as ExamsRouteImport } from './routes/exams'
-import { Route as FeesRouteImport } from './routes/fees'
-import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
-import { Route as ForgotPinRouteImport } from './routes/forgot-pin'
-import { Route as HomeworkRouteImport } from './routes/homework'
-import { Route as InstituteRouteImport } from './routes/institute'
-import { Route as InstituteSetupRouteImport } from './routes/institute-setup'
-import { Route as LeaveRouteImport } from './routes/leave'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as MarksRouteImport } from './routes/marks'
-import { Route as MessagesRouteImport } from './routes/messages'
-import { Route as ModulesRouteImport } from './routes/modules'
-import { Route as NotificationsRouteImport } from './routes/notifications'
-import { Route as ParentsRouteImport } from './routes/parents'
-import { Route as PendingVerificationRouteImport } from './routes/pending-verification'
-import { Route as PermissionsRouteImport } from './routes/permissions'
-import { Route as PrivacyRouteImport } from './routes/privacy'
-import { Route as ReportsRouteImport } from './routes/reports'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as SignupRouteImport } from './routes/signup'
-import { Route as SplashRouteImport } from './routes/splash'
-import { Route as StorageRouteImport } from './routes/storage'
-import { Route as StudentAttendanceRouteImport } from './routes/student-attendance'
-import { Route as StudentsRouteImport } from './routes/students'
-import { Route as SubjectsRouteImport } from './routes/subjects'
-import { Route as SubscriptionRouteImport } from './routes/subscription'
-import { Route as TeacherAttendanceRouteImport } from './routes/teacher-attendance'
-import { Route as TeacherPerformanceRouteImport } from './routes/teacher-performance'
-import { Route as TeachersRouteImport } from './routes/teachers'
-import { Route as TemplatesRouteImport } from './routes/templates'
-import { Route as TermsRouteImport } from './routes/terms'
-import { Route as TimetableRouteImport } from './routes/timetable'
-import { Route as TransportRouteImport } from './routes/transport'
-import { Route as VerifyEmailOtpRouteImport } from './routes/verify-email-otp'
-import { Route as VerifyMobileOtpRouteImport } from './routes/verify-mobile-otp'
 import { Route as WelcomeRouteImport } from './routes/welcome'
-import { Route as ClassesIndexRouteImport } from './routes/classes.index'
-import { Route as ClassesIdRouteImport } from './routes/classes.$id'
-import { Route as ParentsIndexRouteImport } from './routes/parents.index'
-import { Route as ParentsIdRouteImport } from './routes/parents.$id'
+import { Route as VerifyMobileOtpRouteImport } from './routes/verify-mobile-otp'
+import { Route as VerifyEmailOtpRouteImport } from './routes/verify-email-otp'
+import { Route as TransportRouteImport } from './routes/transport'
+import { Route as TimetableRouteImport } from './routes/timetable'
+import { Route as TermsRouteImport } from './routes/terms'
+import { Route as TemplatesRouteImport } from './routes/templates'
+import { Route as TeachersRouteImport } from './routes/teachers'
+import { Route as TeacherPerformanceRouteImport } from './routes/teacher-performance'
+import { Route as TeacherAttendanceRouteImport } from './routes/teacher-attendance'
+import { Route as SubscriptionRouteImport } from './routes/subscription'
+import { Route as SubjectsRouteImport } from './routes/subjects'
+import { Route as StudentsRouteImport } from './routes/students'
+import { Route as StudentAttendanceRouteImport } from './routes/student-attendance'
+import { Route as StorageRouteImport } from './routes/storage'
+import { Route as SplashRouteImport } from './routes/splash'
+import { Route as SignupRouteImport } from './routes/signup'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as PermissionsRouteImport } from './routes/permissions'
+import { Route as PendingVerificationRouteImport } from './routes/pending-verification'
+import { Route as ParentsRouteImport } from './routes/parents'
+import { Route as NotificationsRouteImport } from './routes/notifications'
+import { Route as ModulesRouteImport } from './routes/modules'
+import { Route as MessagesRouteImport } from './routes/messages'
+import { Route as MarksRouteImport } from './routes/marks'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as LeaveRouteImport } from './routes/leave'
+import { Route as InstituteSetupRouteImport } from './routes/institute-setup'
+import { Route as InstituteRouteImport } from './routes/institute'
+import { Route as HomeworkRouteImport } from './routes/homework'
+import { Route as ForgotPinRouteImport } from './routes/forgot-pin'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as FeesRouteImport } from './routes/fees'
+import { Route as ExamsRouteImport } from './routes/exams'
+import { Route as EventsRouteImport } from './routes/events'
+import { Route as EnrollmentsRouteImport } from './routes/enrollments'
+import { Route as DocumentsRouteImport } from './routes/documents'
+import { Route as DiaryRouteImport } from './routes/diary'
+import { Route as CookiesRouteImport } from './routes/cookies'
+import { Route as ComplaintsRouteImport } from './routes/complaints'
+import { Route as ClassesRouteImport } from './routes/classes'
+import { Route as CareersRouteImport } from './routes/careers'
+import { Route as CalendarRouteImport } from './routes/calendar'
+import { Route as AttendanceRouteImport } from './routes/attendance'
+import { Route as AnnouncementsRouteImport } from './routes/announcements'
+import { Route as AnalyticsRouteImport } from './routes/analytics'
+import { Route as AlertsRouteImport } from './routes/alerts'
+import { Route as AdmissionsRouteImport } from './routes/admissions'
+import { Route as AccountsRouteImport } from './routes/accounts'
+import { Route as AcademicManagementRouteImport } from './routes/academic-management'
+import { Route as IndexRouteImport } from './routes/index'
 import { Route as StudentsIndexRouteImport } from './routes/students.index'
-import { Route as StudentsIdRouteImport } from './routes/students.$id'
+import { Route as ParentsIndexRouteImport } from './routes/parents.index'
+import { Route as ClassesIndexRouteImport } from './routes/classes.index'
 import { Route as SubjectsIdRouteImport } from './routes/subjects.$id'
+import { Route as StudentsIdRouteImport } from './routes/students.$id'
+import { Route as ParentsIdRouteImport } from './routes/parents.$id'
+import { Route as ClassesIdRouteImport } from './routes/classes.$id'
 
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AcademicManagementRoute = AcademicManagementRouteImport.update({
-  id: '/academic-management',
-  path: '/academic-management',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AccountsRoute = AccountsRouteImport.update({
-  id: '/accounts',
-  path: '/accounts',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdmissionsRoute = AdmissionsRouteImport.update({
-  id: '/admissions',
-  path: '/admissions',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AlertsRoute = AlertsRouteImport.update({
-  id: '/alerts',
-  path: '/alerts',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AnalyticsRoute = AnalyticsRouteImport.update({
-  id: '/analytics',
-  path: '/analytics',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AnnouncementsRoute = AnnouncementsRouteImport.update({
-  id: '/announcements',
-  path: '/announcements',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AttendanceRoute = AttendanceRouteImport.update({
-  id: '/attendance',
-  path: '/attendance',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CalendarRoute = CalendarRouteImport.update({
-  id: '/calendar',
-  path: '/calendar',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CareersRoute = CareersRouteImport.update({
-  id: '/careers',
-  path: '/careers',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ClassesRoute = ClassesRouteImport.update({
-  id: '/classes',
-  path: '/classes',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ComplaintsRoute = ComplaintsRouteImport.update({
-  id: '/complaints',
-  path: '/complaints',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CookiesRoute = CookiesRouteImport.update({
-  id: '/cookies',
-  path: '/cookies',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DiaryRoute = DiaryRouteImport.update({
-  id: '/diary',
-  path: '/diary',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DocumentsRoute = DocumentsRouteImport.update({
-  id: '/documents',
-  path: '/documents',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EnrollmentsRoute = EnrollmentsRouteImport.update({
-  id: '/enrollments',
-  path: '/enrollments',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EventsRoute = EventsRouteImport.update({
-  id: '/events',
-  path: '/events',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ExamsRoute = ExamsRouteImport.update({
-  id: '/exams',
-  path: '/exams',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FeesRoute = FeesRouteImport.update({
-  id: '/fees',
-  path: '/fees',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
-  id: '/forgot-password',
-  path: '/forgot-password',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ForgotPinRoute = ForgotPinRouteImport.update({
-  id: '/forgot-pin',
-  path: '/forgot-pin',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const HomeworkRoute = HomeworkRouteImport.update({
-  id: '/homework',
-  path: '/homework',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const InstituteRoute = InstituteRouteImport.update({
-  id: '/institute',
-  path: '/institute',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const InstituteSetupRoute = InstituteSetupRouteImport.update({
-  id: '/institute-setup',
-  path: '/institute-setup',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LeaveRoute = LeaveRouteImport.update({
-  id: '/leave',
-  path: '/leave',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MarksRoute = MarksRouteImport.update({
-  id: '/marks',
-  path: '/marks',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MessagesRoute = MessagesRouteImport.update({
-  id: '/messages',
-  path: '/messages',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ModulesRoute = ModulesRouteImport.update({
-  id: '/modules',
-  path: '/modules',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const NotificationsRoute = NotificationsRouteImport.update({
-  id: '/notifications',
-  path: '/notifications',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ParentsRoute = ParentsRouteImport.update({
-  id: '/parents',
-  path: '/parents',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PendingVerificationRoute = PendingVerificationRouteImport.update({
-  id: '/pending-verification',
-  path: '/pending-verification',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PermissionsRoute = PermissionsRouteImport.update({
-  id: '/permissions',
-  path: '/permissions',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PrivacyRoute = PrivacyRouteImport.update({
-  id: '/privacy',
-  path: '/privacy',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ReportsRoute = ReportsRouteImport.update({
-  id: '/reports',
-  path: '/reports',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SignupRoute = SignupRouteImport.update({
-  id: '/signup',
-  path: '/signup',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SplashRoute = SplashRouteImport.update({
-  id: '/splash',
-  path: '/splash',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const StorageRoute = StorageRouteImport.update({
-  id: '/storage',
-  path: '/storage',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const StudentAttendanceRoute = StudentAttendanceRouteImport.update({
-  id: '/student-attendance',
-  path: '/student-attendance',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const StudentsRoute = StudentsRouteImport.update({
-  id: '/students',
-  path: '/students',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SubjectsRoute = SubjectsRouteImport.update({
-  id: '/subjects',
-  path: '/subjects',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SubscriptionRoute = SubscriptionRouteImport.update({
-  id: '/subscription',
-  path: '/subscription',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TeacherAttendanceRoute = TeacherAttendanceRouteImport.update({
-  id: '/teacher-attendance',
-  path: '/teacher-attendance',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TeacherPerformanceRoute = TeacherPerformanceRouteImport.update({
-  id: '/teacher-performance',
-  path: '/teacher-performance',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TeachersRoute = TeachersRouteImport.update({
-  id: '/teachers',
-  path: '/teachers',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TemplatesRoute = TemplatesRouteImport.update({
-  id: '/templates',
-  path: '/templates',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TermsRoute = TermsRouteImport.update({
-  id: '/terms',
-  path: '/terms',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TimetableRoute = TimetableRouteImport.update({
-  id: '/timetable',
-  path: '/timetable',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TransportRoute = TransportRouteImport.update({
-  id: '/transport',
-  path: '/transport',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const VerifyEmailOtpRoute = VerifyEmailOtpRouteImport.update({
-  id: '/verify-email-otp',
-  path: '/verify-email-otp',
+const WelcomeRoute = WelcomeRouteImport.update({
+  id: '/welcome',
+  path: '/welcome',
   getParentRoute: () => rootRouteImport,
 } as any)
 const VerifyMobileOtpRoute = VerifyMobileOtpRouteImport.update({
@@ -330,45 +80,295 @@ const VerifyMobileOtpRoute = VerifyMobileOtpRouteImport.update({
   path: '/verify-mobile-otp',
   getParentRoute: () => rootRouteImport,
 } as any)
-const WelcomeRoute = WelcomeRouteImport.update({
-  id: '/welcome',
-  path: '/welcome',
+const VerifyEmailOtpRoute = VerifyEmailOtpRouteImport.update({
+  id: '/verify-email-otp',
+  path: '/verify-email-otp',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ClassesIndexRoute = ClassesIndexRouteImport.update({
+const TransportRoute = TransportRouteImport.update({
+  id: '/transport',
+  path: '/transport',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TimetableRoute = TimetableRouteImport.update({
+  id: '/timetable',
+  path: '/timetable',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TemplatesRoute = TemplatesRouteImport.update({
+  id: '/templates',
+  path: '/templates',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TeachersRoute = TeachersRouteImport.update({
+  id: '/teachers',
+  path: '/teachers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TeacherPerformanceRoute = TeacherPerformanceRouteImport.update({
+  id: '/teacher-performance',
+  path: '/teacher-performance',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TeacherAttendanceRoute = TeacherAttendanceRouteImport.update({
+  id: '/teacher-attendance',
+  path: '/teacher-attendance',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SubscriptionRoute = SubscriptionRouteImport.update({
+  id: '/subscription',
+  path: '/subscription',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SubjectsRoute = SubjectsRouteImport.update({
+  id: '/subjects',
+  path: '/subjects',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StudentsRoute = StudentsRouteImport.update({
+  id: '/students',
+  path: '/students',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StudentAttendanceRoute = StudentAttendanceRouteImport.update({
+  id: '/student-attendance',
+  path: '/student-attendance',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StorageRoute = StorageRouteImport.update({
+  id: '/storage',
+  path: '/storage',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SplashRoute = SplashRouteImport.update({
+  id: '/splash',
+  path: '/splash',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReportsRoute = ReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PermissionsRoute = PermissionsRouteImport.update({
+  id: '/permissions',
+  path: '/permissions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PendingVerificationRoute = PendingVerificationRouteImport.update({
+  id: '/pending-verification',
+  path: '/pending-verification',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ParentsRoute = ParentsRouteImport.update({
+  id: '/parents',
+  path: '/parents',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotificationsRoute = NotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ModulesRoute = ModulesRouteImport.update({
+  id: '/modules',
+  path: '/modules',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MessagesRoute = MessagesRouteImport.update({
+  id: '/messages',
+  path: '/messages',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MarksRoute = MarksRouteImport.update({
+  id: '/marks',
+  path: '/marks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LeaveRoute = LeaveRouteImport.update({
+  id: '/leave',
+  path: '/leave',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InstituteSetupRoute = InstituteSetupRouteImport.update({
+  id: '/institute-setup',
+  path: '/institute-setup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InstituteRoute = InstituteRouteImport.update({
+  id: '/institute',
+  path: '/institute',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HomeworkRoute = HomeworkRouteImport.update({
+  id: '/homework',
+  path: '/homework',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForgotPinRoute = ForgotPinRouteImport.update({
+  id: '/forgot-pin',
+  path: '/forgot-pin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FeesRoute = FeesRouteImport.update({
+  id: '/fees',
+  path: '/fees',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExamsRoute = ExamsRouteImport.update({
+  id: '/exams',
+  path: '/exams',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EventsRoute = EventsRouteImport.update({
+  id: '/events',
+  path: '/events',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EnrollmentsRoute = EnrollmentsRouteImport.update({
+  id: '/enrollments',
+  path: '/enrollments',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocumentsRoute = DocumentsRouteImport.update({
+  id: '/documents',
+  path: '/documents',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DiaryRoute = DiaryRouteImport.update({
+  id: '/diary',
+  path: '/diary',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CookiesRoute = CookiesRouteImport.update({
+  id: '/cookies',
+  path: '/cookies',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ComplaintsRoute = ComplaintsRouteImport.update({
+  id: '/complaints',
+  path: '/complaints',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClassesRoute = ClassesRouteImport.update({
+  id: '/classes',
+  path: '/classes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CareersRoute = CareersRouteImport.update({
+  id: '/careers',
+  path: '/careers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CalendarRoute = CalendarRouteImport.update({
+  id: '/calendar',
+  path: '/calendar',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AttendanceRoute = AttendanceRouteImport.update({
+  id: '/attendance',
+  path: '/attendance',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AnnouncementsRoute = AnnouncementsRouteImport.update({
+  id: '/announcements',
+  path: '/announcements',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AnalyticsRoute = AnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AlertsRoute = AlertsRouteImport.update({
+  id: '/alerts',
+  path: '/alerts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdmissionsRoute = AdmissionsRouteImport.update({
+  id: '/admissions',
+  path: '/admissions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccountsRoute = AccountsRouteImport.update({
+  id: '/accounts',
+  path: '/accounts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AcademicManagementRoute = AcademicManagementRouteImport.update({
+  id: '/academic-management',
+  path: '/academic-management',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => ClassesRoute,
-} as any)
-const ClassesIdRoute = ClassesIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => ClassesRoute,
-} as any)
-const ParentsIndexRoute = ParentsIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => ParentsRoute,
-} as any)
-const ParentsIdRoute = ParentsIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => ParentsRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
 const StudentsIndexRoute = StudentsIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => StudentsRoute,
 } as any)
-const StudentsIdRoute = StudentsIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => StudentsRoute,
+const ParentsIndexRoute = ParentsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ParentsRoute,
+} as any)
+const ClassesIndexRoute = ClassesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ClassesRoute,
 } as any)
 const SubjectsIdRoute = SubjectsIdRouteImport.update({
   id: '/$id',
   path: '/$id',
   getParentRoute: () => SubjectsRoute,
+} as any)
+const StudentsIdRoute = StudentsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => StudentsRoute,
+} as any)
+const ParentsIdRoute = ParentsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ParentsRoute,
+} as any)
+const ClassesIdRoute = ClassesIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ClassesRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -799,361 +799,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/academic-management': {
-      id: '/academic-management'
-      path: '/academic-management'
-      fullPath: '/academic-management'
-      preLoaderRoute: typeof AcademicManagementRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/accounts': {
-      id: '/accounts'
-      path: '/accounts'
-      fullPath: '/accounts'
-      preLoaderRoute: typeof AccountsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/admissions': {
-      id: '/admissions'
-      path: '/admissions'
-      fullPath: '/admissions'
-      preLoaderRoute: typeof AdmissionsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/alerts': {
-      id: '/alerts'
-      path: '/alerts'
-      fullPath: '/alerts'
-      preLoaderRoute: typeof AlertsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/analytics': {
-      id: '/analytics'
-      path: '/analytics'
-      fullPath: '/analytics'
-      preLoaderRoute: typeof AnalyticsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/announcements': {
-      id: '/announcements'
-      path: '/announcements'
-      fullPath: '/announcements'
-      preLoaderRoute: typeof AnnouncementsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/attendance': {
-      id: '/attendance'
-      path: '/attendance'
-      fullPath: '/attendance'
-      preLoaderRoute: typeof AttendanceRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/calendar': {
-      id: '/calendar'
-      path: '/calendar'
-      fullPath: '/calendar'
-      preLoaderRoute: typeof CalendarRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/careers': {
-      id: '/careers'
-      path: '/careers'
-      fullPath: '/careers'
-      preLoaderRoute: typeof CareersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/classes': {
-      id: '/classes'
-      path: '/classes'
-      fullPath: '/classes'
-      preLoaderRoute: typeof ClassesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/complaints': {
-      id: '/complaints'
-      path: '/complaints'
-      fullPath: '/complaints'
-      preLoaderRoute: typeof ComplaintsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/cookies': {
-      id: '/cookies'
-      path: '/cookies'
-      fullPath: '/cookies'
-      preLoaderRoute: typeof CookiesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/diary': {
-      id: '/diary'
-      path: '/diary'
-      fullPath: '/diary'
-      preLoaderRoute: typeof DiaryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/documents': {
-      id: '/documents'
-      path: '/documents'
-      fullPath: '/documents'
-      preLoaderRoute: typeof DocumentsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/enrollments': {
-      id: '/enrollments'
-      path: '/enrollments'
-      fullPath: '/enrollments'
-      preLoaderRoute: typeof EnrollmentsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/events': {
-      id: '/events'
-      path: '/events'
-      fullPath: '/events'
-      preLoaderRoute: typeof EventsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/exams': {
-      id: '/exams'
-      path: '/exams'
-      fullPath: '/exams'
-      preLoaderRoute: typeof ExamsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/fees': {
-      id: '/fees'
-      path: '/fees'
-      fullPath: '/fees'
-      preLoaderRoute: typeof FeesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/forgot-password': {
-      id: '/forgot-password'
-      path: '/forgot-password'
-      fullPath: '/forgot-password'
-      preLoaderRoute: typeof ForgotPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/forgot-pin': {
-      id: '/forgot-pin'
-      path: '/forgot-pin'
-      fullPath: '/forgot-pin'
-      preLoaderRoute: typeof ForgotPinRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/homework': {
-      id: '/homework'
-      path: '/homework'
-      fullPath: '/homework'
-      preLoaderRoute: typeof HomeworkRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/institute': {
-      id: '/institute'
-      path: '/institute'
-      fullPath: '/institute'
-      preLoaderRoute: typeof InstituteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/institute-setup': {
-      id: '/institute-setup'
-      path: '/institute-setup'
-      fullPath: '/institute-setup'
-      preLoaderRoute: typeof InstituteSetupRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/leave': {
-      id: '/leave'
-      path: '/leave'
-      fullPath: '/leave'
-      preLoaderRoute: typeof LeaveRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/marks': {
-      id: '/marks'
-      path: '/marks'
-      fullPath: '/marks'
-      preLoaderRoute: typeof MarksRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/messages': {
-      id: '/messages'
-      path: '/messages'
-      fullPath: '/messages'
-      preLoaderRoute: typeof MessagesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/modules': {
-      id: '/modules'
-      path: '/modules'
-      fullPath: '/modules'
-      preLoaderRoute: typeof ModulesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/notifications': {
-      id: '/notifications'
-      path: '/notifications'
-      fullPath: '/notifications'
-      preLoaderRoute: typeof NotificationsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/parents': {
-      id: '/parents'
-      path: '/parents'
-      fullPath: '/parents'
-      preLoaderRoute: typeof ParentsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/pending-verification': {
-      id: '/pending-verification'
-      path: '/pending-verification'
-      fullPath: '/pending-verification'
-      preLoaderRoute: typeof PendingVerificationRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/permissions': {
-      id: '/permissions'
-      path: '/permissions'
-      fullPath: '/permissions'
-      preLoaderRoute: typeof PermissionsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/privacy': {
-      id: '/privacy'
-      path: '/privacy'
-      fullPath: '/privacy'
-      preLoaderRoute: typeof PrivacyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reports': {
-      id: '/reports'
-      path: '/reports'
-      fullPath: '/reports'
-      preLoaderRoute: typeof ReportsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/signup': {
-      id: '/signup'
-      path: '/signup'
-      fullPath: '/signup'
-      preLoaderRoute: typeof SignupRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/splash': {
-      id: '/splash'
-      path: '/splash'
-      fullPath: '/splash'
-      preLoaderRoute: typeof SplashRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/storage': {
-      id: '/storage'
-      path: '/storage'
-      fullPath: '/storage'
-      preLoaderRoute: typeof StorageRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/student-attendance': {
-      id: '/student-attendance'
-      path: '/student-attendance'
-      fullPath: '/student-attendance'
-      preLoaderRoute: typeof StudentAttendanceRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/students': {
-      id: '/students'
-      path: '/students'
-      fullPath: '/students'
-      preLoaderRoute: typeof StudentsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/subjects': {
-      id: '/subjects'
-      path: '/subjects'
-      fullPath: '/subjects'
-      preLoaderRoute: typeof SubjectsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/subscription': {
-      id: '/subscription'
-      path: '/subscription'
-      fullPath: '/subscription'
-      preLoaderRoute: typeof SubscriptionRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/teacher-attendance': {
-      id: '/teacher-attendance'
-      path: '/teacher-attendance'
-      fullPath: '/teacher-attendance'
-      preLoaderRoute: typeof TeacherAttendanceRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/teacher-performance': {
-      id: '/teacher-performance'
-      path: '/teacher-performance'
-      fullPath: '/teacher-performance'
-      preLoaderRoute: typeof TeacherPerformanceRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/teachers': {
-      id: '/teachers'
-      path: '/teachers'
-      fullPath: '/teachers'
-      preLoaderRoute: typeof TeachersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/templates': {
-      id: '/templates'
-      path: '/templates'
-      fullPath: '/templates'
-      preLoaderRoute: typeof TemplatesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/terms': {
-      id: '/terms'
-      path: '/terms'
-      fullPath: '/terms'
-      preLoaderRoute: typeof TermsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/timetable': {
-      id: '/timetable'
-      path: '/timetable'
-      fullPath: '/timetable'
-      preLoaderRoute: typeof TimetableRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/transport': {
-      id: '/transport'
-      path: '/transport'
-      fullPath: '/transport'
-      preLoaderRoute: typeof TransportRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/verify-email-otp': {
-      id: '/verify-email-otp'
-      path: '/verify-email-otp'
-      fullPath: '/verify-email-otp'
-      preLoaderRoute: typeof VerifyEmailOtpRouteImport
+    '/welcome': {
+      id: '/welcome'
+      path: '/welcome'
+      fullPath: '/welcome'
+      preLoaderRoute: typeof WelcomeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/verify-mobile-otp': {
@@ -1163,40 +813,362 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VerifyMobileOtpRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/welcome': {
-      id: '/welcome'
-      path: '/welcome'
-      fullPath: '/welcome'
-      preLoaderRoute: typeof WelcomeRouteImport
+    '/verify-email-otp': {
+      id: '/verify-email-otp'
+      path: '/verify-email-otp'
+      fullPath: '/verify-email-otp'
+      preLoaderRoute: typeof VerifyEmailOtpRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/classes/': {
-      id: '/classes/'
+    '/transport': {
+      id: '/transport'
+      path: '/transport'
+      fullPath: '/transport'
+      preLoaderRoute: typeof TransportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/timetable': {
+      id: '/timetable'
+      path: '/timetable'
+      fullPath: '/timetable'
+      preLoaderRoute: typeof TimetableRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/templates': {
+      id: '/templates'
+      path: '/templates'
+      fullPath: '/templates'
+      preLoaderRoute: typeof TemplatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/teachers': {
+      id: '/teachers'
+      path: '/teachers'
+      fullPath: '/teachers'
+      preLoaderRoute: typeof TeachersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/teacher-performance': {
+      id: '/teacher-performance'
+      path: '/teacher-performance'
+      fullPath: '/teacher-performance'
+      preLoaderRoute: typeof TeacherPerformanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/teacher-attendance': {
+      id: '/teacher-attendance'
+      path: '/teacher-attendance'
+      fullPath: '/teacher-attendance'
+      preLoaderRoute: typeof TeacherAttendanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/subscription': {
+      id: '/subscription'
+      path: '/subscription'
+      fullPath: '/subscription'
+      preLoaderRoute: typeof SubscriptionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/subjects': {
+      id: '/subjects'
+      path: '/subjects'
+      fullPath: '/subjects'
+      preLoaderRoute: typeof SubjectsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/students': {
+      id: '/students'
+      path: '/students'
+      fullPath: '/students'
+      preLoaderRoute: typeof StudentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/student-attendance': {
+      id: '/student-attendance'
+      path: '/student-attendance'
+      fullPath: '/student-attendance'
+      preLoaderRoute: typeof StudentAttendanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/storage': {
+      id: '/storage'
+      path: '/storage'
+      fullPath: '/storage'
+      preLoaderRoute: typeof StorageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/splash': {
+      id: '/splash'
+      path: '/splash'
+      fullPath: '/splash'
+      preLoaderRoute: typeof SplashRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reports': {
+      id: '/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/permissions': {
+      id: '/permissions'
+      path: '/permissions'
+      fullPath: '/permissions'
+      preLoaderRoute: typeof PermissionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pending-verification': {
+      id: '/pending-verification'
+      path: '/pending-verification'
+      fullPath: '/pending-verification'
+      preLoaderRoute: typeof PendingVerificationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/parents': {
+      id: '/parents'
+      path: '/parents'
+      fullPath: '/parents'
+      preLoaderRoute: typeof ParentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notifications': {
+      id: '/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof NotificationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/modules': {
+      id: '/modules'
+      path: '/modules'
+      fullPath: '/modules'
+      preLoaderRoute: typeof ModulesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/messages': {
+      id: '/messages'
+      path: '/messages'
+      fullPath: '/messages'
+      preLoaderRoute: typeof MessagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/marks': {
+      id: '/marks'
+      path: '/marks'
+      fullPath: '/marks'
+      preLoaderRoute: typeof MarksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/leave': {
+      id: '/leave'
+      path: '/leave'
+      fullPath: '/leave'
+      preLoaderRoute: typeof LeaveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/institute-setup': {
+      id: '/institute-setup'
+      path: '/institute-setup'
+      fullPath: '/institute-setup'
+      preLoaderRoute: typeof InstituteSetupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/institute': {
+      id: '/institute'
+      path: '/institute'
+      fullPath: '/institute'
+      preLoaderRoute: typeof InstituteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/homework': {
+      id: '/homework'
+      path: '/homework'
+      fullPath: '/homework'
+      preLoaderRoute: typeof HomeworkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-pin': {
+      id: '/forgot-pin'
+      path: '/forgot-pin'
+      fullPath: '/forgot-pin'
+      preLoaderRoute: typeof ForgotPinRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/fees': {
+      id: '/fees'
+      path: '/fees'
+      fullPath: '/fees'
+      preLoaderRoute: typeof FeesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/exams': {
+      id: '/exams'
+      path: '/exams'
+      fullPath: '/exams'
+      preLoaderRoute: typeof ExamsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/events': {
+      id: '/events'
+      path: '/events'
+      fullPath: '/events'
+      preLoaderRoute: typeof EventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/enrollments': {
+      id: '/enrollments'
+      path: '/enrollments'
+      fullPath: '/enrollments'
+      preLoaderRoute: typeof EnrollmentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/documents': {
+      id: '/documents'
+      path: '/documents'
+      fullPath: '/documents'
+      preLoaderRoute: typeof DocumentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/diary': {
+      id: '/diary'
+      path: '/diary'
+      fullPath: '/diary'
+      preLoaderRoute: typeof DiaryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cookies': {
+      id: '/cookies'
+      path: '/cookies'
+      fullPath: '/cookies'
+      preLoaderRoute: typeof CookiesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/complaints': {
+      id: '/complaints'
+      path: '/complaints'
+      fullPath: '/complaints'
+      preLoaderRoute: typeof ComplaintsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/classes': {
+      id: '/classes'
+      path: '/classes'
+      fullPath: '/classes'
+      preLoaderRoute: typeof ClassesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/careers': {
+      id: '/careers'
+      path: '/careers'
+      fullPath: '/careers'
+      preLoaderRoute: typeof CareersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/calendar': {
+      id: '/calendar'
+      path: '/calendar'
+      fullPath: '/calendar'
+      preLoaderRoute: typeof CalendarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/attendance': {
+      id: '/attendance'
+      path: '/attendance'
+      fullPath: '/attendance'
+      preLoaderRoute: typeof AttendanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/announcements': {
+      id: '/announcements'
+      path: '/announcements'
+      fullPath: '/announcements'
+      preLoaderRoute: typeof AnnouncementsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/analytics': {
+      id: '/analytics'
+      path: '/analytics'
+      fullPath: '/analytics'
+      preLoaderRoute: typeof AnalyticsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/alerts': {
+      id: '/alerts'
+      path: '/alerts'
+      fullPath: '/alerts'
+      preLoaderRoute: typeof AlertsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admissions': {
+      id: '/admissions'
+      path: '/admissions'
+      fullPath: '/admissions'
+      preLoaderRoute: typeof AdmissionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/accounts': {
+      id: '/accounts'
+      path: '/accounts'
+      fullPath: '/accounts'
+      preLoaderRoute: typeof AccountsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/academic-management': {
+      id: '/academic-management'
+      path: '/academic-management'
+      fullPath: '/academic-management'
+      preLoaderRoute: typeof AcademicManagementRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/': {
+      id: '/'
       path: '/'
-      fullPath: '/classes/'
-      preLoaderRoute: typeof ClassesIndexRouteImport
-      parentRoute: typeof ClassesRoute
-    }
-    '/classes/$id': {
-      id: '/classes/$id'
-      path: '/$id'
-      fullPath: '/classes/$id'
-      preLoaderRoute: typeof ClassesIdRouteImport
-      parentRoute: typeof ClassesRoute
-    }
-    '/parents/': {
-      id: '/parents/'
-      path: '/'
-      fullPath: '/parents/'
-      preLoaderRoute: typeof ParentsIndexRouteImport
-      parentRoute: typeof ParentsRoute
-    }
-    '/parents/$id': {
-      id: '/parents/$id'
-      path: '/$id'
-      fullPath: '/parents/$id'
-      preLoaderRoute: typeof ParentsIdRouteImport
-      parentRoute: typeof ParentsRoute
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/students/': {
       id: '/students/'
@@ -1205,12 +1177,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StudentsIndexRouteImport
       parentRoute: typeof StudentsRoute
     }
-    '/students/$id': {
-      id: '/students/$id'
-      path: '/$id'
-      fullPath: '/students/$id'
-      preLoaderRoute: typeof StudentsIdRouteImport
-      parentRoute: typeof StudentsRoute
+    '/parents/': {
+      id: '/parents/'
+      path: '/'
+      fullPath: '/parents/'
+      preLoaderRoute: typeof ParentsIndexRouteImport
+      parentRoute: typeof ParentsRoute
+    }
+    '/classes/': {
+      id: '/classes/'
+      path: '/'
+      fullPath: '/classes/'
+      preLoaderRoute: typeof ClassesIndexRouteImport
+      parentRoute: typeof ClassesRoute
     }
     '/subjects/$id': {
       id: '/subjects/$id'
@@ -1218,6 +1197,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/subjects/$id'
       preLoaderRoute: typeof SubjectsIdRouteImport
       parentRoute: typeof SubjectsRoute
+    }
+    '/students/$id': {
+      id: '/students/$id'
+      path: '/$id'
+      fullPath: '/students/$id'
+      preLoaderRoute: typeof StudentsIdRouteImport
+      parentRoute: typeof StudentsRoute
+    }
+    '/parents/$id': {
+      id: '/parents/$id'
+      path: '/$id'
+      fullPath: '/parents/$id'
+      preLoaderRoute: typeof ParentsIdRouteImport
+      parentRoute: typeof ParentsRoute
+    }
+    '/classes/$id': {
+      id: '/classes/$id'
+      path: '/$id'
+      fullPath: '/classes/$id'
+      preLoaderRoute: typeof ClassesIdRouteImport
+      parentRoute: typeof ClassesRoute
     }
   }
 }
@@ -1332,3 +1332,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

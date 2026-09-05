@@ -134,7 +134,7 @@ function slugId(name: string): string {
 }
 
 /** Seed catalog — institute-level metadata and counts only. */
-export const PLATFORM_INSTITUTES_SEED: PlatformInstitute[
+export const PLATFORM_INSTITUTES_SEED: PlatformInstitute[] = [
   {
     id: "ins-test1school",
     name: "Test1School",
@@ -171,7 +171,7 @@ export const PLATFORM_INSTITUTES_SEED: PlatformInstitute[
     createdAt: "2024-01-10T09:00:00.000Z",
     updatedAt: "2026-07-01T09:00:00.000Z",
   },
-]
+];
 
 function normalizeInstitute(raw: PlatformInstitute): PlatformInstitute {
   const status =

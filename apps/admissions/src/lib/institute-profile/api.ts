@@ -22,3 +22,18 @@ export async function getInstitutePublicProfile(
     `/api/v1/institutes/${instituteId.trim()}/public-profile`,
   );
 }
+
+export async function updateInstituteSettings(
+  instituteId: string,
+  input: { settings: Record<string, unknown> },
+  client: AdmissionsApiClient = getAdmissionsApiClient(),
+): Promise<{ instituteId: string; settings: Record<string, unknown> }> {
+  assertApiMode();
+  if (!isInstituteUuid(instituteId)) {
+    throw new Error("institute_id must be a valid UUID");
+  }
+  return client.patch<{ instituteId: string; settings: Record<string, unknown> }>(
+    `/api/v1/institutes/${instituteId.trim()}/settings`,
+    input,
+  );
+}

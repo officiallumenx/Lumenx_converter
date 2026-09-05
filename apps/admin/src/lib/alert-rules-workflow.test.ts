@@ -61,6 +61,7 @@ function seedNotificationInbox() {
 
 describe("admin alerts workflow", () => {
   beforeEach(() => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
     store.clear();
     vi.clearAllMocks();
     seedNotificationInbox();

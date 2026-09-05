@@ -1,6 +1,6 @@
 /**
  * Admin auth mode — demo/offline mock vs real Supabase + Hono API.
- * Default is demo so existing offline workflows keep working without env.
+ * Default is api. Set VITE_ADMIN_AUTH_MODE=demo only for offline demos.
  */
 
 export type AdminAuthMode = "demo" | "api";
@@ -10,7 +10,7 @@ export function getAdminAuthMode(): AdminAuthMode {
     typeof import.meta !== "undefined"
       ? import.meta.env?.VITE_ADMIN_AUTH_MODE?.trim().toLowerCase()
       : undefined;
-  return raw === "api" ? "api" : "demo";
+  return raw === "demo" ? "demo" : "api";
 }
 
 export function isApiAuthMode(): boolean {

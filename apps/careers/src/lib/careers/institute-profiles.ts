@@ -70,13 +70,13 @@ function careerProfileFromApi(
     state: demo?.state ?? "",
     logoInitials:
       demo?.logoInitials ??
-      apiProfile.name
+      (apiProfile.name
         .split(/\s+/)
         .filter(Boolean)
         .slice(0, 2)
         .map((part) => part[0]?.toUpperCase() ?? "")
         .join("") ||
-      "IN",
+        "IN"),
     logoGradient: demo?.logoGradient ?? "from-primary/80 to-chart-5/60",
     tagline: apiProfile.mission || demo?.tagline || "",
     about: apiProfile.vision || demo?.about || "",

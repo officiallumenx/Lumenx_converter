@@ -51,6 +51,19 @@ describe("loadStorageUsage", () => {
       },
     ]);
     vi.doMock("./api", () => ({ listAssets }));
+    vi.doMock("@/lib/storage/api", () => ({
+      getStorageUsage: vi.fn().mockResolvedValue({
+        instituteId: INST,
+        totalAssets: 1,
+        totalBytes: 2048,
+        byCategory: [
+          { key: "student_photo", label: "student photo", count: 1, bytes: 2048 },
+        ],
+        byBucket: [
+          { key: "student-media", label: "student media", count: 1, bytes: 2048 },
+        ],
+      }),
+    }));
     const { loadStorageUsage } = await import("./load");
     const result = await loadStorageUsage(INST);
     expect(result.status).toBe("ready");

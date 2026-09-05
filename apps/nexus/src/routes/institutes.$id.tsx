@@ -21,7 +21,7 @@ import {
   RotateCcw,
   ShieldOff,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { InstituteBillingPanel } from "@/components/billing/InstituteBillingPanel";
 import { InstituteSubscriptionPricingPanel } from "@/components/billing/InstituteSubscriptionPricingPanel";
 import { InstituteSubscriptionPricingApiPanel } from "@/components/billing/InstituteSubscriptionPricingApiPanel";
@@ -29,6 +29,7 @@ import { InstituteInvoiceIssueApiPanel } from "@/components/billing/InstituteInv
 import { NexusSubscriptionBillingHistoryPanel } from "@/components/billing/NexusSubscriptionBillingHistoryPanel";
 import { NexusSubscriptionBillingHistoryApiPanel } from "@/components/billing/NexusSubscriptionBillingHistoryApiPanel";
 import { isNexusApiMode } from "@/lib/auth-mode";
+import { loadInstitutesDirectory } from "@/lib/institutes/load-directory";
 import {
   activateInstitute,
   archiveInstitute,
@@ -95,6 +96,10 @@ function InstituteDetailPage() {
   const { id } = Route.useParams();
   const [tick, setTick] = useState(0);
   const [flash, setFlash] = useState<string | null>(null);
+  const [apiInstitute, setApiInstitute] = useState<PlatformInstitute | null | undefined>(
+    undefined,
+  );
+  const apiMode = isNexusApiMode();
 
   useEffect(() => {
     const refresh = () => setTick((t) => t + 1);
@@ -110,13 +115,44 @@ function InstituteDetailPage() {
     };
   }, [id]);
 
+  useEffect(() => {
+    if (!apiMode) {
+      setApiInstitute(undefined);
+      return;
+    }
+    let cancelled = false;
+    void loadInstitutesDirectory().then((dir) => {
+      if (cancelled) return;
+      if (dir.status === "ready") {
+        setApiInstitute(dir.institutes.find((row) => row.id === id) ?? null);
+        return;
+      }
+      setApiInstitute(null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiMode, id, tick]);
+
   void tick;
-  const inst = getPlatformInstitute(id);
+  const inst = apiMode
+    ? apiInstitute === undefined
+      ? undefined
+      : (apiInstitute ?? undefined)
+    : getPlatformInstitute(id);
   const adminCatalog = useMemo(() => adminModulesForUi(), []);
   const groups = useMemo(
     () => Array.from(new Set(adminCatalog.map((m) => m.group))) as NexusModuleGroup[],
     [adminCatalog],
   );
+
+  if (apiMode && apiInstitute === undefined) {
+    return (
+      <AppShell title="Institute" subtitle={id}>
+        <Card className="p-8 text-center text-sm text-muted-foreground">Loading institute…</Card>
+      </AppShell>
+    );
+  }
 
   if (!inst) {
     return (
@@ -256,6 +292,19 @@ function InstituteDetailPage() {
       </Card>
 
       {/* 4. Lifecycle operations */}
+      {apiMode ? (
+        <Card className="mb-4">
+          <CardHeader
+            title="Lifecycle"
+            hint="Status from live institute record"
+            action={<Pill tone={statusTone(inst.status)}>{labelStatus(inst.status)}</Pill>}
+          />
+          <div className="px-5 pb-5 text-xs text-muted-foreground">
+            Demo activate/suspend/archive controls are disabled in API mode. Manage status via
+            registrations and identity APIs.
+          </div>
+        </Card>
+      ) : (
       <Card className="mb-4">
         <CardHeader
           title="Lifecycle operations"
@@ -324,6 +373,7 @@ function InstituteDetailPage() {
           )}
         </div>
       </Card>
+      )}
 
       {/* 5. Modules — every module, simple On/Off */}
       <Card className="mb-4">

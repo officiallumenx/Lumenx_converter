@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { CheckCircle2, Lock, MapPinned, Plus } from "lucide-react";
 import { toast } from "sonner";
 
@@ -11,9 +11,12 @@ import { StatusChip } from "@/components/ui/status-chip";
 import { useDriverAssignment } from "@/hooks/use-driver-assignment";
 import { useRouteSetup } from "@/hooks/use-route-setup";
 import { useTransportRealtimeRefresh } from "@/hooks/use-transport-realtime";
+import { isApiAuthMode } from "@/lib/auth/auth-mode";
 import { useTransportAuth } from "@/lib/auth/transport-auth";
 import { captureCurrentGps } from "@/lib/transport/capture-gps";
 import { routeSetupRepository } from "@/lib/transport/route-setup";
+import { hydrateRouteSetupFromApi } from "@/lib/transport/route-setup/api-sync";
+import { getRouteSetupDriverScope } from "@/lib/transport/route-setup/store";
 import type { GpsFix, RouteSetupStop, SubmissionStatus } from "@/lib/transport/route-setup/types";
 import { canEditStop, canRequestChangeStop, SUBMISSION_STATUS_LABEL } from "@/lib/transport/route-setup/types";
 import { MODULE_COLORS } from "@/theme/colors";
@@ -34,7 +37,16 @@ export function RouteSetupPage() {
   const record = useRouteSetup();
   const assignment = useDriverAssignment();
   const { user } = useTransportAuth();
-  useTransportRealtimeRefresh(user?.instituteId, () => undefined);
+  const apiMode = isApiAuthMode();
+
+  const refreshFromRealtime = useCallback(() => {
+    if (!apiMode) return;
+    const scope = getRouteSetupDriverScope();
+    if (!scope?.instituteId) return;
+    void hydrateRouteSetupFromApi(scope);
+  }, [apiMode]);
+
+  useTransportRealtimeRefresh(user?.instituteId, refreshFromRealtime);
   const driverId = user?.id ?? assignment.account?.id ?? "";
   const vehicleId = assignment.bus?.vehicleId ?? "";
   const busLabel = assignment.bus?.busNumber ?? "—";
@@ -298,7 +310,7 @@ export function RouteSetupPage() {
             </CardContent>
           </Card>
 
-          {import.meta.env.DEV ? <DemoAdminReviewPanel locked={locked} /> : null}
+          {import.meta.env.DEV && !apiMode ? <DemoAdminReviewPanel locked={locked} /> : null}
 
           <section className="space-y-3">
             <SectionHeader

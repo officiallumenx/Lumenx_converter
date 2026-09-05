@@ -1,4 +1,4 @@
-export { listTimetableSlots, listTeacherAssignments, publishSectionTimetable, assertApiMode as assertTimetableApiMode } from "./api";
+export { listTimetableSlots, listTeacherAssignments, assertApiMode as assertTimetableApiMode } from "./api";
 export {
   loadTimetableReadBundle,
   type TimetableLoadState,

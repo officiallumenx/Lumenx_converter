@@ -21,6 +21,7 @@ import { useAdmissionsAuth } from "@/admissions-portal/core/AdmissionsAuthProvid
 import { TermsAcceptCheckbox } from "@/components/legal/TermsAcceptCheckbox";
 import { PasswordCreateFields } from "@/admissions-portal/features/auth/PasswordCreateFields";
 import { LumenxAdminContinueCard } from "@/admissions-portal/features/auth/LumenxAdminContinueCard";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import {
   signupPasswordSchema,
   signupWithTermsSchema,
@@ -252,7 +253,7 @@ function InstituteHub({
       </p>
 
       <div className="mt-6 space-y-3">
-        <LumenxAdminContinueCard mode="sign-in" />
+        {!isApiAuthMode() ? <LumenxAdminContinueCard mode="sign-in" /> : null}
 
         <button
           type="button"
@@ -699,9 +700,10 @@ export function InstituteSignupFlow() {
       </p>
 
       <div className="mt-4">
-        <LumenxAdminContinueCard mode="sign-up" />
+        {!isApiAuthMode() ? <LumenxAdminContinueCard mode="sign-up" /> : null}
       </div>
 
+      {!isApiAuthMode() ? (
       <div className="relative my-6">
         <div className="absolute inset-0 flex items-center">
           <span className="w-full border-t border-border" />
@@ -710,6 +712,7 @@ export function InstituteSignupFlow() {
           <span className="bg-background px-2 text-muted-foreground">Or register standalone</span>
         </div>
       </div>
+      ) : <div className="my-6" />}
 
       {step === "contact" && (
         <div className="space-y-4">

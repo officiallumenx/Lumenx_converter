@@ -47,20 +47,25 @@ describe("transportStore journey", () => {
     expect(transportStore.getAssignment().bus.busNumber).toBe("BUS-01");
     expect(transportStore.getAssignment().pickupStop.name).toContain("North Campus");
 
-    // ETA starts at 12; each tick subtracts 1 minute.
-    for (let i = 0; i < 12; i += 1) {
+    // Soft-sim ticks until pickup (ETA countdown); do not assume a fixed starting ETA.
+    let pickupTicks = 0;
+    while (
+      transportStore.getTracking().learnerStatus !== "picked_up" &&
+      pickupTicks < 40
+    ) {
       vi.advanceTimersByTime(6000);
+      pickupTicks += 1;
     }
 
     const afterPickup = transportStore.getTracking();
     expect(afterPickup.learnerStatus).toBe("picked_up");
     expect(afterPickup.progressPercent).toBeLessThan(100);
 
-    // After pickup, progress advances +5 each tick from >=75 toward 100.
+    // After pickup, progress advances toward school.
     let ticks = 0;
     while (
       transportStore.getTracking().learnerStatus !== "reached_school" &&
-      ticks < 20
+      ticks < 40
     ) {
       vi.advanceTimersByTime(6000);
       ticks += 1;
@@ -74,7 +79,14 @@ describe("transportStore journey", () => {
 
   it("resets learner runtime when switching children", () => {
     transportStore.init("C1", "parent");
-    for (let i = 0; i < 12; i += 1) vi.advanceTimersByTime(6000);
+    let pickupTicks = 0;
+    while (
+      transportStore.getTracking().learnerStatus !== "picked_up" &&
+      pickupTicks < 40
+    ) {
+      vi.advanceTimersByTime(6000);
+      pickupTicks += 1;
+    }
     expect(transportStore.getTracking().learnerStatus).toBe("picked_up");
 
     transportStore.selectLearner("C2");

@@ -15,13 +15,14 @@ import {
   ToolbarSpacer,
 } from "@lumenx/ui-admin";
 import { Building2, AlertTriangle, Archive, ClipboardList, Plus, Sparkles } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   directoryStats,
   listPlatformInstitutes,
   locationLabel,
   subscribeInstituteDirectory,
   type InstituteStatus,
+  type PlatformInstitute,
 } from "@/lib/institute-directory-store";
 import {
   listPendingInstituteRegistrations,
@@ -29,6 +30,7 @@ import {
 } from "@lumenx/utils";
 import { isNexusApiMode } from "@/lib/auth-mode";
 import { countApplications, loadRegistrationsQueue } from "@/lib/registrations/load-queue";
+import { loadInstitutesDirectory } from "@/lib/institutes/load-directory";
 
 export const Route = createFileRoute("/institutes/")({
   head: () => ({ meta: [{ title: "Institutes — LumenX Nexus" }] }),
@@ -44,10 +46,34 @@ function InstitutesIndexPage() {
   const [status, setStatus] = useState<StatusFilter>("all");
   const [createOpen, setCreateOpen] = useState(false);
   const [apiPendingCount, setApiPendingCount] = useState<number | null>(null);
+  const [apiInstitutes, setApiInstitutes] = useState<PlatformInstitute[] | null>(null);
+  const [apiDirError, setApiDirError] = useState<string | null>(null);
+  const [apiDirLoading, setApiDirLoading] = useState(false);
   const apiMode = isNexusApiMode();
 
   useEffect(() => subscribeInstituteDirectory(() => setTick((t) => t + 1)), []);
   useEffect(() => subscribeInstituteRegistrations(() => setTick((t) => t + 1)), []);
+
+  const reloadApiDirectory = useCallback(() => {
+    if (!apiMode) return;
+    setApiDirLoading(true);
+    void loadInstitutesDirectory().then((dir) => {
+      setApiDirLoading(false);
+      if (dir.status === "ready") {
+        setApiInstitutes(dir.institutes);
+        setApiDirError(null);
+        return;
+      }
+      if (dir.status === "error") {
+        setApiInstitutes([]);
+        setApiDirError(dir.message);
+      }
+    });
+  }, [apiMode]);
+
+  useEffect(() => {
+    reloadApiDirectory();
+  }, [reloadApiDirectory, tick]);
 
   useEffect(() => {
     if (!apiMode) return;
@@ -58,7 +84,10 @@ function InstitutesIndexPage() {
     });
   }, [apiMode, tick]);
 
-  const all = useMemo(() => listPlatformInstitutes(), [tick]);
+  const all = useMemo(
+    () => (apiMode ? (apiInstitutes ?? []) : listPlatformInstitutes()),
+    [apiMode, apiInstitutes, tick],
+  );
   const stats = useMemo(() => directoryStats(all), [all]);
   const pendingRegistrations = useMemo(() => listPendingInstituteRegistrations(), [tick]);
   const pendingCount = apiMode ? (apiPendingCount ?? 0) : pendingRegistrations.length;
@@ -78,11 +107,30 @@ function InstitutesIndexPage() {
       title="Institutes"
       subtitle="Platform directory · lifecycle and modules · cost set per institute on Billing"
       actions={
-        <Button variant="primary" onClick={() => setCreateOpen(true)}>
-          <Plus className="size-3.5" /> Create institute
-        </Button>
+        apiMode ? null : (
+          <Button variant="primary" onClick={() => setCreateOpen(true)}>
+            <Plus className="size-3.5" /> Create institute
+          </Button>
+        )
       }
     >
+      {apiMode && apiDirError ? (
+        <Card className="mb-4 p-4 text-sm text-destructive">
+          Could not load institutes from API: {apiDirError}
+          <div className="mt-2">
+            <Button size="sm" variant="outline" onClick={reloadApiDirectory}>
+              Retry
+            </Button>
+          </div>
+        </Card>
+      ) : null}
+
+      {apiMode && apiDirLoading && apiInstitutes === null ? (
+        <Card className="mb-4 p-6 text-center text-sm text-muted-foreground">
+          Loading institutes…
+        </Card>
+      ) : null}
+
       {pendingCount > 0 ? (
         <div
           role="status"
@@ -177,14 +225,16 @@ function InstitutesIndexPage() {
         student, parent, or teacher records are created here.
       </p>
 
-      <CreateInstituteDialog
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        onCreated={(inst) => {
-          setTick((t) => t + 1);
-          void navigate({ to: "/institutes/$id", params: { id: inst.id } });
-        }}
-      />
+      {!apiMode ? (
+        <CreateInstituteDialog
+          open={createOpen}
+          onClose={() => setCreateOpen(false)}
+          onCreated={(inst) => {
+            setTick((t) => t + 1);
+            void navigate({ to: "/institutes/$id", params: { id: inst.id } });
+          }}
+        />
+      ) : null}
     </AppShell>
   );
 }

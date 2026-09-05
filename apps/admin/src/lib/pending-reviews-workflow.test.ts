@@ -93,6 +93,7 @@ function buildAttentionItems(input: {
 
 describe("Admin Home Pending Reviews workflow", () => {
   beforeEach(() => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
     store.clear();
     vi.clearAllMocks();
   });

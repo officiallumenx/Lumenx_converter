@@ -1,4 +1,4 @@
-/** Storage usage read models — bytes from stored_asset; quotas enforced at upload. */
+/** Storage usage read models — bytes from stored_asset; quotas are monitoring-only. */
 
 export type StorageBreakdownDto = {
   key: string;

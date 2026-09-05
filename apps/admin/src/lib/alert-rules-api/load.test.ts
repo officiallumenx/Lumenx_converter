@@ -35,9 +35,11 @@ describe("loadAlertRules", () => {
     const listAlertRules = vi.fn().mockResolvedValue([
       { id: "r1", name: "Rule", active: true },
     ]);
+    const listAlertFires = vi.fn().mockResolvedValue([]);
     const evaluateAlertRules = vi.fn();
     vi.doMock("./api", () => ({
       listAlertRules,
+      listAlertFires,
       evaluateAlertRules,
     }));
     const { loadAlertRules } = await import("./load");
@@ -45,6 +47,7 @@ describe("loadAlertRules", () => {
     expect(result.status).toBe("ready");
     expect(result.fired).toEqual([]);
     expect(listAlertRules).toHaveBeenCalledWith(INST);
+    expect(listAlertFires).toHaveBeenCalledWith(INST);
     expect(evaluateAlertRules).not.toHaveBeenCalled();
   });
 });

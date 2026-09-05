@@ -60,9 +60,11 @@ describe("dashboard+alerts+analytics+reports api-mode isolation", () => {
   it("loadAlertRules does not evaluate on load", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const listAlertRules = vi.fn().mockResolvedValue([]);
+    const listAlertFires = vi.fn().mockResolvedValue([]);
     const evaluateAlertRules = vi.fn();
     vi.doMock("@/lib/alert-rules-api/api", () => ({
       listAlertRules,
+      listAlertFires,
       evaluateAlertRules,
     }));
     const { loadAlertRules } = await import("@/lib/alert-rules-api/load");
