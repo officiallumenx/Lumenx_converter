@@ -120,7 +120,7 @@ export function AppLockScreen({ onUnlocked }: AppLockScreenProps) {
   const [attempts, setAttempts] = useState(0);
   const [shake, setShake]   = useState(false);
 
-  const instituteName = instituteProfile.name || user?.instituteName || "LumenX Institute";
+  const instituteName = instituteProfile.name || user?.instituteName || "Test1School";
   const logo          = instituteProfile.logo ?? "";
   const userName      = user?.name ?? "Administrator";
   const userTitle     = user?.title ?? "";

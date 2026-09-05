@@ -513,6 +513,7 @@ export function ParentSignupFlow() {
             onCheckedChange={setAcceptedTerms}
             termsTo="/terms"
             privacyTo="/privacy"
+            cookiesTo="/cookies"
             id="admissions-parent-terms"
           />
           <Button
@@ -862,6 +863,7 @@ export function InstituteSignupFlow() {
             onCheckedChange={setAcceptedTerms}
             termsTo="/terms"
             privacyTo="/privacy"
+            cookiesTo="/cookies"
             id="admissions-institute-terms"
           />
           <Button

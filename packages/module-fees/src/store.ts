@@ -80,7 +80,7 @@ function nextReceiptNo(snapshot: FeesSnapshot): string {
 
 /**
  * Record an offline office payment. Updates Paid / Due / Status via collections
- * and appends a downloadable receipt to payment history.
+ * and appends a downloadable/printable receipt to payment history.
  */
 export function recordOfficePayment(
   snapshot: FeesSnapshot,
@@ -90,13 +90,17 @@ export function recordOfficePayment(
     classKey: string;
     amount: number;
     method?: FeePaymentMethod;
-    note?: string;
+    note: string;
     paidAt?: string;
   },
 ): { snapshot: FeesSnapshot; payment: FeePaymentRecord } {
   const amount = Math.max(0, Math.round(input.amount));
   if (amount <= 0) {
     throw new Error("Payment amount must be greater than zero");
+  }
+  const note = input.note.trim();
+  if (!note) {
+    throw new Error("Payment note is required");
   }
 
   const paidAt = input.paidAt?.slice(0, 10) || new Date().toISOString().slice(0, 10);
@@ -109,7 +113,7 @@ export function recordOfficePayment(
     classKey: input.classKey,
     amount,
     method: input.method ?? "cash",
-    note: input.note?.trim() || undefined,
+    note,
     paidAt,
     recordedAt: new Date().toISOString(),
   };
@@ -121,6 +125,29 @@ export function recordOfficePayment(
     [input.studentId]: prevPaid + amount,
   };
 
+  const next: FeesSnapshot = { ...snapshot, payments: nextPayments, collections };
+  saveFeesSnapshot(next);
+  return { snapshot: next, payment };
+}
+
+/**
+ * Void (reverse) an office payment. Recalculates Paid / Due via collections.
+ */
+export function voidOfficePayment(
+  snapshot: FeesSnapshot,
+  paymentId: string,
+): { snapshot: FeesSnapshot; payment: FeePaymentRecord } {
+  const payments = Array.isArray(snapshot.payments) ? snapshot.payments : [];
+  const payment = payments.find((p) => p.id === paymentId);
+  if (!payment) {
+    throw new Error("Payment not found");
+  }
+  const nextPayments = payments.filter((p) => p.id !== paymentId);
+  const prevPaid = snapshot.collections[payment.studentId] ?? 0;
+  const collections = {
+    ...snapshot.collections,
+    [payment.studentId]: Math.max(0, prevPaid - Math.round(payment.amount)),
+  };
   const next: FeesSnapshot = { ...snapshot, payments: nextPayments, collections };
   saveFeesSnapshot(next);
   return { snapshot: next, payment };

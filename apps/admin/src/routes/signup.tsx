@@ -606,9 +606,17 @@ function Step3({
           />
           <span className="text-xs text-muted-foreground leading-relaxed group-hover:text-foreground transition-colors">
             I agree to the{" "}
-            <span className="text-primary hover:underline cursor-pointer">Terms of Service</span>
-            {" "}and{" "}
-            <span className="text-primary hover:underline cursor-pointer">Privacy Policy</span>
+            <Link to="/terms" className="text-primary hover:underline">
+              Terms & Conditions
+            </Link>
+            ,{" "}
+            <Link to="/privacy" className="text-primary hover:underline">
+              Privacy Policy
+            </Link>
+            , and{" "}
+            <Link to="/cookies" className="text-primary hover:underline">
+              Cookie Policy
+            </Link>
             . I confirm the information provided is accurate.
           </span>
         </label>

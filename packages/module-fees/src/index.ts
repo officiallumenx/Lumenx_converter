@@ -57,8 +57,9 @@ export {
   setTransportStopFeesBatch,
   syncClassKeysFromDirectory,
   recordOfficePayment,
+  voidOfficePayment,
 } from "./store";
 
-export { buildFeeReceiptText, downloadFeeReceipt } from "./receipt";
+export { buildFeeReceiptText, downloadFeeReceipt, printFeeReceipt } from "./receipt";
 
 export { FEES_UPDATED_EVENT, subscribeFeesUpdates } from "./subscribe";

@@ -21,7 +21,7 @@ const STUDENT_FEE_COLS =
   "id, institute_id, fee_plan_id, student_id, billed_amount, paid_amount, status, created_at, updated_at, deleted_at";
 
 const PAYMENT_COLS =
-  "id, institute_id, fee_plan_id, student_fee_id, student_id, amount, method, receipt_no, paid_on, note, recorded_by_user_id, created_at, updated_at, deleted_at";
+  "id, institute_id, fee_plan_id, student_fee_id, student_id, amount, method, receipt_no, paid_on, note, recorded_by_user_id, void_reason, voided_at, voided_by_user_id, created_at, updated_at, deleted_at";
 
 const CONCESSION_COLS =
   "id, institute_id, fee_plan_id, student_id, fee_component_id, amount, note, created_at, updated_at, deleted_at";
@@ -436,6 +436,46 @@ export async function insertPayment(
     .select(PAYMENT_COLS)
     .single();
   return ensureDbOk(result) as FeePaymentRow;
+}
+
+export async function findPaymentById(
+  admin: SupabaseClient,
+  paymentId: string,
+): Promise<FeePaymentRow | null> {
+  const result = await admin
+    .from("fee_payment")
+    .select(PAYMENT_COLS)
+    .eq("id", paymentId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  return ensureDbOk(result) as FeePaymentRow | null;
+}
+
+export async function softDeletePayment(
+  admin: SupabaseClient,
+  paymentId: string,
+  opts?: {
+    voidReason: string;
+    voidedByUserId: string;
+  },
+): Promise<FeePaymentRow | null> {
+  const result = await admin
+    .from("fee_payment")
+    .update({
+      deleted_at: new Date().toISOString(),
+      ...(opts
+        ? {
+            void_reason: opts.voidReason,
+            voided_at: new Date().toISOString(),
+            voided_by_user_id: opts.voidedByUserId,
+          }
+        : {}),
+    })
+    .eq("id", paymentId)
+    .is("deleted_at", null)
+    .select(PAYMENT_COLS)
+    .maybeSingle();
+  return ensureDbOk(result) as FeePaymentRow | null;
 }
 
 export async function sumPaymentsForStudent(

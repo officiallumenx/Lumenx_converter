@@ -11,34 +11,35 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
-import { Route as AppTermsRouteImport } from './routes/_app/terms'
-import { Route as AppSignupRouteImport } from './routes/_app/signup'
-import { Route as AppSetupFromAdminRouteImport } from './routes/_app/setup-from-admin'
-import { Route as AppSettingsRouteImport } from './routes/_app/settings'
-import { Route as AppProgramsRouteImport } from './routes/_app/programs'
-import { Route as AppProfileRouteImport } from './routes/_app/profile'
-import { Route as AppPrivacyRouteImport } from './routes/_app/privacy'
-import { Route as AppNotificationsRouteImport } from './routes/_app/notifications'
-import { Route as AppLoginRouteImport } from './routes/_app/login'
-import { Route as AppInstituteRouteImport } from './routes/_app/institute'
-import { Route as AppInquiriesRouteImport } from './routes/_app/inquiries'
-import { Route as AppForgotPasswordRouteImport } from './routes/_app/forgot-password'
-import { Route as AppFaqRouteImport } from './routes/_app/faq'
-import { Route as AppDocumentsRouteImport } from './routes/_app/documents'
-import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
-import { Route as AppContactRouteImport } from './routes/_app/contact'
-import { Route as AppApplyRouteImport } from './routes/_app/apply'
 import { Route as AppApplicationsRouteImport } from './routes/_app/applications'
-import { Route as AppInstitutesIndexRouteImport } from './routes/_app/institutes/index'
-import { Route as AppInstituteIndexRouteImport } from './routes/_app/institute/index'
-import { Route as AppProgramsProgramIdRouteImport } from './routes/_app/programs/$programId'
-import { Route as AppInstitutesInstituteIdRouteImport } from './routes/_app/institutes/$instituteId'
-import { Route as AppInstituteSettingsRouteImport } from './routes/_app/institute/settings'
-import { Route as AppInstituteProfileRouteImport } from './routes/_app/institute/profile'
-import { Route as AppInstituteOpeningsRouteImport } from './routes/_app/institute/openings'
-import { Route as AppInstituteFormRouteImport } from './routes/_app/institute/form'
-import { Route as AppInstituteApplicationsRouteImport } from './routes/_app/institute/applications'
+import { Route as AppApplyRouteImport } from './routes/_app/apply'
+import { Route as AppContactRouteImport } from './routes/_app/contact'
+import { Route as AppCookiesRouteImport } from './routes/_app/cookies'
+import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
+import { Route as AppDocumentsRouteImport } from './routes/_app/documents'
+import { Route as AppFaqRouteImport } from './routes/_app/faq'
+import { Route as AppForgotPasswordRouteImport } from './routes/_app/forgot-password'
+import { Route as AppInquiriesRouteImport } from './routes/_app/inquiries'
+import { Route as AppInstituteRouteImport } from './routes/_app/institute'
+import { Route as AppLoginRouteImport } from './routes/_app/login'
+import { Route as AppNotificationsRouteImport } from './routes/_app/notifications'
+import { Route as AppPrivacyRouteImport } from './routes/_app/privacy'
+import { Route as AppProfileRouteImport } from './routes/_app/profile'
+import { Route as AppProgramsRouteImport } from './routes/_app/programs'
+import { Route as AppSettingsRouteImport } from './routes/_app/settings'
+import { Route as AppSetupFromAdminRouteImport } from './routes/_app/setup-from-admin'
+import { Route as AppSignupRouteImport } from './routes/_app/signup'
+import { Route as AppTermsRouteImport } from './routes/_app/terms'
 import { Route as AppApplicationsApplicationIdRouteImport } from './routes/_app/applications/$applicationId'
+import { Route as AppInstituteIndexRouteImport } from './routes/_app/institute/index'
+import { Route as AppInstituteApplicationsRouteImport } from './routes/_app/institute/applications'
+import { Route as AppInstituteFormRouteImport } from './routes/_app/institute/form'
+import { Route as AppInstituteOpeningsRouteImport } from './routes/_app/institute/openings'
+import { Route as AppInstituteProfileRouteImport } from './routes/_app/institute/profile'
+import { Route as AppInstituteSettingsRouteImport } from './routes/_app/institute/settings'
+import { Route as AppInstitutesIndexRouteImport } from './routes/_app/institutes/index'
+import { Route as AppInstitutesInstituteIdRouteImport } from './routes/_app/institutes/$instituteId'
+import { Route as AppProgramsProgramIdRouteImport } from './routes/_app/programs/$programId'
 import { Route as AppInstituteApplicationsIndexRouteImport } from './routes/_app/institute/applications/index'
 import { Route as AppInstituteApplicationsApplicationIdRouteImport } from './routes/_app/institute/applications/$applicationId'
 
@@ -51,84 +52,9 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
-const AppTermsRoute = AppTermsRouteImport.update({
-  id: '/terms',
-  path: '/terms',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppSignupRoute = AppSignupRouteImport.update({
-  id: '/signup',
-  path: '/signup',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppSetupFromAdminRoute = AppSetupFromAdminRouteImport.update({
-  id: '/setup-from-admin',
-  path: '/setup-from-admin',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppSettingsRoute = AppSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppProgramsRoute = AppProgramsRouteImport.update({
-  id: '/programs',
-  path: '/programs',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppProfileRoute = AppProfileRouteImport.update({
-  id: '/profile',
-  path: '/profile',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppPrivacyRoute = AppPrivacyRouteImport.update({
-  id: '/privacy',
-  path: '/privacy',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppNotificationsRoute = AppNotificationsRouteImport.update({
-  id: '/notifications',
-  path: '/notifications',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppLoginRoute = AppLoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppInstituteRoute = AppInstituteRouteImport.update({
-  id: '/institute',
-  path: '/institute',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppInquiriesRoute = AppInquiriesRouteImport.update({
-  id: '/inquiries',
-  path: '/inquiries',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppForgotPasswordRoute = AppForgotPasswordRouteImport.update({
-  id: '/forgot-password',
-  path: '/forgot-password',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppFaqRoute = AppFaqRouteImport.update({
-  id: '/faq',
-  path: '/faq',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppDocumentsRoute = AppDocumentsRouteImport.update({
-  id: '/documents',
-  path: '/documents',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppDashboardRoute = AppDashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppContactRoute = AppContactRouteImport.update({
-  id: '/contact',
-  path: '/contact',
+const AppApplicationsRoute = AppApplicationsRouteImport.update({
+  id: '/applications',
+  path: '/applications',
   getParentRoute: () => AppRoute,
 } as any)
 const AppApplyRoute = AppApplyRouteImport.update({
@@ -136,50 +62,100 @@ const AppApplyRoute = AppApplyRouteImport.update({
   path: '/apply',
   getParentRoute: () => AppRoute,
 } as any)
-const AppApplicationsRoute = AppApplicationsRouteImport.update({
-  id: '/applications',
-  path: '/applications',
+const AppContactRoute = AppContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
   getParentRoute: () => AppRoute,
 } as any)
-const AppInstitutesIndexRoute = AppInstitutesIndexRouteImport.update({
-  id: '/institutes/',
-  path: '/institutes/',
+const AppCookiesRoute = AppCookiesRouteImport.update({
+  id: '/cookies',
+  path: '/cookies',
   getParentRoute: () => AppRoute,
 } as any)
+const AppDashboardRoute = AppDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDocumentsRoute = AppDocumentsRouteImport.update({
+  id: '/documents',
+  path: '/documents',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppFaqRoute = AppFaqRouteImport.update({
+  id: '/faq',
+  path: '/faq',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppForgotPasswordRoute = AppForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppInquiriesRoute = AppInquiriesRouteImport.update({
+  id: '/inquiries',
+  path: '/inquiries',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppInstituteRoute = AppInstituteRouteImport.update({
+  id: '/institute',
+  path: '/institute',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppLoginRoute = AppLoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppNotificationsRoute = AppNotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPrivacyRoute = AppPrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppProfileRoute = AppProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppProgramsRoute = AppProgramsRouteImport.update({
+  id: '/programs',
+  path: '/programs',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSetupFromAdminRoute = AppSetupFromAdminRouteImport.update({
+  id: '/setup-from-admin',
+  path: '/setup-from-admin',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSignupRoute = AppSignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTermsRoute = AppTermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppApplicationsApplicationIdRoute =
+  AppApplicationsApplicationIdRouteImport.update({
+    id: '/$applicationId',
+    path: '/$applicationId',
+    getParentRoute: () => AppApplicationsRoute,
+  } as any)
 const AppInstituteIndexRoute = AppInstituteIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => AppInstituteRoute,
-} as any)
-const AppProgramsProgramIdRoute = AppProgramsProgramIdRouteImport.update({
-  id: '/$programId',
-  path: '/$programId',
-  getParentRoute: () => AppProgramsRoute,
-} as any)
-const AppInstitutesInstituteIdRoute =
-  AppInstitutesInstituteIdRouteImport.update({
-    id: '/institutes/$instituteId',
-    path: '/institutes/$instituteId',
-    getParentRoute: () => AppRoute,
-  } as any)
-const AppInstituteSettingsRoute = AppInstituteSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => AppInstituteRoute,
-} as any)
-const AppInstituteProfileRoute = AppInstituteProfileRouteImport.update({
-  id: '/profile',
-  path: '/profile',
-  getParentRoute: () => AppInstituteRoute,
-} as any)
-const AppInstituteOpeningsRoute = AppInstituteOpeningsRouteImport.update({
-  id: '/openings',
-  path: '/openings',
-  getParentRoute: () => AppInstituteRoute,
-} as any)
-const AppInstituteFormRoute = AppInstituteFormRouteImport.update({
-  id: '/form',
-  path: '/form',
   getParentRoute: () => AppInstituteRoute,
 } as any)
 const AppInstituteApplicationsRoute =
@@ -188,12 +164,42 @@ const AppInstituteApplicationsRoute =
     path: '/applications',
     getParentRoute: () => AppInstituteRoute,
   } as any)
-const AppApplicationsApplicationIdRoute =
-  AppApplicationsApplicationIdRouteImport.update({
-    id: '/$applicationId',
-    path: '/$applicationId',
-    getParentRoute: () => AppApplicationsRoute,
+const AppInstituteFormRoute = AppInstituteFormRouteImport.update({
+  id: '/form',
+  path: '/form',
+  getParentRoute: () => AppInstituteRoute,
+} as any)
+const AppInstituteOpeningsRoute = AppInstituteOpeningsRouteImport.update({
+  id: '/openings',
+  path: '/openings',
+  getParentRoute: () => AppInstituteRoute,
+} as any)
+const AppInstituteProfileRoute = AppInstituteProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AppInstituteRoute,
+} as any)
+const AppInstituteSettingsRoute = AppInstituteSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppInstituteRoute,
+} as any)
+const AppInstitutesIndexRoute = AppInstitutesIndexRouteImport.update({
+  id: '/institutes/',
+  path: '/institutes/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppInstitutesInstituteIdRoute =
+  AppInstitutesInstituteIdRouteImport.update({
+    id: '/institutes/$instituteId',
+    path: '/institutes/$instituteId',
+    getParentRoute: () => AppRoute,
   } as any)
+const AppProgramsProgramIdRoute = AppProgramsProgramIdRouteImport.update({
+  id: '/$programId',
+  path: '/$programId',
+  getParentRoute: () => AppProgramsRoute,
+} as any)
 const AppInstituteApplicationsIndexRoute =
   AppInstituteApplicationsIndexRouteImport.update({
     id: '/',
@@ -212,6 +218,7 @@ export interface FileRoutesByFullPath {
   '/applications': typeof AppApplicationsRouteWithChildren
   '/apply': typeof AppApplyRoute
   '/contact': typeof AppContactRoute
+  '/cookies': typeof AppCookiesRoute
   '/dashboard': typeof AppDashboardRoute
   '/documents': typeof AppDocumentsRoute
   '/faq': typeof AppFaqRoute
@@ -244,6 +251,7 @@ export interface FileRoutesByTo {
   '/applications': typeof AppApplicationsRouteWithChildren
   '/apply': typeof AppApplyRoute
   '/contact': typeof AppContactRoute
+  '/cookies': typeof AppCookiesRoute
   '/dashboard': typeof AppDashboardRoute
   '/documents': typeof AppDocumentsRoute
   '/faq': typeof AppFaqRoute
@@ -277,6 +285,7 @@ export interface FileRoutesById {
   '/_app/applications': typeof AppApplicationsRouteWithChildren
   '/_app/apply': typeof AppApplyRoute
   '/_app/contact': typeof AppContactRoute
+  '/_app/cookies': typeof AppCookiesRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/documents': typeof AppDocumentsRoute
   '/_app/faq': typeof AppFaqRoute
@@ -313,6 +322,7 @@ export interface FileRouteTypes {
     | '/applications'
     | '/apply'
     | '/contact'
+    | '/cookies'
     | '/dashboard'
     | '/documents'
     | '/faq'
@@ -345,6 +355,7 @@ export interface FileRouteTypes {
     | '/applications'
     | '/apply'
     | '/contact'
+    | '/cookies'
     | '/dashboard'
     | '/documents'
     | '/faq'
@@ -377,6 +388,7 @@ export interface FileRouteTypes {
     | '/_app/applications'
     | '/_app/apply'
     | '/_app/contact'
+    | '/_app/cookies'
     | '/_app/dashboard'
     | '/_app/documents'
     | '/_app/faq'
@@ -427,116 +439,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/terms': {
-      id: '/_app/terms'
-      path: '/terms'
-      fullPath: '/terms'
-      preLoaderRoute: typeof AppTermsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/signup': {
-      id: '/_app/signup'
-      path: '/signup'
-      fullPath: '/signup'
-      preLoaderRoute: typeof AppSignupRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/setup-from-admin': {
-      id: '/_app/setup-from-admin'
-      path: '/setup-from-admin'
-      fullPath: '/setup-from-admin'
-      preLoaderRoute: typeof AppSetupFromAdminRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/settings': {
-      id: '/_app/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof AppSettingsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/programs': {
-      id: '/_app/programs'
-      path: '/programs'
-      fullPath: '/programs'
-      preLoaderRoute: typeof AppProgramsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/profile': {
-      id: '/_app/profile'
-      path: '/profile'
-      fullPath: '/profile'
-      preLoaderRoute: typeof AppProfileRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/privacy': {
-      id: '/_app/privacy'
-      path: '/privacy'
-      fullPath: '/privacy'
-      preLoaderRoute: typeof AppPrivacyRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/notifications': {
-      id: '/_app/notifications'
-      path: '/notifications'
-      fullPath: '/notifications'
-      preLoaderRoute: typeof AppNotificationsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/login': {
-      id: '/_app/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof AppLoginRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/institute': {
-      id: '/_app/institute'
-      path: '/institute'
-      fullPath: '/institute'
-      preLoaderRoute: typeof AppInstituteRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/inquiries': {
-      id: '/_app/inquiries'
-      path: '/inquiries'
-      fullPath: '/inquiries'
-      preLoaderRoute: typeof AppInquiriesRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/forgot-password': {
-      id: '/_app/forgot-password'
-      path: '/forgot-password'
-      fullPath: '/forgot-password'
-      preLoaderRoute: typeof AppForgotPasswordRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/faq': {
-      id: '/_app/faq'
-      path: '/faq'
-      fullPath: '/faq'
-      preLoaderRoute: typeof AppFaqRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/documents': {
-      id: '/_app/documents'
-      path: '/documents'
-      fullPath: '/documents'
-      preLoaderRoute: typeof AppDocumentsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/dashboard': {
-      id: '/_app/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof AppDashboardRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/contact': {
-      id: '/_app/contact'
-      path: '/contact'
-      fullPath: '/contact'
-      preLoaderRoute: typeof AppContactRouteImport
+    '/_app/applications': {
+      id: '/_app/applications'
+      path: '/applications'
+      fullPath: '/applications'
+      preLoaderRoute: typeof AppApplicationsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/apply': {
@@ -546,67 +453,137 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppApplyRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/applications': {
-      id: '/_app/applications'
-      path: '/applications'
-      fullPath: '/applications'
-      preLoaderRoute: typeof AppApplicationsRouteImport
+    '/_app/contact': {
+      id: '/_app/contact'
+      path: '/contact'
+      fullPath: '/contact'
+      preLoaderRoute: typeof AppContactRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/institutes/': {
-      id: '/_app/institutes/'
-      path: '/institutes'
-      fullPath: '/institutes/'
-      preLoaderRoute: typeof AppInstitutesIndexRouteImport
+    '/_app/cookies': {
+      id: '/_app/cookies'
+      path: '/cookies'
+      fullPath: '/cookies'
+      preLoaderRoute: typeof AppCookiesRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/_app/dashboard': {
+      id: '/_app/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AppDashboardRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/documents': {
+      id: '/_app/documents'
+      path: '/documents'
+      fullPath: '/documents'
+      preLoaderRoute: typeof AppDocumentsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/faq': {
+      id: '/_app/faq'
+      path: '/faq'
+      fullPath: '/faq'
+      preLoaderRoute: typeof AppFaqRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/forgot-password': {
+      id: '/_app/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof AppForgotPasswordRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/inquiries': {
+      id: '/_app/inquiries'
+      path: '/inquiries'
+      fullPath: '/inquiries'
+      preLoaderRoute: typeof AppInquiriesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/institute': {
+      id: '/_app/institute'
+      path: '/institute'
+      fullPath: '/institute'
+      preLoaderRoute: typeof AppInstituteRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/login': {
+      id: '/_app/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof AppLoginRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/notifications': {
+      id: '/_app/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof AppNotificationsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/privacy': {
+      id: '/_app/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof AppPrivacyRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/profile': {
+      id: '/_app/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof AppProfileRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/programs': {
+      id: '/_app/programs'
+      path: '/programs'
+      fullPath: '/programs'
+      preLoaderRoute: typeof AppProgramsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settings': {
+      id: '/_app/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/setup-from-admin': {
+      id: '/_app/setup-from-admin'
+      path: '/setup-from-admin'
+      fullPath: '/setup-from-admin'
+      preLoaderRoute: typeof AppSetupFromAdminRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/signup': {
+      id: '/_app/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof AppSignupRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/terms': {
+      id: '/_app/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof AppTermsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/applications/$applicationId': {
+      id: '/_app/applications/$applicationId'
+      path: '/$applicationId'
+      fullPath: '/applications/$applicationId'
+      preLoaderRoute: typeof AppApplicationsApplicationIdRouteImport
+      parentRoute: typeof AppApplicationsRoute
     }
     '/_app/institute/': {
       id: '/_app/institute/'
       path: '/'
       fullPath: '/institute/'
       preLoaderRoute: typeof AppInstituteIndexRouteImport
-      parentRoute: typeof AppInstituteRoute
-    }
-    '/_app/programs/$programId': {
-      id: '/_app/programs/$programId'
-      path: '/$programId'
-      fullPath: '/programs/$programId'
-      preLoaderRoute: typeof AppProgramsProgramIdRouteImport
-      parentRoute: typeof AppProgramsRoute
-    }
-    '/_app/institutes/$instituteId': {
-      id: '/_app/institutes/$instituteId'
-      path: '/institutes/$instituteId'
-      fullPath: '/institutes/$instituteId'
-      preLoaderRoute: typeof AppInstitutesInstituteIdRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/institute/settings': {
-      id: '/_app/institute/settings'
-      path: '/settings'
-      fullPath: '/institute/settings'
-      preLoaderRoute: typeof AppInstituteSettingsRouteImport
-      parentRoute: typeof AppInstituteRoute
-    }
-    '/_app/institute/profile': {
-      id: '/_app/institute/profile'
-      path: '/profile'
-      fullPath: '/institute/profile'
-      preLoaderRoute: typeof AppInstituteProfileRouteImport
-      parentRoute: typeof AppInstituteRoute
-    }
-    '/_app/institute/openings': {
-      id: '/_app/institute/openings'
-      path: '/openings'
-      fullPath: '/institute/openings'
-      preLoaderRoute: typeof AppInstituteOpeningsRouteImport
-      parentRoute: typeof AppInstituteRoute
-    }
-    '/_app/institute/form': {
-      id: '/_app/institute/form'
-      path: '/form'
-      fullPath: '/institute/form'
-      preLoaderRoute: typeof AppInstituteFormRouteImport
       parentRoute: typeof AppInstituteRoute
     }
     '/_app/institute/applications': {
@@ -616,12 +593,54 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppInstituteApplicationsRouteImport
       parentRoute: typeof AppInstituteRoute
     }
-    '/_app/applications/$applicationId': {
-      id: '/_app/applications/$applicationId'
-      path: '/$applicationId'
-      fullPath: '/applications/$applicationId'
-      preLoaderRoute: typeof AppApplicationsApplicationIdRouteImport
-      parentRoute: typeof AppApplicationsRoute
+    '/_app/institute/form': {
+      id: '/_app/institute/form'
+      path: '/form'
+      fullPath: '/institute/form'
+      preLoaderRoute: typeof AppInstituteFormRouteImport
+      parentRoute: typeof AppInstituteRoute
+    }
+    '/_app/institute/openings': {
+      id: '/_app/institute/openings'
+      path: '/openings'
+      fullPath: '/institute/openings'
+      preLoaderRoute: typeof AppInstituteOpeningsRouteImport
+      parentRoute: typeof AppInstituteRoute
+    }
+    '/_app/institute/profile': {
+      id: '/_app/institute/profile'
+      path: '/profile'
+      fullPath: '/institute/profile'
+      preLoaderRoute: typeof AppInstituteProfileRouteImport
+      parentRoute: typeof AppInstituteRoute
+    }
+    '/_app/institute/settings': {
+      id: '/_app/institute/settings'
+      path: '/settings'
+      fullPath: '/institute/settings'
+      preLoaderRoute: typeof AppInstituteSettingsRouteImport
+      parentRoute: typeof AppInstituteRoute
+    }
+    '/_app/institutes/': {
+      id: '/_app/institutes/'
+      path: '/institutes'
+      fullPath: '/institutes/'
+      preLoaderRoute: typeof AppInstitutesIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/institutes/$instituteId': {
+      id: '/_app/institutes/$instituteId'
+      path: '/institutes/$instituteId'
+      fullPath: '/institutes/$instituteId'
+      preLoaderRoute: typeof AppInstitutesInstituteIdRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/programs/$programId': {
+      id: '/_app/programs/$programId'
+      path: '/$programId'
+      fullPath: '/programs/$programId'
+      preLoaderRoute: typeof AppProgramsProgramIdRouteImport
+      parentRoute: typeof AppProgramsRoute
     }
     '/_app/institute/applications/': {
       id: '/_app/institute/applications/'
@@ -707,6 +726,7 @@ interface AppRouteChildren {
   AppApplicationsRoute: typeof AppApplicationsRouteWithChildren
   AppApplyRoute: typeof AppApplyRoute
   AppContactRoute: typeof AppContactRoute
+  AppCookiesRoute: typeof AppCookiesRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppDocumentsRoute: typeof AppDocumentsRoute
   AppFaqRoute: typeof AppFaqRoute
@@ -731,6 +751,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppApplicationsRoute: AppApplicationsRouteWithChildren,
   AppApplyRoute: AppApplyRoute,
   AppContactRoute: AppContactRoute,
+  AppCookiesRoute: AppCookiesRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppDocumentsRoute: AppDocumentsRoute,
   AppFaqRoute: AppFaqRoute,
@@ -759,12 +780,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

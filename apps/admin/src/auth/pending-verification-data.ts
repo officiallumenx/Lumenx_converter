@@ -428,7 +428,7 @@ export function formatTimelineTime(iso?: string): string | null {
 export { formatDisplayDate };
 
 export const SUPPORT_CONTACT = {
-  email: "support@lumenx.app",
+  email: "official.lumenx@gmail.com",
   phone: "+91 80 4567 8900",
   hours: "Mon – Fri, 9 AM – 6 PM IST",
   helpCenter: "help.lumenx.app",

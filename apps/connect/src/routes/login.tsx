@@ -872,10 +872,14 @@ function LoginPage() {
                   By continuing you agree to LumenX Connect&apos;s{" "}
                   <Link to="/terms" className="text-primary font-medium hover:underline">
                     Terms & Conditions
-                  </Link>{" "}
-                  and{" "}
+                  </Link>
+                  ,{" "}
                   <Link to="/privacy" className="text-primary font-medium hover:underline">
                     Privacy Policy
+                  </Link>
+                  , and{" "}
+                  <Link to="/cookies" className="text-primary font-medium hover:underline">
+                    Cookie Policy
                   </Link>
                   .
                 </p>

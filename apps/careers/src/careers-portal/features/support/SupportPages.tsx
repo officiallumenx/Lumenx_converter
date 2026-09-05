@@ -419,6 +419,9 @@ export function SettingsPage() {
           <Link to="/privacy" className="text-primary font-medium hover:underline">
             Privacy Policy
           </Link>
+          <Link to="/cookies" className="text-primary font-medium hover:underline">
+            Cookie Policy
+          </Link>
         </div>
       </SettingsSection>
 

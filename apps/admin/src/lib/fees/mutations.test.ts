@@ -79,6 +79,7 @@ describe("fees mutations", () => {
         amount: 1000,
         method: "cash",
         paidOn: "2026-08-29",
+        note: "Cash at reception",
       },
       client,
     );
@@ -89,7 +90,21 @@ describe("fees mutations", () => {
         class_id: CLASS,
         method: "cash",
         paid_on: "2026-08-29",
+        note: "Cash at reception",
       }),
+    );
+  });
+
+  it("posts void payment payload in API mode", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const PAYMENT = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const post = vi.fn().mockResolvedValue({ id: PAYMENT });
+    const client = { post } as never;
+    const { voidPayment } = await import("./mutations");
+    await voidPayment({ paymentId: PAYMENT, reason: "Duplicate entry" }, client);
+    expect(post).toHaveBeenCalledWith(
+      `/api/v1/fees/payments/${PAYMENT}/void`,
+      { reason: "Duplicate entry" },
     );
   });
 

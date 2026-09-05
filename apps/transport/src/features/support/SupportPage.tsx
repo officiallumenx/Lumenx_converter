@@ -207,7 +207,7 @@ export function SupportPage() {
           <p className="mt-3 font-display text-sm font-semibold tracking-tight text-foreground">
             Terms
           </p>
-          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Demo usage terms</p>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Product terms</p>
         </button>
       </section>
 
@@ -215,7 +215,7 @@ export function SupportPage() {
         open={privacyOpen}
         onOpenChange={setPrivacyOpen}
         title="Privacy Policy"
-        description="Mock policy for this Transport demo."
+        description="LumenX Transport privacy & cookie policy."
         icon={FileText}
         iconColor={MODULE_COLORS.success}
         body={support.privacyPolicy}
@@ -225,7 +225,7 @@ export function SupportPage() {
         open={termsOpen}
         onOpenChange={setTermsOpen}
         title="Terms"
-        description="Mock terms for this Transport demo."
+        description="LumenX Transport terms & conditions."
         icon={Scale}
         iconColor={MODULE_COLORS.primary}
         body={support.terms}

@@ -215,12 +215,14 @@ describe("fees api", () => {
         amount: 4000,
         method: "cash",
         paid_on: "2026-08-01",
+        note: "Term 1 cash at reception",
       }),
     });
     expect(pay.status).toBe(201);
     const payment = (await json(pay)).data;
     expect(payment.amount).toBe(4000);
     expect(payment.receiptNo).toMatch(/^RCP-/);
+    expect(payment.note).toBe("Term 1 cash at reception");
 
     const after = await app.request(
       `/api/v1/fees/accounts/${STUDENT_A}?plan_id=${PLAN_A}&class_id=${CLASS_A}`,
@@ -230,6 +232,54 @@ describe("fees api", () => {
     expect(afterAcct.paidAmount).toBe(4000);
     expect(afterAcct.dueAmount).toBe(6000);
     expect(afterAcct.status).toBe("partial");
+
+    const voidRes = await app.request(`/api/v1/fees/payments/${payment.id}/void`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-admin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ reason: "Wrong amount entered" }),
+    });
+    expect(voidRes.status).toBe(200);
+
+    const afterVoid = await app.request(
+      `/api/v1/fees/accounts/${STUDENT_A}?plan_id=${PLAN_A}&class_id=${CLASS_A}`,
+      { headers: { Authorization: "Bearer token-admin" } },
+    );
+    const voidAcct = (await json(afterVoid)).data;
+    expect(voidAcct.paidAmount).toBe(0);
+    expect(voidAcct.dueAmount).toBe(10000);
+    expect(voidAcct.status).toBe("due");
+  });
+
+  it("rejects payment without note", async () => {
+    const db = baseDb();
+    const app = appWithDb(db);
+    await app.request(`/api/v1/fees/plans/${PLAN_A}/publish`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-admin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ publish_scope: "institute" }),
+    });
+    const pay = await app.request("/api/v1/fees/payments", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-admin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        fee_plan_id: PLAN_A,
+        student_id: STUDENT_A,
+        class_id: CLASS_A,
+        amount: 100,
+        method: "cash",
+        paid_on: "2026-08-01",
+      }),
+    });
+    expect(pay.status).toBe(400);
   });
 
   it("blocks teacher from recording payments", async () => {
@@ -247,6 +297,7 @@ describe("fees api", () => {
         amount: 100,
         method: "cash",
         paid_on: "2026-08-01",
+        note: "Attempt",
       }),
     });
     expect(res.status).toBe(403);

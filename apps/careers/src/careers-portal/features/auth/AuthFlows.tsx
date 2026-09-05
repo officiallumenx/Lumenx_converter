@@ -775,6 +775,7 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
             onCheckedChange={setAcceptedTerms}
             termsTo="/terms"
             privacyTo="/privacy"
+            cookiesTo="/cookies"
             id="careers-accept-terms"
           />
           <div className="flex gap-2">

@@ -560,7 +560,7 @@ function FaqsTab() {
     },
     {
       q: "How do I contact support?",
-      a: "Open Settings → Contact & Support, or write to support@lumenx.app. For common how-tos, use Help Center or FAQs in Settings.",
+      a: "Open Settings → Contact & Support, or write to official.lumenx@gmail.com. For common how-tos, use Help Center or FAQs in Settings.",
     },
   ];
 
@@ -609,7 +609,7 @@ function ContactTab() {
           {
             icon: Mail,
             title: "Email Support",
-            value: "support@lumenx.app",
+            value: "official.lumenx@gmail.com",
             hint: "We reply within 4 business hours",
             action: "Send email",
           },

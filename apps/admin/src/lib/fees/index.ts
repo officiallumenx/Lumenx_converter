@@ -47,12 +47,14 @@ export {
   upsertConcession,
   deleteConcession,
   recordPayment,
+  voidPayment,
   type CreateFeePlanInput,
   type PublishFeePlanInput,
   type CreateFeeComponentInput,
   type UpdateFeeComponentInput,
   type UpsertConcessionInput,
   type RecordPaymentInput,
+  type VoidPaymentInput,
 } from "./mutations";
 export {
   findCategoryByKind,

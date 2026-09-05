@@ -520,6 +520,7 @@ export function AdmissionsSettingsPage() {
       items: [
         { label: "Terms & Conditions", to: "/terms" },
         { label: "Privacy Policy", to: "/privacy" },
+        { label: "Cookie Policy", to: "/cookies" },
       ],
     },
   ];

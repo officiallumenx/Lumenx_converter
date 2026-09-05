@@ -48,11 +48,16 @@ export const BILLING_TERMS_VERSION = "2026.1";
 
 export const BILLING_TERMS_TEXT = `LumenX Institute Subscription Terms (${BILLING_TERMS_VERSION})
 
-1. Scope
-This agreement covers the LumenX platform licence for your institute for the selected billing period (monthly or yearly). Fees are set by LumenX Nexus based on institute scale (students).
+Operator: LumenX
+Address: Door / PIN 534201, Bhimavaram, West Godavari District, Andhra Pradesh, India
+Contact: official.lumenx@gmail.com
+Governing law: India (Andhra Pradesh)
 
-2. Payment & security
-Payments must be authorised by an institute administrator using their personal 6-digit security PIN. Do not share your PIN. LumenX never stores full card or UPI credentials in Admin — checkout is processed through a PCI-DSS aligned payment partner in production.
+1. Scope
+This agreement covers the LumenX platform licence for your institute for the selected billing period (monthly or yearly). Fees are set by LumenX Nexus based on institute scale (students). Modules covered are those enabled for your institute in Admin / Nexus.
+
+2. Payment (offline)
+Payments are accepted offline (bank transfer, cheque, UPI collected offline, or other settlement confirmed by LumenX). Online gateway checkout may be introduced later. Payments must be authorised by an institute administrator using their personal 6-digit security PIN. Do not share your PIN. LumenX does not store full card PAN in Admin for offline settlement flows.
 
 3. Billing period
 The plan starts on the stated start date/time. Renewal falls due at the end of each monthly or yearly period. Failure to pay may restrict premium operations after a grace period.
@@ -61,15 +66,18 @@ The plan starts on the stated start date/time. Renewal falls due at the end of e
 Displayed amounts are exclusive of applicable GST unless stated. Invoices itemise taxable value and GST as required under Indian tax rules.
 
 5. Invoice
-After successful payment, a tax invoice is generated and stored in your institute billing history. Keep invoices for your accounts and audit records.
+After payment is confirmed, a tax invoice is generated and stored in your institute billing history. Keep invoices for your accounts and audit records.
 
 6. Refunds
-Refunds, if any, follow the LumenX commercial policy and applicable law. Chargebacks without prior notice may suspend the institute licence.
+Refunds, if any, follow the LumenX commercial policy and applicable Indian law. Disputed settlements without prior notice may suspend the institute licence.
 
 7. Modules
 Optional modules are enabled by default. Turning a module off disables it in Admin for this institute. Core modules (Home, Modules, Analytics, Settings, Roles, Accounts) cannot be turned off.
 
-8. Acceptance
+8. Data protection
+Personal data is processed as described in the LumenX Privacy Policy, with priority to India’s Digital Personal Data Protection Act, 2023 (DPDP Act).
+
+9. Acceptance
 By accepting these terms and confirming payment with your security PIN, you confirm you are authorised to bind the institute to this subscription.`;
 
 function nowDateTimeLocal(d = new Date()): string {

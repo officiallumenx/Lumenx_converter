@@ -3,13 +3,13 @@ import { AppError } from "../../errors/app-error.js";
 import type { Actor } from "../../auth/types.js";
 import {
   assertInstituteAccess,
-  assertInstituteRoles,
   requireInstituteId,
 } from "../../authorization/index.js";
 import {
   findStudentById,
   listGuardianStudentIds,
 } from "../students/repository.js";
+import { getEffectivePermissionsForActor } from "../access-roles/service.js";
 import {
   findActiveEnrollmentForStudentYear,
   findClassInInstituteYear,
@@ -18,6 +18,7 @@ import {
   findConcessionTriple,
   findFeePlanById,
   findFeePlanByInstituteYear,
+  findPaymentById,
   findStudentFee,
   insertComponent,
   insertConcession,
@@ -29,6 +30,7 @@ import {
   listPaymentsForPlan,
   softDeleteComponent,
   softDeleteConcession,
+  softDeletePayment,
   sumPaymentsForStudent,
   updateComponentFields,
   updateConcessionFields,
@@ -53,6 +55,7 @@ import type {
   StudentFeeStatus,
   UpdateFeeComponentInput,
   UpsertConcessionInput,
+  VoidFeePaymentInput,
 } from "./types.js";
 
 export const FEE_WRITE_ROLES = [
@@ -148,9 +151,38 @@ export function isStaffReader(actor: Actor, instituteId: string): boolean {
   return FEE_STAFF_READ_ROLES.some((role) => membership.roles.includes(role));
 }
 
-function assertFeeWriter(actor: Actor, instituteId: string): void {
+/**
+ * Fee writes: legacy FEE_WRITE_ROLES, or Roles & Access module `/fees` = full.
+ * Institute-wide admins already resolve to full module permissions.
+ */
+async function assertFeeWriter(
+  admin: SupabaseClient,
+  actor: Actor,
+  instituteId: string,
+): Promise<void> {
   requireInstituteId(actor, instituteId);
-  assertInstituteRoles(actor, instituteId, [...FEE_WRITE_ROLES]);
+  if (actor.isPlatformOperator) return;
+
+  const membership = actor.memberships.find((m) => m.instituteId === instituteId);
+  if (membership && FEE_WRITE_ROLES.some((role) => membership.roles.includes(role))) {
+    return;
+  }
+
+  const effective = await getEffectivePermissionsForActor(admin, actor, instituteId);
+  if (effective.permissions["/fees"] === "full") return;
+
+  throw AppError.forbidden("Insufficient permissions");
+}
+
+function requirePaymentNote(note: string | null | undefined, label = "note"): string {
+  const trimmed = typeof note === "string" ? note.trim() : "";
+  if (!trimmed) {
+    throw AppError.validation(`${label} is required`);
+  }
+  if (trimmed.length > 500) {
+    throw AppError.validation(`${label} must be at most 500 characters`);
+  }
+  return trimmed;
 }
 
 function assertFeeStaffReader(actor: Actor, instituteId: string): void {
@@ -285,7 +317,7 @@ export async function createFeePlanForActor(
   actor: Actor,
   input: CreateFeePlanInput,
 ): Promise<FeePlanDto> {
-  assertFeeWriter(actor, input.instituteId);
+  await assertFeeWriter(admin, actor, input.instituteId);
   const existing = await findFeePlanByInstituteYear(
     admin,
     input.instituteId,
@@ -304,7 +336,7 @@ export async function publishFeePlanForActor(
 ): Promise<FeePlanDto> {
   const existing = await findFeePlanById(admin, planId);
   if (!existing) throw AppError.notFound("Fee plan not found");
-  assertFeeWriter(actor, existing.institute_id);
+  await assertFeeWriter(admin, actor, existing.institute_id);
 
   const classIds =
     input.publishScope === "classes" ? (input.publishedClassIds ?? []) : [];
@@ -332,7 +364,7 @@ export async function unpublishFeePlanForActor(
 ): Promise<FeePlanDto> {
   const existing = await findFeePlanById(admin, planId);
   if (!existing) throw AppError.notFound("Fee plan not found");
-  assertFeeWriter(actor, existing.institute_id);
+  await assertFeeWriter(admin, actor, existing.institute_id);
 
   const updated = await updateFeePlanFields(admin, planId, {
     status: "draft",
@@ -363,7 +395,7 @@ export async function createComponentForActor(
 ): Promise<FeeComponentDto> {
   const plan = await findFeePlanById(admin, input.feePlanId);
   if (!plan) throw AppError.notFound("Fee plan not found");
-  assertFeeWriter(actor, plan.institute_id);
+  await assertFeeWriter(admin, actor, plan.institute_id);
 
   const name = input.name.trim();
   if (!name) throw AppError.validation("name is required");
@@ -393,7 +425,7 @@ export async function updateComponentForActor(
 ): Promise<FeeComponentDto> {
   const existing = await findComponentById(admin, componentId);
   if (!existing) throw AppError.notFound("Fee component not found");
-  assertFeeWriter(actor, existing.institute_id);
+  await assertFeeWriter(admin, actor, existing.institute_id);
 
   const fields: Record<string, unknown> = {};
   if (patch.name !== undefined) {
@@ -430,7 +462,7 @@ export async function deleteComponentForActor(
 ): Promise<void> {
   const existing = await findComponentById(admin, componentId);
   if (!existing) throw AppError.notFound("Fee component not found");
-  assertFeeWriter(actor, existing.institute_id);
+  await assertFeeWriter(admin, actor, existing.institute_id);
   if (existing.kind !== "custom") {
     throw AppError.forbidden("Only custom fee components can be deleted");
   }
@@ -458,7 +490,7 @@ export async function upsertConcessionForActor(
 ): Promise<ConcessionDto> {
   const plan = await findFeePlanById(admin, input.feePlanId);
   if (!plan) throw AppError.notFound("Fee plan not found");
-  assertFeeWriter(actor, plan.institute_id);
+  await assertFeeWriter(admin, actor, plan.institute_id);
 
   const student = await findStudentById(admin, input.studentId);
   if (!student || student.institute_id !== plan.institute_id) {
@@ -494,7 +526,7 @@ export async function deleteConcessionForActor(
 ): Promise<void> {
   const existing = await findConcessionById(admin, concessionId);
   if (!existing) throw AppError.notFound("Concession not found");
-  assertFeeWriter(actor, existing.institute_id);
+  await assertFeeWriter(admin, actor, existing.institute_id);
   const deleted = await softDeleteConcession(admin, concessionId);
   if (!deleted) throw AppError.conflict("Concession was already deleted");
 }
@@ -605,9 +637,10 @@ export async function recordPaymentForActor(
 ): Promise<FeePaymentDto> {
   const plan = await findFeePlanById(admin, input.feePlanId);
   if (!plan) throw AppError.notFound("Fee plan not found");
-  assertFeeWriter(actor, plan.institute_id);
+  await assertFeeWriter(admin, actor, plan.institute_id);
 
   if (input.amount <= 0) throw AppError.validation("amount must be > 0");
+  const note = requirePaymentNote(input.note);
 
   const student = await findStudentById(admin, input.studentId);
   if (!student || student.institute_id !== plan.institute_id) {
@@ -669,7 +702,7 @@ export async function recordPaymentForActor(
     method: input.method,
     receiptNo: receiptNo(),
     paidOn: input.paidOn,
-    note: input.note ?? null,
+    note,
     recordedByUserId: actor.userId,
   });
 
@@ -690,5 +723,52 @@ export async function recordPaymentForActor(
   const dto = toPaymentDto(row);
   const { emitFeePaymentRecordedNotifications } = await import("./notifications.js");
   await emitFeePaymentRecordedNotifications(admin, actor.userId, dto);
+  return dto;
+}
+
+/**
+ * Reverse an office payment (soft-delete). Recalculates Paid / Due / Status.
+ */
+export async function voidPaymentForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  input: VoidFeePaymentInput,
+): Promise<FeePaymentDto> {
+  const existing = await findPaymentById(admin, input.paymentId);
+  if (!existing) throw AppError.notFound("Payment not found");
+  await assertFeeWriter(admin, actor, existing.institute_id);
+
+  const reason = requirePaymentNote(input.reason, "reason");
+
+  const deleted = await softDeletePayment(admin, existing.id, {
+    voidReason: reason,
+    voidedByUserId: actor.userId,
+  });
+  if (!deleted) throw AppError.notFound("Payment not found");
+
+  const plan = await findFeePlanById(admin, existing.fee_plan_id);
+  if (!plan) throw AppError.notFound("Fee plan not found");
+
+  const ledger = await findStudentFee(admin, plan.id, existing.student_id);
+  const paidAmount = await sumPaymentsForStudent(
+    admin,
+    plan.id,
+    existing.student_id,
+  );
+  const billedAmount = ledger ? num(ledger.billed_amount) : 0;
+  if (ledger) {
+    await upsertStudentFeeLedger(admin, {
+      instituteId: plan.institute_id,
+      feePlanId: plan.id,
+      studentId: existing.student_id,
+      billedAmount,
+      paidAmount,
+      status: statusFromAmounts(billedAmount, paidAmount),
+    });
+  }
+
+  const dto = toPaymentDto(deleted);
+  const { emitFeePaymentVoidedNotifications } = await import("./notifications.js");
+  await emitFeePaymentVoidedNotifications(admin, actor.userId, dto, reason);
   return dto;
 }

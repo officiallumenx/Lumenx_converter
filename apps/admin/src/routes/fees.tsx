@@ -14,6 +14,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
+import { useRolePermission } from "@/lib/roles-access";
+import { useAuth } from "@/auth/AuthContext";
 import {
   loadFeesSnapshot,
   resolveFeesLoadView,
@@ -122,10 +124,13 @@ function FeesPage() {
   const { snapshot, setSnapshot } = useFeesStore();
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
-  const writesEnabled = resolveWritesEnabled(apiMode, {
-    status: instituteCtx.status,
-    activeInstituteId: instituteCtx.activeInstituteId,
-  });
+  const { user } = useAuth();
+  const feesPermission = useRolePermission(user?.accessRoleId, "/fees");
+  const writesEnabled =
+    resolveWritesEnabled(apiMode, {
+      status: instituteCtx.status,
+      activeInstituteId: instituteCtx.activeInstituteId,
+    }) && feesPermission === "full";
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 

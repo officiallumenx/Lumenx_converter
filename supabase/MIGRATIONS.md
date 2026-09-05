@@ -1,0 +1,16 @@
+-- Migration integrity checklist (repo source of truth).
+-- Apply order is filename lexicographic under supabase/migrations/.
+--
+-- Completeness closed in this pack:
+--   20260827470800_transport_ops_rls.sql     — RLS + grants for trip/boarding/emergency/GPS
+--   20260827470900_fee_payment_void_audit.sql — void_reason / voided_at / voided_by_user_id
+--   ../seed.sql                               — empty seed so `supabase db reset` succeeds
+--
+-- Apply to linked project:
+--   npx supabase link --project-ref <ref>
+--   npx supabase db push
+-- Or: npm run migrations:bundle --workspace=@lumenx/api
+--
+-- Verify remote:
+--   npx supabase migration list
+--   SELECT version FROM supabase_migrations.schema_migrations ORDER BY version;

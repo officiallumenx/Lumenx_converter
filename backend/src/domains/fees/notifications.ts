@@ -119,3 +119,34 @@ export async function emitFeePaymentRecordedNotifications(
     paymentId: payment.id,
   });
 }
+
+export async function emitFeePaymentVoidedNotifications(
+  admin: SupabaseClient,
+  actorUserId: string,
+  payment: FeePaymentDto,
+  reason: string,
+): Promise<void> {
+  const student = await findStudentById(admin, payment.studentId);
+  const studentName = student?.display_name?.trim() || "Student";
+  const parentIds = await listParentUserIdsForStudent(
+    admin,
+    payment.studentId,
+    payment.instituteId,
+  );
+
+  const studentUserId = student?.user_profile_id;
+  const recipients = new Set(parentIds);
+  if (studentUserId) recipients.add(studentUserId);
+
+  await emitFeesNotification(admin, actorUserId, {
+    instituteId: payment.instituteId,
+    recipientUserIds: [...recipients],
+    title: "Payment reversed",
+    body: `${formatInr(payment.amount)} for ${studentName} (receipt ${payment.receiptNo}) was voided · ${reason}`,
+    dedupeKey: `fee-payment-void:${payment.id}`,
+    kind: "payment_voided",
+    studentId: payment.studentId,
+    planId: payment.feePlanId,
+    paymentId: payment.id,
+  });
+}

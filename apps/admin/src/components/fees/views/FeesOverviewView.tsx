@@ -112,7 +112,7 @@ export function FeesOverviewView({
           </p>
           <p>
             Totals above use assigned fees minus offline office collections. Parents pay at
-            school; Admin records payment and receipts download from Fees → Student fees.
+            school; Admin records payment and staff can print the receipt at the counter.
           </p>
           {published && snapshot.publish.publishedAt ? (
             <p className="text-xs">

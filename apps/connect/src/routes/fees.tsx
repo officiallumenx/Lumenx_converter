@@ -1002,7 +1002,7 @@ function FeeScheduleRow({ f }: { f: FeeItem }) {
             className="shrink-0"
             onClick={() => {
               const content = [
-                "LumenX Institute",
+                "Test1School",
                 "FEE RECEIPT",
                 "========================================",
                 `Receipt No. : ${f.receiptNo}`,

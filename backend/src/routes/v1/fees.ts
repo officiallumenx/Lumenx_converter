@@ -24,6 +24,7 @@ import {
   unpublishFeePlanForActor,
   updateComponentForActor,
   upsertConcessionForActor,
+  voidPaymentForActor,
 } from "../../domains/fees/service.js";
 import {
   getStudentFeePortalForActor,
@@ -329,7 +330,7 @@ fees.post("/payments", async (c) => {
         amount: z.number().positive(),
         method: methodSchema,
         paid_on: dateOnly,
-        note: z.string().max(500).nullable().optional(),
+        note: z.string().trim().min(1).max(500),
       }),
       await c.req.json(),
     );
@@ -343,6 +344,28 @@ fees.post("/payments", async (c) => {
       note: body.note,
     });
     return { status: 201, body: { data } };
+  });
+});
+
+fees.post("/payments/:paymentId/void", async (c) => {
+  return withIdempotency(c, "POST /api/v1/fees/payments/:paymentId/void", async () => {
+    const actor = assertAuthenticated(c);
+    const admin = requireAdmin(c);
+    const { paymentId } = validateParams(
+      z.object({ paymentId: uuid }),
+      c.req.param(),
+    );
+    const body = validateBody(
+      z.object({
+        reason: z.string().trim().min(1).max(500),
+      }),
+      await c.req.json(),
+    );
+    const data = await voidPaymentForActor(admin, actor, {
+      paymentId,
+      reason: body.reason,
+    });
+    return { status: 200, body: { data } };
   });
 });
 

@@ -133,6 +133,7 @@ const SEED_PAYMENTS: FeesSnapshot["payments"] = [
     classKey: "Grade 10",
     amount: 18_000,
     method: "cheque",
+    note: "Partial at reception",
     paidAt: "2026-05-28",
     recordedAt: "2026-05-28T09:00:00.000Z",
   },

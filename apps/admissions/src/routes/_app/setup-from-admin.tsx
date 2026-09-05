@@ -129,7 +129,7 @@ function SetupFromAdminPage() {
             name: payload.name,
             phone: payload.phone,
             instituteId: payload.instituteId || "ins-test1school",
-            instituteName: payload.instituteName || "LumenX Institute",
+            instituteName: payload.instituteName || "Test1School",
           });
         }
         refresh();

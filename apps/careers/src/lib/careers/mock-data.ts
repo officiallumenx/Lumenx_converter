@@ -8,10 +8,10 @@
 } from "./types";
 
 export const CAREERS_CONTACT = {
-  phone: "+91 40 4455 8899",
-  email: "careers@lumenx.edu",
+  phone: "+91 80 4521 8800",
+  email: "official.lumenx@gmail.com",
   officeHours: "Mon–Fri, 9:00 AM – 6:00 PM",
-  address: "HR Office, Green Park Campus, Hyderabad — 500032",
+  address: "12 Knowledge Park, Sector 4, Bengaluru — 560001",
 };
 
 export const CAREERS_HERO = {

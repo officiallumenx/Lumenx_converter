@@ -960,7 +960,7 @@ function DemoInstituteSettingsPage() {
 
     const autoProfile = normalizeInstituteProfile({
       ...emptyInstituteDraft(profile, user?.instituteName),
-      name: profile?.name ?? catalogInstitute?.name ?? user?.instituteName ?? "LumenX Institute",
+      name: profile?.name ?? catalogInstitute?.name ?? user?.instituteName ?? "Test1School",
       founded: catalogInstitute?.established ?? "",
       vision: profile?.about ?? catalogInstitute?.about ?? "",
       mission: profile?.tagline ?? catalogInstitute?.tagline ?? "",

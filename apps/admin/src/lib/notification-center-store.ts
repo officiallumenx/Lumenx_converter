@@ -149,7 +149,7 @@ function createSeedNotifications(): AdminNotification[] {
       variables: {
         applicationId: "CR-118",
         jobTitle: "Mathematics Teacher",
-        instituteName: "LumenX Institute",
+        instituteName: "Test1School",
       },
       unread: false,
       createdAt: daysAgoIso(2, 16),

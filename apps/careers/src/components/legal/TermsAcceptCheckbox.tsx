@@ -6,6 +6,7 @@ type TermsAcceptCheckboxProps = {
   onCheckedChange: (checked: boolean) => void;
   termsTo: string;
   privacyTo: string;
+  cookiesTo?: string;
   id?: string;
 };
 
@@ -14,6 +15,7 @@ export function TermsAcceptCheckbox({
   onCheckedChange,
   termsTo,
   privacyTo,
+  cookiesTo,
   id = "accept-terms",
 }: TermsAcceptCheckboxProps) {
   return (
@@ -32,8 +34,8 @@ export function TermsAcceptCheckbox({
           className="font-medium text-primary underline-offset-2 hover:underline"
         >
           Terms & Conditions
-        </Link>{" "}
-        and{" "}
+        </Link>
+        ,{" "}
         <Link
           to={privacyTo}
           target="_blank"
@@ -41,6 +43,18 @@ export function TermsAcceptCheckbox({
         >
           Privacy Policy
         </Link>
+        {cookiesTo ? (
+          <>
+            , and{" "}
+            <Link
+              to={cookiesTo}
+              target="_blank"
+              className="font-medium text-primary underline-offset-2 hover:underline"
+            >
+              Cookie Policy
+            </Link>
+          </>
+        ) : null}
         .
       </label>
     </div>

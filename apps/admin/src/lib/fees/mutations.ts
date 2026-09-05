@@ -64,7 +64,12 @@ export type RecordPaymentInput = {
   amount: number;
   method: FeePaymentMethod;
   paidOn: string;
-  note?: string | null;
+  note: string;
+};
+
+export type VoidPaymentInput = {
+  paymentId: string;
+  reason: string;
 };
 
 export async function createFeePlan(
@@ -216,6 +221,10 @@ export async function recordPayment(
   if (!isInstituteUuid(input.classId)) {
     throw new Error("class_id must be a valid UUID");
   }
+  const note = input.note.trim();
+  if (!note) {
+    throw new Error("Payment note is required");
+  }
   return client.post<FeePaymentDto>("/api/v1/fees/payments", {
     fee_plan_id: input.feePlanId.trim(),
     student_id: input.studentId.trim(),
@@ -223,6 +232,24 @@ export async function recordPayment(
     amount: input.amount,
     method: input.method,
     paid_on: input.paidOn,
-    note: input.note,
+    note,
   });
+}
+
+export async function voidPayment(
+  input: VoidPaymentInput,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<FeePaymentDto> {
+  assertApiMode();
+  if (!isInstituteUuid(input.paymentId)) {
+    throw new Error("payment_id must be a valid UUID");
+  }
+  const reason = input.reason.trim();
+  if (!reason) {
+    throw new Error("Void reason is required");
+  }
+  return client.post<FeePaymentDto>(
+    `/api/v1/fees/payments/${input.paymentId.trim()}/void`,
+    { reason },
+  );
 }

@@ -95,7 +95,7 @@ export function getActiveLumenxAdminSession(): LumenxAdminIdentity | null {
       name: session.name,
       phone: session.phone,
       instituteId: session.instituteId ?? "ins-test1school",
-      instituteName: session.instituteName ?? "LumenX Institute",
+      instituteName: session.instituteName ?? "Test1School",
     };
   } catch {
     return null;
@@ -142,7 +142,7 @@ export function verifyLumenxAdminCredentials(
       name: match.user?.name ?? match.email.split("@")[0] ?? "Institute Admin",
       phone: match.phone ?? match.user?.phone,
       instituteId: match.user?.instituteId ?? "ins-test1school",
-      instituteName: match.user?.instituteName ?? "LumenX Institute",
+      instituteName: match.user?.instituteName ?? "Test1School",
     };
   } catch {
     return null;

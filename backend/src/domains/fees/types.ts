@@ -64,6 +64,9 @@ export type FeePaymentRow = {
   paid_on: string;
   note: string | null;
   recorded_by_user_id: string | null;
+  void_reason?: string | null;
+  voided_at?: string | null;
+  voided_by_user_id?: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -202,7 +205,14 @@ export type RecordFeePaymentInput = {
   amount: number;
   method: FeePaymentMethod;
   paidOn: string;
-  note?: string | null;
+  /** Required office note (how/why payment was taken at reception). */
+  note: string;
+};
+
+export type VoidFeePaymentInput = {
+  paymentId: string;
+  /** Required reason for reversing the office payment. */
+  reason: string;
 };
 
 export type StudentFeePortalDto = {

@@ -24,7 +24,7 @@ function phase7RowToDto(row: {
 
   return {
     id: rawId,
-    instituteId: "demo",
+    instituteId: "ins-test1school",
     title: row.title,
     body: (row.detail ?? row.desc ?? row.title).trim(),
     audienceScope: "all",

@@ -9,6 +9,12 @@ import {
   NOTIFICATION_TEMPLATE_IDS,
   renderNotificationTemplate,
 } from "@lumenx/module-notifications";
+import {
+  COOKIE_POLICY,
+  TRANSPORT_PRIVACY,
+  TRANSPORT_TERMS,
+  legalDocumentToPlainText,
+} from "@lumenx/legal";
 
 /**
  * Canonical demo seed for the driver Transport app.
@@ -263,9 +269,11 @@ export const transportSeed = {
           "In this demo, Emergency is a placeholder confirmation only. No backend call is made.",
       },
     ],
-    privacyPolicy:
-      "LumenX Transport demo stores preferences on this device only. No personal data is uploaded to a backend in this build.",
-    terms:
-      "This Transport app build is for demonstration. Features use mock data and do not connect to live school systems.",
+    privacyPolicy: [
+      legalDocumentToPlainText(TRANSPORT_PRIVACY),
+      "",
+      legalDocumentToPlainText(COOKIE_POLICY),
+    ].join("\n"),
+    terms: legalDocumentToPlainText(TRANSPORT_TERMS),
   } satisfies SupportContent,
 } as const;

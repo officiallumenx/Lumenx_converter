@@ -20,10 +20,13 @@ import {
   downloadFeeReceipt,
   formatInr,
   getStudentFeeAccount as getDemoStudentFeeAccount,
+  printFeeReceipt,
   recordOfficePayment,
   resolveChildFeeLines,
   setStudentOverride,
+  voidOfficePayment,
   type FeePaymentMethod,
+  type FeePaymentRecord,
   type FeesSnapshot,
 } from "@lumenx/module-fees";
 import {
@@ -33,6 +36,7 @@ import {
 import {
   deleteConcession,
   recordPayment as recordPaymentApi,
+  voidPayment as voidPaymentApi,
   upsertConcession,
 } from "@/lib/fees/mutations";
 import type { StudentFeeAccountDto } from "@/lib/fees/types";
@@ -116,6 +120,8 @@ export function FeesStudentsView({
   const [payMethod, setPayMethod] = useState<FeePaymentMethod>("cash");
   const [payNote, setPayNote] = useState("");
   const [payDate, setPayDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [voidingId, setVoidingId] = useState<string | null>(null);
+  const [voidReason, setVoidReason] = useState("");
 
   const [apiAccount, setApiAccount] = useState<StudentFeeAccountDto | null>(null);
   const [apiAccountStatus, setApiAccountStatus] = useState<
@@ -347,12 +353,66 @@ export function FeesStudentsView({
     notify(`${name} reset to class default`);
   };
 
+  const receiptOpts = (payment: FeePaymentRecord) =>
+    account
+      ? {
+          billed: account.billed,
+          paidTotal: account.paid,
+          due: account.due,
+        }
+      : undefined;
+
+  const handlePrintReceipt = (payment: FeePaymentRecord) => {
+    try {
+      printFeeReceipt(payment, receiptOpts(payment));
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Could not open print dialog");
+    }
+  };
+
+  const handleVoidPayment = (payment: FeePaymentRecord) => {
+    if (!writesEnabled || !student || !account) return;
+    const reason = voidReason.trim();
+    if (!reason) {
+      notify("Enter a void reason before reversing the payment");
+      return;
+    }
+    if (apiMode) {
+      void voidPaymentApi({ paymentId: payment.id, reason })
+        .then((voided) => {
+          setAccountReloadKey((k) => k + 1);
+          onApiReload?.();
+          setVoidingId(null);
+          setVoidReason("");
+          notify(`Voided ${formatInr(voided.amount)} · ${voided.receiptNo}`);
+        })
+        .catch((err) => {
+          notify(err instanceof Error ? err.message : "Could not void payment");
+        });
+      return;
+    }
+    try {
+      const { snapshot: next } = voidOfficePayment(snapshot, payment.id);
+      onChange(next);
+      setVoidingId(null);
+      setVoidReason("");
+      notify(`Voided ${formatInr(payment.amount)} · ${payment.receiptNo}`);
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Could not void payment");
+    }
+  };
+
   const recordPayment = () => {
     if (!writesEnabled) return;
     if (!student || !account) return;
     const amount = Number(payAmount.replace(/,/g, "")) || 0;
     if (amount <= 0) {
       notify("Enter a payment amount greater than zero");
+      return;
+    }
+    const note = payNote.trim();
+    if (!note) {
+      notify("Payment note is required");
       return;
     }
     if (apiMode) {
@@ -372,7 +432,7 @@ export function FeesStudentsView({
         amount,
         method: payMethod,
         paidOn: payDate,
-        note: payNote.trim() || null,
+        note,
       })
         .then((payment) => {
           setAccountReloadKey((k) => k + 1);
@@ -392,7 +452,7 @@ export function FeesStudentsView({
         classKey: student.classKey,
         amount,
         method: payMethod,
-        note: payNote.trim() || undefined,
+        note,
         paidAt: payDate,
       });
       onChange(next);
@@ -625,12 +685,12 @@ export function FeesStudentsView({
                       onChange={(e) => setPayDate(e.target.value)}
                     />
                   </Field>
-                  <Field label="Note (optional)">
+                  <Field label="Note (required)">
                     <TextInput
                       className="text-xs"
                       value={payNote}
                       onChange={(e) => setPayNote(e.target.value)}
-                      placeholder="e.g. Term 1 cash"
+                      placeholder="e.g. Term 1 cash at reception"
                     />
                   </Field>
                 </div>
@@ -645,7 +705,7 @@ export function FeesStudentsView({
           <Card>
             <CardHeader
               title="Payment history"
-              hint="Office collections with downloadable receipts"
+              hint="Office collections · print at counter or download · void to reverse"
             />
             <CardBody className="p-0">
               {account.payments.length === 0 ? (
@@ -673,24 +733,64 @@ export function FeesStudentsView({
                               {payment.note}
                             </div>
                           ) : null}
+                          {voidingId === payment.id ? (
+                            <div className="mt-2 space-y-2 max-w-xs">
+                              <TextInput
+                                className="text-xs"
+                                value={voidReason}
+                                onChange={(e) => setVoidReason(e.target.value)}
+                                placeholder="Void reason (required)"
+                              />
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="primary"
+                                  onClick={() => handleVoidPayment(payment)}
+                                >
+                                  Confirm void
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    setVoidingId(null);
+                                    setVoidReason("");
+                                  }}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          ) : null}
                         </Td>
                         <Td mono>{payment.paidAt}</Td>
                         <Td>{METHOD_LABEL[payment.method]}</Td>
                         <Td mono>{formatInr(payment.amount)}</Td>
                         <Td align="right">
-                          <Button
-                            size="sm"
-                            onClick={() => {
-                              downloadFeeReceipt(payment, {
-                                billed: account.billed,
-                                paidTotal: account.paid,
-                                due: account.due,
-                              });
-                              notify(`Saved to Downloads · ${payment.receiptNo}.txt`);
-                            }}
-                          >
-                            Receipt
-                          </Button>
+                          <div className="inline-flex flex-wrap justify-end gap-1.5">
+                            <Button size="sm" onClick={() => handlePrintReceipt(payment)}>
+                              Print
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                downloadFeeReceipt(payment, receiptOpts(payment));
+                                notify(`Saved to Downloads · ${payment.receiptNo}.txt`);
+                              }}
+                            >
+                              Download
+                            </Button>
+                            {writesEnabled ? (
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  setVoidingId(payment.id);
+                                  setVoidReason("");
+                                }}
+                              >
+                                Void
+                              </Button>
+                            ) : null}
+                          </div>
                         </Td>
                       </Tr>
                     ))}
