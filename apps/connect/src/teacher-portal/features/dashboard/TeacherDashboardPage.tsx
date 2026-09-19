@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect } from "react";
 import {
   ClipboardCheck,
   GraduationCap,
@@ -23,25 +23,22 @@ import {
 import {
   Badge,
   cn,
-  DashboardCustomizeBar,
-  DashboardLayoutProvider,
-  DashboardWidgets,
-  type DashboardWidgetDef,
 } from "@lumenx/ui";
 import { useApp } from "@/lib/app-state";
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
 import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
+import { EmptyState } from "@/teacher-portal/shared/ui/EmptyState";
 import { StatCard, QuickActionLink } from "@/teacher-portal/shared/ui/StatCard";
 import { TimetableCard } from "@/teacher-portal/shared/ui/TimetableCard";
 import { NotificationCard } from "@/teacher-portal/shared/ui/NotificationCard";
 import { TeacherLeaveDashboardPanel } from "@/components/app/leave/TeacherLeaveDashboardPanel";
 import { DiaryOverdueBanner } from "@/components/app/diary/DiaryBookPage";
-import { getTodayDayName, teacherRepository } from "@/lib/teacher/repositories";
+import { getTodayDayName } from "@/lib/teacher/repositories";
 import type { StudentAttentionItem } from "@/lib/teacher/types";
 import { STUDENT_MODULE_COLORS } from "@/lib/student/nav";
 import { TEACHER_NAV } from "@/lib/teacher/nav";
 
-const TEACHER_HOME_WIDGETS: DashboardWidgetDef[] = [
+const TEACHER_HOME_WIDGETS: { id: string; label: string }[] = [
   { id: "quick-view", label: "Quick view" },
   { id: "quick-actions", label: "Quick Actions" },
   { id: "today", label: "Today" },
@@ -58,13 +55,6 @@ function teacherModuleColor(to: string) {
 export function TeacherDashboardPage() {
   const portal = useTeacherPortal();
   const { activeInstituteId } = useApp();
-  // Live notifications so the dashboard reflects reads/new announcements immediately,
-  // rather than the frozen seed captured in the dashboard snapshot.
-  const liveNotifications = useSyncExternalStore(
-    teacherRepository.subscribeNotifications,
-    teacherRepository.getNotificationsSnapshot,
-    teacherRepository.getNotificationsSnapshot,
-  );
 
   const refresh = portal.isTeacher ? portal.refresh : undefined;
   // Recompute the dashboard from live stores whenever it is (re)entered, so mutations made
@@ -75,7 +65,22 @@ export function TeacherDashboardPage() {
 
   if (!portal.isTeacher) return null;
 
-  if (portal.isLoading || !portal.dashboard) {
+  if (portal.isLoading) {
+    return <PageSkeleton rows={5} />;
+  }
+
+  if (!portal.dashboard) {
+    if (portal.errorMessage) {
+      return (
+        <div className="min-w-0 space-y-4 p-1">
+          <EmptyState
+            icon={AlertCircle}
+            title="Unable to load teacher home"
+            description={portal.errorMessage}
+          />
+        </div>
+      );
+    }
     return <PageSkeleton rows={5} />;
   }
 
@@ -105,14 +110,9 @@ export function TeacherDashboardPage() {
 
       <DiaryOverdueBanner scope="subject" href="/diary" />
 
-      <DashboardLayoutProvider
-        storageKey={`connect.teacher.${activeInstituteId ?? "default"}`}
-        widgets={TEACHER_HOME_WIDGETS}
-      >
-        <div className="min-w-0 space-y-6">
-        <DashboardCustomizeBar />
-        <DashboardWidgets
-          render={(id) => {
+      <div className="min-w-0 space-y-6">
+        {TEACHER_HOME_WIDGETS.map(({ id }) => {
+          const node = (() => {
             if (id === "quick-view") {
               return (
                 <section>
@@ -487,16 +487,13 @@ export function TeacherDashboardPage() {
                       </Link>
                     </div>
                     <div className="space-y-2">
-                      {liveNotifications
-                        .filter((n) => n.unread)
-                        .slice(0, 3)
-                        .map((n) => (
-                          <NotificationCard
-                            key={n.id}
-                            notification={n}
-                            onMarkRead={(nid) => void teacherRepository.markNotificationRead(nid)}
-                          />
-                        ))}
+                      {dashboard.recentNotifications.length === 0 ? (
+                        <p className="text-sm text-muted-foreground py-2">No recent notifications.</p>
+                      ) : (
+                        dashboard.recentNotifications.slice(0, 3).map((n) => (
+                          <NotificationCard key={n.id} notification={n} />
+                        ))
+                      )}
                     </div>
                   </section>
 
@@ -520,10 +517,10 @@ export function TeacherDashboardPage() {
             }
 
             return null;
-          }}
-        />
+          })();
+          return node ? <div key={id}>{node}</div> : null;
+        })}
         </div>
-      </DashboardLayoutProvider>
     </div>
   );
 }

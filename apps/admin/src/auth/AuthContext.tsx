@@ -15,16 +15,11 @@ import {
 } from "react";
 import type { AuthContextValue, AuthUser, SignUpFormData, ForgotPinFormData } from "./types";
 import { clearLoginFlowDraft } from "./login-flow-store";
-import { clearAppUnlock, saveUserPin } from "./app-lock-store";
+import { clearAppUnlock } from "./app-lock-store";
 import {
   loadSession,
   saveSession,
-  clearSession,
   sessionToUser,
-  mockSignIn,
-  mockSignUp,
-  mockForgotPassword,
-  mockForgotPin,
 } from "./auth-store";
 import { AUTH_REMEMBER_KEY } from "./constants";
 import { isApiAuthMode, assertProductionApiAuthMode } from "./auth-mode";
@@ -36,7 +31,7 @@ import {
   tryHydrateApiSession,
 } from "./api-auth";
 import { clearApiModeLocalIdentity } from "./api-local-cleanup";
-import { isDemoCompleteSignInAllowed, mergeApiPresentationPatch } from "./login-flow-auth";
+import { mergeApiPresentationPatch } from "./login-flow-auth";
 import {
   tryApplyApiActiveInstituteSession,
   clearApiActiveInstituteSession,
@@ -45,6 +40,7 @@ import { setAdminApiUnauthorizedHandler } from "@/lib/admin-api";
 import { bindApiRegistrationUser } from "./api-registration-state";
 import { finalizeApiAuthUser } from "./api-auth-finalize";
 import { runApiInstituteSignUp } from "./api-signup-flow";
+import { assertNotDemoFallback } from "@lumenx/auth";
 
 // ── Context ───────────────────────────────────────────────────
 
@@ -79,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => setAdminApiUnauthorizedHandler(null);
   }, [clearApiLocalState]);
 
-  /** On mount — restore demo session or hydrate API session from Supabase. */
+  /** On mount — hydrate API session from Supabase / LumenX session. */
   useEffect(() => {
     if (bootstrapped.current) return;
     bootstrapped.current = true;
@@ -89,49 +85,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async function bootstrap() {
       setStatus("loading");
 
-      if (isApiAuthMode()) {
-        try {
-          const hydrated = await tryHydrateApiSession();
+      try {
+        const hydrated = await tryHydrateApiSession();
+        if (cancelled) return;
+        if (hydrated) {
+          bindApiRegistrationUser(hydrated.user.id);
+          const user = await finalizeApiAuthUser(hydrated);
           if (cancelled) return;
-          if (hydrated) {
-            bindApiRegistrationUser(hydrated.user.id);
-            const user = await finalizeApiAuthUser(hydrated);
-            if (cancelled) return;
-            const remember =
-              typeof localStorage !== "undefined" &&
-              localStorage.getItem(AUTH_REMEMBER_KEY) === "1";
-            saveSession(user, remember, { authSource: "api" });
-            setUser(user);
-            setStatus("authenticated");
-            return;
-          }
-          // No Supabase session — drop UI session + stale institute preference.
-          clearApiModeLocalIdentity();
-          setUser(null);
-          setStatus("unauthenticated");
-        } catch (err) {
-          if (cancelled) return;
-          clearApiModeLocalIdentity();
-          setUser(null);
-          setError(err instanceof Error ? err.message : "Session restore failed");
-          setStatus("unauthenticated");
+          const remember =
+            typeof localStorage !== "undefined" &&
+            localStorage.getItem(AUTH_REMEMBER_KEY) === "1";
+          saveSession(user, remember, { authSource: "api" });
+          setUser(user);
+          setStatus("authenticated");
+          return;
         }
-        return;
-      }
-
-      // Demo mode — never call the live API with mock tokens.
-      const session = loadSession();
-      if (session?.authSource === "api") {
-        // Stale API session while in demo mode — discard.
-        clearSession();
+        // No Supabase session — drop UI session + stale institute preference.
+        clearApiModeLocalIdentity();
         setUser(null);
         setStatus("unauthenticated");
-        return;
-      }
-      if (session) {
-        setUser(sessionToUser(session));
-        setStatus("authenticated");
-      } else {
+      } catch (err) {
+        if (cancelled) return;
+        clearApiModeLocalIdentity();
+        setUser(null);
+        setError(err instanceof Error ? err.message : "Session restore failed");
         setStatus("unauthenticated");
       }
     }
@@ -147,23 +124,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStatus("loading");
       setError(null);
       try {
-        if (isApiAuthMode()) {
-          const hydrated = await apiSignInWithPassword(identifier, password);
-          bindApiRegistrationUser(hydrated.user.id);
-          const user = await finalizeApiAuthUser(hydrated);
-          saveSession(user, remember, { authSource: "api" });
-          clearLoginFlowDraft();
-          clearAppUnlock();
-          setUser(user);
-          setStatus("authenticated");
-          return;
-        }
-
-        const authUser = await mockSignIn(identifier, password);
-        saveSession(authUser, remember, { authSource: "demo" });
+        const hydrated = await apiSignInWithPassword(identifier, password);
+        bindApiRegistrationUser(hydrated.user.id);
+        const user = await finalizeApiAuthUser(hydrated);
+        saveSession(user, remember, { authSource: "api" });
         clearLoginFlowDraft();
         clearAppUnlock();
-        setUser(authUser);
+        setUser(user);
         setStatus("authenticated");
       } catch (err) {
         setError(err instanceof Error ? err.message : "Login failed. Please try again.");
@@ -178,21 +145,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (input: {
       instituteId: string;
       identifier: string;
-      otp: string;
-      password: string;
+      otp?: string;
+      mobileOtp?: string;
+      emailOtp?: string;
+      mobileOtpGrant?: string;
+      emailOtpGrant?: string;
+      firebaseIdToken?: string;
+      password?: string;
+      pin: string;
       remember?: boolean;
     }) => {
       setStatus("loading");
       setError(null);
       try {
         if (!isApiAuthMode()) {
-          throw new Error("Staff OTP login is only available in API mode.");
+          throw new Error("Staff OTP login is not available in this environment.");
         }
         const hydrated = await apiSignInWithStaffOtp({
           instituteId: input.instituteId,
           identifier: input.identifier,
           otp: input.otp,
+          mobileOtp: input.mobileOtp,
+          emailOtp: input.emailOtp,
+          mobileOtpGrant: input.mobileOtpGrant,
+          emailOtpGrant: input.emailOtpGrant,
+          firebaseIdToken: input.firebaseIdToken,
           password: input.password,
+          pin: input.pin,
         });
         bindApiRegistrationUser(hydrated.user.id);
         const user = await finalizeApiAuthUser(hydrated);
@@ -215,18 +194,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       instituteId: string;
       identifier: string;
       password: string;
+      pin: string;
       remember?: boolean;
     }) => {
       setStatus("loading");
       setError(null);
       try {
         if (!isApiAuthMode()) {
-          throw new Error("Staff password login is only available in API mode.");
+          throw new Error("Staff password login is not available in this environment.");
         }
         const hydrated = await apiSignInWithStaffPassword({
           instituteId: input.instituteId,
           identifier: input.identifier,
           password: input.password,
+          pin: input.pin,
         });
         bindApiRegistrationUser(hydrated.user.id);
         const user = await finalizeApiAuthUser(hydrated);
@@ -244,21 +225,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const completeSignIn = useCallback((authUser: AuthUser, remember = false) => {
-    // OTP / institute-registration completion remains on the demo identity path.
-    // API mode must never install a demo session through this entry point.
-    if (!isDemoCompleteSignInAllowed()) {
-      setError(
-        "Demo sign-in completion is disabled in API mode. Use email and password sign-in.",
-      );
-      return;
-    }
-    saveSession(authUser, remember, { authSource: "demo" });
-    clearLoginFlowDraft();
-    clearAppUnlock();
-    setError(null);
-    setUser(authUser);
-    setStatus("authenticated");
+  const completeSignIn = useCallback((_authUser: AuthUser, _remember = false) => {
+    assertNotDemoFallback("api", "Admin completeSignIn");
   }, []);
 
   const patchAuthenticatedUser = useCallback((authUser: AuthUser) => {
@@ -267,24 +235,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.getItem(AUTH_REMEMBER_KEY) === "1";
     const existing = loadSession();
 
-    // API mode: /me remains authoritative for role + institute identity.
+    // /me remains authoritative for role + institute identity.
     // Only presentation fields may be patched on top of the existing API session.
-    if (isApiAuthMode()) {
-      if (!existing || existing.authSource !== "api") {
-        setError("Cannot patch identity without an active API session.");
-        return;
-      }
-      const current = sessionToUser(existing);
-      const merged = mergeApiPresentationPatch(current, authUser);
-      saveSession(merged, remember, { authSource: "api" });
-      setUser(merged);
+    if (!existing || existing.authSource !== "api") {
+      setError("Cannot patch identity without an active API session.");
       return;
     }
-
-    saveSession(authUser, remember, {
-      authSource: existing?.authSource ?? "demo",
-    });
-    setUser(authUser);
+    const current = sessionToUser(existing);
+    const merged = mergeApiPresentationPatch(current, authUser);
+    saveSession(merged, remember, { authSource: "api" });
+    setUser(merged);
   }, []);
 
   const applyApiActiveInstitute = useCallback(
@@ -305,42 +265,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signUp = useCallback(async (data: SignUpFormData) => {
-    if (isApiAuthMode()) {
-      setStatus("loading");
-      setError(null);
-      try {
-        const hydrated = await runApiInstituteSignUp(data);
-        saveSession(hydrated.user, false, { authSource: "api" });
-        clearAppUnlock();
-        setUser(hydrated.user);
-        setStatus("authenticated");
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Sign up failed. Please try again.");
-        setStatus("unauthenticated");
-        throw err;
-      }
-      return;
-    }
     setStatus("loading");
     setError(null);
     try {
-      const authUser = await mockSignUp(
-        data.email,
-        data.fullName,
-        data.role as AuthUser["role"],
-        data.designation,
-        {
-          phone: data.phone,
-          instituteName: data.instituteName,
-          password: data.password,
-        },
-      );
-      if (data.securityPin) {
-        saveUserPin(authUser.id, data.securityPin, authUser.email);
-      }
-      saveSession(authUser, false, { authSource: "demo" });
+      const hydrated = await runApiInstituteSignUp(data);
+      saveSession(hydrated.user, false, { authSource: "api" });
       clearAppUnlock();
-      setUser(authUser);
+      setUser(hydrated.user);
       setStatus("authenticated");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign up failed. Please try again.");
@@ -350,37 +281,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(() => {
-    if (isApiAuthMode()) {
-      void apiSignOut().finally(() => {
-        clearApiLocalState();
-      });
-      return;
-    }
-    clearSession();
-    clearLoginFlowDraft();
-    clearAppUnlock();
-    setUser(null);
-    setError(null);
-    setStatus("unauthenticated");
+    clearApiLocalState();
+    void apiSignOut().catch(() => undefined);
   }, [clearApiLocalState]);
 
   const forgotPassword = useCallback(async (email: string) => {
     setError(null);
-    if (isApiAuthMode()) {
-      const { getSupabaseBrowserClient } = await import("@/lib/supabase-browser");
-      const supabase = getSupabaseBrowserClient();
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(
-        email.trim().toLowerCase(),
-      );
-      if (resetError) throw new Error(resetError.message);
-      return;
-    }
-    await mockForgotPassword(email);
+    const { getSupabaseBrowserClient } = await import("@/lib/supabase-browser");
+    const supabase = getSupabaseBrowserClient();
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+      email.trim().toLowerCase(),
+    );
+    if (resetError) throw new Error(resetError.message);
   }, []);
 
   const forgotPin = useCallback(async (data: ForgotPinFormData) => {
     setError(null);
-    await mockForgotPin(data.email, data.employeeId);
+    // PIN recovery for API accounts is handled via staff credential APIs — not demo lookup.
+    throw new Error(
+      "PIN recovery requires the live staff credential flow. Demo PIN recovery has been removed.",
+    );
   }, []);
 
   const clearError = useCallback(() => setError(null), []);

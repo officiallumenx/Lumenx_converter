@@ -3,9 +3,8 @@
 **App:** `apps/careers` (standalone Vite app, default port **5176**)  
 **Theme:** Isolated from Connect; own auth session, shell, and nav. Connect redirects to Careers via `VITE_CAREERS_ORIGIN`.
 
-**Auth modes:**
-- `VITE_CAREERS_AUTH_MODE=demo` — localStorage + demo accounts
-- `VITE_CAREERS_AUTH_MODE=api` — Supabase + `/api/v1/careers/*` REST
+**Auth:** API-only (`VITE_CAREERS_AUTH_MODE=api`). Demo Mode is no longer supported.
+Uses Supabase + `/api/v1/careers/*` REST with Firebase (or Supabase) interactive login.
 
 ---
 

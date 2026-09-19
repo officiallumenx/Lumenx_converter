@@ -9,14 +9,14 @@ describe("loadAttendanceRegistersList", () => {
     vi.clearAllMocks();
   });
 
-  it("returns demo status without calling API in demo mode", async () => {
+  it("ignores demo env and still requires API (product is API-only)", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const listAttendanceRegisters = vi.fn();
+    const listAttendanceRegisters = vi.fn().mockResolvedValue([]);
     vi.doMock("./api", () => ({ listAttendanceRegisters }));
     const { loadAttendanceRegistersList } = await import("./load");
     const result = await loadAttendanceRegistersList(INST, {});
-    expect(result.status).toBe("demo");
-    expect(listAttendanceRegisters).not.toHaveBeenCalled();
+    expect(result.status).toBe("empty");
+    expect(listAttendanceRegisters).toHaveBeenCalled();
   });
 
   it("returns forbidden on 403 without demo fallback", async () => {

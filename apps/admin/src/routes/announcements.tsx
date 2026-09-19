@@ -1,4 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { useAnnouncementsListQuery, adminQueryRoots } from "@/lib/admin-queries";
+import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
 import { IconChip } from "@/components/IconChip";
 import { ClassSectionAudienceField } from "@/components/ClassSectionMultiPicker";
@@ -29,9 +32,7 @@ import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
   createAnnouncement,
-  loadAnnouncementsList,
   resolveAnnouncementsListView,
-  shouldCommitAnnouncementsLoad,
   updateAnnouncement,
   publishAnnouncement,
   archiveAnnouncement,
@@ -120,7 +121,23 @@ function AnnouncementsPage() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const queryClient = useQueryClient();
+  const listEnabled =
+    apiMode &&
+    instituteCtx.status === "ready" &&
+    Boolean(instituteCtx.activeInstituteId);
+  const announcementsQuery = useAnnouncementsListQuery(
+    instituteCtx.activeInstituteId,
+    listEnabled,
+  );
+  const bumpAnnouncementsReload = () => {
+    invalidateAdminCache("admin:announcements");
+    if (instituteCtx.activeInstituteId) {
+      void queryClient.invalidateQueries({
+        queryKey: [adminQueryRoots.announcements, instituteCtx.activeInstituteId],
+      });
+    }
+  };
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
@@ -144,7 +161,8 @@ function AnnouncementsPage() {
     activeInstituteId: instituteCtx.activeInstituteId,
     resolvedForInstituteId,
     storedItems: items,
-    storedStatus: listStatus,
+    storedStatus:
+      announcementsQuery.isLoading && !announcementsQuery.data ? "loading" : listStatus,
     storedErrorMessage: listError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
@@ -190,36 +208,25 @@ function AnnouncementsPage() {
       return;
     }
 
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setListStatus("loading");
-    setListError(null);
-    // Keep prior items in state, but render-time view hides them until
-    // resolvedForInstituteId matches the new active institute.
-    void loadAnnouncementsList(requestInstituteId).then((next) => {
-      if (
-        !shouldCommitAnnouncementsLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setItems(next.items);
-      setListStatus(next.status);
-      setListError(next.errorMessage);
-      setResolvedForInstituteId(requestInstituteId);
-    });
-    return () => {
-      cancelled = true;
-    };
+    if (announcementsQuery.isLoading && !announcementsQuery.data) {
+      setListStatus("loading");
+      setListError(null);
+      return;
+    }
+    if (!announcementsQuery.data) return;
+
+    const next = announcementsQuery.data;
+    setItems(next.items);
+    setListStatus(next.status);
+    setListError(next.errorMessage);
+    setResolvedForInstituteId(instituteCtx.activeInstituteId);
   }, [
     apiMode,
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
-    reloadKey,
+    announcementsQuery.data,
+    announcementsQuery.isLoading,
   ]);
 
   useEffect(() => {
@@ -328,7 +335,7 @@ function AnnouncementsPage() {
       const done = () => {
         resetForm();
         setOpen(false);
-        setReloadKey((k) => k + 1);
+        bumpAnnouncementsReload();
       };
       if (editingId) {
         void updateAnnouncement(editingId, {
@@ -435,7 +442,7 @@ function AnnouncementsPage() {
       const current = displayItems.find((a) => a.id === id);
       void updateAnnouncement(id, { pinned: !current?.pinned })
         .then(() => {
-          setReloadKey((k) => k + 1);
+          bumpAnnouncementsReload();
           notify("Pin status updated");
         })
         .catch((err) => {
@@ -451,7 +458,7 @@ function AnnouncementsPage() {
     if (!writesEnabled || !apiMode) return;
     void publishAnnouncement(id)
       .then(() => {
-        setReloadKey((k) => k + 1);
+        bumpAnnouncementsReload();
         notify("Announcement published");
       })
       .catch((err) => {
@@ -463,7 +470,7 @@ function AnnouncementsPage() {
     if (!writesEnabled || !apiMode) return;
     void archiveAnnouncement(id)
       .then(() => {
-        setReloadKey((k) => k + 1);
+        bumpAnnouncementsReload();
         notify("Announcement archived");
       })
       .catch((err) => {
@@ -476,7 +483,7 @@ function AnnouncementsPage() {
     if (apiMode) {
       void deleteAnnouncement(id)
         .then(() => {
-          setReloadKey((k) => k + 1);
+          bumpAnnouncementsReload();
           notify("Announcement deleted");
         })
         .catch((err) => {

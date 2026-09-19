@@ -28,6 +28,9 @@ export type DriverRow = {
   license_expiry: string | null;
   status: TransportAssetStatus;
   notes: string | null;
+  assigned_vehicle_id: string | null;
+  app_pin_hash: string | null;
+  app_pin_salt: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -79,8 +82,8 @@ export type TransportEnrollmentRow = {
   institute_id: string;
   student_id: string;
   route_id: string;
-  pickup_stop_id: string;
-  drop_stop_id: string;
+  pickup_stop_id: string | null;
+  drop_stop_id: string | null;
   status: EnrollmentStatus;
   approval_status: TransportApprovalStatus;
   submitted_by_user_id: string | null;
@@ -97,6 +100,9 @@ export type TransportSettingsRow = {
   default_notification_radius_m: number;
   default_pickup_buffer_mins: number;
   working_days: number[];
+  notifications_enabled: boolean;
+  remember_enabled: boolean;
+  default_pickup_time: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -109,6 +115,8 @@ export type VehicleDto = {
   capacity: number;
   status: TransportAssetStatus;
   notes: string | null;
+  /** Derived from driver.assigned_vehicle_id when linked. */
+  assignedDriverId: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -123,6 +131,9 @@ export type DriverDto = {
   licenseExpiry: string | null;
   status: TransportAssetStatus;
   notes: string | null;
+  assignedVehicleId: string | null;
+  /** True when an app account PIN is set (plaintext never returned). */
+  hasAppPin: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -171,8 +182,8 @@ export type TransportEnrollmentDto = {
   instituteId: string;
   studentId: string;
   routeId: string;
-  pickupStopId: string;
-  dropStopId: string;
+  pickupStopId: string | null;
+  dropStopId: string | null;
   status: EnrollmentStatus;
   approvalStatus: TransportApprovalStatus;
   submittedByUserId: string | null;
@@ -188,6 +199,9 @@ export type TransportSettingsDto = {
   defaultNotificationRadiusM: number;
   defaultPickupBufferMins: number;
   workingDays: number[];
+  notificationsEnabled: boolean;
+  rememberEnabled: boolean;
+  defaultPickupTime: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -199,6 +213,7 @@ export type CreateVehicleInput = {
   capacity: number;
   status?: TransportAssetStatus;
   notes?: string | null;
+  assignedDriverId?: string | null;
 };
 
 export type UpdateVehicleInput = {
@@ -207,6 +222,7 @@ export type UpdateVehicleInput = {
   capacity?: number;
   status?: TransportAssetStatus;
   notes?: string | null;
+  assignedDriverId?: string | null;
 };
 
 export type CreateDriverInput = {
@@ -219,6 +235,9 @@ export type CreateDriverInput = {
   notes?: string | null;
   /** Ignored — never trust client. */
   userProfileId?: string | null;
+  assignedVehicleId?: string | null;
+  /** Plaintext PIN — hashed server-side; never stored or returned. */
+  appAccountPin?: string | null;
 };
 
 export type UpdateDriverInput = {
@@ -228,6 +247,8 @@ export type UpdateDriverInput = {
   licenseExpiry?: string | null;
   status?: TransportAssetStatus;
   notes?: string | null;
+  assignedVehicleId?: string | null;
+  appAccountPin?: string | null;
 };
 
 export type CreateRouteInput = {
@@ -275,8 +296,8 @@ export type CreateEnrollmentInput = {
   instituteId: string;
   studentId: string;
   routeId: string;
-  pickupStopId: string;
-  dropStopId: string;
+  pickupStopId?: string | null;
+  dropStopId?: string | null;
   status?: EnrollmentStatus;
   approvalStatus?: TransportApprovalStatus;
   submittedByUserId?: string | null;
@@ -284,8 +305,8 @@ export type CreateEnrollmentInput = {
 
 export type UpdateEnrollmentInput = {
   routeId?: string;
-  pickupStopId?: string;
-  dropStopId?: string;
+  pickupStopId?: string | null;
+  dropStopId?: string | null;
   status?: EnrollmentStatus;
 };
 
@@ -294,4 +315,7 @@ export type UpsertTransportSettingsInput = {
   defaultNotificationRadiusM?: number;
   defaultPickupBufferMins?: number;
   workingDays?: number[];
+  notificationsEnabled?: boolean;
+  rememberEnabled?: boolean;
+  defaultPickupTime?: string | null;
 };

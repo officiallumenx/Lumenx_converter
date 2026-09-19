@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useReloadKey } from "@/hooks/useReloadKey";
 import { Button, Card, CardHeader, PageStack, Pill } from "@lumenx/ui-admin";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { useInstituteContext } from "@/lib/institutes";
@@ -54,7 +55,7 @@ export function ReportsApiCatalogPanel() {
   const [moduleFilter, setModuleFilter] = useState<string>("all");
   const [queueingId, setQueueingId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const [reloadKey, setReloadKey] = useReloadKey();
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
@@ -202,7 +203,7 @@ export function ReportsApiCatalogPanel() {
         <CardHeader
           title="Report catalog"
           hint={`${supportedCount} of ${view.catalog.length} reports have CSV generators`}
-          action={<Pill tone="neutral">API mode</Pill>}
+          action={<Pill tone="neutral">Live data</Pill>}
         />
         {hint ? (
           <p className="px-4 pb-4 text-sm text-muted-foreground">{hint}</p>

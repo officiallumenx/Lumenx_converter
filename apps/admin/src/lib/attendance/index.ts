@@ -48,6 +48,7 @@ export {
   slotFieldsFromMethod,
   slotFieldsFromPeriod,
   afternoonSlotFields,
+  emptyAttendanceSlotCreateMessage,
   type AttendanceRegisterSlotFields,
 } from "./register-create-helpers";
 export type {

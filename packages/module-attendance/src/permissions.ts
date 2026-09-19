@@ -144,17 +144,46 @@ export const ATTENDANCE_PERSONA_OPTIONS: {
   value: AttendancePersona;
   label: string;
   description: string;
-}[] = (Object.keys(PERSONA_POLICY) as AttendancePersona[]).map((value) => ({
-  value,
-  label: PERSONA_POLICY[value].label,
-  description: PERSONA_POLICY[value].description,
-}));
+}[] = [
+  {
+    value: "teacher",
+    label: "Teacher",
+    description: "Mark attendance for own classes only.",
+  },
+  {
+    value: "class_teacher",
+    label: "Class Teacher",
+    description: "Mark attendance for the assigned class only.",
+  },
+  {
+    value: "attendance_coordinator",
+    label: "Attendance Coordinator",
+    description: "Mark attendance for assigned classes only.",
+  },
+  {
+    value: "academic_coordinator",
+    label: "Academic Coordinator",
+    description:
+      "View and monitor attendance — cannot mark (not the Attendance Coordinator role).",
+  },
+  {
+    value: "admin",
+    label: "Admin",
+    description: "Monitor attendance only — cannot mark.",
+  },
+  {
+    value: "principal",
+    label: "Principal",
+    description: "View attendance only — cannot mark or run monitor actions.",
+  },
+];
 
 /** Route caps for a persona — Roles & Access / nav must use these, not a second matrix. */
 export function attendanceRouteCapsForPersona(
   persona: AttendancePersona,
 ): AttendancePersonaRouteCaps {
-  return { ...PERSONA_POLICY[persona].routeCaps };
+  const policy = PERSONA_POLICY[persona] ?? PERSONA_POLICY.admin;
+  return { ...policy.routeCaps };
 }
 
 /** Build Admin `/student-attendance` + `/attendance` permission map for a role id. */
@@ -178,7 +207,7 @@ export function resolveAttendancePermission(input: {
   persona: AttendancePersona;
   assignedSectionKeys?: readonly string[];
 }): AttendancePermissionDecision {
-  const policy = PERSONA_POLICY[input.persona];
+  const policy = PERSONA_POLICY[input.persona] ?? PERSONA_POLICY.admin;
   const keys =
     policy.scopeMode === "assigned_class" || policy.scopeMode === "assigned_classes"
       ? normalizeAttendanceSectionKeys(input.assignedSectionKeys ?? [])

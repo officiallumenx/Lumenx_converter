@@ -23,7 +23,6 @@ import { toast } from "sonner";
 import { isTeacherAccessDenied } from "@/lib/teacher/portal-access-guard";
 import { useNavigate } from "@tanstack/react-router";
 import type { TeacherPreferences } from "@/lib/teacher/types";
-import { ChangePasswordDialog } from "./ChangePasswordDialog";
 import {
   ContactSupportDialog,
   FaqDialog,
@@ -60,7 +59,6 @@ export function TeacherProfilePage({
   const fileRef = useRef<HTMLInputElement>(null);
   const [prefs, setPrefs] = useState<TeacherPreferences | null>(null);
   const [editing, setEditing] = useState(false);
-  const [pwdOpen, setPwdOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
   const [faqOpen, setFaqOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -466,15 +464,10 @@ export function TeacherProfilePage({
               />
             }
           />
-          <div className="pt-2 pb-1">
-            <Button
-              variant="outline"
-              className="settings-primary-action rounded-xl w-full sm:w-auto"
-              onClick={() => setPwdOpen(true)}
-            >
-              Change password
-            </Button>
-          </div>
+          <p className="px-1 pt-2 text-xs text-muted-foreground">
+            Account access uses your verified mobile number and Login PIN. App Lock is managed
+            separately on this device.
+          </p>
         </SecuritySettings>
       </SettingsSection>
 
@@ -501,8 +494,6 @@ export function TeacherProfilePage({
       >
         <LogOut className="size-4" aria-hidden /> Sign out
       </Button>
-
-      <ChangePasswordDialog open={pwdOpen} onOpenChange={setPwdOpen} phone={profile.phone} />
 
       <FaqDialog open={faqOpen} onOpenChange={setFaqOpen} />
       <HelpCenterDialog open={helpOpen} onOpenChange={setHelpOpen} />

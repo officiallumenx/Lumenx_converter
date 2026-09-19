@@ -8,20 +8,29 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
+import { ensureFirebasePhoneAuthHost } from "@lumenx/auth";
 
 import { LumenXNativeShell } from "@lumenx/capacitor/native-shell";
 import { OfflineSyncHost, TypographyProvider } from "@lumenx/ui";
 import { Toaster } from "@lumenx/ui/sonner";
 
 import { APP_NAME } from "@/constants";
-import { TransportAuthProvider } from "@/lib/auth";
+import { TransportAuthProvider, getTransportAuthMode } from "@/lib/auth";
 import { InAppAlertListener } from "@/components/app/InAppAlertListener";
 import { PushDeviceTokenRegistration } from "@/components/app/PushDeviceTokenRegistration";
+import { FirebaseClientServices } from "@/components/app/FirebaseClientServices";
 import { TransportAlertsSync } from "@/components/app/TransportAlertsSync";
 import { useSettings } from "@/hooks/use-settings";
 import { applyThemeMode } from "@/lib/transport/settings";
 import appCss from "../styles.css?url";
 
+// Fail fast if demo mode is configured — product is API-only.
+getTransportAuthMode();
+
+// Firebase Phone Auth fails on hostname `localhost` — stay on 127.0.0.1.
+if (typeof window !== "undefined") {
+  ensureFirebasePhoneAuthHost();
+}
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -140,6 +149,7 @@ function RootComponent() {
         <OfflineSyncHost app="transport" className="min-h-dvh">
           <TypographyProvider>
             <InAppAlertListener />
+            <FirebaseClientServices enabled />
             <PushDeviceTokenRegistration enabled />
             <TransportAlertsSync />
             <Outlet />

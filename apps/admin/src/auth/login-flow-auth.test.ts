@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 describe("login-flow-auth", () => {
   beforeEach(() => {
     vi.resetModules();
+    vi.unstubAllEnvs();
   });
 
   it("selects api strategy when VITE_ADMIN_AUTH_MODE=api", async () => {
@@ -14,13 +15,13 @@ describe("login-flow-auth", () => {
     expect(isDemoCompleteSignInAllowed()).toBe(false);
   });
 
-  it("selects demo strategy by default", async () => {
+  it("selects api strategy by default", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "");
     const { getLoginAuthStrategy, isDemoCompleteSignInAllowed } = await import(
       "./login-flow-auth"
     );
-    expect(getLoginAuthStrategy()).toBe("demo");
-    expect(isDemoCompleteSignInAllowed()).toBe(true);
+    expect(getLoginAuthStrategy()).toBe("api");
+    expect(isDemoCompleteSignInAllowed()).toBe(false);
   });
 
   it("requireApiLoginEmail accepts email and rejects mobile", async () => {

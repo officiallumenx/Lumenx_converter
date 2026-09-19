@@ -437,9 +437,11 @@ export async function getDriverRouteRosterForActor(
           "Student",
         rollNo: student?.roll_no?.trim() || "—",
         classLabel: student?.class_label?.trim() || "—",
-        pickupStopId: e.pickup_stop_id,
-        dropStopId: e.drop_stop_id,
-        pickupStopName: stopNameById.get(e.pickup_stop_id) ?? null,
+        pickupStopId: e.pickup_stop_id ?? "",
+        dropStopId: e.drop_stop_id ?? "",
+        pickupStopName: e.pickup_stop_id
+          ? (stopNameById.get(e.pickup_stop_id) ?? null)
+          : null,
         status: e.status,
         approvalStatus: e.approval_status,
       };

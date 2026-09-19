@@ -122,6 +122,10 @@ async function actorMatchesAudience(
 
   switch (row.audience_scope) {
     case "all":
+      // Transport drivers are not calendar/events consumers.
+      if (actorHasInstituteRole(actor, instituteId, "driver")) {
+        return false;
+      }
       return true;
     case "students": {
       const linked = await resolveLinkedStudentIds(admin, actor, instituteId);
@@ -167,10 +171,6 @@ async function assertCanReadEvent(
   }
 }
 
-function isInstituteDriver(actor: Actor, instituteId: string): boolean {
-  return actorHasInstituteRole(actor, instituteId, "driver");
-}
-
 async function filterLearnerVisible(
   admin: SupabaseClient,
   rows: EventRow[],
@@ -178,9 +178,6 @@ async function filterLearnerVisible(
   instituteId: string,
 ): Promise<EventRow[]> {
   if (isStaffReader(actor, instituteId)) return rows;
-  if (isInstituteDriver(actor, instituteId)) {
-    return rows.filter((row) => row.published && !row.cancelled);
-  }
   const out: EventRow[] = [];
   for (const row of rows) {
     if (!row.published || row.cancelled) continue;

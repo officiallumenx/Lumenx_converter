@@ -43,14 +43,23 @@ describe("loadClassesList", () => {
     vi.clearAllMocks();
   });
 
-  it("returns demo status without calling API in demo mode", async () => {
+  it("ignores demo env and still requires API (product is API-only)", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const listClassesCatalog = vi.fn();
+    const listClassesCatalog = vi.fn().mockResolvedValue({
+      sections: [],
+      classes: [],
+    });
     vi.doMock("./api", () => ({ listClassesCatalog }));
+    vi.doMock("@/lib/enrollments/api", () => ({ listEnrollments: vi.fn().mockResolvedValue([]) }));
+    vi.doMock("@/lib/timetable/api", () => ({
+      listTeacherAssignments: vi.fn().mockResolvedValue([]),
+    }));
+    vi.doMock("@/lib/teachers", () => ({ listTeachers: vi.fn().mockResolvedValue([]) }));
+    vi.doMock("@/lib/subjects/api", () => ({ listSubjects: vi.fn().mockResolvedValue([]) }));
     const { loadClassesList } = await import("./load");
     const result = await loadClassesList(INST);
-    expect(result).toEqual({ status: "demo", items: [], errorMessage: null });
-    expect(listClassesCatalog).not.toHaveBeenCalled();
+    expect(result.status).toBe("empty");
+    expect(listClassesCatalog).toHaveBeenCalled();
   });
 
   it("requires a valid active institute UUID in API mode", async () => {
@@ -80,7 +89,7 @@ describe("loadClassesList", () => {
     const result = await loadClassesList(INST);
     expect(result.status).toBe("ready");
     expect(result.items).toHaveLength(1);
-    expect(result.items[0]?.name).toBe("Grade 10 · Sec A");
+    expect(result.items[0]?.name).toBe("Class 10 · Sec A");
     expect(listClassesCatalog).toHaveBeenCalledWith({ instituteId: INST });
   });
 
@@ -131,7 +140,7 @@ describe("loadClassesList", () => {
     expect(result.items).toEqual([]);
   });
 
-  it("returns error when mapping throws on malformed payload", async () => {
+  it("treats malformed catalog payloads as empty instead of sticky errors", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const listClassesCatalog = vi.fn().mockResolvedValue({
       sections: { not: "array" },
@@ -140,8 +149,34 @@ describe("loadClassesList", () => {
     vi.doMock("./api", () => ({ listClassesCatalog }));
     const { loadClassesList } = await import("./load");
     const result = await loadClassesList(INST);
-    expect(result.status).toBe("error");
+    expect(result.status).toBe("empty");
     expect(result.items).toEqual([]);
+  });
+
+  it("does not cache error results so a later retry can succeed", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const listClassesCatalog = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new ApiClientError({
+          status: 0,
+          code: "NETWORK_ERROR",
+          message: "Network request failed",
+        }),
+      )
+      .mockResolvedValueOnce({
+        sections: [sectionDto()],
+        classes: [classDto()],
+      });
+    vi.doMock("./api", () => ({ listClassesCatalog }));
+    const { loadClassesList } = await import("./load");
+    await expect(loadClassesList(INST)).resolves.toMatchObject({
+      status: "error",
+    });
+    const recovered = await loadClassesList(INST);
+    expect(recovered.status).toBe("ready");
+    expect(recovered.items).toHaveLength(1);
+    expect(listClassesCatalog).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -151,13 +186,13 @@ describe("loadSectionDetail", () => {
     vi.clearAllMocks();
   });
 
-  it("returns demo status in demo mode", async () => {
+  it("rejects invalid section ids even if demo env is set (API-only)", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
     const getSection = vi.fn();
     vi.doMock("./api", () => ({ getSection, getClass: vi.fn() }));
     const { loadSectionDetail } = await import("./load");
     const result = await loadSectionDetail("sec-1");
-    expect(result.status).toBe("demo");
+    expect(result.status).toBe("error");
     expect(getSection).not.toHaveBeenCalled();
   });
 

@@ -13,6 +13,7 @@ import {
   deleteTeacherForActor,
   getTeacherForActor,
   listTeachersForActor,
+  resetTeacherCredentialsForActor,
   updateTeacherForActor,
 } from "../../domains/teachers/service.js";
 import {
@@ -35,11 +36,14 @@ function requireAdmin(c: {
 }
 
 const uuid = z.string().uuid();
-const dateOnly = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD")
-  .nullable()
-  .optional();
+const dateOnly = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() === "" ? null : value),
+  z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD")
+    .nullable()
+    .optional(),
+);
 
 const teachingScopeSchema = z.enum([
   "subject_teacher",
@@ -71,7 +75,7 @@ const createSchema = z.object({
   teaching_scope: teachingScopeSchema,
   portal_access_level: portalAccessSchema,
   status: statusSchema.optional(),
-  phone: z.string().max(40).nullable().optional(),
+  phone: z.string().min(10).max(40),
   email: z.string().email().max(200).nullable().optional(),
   qualification: z.string().max(500).nullable().optional(),
   date_of_birth: dateOnly,
@@ -81,6 +85,16 @@ const createSchema = z.object({
   subjects: stringArray,
   assigned_section_labels: stringArray,
   user_profile_id: uuid.nullable().optional(),
+  assignments: z
+    .array(
+      z.object({
+        section_id: uuid,
+        subject_id: uuid,
+      }),
+    )
+    .max(200)
+    .optional(),
+  class_teacher_section_ids: z.array(uuid).max(50).optional(),
 });
 
 const updateSchema = z
@@ -99,6 +113,7 @@ const updateSchema = z
     legacy_code: z.string().max(100).nullable().optional(),
     subjects: stringArray,
     assigned_section_labels: stringArray,
+    class_teacher_section_ids: z.array(uuid).max(50).optional(),
   })
   .refine((body) => Object.keys(body).length > 0, {
     message: "At least one field is required",
@@ -182,6 +197,11 @@ teachers.post("/", async (c) => {
     subjects: body.subjects,
     assignedSectionLabels: body.assigned_section_labels,
     userProfileId: body.user_profile_id,
+    assignments: body.assignments?.map((item) => ({
+      sectionId: item.section_id,
+      subjectId: item.subject_id,
+    })),
+    classTeacherSectionIds: body.class_teacher_section_ids,
   });
   return c.json({ data }, 201);
 });
@@ -206,6 +226,7 @@ teachers.patch("/:id", async (c) => {
     legacyCode: body.legacy_code,
     subjects: body.subjects,
     assignedSectionLabels: body.assigned_section_labels,
+    classTeacherSectionIds: body.class_teacher_section_ids,
   });
   return c.json({ data });
 });
@@ -216,6 +237,14 @@ teachers.delete("/:id", async (c) => {
   const { id } = validateParams(idParamsSchema, c.req.param());
   await deleteTeacherForActor(admin, actor, id);
   return c.json({ data: { ok: true } });
+});
+
+teachers.post("/:id/reset-credentials", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const data = await resetTeacherCredentialsForActor(admin, actor, id);
+  return c.json({ data });
 });
 
 export default teachers;

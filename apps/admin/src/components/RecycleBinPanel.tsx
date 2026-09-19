@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useReloadKey } from "@/hooks/useReloadKey";
 import { Button, Card, CardHeader, Pill } from "@lumenx/ui-admin";
 import {
   RECYCLE_BIN_RETENTION_DAYS,
@@ -50,7 +51,7 @@ export function RecycleBinPanel() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const [reloadKey, setReloadKey] = useReloadKey();
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
@@ -224,7 +225,7 @@ export function RecycleBinPanel() {
         title="Recycle Bin"
         hint={
           apiMode
-            ? "API mode · restore and purge via recycle API"
+            ? "Restore and purge deleted items"
             : `Soft-deleted items · auto-purge after ${RECYCLE_BIN_RETENTION_DAYS} days`
         }
         action={

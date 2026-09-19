@@ -1,10 +1,10 @@
 import type { AuthUser } from "./types";
-import { isApiAuthMode } from "./auth-mode";
 
-export type LoginAuthStrategy = "api" | "demo";
+/** Product login strategy — API-only (demo removed). */
+export type LoginAuthStrategy = "api";
 
 export function getLoginAuthStrategy(): LoginAuthStrategy {
-  return isApiAuthMode() ? "api" : "demo";
+  return "api";
 }
 
 /** API mode accepts email only (matches apiSignInWithPassword). */
@@ -16,8 +16,9 @@ export function requireApiLoginEmail(identifier: string): string {
   return trimmed;
 }
 
+/** @deprecated Demo completeSignIn removed — always false. */
 export function isDemoCompleteSignInAllowed(): boolean {
-  return !isApiAuthMode();
+  return false;
 }
 
 /**

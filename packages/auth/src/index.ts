@@ -1,6 +1,6 @@
 import type { Role } from "@lumenx/types";
 
-/** Connect portal localStorage keys (legacy `ues_*` preserved for demo compatibility). */
+/** Connect portal localStorage keys (legacy `ues_*` keys preserved for session continuity). */
 export const CONNECT_STORAGE_KEYS = {
   user: "ues_user",
   role: "ues_role",
@@ -23,9 +23,9 @@ export const ADMISSIONS_STORAGE_KEYS = {
   inquiries: "ues_admissions_inquiries",
   savedInstitutes: "ues_admissions_saved_institutes",
   savedPrograms: "ues_admissions_saved_programs",
-  /** Institutes registered via Admissions signup (demo catalog extension) */
+  /** Institutes registered via Admissions signup (local catalog extension) */
   customInstitutes: "ues_admissions_custom_institutes",
-  /** Demo sync snapshot for Admin ↔ Connect admissions (same origin) */
+  /** Sync snapshot for Admin ↔ Connect admissions (same origin) */
   sync: "ues_admissions_sync",
 } as const;
 
@@ -42,7 +42,7 @@ export const CAREERS_STORAGE_KEYS = {
   savedInstitutes: "ues_careers_saved_institutes",
   talentPool: "ues_careers_talent_pool",
   contactInquiries: "ues_careers_contact_inquiries",
-  /** Demo sync snapshot for Admin ↔ Connect careers (same origin) */
+  /** Sync snapshot for Admin ↔ Connect careers (same origin) */
   sync: "ues_careers_sync",
 } as const;
 
@@ -69,7 +69,7 @@ export interface SessionUser {
   avatar?: string;
 }
 
-/** Client-side session contract (demo → server-validated sessions in production). */
+/** Client-side session contract (server-validated sessions via LumenX API). */
 export interface Session {
   user: SessionUser;
   app: AppId;
@@ -124,7 +124,104 @@ export function clearTransportSession(storage: AuthStorage): void {
   storage.removeItem(TRANSPORT_STORAGE_KEYS.session);
 }
 
-export const DEMO_CONNECT_PASSWORD = "unify123";
-export const DEMO_CONNECT_OTP = "123456";
-/** Demo OTP for driver Transport login (same as Connect demo). */
-export const DEMO_TRANSPORT_OTP = DEMO_CONNECT_OTP;
+export {
+  completeVerifiedAppSignup,
+  requestSignupOtp,
+  verifySignupOtp,
+} from "./signup-otp-api";
+
+export {
+  resolveFirebaseWebConfig,
+  assertFirebaseWebConfig,
+  type FirebaseWebClientConfig,
+} from "./firebase/config";
+export {
+  resolveAuthStack,
+  normalizeAuthMode,
+  normalizeAuthProvider,
+  isDemoAuthenticationAllowed,
+  assertNotDemoFallback,
+  assertApiOnlyProductMode,
+  type LumenXAuthMode,
+  type LumenXAuthProvider,
+} from "./firebase/auth-mode";
+export {
+  FirebaseClientAuthError,
+  mapFirebaseClientError,
+} from "./firebase/errors";
+export {
+  getFirebaseApp,
+  requireFirebaseApp,
+  getFirebaseAuth,
+  requireFirebaseAuth,
+} from "./firebase/client";
+export {
+  requestFirebasePhoneOtp,
+  createInvisibleRecaptcha,
+  getCurrentFirebaseIdToken,
+  type PhoneSignInSession,
+} from "./firebase/phone-auth";
+export {
+  isFirebasePhoneAuthBlockedHost,
+  toFirebasePhoneAuthLoopbackUrl,
+  ensureFirebasePhoneAuthHost,
+  assertFirebasePhoneAuthHostAllowed,
+} from "./firebase/phone-host";
+export {
+  signInWithFirebaseEmail,
+  registerWithFirebaseEmail,
+  requestFirebasePasswordReset,
+  signOutFirebase,
+} from "./firebase/email-auth";
+export {
+  exchangeFirebaseIdTokenForSession,
+  type FirebaseSessionExchangeResult,
+} from "./firebase/session-api";
+export {
+  completeFirebaseLogin,
+  startFirebasePhoneLogin,
+  confirmFirebasePhoneLogin,
+  loginWithFirebaseEmail,
+  logoutFirebaseAndClearLocal,
+} from "./firebase/index";
+export {
+  readViteAuthMode,
+  readViteAuthProvider,
+  isFirebaseAuthProviderActive,
+  getViteApiBaseUrl,
+} from "./firebase/vite-provider";
+export {
+  firebaseEmailLoginToLumenXSession,
+  firebaseEmailRegister,
+  linkFirebaseToCurrentSupabaseUser,
+  firebaseRequestPhoneOtp,
+  firebaseConfirmPhoneOtpOnly,
+  firebaseConfirmPhoneOtpToLumenXSession,
+  firebaseLogout,
+} from "./firebase/bridge";
+export {
+  getFirebaseAnalytics,
+  logLumenXAnalyticsEvent,
+  logLumenXAnalyticsEventForContext,
+  identifyLumenXAnalyticsApp,
+  bootstrapFirebaseAnalytics,
+  setLumenXAnalyticsAppContext,
+  getLumenXAnalyticsAppContext,
+  LUMENX_ANALYTICS_EVENTS,
+  type LumenXAnalyticsAppId,
+  type LumenXAnalyticsEvent,
+} from "./firebase/analytics";
+export {
+  recordNonFatalError,
+  bootstrapFirebaseCrashReporting,
+  type LumenXCrashAppId,
+} from "./firebase/crash-reporting";
+export {
+  getFirebaseMessaging,
+  bootstrapWebFcm,
+  type WebFcmRegisterFn,
+} from "./firebase/messaging-web";
+export {
+  sanitizeAnalyticsParams,
+  scrubCrashMessage,
+} from "./firebase/privacy";

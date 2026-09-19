@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useReloadKey } from "@/hooks/useReloadKey";
 import { PageHeader } from "@/components/app/PageHeader";
 import { TimetableDayPicker } from "@/components/app/timetable/TimetableDayPicker";
 import { buildStudentPeriodRows, PeriodTimeline } from "@/components/app/timetable/PeriodTimeline";
@@ -27,7 +28,7 @@ export function LearnerTimetableApiPanel({ studentId, subtitle }: LearnerTimetab
     Record<string, Array<{ time: string; subject: string; teacher: string }>>
   >({});
   const [weekdays, setWeekdays] = useState<string[]>([]);
-  const [reloadKey, setReloadKey] = useState(0);
+  const [reloadKey, setReloadKey] = useReloadKey();
 
   useEffect(() => {
     let cancelled = false;

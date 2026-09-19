@@ -1,3 +1,10 @@
+import {
+  completeVerifiedAppSignup,
+  firebaseEmailLoginToLumenXSession,
+  firebaseLogout,
+  requestFirebasePasswordReset,
+} from "@lumenx/auth";
+import { invalidatePushDeviceTokensBeforeSignOut } from "@lumenx/notifications";
 import type { MeResponse } from "@/lib/api/me-types";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { ApiClientError } from "@/lib/api";
@@ -9,6 +16,7 @@ import {
   fetchMe,
   type AdmissionsUserFromMeOptions,
 } from "./me-bridge";
+import { isFirebaseAuthProvider } from "./auth-mode";
 
 export type ApiAuthHydration = {
   user: AdmissionsUser;
@@ -36,8 +44,8 @@ async function hydrateFromAccessToken(
   try {
     me = await fetchMe(accessToken);
   } catch (err) {
-    await getSupabaseBrowserClient().auth.signOut().catch(() => undefined);
-    if (err instanceof ApiClientError) {
+    if (err instanceof ApiClientError && (err.status === 401 || err.status === 403)) {
+      await getSupabaseBrowserClient().auth.signOut().catch(() => undefined);
       throw new Error(err.message);
     }
     throw err;
@@ -58,11 +66,17 @@ async function hydrateFromAccessToken(
     instituteName = await fetchInstituteName(resolvedInstituteId, accessToken);
   }
 
-  const user = admissionsUserFromMe(me, {
-    ...options,
-    instituteName,
-    preferredInstituteId: resolvedInstituteId ?? options.preferredInstituteId,
-  });
+  let user: AdmissionsUser;
+  try {
+    user = admissionsUserFromMe(me, {
+      ...options,
+      instituteName,
+      preferredInstituteId: resolvedInstituteId ?? options.preferredInstituteId,
+    });
+  } catch (err) {
+    await getSupabaseBrowserClient().auth.signOut().catch(() => undefined);
+    throw err;
+  }
   persistApiAdmissionsUser(user);
   return { user };
 }
@@ -77,6 +91,19 @@ export async function apiSignInWithPassword(
   }
 
   const supabase = getSupabaseBrowserClient();
+
+  if (isFirebaseAuthProvider()) {
+    const session = await firebaseEmailLoginToLumenXSession({
+      email: normalized,
+      password,
+      autoLink: true,
+      setSupabaseSession: async ({ accessToken, refreshToken }) => {
+        await setSupabaseSession(accessToken, refreshToken);
+      },
+    });
+    return hydrateFromAccessToken(session.accessToken);
+  }
+
   const { data, error } = await supabase.auth.signInWithPassword({
     email: normalized,
     password,
@@ -96,6 +123,7 @@ export type ApiSignUpInput = {
   phone?: string;
   accountType: AdmissionsAccountType;
   instituteName?: string;
+  verificationGrants: string[];
 };
 
 export async function apiSignUpWithPassword(input: ApiSignUpInput): Promise<ApiAuthHydration> {
@@ -104,29 +132,19 @@ export async function apiSignUpWithPassword(input: ApiSignUpInput): Promise<ApiA
     throw new Error("API sign-up requires an email address.");
   }
 
-  const supabase = getSupabaseBrowserClient();
-  const { data, error } = await supabase.auth.signUp({
+  const data = await completeVerifiedAppSignup({
+    apiBaseUrl: (import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8787").trim(),
+    app: "admissions",
+    accountType: input.accountType,
     email: normalized,
     password: input.password,
-    options: {
-      data: {
-        display_name: input.name.trim(),
-        admissions_account_type: input.accountType,
-      },
-    },
+    displayName: input.name,
+    phone: input.phone,
+    verificationGrants: input.verificationGrants,
+    metadata: { institute_name: input.instituteName ?? null },
   });
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  if (!data.session?.access_token) {
-    throw new Error(
-      "Account created. Confirm your email if required, then sign in.",
-    );
-  }
-
-  return hydrateFromAccessToken(data.session.access_token, {
+  await setSupabaseSession(data.accessToken, data.refreshToken);
+  return hydrateFromAccessToken(data.accessToken, {
     forceAccountType: input.accountType,
     instituteName: input.instituteName,
     phone: input.phone,
@@ -138,6 +156,17 @@ export async function tryHydrateApiSession(): Promise<ApiAuthHydration | null> {
   const { data, error } = await supabase.auth.getSession();
   if (error || !data.session?.access_token) return null;
   return hydrateFromAccessToken(data.session.access_token);
+}
+
+export async function apiRequestPasswordReset(email: string): Promise<void> {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized.includes("@")) throw new Error("Enter your email address.");
+  if (isFirebaseAuthProvider()) {
+    await requestFirebasePasswordReset(normalized);
+    return;
+  }
+  const { error } = await getSupabaseBrowserClient().auth.resetPasswordForEmail(normalized);
+  if (error) throw new Error(error.message);
 }
 
 export async function applyAdminHandoffSession(input: {
@@ -157,14 +186,60 @@ export async function applyAdminHandoffSession(input: {
   });
 }
 
-export async function apiSignOut(): Promise<void> {
-  try {
-    const supabase = getSupabaseBrowserClient();
-    await supabase.auth.signOut();
-  } catch {
-    /* still clear local session */
+export async function exchangeAdminHandoffCode(code: string): Promise<{
+  hydration: ApiAuthHydration;
+  destination: string;
+}> {
+  const base = (import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8787").replace(/\/+$/, "");
+  const response = await fetch(`${base}/api/v1/auth/handoff/exchange`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code, app: "admissions" }),
+  });
+  const json = (await response.json().catch(() => ({}))) as {
+    data?: {
+      access_token: string;
+      refresh_token: string;
+      institute_id: string;
+      institute_name: string;
+      destination: string;
+      name?: string;
+      phone?: string;
+    };
+    error?: { message?: string };
+  };
+  if (!response.ok || !json.data) {
+    throw new Error(json.error?.message ?? "This setup link expired or was already used.");
   }
-  signOutUser();
+  const hydration = await applyAdminHandoffSession({
+    accessToken: json.data.access_token,
+    refreshToken: json.data.refresh_token,
+    instituteId: json.data.institute_id,
+    instituteName: json.data.institute_name,
+    name: json.data.name,
+    phone: json.data.phone,
+  });
+  return { hydration, destination: json.data.destination };
+}
+
+export async function apiSignOut(): Promise<void> {
+  await invalidatePushDeviceTokensBeforeSignOut({
+    app: "admissions",
+    apiBaseUrl: (import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8787").replace(
+      /\/+$/,
+      "",
+    ),
+    getAccessToken: async () => {
+      const { data } = await getSupabaseBrowserClient().auth.getSession();
+      return data.session?.access_token;
+    },
+  });
+  await firebaseLogout({
+    clearSupabaseSession: async () => {
+      await getSupabaseBrowserClient().auth.signOut().catch(() => undefined);
+    },
+    clearLocalSession: () => signOutUser(),
+  });
 }
 
 export { hydrateFromAccessToken };

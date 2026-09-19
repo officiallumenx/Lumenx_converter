@@ -21,7 +21,7 @@ const STUDENT_FEE_COLS =
   "id, institute_id, fee_plan_id, student_id, billed_amount, paid_amount, status, created_at, updated_at, deleted_at";
 
 const PAYMENT_COLS =
-  "id, institute_id, fee_plan_id, student_fee_id, student_id, amount, method, receipt_no, paid_on, note, recorded_by_user_id, void_reason, voided_at, voided_by_user_id, created_at, updated_at, deleted_at";
+  "id, institute_id, fee_plan_id, student_fee_id, student_id, fee_component_id, amount, method, receipt_no, paid_on, note, recorded_by_user_id, void_reason, voided_at, voided_by_user_id, created_at, updated_at, deleted_at";
 
 const CONCESSION_COLS =
   "id, institute_id, fee_plan_id, student_id, fee_component_id, amount, note, created_at, updated_at, deleted_at";
@@ -411,6 +411,7 @@ export async function insertPayment(
     feePlanId: string;
     studentFeeId: string;
     studentId: string;
+    feeComponentId: string | null;
     amount: number;
     method: string;
     receiptNo: string;
@@ -426,6 +427,7 @@ export async function insertPayment(
       fee_plan_id: input.feePlanId,
       student_fee_id: input.studentFeeId,
       student_id: input.studentId,
+      fee_component_id: input.feeComponentId,
       amount: input.amount,
       method: input.method,
       receipt_no: input.receiptNo,
@@ -550,4 +552,25 @@ export async function findClassInInstituteYear(
     .maybeSingle();
   if (result.error) ensureDbOk(result);
   return (result.data as { id: string } | null) ?? null;
+}
+
+/** All classes for an institute year (or institute-wide if year omitted). */
+export async function listClassRowsForSiblingMap(
+  admin: SupabaseClient,
+  input: { instituteId: string; academicYearId?: string | null },
+): Promise<Array<{ id: string; name: string | null; code: string | null }>> {
+  let query = admin
+    .from("class")
+    .select("id, name, code")
+    .eq("institute_id", input.instituteId)
+    .is("deleted_at", null);
+  const yearId = input.academicYearId?.trim();
+  if (yearId) query = query.eq("academic_year_id", yearId);
+  const result = await query;
+  if (result.error) ensureDbOk(result);
+  return (result.data ?? []) as Array<{
+    id: string;
+    name: string | null;
+    code: string | null;
+  }>;
 }

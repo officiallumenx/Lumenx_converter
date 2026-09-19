@@ -70,13 +70,13 @@ export function SolutionsExplorer({
             </ul>
             <div className="mt-6 flex flex-wrap items-center gap-2">
               {view.products.map((id) => (
-                <Link key={id} to="/products/$slug" params={{ slug: id }} className="inline-flex">
+                <Link key={id} to="/platform/$slug" params={{ slug: id }} className="inline-flex">
                   <ProductBadge product={id} />
                 </Link>
               ))}
             </div>
             <CTAButton asChild className="mt-6">
-              <Link to="/products/$slug" params={{ slug: view.product }}>
+              <Link to="/platform/$slug" params={{ slug: view.product }}>
                 Explore {PRODUCT_FAMILY[view.product].shortName}
               </Link>
             </CTAButton>

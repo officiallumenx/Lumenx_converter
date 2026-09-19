@@ -62,7 +62,7 @@ function PendingSubmissionCard({ submission }: { submission: OfflinePaymentSubmi
     <Card className="mb-4 border-amber-500/35 bg-amber-500/5">
       <CardHeader
         title="Payment submitted. Waiting for verification."
-        hint="Subscription is not active yet · Nexus must verify this payment"
+        hint="Subscription is not active yet · payment verification is pending"
         action={<Pill tone="warning">VERIFICATION_PENDING</Pill>}
       />
       <div className="px-5 pb-5 grid grid-cols-2 lg:grid-cols-3 gap-3">
@@ -119,7 +119,7 @@ function SubscriptionApiHistoryCard({ instituteId }: { instituteId: string | nul
   if (renewals.length === 0 && payments.length === 0) {
     return (
       <Card>
-        <CardHeader title="Billing history" hint="From GET /api/v1/subscriptions/history" />
+        <CardHeader title="Billing history" hint="Past invoices and payments" />
         <p className="px-5 pb-5 text-sm text-muted-foreground">No renewals or payments yet.</p>
       </Card>
     );
@@ -305,7 +305,7 @@ export function SubscriptionApiPage() {
           <CardHeader
             title={detail.instituteName}
             hint={`Lifecycle · ${detail.lifecycleStatus.replace(/_/g, " ")}`}
-            action={<Pill tone="neutral">API mode</Pill>}
+            action={<Pill tone="neutral">Live data</Pill>}
           />
           <div className="px-5 pb-5 grid grid-cols-2 sm:grid-cols-4 gap-3">
             <Detail
@@ -337,7 +337,7 @@ export function SubscriptionApiPage() {
         <Card className="border-emerald-500/35 bg-emerald-500/5">
           <CardHeader
             title="Submission recorded"
-            hint="Nexus will verify your offline payment before activating the subscription"
+            hint="Your offline payment will be verified before the subscription activates"
           />
         </Card>
       ) : null}

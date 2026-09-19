@@ -54,6 +54,7 @@ export type FeePaymentDto = {
   instituteId: string;
   studentFeeId: string;
   studentId: string;
+  feeComponentId: string | null;
   amount: number;
   method: FeePaymentMethod;
   receiptNo: string;
@@ -95,6 +96,8 @@ export type FeeLineDto = {
   name: string;
   defaultAmount: number;
   amount: number;
+  paidAmount: number;
+  balanceAmount: number;
   overridden: boolean;
   note?: string;
 };

@@ -1,10 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { isApiAuthMode } from "@/auth/auth-mode";
-import {
-  getAnnouncement,
-  listAnnouncements,
-  recordAnnouncementView,
-} from "@/lib/announcements/api";
+import { recordAnnouncementView } from "@/lib/announcements/api";
 import {
   findDemoAnnouncement,
   listDemoAnnouncements,
@@ -12,57 +9,45 @@ import {
   type ConnectAnnouncementPortalRole,
 } from "@/lib/announcements/demo-load";
 import type { AnnouncementDto } from "@/lib/announcements/types";
+import {
+  useAnnouncementDetailQuery,
+  useAnnouncementsListQuery,
+} from "@/lib/connect-queries/hooks";
+import { connectQueryKeys } from "@/lib/connect-queries/keys";
 
 export function useConnectAnnouncementsList(
   instituteId: string | null,
   role: ConnectAnnouncementPortalRole,
 ) {
   const apiMode = isApiAuthMode();
-  const [items, setItems] = useState<AnnouncementDto[]>([]);
-  const [loading, setLoading] = useState(apiMode);
-  const [error, setError] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const query = useAnnouncementsListQuery(instituteId, apiMode);
 
-  const reload = useCallback(() => setReloadKey((k) => k + 1), []);
+  const demoEpoch = useSyncExternalStore(
+    apiMode ? () => () => undefined : subscribeDemoAnnouncements,
+    () => (apiMode ? "" : listDemoAnnouncements(role).map((r) => r.id).join(",")),
+    () => "",
+  );
 
-  useEffect(() => {
-    if (!apiMode) {
-      const refresh = () => setItems(listDemoAnnouncements(role));
-      refresh();
-      return subscribeDemoAnnouncements(refresh);
-    }
-
-    if (!instituteId) {
-      setItems([]);
-      setLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    setLoading(true);
-    void listAnnouncements({ instituteId })
-      .then((rows) => {
-        if (!cancelled) {
-          setItems(rows.filter((row) => row.status === "published"));
-          setError(null);
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to load announcements");
-          setItems([]);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
+  if (!apiMode) {
+    void demoEpoch;
+    return {
+      items: listDemoAnnouncements(role),
+      loading: false,
+      error: null as string | null,
+      reload: () => undefined,
     };
-  }, [apiMode, instituteId, role, reloadKey]);
+  }
 
-  return { items, loading, error, reload };
+  const loading = query.isLoading && !query.data;
+  const items = query.data ?? [];
+  const error =
+    query.isError
+      ? query.error instanceof Error
+        ? query.error.message
+        : "Failed to load announcements"
+      : null;
+
+  return { items, loading, error, reload: query.refresh };
 }
 
 export function useConnectAnnouncementDetail(
@@ -71,54 +56,53 @@ export function useConnectAnnouncementDetail(
   role: ConnectAnnouncementPortalRole,
 ) {
   const apiMode = isApiAuthMode();
-  const [item, setItem] = useState<AnnouncementDto | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const query = useAnnouncementDetailQuery(instituteId, id, apiMode && Boolean(id));
+
+  const [demoItem, setDemoItem] = useState<AnnouncementDto | null>(null);
+  const [demoLoading, setDemoLoading] = useState(!apiMode && Boolean(id));
 
   useEffect(() => {
-    if (!id) {
-      setItem(null);
-      setLoading(false);
+    if (apiMode || !id) {
+      setDemoItem(null);
+      setDemoLoading(false);
       return;
     }
-
-    if (!apiMode) {
-      const refresh = () => {
-        setItem(findDemoAnnouncement(role, id));
-        setLoading(false);
-      };
-      refresh();
-      return subscribeDemoAnnouncements(refresh);
-    }
-
-    let cancelled = false;
-    setLoading(true);
-    void getAnnouncement(id)
-      .then((row) => {
-        if (!cancelled) {
-          setItem(row);
-          setError(null);
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to load announcement");
-          setItem(null);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
+    const refresh = () => {
+      setDemoItem(findDemoAnnouncement(role, id));
+      setDemoLoading(false);
     };
+    refresh();
+    return subscribeDemoAnnouncements(refresh);
   }, [apiMode, id, role]);
 
   useEffect(() => {
-    if (!apiMode || !id || !item || item.status !== "published") return;
-    void recordAnnouncementView(id).then(setItem).catch(() => undefined);
-  }, [apiMode, id, item?.id, item?.status]);
+    if (!apiMode || !id || !query.data || query.data.status !== "published") return;
+    void recordAnnouncementView(id)
+      .then((row) => {
+        queryClient.setQueryData(
+          connectQueryKeys.announcement(instituteId ?? "_", id),
+          row,
+        );
+      })
+      .catch(() => undefined);
+  }, [apiMode, id, instituteId, query.data?.id, query.data?.status, queryClient]);
 
-  return { item, loading, error };
+  if (!apiMode) {
+    return {
+      item: demoItem,
+      loading: demoLoading,
+      error: null as string | null,
+    };
+  }
+
+  const loading = Boolean(id) && query.isLoading && !query.data;
+  const error =
+    query.isError
+      ? query.error instanceof Error
+        ? query.error.message
+        : "Failed to load announcement"
+      : null;
+
+  return { item: query.data ?? null, loading, error };
 }

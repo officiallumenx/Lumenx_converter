@@ -42,7 +42,7 @@ const DiaryClassRow = memo(function DiaryClassRow({
   onPatch: (id: string, patch: Partial<DiaryRow>) => void;
   onRemove: (id: string) => void;
 }) {
-  const showSectionPicker = scope === "subject" && sectionOptions.length > 0;
+  const showSectionPicker = scope === "subject";
 
   return (
     <li className="rounded-2xl border border-border bg-card p-3 shadow-soft sm:p-4">
@@ -61,34 +61,43 @@ const DiaryClassRow = memo(function DiaryClassRow({
           <Trash2 className="size-3.5" />
         </Button>
       </div>
-      <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Class</label>
+      <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+        {showSectionPicker ? "Class & section" : "Class"}
+      </label>
       {showSectionPicker ? (
-        <Select
-          value={row.sectionId ?? ""}
-          onValueChange={(sectionId) => {
-            const option = sectionOptions.find((o) => o.sectionId === sectionId);
-            onPatch(row.id, {
-              sectionId,
-              className: option?.label ?? row.className,
-            });
-          }}
-        >
-          <SelectTrigger className="mb-3">
-            <SelectValue placeholder="Select your section" />
-          </SelectTrigger>
-          <SelectContent>
-            {sectionOptions.map((option) => (
-              <SelectItem key={option.sectionId} value={option.sectionId}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        sectionOptions.length > 0 ? (
+          <Select
+            // Radix forbids empty-string values — use undefined while unset.
+            value={row.sectionId || undefined}
+            onValueChange={(sectionId) => {
+              const option = sectionOptions.find((o) => o.sectionId === sectionId);
+              onPatch(row.id, {
+                sectionId,
+                className: option?.label ?? row.className,
+              });
+            }}
+          >
+            <SelectTrigger className="mb-3">
+              <SelectValue placeholder="Select class & section" />
+            </SelectTrigger>
+            <SelectContent>
+              {sectionOptions.map((option) => (
+                <SelectItem key={option.sectionId} value={option.sectionId}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <p className="mb-3 text-sm text-muted-foreground">
+            No assigned classes yet. Ask admin to link your timetable sections.
+          </p>
+        )
       ) : (
         <Input
           value={row.className}
           onChange={(e) => onPatch(row.id, { className: e.target.value })}
-          placeholder={scope === "activity" ? "e.g. U14 Football" : "e.g. 8-A"}
+          placeholder="e.g. U14 Football"
           className="mb-3"
         />
       )}
@@ -246,15 +255,21 @@ export function DiaryBookPage({ scope, className }: Props) {
 
   const handleSubmit = async () => {
     if (!canSubmit) {
-      toast.error("Add at least one class with a description before submitting.");
+      toast.error(
+        scope === "subject"
+          ? "Fill at least one row with class & section and a description."
+          : "Fill at least one row with a class and description.",
+      );
       return;
     }
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
       debounceRef.current = null;
     }
+    // Flush any in-flight draft so submit uses the latest row state.
     setSubmitting(true);
     try {
+      await diaryRepository.saveRows(scope, selectedDate, rows);
       await diaryRepository.submitToAdmin(scope, selectedDate, rows);
       setSaveState("saved");
       toast.success(
@@ -318,8 +333,9 @@ export function DiaryBookPage({ scope, className }: Props) {
         <div className="flex items-start gap-2 rounded-xl border border-amber-500/35 bg-amber-500/10 px-3 py-2.5 text-sm">
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-400" aria-hidden />
           <p>
-            <span className="font-medium">Overdue.</span> Fill at least one class and description,
-            then submit to the principal.
+            <span className="font-medium">Overdue.</span> Fill at least one class
+            {scope === "subject" ? " & section" : ""} and description, then submit to the
+            principal.
           </p>
         </div>
       ) : null}

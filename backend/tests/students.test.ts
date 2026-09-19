@@ -411,6 +411,87 @@ describe("students — lifecycle and soft delete", () => {
   });
 });
 
+describe("students — create with parent link", () => {
+  it("creates parent + guardian_link; same phone links sibling", async () => {
+    const db = baseDb();
+    const app = appWithDb(db);
+
+    const first = await app.request("/api/v1/students", {
+      method: "POST",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify({
+        ...createBody,
+        first_name: "Riya",
+        surname: "Sharma",
+        parent_name: "Rohan Sharma",
+        parent_phone: "9123456780",
+        parent_relationship: "father",
+      }),
+    });
+    expect(first.status).toBe(201);
+    const firstBody = await json(first);
+    expect(firstBody.data.parentId).toBeTruthy();
+    expect(firstBody.data.firstName).toBe("Riya");
+
+    const parentId = firstBody.data.parentId as string;
+    const parents = db.parent.filter(
+      (p) => p.phone === "9123456780" && p.deleted_at == null,
+    );
+    expect(parents).toHaveLength(1);
+    expect(parents[0]!.id).toBe(parentId);
+    expect(parents[0]!.name).toBe("Rohan Sharma");
+
+    const linksAfterFirst = db.guardian_link.filter(
+      (l) => l.parent_id === parentId && l.deleted_at == null,
+    );
+    expect(linksAfterFirst.some((l) => l.student_id === firstBody.data.id)).toBe(
+      true,
+    );
+
+    const sibling = await app.request("/api/v1/students", {
+      method: "POST",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify({
+        ...createBody,
+        first_name: "Aarav",
+        surname: "Sharma",
+        roll_no: "13",
+        parent_name: "Rohan Sharma",
+        parent_phone: "9123456780",
+        parent_relationship: "father",
+      }),
+    });
+    expect(sibling.status).toBe(201);
+    const siblingBody = await json(sibling);
+    expect(siblingBody.data.parentId).toBe(parentId);
+
+    const parentsAfter = db.parent.filter(
+      (p) => p.phone === "9123456780" && p.deleted_at == null,
+    );
+    expect(parentsAfter).toHaveLength(1);
+
+    const links = db.guardian_link.filter(
+      (l) => l.parent_id === parentId && l.deleted_at == null,
+    );
+    const linkedStudentIds = links.map((l) => l.student_id);
+    expect(linkedStudentIds).toContain(firstBody.data.id);
+    expect(linkedStudentIds).toContain(siblingBody.data.id);
+  });
+
+  it("rejects partial parent fields", async () => {
+    const app = appWithDb(baseDb());
+    const res = await app.request("/api/v1/students", {
+      method: "POST",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify({
+        ...createBody,
+        parent_name: "Only Name",
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
 describe("students — guardians", () => {
   it("returns linked guardians for staff and student self", async () => {
     const app = appWithDb(baseDb());

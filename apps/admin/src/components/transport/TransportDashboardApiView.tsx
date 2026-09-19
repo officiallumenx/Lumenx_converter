@@ -49,7 +49,7 @@ export function TransportDashboardApiView({
 
   return (
     <PageStack>
-      <Pill tone="neutral">Read-only · API mode · fleet overview</Pill>
+      <Pill tone="neutral">Read-only · fleet overview</Pill>
       <div className="lx-kpi-grid">
         <Kpi
           label="Drivers"

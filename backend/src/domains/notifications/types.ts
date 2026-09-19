@@ -27,7 +27,13 @@ export type NotificationPriority =
 
 export type TemplateStatus = "draft" | "published" | "archived";
 
-export type DeviceApp = "connect" | "admin" | "transport" | "nexus" | "careers";
+export type DeviceApp =
+  | "connect"
+  | "admin"
+  | "transport"
+  | "nexus"
+  | "careers"
+  | "admissions";
 export type DevicePlatform = "android" | "ios" | "web";
 
 export type NotificationRow = {

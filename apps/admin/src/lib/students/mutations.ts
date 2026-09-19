@@ -5,6 +5,7 @@ import { getAdminApiClient } from "@/lib/admin-api";
 import type { AdminApiClient } from "@/lib/api";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { isInstituteUuid } from "@/lib/active-institute";
+import { normalizeDateOnlyInput } from "@/lib/date-only";
 import type {
   StudentAccessStatus,
   StudentDto,
@@ -36,21 +37,37 @@ export type CreateStudentInput = {
   house?: string | null;
   admissionNumber?: string | null;
   legacyCode?: string | null;
+  /** Find-or-create parent by phone and link (siblings share the same phone). */
+  parentName?: string;
+  parentPhone?: string;
+  parentRelationship?: "mother" | "father" | "guardian";
+};
+
+export type CreateStudentResult = StudentDto & {
+  parentId?: string;
 };
 
 export type UpdateStudentInput = Partial<
-  Omit<CreateStudentInput, "instituteId">
+  Omit<CreateStudentInput, "instituteId" | "parentName" | "parentPhone" | "parentRelationship">
 >;
 
 function toCreateBody(input: CreateStudentInput): Record<string, unknown> {
-  return {
+  const dateOfBirth = input.dateOfBirth?.trim()
+    ? normalizeDateOnlyInput(input.dateOfBirth)
+    : null;
+  if (input.dateOfBirth?.trim() && !dateOfBirth) {
+    throw new Error(
+      `date_of_birth must be YYYY-MM-DD (got "${input.dateOfBirth.trim()}")`,
+    );
+  }
+  const body: Record<string, unknown> = {
     institute_id: input.instituteId.trim(),
     first_name: input.firstName.trim(),
     surname: input.surname.trim(),
     display_name: input.displayName?.trim() || undefined,
     gender: input.gender,
     address: input.address.trim(),
-    date_of_birth: input.dateOfBirth ?? null,
+    date_of_birth: dateOfBirth,
     class_label: input.classLabel ?? null,
     section_label: input.sectionLabel ?? null,
     roll_no: input.rollNo ?? null,
@@ -62,6 +79,16 @@ function toCreateBody(input: CreateStudentInput): Record<string, unknown> {
     admission_number: input.admissionNumber ?? null,
     legacy_code: input.legacyCode ?? null,
   };
+  const parentName = input.parentName?.trim();
+  const parentPhone = input.parentPhone?.trim();
+  if (parentName && parentPhone) {
+    body.parent_name = parentName;
+    body.parent_phone = parentPhone;
+    if (input.parentRelationship) {
+      body.parent_relationship = input.parentRelationship;
+    }
+  }
+  return body;
 }
 
 function toUpdateBody(input: UpdateStudentInput): Record<string, unknown> {
@@ -71,7 +98,19 @@ function toUpdateBody(input: UpdateStudentInput): Record<string, unknown> {
   if (input.displayName !== undefined) body.display_name = input.displayName.trim();
   if (input.gender !== undefined) body.gender = input.gender;
   if (input.address !== undefined) body.address = input.address.trim();
-  if (input.dateOfBirth !== undefined) body.date_of_birth = input.dateOfBirth;
+  if (input.dateOfBirth !== undefined) {
+    if (!input.dateOfBirth?.trim()) {
+      body.date_of_birth = null;
+    } else {
+      const dateOfBirth = normalizeDateOnlyInput(input.dateOfBirth);
+      if (!dateOfBirth) {
+        throw new Error(
+          `date_of_birth must be YYYY-MM-DD (got "${input.dateOfBirth.trim()}")`,
+        );
+      }
+      body.date_of_birth = dateOfBirth;
+    }
+  }
   if (input.classLabel !== undefined) body.class_label = input.classLabel;
   if (input.sectionLabel !== undefined) body.section_label = input.sectionLabel;
   if (input.rollNo !== undefined) body.roll_no = input.rollNo;
@@ -92,12 +131,12 @@ function toUpdateBody(input: UpdateStudentInput): Record<string, unknown> {
 export async function createStudent(
   input: CreateStudentInput,
   client: AdminApiClient = getAdminApiClient(),
-): Promise<StudentDto> {
+): Promise<CreateStudentResult> {
   assertApiMode();
   if (!isInstituteUuid(input.instituteId)) {
     throw new Error("institute_id must be a valid UUID");
   }
-  return client.post<StudentDto>("/api/v1/students", toCreateBody(input));
+  return client.post<CreateStudentResult>("/api/v1/students", toCreateBody(input));
 }
 
 export async function updateStudent(

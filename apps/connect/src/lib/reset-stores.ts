@@ -14,8 +14,8 @@ import { workspaceCalendarRepository } from "@/lib/activity/workspace-calendar";
 import { workspaceAchievementsRepository } from "@/lib/activity/workspace-achievements";
 import { diaryRepository } from "@/lib/teacher/diary";
 import { teacherRepository } from "@/lib/teacher/repositories";
-import { clearStudentPendingSetup } from "@/lib/student-auth-store";
 import { clearMainScrollMemory } from "@/lib/main-scroll-memory";
+import { clearTeacherPortalApiCache } from "@/lib/teacher-classes/load";
 
 let inFlightReset: Promise<void> | null = null;
 
@@ -29,6 +29,7 @@ async function runReset() {
   sentMessagesStore.reset();
   teacherSessionStore.reset();
   teacherRepository.reset();
+  clearTeacherPortalApiCache();
   await activityRepository.reset();
   activityHierarchyRepository.reset();
   sportsRepository.reset();
@@ -37,13 +38,14 @@ async function runReset() {
   workspaceAchievementsRepository.reset();
   diaryRepository.reset();
   clearMainScrollMemory();
-  // Clear in-progress student setup only — saved demo accounts stay (mock user DB).
-  clearStudentPendingSetup();
 }
 
 /**
  * Tear down all module-singleton stores so a new sign-in (possibly as a different role)
  * never inherits the previous session's in-memory state. Called from AppProvider.signOut().
+ *
+ * TanStack Query portal caches are cleared by portal registries via
+ * removeConnectPortalQueries / removeQueries — QueryClient is not available here.
  */
 export function resetAllConnectStores(): Promise<void> {
   if (!inFlightReset) {

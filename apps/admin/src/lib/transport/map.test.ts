@@ -15,6 +15,7 @@ const dto: VehicleDto = {
   capacity: 40,
   status: "maintenance",
   notes: "Needs service",
+  assignedDriverId: "dd111111-1111-4111-8111-111111111111",
   createdAt: "2026-06-01T10:00:00Z",
   updatedAt: "2026-06-01T10:00:00Z",
 };
@@ -27,7 +28,7 @@ describe("vehicleDtoToTransportVehicle", () => {
       registrationNumber: "KA-01-LX-4521",
       capacity: 40,
       status: "maintenance",
-      assignedDriverId: null,
+      assignedDriverId: "dd111111-1111-4111-8111-111111111111",
       notes: "Needs service",
     });
   });
@@ -50,6 +51,8 @@ describe("driverDtoToTransportDriver", () => {
     licenseExpiry: "2027-06-15T00:00:00Z",
     status: "active",
     notes: "Experienced",
+    assignedVehicleId: "vv111111-1111-4111-8111-111111111111",
+    hasAppPin: true,
     createdAt: "2026-06-01T10:00:00Z",
     updatedAt: "2026-06-01T10:00:00Z",
   };
@@ -61,7 +64,8 @@ describe("driverDtoToTransportDriver", () => {
       phone: "+91 98765 43210",
       licenseNumber: "DL-12345",
       licenseExpiry: "2027-06-15",
-      assignedVehicleId: null,
+      assignedVehicleId: "vv111111-1111-4111-8111-111111111111",
+      hasAppPin: true,
       status: "active",
       notes: "Experienced",
     });
@@ -80,6 +84,11 @@ describe("routeDtoToTransportRoute", () => {
     lockedAt: "2026-06-02T10:00:00Z",
     lockedByUserId: "uu111111-1111-4111-8111-111111111111",
     setupFinishedAt: "2026-06-01T12:00:00Z",
+    approvalStatus: "approved",
+    submittedByUserId: null,
+    reviewedByUserId: null,
+    reviewedAt: null,
+    rejectionReason: null,
     createdAt: "2026-06-01T10:00:00Z",
     updatedAt: "2026-06-01T10:00:00Z",
   };
@@ -95,6 +104,11 @@ describe("routeDtoToTransportRoute", () => {
       longitude: 77.6,
       routeOrder: 2,
       notificationRadiusM: 150,
+      approvalStatus: "approved",
+      submittedByUserId: null,
+      reviewedByUserId: null,
+      reviewedAt: null,
+      rejectionReason: null,
       createdAt: "2026-06-01T10:00:00Z",
       updatedAt: "2026-06-01T10:00:00Z",
     },
@@ -108,6 +122,11 @@ describe("routeDtoToTransportRoute", () => {
       longitude: 77.59,
       routeOrder: 1,
       notificationRadiusM: 200,
+      approvalStatus: "approved",
+      submittedByUserId: null,
+      reviewedByUserId: null,
+      reviewedAt: null,
+      rejectionReason: null,
       createdAt: "2026-06-01T10:00:00Z",
       updatedAt: "2026-06-01T10:00:00Z",
     },
@@ -118,7 +137,9 @@ describe("routeDtoToTransportRoute", () => {
     expect(mapped.name).toBe("Route A");
     expect(mapped.setupStops).toHaveLength(2);
     expect(mapped.setupStops[0]?.name).toBe("Stop A");
+    expect(mapped.setupStops[0]?.notificationRadiusM).toBe(200);
     expect(mapped.setupStops[1]?.name).toBe("Stop B");
+    expect(mapped.setupStops[1]?.notificationRadiusM).toBe(150);
     expect(mapped.stopIds).toEqual([
       "ss111111-1111-4111-8111-111111111111",
       "ss222222-2222-4222-8222-222222222222",
@@ -133,6 +154,9 @@ describe("transportSettingsDtoToTransportSettings", () => {
     defaultNotificationRadiusM: 200,
     defaultPickupBufferMins: 10,
     workingDays: [1, 2, 3, 4, 5],
+    notificationsEnabled: true,
+    rememberEnabled: false,
+    defaultPickupTime: "07:30:00",
     createdAt: "2026-06-01T10:00:00Z",
     updatedAt: "2026-06-01T10:00:00Z",
   };
@@ -142,6 +166,9 @@ describe("transportSettingsDtoToTransportSettings", () => {
       defaultNotificationRadiusM: 200,
       defaultPickupBufferMins: 10,
       workingDays: ["Mon", "Tue", "Wed", "Thu", "Fri"],
+      notificationsEnabled: true,
+      rememberEnabled: false,
+      defaultPickupTime: "07:30",
     });
   });
 });

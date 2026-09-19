@@ -377,7 +377,7 @@ describe("events api", () => {
     expect(teacher.status).toBe(200);
   });
 
-  it("lets institute driver read all published calendar events", async () => {
+  it("forbids institute driver from reading calendar and events lists", async () => {
     const db = baseDb();
     const USER_DRIVER = "66666666-6666-4666-8666-666666666666";
     const MEMBER_DRIVER = "aa666666-6666-4666-8666-666666666666";
@@ -417,19 +417,13 @@ describe("events api", () => {
       headers: { Authorization: "Bearer token-driver" },
     });
     expect(calendar.status).toBe(200);
-    const calendarIds = (await json(calendar)).data.map((e: { id: string }) => e.id);
-    expect(calendarIds).toContain(EVENT_HOLIDAY);
-    expect(calendarIds).toContain("ae555555-5555-4555-8555-555555555555");
-    expect(calendarIds).not.toContain(EVENT_DRAFT);
+    expect((await json(calendar)).data).toEqual([]);
 
     const events = await app.request(`/api/v1/events?institute_id=${INST_A}`, {
       headers: { Authorization: "Bearer token-driver" },
     });
     expect(events.status).toBe(200);
-    const eventIds = (await json(events)).data.map((e: { id: string }) => e.id);
-    expect(eventIds).toContain(EVENT_PUB);
-    expect(eventIds).toContain("ae555555-5555-4555-8555-555555555555");
-    expect(eventIds).not.toContain(EVENT_DRAFT);
+    expect((await json(events)).data).toEqual([]);
   });
 
   it("soft-deletes unpublished drafts only", async () => {

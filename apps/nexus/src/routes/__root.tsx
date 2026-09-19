@@ -3,10 +3,14 @@ import {
   Outlet,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
+  useNavigate,
   HeadContent,
   Scripts,
   Link,
 } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { ensureFirebasePhoneAuthHost } from "@lumenx/auth";
 
 import appCss from "../styles.css?url";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -14,7 +18,18 @@ import { TypographyProvider } from "@lumenx/ui";
 import { Toaster } from "@lumenx/ui/sonner";
 import { InAppAlertListener } from "@/components/InAppAlertListener";
 import { PushDeviceTokenRegistration } from "@/components/PushDeviceTokenRegistration";
+import { FirebaseClientServices } from "@/components/FirebaseClientServices";
 import { NexusPoliciesNavBadgeSync } from "@/components/NexusPoliciesNavBadgeSync";
+import { appLockStore } from "@/lib/app-lock-store";
+import { isNexusApiMode } from "@/lib/auth-mode";
+import { getNexusProtectedRouteDecision } from "@/lib/protected-route";
+import { ensureNexusOpenAccessSession, validateNexusSession } from "@/lib/nexus-login-api";
+
+// Firebase Phone Auth fails on hostname `localhost` — stay on 127.0.0.1.
+if (typeof window !== "undefined") {
+  ensureFirebasePhoneAuthHost();
+}
+import { getSupabaseAccessToken } from "@/lib/supabase-browser";
 
 function NotFoundComponent() {
   return (
@@ -88,12 +103,119 @@ function RootComponent() {
       <ThemeProvider>
         <TypographyProvider>
           <InAppAlertListener />
-          <PushDeviceTokenRegistration enabled />
-          <NexusPoliciesNavBadgeSync />
-          <Outlet />
+          <FirebaseClientServices enabled />
+          <NexusSessionRoot />
         </TypographyProvider>
         <Toaster position="top-center" richColors />
       </ThemeProvider>
     </QueryClientProvider>
+  );
+}
+
+function NexusSessionRoot() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const navigate = useNavigate();
+  // Login UI disabled — still mint a real API session via open-access.
+  const requireLogin = false;
+  const [hydrated, setHydrated] = useState(false);
+  const [hasOperatorSession, setHasOperatorSession] = useState(false);
+  const [bootError, setBootError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden" && appLockStore.isEnabled()) {
+        appLockStore.lockSession();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
+
+  useEffect(() => {
+    if (!isNexusApiMode()) {
+      setHydrated(true);
+      setHasOperatorSession(true);
+      return;
+    }
+    let cancelled = false;
+    setHydrated(false);
+    setBootError(null);
+    void (async () => {
+      try {
+        if (!requireLogin) {
+          const ok = await ensureNexusOpenAccessSession();
+          if (!cancelled) setHasOperatorSession(ok);
+          return;
+        }
+        const token = await getSupabaseAccessToken().catch(() => null);
+        if (!token) {
+          if (!cancelled) setHasOperatorSession(false);
+          return;
+        }
+        const ok = await validateNexusSession(token);
+        if (!cancelled) setHasOperatorSession(ok);
+      } catch (err) {
+        if (!cancelled) {
+          setHasOperatorSession(false);
+          setBootError(err instanceof Error ? err.message : "Unable to open Nexus session.");
+        }
+      } finally {
+        if (!cancelled) setHydrated(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname, requireLogin]);
+
+  useEffect(() => {
+    const decision = getNexusProtectedRouteDecision({
+      apiMode: isNexusApiMode(),
+      pathname,
+      hydrated,
+      hasOperatorSession,
+      requireLogin,
+    });
+    if (decision === "redirect-login") {
+      void navigate({ to: "/login", replace: true });
+    } else if (decision === "redirect-home") {
+      void navigate({ to: "/", replace: true });
+    }
+  }, [hydrated, hasOperatorSession, pathname, navigate, requireLogin]);
+
+  const decision = getNexusProtectedRouteDecision({
+    apiMode: isNexusApiMode(),
+    pathname,
+    hydrated,
+    hasOperatorSession,
+    requireLogin,
+  });
+
+  if (bootError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4 text-center text-sm text-muted-foreground">
+        <div>
+          <p className="font-medium text-foreground">Could not open Nexus without login</p>
+          <p className="mt-2">{bootError}</p>
+          <p className="mt-2 text-xs">Ensure the API is running with NEXUS_OPEN_ACCESS=1.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (decision === "loading" || decision === "redirect-login" || decision === "redirect-home" || !hydrated) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">
+        Opening Nexus…
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <PushDeviceTokenRegistration enabled={hasOperatorSession && isNexusApiMode()} />
+      <NexusPoliciesNavBadgeSync />
+      <Outlet />
+    </>
   );
 }

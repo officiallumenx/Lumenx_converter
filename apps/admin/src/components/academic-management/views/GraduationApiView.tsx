@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useReloadKey } from "@/hooks/useReloadKey";
 import {
   Button,
   Card,
@@ -48,7 +49,7 @@ export function GraduationApiView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [reloadKey, setReloadKey] = useState(0);
+  const [reloadKey, setReloadKey] = useReloadKey();
 
   useEffect(() => {
     if (!isApiAuthMode() || !instituteCtx.activeInstituteId) return;

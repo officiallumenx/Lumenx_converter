@@ -14,8 +14,8 @@ import { toast } from "sonner";
 import type { ComplaintStatus, TeacherComplaint } from "@/lib/teacher/types";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useApp } from "@/lib/app-state";
+import { useTeacherComplaintsQuery } from "@/lib/connect-queries/hooks";
 import {
-  loadTeacherComplaints,
   removeComplaintDraft,
   splitTeacherComplaints,
   submitTeacherComplaint,
@@ -56,8 +56,8 @@ const schema = z.object({
 export function TeacherComplaintsPage() {
   const { activeInstituteId } = useApp();
   const apiMode = isApiAuthMode();
-  const [items, setItems] = useState<TeacherComplaint[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [demoItems, setDemoItems] = useState<TeacherComplaint[]>([]);
+  const [demoLoading, setDemoLoading] = useState(!apiMode);
   const [queueTab, setQueueTab] = useState<"mine" | "class_inbox">("mine");
   const [statusFilter, setStatusFilter] = useState<ComplaintStatusFilter>("all");
   const [respondId, setRespondId] = useState<string | null>(null);
@@ -70,25 +70,33 @@ export function TeacherComplaintsPage() {
     defaultValues: { title: "", category: "Infrastructure", priority: "normal", body: "" },
   });
 
-  const load = useCallback(() => {
-    setLoading(true);
-    if (apiMode && activeInstituteId) {
-      void loadTeacherComplaints({ instituteId: activeInstituteId }).then((result) => {
-        if (result.status === "ready") setItems(result.items);
-        else setItems([]);
-        setLoading(false);
-      });
-      return;
-    }
+  const {
+    data: complaintsData,
+    isLoading: complaintsLoading,
+    refresh: refreshComplaints,
+  } = useTeacherComplaintsQuery(activeInstituteId, apiMode && Boolean(activeInstituteId));
+
+  const loadDemo = useCallback(() => {
+    setDemoLoading(true);
     teacherRepository.getComplaints().then((c) => {
-      setItems(c);
-      setLoading(false);
+      setDemoItems(c);
+      setDemoLoading(false);
     });
-  }, [apiMode, activeInstituteId]);
+  }, []);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (apiMode) return;
+    loadDemo();
+  }, [apiMode, loadDemo]);
+
+  const load = useCallback(() => {
+    if (apiMode) refreshComplaints();
+    else loadDemo();
+  }, [apiMode, refreshComplaints, loadDemo]);
+
+  const items: TeacherComplaint[] =
+    apiMode && complaintsData?.status === "ready" ? complaintsData.items : apiMode ? [] : demoItems;
+  const loading = apiMode ? complaintsLoading && !complaintsData : demoLoading;
 
   const { mine, classInbox } = useMemo(() => splitTeacherComplaints(items), [items]);
   const queueItems = queueTab === "class_inbox" ? classInbox : mine;

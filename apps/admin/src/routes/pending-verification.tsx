@@ -5,9 +5,9 @@
 
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { IconChip } from "@/components/IconChip";
+import { LumenXAdminLogo } from "@/components/LumenXAdminLogo";
 import { useState, useCallback, useEffect } from "react";
 import {
-  Sparkles,
   LogOut,
   RefreshCw,
   Headphones,
@@ -447,10 +447,7 @@ function PendingVerificationPage() {
 
       <header className="lx-auth-top-bar relative z-10 flex items-center justify-between border-b border-border/50">
         <div className="flex items-center gap-2.5">
-          <div className="size-8 rounded-lg bg-primary flex items-center justify-center">
-            <Sparkles className="size-4 text-primary-foreground" />
-          </div>
-          <span className="font-bold tracking-tight text-sm">LUMENX ADMIN</span>
+          <LumenXAdminLogo size="sm" className="max-h-8" />
         </div>
         <button
           type="button"
@@ -650,7 +647,7 @@ function PendingVerificationPage() {
                   <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
                     <Loader2 className="size-6 animate-spin text-primary" />
                     <p className="text-xs text-muted-foreground">
-                      Fetching status from GET /api/v1/registrations/me…
+                      Checking your registration status…
                     </p>
                   </div>
                 ) : (

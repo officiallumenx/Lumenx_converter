@@ -41,18 +41,18 @@ describe("assertProductionApiAuthMode", () => {
     store.clear();
   });
 
-  it("allows demo mode in non-production builds", async () => {
+  it("rejects demo mode even in non-production builds", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
     vi.stubEnv("PROD", false);
     const { assertProductionApiAuthMode } = await import("./auth-mode");
-    expect(() => assertProductionApiAuthMode()).not.toThrow();
+    expect(() => assertProductionApiAuthMode()).toThrow(/Demo Mode is no longer supported/);
   });
 
   it("throws when production build uses demo auth mode", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
     vi.stubEnv("PROD", true);
     const { assertProductionApiAuthMode } = await import("./auth-mode");
-    expect(() => assertProductionApiAuthMode()).toThrow(/VITE_ADMIN_AUTH_MODE=api/);
+    expect(() => assertProductionApiAuthMode()).toThrow(/Demo Mode is no longer supported/);
   });
 
   it("throws when production API mode is missing Supabase/API env", async () => {
@@ -96,13 +96,16 @@ describe("demo-auth-guard", () => {
     );
   });
 
-  it("allows demo OTP routes in demo mode", async () => {
+  it("still blocks demo OTP routes when env incorrectly sets demo", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
     const { resolveDemoAuthRouteBlock, isDemoOtpAllowed } = await import(
       "./demo-auth-guard"
     );
-    expect(resolveDemoAuthRouteBlock("/verify-email-otp")).toBeNull();
-    expect(isDemoOtpAllowed()).toBe(true);
+    // isDemoAuthMode() is always false — demo OTP routes stay blocked.
+    expect(resolveDemoAuthRouteBlock("/verify-email-otp")).toBe(
+      "/pending-verification",
+    );
+    expect(isDemoOtpAllowed()).toBe(false);
   });
 
   it("disallows demo OTP bypass in API mode", async () => {

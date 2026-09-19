@@ -1,12 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { AlertsCenterView } from "@/components/app/alerts/AlertsCenterView";
 import { PageHeader } from "@/components/app/PageHeader";
 import { useApp } from "@/lib/app-state";
 import {
   ackAllPortalSchoolAlerts,
   ackPortalSchoolAlert,
-  loadPortalSchoolAlerts,
 } from "@/lib/school-alerts";
+import { useSchoolAlertsQuery } from "@/lib/connect-queries/hooks";
 import { alertStore, setAlertStoreAckHandlers } from "@/lib/alert-store";
 import { setConnectApiAlertCounts } from "@/lib/use-connect-alert-badge";
 
@@ -32,9 +32,10 @@ export function LearnerAlertsApiPanel({
   childId,
 }: LearnerAlertsApiPanelProps) {
   const { activeInstituteId } = useApp();
-  const [status, setStatus] = useState("loading");
-  const [error, setError] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const { data, isLoading, refresh } = useSchoolAlertsQuery(
+    activeInstituteId,
+    Boolean(activeInstituteId),
+  );
 
   useEffect(() => {
     setAlertStoreAckHandlers({
@@ -43,6 +44,7 @@ export function LearnerAlertsApiPanel({
           await ackPortalSchoolAlert(id);
         } finally {
           syncBadgeCounts();
+          refresh();
         }
       },
       onAckAll: async () => {
@@ -51,30 +53,26 @@ export function LearnerAlertsApiPanel({
           await ackAllPortalSchoolAlerts(activeInstituteId);
         } finally {
           syncBadgeCounts();
+          refresh();
         }
       },
     });
     return () => setAlertStoreAckHandlers({});
-  }, [activeInstituteId]);
+  }, [activeInstituteId, refresh]);
 
   useEffect(() => {
-    let cancelled = false;
-    setStatus("loading");
-    void loadPortalSchoolAlerts({ instituteId: activeInstituteId }).then((result) => {
-      if (cancelled) return;
-      setStatus(result.status);
-      setError(result.errorMessage);
-      if (result.status === "ready" || result.status === "empty") {
-        alertStore.replaceFromApi(result.alerts);
-      }
-      syncBadgeCounts();
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeInstituteId, reloadKey]);
+    if (!data) return;
+    if (data.status === "ready" || data.status === "empty") {
+      alertStore.replaceFromApi(data.alerts);
+    }
+    syncBadgeCounts();
+  }, [data]);
 
-  if (status === "loading") {
+  const status =
+    data?.status ?? (isLoading && !data ? "loading" : "loading");
+  const error = data?.errorMessage ?? null;
+
+  if (status === "loading" || (isLoading && !data)) {
     return (
       <div className="min-w-0 max-w-full space-y-4">
         <PageHeader title="Alerts" subtitle={subtitle} />
@@ -93,7 +91,7 @@ export function LearnerAlertsApiPanel({
             <button
               type="button"
               className="text-sm text-primary underline"
-              onClick={() => setReloadKey((key) => key + 1)}
+              onClick={refresh}
             >
               Retry
             </button>

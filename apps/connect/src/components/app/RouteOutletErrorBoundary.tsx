@@ -1,7 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { Button } from "@lumenx/ui";
 
-type Props = { children: ReactNode };
+type Props = { children: ReactNode; resetKey?: string };
 type State = { error: Error | null };
 
 /**
@@ -18,6 +18,12 @@ export class RouteOutletErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, info: ErrorInfo) {
     if (import.meta.env.DEV) {
       console.error("Route outlet error:", error, info.componentStack);
+    }
+  }
+
+  componentDidUpdate(prevProps: Props) {
+    if (prevProps.resetKey !== this.props.resetKey && this.state.error) {
+      this.setState({ error: null });
     }
   }
 

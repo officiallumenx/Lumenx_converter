@@ -16,7 +16,7 @@ describe("marks mutations", () => {
     vi.clearAllMocks();
   });
 
-  it("refuses create in demo mode", async () => {
+  it("refuses create without authenticated API client", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
     const { createMarkEntry } = await import("./mutations");
     await expect(
@@ -29,7 +29,7 @@ describe("marks mutations", () => {
         subjectId: SUBJECT,
         maxMarks: 100,
       }),
-    ).rejects.toThrow(/API auth mode/);
+    ).rejects.toThrow(/API auth mode|Authentication required|Demo Mode is no longer supported/);
   });
 
   it("does not call network for invalid entry UUID on publish", async () => {
@@ -56,7 +56,14 @@ describe("marks mutations", () => {
         subjectId: SUBJECT,
         teacherId: TEACHER,
         maxMarks: 100,
-        scores: [{ enrollmentId: ENROLL, marks: 88 }],
+        scores: [
+          {
+            enrollmentId: ENROLL,
+            marks: 88,
+            internalMarks: 18,
+            externalMarks: 70,
+          },
+        ],
       },
       client,
     );
@@ -67,7 +74,14 @@ describe("marks mutations", () => {
         teacher_id: TEACHER,
         exam_id: EXAM,
         max_marks: 100,
-        scores: [{ enrollment_id: ENROLL, marks: 88 }],
+        scores: [
+          {
+            enrollment_id: ENROLL,
+            marks: 88,
+            internal_marks: 18,
+            external_marks: 70,
+          },
+        ],
       }),
     );
   });
@@ -81,7 +95,14 @@ describe("marks mutations", () => {
       ENTRY,
       {
         maxMarks: 50,
-        scores: [{ enrollmentId: ENROLL, marks: 40 }],
+        scores: [
+          {
+            enrollmentId: ENROLL,
+            marks: 40,
+            internalMarks: 10,
+            externalMarks: 30,
+          },
+        ],
       },
       client,
     );
@@ -89,7 +110,14 @@ describe("marks mutations", () => {
       `/api/v1/marks/entries/${ENTRY}`,
       expect.objectContaining({
         max_marks: 50,
-        scores: [{ enrollment_id: ENROLL, marks: 40 }],
+        scores: [
+          {
+            enrollment_id: ENROLL,
+            marks: 40,
+            internal_marks: 10,
+            external_marks: 30,
+          },
+        ],
       }),
     );
   });

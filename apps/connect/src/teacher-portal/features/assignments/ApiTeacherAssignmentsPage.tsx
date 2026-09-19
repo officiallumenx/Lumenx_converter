@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAsyncAction } from "@/teacher-portal/core/hooks/useAsyncAction";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -46,7 +47,6 @@ import {
   expireHomeworkItem,
   homeworkDtoToTeacherAssignment,
   loadTeacherHomeworkClassOverview,
-  loadTeacherHomeworkList,
   loadTeacherHomeworkSheet,
   publishHomeworkItem,
   saveHomeworkDraft,
@@ -55,17 +55,10 @@ import {
   type ClassHomeworkOverviewRow,
   type HomeworkDto,
 } from "@/lib/homework";
-import {
-  getTeacherClassesFromCache,
-  getTeacherPortalApiCache,
-  loadTeacherPortalApiData,
-} from "@/lib/teacher-classes/load";
-import {
-  listSubjects,
-  listTeacherAssignments,
-  type SubjectDto,
-  type TeacherAssignmentDto,
-} from "@/lib/teacher-classes/api";
+import { useTeacherPortal } from "@/context/TeacherPortalContext";
+import { useTeacherHomeworkListQuery } from "@/lib/connect-queries/hooks";
+import { connectQueryKeys } from "@/lib/connect-queries/keys";
+import type { SubjectDto, TeacherAssignmentDto } from "@/lib/teacher-classes/api";
 
 const newAssignmentSchema = z.object({
   title: z.string().trim().min(3, "Title is required.").max(200),
@@ -89,23 +82,33 @@ type BrowseMode = "item" | "class";
 
 export function ApiTeacherAssignmentsPage() {
   const { activeInstituteId } = useApp();
-  const [assignments, setAssignments] = useState<TeacherAssignment[]>([]);
-  const [homeworkRows, setHomeworkRows] = useState<HomeworkDto[]>([]);
-  const [loading, setLoading] = useState(true);
+  const portal = useTeacherPortal();
+  const queryClient = useQueryClient();
   const [browseMode, setBrowseMode] = useState<BrowseMode>("item");
   const [categoryType, setCategoryType] = useState<"assignment" | "homework">("homework");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [portalTick, setPortalTick] = useState(0);
-  const [reloadKey, setReloadKey] = useState(0);
-  const [subjects, setSubjects] = useState<SubjectDto[]>([]);
-  const [teacherAssignments, setTeacherAssignments] = useState<TeacherAssignmentDto[]>([]);
+  const [overviewReloadKey, setOverviewReloadKey] = useState(0);
 
-  const refresh = useCallback(() => setReloadKey((k) => k + 1), []);
+  const classes = portal.classes;
+  const teacherId = portal.teacherId;
+  const listQuery = useTeacherHomeworkListQuery(
+    activeInstituteId,
+    teacherId,
+    Boolean(activeInstituteId) && !portal.isLoading && Boolean(teacherId),
+  );
 
-  const classes = useMemo(() => {
-    void portalTick;
-    return getTeacherClassesFromCache();
-  }, [portalTick]);
+  const subjects = listQuery.data?.subjects ?? [];
+  const teacherAssignments = listQuery.data?.assignments ?? [];
+  const homeworkRows = listQuery.data?.list.items ?? [];
+  const loading = listQuery.isLoading && !listQuery.data;
+
+  const refresh = useCallback(() => {
+    if (!activeInstituteId || !teacherId) return;
+    void queryClient.invalidateQueries({
+      queryKey: connectQueryKeys.homeworkTeacher(activeInstituteId, teacherId),
+    });
+    setOverviewReloadKey((k) => k + 1);
+  }, [activeInstituteId, teacherId, queryClient]);
 
   const subjectLabels = useMemo(() => {
     const map = new Map<string, string>();
@@ -123,63 +126,8 @@ export function ApiTeacherAssignmentsPage() {
     return map;
   }, [classes]);
 
-  useEffect(() => {
-    if (!activeInstituteId) {
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    void (async () => {
-      await loadTeacherPortalApiData(activeInstituteId);
-      if (cancelled) return;
-      setPortalTick((t) => t + 1);
-      const cache = getTeacherPortalApiCache();
-      const teacherId = cache?.teacherId ?? null;
-      const cachedClasses = getTeacherClassesFromCache();
-      const classLabelMap = new Map(
-        cachedClasses.map((c) => [c.id, { classLabel: c.className, sectionLabel: c.section }]),
-      );
-      const [subjectRows, assignmentRows, listResult] = await Promise.all([
-        listSubjects(activeInstituteId),
-        teacherId
-          ? listTeacherAssignments({ instituteId: activeInstituteId, teacherId })
-          : Promise.resolve([]),
-        teacherId
-          ? loadTeacherHomeworkList({ instituteId: activeInstituteId, teacherId })
-          : Promise.resolve({ status: "empty" as const, items: [], errorMessage: null }),
-      ]);
-      if (cancelled) return;
-      setSubjects(subjectRows);
-      setTeacherAssignments(assignmentRows);
-      setHomeworkRows(listResult.items);
-      const subjectLabelMap = new Map(
-        subjectRows.map((s) => [s.id, s.name?.trim() || s.code?.trim() || s.id]),
-      );
-      setAssignments(
-        listResult.items.map((dto) => {
-          const labels = classLabelMap.get(dto.sectionId) ?? {
-            classLabel: "Class",
-            sectionLabel: "—",
-          };
-          return homeworkDtoToTeacherAssignment(dto, {
-            classLabel: labels.classLabel,
-            sectionLabel: labels.sectionLabel,
-            subjectLabel: subjectLabelMap.get(dto.subjectId) ?? dto.subjectId,
-          });
-        }),
-      );
-      setLoading(false);
-    })().catch(() => {
-      if (!cancelled) setLoading(false);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeInstituteId, reloadKey]);
-
-  useEffect(() => {
-    setAssignments(
+  const assignments = useMemo(
+    () =>
       homeworkRows.map((dto) => {
         const labels = classLabels.get(dto.sectionId) ?? {
           classLabel: "Class",
@@ -191,8 +139,8 @@ export function ApiTeacherAssignmentsPage() {
           subjectLabel: subjectLabels.get(dto.subjectId) ?? dto.subjectId,
         });
       }),
-    );
-  }, [homeworkRows, classLabels, subjectLabels]);
+    [homeworkRows, classLabels, subjectLabels],
+  );
 
   return (
     <div className="min-w-0 space-y-5">
@@ -249,7 +197,7 @@ export function ApiTeacherAssignmentsPage() {
           instituteId={activeInstituteId}
           categoryType={categoryType}
           onCategoryType={setCategoryType}
-          reloadKey={reloadKey}
+          reloadKey={overviewReloadKey}
         />
       ) : (
         <ApiByItemView

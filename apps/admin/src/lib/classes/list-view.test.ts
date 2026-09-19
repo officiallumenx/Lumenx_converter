@@ -53,6 +53,38 @@ describe("resolveClassesListView", () => {
     expect(view.items).toEqual([rowA]);
   });
 
+  it("does not treat a stored list error as valid rows", () => {
+    const view = resolveClassesListView({
+      apiMode: true,
+      instituteStatus: "ready",
+      activeInstituteId: A,
+      resolvedForInstituteId: A,
+      storedItems: [rowA],
+      storedStatus: "error",
+      storedErrorMessage: "Failed to load classes.",
+      instituteErrorMessage: null,
+    });
+    expect(view.rowsValid).toBe(false);
+    expect(view.status).toBe("error");
+    expect(view.items).toEqual([]);
+    expect(view.errorMessage).toBe("Failed to load classes.");
+  });
+
+  it("keeps existing rows visible while a soft reload is in flight", () => {
+    const view = resolveClassesListView({
+      apiMode: true,
+      instituteStatus: "ready",
+      activeInstituteId: A,
+      resolvedForInstituteId: A,
+      storedItems: [rowA],
+      storedStatus: "loading",
+      storedErrorMessage: null,
+      instituteErrorMessage: null,
+    });
+    expect(view.rowsValid).toBe(true);
+    expect(view.items).toEqual([rowA]);
+  });
+
   it("invalidates institute A rows when active institute switches to B", () => {
     const view = resolveClassesListView({
       apiMode: true,

@@ -1,8 +1,13 @@
-﻿import type {
+import type {
   ConnectLoginAccountStatus,
   PortalAccessStatus,
 } from "@lumenx/types";
-import { readAdminDataScopeKey } from "@/lib/admin-tenant";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import {
+  ADMIN_TENANT_CHANGED_EVENT,
+  ADMIN_TENANT_STORAGE_KEY,
+  readAdminDataScopeKey,
+} from "@/lib/admin-tenant";
 import type { AdminStudentRecord } from "@lumenx/module-students";
 import { normalizePhoneLast10, recordLocalChangeForSync, downloadTextToDevice } from "@lumenx/utils";
 
@@ -135,6 +140,18 @@ export function invalidateStudentDirectoryCache(): void {
   cachedDirectory = null;
   directoryEpoch += 1;
 }
+
+/** Drop in-memory cache when Admin switches registered / demo institute scope. */
+function bindTenantCacheInvalidation(): void {
+  if (typeof window === "undefined") return;
+  const invalidate = () => invalidateStudentDirectoryCache();
+  window.addEventListener(ADMIN_TENANT_CHANGED_EVENT, invalidate);
+  window.addEventListener("lumenx-demo-profile-change", invalidate);
+  window.addEventListener("storage", (e: StorageEvent) => {
+    if (e.key === ADMIN_TENANT_STORAGE_KEY) invalidate();
+  });
+}
+bindTenantCacheInvalidation();
 
 const PARENT_DETAILS: Record<
   string,
@@ -394,6 +411,9 @@ export function loadStudentDirectory(): StudentDirectoryRecord[] {
     return cachedDirectory.map((record) => ({ ...record }));
   }
 
+  const scopeKey = readAdminDataScopeKey();
+  const isRegisteredScope = scopeKey.startsWith("reg.");
+
   try {
     const raw = localStorage.getItem(key);
     if (raw) {
@@ -411,8 +431,17 @@ export function loadStudentDirectory(): StudentDirectoryRecord[] {
       return filled.map((record) => ({ ...record }));
     }
   } catch {
-    // Fall back to profile seed data.
+    // Fall through — registered scopes stay empty; demo scopes seed.
   }
+
+  // Registered institutes / API mode must never inherit demo seed students.
+  if (isRegisteredScope || isApiAuthMode()) {
+    cachedDirectoryKey = key;
+    cachedDirectory = [];
+    writeDirectoryJson(key, []);
+    return [];
+  }
+
   const seeded = getMockStudentsForProfile().map(seedRecord);
   cachedDirectoryKey = key;
   cachedDirectory = seeded;
@@ -466,11 +495,15 @@ export function validateStudentDraft(
   if (!draft.firstName.trim()) errors.push("First name is required.");
   if (!draft.surname.trim()) errors.push("Surname is required.");
   if (!draft.className.trim()) errors.push("Class is required.");
-  if (!opts?.apiMode) {
-    if (!draft.parentName.trim()) errors.push("Parent name is required.");
-    if (!/^\d{10}$/.test(draft.parentPhone)) {
-      errors.push("Parent phone must contain exactly 10 digits.");
-    }
+  if (opts?.apiMode && !draft.section.trim()) {
+    errors.push("Section is required.");
+  }
+  if (opts?.apiMode && !draft.rollNo.trim()) {
+    errors.push("Roll number is required to assign the student to the class.");
+  }
+  if (!draft.parentName.trim()) errors.push("Parent name is required.");
+  if (!/^\d{10}$/.test(draft.parentPhone)) {
+    errors.push("Parent phone must contain exactly 10 digits.");
   }
   if (!draft.address.trim()) errors.push("Address is required.");
   if (!draft.gender) errors.push("Gender is required.");
@@ -587,6 +620,9 @@ export function getStudentConnectPassword(record: StudentDirectoryRecord): strin
 export function validateImportRow(
   row: StudentImportRow,
   rowNumber: number,
+  catalog?: {
+    classOptions?: Array<{ classLabel: string; sectionLabels: string[] }>;
+  },
 ): string[] {
   const errors: string[] = [];
   const required: Array<[keyof StudentImportRow, string]> = [
@@ -624,6 +660,34 @@ export function validateImportRow(
   if (createsAccount && accountPassword.length < 8) {
     errors.push(`Row ${rowNumber}: account_password must contain at least 8 characters.`);
   }
+
+  const classOptions = catalog?.classOptions;
+  if (classOptions && classOptions.length > 0 && row.className.trim()) {
+    const classNeedle = row.className.trim().toLowerCase();
+    const matchedClass = classOptions.find(
+      (option) => option.classLabel.trim().toLowerCase() === classNeedle,
+    );
+    if (!matchedClass) {
+      errors.push(
+        `Row ${rowNumber}: class "${row.className}" is not in this institute’s class list. Re-download the template.`,
+      );
+    } else if (row.section.trim()) {
+      const sectionNeedle = row.section.trim().toLowerCase();
+      const ok = matchedClass.sectionLabels.some(
+        (label) => label.trim().toLowerCase() === sectionNeedle,
+      );
+      if (!ok) {
+        errors.push(
+          `Row ${rowNumber}: section "${row.section}" is not valid for class "${matchedClass.classLabel}". Check Lists valid_class / valid_section.`,
+        );
+      }
+    } else if (matchedClass.sectionLabels.length > 1) {
+      errors.push(
+        `Row ${rowNumber}: section is required when the class has more than one section.`,
+      );
+    }
+  }
+
   return errors;
 }
 

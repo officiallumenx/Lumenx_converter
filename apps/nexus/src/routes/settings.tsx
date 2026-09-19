@@ -17,6 +17,7 @@ import {
 } from "@lumenx/ui-admin";
 import { Save, Settings2 } from "lucide-react";
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { NexusAppLockSettings } from "@/components/NexusAppLockSettings";
 import {
   NEXUS_MODULE_CATALOG,
   PLAN_ORDER,
@@ -682,60 +683,72 @@ function SecuritySection({
   patch: <K extends keyof PlatformSettings>(key: K, value: PlatformSettings[K]) => void;
 }) {
   return (
-    <Card>
-      <CardHeader
-        title="Operator & security preferences"
-        hint="Nexus operator session and audit · not institute staff accounts"
-      />
-      <div className="px-5 pb-5 space-y-4">
-        <ToggleRow
-          label="Require two-factor authentication"
-          hint="All Nexus operators"
-          checked={draft.require2fa}
-          onChange={(v) => patch("require2fa", v)}
+    <div className="space-y-4">
+      <Card>
+        <CardHeader
+          title="App lock"
+          hint="Device PIN only · no operator login"
         />
-        <ToggleRow
-          label="Allow self-serve invites"
-          hint="Operators can invite without Root approval"
-          checked={draft.allowSelfServeInvite}
-          onChange={(v) => patch("allowSelfServeInvite", v)}
+        <div className="px-5 pb-5">
+          <NexusAppLockSettings />
+        </div>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Operator & security preferences"
+          hint="Platform policy defaults · not a login gate"
         />
-        <ToggleRow
-          label="Show operator handles in audit"
-          hint="Display handles on the platform audit trail"
-          checked={draft.showOperatorHandlesInAudit}
-          onChange={(v) => patch("showOperatorHandlesInAudit", v)}
-        />
-        <FormGrid>
-          <Field label="Session timeout">
-            <Select
-              value={String(draft.sessionTimeoutMin)}
-              onChange={(e) =>
-                patch("sessionTimeoutMin", Number(e.target.value) as SessionTimeoutMin)
-              }
-            >
-              {([30, 60, 240] as SessionTimeoutMin[]).map((m) => (
-                <option key={m} value={m}>
-                  {labelSessionTimeout(m)}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Audit log retention">
-            <Select
-              value={draft.auditRetention}
-              onChange={(e) => patch("auditRetention", e.target.value as AuditRetention)}
-            >
-              {(["90", "365", "forever"] as AuditRetention[]).map((v) => (
-                <option key={v} value={v}>
-                  {labelAuditRetention(v)}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        </FormGrid>
-      </div>
-    </Card>
+        <div className="px-5 pb-5 space-y-4">
+          <ToggleRow
+            label="Require two-factor authentication"
+            hint="Policy preference for future operator workflows"
+            checked={draft.require2fa}
+            onChange={(v) => patch("require2fa", v)}
+          />
+          <ToggleRow
+            label="Allow self-serve invites"
+            hint="Operators can invite without Root approval"
+            checked={draft.allowSelfServeInvite}
+            onChange={(v) => patch("allowSelfServeInvite", v)}
+          />
+          <ToggleRow
+            label="Show operator handles in audit"
+            hint="Display handles on the platform audit trail"
+            checked={draft.showOperatorHandlesInAudit}
+            onChange={(v) => patch("showOperatorHandlesInAudit", v)}
+          />
+          <FormGrid>
+            <Field label="Session timeout">
+              <Select
+                value={String(draft.sessionTimeoutMin)}
+                onChange={(e) =>
+                  patch("sessionTimeoutMin", Number(e.target.value) as SessionTimeoutMin)
+                }
+              >
+                {([30, 60, 240] as SessionTimeoutMin[]).map((m) => (
+                  <option key={m} value={m}>
+                    {labelSessionTimeout(m)}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Audit log retention">
+              <Select
+                value={draft.auditRetention}
+                onChange={(e) => patch("auditRetention", e.target.value as AuditRetention)}
+              >
+                {(["90", "365", "forever"] as AuditRetention[]).map((v) => (
+                  <option key={v} value={v}>
+                    {labelAuditRetention(v)}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </FormGrid>
+        </div>
+      </Card>
+    </div>
   );
 }
 

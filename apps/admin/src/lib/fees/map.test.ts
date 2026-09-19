@@ -29,6 +29,31 @@ describe("pickActiveFeePlan", () => {
     };
     expect(pickActiveFeePlan([draft, published])?.id).toBe(PLAN);
   });
+
+  it("filters by academic year when provided", () => {
+    const yearA = "aa111111-1111-4111-8111-111111111111";
+    const yearB = "bb111111-1111-4111-8111-111111111111";
+    const planA: FeePlanDto = {
+      id: "dd111111-1111-4111-8111-111111111111",
+      instituteId: INST,
+      academicYearId: yearA,
+      status: "published",
+      publishScope: "institute",
+      publishedClassIds: [],
+      publishedAt: "2026-06-03T10:00:00Z",
+      createdAt: "2026-06-01T10:00:00Z",
+      updatedAt: "2026-06-03T10:00:00Z",
+    };
+    const planB: FeePlanDto = {
+      ...planA,
+      id: PLAN,
+      academicYearId: yearB,
+      updatedAt: "2026-06-04T10:00:00Z",
+    };
+    expect(pickActiveFeePlan([planA, planB], yearA)?.id).toBe(planA.id);
+    expect(pickActiveFeePlan([planA, planB], yearB)?.id).toBe(PLAN);
+    expect(pickActiveFeePlan([planA, planB], "cc111111-1111-4111-8111-111111111111")).toBeNull();
+  });
 });
 
 describe("feeBundleToFeesSnapshot", () => {
@@ -71,6 +96,31 @@ describe("feeBundleToFeesSnapshot", () => {
     expect(snapshot.categories).toHaveLength(1);
     expect(snapshot.classDefaults["Grade 10"]?.[COMP]).toBe(10000);
     expect(snapshot.publish.status).toBe("published");
+  });
+
+  it("seeds class rows from labels even when no amounts exist yet", () => {
+    const classB = "cd222222-2222-4222-8222-222222222222";
+    const snapshot = feeBundleToFeesSnapshot({
+      plan,
+      components: [
+        {
+          ...components[0]!,
+          classAmounts: {},
+        },
+      ],
+      concessions: [],
+      payments: [],
+      classLabels: [
+        { id: CLASS, label: "Class 8" },
+        { id: classB, label: "Class 9" },
+      ],
+    });
+    expect(Object.keys(snapshot.classDefaults).sort()).toEqual([
+      "Class 8",
+      "Class 9",
+    ]);
+    expect(snapshot.classDefaults["Class 8"]).toEqual({});
+    expect(snapshot.classDefaults["Class 9"]).toEqual({});
   });
 
   it("preserves concession ids on overrides for delete wiring", () => {

@@ -584,6 +584,104 @@ describe("academics — graph integrity, validation, soft delete", () => {
   });
 });
 
+describe("academics — create uniqueness + class teacher / subject teachers", () => {
+  it("rejects duplicate class name/code and duplicate section with flowchart messages", async () => {
+    const db = baseDb();
+    const app = appWithDb(db);
+
+    const dupClass = await app.request("/api/v1/classes", {
+      method: "POST",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify({
+        institute_id: INST_A,
+        academic_year_id: YEAR_A,
+        name: "Grade 10",
+        code: "10-dup",
+      }),
+    });
+    expect(dupClass.status).toBe(409);
+    expect((await json(dupClass)).error.message).toBe("class is already exists");
+
+    const dupSection = await app.request("/api/v1/sections", {
+      method: "POST",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify({
+        institute_id: INST_A,
+        academic_year_id: YEAR_A,
+        class_id: CLASS_A,
+        name: "A",
+        code: "A",
+      }),
+    });
+    expect(dupSection.status).toBe(409);
+    expect((await json(dupSection)).error.message).toBe("class is already exists");
+  });
+
+  it("creates section with class_teacher_id", async () => {
+    const db = baseDb();
+    const app = appWithDb(db);
+
+    const res = await app.request("/api/v1/sections", {
+      method: "POST",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify({
+        institute_id: INST_A,
+        academic_year_id: YEAR_A,
+        class_id: CLASS_A,
+        name: "B",
+        code: "B",
+        capacity: 40,
+        room: "R2",
+        class_teacher_id: TEACHER_A,
+      }),
+    });
+    expect(res.status).toBe(201);
+    const body = await json(res);
+    expect(body.data.classTeacherId).toBe(TEACHER_A);
+  });
+
+  it("rejects duplicate subject name/code and links teachers on create", async () => {
+    const db = baseDb();
+    const app = appWithDb(db);
+
+    const dupName = await app.request("/api/v1/subjects", {
+      method: "POST",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify({
+        institute_id: INST_A,
+        name: "Mathematics",
+        code: "NEW-CODE",
+        category: "Sciences",
+        periods_per_week: 4,
+        applicable_class_codes: ["10"],
+      }),
+    });
+    expect(dupName.status).toBe(409);
+    expect((await json(dupName)).error.message).toBe("subject is already exists");
+
+    const created = await app.request("/api/v1/subjects", {
+      method: "POST",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify({
+        institute_id: INST_A,
+        name: "Chemistry",
+        code: "CHM 101",
+        category: "Sciences",
+        periods_per_week: 5,
+        applicable_class_codes: ["10", "11"],
+        status: "active",
+        teacher_ids: [TEACHER_A],
+      }),
+    });
+    expect(created.status).toBe(201);
+    const subjectId = (await json(created)).data.id as string;
+    const links = (db as Record<string, Array<Record<string, unknown>>>).subject_teacher ?? [];
+    expect(links.some((row) => row.subject_id === subjectId && row.teacher_id === TEACHER_A)).toBe(
+      true,
+    );
+  });
+});
+
 describe("academics — single active year invariant", () => {
   it("activating a year demotes other active years to completed", async () => {
     const db = baseDb();

@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { z } from "zod";
 import {
@@ -20,7 +20,7 @@ import { isApiAuthMode } from "@/auth/auth-mode";
 import { useAdmissionsAuth } from "@/admissions-portal/core/AdmissionsAuthProvider";
 import { DocumentUploadCard } from "@/admissions-portal/shared/ui/AdmissionsShellWidgets";
 import { AdmissionsPageHeader } from "@/admissions-portal/shared/ui/AdmissionsPageHeader";
-import { ConnectDatePicker } from "@/components/app/attendance/AttendanceDatePicker";
+import { ConnectDatePicker } from "@/components/app/ConnectDatePicker";
 import {
   APPLY_STEPS,
   academicStepSchema,
@@ -45,7 +45,7 @@ import {
   submitApplication,
 } from "@/lib/admissions/repositories";
 import { getInstituteById } from "@/lib/institutes-data";
-import { getAdmissionForm } from "@/lib/institute-admin";
+import { getAdmissionForm } from "@/lib/admissions/institute-admin";
 import type { AdmissionFormField } from "@/lib/admissions/types";
 import {
   createAdmissionApplication,

@@ -45,8 +45,13 @@ type LoadRangeOpts = {
 };
 
 async function loadTeachersById(instituteId: string): Promise<Map<string, TeacherListItem>> {
-  const rows = teacherDtosToListItems(await listTeachers({ instituteId }));
-  return new Map(rows.map((teacher) => [teacher.id, teacher]));
+  try {
+    const rows = teacherDtosToListItems(await listTeachers({ instituteId }));
+    return new Map(rows.map((teacher) => [teacher.id, teacher]));
+  } catch {
+    // Attendance marks still load; teacher labels fall back in the mapper.
+    return new Map();
+  }
 }
 
 export async function loadStaffAttendanceDay(

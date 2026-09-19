@@ -5,12 +5,12 @@ import { Avatar } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import { InfoField } from "@/components/ui/info-field";
 import { StatusChip } from "@/components/ui/status-chip";
-import { useDriverAssignment } from "@/hooks/use-driver-assignment";
+import { useDriverAssignmentQuery } from "@/lib/transport-queries";
 import { getInitials } from "@/lib/initials";
 import { MODULE_COLORS } from "@/theme/colors";
 
 export function ProfilePage() {
-  const assignment = useDriverAssignment();
+  const assignment = useDriverAssignmentQuery();
   const profile = assignment.driver;
 
   return (

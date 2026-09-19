@@ -13,14 +13,22 @@ export const parentPortalQueryKeys = {
 const MOCK_LATENCY_MS = 75;
 
 /**
- * Parent portal snapshot — demo mock or API-composed learner dashboard.
+ * Parent portal snapshot — API-composed learner dashboard, or demo mock only
+ * when auth mode is explicitly demo. API mode never falls back to mock data.
  */
 export function fetchParentPortalSnapshot(
   instituteId: string | null,
   childId: string,
   signal?: AbortSignal,
 ): Promise<ParentPortalSnapshot> {
-  if (isApiAuthMode() && instituteId && isInstituteUuid(instituteId) && isInstituteUuid(childId)) {
+  if (isApiAuthMode()) {
+    if (!instituteId || !isInstituteUuid(instituteId) || !isInstituteUuid(childId)) {
+      return Promise.reject(
+        new Error(
+          "Parent portal requires a linked institute and child. Sign in again or select a child.",
+        ),
+      );
+    }
     const task = loadParentPortalSnapshotFromApi({
       instituteId,
       studentId: childId,

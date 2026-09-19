@@ -13,8 +13,11 @@ export {
   createTeacher,
   updateTeacher,
   deleteTeacher,
+  resetTeacherCredentials,
   type CreateTeacherInput,
+  type CreateTeacherResult,
   type UpdateTeacherInput,
+  type ResetTeacherCredentialsResult,
 } from "./mutations";
 export {
   apiStatusToTeacherStatus,
@@ -31,6 +34,8 @@ export {
 export {
   loadTeacherDetail,
   loadTeachersList,
+  peekTeachersListCache,
+  invalidateTeachersListCache,
   type TeacherDetailState,
   type TeachersListState,
   type TeachersListStatus,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { BellRing, ArrowRight, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/app/PageHeader";
@@ -7,16 +7,11 @@ import { leaveStore } from "@/lib/leave-store";
 import { alertStore } from "@/lib/alert-store";
 import { selectPendingLeaveRequests } from "@/lib/leave-utils";
 import { Badge } from "@lumenx/ui";
-import type { ReactNode } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useApp } from "@/lib/app-state";
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
-import { getTeacherPortalApiCache } from "@/lib/teacher-classes";
-import {
-  decideStudentLeave,
-  loadTeacherLeavePortal,
-  type ConnectLeaveRequest,
-} from "@/lib/leave";
+import { decideStudentLeave, type ConnectLeaveRequest } from "@/lib/leave";
+import { useTeacherLeaveQuery } from "@/lib/connect-queries/hooks";
 import { loadConnectPortalInbox } from "@/lib/connect-inbox/load";
 import { setConnectTeacherLeaveAlertCount } from "@/lib/use-connect-alert-badge";
 import { useSyncExternalStore } from "react";
@@ -61,61 +56,68 @@ function DemoTeacherLeaveAlertsView() {
 function ApiTeacherLeaveAlertsView() {
   const { activeInstituteId } = useApp();
   const portal = useTeacherPortal();
-  const [pending, setPending] = useState<ConnectLeaveRequest[]>([]);
   const [leaveLog, setLeaveLog] = useState<
     Array<{ id: string; title: string; summary: string; time: string }>
   >([]);
-  const [loading, setLoading] = useState(true);
-  const [reloadKey, setReloadKey] = useState(0);
 
-  const teacherId =
-    getTeacherPortalApiCache()?.teacherId ?? portal.profile?.id ?? null;
+  const teacherId = portal.teacherId ?? portal.profile?.id ?? null;
+  const enabled = Boolean(activeInstituteId) && portal.isTeacher;
+  const { data, isLoading, refresh } = useTeacherLeaveQuery(
+    activeInstituteId,
+    teacherId,
+    enabled,
+  );
 
-  const refresh = useCallback(() => setReloadKey((k) => k + 1), []);
+  const pending = useMemo(
+    () => (data?.studentRequests ?? []).filter((row) => row.status === "pending"),
+    [data?.studentRequests],
+  );
 
   useEffect(() => {
-    if (!activeInstituteId || !portal.isTeacher) {
-      setLoading(false);
-      setPending([]);
-      setLeaveLog([]);
+    if (!enabled) {
       setConnectTeacherLeaveAlertCount(0);
       return;
     }
+    if (data) {
+      setConnectTeacherLeaveAlertCount(pending.length);
+    }
+  }, [enabled, data, pending.length]);
+
+  useEffect(() => {
+    if (!activeInstituteId || !portal.isTeacher) {
+      setLeaveLog([]);
+      return;
+    }
     let cancelled = false;
-    setLoading(true);
-    void Promise.all([
-      loadTeacherLeavePortal({ instituteId: activeInstituteId, teacherId }),
-      loadConnectPortalInbox(activeInstituteId),
-    ])
-      .then(([leaveResult, inbox]) => {
-        if (cancelled) return;
-        const pendingRows = leaveResult.studentRequests.filter(
-          (row) => row.status === "pending",
-        );
-        setPending(pendingRows);
-        setConnectTeacherLeaveAlertCount(pendingRows.length);
-        setLeaveLog(
-          inbox
-            .filter((n) => n.category === "circulars" || (n as { category?: string }).category === "leave")
-            .filter((n) => n.title.toLowerCase().includes("leave") || n.desc.toLowerCase().includes("leave"))
-            .slice(0, 8)
-            .map((n) => ({
-              id: n.id,
-              title: n.title,
-              summary: n.desc,
-              time: n.time,
-            })),
-        );
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    void loadConnectPortalInbox(activeInstituteId).then((inbox) => {
+      if (cancelled) return;
+      setLeaveLog(
+        inbox
+          .filter(
+            (n) =>
+              n.category === "circulars" ||
+              (n as { category?: string }).category === "leave",
+          )
+          .filter(
+            (n) =>
+              n.title.toLowerCase().includes("leave") ||
+              n.desc.toLowerCase().includes("leave"),
+          )
+          .slice(0, 8)
+          .map((n) => ({
+            id: n.id,
+            title: n.title,
+            summary: n.desc,
+            time: n.time,
+          })),
+      );
+    });
     return () => {
       cancelled = true;
     };
-  }, [activeInstituteId, portal.isTeacher, teacherId, reloadKey]);
+  }, [activeInstituteId, portal.isTeacher]);
 
-  if (loading) {
+  if (enabled && isLoading && !data) {
     return (
       <div className="flex items-center gap-2 py-12 text-sm text-muted-foreground justify-center">
         <Loader2 className="size-4 animate-spin" /> Loading leave alerts…
@@ -133,10 +135,12 @@ function ApiTeacherLeaveAlertsView() {
           request={req}
           apiMode
           requireIgnoreNote
-          onApprove={(id) => decideStudentLeave(id, { outcome: "approved", note: "Accepted." })}
-          onIgnore={(id, note) =>
-            decideStudentLeave(id, { outcome: "ignored", note: note || null })
-          }
+          onApprove={(id) => {
+            void decideStudentLeave(id, { outcome: "approved", note: "Accepted." });
+          }}
+          onIgnore={(id, note) => {
+            void decideStudentLeave(id, { outcome: "ignored", note: note || null });
+          }}
           onAction={refresh}
         />
       )}

@@ -56,6 +56,94 @@ export async function updateRegistrationFields(
   return (result.data as InstituteRegistrationRow | null) ?? null;
 }
 
+export async function updateRegistrationFieldsIfStatus(
+  admin: SupabaseClient,
+  id: string,
+  expectedStatus: InstituteRegistrationRow["status"],
+  patch: Record<string, unknown>,
+): Promise<InstituteRegistrationRow | null> {
+  const result = await admin
+    .from("institute_registration")
+    .update(patch)
+    .eq("id", id)
+    .eq("status", expectedStatus)
+    .select(REGISTRATION_COLS)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (result.data as InstituteRegistrationRow | null) ?? null;
+}
+
+export async function beginRegistrationApproval(
+  admin: SupabaseClient,
+  id: string,
+  reviewerUserId: string,
+): Promise<InstituteRegistrationRow | null> {
+  if (typeof admin.rpc === "function") {
+    const rpc = await admin.rpc("begin_institute_registration_approval", {
+      p_registration_id: id,
+      p_reviewer_user_id: reviewerUserId,
+    });
+    if (!rpc.error) {
+      const rows = (rpc.data ?? []) as InstituteRegistrationRow[];
+      return rows[0] ?? null;
+    }
+    // Deployments may briefly run the API before the migration reaches the DB.
+    if (!["42883", "PGRST202"].includes(rpc.error.code ?? "")) ensureDbOk(rpc);
+  }
+
+  const claimed = await admin
+    .from("institute_registration")
+    .update({
+      status: "approving",
+      reviewed_by: reviewerUserId,
+      reviewed_at: new Date().toISOString(),
+      rejection_reason: null,
+    })
+    .eq("id", id)
+    .eq("status", "pending")
+    .select(REGISTRATION_COLS)
+    .maybeSingle();
+  if (claimed.error) ensureDbOk(claimed);
+  return (claimed.data as InstituteRegistrationRow | null)
+    ?? findRegistrationById(admin, id);
+}
+
+export async function finishRegistrationApproval(
+  admin: SupabaseClient,
+  id: string,
+  instituteId: string,
+  reviewerUserId: string,
+): Promise<InstituteRegistrationRow | null> {
+  if (typeof admin.rpc === "function") {
+    const rpc = await admin.rpc("finish_institute_registration_approval", {
+      p_registration_id: id,
+      p_institute_id: instituteId,
+      p_reviewer_user_id: reviewerUserId,
+    });
+    if (!rpc.error) {
+      const rows = (rpc.data ?? []) as InstituteRegistrationRow[];
+      return rows[0] ?? null;
+    }
+    if (!["42883", "PGRST202"].includes(rpc.error.code ?? "")) ensureDbOk(rpc);
+  }
+
+  const result = await admin
+    .from("institute_registration")
+    .update({
+      status: "approved",
+      institute_id: instituteId,
+      reviewed_by: reviewerUserId,
+      reviewed_at: new Date().toISOString(),
+      rejection_reason: null,
+    })
+    .eq("id", id)
+    .in("status", ["approving", "approved"])
+    .select(REGISTRATION_COLS)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (result.data as InstituteRegistrationRow | null) ?? null;
+}
+
 export async function findActiveMembershipForUserInstitute(
   admin: SupabaseClient,
   userId: string,
@@ -118,13 +206,18 @@ export async function insertUserProfile(
     phone?: string | null;
   },
 ): Promise<void> {
-  const result = await admin.from("user_profile").insert({
-    id: input.id,
-    display_name: input.displayName.trim(),
-    email: input.email.trim().toLowerCase(),
-    phone: input.phone?.trim() || null,
-    status: "active",
-  });
+  const result = await admin
+    .from("user_profile")
+    .upsert(
+      {
+        id: input.id,
+        display_name: input.displayName.trim(),
+        email: input.email.trim().toLowerCase(),
+        phone: input.phone?.trim() || null,
+        status: "active",
+      },
+      { onConflict: "id", ignoreDuplicates: true },
+    );
   ensureDbOk(result);
 }
 

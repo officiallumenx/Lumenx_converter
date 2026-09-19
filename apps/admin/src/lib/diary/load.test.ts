@@ -27,17 +27,19 @@ describe("loadDiaryDaysList", () => {
     vi.clearAllMocks();
   });
 
-  it("returns demo status without calling API in demo mode", async () => {
+  it("ignores demo env and still requires API (product is API-only)", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const listDiaryDays = vi.fn();
-    const listTeachers = vi.fn();
+    const listDiaryDays = vi.fn().mockResolvedValue([]);
+    const listTeachers = vi.fn().mockResolvedValue([]);
     vi.doMock("./api", () => ({ listDiaryDays }));
     vi.doMock("@/lib/teachers/api", () => ({ listTeachers }));
+    vi.doMock("@/lib/teachers/map", () => ({
+      teacherDtosToListItems: () => [],
+    }));
     const { loadDiaryDaysList } = await import("./load");
     const result = await loadDiaryDaysList(INST);
-    expect(result).toEqual({ status: "demo", items: [], errorMessage: null });
-    expect(listDiaryDays).not.toHaveBeenCalled();
-    expect(listTeachers).not.toHaveBeenCalled();
+    expect(result.status).toBe("empty");
+    expect(listDiaryDays).toHaveBeenCalled();
   });
 
   it("requires a valid active institute UUID in API mode", async () => {
@@ -156,6 +158,22 @@ describe("loadDiaryDaysList", () => {
     const result = await loadDiaryDaysList(INST);
     expect(result.status).toBe("error");
     expect(result.items).toEqual([]);
+  });
+
+  it("keeps diary rows when teacher enrichment fails", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const listDiaryDays = vi.fn().mockResolvedValue([dto()]);
+    const listTeachers = vi.fn().mockRejectedValue(new Error("teachers down"));
+    vi.doMock("./api", () => ({ listDiaryDays }));
+    vi.doMock("@/lib/teachers/api", () => ({ listTeachers }));
+    vi.doMock("@/lib/teachers/map", () => ({
+      teacherDtosToListItems: () => [],
+    }));
+    const { loadDiaryDaysList } = await import("./load");
+    const result = await loadDiaryDaysList(INST);
+    expect(result.status).toBe("ready");
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]?.id).toBe("diary-1");
   });
 
   it("returns error when mapping throws on malformed payload", async () => {

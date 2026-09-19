@@ -17,92 +17,58 @@ import {
 } from "@lumenx/ui";
 import { Save, Send } from "lucide-react";
 import { toast } from "sonner";
-import { listExams } from "@/lib/exams";
 import {
-  loadTeacherMarkSheet,
   saveTeacherMarkSheet,
   submitTeacherMarkEntry,
   type ConnectMarkRow,
-  type TeacherMarkSheetDto,
 } from "@/lib/marks";
 import {
-  fetchMe,
-  listSubjects,
-  listTeacherAssignments,
-} from "@/lib/teacher-classes/api";
-import {
-  getTeacherClassesFromCache,
-  loadTeacherPortalApiData,
-} from "@/lib/teacher-classes/load";
+  useTeacherMarksCatalogQuery,
+  useTeacherMarkSheetQuery,
+} from "@/lib/connect-queries/hooks";
+import { useTeacherPortal } from "@/context/TeacherPortalContext";
 import { ApiMarksAnalytics, ApiMarksTable } from "./ApiMarksTable";
 
 export function ApiTeacherMarksPage() {
   const { activeInstituteId } = useApp();
-  const [exams, setExams] = useState<{ id: string; name: string }[]>([]);
-  const [subjects, setSubjects] = useState<{ id: string; label: string }[]>([]);
+  const portal = useTeacherPortal();
   const [classNameFilter, setClassNameFilter] = useState("");
   const [sectionFilter, setSectionFilter] = useState("");
   const [examId, setExamId] = useState("");
   const [subjectId, setSubjectId] = useState("");
-  const [sheet, setSheet] = useState<TeacherMarkSheetDto | null>(null);
   const [rows, setRows] = useState<ConnectMarkRow[]>([]);
-  const [loading, setLoading] = useState(true);
   const [confirmSubmit, setConfirmSubmit] = useState(false);
-  const [reloadKey, setReloadKey] = useState(0);
-  const [portalTick, setPortalTick] = useState(0);
 
-  const refresh = useCallback(() => setReloadKey((k) => k + 1), []);
+  const cachedClasses = portal.classes;
 
-  const cachedClasses = useMemo(() => {
-    void portalTick;
-    return getTeacherClassesFromCache();
-  }, [portalTick]);
+  const catalogQuery = useTeacherMarksCatalogQuery(
+    activeInstituteId,
+    portal.teacherId,
+    Boolean(activeInstituteId) && !portal.isLoading,
+  );
+
+  const exams = useMemo(
+    () => (catalogQuery.data?.examRows ?? []).map((e) => ({ id: e.id, name: e.name })),
+    [catalogQuery.data?.examRows],
+  );
+
+  const subjects = useMemo(() => {
+    const subjectRows = catalogQuery.data?.subjectRows ?? [];
+    const assignments = catalogQuery.data?.assignments ?? [];
+    const subjectLabels = new Map(
+      subjectRows.map((s) => [s.id, s.name?.trim() || s.code?.trim() || s.id]),
+    );
+    return [...new Set(assignments.filter((a) => a.status === "active").map((a) => a.subjectId))].map(
+      (id) => ({ id, label: subjectLabels.get(id) ?? id }),
+    );
+  }, [catalogQuery.data?.subjectRows, catalogQuery.data?.assignments]);
 
   useEffect(() => {
-    if (!activeInstituteId) {
-      setLoading(false);
-      return;
+    if (!classNameFilter && portal.classes[0]) {
+      setClassNameFilter(portal.classes[0].className);
+      setSectionFilter(portal.classes[0].section);
     }
-    let cancelled = false;
-    setLoading(true);
-    void (async () => {
-      await loadTeacherPortalApiData(activeInstituteId);
-      if (cancelled) return;
-      setPortalTick((t) => t + 1);
-      const classes = getTeacherClassesFromCache();
-      if (classes[0]) {
-        setClassNameFilter(classes[0].className);
-        setSectionFilter(classes[0].section);
-      }
-      const [examRows, subjectRows, me] = await Promise.all([
-        listExams({ instituteId: activeInstituteId }),
-        listSubjects(activeInstituteId),
-        fetchMe(),
-      ]);
-      if (cancelled) return;
-      const teacherId =
-        me.identities.teachers.find((t) => t.instituteId === activeInstituteId)?.teacherId ??
-        null;
-      const assignments = teacherId
-        ? await listTeacherAssignments({ instituteId: activeInstituteId, teacherId })
-        : [];
-      const subjectLabels = new Map(
-        subjectRows.map((s) => [s.id, s.name?.trim() || s.code?.trim() || s.id]),
-      );
-      setSubjects(
-        [...new Set(assignments.filter((a) => a.status === "active").map((a) => a.subjectId))].map(
-          (id) => ({ id, label: subjectLabels.get(id) ?? id }),
-        ),
-      );
-      setExams(examRows.map((e) => ({ id: e.id, name: e.name })));
-      setLoading(false);
-    })().catch(() => {
-      if (!cancelled) setLoading(false);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeInstituteId, reloadKey]);
+  }, [portal.classes, classNameFilter]);
 
   const classNames = useMemo(
     () => uniqueSortedClassNames(cachedClasses),
@@ -135,34 +101,47 @@ export function ApiTeacherMarksPage() {
     if (!subjectId && subjects[0]) setSubjectId(subjects[0].id);
   }, [subjects, subjectId]);
 
-  useEffect(() => {
-    if (!activeInstituteId || !sectionId || !examId || !subjectId) return;
-    let cancelled = false;
-    setLoading(true);
-    void loadTeacherMarkSheet({
-      instituteId: activeInstituteId,
-      sectionId,
-      examId,
-      subjectId,
-    }).then((result) => {
-      if (cancelled) return;
-      setSheet(result.sheet);
-      setRows(result.rows);
-      setLoading(false);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeInstituteId, sectionId, examId, subjectId, reloadKey]);
+  const sheetEnabled =
+    Boolean(activeInstituteId) && Boolean(sectionId) && Boolean(examId) && Boolean(subjectId);
+  const sheetQuery = useTeacherMarkSheetQuery(
+    activeInstituteId,
+    sectionId,
+    examId,
+    subjectId,
+    sheetEnabled,
+  );
 
-  const update = (enrollmentId: string, marks: number | null) => {
-    setRows((rs) => rs.map((r) => (r.enrollmentId === enrollmentId ? { ...r, marks } : r)));
+  const sheet = sheetQuery.data?.sheet ?? null;
+  const refreshSheet = sheetQuery.refresh;
+
+  useEffect(() => {
+    if (sheetQuery.data?.rows) {
+      setRows(sheetQuery.data.rows);
+    }
+  }, [sheetQuery.data]);
+
+  const update = (
+    enrollmentId: string,
+    patch: {
+      internalMarks: number | null;
+      externalMarks: number | null;
+      marks: number | null;
+    },
+  ) => {
+    setRows((rs) =>
+      rs.map((r) => (r.enrollmentId === enrollmentId ? { ...r, ...patch } : r)),
+    );
   };
 
   const saveDraftFn = useCallback(async () => {
     if (!activeInstituteId || !sheet || !sectionId || !examId || !subjectId) return;
-    const scores = rows.map((r) => ({ enrollmentId: r.enrollmentId, marks: r.marks }));
-    const saved = await saveTeacherMarkSheet({
+    const scores = rows.map((r) => ({
+      enrollmentId: r.enrollmentId,
+      marks: r.marks,
+      internalMarks: r.internalMarks,
+      externalMarks: r.externalMarks,
+    }));
+    await saveTeacherMarkSheet({
       entryId: sheet.entryId,
       createInput: sheet.entryId
         ? null
@@ -177,24 +156,50 @@ export function ApiTeacherMarksPage() {
           },
       updateInput: { maxMarks: sheet.maxMarks, scores },
     });
-    setSheet((prev) =>
-      prev ? { ...prev, entryId: saved.id, status: saved.status, maxMarks: saved.maxMarks } : prev,
-    );
     toast.success("Draft saved");
-    refresh();
-  }, [activeInstituteId, sheet, sectionId, examId, subjectId, rows, refresh]);
+    refreshSheet();
+  }, [activeInstituteId, sheet, sectionId, examId, subjectId, rows, refreshSheet]);
 
   const submitFn = useCallback(async () => {
-    await saveDraftFn();
-    const entryId = sheet?.entryId;
-    if (!entryId) {
-      refresh();
+    const incomplete = rows.filter(
+      (r) => r.internalMarks == null || r.externalMarks == null || r.marks == null,
+    );
+    if (incomplete.length > 0) {
+      toast.error(
+        `Enter internal and external marks for all students (${incomplete.length} incomplete)`,
+      );
       return;
     }
-    await submitTeacherMarkEntry(entryId);
-    toast.success("Marks submitted to Admin for publishing");
-    refresh();
-  }, [saveDraftFn, sheet?.entryId, refresh]);
+    if (!activeInstituteId || !sheet || !sectionId || !examId || !subjectId) return;
+    try {
+      const scores = rows.map((r) => ({
+        enrollmentId: r.enrollmentId,
+        marks: r.marks,
+        internalMarks: r.internalMarks,
+        externalMarks: r.externalMarks,
+      }));
+      const saved = await saveTeacherMarkSheet({
+        entryId: sheet.entryId,
+        createInput: sheet.entryId
+          ? null
+          : {
+              instituteId: activeInstituteId,
+              academicYearId: sheet.academicYearId,
+              classId: sheet.classId,
+              sectionId,
+              examId,
+              subjectId,
+              maxMarks: sheet.maxMarks,
+            },
+        updateInput: { maxMarks: sheet.maxMarks, scores },
+      });
+      await submitTeacherMarkEntry(saved.id);
+      toast.success("Marks submitted to Admin for verification");
+      refreshSheet();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to submit marks");
+    }
+  }, [rows, activeInstituteId, sheet, sectionId, examId, subjectId, refreshSheet]);
 
   const { run: saveDraft, pending: savingDraft } = useAsyncAction(saveDraftFn);
   const { run: submit, pending: submitting } = useAsyncAction(submitFn);
@@ -202,11 +207,15 @@ export function ApiTeacherMarksPage() {
   const isPublished = sheet?.status === "published";
   const isSubmitted = sheet?.status === "submitted";
   const saving = savingDraft || submitting;
-  const enteredCount = rows.filter((r) => r.marks != null).length;
+  const completeCount = rows.filter(
+    (r) => r.internalMarks != null && r.externalMarks != null && r.marks != null,
+  ).length;
   const exam = exams.find((e) => e.id === examId);
   const subject = subjects.find((s) => s.id === subjectId);
 
-  if (loading && !sheet) return <PageSkeleton rows={5} />;
+  const catalogLoading = catalogQuery.isLoading && !catalogQuery.data;
+  const sheetLoading = sheetEnabled && sheetQuery.isLoading && !sheetQuery.data;
+  if (catalogLoading || (sheetLoading && !sheet)) return <PageSkeleton rows={5} />;
 
   return (
     <div className="min-w-0 max-w-full">
@@ -226,7 +235,7 @@ export function ApiTeacherMarksPage() {
             <Button
               className="rounded-xl gap-2 shadow-glow"
               onClick={() => setConfirmSubmit(true)}
-              disabled={saving || isPublished || isSubmitted || enteredCount === 0}
+              disabled={saving || isPublished || isSubmitted || completeCount < rows.length}
             >
               <Send className="size-4" /> Submit to Admin
             </Button>
@@ -334,6 +343,8 @@ export function ApiTeacherMarksPage() {
           <ApiMarksTable
             rows={rows}
             maxMarks={sheet.maxMarks}
+            internalMax={sheet.internalMax}
+            externalMax={sheet.externalMax}
             status={sheet.status}
             onUpdate={update}
             readOnly={isPublished || isSubmitted}

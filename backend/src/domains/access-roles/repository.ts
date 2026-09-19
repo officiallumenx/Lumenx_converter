@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { canonicalPhoneDigits } from "../identity/phone.js";
 import { listMemberships } from "../identity/repository.js";
 import type {
   AccessPermission,
@@ -286,6 +287,20 @@ export async function softDeleteAccessAssignment(
   return Boolean(data);
 }
 
+export async function softDeleteAccessAssignmentsForRole(
+  admin: SupabaseClient,
+  roleId: string,
+): Promise<number> {
+  const { data, error } = await admin
+    .from("membership_access_assignment")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("access_role_id", roleId)
+    .is("deleted_at", null)
+    .select("id");
+  if (error) throw error;
+  return (data ?? []).length;
+}
+
 function normalizeAssignmentRow(
   row: MembershipAccessAssignmentRow,
 ): MembershipAccessAssignmentRow {
@@ -317,10 +332,12 @@ export async function findProfileByEmailOrPhone(
     if (data) return data;
   }
   if (input.phone) {
+    const phoneDigits = canonicalPhoneDigits(input.phone);
+    if (!phoneDigits) return null;
     const { data, error } = await admin
       .from("user_profile")
       .select("id, email, phone, display_name, status")
-      .eq("phone", input.phone.trim())
+      .eq("phone_digits", phoneDigits)
       .is("deleted_at", null)
       .maybeSingle();
     if (error) throw error;

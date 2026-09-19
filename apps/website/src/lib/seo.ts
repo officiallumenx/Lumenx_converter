@@ -69,108 +69,171 @@ export function pageHead(seo: PageSeoInput): PageHead {
 export const PAGE_SEO = {
   home: {
     path: "/",
-    title: "LumenX — Institute operations, families, and transport",
+    title: "LumenX | Smart Institute Management Platform",
     description:
-      "LumenX is the institute platform for administration, families, and transport — from a single branch to a group of institutes. One record, six products.",
+      "Run your entire institution from one connected platform. LumenX brings administration, academics, communication, transport, admissions and careers together.",
   },
-  products: {
-    path: "/products",
-    title: "Products — LumenX",
+  platform: {
+    path: "/platform",
+    title: "LumenX Platform | Connected Institution Management",
     description:
-      "Six LumenX products, one institute record: Admin, Connect, Transport, Admissions, Careers, and Nexus. Each has a job; none replace another role’s app.",
+      "See how Admin, Connect, Transport, Admissions, and Careers work as one LumenX platform — not a pile of unrelated products.",
   },
   solutions: {
     path: "/solutions",
-    title: "Solutions — LumenX",
+    title: "LumenX Solutions | Tools for Institutions, Teachers & Parents",
     description:
-      "What LumenX does for institutions, administrators, teachers, parents, students, drivers, applicants, and careers — each role in the right product.",
-  },
-  features: {
-    path: "/features",
-    title: "Features — LumenX",
-    description:
-      "LumenX capabilities across academics, administration, communication, operations, admissions, careers, and documents — explained clearly for institutes.",
+      "Audience-focused outcomes for institutions, administrators, teachers, parents, students, and drivers on LumenX.",
   },
   modules: {
     path: "/modules",
-    title: "Modules — LumenX",
+    title: "LumenX Modules | Institute Management Modules",
     description:
-      "Browse LumenX modules by app: Admin, Connect (Parent, Teacher, Student), Transport, Admissions, and Careers. Nexus service tooling is not listed — it is not a school module set.",
+      "Browse LumenX modules by category — academics, administration, finance, communication, transport, documents, admissions, and careers.",
   },
-  howItWorks: {
-    path: "/how-it-works",
-    title: "How it works — LumenX",
+  pricing: {
+    path: "/pricing",
+    title: "LumenX Pricing | Simple Institute Management Pricing",
     description:
-      "How LumenX is layered: the institute record in Admin, families in Connect, trips in Transport, intake and hiring as portals, Nexus as the service platform.",
+      "About ₹12 per student each month, campus from ₹8,000/month, and a 60-day trial after approval. One clear campus subscription.",
+  },
+  resources: {
+    path: "/resources",
+    title: "LumenX Resources | Demo, Help, FAQs & Downloads",
+    description:
+      "Explore LumenX demos, help, FAQs, and downloads. Mock screens are labelled as previews. Store links appear only when real.",
   },
   demo: {
-    path: "/demo",
+    path: "/resources/demo",
     title: "Demo — LumenX",
     description:
       "Explore LumenX Admin, Connect, Transport, Admissions, and Careers with mock screens. No account, no live institute data, and no payment on this site.",
   },
-  pricing: {
-    path: "/pricing",
-    title: "Pricing — LumenX",
+  help: {
+    path: "/resources/help",
+    title: "Help — LumenX",
     description:
-      "LumenX for institutes: about ₹12 per student each month, campus from ₹8,000/month, and a 60-day trial after approval. One clear campus subscription.",
+      "How to get started with LumenX, where login credentials come from, and how to contact us for trials and privacy requests.",
+  },
+  faq: {
+    path: "/resources/faq",
+    title: "FAQs — LumenX",
+    description:
+      "Answers about LumenX products, pricing, trial, transport status, and getting started — without invented metrics.",
   },
   downloads: {
-    path: "/downloads",
+    path: "/resources/downloads",
     title: "Downloads — LumenX",
     description:
-      "Open LumenX web apps when they are public. Android and iOS stay Coming soon until a real store listing is configured. No invented APK or store URLs.",
+      "Open LumenX web apps when they are public. Android and iOS stay Coming soon until a real store listing is configured.",
+  },
+  blog: {
+    path: "/resources/blog",
+    title: "Blog — LumenX",
+    description: "Product notes and platform updates from LumenX. Articles appear here when published — we do not invent posts.",
+  },
+  about: {
+    path: "/about",
+    title: "About LumenX | Connected Institute Platform",
+    description:
+      "Why LumenX exists, how one connected platform replaces fragmented institute tools, and the principles behind Admin, Connect, Transport, Admissions, and Careers.",
   },
   getStarted: {
     path: "/get-started",
     title: "Get started — LumenX",
     description:
-      "Explore LumenX, choose the product that matches the job, then start a 60-day trial, open a mock demo, or request a quote. This site does not take payment.",
+      "Start with LumenX — tell us about your institute and interests. A 60-day trial begins after approval. This site does not take payment.",
   },
   contact: {
     path: "/contact",
     title: "Contact — LumenX",
     description:
-      "Leave a message about LumenX, start a 60-day trial, or request a quote. Share your name, email, phone, and question — we’ll get back to you.",
+      "Leave a message, book a demo, start a trial, request a quote, or talk partnership. We only confirm receipt when delivery is configured.",
+  },
+  login: {
+    path: "/login",
+    title: "Login — LumenX",
+    description:
+      "Open LumenX web apps when public origins are configured. Institute offices issue login credentials — this site does not publish passwords.",
+  },
+  privacy: {
+    path: "/privacy",
+    title: "Privacy Policy — LumenX",
+    description: "How LumenX collects, uses, and protects personal data across the platform, with India DPDP-focused rights and contacts.",
+  },
+  terms: {
+    path: "/terms",
+    title: "Terms & Conditions — LumenX",
+    description: "Terms governing use of the LumenX education technology platform and related applications.",
+  },
+  cookies: {
+    path: "/cookies",
+    title: "Cookie Policy — LumenX",
+    description: "How LumenX uses cookies and similar technologies for authentication, preferences, and service reliability.",
+  },
+  dataRequest: {
+    path: "/data-request",
+    title: "Data Request — LumenX",
+    description:
+      "Request access, correction, or erasure of personal data, or ask about account deletion. Routed through published privacy contacts.",
+  },
+  /** Legacy paths kept for redirects / old bookmarks */
+  products: {
+    path: "/platform",
+    title: "LumenX Platform | Connected Institution Management",
+    description:
+      "Six surfaces, one institute record: Admin, Connect, Transport, Admissions, and Careers — presented as one platform.",
+  },
+  features: {
+    path: "/modules",
+    title: "LumenX Modules | Institute Management Modules",
+    description:
+      "LumenX capabilities across academics, administration, communication, operations, admissions, careers, and documents.",
+  },
+  howItWorks: {
+    path: "/platform",
+    title: "LumenX Platform | Connected Institution Management",
+    description:
+      "How LumenX is layered: the institute record in Admin, families in Connect, trips in Transport, intake and hiring in Admissions and Careers.",
   },
 } as const satisfies Record<string, PageSeoInput>;
 
 export const PRODUCT_SEO: Record<ProductId, PageSeoInput> = {
   admin: {
-    path: "/products/admin",
+    path: "/platform/admin",
     title: "LumenX Admin — Institute operations console",
     description:
       "LumenX Admin is the office console for people, classes, attendance, fees, and documents. It is the source of truth — not the family, driver, or student app.",
   },
   connect: {
-    path: "/products/connect",
+    path: "/platform/connect",
     title: "LumenX Connect — Parent, teacher, and student portal",
     description:
-      "LumenX Connect is how families and teachers use the institute: attendance, fees, homework, and messages with strict role isolation. Not the office console.",
+      "LumenX Connect is how families and teachers use the institute: attendance, fees, homework, and messages with strict role isolation.",
   },
   transport: {
-    path: "/products/transport",
+    path: "/platform/transport",
     title: "LumenX Transport — Driver app for trips and boarding",
     description:
       "LumenX Transport is the driver app for routes, boarding, and trip status. Families follow status in Connect — this site does not claim a live parent GPS map.",
   },
   admissions: {
-    path: "/products/admissions",
-    title: "LumenX Admissions — Applications as a Connect portal",
+    path: "/platform/admissions",
+    title: "LumenX Admissions — Applications and intake",
     description:
-      "LumenX Admissions is a first-class product delivered as a Connect portal. Applications become student records in Admin. No separate admissions APK here.",
+      "LumenX Admissions helps applicants apply and the office review intake. Applications become student records in Admin.",
   },
   careers: {
-    path: "/products/careers",
-    title: "LumenX Careers — Hiring as a Connect portal",
+    path: "/platform/careers",
+    title: "LumenX Careers — Hiring for institutes",
     description:
       "LumenX Careers helps institutes hire — jobs and applications in one place; Admin turns an approved hire into a teacher record.",
   },
   nexus: {
-    path: "/products/nexus",
-    title: "LumenX Nexus — Service platform for quality and feedback",
+    path: "/about",
+    title: "About LumenX",
     description:
-      "LumenX Nexus is the service platform: licensing, support, institute feedback, and platform health. Not the school ERP — Admin still runs the day. Web only for groups and operators.",
+      "Nexus is an operator and group service surface. Public marketing focuses on Admin, Connect, Transport, Admissions, and Careers.",
   },
 };
 
@@ -251,7 +314,7 @@ export function robotsTxt(origin: string): string {
     return "User-agent: *\nDisallow: /\n";
   }
   const sitemap = origin ? `Sitemap: ${origin}/sitemap.xml\n` : "";
-  return `User-agent: *\nAllow: /\nDisallow: /download\nDisallow: /demos\n\n${sitemap}`;
+  return `User-agent: *\nAllow: /\nDisallow: /download\nDisallow: /demos\nDisallow: /products\nDisallow: /features\nDisallow: /how-it-works\nDisallow: /demo\nDisallow: /downloads\n\n${sitemap}`;
 }
 
 export function sitemapXml(origin: string, paths: readonly string[] = ["/"]): string {
@@ -259,7 +322,14 @@ export function sitemapXml(origin: string, paths: readonly string[] = ["/"]): st
   const urls = paths
     .map((path) => {
       const loc = path === "/" ? `${origin}/` : `${origin}${path}`;
-      const priority = path === "/" ? "1.0" : path.startsWith("/products/") ? "0.8" : "0.7";
+      const priority =
+        path === "/"
+          ? "1.0"
+          : path.startsWith("/platform/")
+            ? "0.8"
+            : path.startsWith("/solutions/")
+              ? "0.8"
+              : "0.7";
       return `  <url>\n    <loc>${loc}</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>${priority}</priority>\n  </url>`;
     })
     .join("\n");

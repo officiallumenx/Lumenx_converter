@@ -36,14 +36,16 @@ describe("loadExamsList", () => {
     vi.clearAllMocks();
   });
 
-  it("returns demo status without calling API in demo mode", async () => {
+  it("ignores demo env and still requires API (product is API-only)", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const listExams = vi.fn();
+    const listExams = vi.fn().mockResolvedValue([]);
+    const listSubjects = vi.fn().mockResolvedValue([]);
     vi.doMock("./api", () => ({ listExams }));
+    vi.doMock("@/lib/subjects", () => ({ listSubjects }));
     const { loadExamsList } = await import("./load");
     const result = await loadExamsList(INST);
-    expect(result.status).toBe("demo");
-    expect(listExams).not.toHaveBeenCalled();
+    expect(result.status).toBe("empty");
+    expect(listExams).toHaveBeenCalled();
   });
 
   it("maps successful API list without demo fallback", async () => {

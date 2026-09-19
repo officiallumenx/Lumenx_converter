@@ -1,15 +1,23 @@
 import type { Role, User } from "@lumenx/types";
-import { getConnectApiClient } from "@/lib/connect-api";
+import {
+  firebaseConfirmPhoneOtpOnly,
+  firebaseLogout,
+  firebaseRequestPhoneOtp,
+} from "@lumenx/auth";
+import { invalidatePushDeviceTokensBeforeSignOut } from "@lumenx/notifications";
+import { getApiBaseUrl, getConnectApiClient } from "@/lib/connect-api";
 import type { MeResponse } from "@/lib/api/me-types";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
-import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/institute-id";
+import { isFirebaseAuthProvider } from "@/auth/auth-mode";
 
 export type ConnectApiSession = {
   user: User;
   instituteId: string;
   me: MeResponse;
 };
+
+export type ConnectOtpChannel = "firebase" | "server";
 
 async function fetchMe(accessToken?: string): Promise<MeResponse> {
   const api = getConnectApiClient();
@@ -24,15 +32,15 @@ function instituteIdsForRole(me: MeResponse, role: Role): string[] {
       return [...new Set(me.identities.parents.map((p) => p.instituteId))];
     case "student":
       return [...new Set(me.identities.students.map((s) => s.instituteId))];
-    case "teacher":
-      return [
-        ...new Set([
-          ...me.identities.teachers.map((t) => t.instituteId),
-          ...me.institutes
-            .filter((m) => m.roles.includes("teacher") && m.status === "active")
-            .map((m) => m.instituteId),
-        ]),
-      ];
+    case "teacher": {
+      // Prefer institutes with a linked teacher row — membership-only is not enough
+      // for My Classes / attendance (those need identities.teachers[].teacherId).
+      const fromIdentity = me.identities.teachers.map((t) => t.instituteId);
+      const fromMembership = me.institutes
+        .filter((m) => m.roles.includes("teacher") && m.status === "active")
+        .map((m) => m.instituteId);
+      return [...new Set([...fromIdentity, ...fromMembership])];
+    }
     default:
       return [];
   }
@@ -48,6 +56,17 @@ export function resolveInstituteForRole(
   if (preferredInstituteId && eligible.includes(preferredInstituteId)) {
     return preferredInstituteId;
   }
+  if (role === "teacher") {
+    const withActiveIdentity = me.identities.teachers
+      .filter((t) => t.status === "active" && isInstituteUuid(t.instituteId))
+      .map((t) => t.instituteId)
+      .filter((id) => eligible.includes(id));
+    if (withActiveIdentity[0]) return withActiveIdentity[0];
+    const withAnyIdentity = me.identities.teachers
+      .map((t) => t.instituteId)
+      .filter((id) => isInstituteUuid(id) && eligible.includes(id));
+    if (withAnyIdentity[0]) return withAnyIdentity[0];
+  }
   return eligible[0] ?? null;
 }
 
@@ -61,141 +80,342 @@ export function connectUserFromMe(me: MeResponse, role: Role): User {
   };
 }
 
-async function completePasswordSignIn(input: {
-  email: string;
-  password: string;
+export async function apiConnectLoginMode(input: {
+  instituteId: string;
+  phone: string;
   role: Role;
-  preferredInstituteId?: string | null;
-}): Promise<ConnectApiSession> {
-  const normalized = input.email.trim().toLowerCase();
-  if (!normalized.includes("@")) {
-    throw new Error("Sign in with your email address.");
+}): Promise<{
+  mode: "first_login_otp" | "returning_pin";
+  requiresOtp: boolean;
+  requiresPin: boolean;
+  firstLogin: boolean;
+}> {
+  if (!isInstituteUuid(input.instituteId)) {
+    throw new Error("Select your institute to continue.");
   }
+  const digits = input.phone.replace(/\D/g, "").slice(-10);
+  const api = getConnectApiClient();
+  return api.post("/api/v1/auth/connect/login-mode", buildConnectLoginModePayload({
+    institute_id: input.instituteId,
+    phone: digits,
+    role: input.role,
+  }), { skipAuth: true });
+}
 
-  const supabase = getSupabaseBrowserClient();
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: normalized,
-    password: input.password,
+export type ConnectLoginPayload = {
+  institute_id: string;
+  phone: string;
+  role: Role;
+};
+
+export function buildConnectLoginModePayload(input: ConnectLoginPayload): ConnectLoginPayload {
+  return input;
+}
+
+export function buildConnectReturningLoginPayload(
+  input: ConnectLoginPayload & { pin: string },
+): ConnectLoginPayload & { pin: string } {
+  return input;
+}
+
+export function buildConnectFirebaseLoginPayload(input: {
+  institute_id: string;
+  role: Role;
+  pin: string;
+}): { institute_id: string; role: Role; pin: string } {
+  return input;
+}
+
+async function exchangeConnectFirebaseToken(input: {
+  idToken: string;
+  instituteId: string;
+  role: Role;
+  pin: string;
+  path: "firebase-login" | "reset-pin";
+}) {
+  const res = await fetch(`${getApiBaseUrl()}/api/v1/auth/connect/${input.path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${input.idToken}`,
+    },
+    body: JSON.stringify(buildConnectFirebaseLoginPayload({
+      institute_id: input.instituteId,
+      role: input.role,
+      pin: input.pin,
+    })),
   });
+  const json = (await res.json().catch(() => ({}))) as {
+    data?: {
+      access_token: string;
+      refresh_token: string;
+      institute_id: string;
+      display_name: string;
+      role: Role;
+    };
+    error?: { message?: string };
+  };
+  if (!res.ok || !json.data) {
+    throw new Error(json.error?.message || `Sign-in failed (${res.status})`);
+  }
+  return json.data;
+}
 
-  if (error || !data.session?.access_token) {
-    throw new Error(error?.message ?? "Sign-in failed. Check your email and password.");
+/**
+ * Request Connect mobile OTP.
+ * - Firebase provider → real SMS via Firebase Phone Auth
+ * - Otherwise → server OTP (live Twilio/webhook, or demo 123456 when OTP_DELIVERY_MODE=demo)
+ */
+export async function apiRequestConnectLoginOtp(input: {
+  instituteId: string;
+  phone: string;
+  role: Role;
+}): Promise<{
+  maskedDestination: string;
+  displayName: string;
+  channel: ConnectOtpChannel;
+  devOtp?: string;
+}> {
+  if (!isInstituteUuid(input.instituteId)) {
+    throw new Error("Select your institute to continue.");
+  }
+  const digits = input.phone.replace(/\D/g, "").slice(-10);
+
+  if (isFirebaseAuthProvider()) {
+    const sent = await firebaseRequestPhoneOtp(digits);
+    return {
+      maskedDestination: sent.maskedDestination,
+      displayName: input.role,
+      channel: "firebase",
+    };
   }
 
-  let me: MeResponse;
-  try {
-    me = await fetchMe(data.session.access_token);
-  } catch (err) {
-    await supabase.auth.signOut().catch(() => undefined);
-    if (err instanceof ApiClientError) throw new Error(err.message);
-    throw err;
+  const api = getConnectApiClient();
+  const data = await api.post<{
+    maskedDestination: string;
+    displayName: string;
+    devOtp?: string;
+  }>(
+    "/api/v1/auth/connect/request-otp",
+    {
+      institute_id: input.instituteId,
+      phone: digits,
+      role: input.role,
+    },
+    { skipAuth: true },
+  );
+  return { ...data, channel: "server" };
+}
+
+export async function apiVerifyConnectLoginOtp(input: {
+  instituteId: string;
+  phone: string;
+  role: Role;
+  otp: string;
+}): Promise<{ firebaseIdToken?: string; otpGrant?: string; channel: ConnectOtpChannel }> {
+  if (!isInstituteUuid(input.instituteId)) {
+    throw new Error("Select your institute to continue.");
+  }
+  const digits = input.phone.replace(/\D/g, "").slice(-10);
+  if (input.otp.trim().length !== 6) {
+    throw new Error("Enter the 6-digit SMS code.");
   }
 
-  const instituteId = resolveInstituteForRole(me, input.role, input.preferredInstituteId);
+  if (isFirebaseAuthProvider()) {
+    const confirmed = await firebaseConfirmPhoneOtpOnly({
+      phone: digits,
+      otp: input.otp.trim(),
+    });
+    return { firebaseIdToken: confirmed.idToken, channel: "firebase" };
+  }
+
+  const api = getConnectApiClient();
+  const data = await api.post<{ otpGrant: string }>(
+    "/api/v1/auth/connect/verify-otp",
+    {
+      institute_id: input.instituteId,
+      phone: digits,
+      role: input.role,
+      otp: input.otp.trim(),
+    },
+    { skipAuth: true },
+  );
+  return { otpGrant: data.otpGrant, channel: "server" };
+}
+
+async function finishConnectSession(input: {
+  accessToken: string;
+  refreshToken: string;
+  instituteId: string;
+  role: Role;
+  phone: string;
+  displayName?: string;
+}): Promise<ConnectApiSession> {
+  const supabase = getSupabaseBrowserClient();
+  const { error } = await supabase.auth.setSession({
+    access_token: input.accessToken,
+    refresh_token: input.refreshToken,
+  });
+  if (error) throw new Error(error.message || "Unable to start session.");
+
+  const me = await fetchMe(input.accessToken);
+  const instituteId = resolveInstituteForRole(me, input.role, input.instituteId);
   if (!instituteId) {
     await supabase.auth.signOut().catch(() => undefined);
     throw new Error(`No ${input.role} access found for this account at the selected institute.`);
   }
-
   return {
-    user: connectUserFromMe(me, input.role),
+    user: {
+      ...connectUserFromMe(me, input.role),
+      name: input.displayName || me.profile.displayName,
+      phone: input.phone,
+    },
     instituteId,
     me,
   };
 }
 
-export async function apiSignInWithPassword(input: {
-  email: string;
-  password: string;
+/** First-login: store PIN after OTP proof, then enter-PIN step signs in. */
+export async function apiCreateConnectPinAfterOtp(input: {
+  instituteId: string;
+  phone: string;
   role: Role;
-  preferredInstituteId?: string | null;
-}): Promise<ConnectApiSession> {
-  return completePasswordSignIn(input);
-}
-
-export async function apiSignInParentWithPhone(input: {
-  phone: string;
-  password: string;
-  instituteId: string;
-}): Promise<ConnectApiSession> {
-  throw new Error("Parent sign-in uses mobile OTP. Use apiRequestParentLoginOtp instead.");
-}
-
-export async function apiRequestParentLoginOtp(input: {
-  phone: string;
-  instituteId: string;
-}): Promise<{ maskedPhone: string; displayName: string; devOtp?: string }> {
+  pin: string;
+  otpGrant?: string;
+  firebaseIdToken?: string;
+}): Promise<void> {
   if (!isInstituteUuid(input.instituteId)) {
     throw new Error("Select your institute to continue.");
   }
-  const digits = input.phone.replace(/\D/g, "");
-  if (digits.length !== 10) {
-    throw new Error("Enter a valid 10-digit mobile number.");
+  if (!/^\d{4,8}$/.test(input.pin)) throw new Error("Enter a 4–8 digit PIN.");
+  const digits = input.phone.replace(/\D/g, "").slice(-10);
+
+  if (input.firebaseIdToken) {
+    await exchangeConnectFirebaseToken({
+      idToken: input.firebaseIdToken,
+      instituteId: input.instituteId,
+      role: input.role,
+      pin: input.pin,
+      path: "firebase-login",
+    });
+    await getSupabaseBrowserClient().auth.signOut().catch(() => undefined);
+    return;
   }
 
+  if (!input.otpGrant) {
+    throw new Error("Verification expired. Request a new code.");
+  }
   const api = getConnectApiClient();
-  return api.post<{ maskedPhone: string; displayName: string; devOtp?: string }>(
-    "/api/v1/auth/parent/request-otp",
+  await api.post(
+    "/api/v1/auth/connect/complete-pin",
     {
       institute_id: input.instituteId,
       phone: digits,
+      role: input.role,
+      pin: input.pin,
+      otp_grant: input.otpGrant,
     },
+    { skipAuth: true },
   );
+  await getSupabaseBrowserClient().auth.signOut().catch(() => undefined);
 }
 
-export async function apiVerifyParentLoginOtp(input: {
-  phone: string;
+/** Forgotten PIN: OTP proof + new PIN, then apply session. */
+export async function apiCompleteConnectForgotPin(input: {
   instituteId: string;
-  otp: string;
+  phone: string;
+  role: Role;
+  pin: string;
+  otpGrant?: string;
+  firebaseIdToken?: string;
 }): Promise<ConnectApiSession> {
   if (!isInstituteUuid(input.instituteId)) {
     throw new Error("Select your institute to continue.");
   }
-  const digits = input.phone.replace(/\D/g, "");
-  if (digits.length !== 10) {
-    throw new Error("Enter a valid 10-digit mobile number.");
-  }
-  if (input.otp.trim().length !== 6) {
-    throw new Error("Enter the 6-digit code.");
+  const digits = input.phone.replace(/\D/g, "").slice(-10);
+  if (!/^\d{4,8}$/.test(input.pin)) throw new Error("Enter a 4–8 digit PIN.");
+
+  if (input.firebaseIdToken) {
+    const session = await exchangeConnectFirebaseToken({
+      idToken: input.firebaseIdToken,
+      instituteId: input.instituteId,
+      role: input.role,
+      pin: input.pin,
+      path: "reset-pin",
+    });
+    return finishConnectSession({
+      accessToken: session.access_token,
+      refreshToken: session.refresh_token,
+      instituteId: input.instituteId,
+      role: input.role,
+      phone: digits,
+      displayName: session.display_name,
+    });
   }
 
+  if (!input.otpGrant) {
+    throw new Error("Verification expired. Request a new code.");
+  }
   const api = getConnectApiClient();
   const result = await api.post<{
     access_token: string;
     refresh_token: string;
     institute_id: string;
     display_name: string;
-  }>("/api/v1/auth/parent/verify-otp", {
+    role: Role;
+  }>(
+    "/api/v1/auth/connect/complete-pin",
+    {
+      institute_id: input.instituteId,
+      phone: digits,
+      role: input.role,
+      pin: input.pin,
+      otp_grant: input.otpGrant,
+    },
+    { skipAuth: true },
+  );
+  return finishConnectSession({
+    accessToken: result.access_token,
+    refreshToken: result.refresh_token,
+    instituteId: input.instituteId,
+    role: input.role,
+    phone: digits,
+    displayName: result.display_name,
+  });
+}
+
+export async function apiCompleteConnectLogin(input: {
+  instituteId: string;
+  phone: string;
+  role: Role;
+  pin: string;
+}): Promise<ConnectApiSession> {
+  if (!isInstituteUuid(input.instituteId)) {
+    throw new Error("Select your institute to continue.");
+  }
+  const digits = input.phone.replace(/\D/g, "").slice(-10);
+  if (!/^\d{4,8}$/.test(input.pin)) throw new Error("Enter a 4–8 digit PIN.");
+  const api = getConnectApiClient();
+  const result = await api.post<{
+    access_token: string;
+    refresh_token: string;
+    institute_id: string;
+    display_name: string;
+    role: Role;
+  }>("/api/v1/auth/connect/login", buildConnectReturningLoginPayload({
     institute_id: input.instituteId,
     phone: digits,
-    otp: input.otp.trim(),
+    role: input.role,
+    pin: input.pin,
+  }), { skipAuth: true });
+  return finishConnectSession({
+    accessToken: result.access_token,
+    refreshToken: result.refresh_token,
+    instituteId: input.instituteId,
+    role: input.role,
+    phone: digits,
+    displayName: result.display_name,
   });
-
-  const supabase = getSupabaseBrowserClient();
-  const { error } = await supabase.auth.setSession({
-    access_token: result.access_token,
-    refresh_token: result.refresh_token,
-  });
-  if (error) {
-    throw new Error(error.message || "Unable to start session.");
-  }
-
-  const me = await fetchMe(result.access_token);
-  const instituteId = resolveInstituteForRole(me, "parent", input.instituteId);
-  if (!instituteId) {
-    await supabase.auth.signOut().catch(() => undefined);
-    throw new Error("No parent access found for this account at the selected institute.");
-  }
-
-  return {
-    user: {
-      ...connectUserFromMe(me, "parent"),
-      name: result.display_name || me.profile.displayName,
-      phone: digits,
-    },
-    instituteId,
-    me,
-  };
 }
 
 export async function tryHydrateApiSession(
@@ -208,7 +428,10 @@ export async function tryHydrateApiSession(
 
   const me = await fetchMe(data.session.access_token);
   const instituteId = resolveInstituteForRole(me, role, preferredInstituteId);
-  if (!instituteId) return null;
+  if (!instituteId) {
+    await supabase.auth.signOut().catch(() => undefined);
+    return null;
+  }
 
   return {
     user: connectUserFromMe(me, role),
@@ -218,10 +441,20 @@ export async function tryHydrateApiSession(
 }
 
 export async function apiSignOut(): Promise<void> {
-  try {
-    const supabase = getSupabaseBrowserClient();
-    await supabase.auth.signOut();
-  } catch {
-    // ignore
-  }
+  await invalidatePushDeviceTokensBeforeSignOut({
+    app: "connect",
+    apiBaseUrl: (import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8787").replace(
+      /\/+$/,
+      "",
+    ),
+    getAccessToken: async () => {
+      const { data } = await getSupabaseBrowserClient().auth.getSession();
+      return data.session?.access_token;
+    },
+  });
+  await firebaseLogout({
+    clearSupabaseSession: async () => {
+      await getSupabaseBrowserClient().auth.signOut().catch(() => undefined);
+    },
+  });
 }

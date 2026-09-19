@@ -22,7 +22,6 @@ import { useTeacherPortal } from "@/context/TeacherPortalContext";
 import {
   Badge,
   Button,
-  Input,
   Select,
   SelectContent,
   SelectItem,
@@ -36,15 +35,13 @@ import { toast } from "sonner";
 import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useApp } from "@/lib/app-state";
-import { getTeacherPortalApiCache } from "@/lib/teacher-classes";
 import {
   cancelPendingLeave,
   decideStudentLeave,
-  loadTeacherLeavePortal,
   submitTeacherLeave,
   toLeaveBadgeStatus,
-  type ConnectLeaveRequest,
 } from "@/lib/leave";
+import { useTeacherLeaveQuery } from "@/lib/connect-queries/hooks";
 
 export function TeacherLeavePage() {
   if (isApiAuthMode()) return <ApiTeacherLeavePage />;
@@ -378,36 +375,20 @@ function ApiTeacherLeavePage() {
   const [fromDate, setFromDate] = useState(minDate);
   const [toDate, setToDate] = useState(minDate);
   const [reason, setReason] = useState("");
-  const [studentRequests, setStudentRequests] = useState<ConnectLeaveRequest[]>([]);
-  const [myRequests, setMyRequests] = useState<TeacherLeaveRequest[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [reloadKey, setReloadKey] = useState(0);
 
-  const teacherId =
-    getTeacherPortalApiCache()?.teacherId ?? portal.profile?.id ?? null;
+  const teacherId = portal.teacherId ?? portal.profile?.id ?? null;
+  const enabled = Boolean(activeInstituteId) && portal.isTeacher;
+  const { data, isLoading, refresh } = useTeacherLeaveQuery(
+    activeInstituteId,
+    teacherId,
+    enabled,
+  );
 
-  const refresh = () => setReloadKey((k) => k + 1);
-
-  useEffect(() => {
-    if (!activeInstituteId || !portal.isTeacher) {
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    void loadTeacherLeavePortal({
-      instituteId: activeInstituteId,
-      teacherId,
-    }).then((result) => {
-      if (cancelled) return;
-      setStudentRequests(sortLeaveRequests(result.studentRequests));
-      setMyRequests(result.ownRequests);
-      setLoading(false);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeInstituteId, portal.isTeacher, teacherId, reloadKey]);
+  const studentRequests = useMemo(
+    () => sortLeaveRequests(data?.studentRequests ?? []),
+    [data?.studentRequests],
+  );
+  const myRequests = data?.ownRequests ?? [];
 
   const pending = useMemo(
     () => studentRequests.filter((request) => request.status === "pending"),
@@ -456,7 +437,7 @@ function ApiTeacherLeavePage() {
       });
   };
 
-  if (!portal.isTeacher || loading) {
+  if (!portal.isTeacher || (isLoading && !data)) {
     return <PageSkeleton rows={5} />;
   }
 
@@ -667,12 +648,12 @@ function ApiTeacherLeavePage() {
                     apiMode
                     requireIgnoreNote
                     onAction={refresh}
-                    onApprove={(id) =>
-                      decideStudentLeave(id, { outcome: "approved", note: "Accepted." })
-                    }
-                    onIgnore={(id, note) =>
-                      decideStudentLeave(id, { outcome: "ignored", note: note || null })
-                    }
+                    onApprove={(id) => {
+                      void decideStudentLeave(id, { outcome: "approved", note: "Accepted." });
+                    }}
+                    onIgnore={(id, note) => {
+                      void decideStudentLeave(id, { outcome: "ignored", note: note || null });
+                    }}
                   />
                 ))}
               </div>

@@ -219,7 +219,7 @@ export function PublishedCertificateCatalogView({
           title="Published templates"
           hint={
             apiCatalogMode
-              ? "Active certificate templates from the institute library · read-only in API mode"
+              ? "Active certificate templates from the institute library"
               : "Nexus publishes these versions · Admin cannot edit templates or mappings"
           }
         />
@@ -287,7 +287,7 @@ export function PublishedCertificateCatalogView({
               hint={
                 apiCatalogMode
                   ? "No active certificate templates found for this institute."
-                  : "Nexus must publish a template before it appears here."
+                  : "A template must be published before it appears here."
               }
             />
           </CardBody>
@@ -365,8 +365,8 @@ export function PublishedCertificateCatalogView({
       {writesEnabled && nexusSelected && apiCatalogMode ? (
         <Card>
           <CardHeader
-            title="Issue from Nexus template"
-            hint="Hybrid API mode · PPTX fill locally · metadata syncs to issued ledger"
+            title="Issue from template"
+            hint="Fill the template locally · issued record is saved to the ledger"
           />
           <CardBody className="space-y-4">
             {filteredDemoTemplates.length > 1 ? (

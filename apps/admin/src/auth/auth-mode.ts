@@ -1,38 +1,65 @@
 /**
- * Admin auth mode — demo/offline mock vs real Supabase + Hono API.
- * Default is api. Set VITE_ADMIN_AUTH_MODE=demo only for offline demos.
+ * Admin auth mode — API-only product mode.
+ * Demo Mode is no longer supported.
+ *
+ * VITE_ADMIN_AUTH_MODE may still be set in env for compatibility, but only
+ * "api" (or unset) is accepted. "demo" fails at boot.
+ *
+ * VITE_AUTH_PROVIDER selects interactive login:
+ * - firebase (default) — Firebase phone SMS OTP + Firebase email/password
+ * - supabase — legacy password / Twilio / Resend OTP rollback
  */
 
-export type AdminAuthMode = "demo" | "api";
+import {
+  assertApiOnlyProductMode,
+  normalizeAuthProvider,
+  type LumenXAuthMode,
+  type LumenXAuthProvider,
+} from "@lumenx/auth";
+
+export type AdminAuthMode = LumenXAuthMode;
+export type AdminAuthProvider = LumenXAuthProvider;
+
+function readModeRaw(): string | undefined {
+  return typeof import.meta !== "undefined"
+    ? import.meta.env?.VITE_ADMIN_AUTH_MODE?.trim().toLowerCase()
+    : undefined;
+}
 
 export function getAdminAuthMode(): AdminAuthMode {
+  return assertApiOnlyProductMode(readModeRaw(), "Admin");
+}
+
+export function getAdminAuthProvider(): AdminAuthProvider {
   const raw =
     typeof import.meta !== "undefined"
-      ? import.meta.env?.VITE_ADMIN_AUTH_MODE?.trim().toLowerCase()
+      ? import.meta.env?.VITE_AUTH_PROVIDER?.trim().toLowerCase()
       : undefined;
-  return raw === "demo" ? "demo" : "api";
+  return normalizeAuthProvider(raw);
+}
+
+export function isFirebaseAuthProvider(): boolean {
+  return getAdminAuthProvider() === "firebase";
 }
 
 export function isApiAuthMode(): boolean {
-  return getAdminAuthMode() === "api";
+  // Product is API-only. Do not re-read env here — boot uses getAdminAuthMode()/assertProductionApiAuthMode.
+  return true;
 }
 
+/** @deprecated Demo Mode removed — always false. */
 export function isDemoAuthMode(): boolean {
-  return getAdminAuthMode() === "demo";
+  return false;
 }
 
 /**
- * Production builds must use API auth with Supabase + backend configured.
- * Throws at runtime so misconfigured deploys fail fast (demo auth must not ship).
+ * Production and local product shells must use API auth with backend configured.
+ * Throws at runtime so misconfigured deploys / local demo env fail fast.
  */
 export function assertProductionApiAuthMode(): void {
-  if (typeof import.meta === "undefined" || !import.meta.env?.PROD) return;
+  getAdminAuthMode();
 
-  if (getAdminAuthMode() !== "api") {
-    throw new Error(
-      "LumenX Admin production requires VITE_ADMIN_AUTH_MODE=api. Demo authentication must not be used in production.",
-    );
-  }
+  if (typeof import.meta === "undefined" || !import.meta.env?.PROD) return;
 
   const missing: string[] = [];
   if (!import.meta.env.VITE_SUPABASE_URL?.trim()) missing.push("VITE_SUPABASE_URL");
@@ -40,6 +67,21 @@ export function assertProductionApiAuthMode(): void {
     missing.push("VITE_SUPABASE_ANON_KEY");
   }
   if (!import.meta.env.VITE_API_BASE_URL?.trim()) missing.push("VITE_API_BASE_URL");
+
+  if (getAdminAuthProvider() === "firebase") {
+    if (!import.meta.env.VITE_FIREBASE_API_KEY?.trim()) {
+      missing.push("VITE_FIREBASE_API_KEY");
+    }
+    if (!import.meta.env.VITE_FIREBASE_AUTH_DOMAIN?.trim()) {
+      missing.push("VITE_FIREBASE_AUTH_DOMAIN");
+    }
+    if (!import.meta.env.VITE_FIREBASE_PROJECT_ID?.trim()) {
+      missing.push("VITE_FIREBASE_PROJECT_ID");
+    }
+    if (!import.meta.env.VITE_FIREBASE_APP_ID?.trim()) {
+      missing.push("VITE_FIREBASE_APP_ID");
+    }
+  }
 
   if (missing.length > 0) {
     throw new Error(

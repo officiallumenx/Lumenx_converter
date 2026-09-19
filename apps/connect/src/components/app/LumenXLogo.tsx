@@ -12,7 +12,7 @@ const HEIGHT = {
 export function LumenXLogo({
   className,
   size = "md",
-  alt = "LumenX",
+  alt = "LumenX Connect",
 }: {
   className?: string;
   size?: keyof typeof HEIGHT;

@@ -6,8 +6,8 @@ import { useLocationTrack } from "@/hooks/use-trip-location-guard";
 import { requestEnableLocation } from "@/lib/transport/location-tracking";
 
 /**
- * Non-dismissable trip safety warning. It blocks app interaction until Android
- * reports that location services are enabled and a fresh GPS fix is available.
+ * Non-dismissable trip safety warning. Blocks only when location services or
+ * permission are actually off — not when GPS is merely waiting for a signal.
  */
 export function LocationRequiredOverlay() {
   const track = useLocationTrack();
@@ -21,6 +21,8 @@ export function LocationRequiredOverlay() {
     await requestEnableLocation();
     setRequesting(false);
   };
+
+  const permissionIssue = /permission/i.test(track.message);
 
   return (
     <div
@@ -39,13 +41,14 @@ export function LocationRequiredOverlay() {
           id="location-required-title"
           className="mt-4 font-display text-xl font-semibold text-foreground"
         >
-          Turn on location
+          {permissionIssue ? "Allow location" : "Turn on location"}
         </h2>
         <p
           id="location-required-description"
           className="mt-2 text-sm leading-relaxed text-muted-foreground"
         >
-          GPS must stay on during an active trip. Attendance is paused until location is restored.
+          {track.message ||
+            "GPS must stay on during an active trip. Attendance is paused until location is restored."}
         </p>
 
         <Button
@@ -58,7 +61,7 @@ export function LocationRequiredOverlay() {
           onClick={() => void turnOnLocation()}
         >
           {requesting ? <Loader2 className="size-5 animate-spin" aria-hidden /> : null}
-          {requesting ? "Checking location…" : "Turn on location"}
+          {requesting ? "Checking location…" : "Check location"}
         </Button>
       </div>
     </div>

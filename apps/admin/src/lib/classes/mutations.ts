@@ -39,6 +39,7 @@ export type CreateSectionInput = {
   room?: string | null;
   sortOrder?: number;
   status?: SectionStatus;
+  classTeacherId?: string | null;
 };
 
 export type UpdateSectionInput = {
@@ -48,6 +49,7 @@ export type UpdateSectionInput = {
   room?: string | null;
   sortOrder?: number;
   status?: SectionStatus;
+  classTeacherId?: string | null;
 };
 
 export async function createClass(
@@ -126,6 +128,7 @@ export async function createSection(
     room: input.room,
     sort_order: input.sortOrder,
     status: input.status,
+    class_teacher_id: input.classTeacherId ?? null,
   });
 }
 
@@ -145,6 +148,9 @@ export async function updateSection(
   if (input.room !== undefined) body.room = input.room;
   if (input.sortOrder !== undefined) body.sort_order = input.sortOrder;
   if (input.status !== undefined) body.status = input.status;
+  if (input.classTeacherId !== undefined) {
+    body.class_teacher_id = input.classTeacherId;
+  }
   if (Object.keys(body).length === 0) {
     throw new Error("At least one field is required");
   }

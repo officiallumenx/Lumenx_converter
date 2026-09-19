@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
-import { DEMO_CONNECT_OTP } from "@lumenx/auth";
+import { requestSignupOtp, verifySignupOtp } from "@lumenx/auth";
 import { PhoneInput, COUNTRIES, validatePhone, type Country } from "@/components/app/PhoneInput";
 import { useCareersAuth } from "@/careers-portal/core/CareersAuthProvider";
 import { SignupStepper } from "@/careers-portal/features/auth/SignupStepper";
@@ -34,6 +34,10 @@ import { getAllInstituteProfiles } from "@/lib/careers/institute-profiles";
 import type { CareersAccountType, OrganizationType } from "@/lib/careers/types";
 import { useSafeTimeout } from "@/lib/use-safe-timeout";
 import { isApiAuthMode } from "@/auth/auth-mode";
+
+function careersApiBase(): string {
+  return (import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8787").trim();
+}
 
 type Step = "identifier" | "password";
 
@@ -143,13 +147,6 @@ export function SignInFlow({ redirect, job }: { redirect?: string; job?: string 
           {loading ? "Signing in…" : step === "identifier" ? "Continue" : "Sign in"}
         </Button>
       </div>
-
-      <details className="mt-6 rounded-xl border border-border bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
-        <summary className="cursor-pointer font-medium text-foreground">Demo credentials</summary>
-        <p className="mt-2">Job seeker: priya.candidate@example.com / demo123</p>
-        <p className="mt-1">Recruiter: hr@lumenx.edu / demo123</p>
-        <p className="mt-1">LumenX Admin: principal@lumenx.edu / Admin@1234</p>
-      </details>
 
       <p className="mt-4 text-center text-sm">
         <Link to="/forgot-password" className="text-muted-foreground hover:text-primary">
@@ -264,6 +261,8 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
   const [organizationState, setOrganizationState] = useState("");
   const [organizationType, setOrganizationType] = useState<OrganizationType>("education");
   const [loading, setLoading] = useState(false);
+  const [phoneGrant, setPhoneGrant] = useState("");
+  const [emailGrant, setEmailGrant] = useState("");
   const [createdRoute, setCreatedRoute] = useState<
     "/dashboard" | "/recruiter" | null
   >(null);
@@ -307,29 +306,86 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
     setStep("contact");
   };
 
-  const continueFromContact = () => {
+  const continueFromContact = async () => {
     const emailCheck = signupContactSchema.safeParse({ email: email.trim() });
     if (!emailCheck.success)
       return toast.error(emailCheck.error.errors[0]?.message ?? "Enter a valid email");
     if (!validatePhone(phone.replace(/\D/g, ""), country))
       return toast.error("Enter a valid mobile number");
-    toast.message(`OTP sent to ${phoneFull} (demo: ${DEMO_CONNECT_OTP})`);
-    setPhoneOtp("");
-    setStep("verifyPhone");
+    if (isApiAuthMode()) {
+      try {
+        const digits = phone.replace(/\D/g, "");
+        const result = await requestSignupOtp({
+          subjectKey: email.trim().toLowerCase(),
+          channel: "mobile",
+          destination: digits,
+          apiBaseUrl: careersApiBase(),
+        });
+        toast.message(
+          result.devOtp
+            ? `OTP sent to ${phoneFull} (dev: ${result.devOtp})`
+            : `OTP sent to ${result.maskedDestination}`,
+        );
+        setPhoneOtp("");
+        setStep("verifyPhone");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Unable to send OTP");
+      }
+      return;
+    }
+    toast.error("Demo OTP auth has been removed. Use API signup OTP.");
   };
 
-  const verifyPhoneOtp = () => {
-    if (phoneOtp !== DEMO_CONNECT_OTP) return toast.error("Invalid OTP");
-    toast.success("Mobile number verified");
-    toast.message(`OTP sent to ${email.trim()} (demo: ${DEMO_CONNECT_OTP})`);
-    setEmailOtp("");
-    setStep("verifyEmail");
+  const verifyPhoneOtp = async () => {
+    if (isApiAuthMode()) {
+      try {
+        const verified = await verifySignupOtp({
+          subjectKey: email.trim().toLowerCase(),
+          channel: "mobile",
+          otp: phoneOtp,
+          apiBaseUrl: careersApiBase(),
+        });
+        setPhoneGrant(verified.grant);
+        toast.success("Mobile number verified");
+        const result = await requestSignupOtp({
+          subjectKey: email.trim().toLowerCase(),
+          channel: "email",
+          destination: email.trim().toLowerCase(),
+          apiBaseUrl: careersApiBase(),
+        });
+        toast.message(
+          result.devOtp
+            ? `OTP sent to ${email.trim()} (demo: ${result.devOtp})`
+            : `OTP sent to ${result.maskedDestination}`,
+        );
+        setEmailOtp("");
+        setStep("verifyEmail");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Invalid OTP");
+      }
+      return;
+    }
+    toast.error("Demo OTP auth has been removed. Use API signup OTP.");
   };
 
-  const verifyEmailOtp = () => {
-    if (emailOtp !== DEMO_CONNECT_OTP) return toast.error("Invalid OTP");
-    toast.success("Email verified");
-    setStep("profile");
+  const verifyEmailOtp = async () => {
+    if (isApiAuthMode()) {
+      try {
+        const verified = await verifySignupOtp({
+          subjectKey: email.trim().toLowerCase(),
+          channel: "email",
+          otp: emailOtp,
+          apiBaseUrl: careersApiBase(),
+        });
+        setEmailGrant(verified.grant);
+        toast.success("Email verified");
+        setStep("profile");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Invalid OTP");
+      }
+      return;
+    }
+    toast.error("Demo OTP auth has been removed. Use API signup OTP.");
   };
 
   const continueFromProfile = () => {
@@ -380,6 +436,7 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
       organizationId: linked?.instituteId ?? (isRecruiter ? `org-${Date.now()}` : undefined),
       organizationName: linked?.name ?? (isRecruiter ? organizationName.trim() : undefined),
       organizationType: isRecruiter ? organizationType : undefined,
+      verificationGrants: [phoneGrant, emailGrant],
     })
       .then((user) => {
         if (accountType === "job_seeker") {
@@ -555,7 +612,6 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
               ))}
             </InputOTPGroup>
           </InputOTP>
-          <p className="text-xs text-center text-muted-foreground">Demo OTP: {DEMO_CONNECT_OTP}</p>
           <div className="flex gap-2">
             <Button variant="outline" className="h-11" onClick={goBack}>
               Back
@@ -582,7 +638,6 @@ export function SignupFlow({ initialAccountType }: { initialAccountType?: Career
               ))}
             </InputOTPGroup>
           </InputOTP>
-          <p className="text-xs text-center text-muted-foreground">Demo OTP: {DEMO_CONNECT_OTP}</p>
           <div className="flex gap-2">
             <Button variant="outline" className="h-11" onClick={goBack}>
               Back
@@ -848,6 +903,7 @@ export function ForgotPasswordFlow() {
   const [otp, setOtp] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
   return (
     <div className="mx-auto max-w-md animate-in fade-in duration-300">
@@ -865,12 +921,25 @@ export function ForgotPasswordFlow() {
           <Input value={identifier} onChange={(e) => setIdentifier(e.target.value)} />
           <Button
             className="w-full h-11"
-            onClick={() => {
-              toast.message(`OTP: ${DEMO_CONNECT_OTP}`);
-              setStep("otp");
+            disabled={loading}
+            onClick={async () => {
+              if (isApiAuthMode()) {
+                setLoading(true);
+                try {
+                  await resetPassword(identifier);
+                  toast.success("Password reset email sent");
+                  setStep("success");
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : "Unable to send reset email");
+                } finally {
+                  setLoading(false);
+                }
+                return;
+              }
+              toast.error("Demo OTP auth has been removed. Use the API password reset email flow.");
             }}
           >
-            Send OTP
+            {loading ? "Sending…" : isApiAuthMode() ? "Send reset link" : "Send OTP"}
           </Button>
         </div>
       )}
@@ -887,7 +956,7 @@ export function ForgotPasswordFlow() {
           <Button
             className="w-full h-11"
             onClick={() =>
-              otp === DEMO_CONNECT_OTP ? setStep("password") : toast.error("Invalid OTP")
+              toast.error("Demo OTP auth has been removed. Use the API password reset email flow.")
             }
           >
             Verify
@@ -919,13 +988,16 @@ export function ForgotPasswordFlow() {
           </div>
           <Button
             className="w-full h-11"
-            onClick={() => {
+            onClick={async () => {
               const pw = signupPasswordSchema.safeParse({ password, confirmPassword });
               if (!pw.success) return toast.error(pw.error.errors[0]?.message);
-              if (resetPassword(identifier, password)) {
+              try {
+                await resetPassword(identifier, password);
                 toast.success("Password updated");
                 setStep("success");
-              } else toast.error("Account not found");
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : "Could not update password");
+              }
             }}
           >
             Update password
@@ -935,7 +1007,11 @@ export function ForgotPasswordFlow() {
 
       {step === "success" && (
         <div className="mt-8 text-center">
-          <p className="text-sm text-muted-foreground">Your password has been updated.</p>
+          <p className="text-sm text-muted-foreground">
+            {isApiAuthMode()
+              ? "Check your email and open the secure link to choose a new password."
+              : "Your password has been updated."}
+          </p>
           <Button className="mt-6 w-full h-11" asChild>
             <Link to="/login">Sign in</Link>
           </Button>

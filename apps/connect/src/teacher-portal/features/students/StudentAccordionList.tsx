@@ -13,7 +13,7 @@ import type { RemarkType, StudentDetail, TeacherStudent } from "@/lib/teacher/ty
 export function StudentAccordionList({
   students,
   showClassLabel = true,
-  apiMode = false,
+  apiMode = true,
 }: {
   students: TeacherStudent[];
   showClassLabel?: boolean;
@@ -52,10 +52,15 @@ export function StudentAccordionList({
 
   const addRemark = async (studentId: string, type: RemarkType, text: string) => {
     try {
-      await teacherRepository.addRemark(studentId, { type, text });
+      await teacherRepository.addRemark(
+        studentId,
+        { type, text },
+        { instituteId: activeInstituteId },
+      );
     } catch (error) {
       if (isTeacherAccessDenied(error)) return;
-      throw error;
+      toast.error(error instanceof Error ? error.message : "Could not add remark");
+      return;
     }
     toast.success("Remark added");
     await loadDetail(studentId);
@@ -124,9 +129,7 @@ export function StudentAccordionList({
                     detail={details[s.id]}
                     compact
                     apiMode={apiMode}
-                    onAddRemark={
-                      apiMode ? undefined : (type, text) => addRemark(s.id, type, text)
-                    }
+                    onAddRemark={(type, text) => addRemark(s.id, type, text)}
                   />
                 ) : (
                   <p className="text-sm text-muted-foreground">Could not load student details.</p>

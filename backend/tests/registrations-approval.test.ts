@@ -366,6 +366,25 @@ describe("POST /api/nexus/registrations/:id/approve", () => {
     expect(db.institute_registration[0]?.status).toBe("pending");
   });
 
+  it("allows nexus_root to approve their own registration", async () => {
+    const db = reviewDb();
+    db.institute_registration[0]!.applicant_user_id = USER_ROOT;
+    db.institute_registration[0]!.email = "root@x.com";
+    const app = appFor(db);
+
+    const res = await app.request(
+      `/api/nexus/registrations/${REG_PENDING}/approve`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${TOKEN_ROOT}` },
+      },
+    );
+
+    expect(res.status).toBe(200);
+    expect(db.institute_registration[0]?.status).toBe("approved");
+    expect(db.institute).toHaveLength(2);
+  });
+
   it("rejects ordinary institute admin", async () => {
     const db = reviewDb();
     const app = appFor(db);
@@ -409,6 +428,60 @@ describe("POST /api/nexus/registrations/:id/approve", () => {
     expect(db.membership).toHaveLength(2);
     expect(
       db.membership_role.filter((r) => r.role_code === "institute_admin"),
+    ).toHaveLength(2);
+  });
+
+  it("repairs a missing institute-admin membership on approved retry", async () => {
+    const db = reviewDb();
+    db.institute_registration[0]!.status = "approved";
+    db.institute_registration[0]!.institute_id = INST_EXISTING;
+    const app = appFor(db);
+
+    const response = await app.request(
+      `/api/nexus/registrations/${REG_PENDING}/approve`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${TOKEN_ROOT}` },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    const ownerMembership = db.membership.find(
+      (row) =>
+        row.user_id === USER_APPLICANT &&
+        row.institute_id === INST_EXISTING &&
+        row.status === "active",
+    );
+    expect(ownerMembership).toBeTruthy();
+    expect(
+      db.membership_role.some(
+        (row) =>
+          row.membership_id === ownerMembership?.id &&
+          row.role_code === "institute_admin",
+      ),
+    ).toBe(true);
+  });
+
+  it("serializes concurrent approval attempts without duplicate records", async () => {
+    const db = reviewDb();
+    const app = appFor(db);
+    const request = () =>
+      app.request(`/api/nexus/registrations/${REG_PENDING}/approve`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${TOKEN_ROOT}` },
+      });
+
+    const responses = await Promise.all([request(), request()]);
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 200]);
+    const instituteIds = await Promise.all(
+      responses.map(async (response) => (await json(response)).data.instituteId),
+    );
+    expect(new Set(instituteIds).size).toBe(1);
+    expect(db.institute).toHaveLength(2);
+    expect(db.institute_settings).toHaveLength(1);
+    expect(db.subscription).toHaveLength(1);
+    expect(
+      db.membership_role.filter((row) => row.role_code === "institute_admin"),
     ).toHaveLength(2);
   });
 

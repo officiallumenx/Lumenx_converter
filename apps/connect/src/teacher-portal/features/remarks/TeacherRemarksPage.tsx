@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
+import { useApp } from "@/lib/app-state";
 import { teacherRepository } from "@/lib/teacher/repositories";
 import { isTeacherAccessDenied } from "@/lib/teacher/portal-access-guard";
+import { useTeacherRemarksQuery } from "@/lib/connect-queries/hooks";
 import { RemarkForm } from "@/teacher-portal/shared/ui/RemarkForm";
 import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
 import { EmptyState } from "@/teacher-portal/shared/ui/EmptyState";
@@ -35,8 +37,7 @@ const TYPE_LABEL: Record<RemarkType, string> = {
 
 export function TeacherRemarksPage() {
   const portal = useTeacherPortal();
-  const [remarks, setRemarks] = useState<StudentRemark[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { activeInstituteId } = useApp();
   const [studentId, setStudentId] = useState("");
   const [classFilter, setClassFilter] = useState("all");
   const [sectionFilter, setSectionFilter] = useState("all");
@@ -46,17 +47,25 @@ export function TeacherRemarksPage() {
   const [editRemark, setEditRemark] = useState<StudentRemark | null>(null);
   const [editText, setEditText] = useState("");
 
-  const load = () => {
-    setLoading(true);
-    teacherRepository.getAllRemarks().then((r) => {
-      setRemarks(r);
-      setLoading(false);
-    });
-  };
+  const {
+    data: remarks,
+    isLoading,
+    isError,
+    error: queryError,
+    refresh,
+  } = useTeacherRemarksQuery(
+    activeInstituteId,
+    portal.isTeacher && Boolean(activeInstituteId),
+  );
 
-  useEffect(() => {
-    if (portal.isTeacher) load();
-  }, [portal.isTeacher]);
+  const loading = isLoading && !remarks;
+  const remarksList = remarks ?? [];
+  const loadError =
+    isError
+      ? queryError instanceof Error
+        ? queryError.message
+        : "Failed to load remarks"
+      : null;
 
   useEffect(() => {
     if (!portal.isTeacher) return;
@@ -102,26 +111,34 @@ export function TeacherRemarksPage() {
       return;
     }
     try {
-      await teacherRepository.addRemark(studentId, { type, text });
+      await teacherRepository.addRemark(
+        studentId,
+        { type, text },
+        { instituteId: activeInstituteId },
+      );
     } catch (error) {
       if (isTeacherAccessDenied(error)) return;
-      throw error;
+      toast.error(error instanceof Error ? error.message : "Could not add remark");
+      return;
     }
     toast.success("Remark added");
-    load();
+    refresh();
   };
 
   const saveEdit = async () => {
     if (!editRemark || editText.trim().length < 8) return;
     try {
-      await teacherRepository.updateRemark(editRemark.id, editText.trim());
+      await teacherRepository.updateRemark(editRemark.id, editText.trim(), {
+        instituteId: activeInstituteId,
+      });
     } catch (error) {
       if (isTeacherAccessDenied(error)) return;
-      throw error;
+      toast.error(error instanceof Error ? error.message : "Could not update remark");
+      return;
     }
     toast.success("Remark updated");
     setEditRemark(null);
-    load();
+    refresh();
   };
 
   if (!portal.isTeacher) return null;
@@ -219,30 +236,34 @@ export function TeacherRemarksPage() {
 
       {loading ? (
         <PageSkeleton rows={4} />
-      ) : remarks.length ? (
+      ) : loadError ? (
+        <EmptyState
+          icon={PenLine}
+          title="Could not load remarks"
+          description={loadError}
+        />
+      ) : remarksList.length ? (
         <ul className="space-y-3">
-          {remarks.map((r) => (
+          {remarksList.map((r) => (
             <li key={r.id} className="rounded-2xl border bg-card p-4 shadow-soft">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="font-medium">{r.studentName}</p>
                   <p className="text-xs text-muted-foreground">
-                    {TYPE_LABEL[r.type]} · {r.createdAt}
+                    {TYPE_LABEL[r.type] ?? r.type} · {r.createdAt}
                   </p>
                 </div>
-                {r.id.startsWith("rm-") && !r.id.startsWith("rm-seed") && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="rounded-lg gap-1"
-                    onClick={() => {
-                      setEditRemark(r);
-                      setEditText(r.text);
-                    }}
-                  >
-                    <Pencil className="size-3" /> Edit
-                  </Button>
-                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-lg gap-1"
+                  onClick={() => {
+                    setEditRemark(r);
+                    setEditText(r.text);
+                  }}
+                >
+                  <Pencil className="size-3" /> Edit
+                </Button>
               </div>
               <p className="mt-2 text-sm">{r.text}</p>
               <Badge variant="outline" className="mt-2 text-[10px]">

@@ -55,6 +55,23 @@ export const SubjectMarksVisualization = memo(function SubjectMarksVisualization
     [marks],
   );
 
+  if (marks.length === 0) {
+    return (
+      <div className="min-w-0 space-y-2 py-8 text-center">
+        <h3 className="font-semibold flex items-center justify-center gap-2">
+          <BarChart3 className="size-4 text-primary shrink-0" />
+          Subject-wise marks
+        </h3>
+        {examLabel ? (
+          <p className="text-xs text-muted-foreground">{examLabel}</p>
+        ) : null}
+        <p className="text-sm text-muted-foreground">
+          No published subject marks yet.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-w-0 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">

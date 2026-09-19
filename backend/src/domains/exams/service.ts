@@ -41,10 +41,7 @@ import type {
   TargetSectionInput,
   UpdateExamInput,
 } from "./types.js";
-import {
-  emitExamSchedulePublishedNotifications,
-  isInstituteDriver,
-} from "./notifications.js";
+import { emitExamSchedulePublishedNotifications } from "./notifications.js";
 
 export const EXAM_WRITE_ROLES = [
   "institute_admin",
@@ -368,30 +365,6 @@ export async function listExamsForActor(
     );
   }
 
-  if (isInstituteDriver(actor, instituteId)) {
-    const published = rows.filter((r) => r.schedule_status === "published");
-    const ids = published.map((r) => r.id);
-    const [targets, schedules] = await Promise.all([
-      listTargetsForExamIds(admin, ids),
-      listSchedulesForExamIds(admin, ids),
-    ]);
-    const targetsByExam = new Map<string, ExamTargetSectionRow[]>();
-    const schedulesByExam = new Map<string, ExamSubjectScheduleRow[]>();
-    for (const t of targets) {
-      const list = targetsByExam.get(t.exam_id) ?? [];
-      list.push(t);
-      targetsByExam.set(t.exam_id, list);
-    }
-    for (const s of schedules) {
-      const list = schedulesByExam.get(s.exam_id) ?? [];
-      list.push(s);
-      schedulesByExam.set(s.exam_id, list);
-    }
-    return published.map((r) =>
-      toExamDto(r, targetsByExam.get(r.id) ?? [], schedulesByExam.get(r.id) ?? []),
-    );
-  }
-
   // Learner / parent: published + audience only
   const accessibleStudents = await resolveAccessibleStudentIds(
     admin,
@@ -648,6 +621,35 @@ export async function updateExamForActor(
     existing.schedule_status !== "published"
   ) {
     await emitExamSchedulePublishedNotifications(admin, actor.userId, dto);
+
+    let seedTargets = targets.map((t) => ({
+      sectionId: t.section_id,
+      classId: t.class_id,
+    }));
+    if (exam.audience_scope === "year" || seedTargets.length === 0) {
+      const { listSections } = await import("../academics/repository.js");
+      const sections = await listSections(admin, {
+        instituteId: exam.institute_id,
+        academicYearId: exam.academic_year_id,
+        status: "active",
+      });
+      seedTargets = sections.map((s) => ({
+        sectionId: s.id,
+        classId: s.class_id,
+      }));
+    }
+
+    const { seedMarkEntriesForExamPublish } = await import(
+      "../marks/service.js"
+    );
+    await seedMarkEntriesForExamPublish(admin, actor, {
+      instituteId: exam.institute_id,
+      academicYearId: exam.academic_year_id,
+      examId: exam.id,
+      maxMarks: exam.total_marks,
+      targets: seedTargets,
+      subjectIds: schedules.map((s) => s.subject_id),
+    });
   }
   return dto;
 }

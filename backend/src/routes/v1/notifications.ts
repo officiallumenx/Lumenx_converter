@@ -13,6 +13,7 @@ import {
   deleteInboxItemForActor,
   emitNotificationForActor,
   getInboxItemForActor,
+  invalidateDeviceTokensForActor,
   listDeviceTokensForActor,
   listInboxForActor,
   listTemplatesForActor,
@@ -61,7 +62,14 @@ const categorySchema = z.enum([
 ]);
 const prioritySchema = z.enum(["normal", "important", "critical", "success"]);
 const templateStatusSchema = z.enum(["draft", "published", "archived"]);
-const deviceAppSchema = z.enum(["connect", "admin", "transport", "nexus", "careers"]);
+const deviceAppSchema = z.enum([
+  "connect",
+  "admin",
+  "transport",
+  "nexus",
+  "careers",
+  "admissions",
+]);
 const devicePlatformSchema = z.enum(["android", "ios", "web"]);
 
 // Static paths BEFORE /:id
@@ -108,6 +116,20 @@ notifications.post("/device-tokens", async (c) => {
     token: body.token,
   });
   return c.json({ data }, 201);
+});
+
+/** Soft-invalidate all tokens for the caller (optional ?app=) — call on logout. */
+notifications.delete("/device-tokens", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(
+    z.object({ app: deviceAppSchema.optional() }),
+    c.req.query(),
+  );
+  const data = await invalidateDeviceTokensForActor(admin, actor, {
+    app: query.app,
+  });
+  return c.json({ data });
 });
 
 notifications.delete("/device-tokens/:id", async (c) => {

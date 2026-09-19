@@ -7,7 +7,7 @@ import { useReveal } from "@/motion/useReveal";
 
 export function GetStartedCTA({
   title = "Ready when you are.",
-  body = "Register the institute, complete verification, and run a full 60-day trial.",
+  body = "Book a demo or start a 60-day trial after approval. This website does not take payment.",
   primary,
   secondary,
 }: {
@@ -26,16 +26,14 @@ export function GetStartedCTA({
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             {primary ?? (
               <CTAButton asChild variant="invert">
-                <Link to="/contact" search={contactSearch("trial")}>
-                  Start 60-day trial
+                <Link to="/contact" search={contactSearch("demo")}>
+                  Book a Demo
                 </Link>
               </CTAButton>
             )}
             {secondary ?? (
               <CTAButton asChild variant="on-ink">
-                <Link to="/contact" search={contactSearch("quote")}>
-                  Talk to us
-                </Link>
+                <Link to="/get-started">Get Started</Link>
               </CTAButton>
             )}
           </div>

@@ -1,11 +1,4 @@
-import {
-  enrollmentsForVehicle,
-  loadTransportOps,
-  notifyAdminStopRequest,
-  recordLocalChangeForSync,
-  syncDriverStopAssignment,
-  TRANSPORT_OPS_CHANGED_EVENT,
-} from "@lumenx/utils";
+import { listApiEnrollmentsForVehicle } from "../api-roster";
 import type {
   RouteSetupRecord,
   RouteSetupStop,
@@ -16,9 +9,7 @@ import type {
 import { canEditAssignment, canEditStop } from "./types";
 import { syncStopAndEnrollmentsToApi } from "./api-sync";
 
-const STORAGE_KEY = "lumenx.transport.route-setup.v1";
-
-/** Shared with Admin approval panel — same localStorage key. */
+/** Fired after in-memory route-setup changes (legacy name kept for subscribers). */
 export const TRANSPORT_APPROVAL_CHANGED_EVENT = "lumenx-transport-approval-changed";
 
 export type RouteSetupDriverScope = {
@@ -35,15 +26,9 @@ export type RouteSetupDriverScope = {
   instituteId?: string;
 };
 
-type RouteSetupStorageV2 = {
-  version: 2;
-  activeRouteId: string | null;
-  byRoute: Record<string, RouteSetupRecord>;
-};
-
 const listeners = new Set<() => void>();
 
-/** Active driver scope — set from session/ops (not seed). */
+/** Active driver scope — set from the signed-in driver assignment. */
 let scope: RouteSetupDriverScope | null = null;
 let byRoute: Record<string, RouteSetupRecord> = {};
 let record: RouteSetupRecord = emptyRecord("unscoped", "—", "No route");
@@ -76,173 +61,19 @@ function seedRecordForScope(s: RouteSetupDriverScope): RouteSetupRecord {
   return emptyRecord(s.routeId, s.routeCode, s.routeName);
 }
 
-function hydrateApprovedFromOps(base: RouteSetupRecord, s: RouteSetupDriverScope): RouteSetupRecord {
-  const ops = loadTransportOps();
-  const sync = ops.driverStopsByRoute[s.routeId];
-  if (!sync || sync.stops.length === 0) {
-    return {
-      ...base,
-      lockedByAdmin: Boolean(ops.routeLocksByRoute[s.routeId]?.locked),
-    };
-  }
-
-  const existingIds = new Set(base.stops.map((st) => st.id));
-  const approvedStops: RouteSetupStop[] = sync.stops
-    .filter((st) => !existingIds.has(st.id))
-    .map((st, index) => ({
-      id: st.id,
-      name: st.name,
-      locationLabel: defaultLocationLabel(st.latitude, st.longitude),
-      latitude: st.latitude,
-      longitude: st.longitude,
-      timestampCreated: st.timestampCreated,
-      updatedAt: sync.updatedAt,
-      createdBy: st.createdBy,
-      studentIds: [...st.studentIds],
-      routeOrder: st.routeOrder || index + 1,
-      status: "approved" as const,
-      submittedAt: st.timestampCreated,
-    }));
-
-  const enrollments = enrollmentsForVehicle(s.vehicleId).filter((e) => e.stopId);
-  const assignmentKeys = new Set(base.assignments.map((a) => `${a.studentId}:${a.stopId}`));
-  const approvedAssignments: StudentStopAssignment[] = [];
-
-  for (const stop of [...base.stops, ...approvedStops].filter((st) => st.status === "approved")) {
-    for (const studentId of stop.studentIds) {
-      const key = `${studentId}:${stop.id}`;
-      if (assignmentKeys.has(key)) continue;
-      const enrollment = enrollments.find((e) => e.studentId === studentId);
-      approvedAssignments.push({
-        id: uid("asn"),
-        studentId,
-        studentName: enrollment?.studentName ?? studentId,
-        studentClass: enrollment?.studentClass ?? "—",
-        stopId: stop.id,
-        stopName: stop.name,
-        status: "approved",
-        createdAt: stop.timestampCreated,
-        updatedAt: stop.updatedAt,
-      });
-      assignmentKeys.add(key);
-    }
-  }
-
-  return {
-    ...base,
-    lockedByAdmin: Boolean(ops.routeLocksByRoute[s.routeId]?.locked),
-    stops: renumber([...base.stops, ...approvedStops]),
-    assignments: [...base.assignments, ...approvedAssignments],
-  };
-}
-
-function normalizeStop(raw: Partial<RouteSetupStop> & Pick<RouteSetupStop, "id">): RouteSetupStop {
-  const latitude = raw.latitude ?? 0;
-  const longitude = raw.longitude ?? 0;
-  const now = new Date().toISOString();
-  return {
-    id: raw.id,
-    name: raw.name ?? "Stop",
-    locationLabel: raw.locationLabel ?? defaultLocationLabel(latitude, longitude),
-    latitude,
-    longitude,
-    timestampCreated: raw.timestampCreated ?? now,
-    updatedAt: raw.updatedAt ?? now,
-    createdBy: raw.createdBy ?? "driver",
-    studentIds: Array.isArray(raw.studentIds) ? [...raw.studentIds] : [],
-    routeOrder: raw.routeOrder ?? 1,
-    status: raw.status ?? "pending",
-    submittedAt: raw.submittedAt,
-    replacesStopId: raw.replacesStopId,
-    rejectionReason: raw.rejectionReason,
-  };
-}
-
-function normalizeAssignment(raw: Partial<StudentStopAssignment> & { id: string }): StudentStopAssignment {
-  const now = new Date().toISOString();
-  return {
-    id: raw.id,
-    studentId: raw.studentId ?? "",
-    studentName: raw.studentName ?? raw.studentId ?? "Student",
-    studentClass: raw.studentClass ?? "—",
-    stopId: raw.stopId ?? "",
-    stopName: raw.stopName ?? "—",
-    status: raw.status ?? "pending",
-    createdAt: raw.createdAt ?? now,
-    updatedAt: raw.updatedAt ?? now,
-    replacesAssignmentId: raw.replacesAssignmentId,
-    rejectionReason: raw.rejectionReason,
-  };
-}
-
-function normalizeRecord(parsed: Partial<RouteSetupRecord>, fallback: RouteSetupRecord): RouteSetupRecord {
-  return {
-    ...fallback,
-    ...parsed,
-    stops: Array.isArray(parsed.stops) ? renumber(parsed.stops.map((s) => normalizeStop(s))) : [],
-    assignments: Array.isArray(parsed.assignments)
-      ? parsed.assignments.map((a) => normalizeAssignment(a))
-      : [],
-  };
-}
-
-function loadStorage(): void {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      byRoute = {};
-      return;
-    }
-    const parsed = JSON.parse(raw) as RouteSetupStorageV2 | RouteSetupRecord;
-    if (parsed && typeof parsed === "object" && "version" in parsed && parsed.version === 2) {
-      const v2 = parsed as RouteSetupStorageV2;
-      byRoute = {};
-      for (const [routeId, rec] of Object.entries(v2.byRoute ?? {})) {
-        byRoute[routeId] = normalizeRecord(rec, emptyRecord(routeId, rec.routeCode ?? routeId, rec.routeName ?? routeId));
-      }
-      return;
-    }
-    // Migrate legacy single-record format
-    const legacy = parsed as RouteSetupRecord;
-    const routeId = legacy.routeId || "legacy";
-    byRoute = {
-      [routeId]: normalizeRecord(legacy, emptyRecord(routeId, legacy.routeCode ?? routeId, legacy.routeName ?? routeId)),
-    };
-  } catch {
-    byRoute = {};
-  }
-}
-
 function emit() {
   listeners.forEach((l) => l());
 }
 
-function persistLocalOnly() {
+function persistMemory() {
   if (scope) {
     byRoute[scope.routeId] = record;
-  }
-  try {
-    const payload: RouteSetupStorageV2 = {
-      version: 2,
-      activeRouteId: scope?.routeId ?? null,
-      byRoute,
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-  } catch {
-    // ignore
   }
   emit();
 }
 
 function persist() {
-  persistLocalOnly();
-  recordLocalChangeForSync({
-    app: "transport",
-    module: "Route setup",
-    label: "Save route stops",
-    op: "update",
-  });
-  pushApprovedOpsBridge();
+  persistMemory();
 }
 
 function queueApiStopSync(stop: RouteSetupStop): void {
@@ -267,18 +98,10 @@ function queueApiStopSync(stop: RouteSetupStop): void {
         }),
       };
       if (scope) byRoute[scope.routeId] = record;
-      persistLocalOnly();
+      persistMemory();
       emit();
     })
     .catch(() => undefined);
-}
-
-function applyAdminLockFromBridge() {
-  if (!scope) return;
-  const lock = loadTransportOps().routeLocksByRoute[scope.routeId];
-  if (!lock || record.lockedByAdmin === lock.locked) return;
-  record = { ...record, lockedByAdmin: lock.locked };
-  persistLocalOnly();
 }
 
 /** Switch route-setup + sync context to the logged-in driver's bus/route. */
@@ -307,9 +130,9 @@ export function setRouteSetupDriverScope(next: RouteSetupDriverScope): void {
         routeName: next.routeName,
       }
     : seedRecordForScope(next);
-  record = hydrateApprovedFromOps(base, next);
+  record = base;
   byRoute[next.routeId] = record;
-  persistLocalOnly();
+  persistMemory();
 }
 
 /** Merge API-approved stops + enrollments into the active route-setup record. */
@@ -336,40 +159,19 @@ export function applyApiApprovedHydration(input: {
 }): void {
   if (!scope) return;
 
-  const apiById = new Map(input.stops.map((s) => [s.id, s]));
-  const nextStops = record.stops.map((local) => {
-    const api =
-      apiById.get(local.id) ??
-      (local.apiStopId ? apiById.get(local.apiStopId) : undefined);
-    if (!api) return local;
-    const status: SubmissionStatus =
-      api.approvalStatus === "approved"
-        ? "approved"
-        : api.approvalStatus === "rejected"
-          ? "rejected"
-          : local.status === "draft"
-            ? "pending"
-            : local.status;
-    return {
-      ...local,
-      apiStopId: api.id,
-      name: api.name,
-      locationLabel: api.locationLabel || local.locationLabel,
-      latitude: api.latitude,
-      longitude: api.longitude,
-      routeOrder: api.routeOrder + 1,
-      status,
-      updatedAt: new Date().toISOString(),
-    };
-  });
+  const now = new Date().toISOString();
+  const mapStatus = (approvalStatus: string): SubmissionStatus => {
+    if (approvalStatus === "approved") return "approved";
+    if (approvalStatus === "rejected") return "rejected";
+    return "pending";
+  };
 
-  const knownIds = new Set(
-    nextStops.flatMap((s) => [s.id, s.apiStopId].filter(Boolean) as string[]),
-  );
-  const imported: RouteSetupStop[] = input.stops
-    .filter((s) => s.approvalStatus === "approved" && !knownIds.has(s.id))
+  const apiStops: RouteSetupStop[] = input.stops
+    .slice()
+    .sort((a, b) => a.routeOrder - b.routeOrder)
     .map((s) => ({
       id: s.id,
+      apiStopId: s.id,
       name: s.name,
       locationLabel: s.locationLabel || defaultLocationLabel(s.latitude, s.longitude),
       latitude: s.latitude,
@@ -378,109 +180,79 @@ export function applyApiApprovedHydration(input: {
       updatedAt: s.createdAt,
       createdBy: "api",
       studentIds: input.students
-        .filter((st) => st.pickupStopId === s.id && st.approvalStatus === "approved")
+        .filter((st) => st.pickupStopId === s.id)
         .map((st) => st.studentId),
       routeOrder: s.routeOrder + 1,
-      status: "approved" as const,
+      status: mapStatus(s.approvalStatus),
       submittedAt: s.createdAt,
-      apiStopId: s.id,
     }));
 
-  const mergedStops = renumber([...nextStops, ...imported]);
-  const stopNameById = new Map(mergedStops.map((s) => [s.id, s.name]));
-  const assignmentKeys = new Set(
-    record.assignments.map((a) => `${a.studentId}:${a.stopId}`),
-  );
-  const importedAssignments: StudentStopAssignment[] = [];
-  const now = new Date().toISOString();
+  // Session-only: keep pending stops that have not been pushed to the API yet.
+  const apiIds = new Set(input.stops.map((s) => s.id));
+  const unsyncedLocal = record.stops.filter((s) => {
+    if (s.apiStopId && apiIds.has(s.apiStopId)) return false;
+    if (apiIds.has(s.id)) return false;
+    return s.status === "pending" || s.status === "draft";
+  });
 
-  for (const student of input.students.filter((s) => s.approvalStatus === "approved")) {
-    const stopId = student.pickupStopId;
-    if (!mergedStops.some((s) => s.id === stopId || s.apiStopId === stopId)) continue;
-    const key = `${student.studentId}:${stopId}`;
-    if (assignmentKeys.has(key)) continue;
-    importedAssignments.push({
-      id: uid("asn"),
-      studentId: student.studentId,
-      studentName: student.studentName,
-      studentClass: student.classLabel,
-      stopId,
-      stopName: stopNameById.get(stopId) ?? "Stop",
-      status: "approved",
+  const mergedStops = renumber([...apiStops, ...unsyncedLocal]);
+  const stopNameById = new Map(
+    mergedStops.flatMap((s) => {
+      const entries: Array<[string, string]> = [[s.id, s.name]];
+      if (s.apiStopId) entries.push([s.apiStopId, s.name]);
+      return entries;
+    }),
+  );
+
+  const apiAssignments: StudentStopAssignment[] = input.students
+    .filter((s) => Boolean(s.pickupStopId))
+    .map((s) => ({
+      id: s.enrollmentId,
+      studentId: s.studentId,
+      studentName: s.studentName,
+      studentClass: s.classLabel,
+      stopId: s.pickupStopId,
+      stopName: stopNameById.get(s.pickupStopId) ?? "Stop",
+      status: mapStatus(s.approvalStatus),
       createdAt: now,
       updatedAt: now,
-      apiEnrollmentId: student.enrollmentId,
-    });
-    assignmentKeys.add(key);
-  }
+      apiEnrollmentId: s.enrollmentId,
+    }));
 
-  const nextAssignments = record.assignments.map((a) => {
-    const match = input.students.find(
-      (s) =>
-        s.studentId === a.studentId &&
-        (s.pickupStopId === a.stopId || s.enrollmentId === a.apiEnrollmentId),
-    );
-    if (!match) return a;
-    return {
-      ...a,
-      apiEnrollmentId: match.enrollmentId,
-      studentName: match.studentName,
-      studentClass: match.classLabel,
-      status:
-        match.approvalStatus === "approved"
-          ? ("approved" as const)
-          : a.status,
-    };
+  const unsyncedAssignments = record.assignments.filter((a) => {
+    if (a.apiEnrollmentId && input.students.some((s) => s.enrollmentId === a.apiEnrollmentId)) {
+      return false;
+    }
+    return unsyncedLocal.some((s) => s.id === a.stopId);
   });
 
   record = {
     ...record,
     lockedByAdmin: input.lockedByAdmin,
     stops: mergedStops,
-    assignments: [...nextAssignments, ...importedAssignments],
+    assignments: [...apiAssignments, ...unsyncedAssignments],
     status:
-      mergedStops.some((s) => s.status === "approved") || record.status === "configured"
+      mergedStops.some((s) => s.status === "approved") || mergedStops.length > 0
         ? "configured"
-        : record.status,
+        : record.setupInProgress
+          ? record.status
+          : "not_configured",
   };
   byRoute[scope.routeId] = record;
-  persistLocalOnly();
-  emit();
+  persistMemory();
 }
 
 export function getRouteSetupDriverScope(): RouteSetupDriverScope | null {
   return scope;
 }
 
+// Clear legacy route-setup draft key once (migration off localStorage SoT).
 if (typeof window !== "undefined") {
-  loadStorage();
-  window.addEventListener(TRANSPORT_OPS_CHANGED_EVENT, applyAdminLockFromBridge);
-  window.addEventListener(TRANSPORT_APPROVAL_CHANGED_EVENT, reloadActiveFromStorage);
-  window.addEventListener("storage", (e) => {
-    if (e.key === STORAGE_KEY || e.key === null) reloadActiveFromStorage();
-  });
-}
-
-/** Reload active route record from localStorage (Admin approve/decline). */
-function reloadActiveFromStorage() {
-  const previousScope = scope;
-  loadStorage();
-  if (!previousScope) {
-    emit();
-    return;
+  try {
+    localStorage.removeItem("lumenx.transport.route-setup.v1");
+  } catch {
+    /* ignore */
   }
-  scope = previousScope;
-  const existing = byRoute[previousScope.routeId];
-  const base = existing
-    ? {
-        ...existing,
-        routeCode: previousScope.routeCode,
-        routeName: previousScope.routeName,
-      }
-    : seedRecordForScope(previousScope);
-  record = hydrateApprovedFromOps(base, previousScope);
-  byRoute[previousScope.routeId] = record;
-  emit();
 }
 
 function emitApprovalChanged() {
@@ -489,48 +261,30 @@ function emitApprovalChanged() {
   }
 }
 
-/** Sync only Admin-approved stops — pending changes stay local until approved. */
-function pushApprovedOpsBridge() {
-  if (!scope) return;
-  const approvedStops = record.stops.filter((s) => s.status === "approved");
-  if (approvedStops.length === 0) return;
-  syncDriverStopAssignment({
-    routeId: scope.routeId,
-    vehicleId: scope.vehicleId,
-    vehicleNumber: scope.vehicleNumber,
-    createdBy: scope.driverId,
-    createdByName: scope.driverName,
-    stops: approvedStops.map((s) => {
-      const studentIds = record.assignments
-        .filter((a) => a.stopId === s.id && a.status === "approved")
-        .map((a) => a.studentId);
-      return {
-        id: s.id,
-        name: s.name,
-        latitude: s.latitude,
-        longitude: s.longitude,
-        studentIds: studentIds.length > 0 ? studentIds : [...s.studentIds],
-        routeOrder: s.routeOrder,
-        timestampCreated: s.timestampCreated,
-        createdBy: s.createdBy,
-        createdByName: scope!.driverName,
-      };
-    }),
-  });
-}
-
 function renumber(stops: RouteSetupStop[]): RouteSetupStop[] {
   return stops.map((s, i) => ({ ...s, routeOrder: i + 1 }));
 }
 
 function enrollmentMeta(studentId: string) {
-  const vehicleId = scope?.vehicleId;
-  const enrollment = vehicleId
-    ? enrollmentsForVehicle(vehicleId).find((e) => e.studentId === studentId)
-    : undefined;
+  const fromApi = listApiEnrollmentsForVehicle(scope?.vehicleId).find(
+    (e) => e.studentId === studentId,
+  );
+  if (fromApi) {
+    return {
+      studentName: fromApi.studentName,
+      studentClass: fromApi.studentClass,
+    };
+  }
+  const existing = record.assignments.find((a) => a.studentId === studentId);
+  if (existing) {
+    return {
+      studentName: existing.studentName,
+      studentClass: existing.studentClass,
+    };
+  }
   return {
-    studentName: enrollment?.studentName ?? studentId,
-    studentClass: enrollment?.studentClass ?? "—",
+    studentName: studentId,
+    studentClass: "—",
   };
 }
 
@@ -656,7 +410,7 @@ export function startRouteSetupSession(createdBy: string): RouteSetupRecord {
         ? "configured"
         : "not_configured",
   };
-  persistLocalOnly();
+  persistMemory();
   return record;
 }
 
@@ -710,13 +464,6 @@ export function upsertRouteSetupStop(
       record = { ...record, assignments: syncAssignmentsForStop(changeRequest) };
       persist();
       queueApiStopSync(changeRequest);
-      notifyAdminStopRequest({
-        stopId: changeRequest.id,
-        stopName: changeRequest.name,
-        routeCode: record.routeCode,
-        driverName: getRouteSetupDriverScope()?.driverName,
-        resubmit: true,
-      });
       return record;
     }
 
@@ -755,13 +502,6 @@ export function upsertRouteSetupStop(
     record = { ...record, assignments: syncAssignmentsForStop(updated) };
     persist();
     queueApiStopSync(updated);
-    notifyAdminStopRequest({
-      stopId: updated.id,
-      stopName: updated.name,
-      routeCode: record.routeCode,
-      driverName: getRouteSetupDriverScope()?.driverName,
-      resubmit: wasRejected || existing.status === "pending",
-    });
     return record;
   }
 
@@ -801,13 +541,6 @@ export function upsertRouteSetupStop(
   record = { ...record, assignments: syncAssignmentsForStop(next) };
   persist();
   queueApiStopSync(next);
-  notifyAdminStopRequest({
-    stopId: next.id,
-    stopName: next.name,
-    routeCode: record.routeCode,
-    driverName: getRouteSetupDriverScope()?.driverName,
-    resubmit: false,
-  });
   return record;
 }
 
@@ -865,7 +598,7 @@ export function removePendingAssignment(assignmentId: string): RouteSetupRecord 
         : s,
     ),
   };
-  persistLocalOnly();
+  persistMemory();
   return record;
 }
 
@@ -910,7 +643,7 @@ export function movePendingAssignment(assignmentId: string, targetStopId: string
       return s;
     }),
   };
-  persistLocalOnly();
+  persistMemory();
   return record;
 }
 
@@ -923,130 +656,7 @@ export function finishRouteSetup(): RouteSetupRecord {
     setupInProgress: false,
     setupFinishedAt: new Date().toISOString(),
   };
-  persistLocalOnly();
-  return record;
-}
-
-export function setRouteSetupAdminLock(locked: boolean): RouteSetupRecord {
-  record = { ...record, lockedByAdmin: locked };
-  persistLocalOnly();
-  return record;
-}
-
-/**
- * Frontend mock Admin approve — same localStorage as Admin panel.
- * Approves the stop and its student assignments; activates change requests.
- */
-export function applyAdminApproveStop(stopId: string): RouteSetupRecord {
-  if (record.lockedByAdmin) return record;
-  const stop = record.stops.find((s) => s.id === stopId);
-  if (!stop || stop.status !== "pending") return record;
-  const now = new Date().toISOString();
-
-  if (stop.replacesStopId) {
-    const originalId = stop.replacesStopId;
-    record = {
-      ...record,
-      stops: renumber(
-        record.stops
-          .filter((s) => s.id !== originalId)
-          .map((s) =>
-            s.id === stopId
-              ? {
-                  ...s,
-                  status: "approved" as const,
-                  updatedAt: now,
-                  replacesStopId: undefined,
-                  rejectionReason: undefined,
-                }
-              : s,
-          ),
-      ),
-      assignments: record.assignments
-        .filter((a) => !(a.stopId === originalId && a.status === "approved"))
-        .map((a) => {
-          if (a.stopId === originalId) {
-            return {
-              ...a,
-              stopId,
-              stopName: stop.name,
-              status: "approved" as const,
-              updatedAt: now,
-              replacesAssignmentId: undefined,
-              rejectionReason: undefined,
-            };
-          }
-          if (a.stopId === stopId) {
-            return {
-              ...a,
-              status: "approved" as const,
-              updatedAt: now,
-              replacesAssignmentId: undefined,
-              rejectionReason: undefined,
-            };
-          }
-          return a;
-        }),
-    };
-  } else {
-    record = {
-      ...record,
-      stops: record.stops.map((s) =>
-        s.id === stopId
-          ? {
-              ...s,
-              status: "approved" as const,
-              updatedAt: now,
-              rejectionReason: undefined,
-            }
-          : s,
-      ),
-      assignments: record.assignments.map((a) =>
-        a.stopId === stopId
-          ? {
-              ...a,
-              status: "approved" as const,
-              updatedAt: now,
-              rejectionReason: undefined,
-            }
-          : a,
-      ),
-    };
-  }
-
-  persist();
-  emitApprovalChanged();
-  return record;
-}
-
-/**
- * Frontend mock Admin decline with reason — stop stays visible for edit/resubmit.
- */
-export function applyAdminDeclineStop(
-  stopId: string,
-  reason = "Location or student list needs correction.",
-): RouteSetupRecord {
-  if (record.lockedByAdmin) return record;
-  const stop = record.stops.find((s) => s.id === stopId);
-  if (!stop || stop.status !== "pending") return record;
-  const now = new Date().toISOString();
-  const trimmed = reason.trim() || "Location or student list needs correction.";
-
-  record = {
-    ...record,
-    stops: record.stops.map((s) =>
-      s.id === stopId
-        ? { ...s, status: "rejected" as const, updatedAt: now, rejectionReason: trimmed }
-        : s,
-    ),
-    assignments: record.assignments.map((a) =>
-      a.stopId === stopId && a.status === "pending"
-        ? { ...a, status: "rejected" as const, updatedAt: now, rejectionReason: trimmed }
-        : a,
-    ),
-  };
-  persistLocalOnly();
-  emitApprovalChanged();
+  persistMemory();
   return record;
 }
 
@@ -1122,17 +732,11 @@ export function findDuplicateRouteStop(input: {
 
 export function resetRouteSetupStore(): void {
   if (scope) {
-    record = hydrateApprovedFromOps(seedRecordForScope(scope), scope);
+    record = seedRecordForScope(scope);
     byRoute[scope.routeId] = record;
   } else {
     record = emptyRecord("unscoped", "—", "No route");
     byRoute = {};
-  }
-  try {
-    if (!scope) localStorage.removeItem(STORAGE_KEY);
-    else persistLocalOnly();
-  } catch {
-    // ignore
   }
   emit();
 }

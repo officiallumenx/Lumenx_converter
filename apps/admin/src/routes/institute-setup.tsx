@@ -4,10 +4,10 @@
  * ───────────────────────────────────────────────────────────── */
 
 import { IconChip } from "@/components/IconChip";
+import { LumenXAdminLogo } from "@/components/LumenXAdminLogo";
 import { createFileRoute, Link, Navigate, useNavigate } from "@tanstack/react-router";
 import { useState, useRef, useCallback, useEffect } from "react";
 import {
-  Sparkles,
   ArrowLeft,
   ArrowRight,
   Check,
@@ -816,13 +816,7 @@ function InstituteSetupDemoPage() {
 
         <div className="relative z-10">
           <div className="flex items-center gap-2.5 mb-10">
-            <div className="size-9 rounded-xl bg-primary flex items-center justify-center shadow-glow">
-              <Sparkles className="size-4 text-primary-foreground" />
-            </div>
-            <div>
-              <div className="font-bold text-sm tracking-tight">LUMENX ADMIN</div>
-              <div className="text-[10px] text-muted-foreground">Institute onboarding</div>
-            </div>
+            <LumenXAdminLogo size="md" className="max-h-10" />
           </div>
 
           <h2 className="text-2xl font-bold tracking-tight leading-snug">
@@ -889,10 +883,7 @@ function InstituteSetupDemoPage() {
       <div className="flex-1 flex flex-col min-h-0 min-w-0">
         <div className="lx-auth-top-bar flex items-center justify-between border-b border-border/50 shrink-0">
           <div className="flex items-center gap-2 xl:hidden">
-            <div className="size-7 rounded-lg bg-primary flex items-center justify-center">
-              <Sparkles className="size-3.5 text-primary-foreground" />
-            </div>
-            <span className="font-bold text-xs tracking-tight">LUMENX ADMIN</span>
+            <LumenXAdminLogo size="xs" className="max-h-7" />
           </div>
           <div className="flex items-center gap-3 ml-auto">
             <span className="text-[11px] text-muted-foreground">

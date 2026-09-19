@@ -5,6 +5,7 @@ interface ImportMetaEnv {
   readonly VITE_CONNECT_ORIGIN?: string;
   readonly VITE_TRANSPORT_ORIGIN?: string;
   readonly VITE_NEXUS_ORIGIN?: string;
+  readonly VITE_CAREERS_ORIGIN?: string;
   readonly VITE_ADMIN_APK_URL?: string;
   readonly VITE_CONNECT_APK_URL?: string;
   readonly VITE_TRANSPORT_APK_URL?: string;

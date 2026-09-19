@@ -42,10 +42,25 @@ export const envSchema = z.object({
   SUPABASE_ANON_KEY: optionalString,
   SUPABASE_SERVICE_ROLE_KEY: optionalString,
 
-  // Firebase — optional during local dev; required in production
+  // Firebase Admin (server-only — never expose PRIVATE_KEY / CLIENT_EMAIL to Vite)
   FIREBASE_PROJECT_ID: optionalString,
   FIREBASE_CLIENT_EMAIL: optionalString,
   FIREBASE_PRIVATE_KEY: optionalString,
+  /** Public GA4 / Firebase Analytics measurement id (safe for clients). */
+  FIREBASE_ANALYTICS_MEASUREMENT_ID: optionalString,
+  /**
+   * Backend hint that mobile/web clients should enable Crashlytics SDKs.
+   * Crashlytics itself is client-side; this does not send crash reports from Hono.
+   */
+  FIREBASE_CRASHLYTICS_ENABLED: z
+    .enum(["true", "false", "1", "0"])
+    .optional()
+    .transform((v) => v === "true" || v === "1"),
+  /** When true, Firebase ID-token verify checks revocation. Default false. */
+  FIREBASE_AUTH_CHECK_REVOKED: z
+    .enum(["true", "false", "1", "0"])
+    .optional()
+    .transform((v) => v === "true" || v === "1"),
 
   /**
    * OTP delivery:
@@ -54,6 +69,20 @@ export const envSchema = z.object({
    * Production always behaves as live regardless of this flag.
    */
   OTP_DELIVERY_MODE: z.enum(["demo", "live"]).default("demo"),
+
+  /**
+   * Local/dev only: mint a Nexus root session without OTP/password/PIN UI.
+   * Never enable in production. Used by POST /api/v1/auth/nexus/open-access.
+   */
+  NEXUS_OPEN_ACCESS: z
+    .enum(["true", "false", "1", "0", "on", "off", "yes", "no"])
+    .optional()
+    .transform((v) => {
+      const t = (v ?? "").trim().toLowerCase();
+      return t === "true" || t === "1" || t === "on" || t === "yes";
+    }),
+  /** Email of the platform operator used for open-access sessions. */
+  NEXUS_BOOTSTRAP_EMAIL: optionalString,
 
   // SMS — set OTP_SMS_PROVIDER=twilio|webhook for live parent/staff mobile OTPs
   OTP_SMS_PROVIDER: z.enum(["none", "twilio", "webhook"]).default("none"),

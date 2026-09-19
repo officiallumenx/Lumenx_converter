@@ -3,9 +3,8 @@
 **App:** `apps/admissions` (standalone Vite app, default port **5177**)  
 **Theme:** Isolated from Connect; own auth session, shell, and nav. Connect redirects to Admissions via `VITE_ADMISSIONS_ORIGIN`.
 
-**Auth modes:**
-- `VITE_ADMISSIONS_AUTH_MODE=demo` — localStorage + demo accounts
-- `VITE_ADMISSIONS_AUTH_MODE=api` — Supabase + `/api/v1/admissions/*` REST
+**Auth:** API-only (`VITE_ADMISSIONS_AUTH_MODE=api`). Demo Mode is no longer supported.
+Uses Supabase + `/api/v1/admissions/*` REST with Firebase (or Supabase) interactive login.
 
 ---
 

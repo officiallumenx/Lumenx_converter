@@ -218,6 +218,8 @@ export type PortalTeacherAttendanceDto = {
   academicYearId: string;
   attendanceDate: string;
   method: AttendanceMethod | null;
+  /** Flowchart Taken By — Connect marks only when class_teacher or current_period_teacher. */
+  owner: AttendanceOwner | null;
   configVersionId: string | null;
   slots: PortalTeacherAttendanceSlotDto[];
 };

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useReloadKey } from "@/hooks/useReloadKey";
 import { achievementsRepository } from "@/lib/activity/achievements/repositories";
 import type {
   AchievementListFilters,
@@ -38,11 +39,11 @@ export function useAchievements(options?: UseAchievementsOptions) {
     ...(lockedSourceModule ? { sourceModule: lockedSourceModule } : {}),
   });
   const [isLoading, setIsLoading] = useState(true);
-  const [tick, setTick] = useState(0);
+  const [tick, setTick] = useReloadKey();
   const seq = useRef(0);
   const loadedRef = useRef(false);
 
-  const refresh = useCallback(() => setTick((t) => t + 1), []);
+  const refresh = useCallback(() => setTick((t) => t + 1), [setTick]);
 
   const updateFilters = useCallback(
     (patch: Partial<AchievementListFilters>) => {
@@ -53,7 +54,7 @@ export function useAchievements(options?: UseAchievementsOptions) {
       }));
       setTick((t) => t + 1);
     },
-    [lockedSourceModule],
+    [lockedSourceModule, setTick],
   );
 
   useEffect(() => {

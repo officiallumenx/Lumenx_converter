@@ -9,14 +9,23 @@ describe("loadTransportVehiclesList", () => {
     vi.clearAllMocks();
   });
 
-  it("returns demo status without calling API in demo mode", async () => {
+  it("rejects demo auth mode and stays API-only", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const listTransportVehicles = vi.fn();
-    vi.doMock("./api", () => ({ listTransportVehicles }));
+    const listTransportVehicles = vi.fn().mockResolvedValue([]);
+    vi.doMock("./api", () => ({
+      listTransportVehicles,
+      listTransportDrivers: vi.fn(),
+      listTransportRoutes: vi.fn(),
+      listTransportStops: vi.fn(),
+      listTransportEnrollments: vi.fn(),
+      getTransportSettings: vi.fn(),
+    }));
+    const { isApiAuthMode } = await import("@/auth/auth-mode");
+    expect(isApiAuthMode()).toBe(true);
     const { loadTransportVehiclesList } = await import("./load");
     const result = await loadTransportVehiclesList(INST);
-    expect(result.status).toBe("demo");
-    expect(listTransportVehicles).not.toHaveBeenCalled();
+    expect(result.status).not.toBe("demo");
+    expect(listTransportVehicles).toHaveBeenCalled();
   });
 
   it("returns forbidden on 403 without demo fallback", async () => {
@@ -129,13 +138,27 @@ describe("loadTransportEnrollmentsList", () => {
     vi.clearAllMocks();
   });
 
-  it("returns demo status without calling API in demo mode", async () => {
+  it("calls API in product mode even if VITE_ADMIN_AUTH_MODE=demo is set", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const listTransportEnrollments = vi.fn();
-    vi.doMock("./api", () => ({ listTransportEnrollments }));
+    const listTransportEnrollments = vi.fn().mockResolvedValue([]);
+    const listTransportRoutes = vi.fn().mockResolvedValue([]);
+    const listTransportStops = vi.fn().mockResolvedValue([]);
+    const listStudents = vi.fn().mockResolvedValue([]);
+    vi.doMock("./api", () => ({
+      listTransportEnrollments,
+      listTransportRoutes,
+      listTransportStops,
+      listTransportVehicles: vi.fn(),
+      listTransportDrivers: vi.fn(),
+      getTransportSettings: vi.fn(),
+    }));
+    vi.doMock("@/lib/students/api", () => ({ listStudents }));
+    vi.doMock("@/lib/students/map", () => ({
+      studentDtosToListItems: (rows: unknown[]) => rows,
+    }));
     const { loadTransportEnrollmentsList } = await import("./load");
     const result = await loadTransportEnrollmentsList(INST);
-    expect(result.status).toBe("demo");
-    expect(listTransportEnrollments).not.toHaveBeenCalled();
+    expect(result.status).not.toBe("demo");
+    expect(listTransportEnrollments).toHaveBeenCalled();
   });
 });

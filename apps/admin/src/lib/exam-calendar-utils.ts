@@ -120,6 +120,36 @@ export function assignSubjectsToDates(
   return assignments;
 }
 
+/**
+ * Flowchart: end date is fetched automatically after selecting subjects,
+ * skipping holidays / non-working days. Admin may still override the result.
+ */
+export function suggestExamEndDate(
+  startDate: string,
+  subjectCount: number,
+  extraBlockedDates: readonly string[] = [],
+): string {
+  if (!startDate || subjectCount <= 0) return startDate;
+  const extra = new Set(extraBlockedDates);
+  let cur = startDate;
+  let placed = 0;
+  let guard = 0;
+  const maxDays = 365;
+  let lastWorking = startDate;
+
+  while (placed < subjectCount && guard < maxDays) {
+    if (!isBlockedExamDay(cur) && !extra.has(cur)) {
+      placed += 1;
+      lastWorking = cur;
+    }
+    if (placed >= subjectCount) break;
+    cur = addDaysIso(cur, 1);
+    guard += 1;
+  }
+
+  return lastWorking;
+}
+
 export function buildExamCalendarDays(
   startDate: string,
   endDate: string,

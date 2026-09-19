@@ -17,13 +17,12 @@ import { resetTransportStores } from "@/lib/transport";
 import { isApiAuthMode } from "@/lib/auth/auth-mode";
 import {
   apiSignInWithPassword,
+  apiSignInWithPhonePin,
   apiSignOut,
   hydrateApiTransportSession,
 } from "@/lib/auth/api-auth";
 import { setLumenXFeedbackTransport } from "@lumenx/utils";
 import { getSupabaseAccessToken } from "@/lib/supabase-browser";
-
-import { isValidIndianMobile, type DemoDriver } from "./demo-drivers";
 
 export interface TransportSessionUser {
   id: string;
@@ -38,8 +37,8 @@ export interface TransportSessionUser {
 interface TransportAuthState {
   user: TransportSessionUser | null;
   hydrated: boolean;
-  signIn: (driver: DemoDriver) => void;
   signInWithPassword: (email: string, password: string) => Promise<void>;
+  signInWithPhonePin: (phone: string, pin: string, instituteId?: string) => Promise<void>;
   signOut: () => void;
   apiMode: boolean;
 }
@@ -47,15 +46,6 @@ interface TransportAuthState {
 const Ctx = createContext<TransportAuthState | null>(null);
 
 const storage = createBrowserAuthStorage();
-
-function toSessionUser(driver: DemoDriver): TransportSessionUser {
-  return {
-    id: driver.id,
-    name: driver.name,
-    phone: driver.phone,
-    employeeId: driver.employeeId,
-  };
-}
 
 function persistSession(user: TransportSessionUser | null): void {
   if (!user) {
@@ -74,32 +64,21 @@ export function TransportAuthProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     async function hydrate() {
       try {
-        if (apiMode) {
-          const session = await hydrateApiTransportSession();
-          if (!cancelled && session) {
-            setUser({
-              id: session.userId,
-              name: session.name,
-              phone: session.phone,
-              employeeId: session.driverId,
-              instituteId: session.instituteId,
-              driverId: session.driverId,
-              email: session.email,
-            });
-          }
-        } else {
-          const raw = storage.getItem(TRANSPORT_STORAGE_KEYS.session);
-          if (raw) {
-            const parsed = JSON.parse(raw) as TransportSessionUser;
-            if (parsed?.id && parsed?.phone && isValidIndianMobile(parsed.phone)) {
-              if (!cancelled) setUser(parsed);
-            } else {
-              clearTransportSession(storage);
-            }
-          }
+        const session = await hydrateApiTransportSession();
+        if (!cancelled && session) {
+          setUser({
+            id: session.userId,
+            name: session.name,
+            phone: session.phone,
+            employeeId: session.driverId,
+            instituteId: session.instituteId,
+            driverId: session.driverId,
+            email: session.email,
+          });
         }
       } catch {
-        clearTransportSession(storage);
+        // Keep any persisted UI session only if hydrate failed transiently —
+        // do not clear storage here (api-auth already signs out on 401/403).
       } finally {
         if (!cancelled) setHydrated(true);
       }
@@ -108,13 +87,9 @@ export function TransportAuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [apiMode]);
+  }, []);
 
   useEffect(() => {
-    if (!apiMode) {
-      setLumenXFeedbackTransport(null);
-      return () => setLumenXFeedbackTransport(null);
-    }
     const instituteId = user?.instituteId?.trim() ?? "";
     const UUID_RE =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -154,39 +129,50 @@ export function TransportAuthProvider({ children }: { children: ReactNode }) {
     return () => setLumenXFeedbackTransport(null);
   }, [apiMode, user?.instituteId]);
 
-  const signIn = useCallback((driver: DemoDriver) => {
-    const sessionUser = toSessionUser(driver);
-    setUser(sessionUser);
-    persistSession(sessionUser);
-  }, []);
+  const toSessionUser = (session: Awaited<ReturnType<typeof apiSignInWithPhonePin>>): TransportSessionUser => ({
+    id: session.userId,
+    name: session.name,
+    phone: session.phone,
+    employeeId: session.driverId,
+    instituteId: session.instituteId,
+    driverId: session.driverId,
+    email: session.email,
+  });
 
   const signInWithPassword = useCallback(async (email: string, password: string) => {
     const session = await apiSignInWithPassword(email, password);
-    const sessionUser: TransportSessionUser = {
-      id: session.userId,
-      name: session.name,
-      phone: session.phone,
-      employeeId: session.driverId,
-      instituteId: session.instituteId,
-      driverId: session.driverId,
-      email: session.email,
-    };
+    const sessionUser = toSessionUser(session);
     setUser(sessionUser);
     persistSession(sessionUser);
   }, []);
 
+  const signInWithPhonePin = useCallback(
+    async (phone: string, pin: string, instituteId?: string) => {
+      const session = await apiSignInWithPhonePin(phone, pin, instituteId);
+      const sessionUser = toSessionUser(session);
+      setUser(sessionUser);
+      persistSession(sessionUser);
+    },
+    [],
+  );
+
   const signOut = useCallback(() => {
     setUser(null);
-    if (apiMode) {
-      void apiSignOut();
-    }
+    void apiSignOut();
     clearTransportSession(storage);
     resetTransportStores();
-  }, [apiMode]);
+  }, []);
 
   const value = useMemo(
-    () => ({ user, hydrated, signIn, signInWithPassword, signOut, apiMode }),
-    [user, hydrated, signIn, signInWithPassword, signOut, apiMode],
+    () => ({
+      user,
+      hydrated,
+      signInWithPassword,
+      signInWithPhonePin,
+      signOut,
+      apiMode,
+    }),
+    [user, hydrated, signInWithPassword, signInWithPhonePin, signOut, apiMode],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

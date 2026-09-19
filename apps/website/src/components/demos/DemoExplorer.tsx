@@ -92,23 +92,22 @@ export function DemoExplorer({
           </div>
         ) : (
           <p className="mt-8 max-w-2xl text-sm text-muted-foreground">
-            Careers is a Connect portal. The panels above are mock listings — they do not post a job or hire anyone.
+            Careers is the LumenX hiring web app. The panels above are mock listings — they do not post a job or hire
+            anyone.
           </p>
         )}
 
         <div className="mt-8 flex flex-wrap gap-3">
           <CTAButton asChild>
-            <Link to="/get-started" search={{ interest: interestForProduct(item.id), step: "choose" }}>
-              Get started
+            <Link to="/contact" search={contactSearch("demo")}>
+              Book a Demo
             </Link>
           </CTAButton>
           <CTAButton asChild variant="secondary">
-            <Link to="/contact" search={contactSearch("trial")}>
-              Start 60-day trial
-            </Link>
+            <Link to="/get-started">Get Started</Link>
           </CTAButton>
           <CTAButton asChild variant="ghost">
-            <Link to="/products/$slug" params={{ slug: item.id }}>
+            <Link to="/platform/$slug" params={{ slug: item.id }}>
               {meta.shortName} product page
             </Link>
           </CTAButton>
@@ -116,12 +115,4 @@ export function DemoExplorer({
       </div>
     </div>
   );
-}
-
-function interestForProduct(id: DemoExploreId) {
-  if (id === "admin") return "office" as const;
-  if (id === "connect") return "families" as const;
-  if (id === "transport") return "trips" as const;
-  if (id === "admissions") return "intake" as const;
-  return "hiring" as const;
 }

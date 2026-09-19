@@ -10,8 +10,10 @@ import {
   Link,
 } from "@tanstack/react-router";
 import { useCallback, useEffect, useLayoutEffect, useSyncExternalStore } from "react";
+import { ensureFirebasePhoneAuthHost } from "@lumenx/auth";
 
 import appCss from "../styles.css?url";
+import logoUrl from "../assets/lumenx-admin-logo.png?url";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AdminActionToastProvider } from "@/components/AdminActionToast";
 import { AdminChrome } from "@/components/AdminChrome";
@@ -37,7 +39,13 @@ import { LumenXNativeShell } from "@lumenx/capacitor/native-shell";
 import { OfflineSyncHost, TypographyProvider } from "@lumenx/ui";
 import { Toaster } from "@lumenx/ui/sonner";
 import { InAppAlertListener } from "@/components/InAppAlertListener";
+
+// Firebase Phone Auth fails on hostname `localhost` — stay on 127.0.0.1.
+if (typeof window !== "undefined") {
+  ensureFirebasePhoneAuthHost();
+}
 import { PushDeviceTokenRegistration } from "@/components/PushDeviceTokenRegistration";
+import { FirebaseClientServices } from "@/components/FirebaseClientServices";
 import { subscribeInstituteRegistrations } from "@lumenx/utils";
 import { useState } from "react";
 import { syncAdminTenantForUser } from "@/lib/sync-admin-tenant";
@@ -94,6 +102,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "description", content: "Premium institute operating system for principals, heads, and administrators." },
     ],
     links: [
+      { rel: "icon", href: logoUrl, type: "image/png" },
+      { rel: "apple-touch-icon", href: logoUrl },
       { rel: "stylesheet", href: appCss },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "" },
@@ -166,6 +176,15 @@ function AuthGate() {
     if (registrationGate.kind !== "allow") return;
     try {
       syncAdminTenantForUser(user);
+      void import("@/lib/subscription-headcount").then(
+        ({ syncSubscriptionHeadcountAfterStudentChange }) => {
+          try {
+            syncSubscriptionHeadcountAfterStudentChange();
+          } catch {
+            // ignore
+          }
+        },
+      );
     } catch {
       // Tenant bind must not block dashboard after PIN / Enter dashboard.
     }
@@ -296,7 +315,7 @@ function AuthGate() {
           <p className="text-[11px] text-muted-foreground">
             {registrationGate.kind === "error"
               ? registrationGate.errorMessage ??
-                "Could not load registration status from the API."
+                "Could not load registration status."
               : "Dashboard stays locked until your institute is approved. You can check status on the pending page."}
           </p>
           {gateRedirect && (
@@ -334,6 +353,7 @@ function RootComponent() {
               <OfflineSyncHost app="admin" seedDemo={false} topStatus={false} className="min-h-screen-dvh">
                 <TypographyProvider>
                   <InAppAlertListener />
+                  <FirebaseClientServices enabled />
                   <PushDeviceTokenRegistration enabled />
                   <AuthGate />
                 </TypographyProvider>

@@ -1,4 +1,5 @@
 import { CAREERS_STORAGE_KEYS, createBrowserAuthStorage } from "@lumenx/auth";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import type {
   ApplicationDraft,
   ApplicationDocument,
@@ -71,6 +72,15 @@ const DEMO_PASSWORD = "demo123";
 const LEGACY_DEMO_PASSWORD = "demo";
 
 function syncDemoUsers(stored: CareersUser[]): CareersUser[] {
+  if (isApiAuthMode()) {
+    return stored
+      .filter(
+        (u) =>
+          !DEMO_ACCOUNT_IDS.has(u.id) &&
+          !DEMO_ACCOUNTS.some((d) => d.email?.toLowerCase() === u.email?.toLowerCase()),
+      )
+      .map((u) => normalizeCareersUser(u));
+  }
   const custom = stored
     .filter(
       (u) =>
@@ -91,7 +101,9 @@ export function refreshStoredSessionUser() {
 export function initCareersStores() {
   getUsers();
   refreshStoredSessionUser();
-  seedRecruiterDemoJobs();
+  if (!isApiAuthMode()) {
+    seedRecruiterDemoJobs();
+  }
   pushSyncSnapshot(getApplicationsStore());
 }
 
@@ -107,6 +119,7 @@ function getUsers(): CareersUser[] {
 
 function passwordMatches(user: CareersUser, password: string): boolean {
   if (user.passwordHash === password) return true;
+  if (isApiAuthMode()) return false;
   if (!DEMO_ACCOUNT_IDS.has(user.id)) return false;
   return password === DEMO_PASSWORD || password === LEGACY_DEMO_PASSWORD;
 }
@@ -119,7 +132,7 @@ function saveUsers(users: CareersUser[]) {
 function getApplicationsStore(): JobApplication[] {
   if (!appsCache) {
     const stored = readJson<JobApplication[] | null>(CAREERS_STORAGE_KEYS.applications, null);
-    appsCache = stored ?? [...DEMO_APPLICATIONS];
+    appsCache = stored ?? (isApiAuthMode() ? [] : [...DEMO_APPLICATIONS]);
   }
   return appsCache;
 }
@@ -132,9 +145,10 @@ function saveApplications(apps: JobApplication[]) {
 
 function getNotificationsStore(): CareersNotification[] {
   if (!notifCache) {
-    notifCache = readJson<CareersNotification[]>(CAREERS_STORAGE_KEYS.notifications, [
-      ...DEMO_NOTIFICATIONS,
-    ]);
+    notifCache = readJson<CareersNotification[]>(
+      CAREERS_STORAGE_KEYS.notifications,
+      isApiAuthMode() ? [] : [...DEMO_NOTIFICATIONS],
+    );
   }
   return notifCache;
 }
@@ -145,10 +159,17 @@ function saveNotifications(n: CareersNotification[]) {
 }
 
 export function getJobs() {
+  if (isApiAuthMode()) {
+    // Product API mode never surfaces seed JOB_POSTINGS; use useCareersJobs / API loaders.
+    return [...getOpenRecruiterJobs()];
+  }
   return [...JOB_POSTINGS, ...getOpenRecruiterJobs()];
 }
 
 export function getJobById(id: string) {
+  if (isApiAuthMode()) {
+    return getRecruiterJobById(id);
+  }
   return getRecruiterJobById(id) ?? JOB_POSTINGS.find((j) => j.id === id);
 }
 

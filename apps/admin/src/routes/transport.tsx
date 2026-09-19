@@ -1,4 +1,16 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  useTransportVehiclesQuery,
+  useTransportDriversQuery,
+  useTransportRoutesQuery,
+  useTransportEnrollmentsQuery,
+  useTransportSettingsQuery,
+  useCatalogClassesQuery,
+  useCatalogYearsQuery,
+  adminQueryRoots,
+} from "@/lib/admin-queries";
+import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
 import { AdminPageTransition } from "@/components/AdminPageTransition";
 import { TransportHubNav } from "@/components/transport/TransportHubNav";
@@ -31,28 +43,22 @@ import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
+  approveTransportStop,
+  rejectTransportStop,
+} from "@/lib/transport/approval-mutations";
+import {
   createDriver,
-  createStop,
+  createEnrollment,
   createVehicle,
   deleteDriver,
   deleteEnrollment,
   deleteStop,
   deleteVehicle,
-  loadTransportDriversList,
-  loadTransportEnrollmentsList,
-  loadTransportRoutesList,
-  loadTransportSettings,
-  loadTransportVehiclesList,
   resolveTransportDriversListView,
   resolveTransportEnrollmentsListView,
   resolveTransportRoutesListView,
   resolveTransportSettingsView,
   resolveTransportVehiclesListView,
-  shouldCommitTransportDriversLoad,
-  shouldCommitTransportEnrollmentsLoad,
-  shouldCommitTransportRoutesLoad,
-  shouldCommitTransportSettingsLoad,
-  shouldCommitTransportVehiclesLoad,
   updateDriver,
   updateEnrollment,
   updateRoute,
@@ -73,6 +79,10 @@ import type {
   TransportVehicle,
 } from "@/lib/transport-store";
 import type { TransportEnrollmentListItem } from "@/lib/transport";
+import { listStudents } from "@/lib/students/api";
+import { studentDtosToListItems } from "@/lib/students/map";
+import { buildStudentClassOptions } from "@/lib/students/class-options";
+import type { StudentListItem } from "@/lib/students/types";
 import { useAdminToast } from "@/components/AdminActionToast";
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
@@ -104,7 +114,7 @@ const VIEW_TITLES: Record<TransportHubView, string> = {
   stops: "Stops",
   routes: "Routes",
   students: "Students",
-  reviews: "Pending Requests",
+  reviews: "Publish Requests",
   trips: "Trips",
   attendance: "Attendance",
   emergencies: "Emergencies",
@@ -116,12 +126,12 @@ const VIEW_SUBTITLES: Record<TransportHubView, string> = {
   dashboard: "Route setup status · fleet and student coverage",
   vehicles: "Manage buses and vans · capacity, status, assigned drivers",
   drivers: "Driver roster · licenses, vehicles, and status",
-  stops: "Catalogue stops · optional manual locations",
+  stops: "Driver stops · publish pending submissions for Connect & trips",
   routes: "Review driver-configured routes · lock when ready",
   students: "Assign students to a bus · stops sync from driver",
-  reviews: "Approve or decline driver stop and assignment requests",
-  trips: "Driver · bus · route · trip status overview",
-  attendance: "Live boarding and dropping · shared Transport mock",
+  reviews: "Approve or decline driver routes, stops, and enrollments",
+  trips: "Live and completed trips from the transport API",
+  attendance: "Live boarding and dropping from the transport API",
   emergencies: "Driver SOS · active cases, details, resolve, history",
   analytics: `Live KPIs and insights · exports are in ${M.reports}`,
   settings: "Default radius, pickup buffer, and working days",
@@ -183,9 +193,35 @@ function TransportPage() {
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
   const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
+  const instituteId = instituteCtx.activeInstituteId;
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
-  const [reloadKey, setReloadKey] = useState(0);
+  const queryClient = useQueryClient();
+  const listEnabled =
+    apiMode &&
+    instituteCtx.status === "ready" &&
+    Boolean(instituteCtx.activeInstituteId);
+  const vehiclesQuery = useTransportVehiclesQuery(instituteCtx.activeInstituteId, listEnabled);
+  const driversQuery = useTransportDriversQuery(instituteCtx.activeInstituteId, listEnabled);
+  const routesQuery = useTransportRoutesQuery(instituteCtx.activeInstituteId, listEnabled);
+  const enrollmentsQuery = useTransportEnrollmentsQuery(instituteCtx.activeInstituteId, listEnabled);
+  const settingsQuery = useTransportSettingsQuery(instituteCtx.activeInstituteId, listEnabled);
+  const classesCatalogQuery = useCatalogClassesQuery(
+    instituteCtx.activeInstituteId,
+    listEnabled && view === "students",
+  );
+  const yearsCatalogQuery = useCatalogYearsQuery(
+    instituteCtx.activeInstituteId,
+    listEnabled && view === "students",
+  );
+  const bumpTransportReload = () => {
+    invalidateAdminCache("admin:transport");
+    if (instituteCtx.activeInstituteId) {
+      void queryClient.invalidateQueries({
+        queryKey: [adminQueryRoots.transport, instituteCtx.activeInstituteId],
+      });
+    }
+  };
 
   const [apiVehicles, setApiVehicles] = useState<TransportVehicle[]>([]);
   const [vehiclesListStatus, setVehiclesListStatus] =
@@ -222,13 +258,30 @@ function TransportPage() {
   const [enrollmentsResolvedForInstituteId, setEnrollmentsResolvedForInstituteId] =
     useState<string | null>(null);
 
+  const [studentsCatalog, setStudentsCatalog] = useState<StudentListItem[]>([]);
+
+  const transportStudentClassOptions = useMemo(() => {
+    const classes = classesCatalogQuery.data?.classes;
+    const sections = classesCatalogQuery.data?.sections;
+    const years = yearsCatalogQuery.data;
+    if (!classes || !sections) return [];
+    const activeYearId =
+      years?.find((item) => item.status === "active")?.id ?? null;
+    return buildStudentClassOptions({
+      classes,
+      sections,
+      activeAcademicYearId: activeYearId,
+    });
+  }, [classesCatalogQuery.data, yearsCatalogQuery.data]);
+
   const vehiclesListView = resolveTransportVehiclesListView({
     apiMode,
     instituteStatus: instituteCtx.status,
     activeInstituteId: instituteCtx.activeInstituteId,
     resolvedForInstituteId: vehiclesResolvedForInstituteId,
     storedItems: apiVehicles,
-    storedStatus: vehiclesListStatus,
+    storedStatus:
+      vehiclesQuery.isLoading && !vehiclesQuery.data ? "loading" : vehiclesListStatus,
     storedErrorMessage: vehiclesListError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
@@ -239,7 +292,8 @@ function TransportPage() {
     activeInstituteId: instituteCtx.activeInstituteId,
     resolvedForInstituteId: driversResolvedForInstituteId,
     storedItems: apiDrivers,
-    storedStatus: driversListStatus,
+    storedStatus:
+      driversQuery.isLoading && !driversQuery.data ? "loading" : driversListStatus,
     storedErrorMessage: driversListError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
@@ -250,7 +304,8 @@ function TransportPage() {
     activeInstituteId: instituteCtx.activeInstituteId,
     resolvedForInstituteId: routesResolvedForInstituteId,
     storedItems: apiRoutes,
-    storedStatus: routesListStatus,
+    storedStatus:
+      routesQuery.isLoading && !routesQuery.data ? "loading" : routesListStatus,
     storedErrorMessage: routesListError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
@@ -261,7 +316,8 @@ function TransportPage() {
     activeInstituteId: instituteCtx.activeInstituteId,
     resolvedForInstituteId: enrollmentsResolvedForInstituteId,
     storedItems: apiEnrollments,
-    storedStatus: enrollmentsListStatus,
+    storedStatus:
+      enrollmentsQuery.isLoading && !enrollmentsQuery.data ? "loading" : enrollmentsListStatus,
     storedErrorMessage: enrollmentsListError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
@@ -272,7 +328,8 @@ function TransportPage() {
     activeInstituteId: instituteCtx.activeInstituteId,
     resolvedForInstituteId: settingsResolvedForInstituteId,
     storedSettings: apiSettings,
-    storedStatus: settingsLoadStatus,
+    storedStatus:
+      settingsQuery.isLoading && !settingsQuery.data ? "loading" : settingsLoadStatus,
     storedErrorMessage: settingsLoadError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
@@ -325,7 +382,7 @@ function TransportPage() {
             : null;
 
   useEffect(() => {
-    if (!apiMode || (view !== "vehicles" && view !== "dashboard")) return;
+    if (!apiMode || (view !== "vehicles" && view !== "dashboard" && view !== "students" && view !== "drivers")) return;
 
     if (instituteCtx.status === "loading") {
       setApiVehicles([]);
@@ -360,39 +417,29 @@ function TransportPage() {
       return;
     }
 
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setVehiclesListStatus("loading");
-    setVehiclesListError(null);
-    void loadTransportVehiclesList(requestInstituteId).then((next) => {
-      if (
-        !shouldCommitTransportVehiclesLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setApiVehicles(next.items);
-      setVehiclesListStatus(next.status);
-      setVehiclesListError(next.errorMessage);
-      setVehiclesResolvedForInstituteId(requestInstituteId);
-    });
-    return () => {
-      cancelled = true;
-    };
+    if (vehiclesQuery.isLoading && !vehiclesQuery.data) {
+      setVehiclesListStatus("loading");
+      setVehiclesListError(null);
+      return;
+    }
+    if (!vehiclesQuery.data) return;
+
+    const next = vehiclesQuery.data;
+    setApiVehicles(next.items);
+    setVehiclesListStatus(next.status);
+    setVehiclesListError(next.errorMessage);
+    setVehiclesResolvedForInstituteId(instituteCtx.activeInstituteId);
   }, [
     apiMode,
-    view,
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
-    reloadKey,
+    vehiclesQuery.data,
+    vehiclesQuery.isLoading,
   ]);
 
   useEffect(() => {
-    if (!apiMode || (view !== "drivers" && view !== "dashboard")) return;
+    if (!apiMode || (view !== "drivers" && view !== "dashboard" && view !== "vehicles")) return;
 
     if (instituteCtx.status === "loading") {
       setApiDrivers([]);
@@ -427,39 +474,29 @@ function TransportPage() {
       return;
     }
 
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setDriversListStatus("loading");
-    setDriversListError(null);
-    void loadTransportDriversList(requestInstituteId).then((next) => {
-      if (
-        !shouldCommitTransportDriversLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setApiDrivers(next.items);
-      setDriversListStatus(next.status);
-      setDriversListError(next.errorMessage);
-      setDriversResolvedForInstituteId(requestInstituteId);
-    });
-    return () => {
-      cancelled = true;
-    };
+    if (driversQuery.isLoading && !driversQuery.data) {
+      setDriversListStatus("loading");
+      setDriversListError(null);
+      return;
+    }
+    if (!driversQuery.data) return;
+
+    const next = driversQuery.data;
+    setApiDrivers(next.items);
+    setDriversListStatus(next.status);
+    setDriversListError(next.errorMessage);
+    setDriversResolvedForInstituteId(instituteCtx.activeInstituteId);
   }, [
     apiMode,
-    view,
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
-    reloadKey,
+    driversQuery.data,
+    driversQuery.isLoading,
   ]);
 
   useEffect(() => {
-    if (!apiMode || (view !== "routes" && view !== "stops" && view !== "dashboard")) return;
+    if (!apiMode || (view !== "routes" && view !== "stops" && view !== "dashboard" && view !== "students")) return;
 
     if (instituteCtx.status === "loading") {
       setApiRoutes([]);
@@ -494,35 +531,25 @@ function TransportPage() {
       return;
     }
 
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setRoutesListStatus("loading");
-    setRoutesListError(null);
-    void loadTransportRoutesList(requestInstituteId).then((next) => {
-      if (
-        !shouldCommitTransportRoutesLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setApiRoutes(next.items);
-      setRoutesListStatus(next.status);
-      setRoutesListError(next.errorMessage);
-      setRoutesResolvedForInstituteId(requestInstituteId);
-    });
-    return () => {
-      cancelled = true;
-    };
+    if (routesQuery.isLoading && !routesQuery.data) {
+      setRoutesListStatus("loading");
+      setRoutesListError(null);
+      return;
+    }
+    if (!routesQuery.data) return;
+
+    const next = routesQuery.data;
+    setApiRoutes(next.items);
+    setRoutesListStatus(next.status);
+    setRoutesListError(next.errorMessage);
+    setRoutesResolvedForInstituteId(instituteCtx.activeInstituteId);
   }, [
     apiMode,
-    view,
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
-    reloadKey,
+    routesQuery.data,
+    routesQuery.isLoading,
   ]);
 
   useEffect(() => {
@@ -561,25 +588,54 @@ function TransportPage() {
       return;
     }
 
+    if (enrollmentsQuery.isLoading && !enrollmentsQuery.data) {
+      setEnrollmentsListStatus("loading");
+      setEnrollmentsListError(null);
+      return;
+    }
+    if (!enrollmentsQuery.data) return;
+
+    const next = enrollmentsQuery.data;
+    setApiEnrollments(next.items);
+    setEnrollmentsListStatus(next.status);
+    setEnrollmentsListError(next.errorMessage);
+    setEnrollmentsResolvedForInstituteId(instituteCtx.activeInstituteId);
+  }, [
+    apiMode,
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    instituteCtx.errorMessage,
+    enrollmentsQuery.data,
+    enrollmentsQuery.isLoading,
+  ]);
+
+  useEffect(() => {
+    if (!apiMode || view !== "students") return;
+
+    if (
+      instituteCtx.status === "loading" ||
+      instituteCtx.status === "error" ||
+      instituteCtx.status === "forbidden" ||
+      instituteCtx.status === "needs_selection" ||
+      instituteCtx.status === "empty" ||
+      !instituteCtx.activeInstituteId
+    ) {
+      setStudentsCatalog([]);
+      return;
+    }
+
     const requestInstituteId = instituteCtx.activeInstituteId;
     let cancelled = false;
-    setEnrollmentsListStatus("loading");
-    setEnrollmentsListError(null);
-    void loadTransportEnrollmentsList(requestInstituteId).then((next) => {
-      if (
-        !shouldCommitTransportEnrollmentsLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setApiEnrollments(next.items);
-      setEnrollmentsListStatus(next.status);
-      setEnrollmentsListError(next.errorMessage);
-      setEnrollmentsResolvedForInstituteId(requestInstituteId);
-    });
+    void listStudents({ instituteId: requestInstituteId })
+      .then((rows) => {
+        if (cancelled || activeInstituteIdRef.current !== requestInstituteId) return;
+        setStudentsCatalog(studentDtosToListItems(rows));
+      })
+      .catch(() => {
+        if (cancelled || activeInstituteIdRef.current !== requestInstituteId) return;
+        setStudentsCatalog([]);
+        notify("Could not load students for transport enrollment");
+      });
     return () => {
       cancelled = true;
     };
@@ -588,8 +644,7 @@ function TransportPage() {
     view,
     instituteCtx.status,
     instituteCtx.activeInstituteId,
-    instituteCtx.errorMessage,
-    reloadKey,
+    notify,
   ]);
 
   useEffect(() => {
@@ -628,50 +683,64 @@ function TransportPage() {
       return;
     }
 
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setSettingsLoadStatus("loading");
-    setSettingsLoadError(null);
-    void loadTransportSettings(requestInstituteId).then((next) => {
-      if (
-        !shouldCommitTransportSettingsLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setApiSettings(next.settings);
-      setSettingsLoadStatus(next.status);
-      setSettingsLoadError(next.errorMessage);
-      setSettingsResolvedForInstituteId(requestInstituteId);
-    });
-    return () => {
-      cancelled = true;
-    };
+    if (settingsQuery.isLoading && !settingsQuery.data) {
+      setSettingsLoadStatus("loading");
+      setSettingsLoadError(null);
+      return;
+    }
+    if (!settingsQuery.data) return;
+
+    const next = settingsQuery.data;
+    setApiSettings(next.settings);
+    setSettingsLoadStatus(next.status);
+    setSettingsLoadError(next.errorMessage);
+    setSettingsResolvedForInstituteId(instituteCtx.activeInstituteId);
   }, [
     apiMode,
-    view,
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
-    reloadKey,
+    settingsQuery.data,
+    settingsQuery.isLoading,
   ]);
 
   const vehiclesSnapshot = useMemo(() => {
     if (!apiMode || view !== "vehicles" || !vehiclesListView.rowsValid) {
       return snapshot;
     }
-    return { ...snapshot, vehicles: vehiclesListView.items };
-  }, [apiMode, view, snapshot, vehiclesListView.items, vehiclesListView.rowsValid]);
+    return {
+      ...snapshot,
+      vehicles: vehiclesListView.items,
+      drivers: driversListView.rowsValid ? driversListView.items : snapshot.drivers,
+    };
+  }, [
+    apiMode,
+    view,
+    snapshot,
+    vehiclesListView.items,
+    vehiclesListView.rowsValid,
+    driversListView.items,
+    driversListView.rowsValid,
+  ]);
 
   const driversSnapshot = useMemo(() => {
     if (!apiMode || view !== "drivers" || !driversListView.rowsValid) {
       return snapshot;
     }
-    return { ...snapshot, drivers: driversListView.items };
-  }, [apiMode, view, snapshot, driversListView.items, driversListView.rowsValid]);
+    return {
+      ...snapshot,
+      drivers: driversListView.items,
+      vehicles: vehiclesListView.rowsValid ? vehiclesListView.items : snapshot.vehicles,
+    };
+  }, [
+    apiMode,
+    view,
+    snapshot,
+    driversListView.items,
+    driversListView.rowsValid,
+    vehiclesListView.items,
+    vehiclesListView.rowsValid,
+  ]);
 
   const routesSnapshot = useMemo(() => {
     if (
@@ -705,8 +774,9 @@ function TransportPage() {
         locationLabel: stop.locationLabel,
         lat: stop.latitude,
         lng: stop.longitude,
-        notificationRadiusM: defaultRadius,
+        notificationRadiusM: stop.notificationRadiusM ?? defaultRadius,
         routeId: route.id,
+        approvalStatus: stop.approvalStatus,
       })),
     );
     return { ...snapshot, stops };
@@ -731,26 +801,29 @@ function TransportPage() {
       title={VIEW_TITLES[view]}
       subtitle={
         apiMode && view === "vehicles"
-          ? `API mode · ${vehiclesListView.rowsValid ? vehiclesListView.items.length : "…"} vehicles`
+          ? `${vehiclesListView.rowsValid ? vehiclesListView.items.length : "…"} vehicles`
           : apiMode && view === "dashboard"
-            ? "API mode · fleet overview"
+            ? "Fleet overview"
             : apiMode && view === "drivers"
-            ? `API mode · ${driversListView.rowsValid ? driversListView.items.length : "…"} drivers`
+            ? `${driversListView.rowsValid ? driversListView.items.length : "…"} drivers`
             : apiMode && view === "routes"
-              ? `API mode · ${routesListView.rowsValid ? routesListView.items.length : "…"} routes`
+              ? `${routesListView.rowsValid ? routesListView.items.length : "…"} routes`
               : apiMode && view === "stops"
-                ? `API mode · route stops`
+                ? "Route stops"
                 : apiMode && view === "students"
-                  ? `API mode · ${enrollmentsListView.rowsValid ? enrollmentsListView.items.length : "…"} enrollments`
+                  ? `${enrollmentsListView.rowsValid ? enrollmentsListView.items.length : "…"} enrollments`
                   : apiMode && view === "settings"
-                ? "API mode · transport settings"
-                : apiMode &&
-                    (view === "reviews" ||
-                      view === "trips" ||
-                      view === "attendance" ||
-                      view === "emergencies" ||
-                      view === "analytics")
-                  ? "API mode · read unavailable · no institute read API"
+                ? "Transport settings"
+                : apiMode && view === "reviews"
+                  ? "Pending stop & assignment reviews"
+                  : apiMode && view === "trips"
+                    ? "Live and completed trips"
+                    : apiMode && view === "attendance"
+                      ? "Boarding and dropping"
+                      : apiMode && view === "emergencies"
+                        ? "SOS and emergencies"
+                        : apiMode && view === "analytics"
+                          ? "Transport analytics"
                   : VIEW_SUBTITLES[view]
       }
     >
@@ -790,6 +863,7 @@ function TransportPage() {
                         capacity: draft.capacity,
                         status: draft.status,
                         notes: draft.notes || null,
+                        assignedDriverId: draft.assignedDriverId,
                       });
                     } else {
                       await createVehicle({
@@ -799,9 +873,10 @@ function TransportPage() {
                         capacity: draft.capacity,
                         status: draft.status,
                         notes: draft.notes || null,
+                        assignedDriverId: draft.assignedDriverId,
                       });
                     }
-                    setReloadKey((k) => k + 1);
+                    bumpTransportReload();
                   }
                 : undefined
             }
@@ -809,7 +884,7 @@ function TransportPage() {
               apiMode
                 ? async (id) => {
                     await deleteVehicle(id);
-                    setReloadKey((k) => k + 1);
+                    bumpTransportReload();
                   }
                 : undefined
             }
@@ -837,6 +912,8 @@ function TransportPage() {
                         licenseExpiry: draft.licenseExpiry.trim() || null,
                         status: draft.status,
                         notes: draft.notes || null,
+                        assignedVehicleId: draft.assignedVehicleId,
+                        appAccountPin: draft.appAccountPin?.trim() || undefined,
                       });
                     } else {
                       await createDriver({
@@ -847,9 +924,11 @@ function TransportPage() {
                         licenseExpiry: draft.licenseExpiry.trim() || null,
                         status: draft.status,
                         notes: draft.notes || null,
+                        assignedVehicleId: draft.assignedVehicleId,
+                        appAccountPin: draft.appAccountPin?.trim() || null,
                       });
                     }
-                    setReloadKey((k) => k + 1);
+                    bumpTransportReload();
                   }
                 : undefined
             }
@@ -857,7 +936,7 @@ function TransportPage() {
               apiMode
                 ? async (id) => {
                     await deleteDriver(id);
-                    setReloadKey((k) => k + 1);
+                    bumpTransportReload();
                   }
                 : undefined
             }
@@ -868,6 +947,7 @@ function TransportPage() {
             snapshot={stopsSnapshot}
             onChange={setSnapshot}
             writesEnabled={writesEnabled}
+            allowCreate={!apiMode}
             listBlocked={apiMode && !routesListView.rowsValid}
             listHint={stopsListHint}
             routeOptions={
@@ -885,31 +965,22 @@ function TransportPage() {
                     if (!instituteId) {
                       throw new Error("Select an institute before saving a stop");
                     }
+                    if (!input.id) {
+                      throw new Error(
+                        "Admin cannot create stops — approve driver submissions in Reviews",
+                      );
+                    }
                     if (!input.routeId) {
                       throw new Error("Select a route for this stop");
                     }
-                    if (input.id) {
-                      await updateStop(input.id, {
-                        name: input.name,
-                        locationLabel: input.locationLabel,
-                        latitude: input.lat,
-                        longitude: input.lng,
-                        notificationRadiusM: input.notificationRadiusM,
-                      });
-                    } else {
-                      const route = routesListView.items.find((r) => r.id === input.routeId);
-                      await createStop({
-                        instituteId,
-                        routeId: input.routeId,
-                        name: input.name,
-                        locationLabel: input.locationLabel,
-                        latitude: input.lat,
-                        longitude: input.lng,
-                        routeOrder: route?.setupStops.length ?? 0,
-                        notificationRadiusM: input.notificationRadiusM,
-                      });
-                    }
-                    setReloadKey((k) => k + 1);
+                    await updateStop(input.id, {
+                      name: input.name,
+                      locationLabel: input.locationLabel,
+                      latitude: input.lat,
+                      longitude: input.lng,
+                      notificationRadiusM: input.notificationRadiusM,
+                    });
+                    bumpTransportReload();
                   }
                 : undefined
             }
@@ -917,7 +988,23 @@ function TransportPage() {
               apiMode
                 ? async (id) => {
                     await deleteStop(id);
-                    setReloadKey((k) => k + 1);
+                    bumpTransportReload();
+                  }
+                : undefined
+            }
+            onPublishStop={
+              apiMode
+                ? async (id) => {
+                    await approveTransportStop(id);
+                    bumpTransportReload();
+                  }
+                : undefined
+            }
+            onDeclineStop={
+              apiMode
+                ? async (id, reason) => {
+                    await rejectTransportStop(id, reason);
+                    bumpTransportReload();
                   }
                 : undefined
             }
@@ -934,7 +1021,7 @@ function TransportPage() {
               apiMode
                 ? async (routeId) => {
                     await updateRoute(routeId, { configStatus: "locked" });
-                    setReloadKey((k) => k + 1);
+                    bumpTransportReload();
                   }
                 : undefined
             }
@@ -942,7 +1029,7 @@ function TransportPage() {
               apiMode
                 ? async (routeId) => {
                     await updateRoute(routeId, { configStatus: "configured" });
-                    setReloadKey((k) => k + 1);
+                    bumpTransportReload();
                   }
                 : undefined
             }
@@ -955,10 +1042,52 @@ function TransportPage() {
               listBlocked={!enrollmentsListView.rowsValid}
               listHint={enrollmentsListHint}
               writesEnabled={writesEnabled}
+              routes={
+                routesListView.rowsValid
+                  ? routesListView.items.map((route) => ({
+                      id: route.id,
+                      name: route.name,
+                      vehicleId: route.vehicleId,
+                    }))
+                  : []
+              }
+              vehicles={
+                vehiclesListView.rowsValid
+                  ? vehiclesListView.items.map((vehicle) => ({
+                      id: vehicle.id,
+                      vehicleNumber: vehicle.vehicleNumber,
+                    }))
+                  : []
+              }
+              studentsCatalog={studentsCatalog.map((student) => ({
+                id: student.id,
+                name: student.name,
+                grade: student.classLabel?.trim() || student.grade,
+                section: student.sectionLabel,
+              }))}
+              classOptions={transportStudentClassOptions}
+              onAssignStudent={
+                writesEnabled
+                  ? async ({ studentId, routeId }) => {
+                      const instituteId = instituteCtx.activeInstituteId;
+                      if (!instituteId) {
+                        throw new Error("Select an institute before assigning a student");
+                      }
+                      await createEnrollment({
+                        instituteId,
+                        studentId,
+                        routeId,
+                        pickupStopId: null,
+                        dropStopId: null,
+                      });
+                      bumpTransportReload();
+                    }
+                  : undefined
+              }
               onEndEnrollment={async (id) => {
                 try {
                   await updateEnrollment(id, { status: "ended" });
-                  setReloadKey((k) => k + 1);
+                  bumpTransportReload();
                   notify("Enrollment ended");
                 } catch (err) {
                   notify(err instanceof Error ? err.message : "Failed to update enrollment");
@@ -967,7 +1096,7 @@ function TransportPage() {
               onRemoveEnrollment={async (id) => {
                 try {
                   await deleteEnrollment(id);
-                  setReloadKey((k) => k + 1);
+                  bumpTransportReload();
                   notify("Enrollment deleted");
                 } catch (err) {
                   notify(err instanceof Error ? err.message : "Failed to delete enrollment");
@@ -981,7 +1110,7 @@ function TransportPage() {
         {view === "reviews" ? (
           apiMode ? (
             <TransportApprovalApiPanel
-              instituteId={instituteId}
+              instituteId={instituteId ?? ""}
               writesEnabled={writesEnabled}
               onNotify={notify}
             />
@@ -991,14 +1120,14 @@ function TransportPage() {
         ) : null}
         {view === "trips" ? (
           apiMode ? (
-            <TransportTripsApiPanel instituteId={instituteId} />
+            <TransportTripsApiPanel instituteId={instituteId ?? ""} />
           ) : (
             <TransportTripsView snapshot={snapshot} />
           )
         ) : null}
         {view === "attendance" ? (
           apiMode ? (
-            <TransportAttendanceApiPanel instituteId={instituteId} />
+            <TransportAttendanceApiPanel instituteId={instituteId ?? ""} />
           ) : (
             <TransportAttendanceView />
           )
@@ -1006,7 +1135,7 @@ function TransportPage() {
         {view === "emergencies" ? (
           apiMode ? (
             <TransportEmergenciesApiPanel
-              instituteId={instituteId}
+              instituteId={instituteId ?? ""}
               writesEnabled={writesEnabled}
               onNotify={notify}
             />
@@ -1017,7 +1146,7 @@ function TransportPage() {
         {view === "analytics" ? (
           apiMode ? (
             <TransportAnalyticsApiPanel
-              instituteId={instituteId}
+              instituteId={instituteId ?? ""}
               writesEnabled={writesEnabled}
               onNotify={notify}
             />
@@ -1044,8 +1173,11 @@ function TransportPage() {
                       defaultNotificationRadiusM: settings.defaultNotificationRadiusM,
                       defaultPickupBufferMins: settings.defaultPickupBufferMins,
                       workingDays: workingDayLabelsToNumbers(settings.workingDays),
+                      notificationsEnabled: settings.notificationsEnabled !== false,
+                      rememberEnabled: settings.rememberEnabled !== false,
+                      defaultPickupTime: settings.defaultPickupTime?.trim() || "07:30",
                     });
-                    setReloadKey((k) => k + 1);
+                    bumpTransportReload();
                   }
                 : undefined
             }

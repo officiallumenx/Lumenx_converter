@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useSyncExternalStore, useCallback } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { Bus, Clock, Users } from "lucide-react";
 import { subscribeTransportRealtime } from "@lumenx/utils";
 import { PageHeader } from "@/components/app/PageHeader";
@@ -14,34 +14,31 @@ import { TransportStudentsTable } from "@/components/app/transport/TransportStud
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
 import { useApp } from "@/lib/app-state";
 import { isApiAuthMode } from "@/auth/auth-mode";
-import { loadTeacherClassTransport } from "@/lib/transport";
+import { useTeacherTransportQuery } from "@/lib/connect-queries/hooks";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { transportStore } from "@/lib/transport-store";
 import { formatEtaMinutes, unreadTransportAlertCount } from "@/lib/transport-utils";
 import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
 import { EmptyState } from "@/teacher-portal/shared/ui/EmptyState";
-import type { TeacherClassTransportRow } from "@/lib/transport";
 
 export function TeacherTransportPage() {
   const portal = useTeacherPortal();
   const { activeInstituteId } = useApp();
   const apiMode = isApiAuthMode();
   const hasTransport = portal.isTeacher && portal.profile?.hasTransport === true;
-  const [apiRoster, setApiRoster] = useState<TeacherClassTransportRow[]>([]);
-  const [apiRosterLoading, setApiRosterLoading] = useState(false);
 
-  const reloadApiRoster = useCallback(() => {
-    if (!apiMode || !hasTransport || !activeInstituteId) return;
-    setApiRosterLoading(true);
-    void loadTeacherClassTransport({ instituteId: activeInstituteId }).then((state) => {
-      if (state.status === "ready") setApiRoster(state.rows);
-      setApiRosterLoading(false);
-    });
-  }, [apiMode, hasTransport, activeInstituteId]);
+  const {
+    data: transportData,
+    isLoading: transportLoading,
+    refresh: refreshTransport,
+  } = useTeacherTransportQuery(
+    activeInstituteId,
+    apiMode && hasTransport && Boolean(activeInstituteId),
+  );
 
-  useEffect(() => {
-    reloadApiRoster();
-  }, [reloadApiRoster, portal.classes.length]);
+  const apiRoster =
+    transportData?.status === "ready" ? transportData.rows : [];
+  const apiRosterLoading = transportLoading && !transportData;
 
   useEffect(() => {
     if (!apiMode || !activeInstituteId) return;
@@ -49,12 +46,12 @@ export function TeacherTransportPage() {
       const supabase = getSupabaseBrowserClient();
       return subscribeTransportRealtime(supabase, {
         instituteId: activeInstituteId,
-        onChange: reloadApiRoster,
+        onChange: refreshTransport,
       });
     } catch {
       return undefined;
     }
-  }, [apiMode, activeInstituteId, reloadApiRoster]);
+  }, [apiMode, activeInstituteId, refreshTransport]);
 
   useEffect(() => {
     if (hasTransport && !apiMode) {
@@ -180,7 +177,6 @@ export function TeacherTransportPage() {
   const pickupStop = routeOverview.stops[0];
   const dropStop = routeOverview.stops[routeOverview.stops.length - 1];
 
-  // First paint / empty ops can briefly have no stops — never crash on stops[0]!.
   if (!pickupStop || !dropStop) {
     return <PageSkeleton rows={6} />;
   }

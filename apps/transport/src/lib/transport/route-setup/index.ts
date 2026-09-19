@@ -1,15 +1,6 @@
-import { loadTransportOps } from "@lumenx/utils";
 import { repositoryDelay } from "../utils";
+import { listApiEnrollmentsForVehicle } from "../api-roster";
 import {
-  ROUTE_SETUP_STUDENT_DIRECTORY,
-  listClasses,
-  listSections,
-  listStudents,
-  studentsByIds,
-} from "./student-directory";
-import {
-  applyAdminApproveStop,
-  applyAdminDeclineStop,
   deleteRouteSetupStop,
   finishRouteSetup,
   getRouteSetupForAdmin,
@@ -20,14 +11,13 @@ import {
   removePendingAssignment,
   reorderRouteSetupStop,
   resetRouteSetupStore,
-  setRouteSetupAdminLock,
   startRouteSetupSession,
   studentIdsAssignedElsewhere,
   subscribeRouteSetup,
   upsertRouteSetupStop,
   findDuplicateRouteStop,
 } from "./store";
-import type { StudentDirectoryEntry, SubmissionStatus, UpsertStopInput } from "./types";
+import type { StudentDirectoryEntry, UpsertStopInput } from "./types";
 
 export type { SubmissionStatus, StudentStopAssignment, RouteSetupStop } from "./types";
 export {
@@ -37,12 +27,7 @@ export {
   canEditAssignment,
   canRequestChangeStop,
 } from "./types";
-export {
-  applyAdminApproveStop,
-  applyAdminDeclineStop,
-  findDuplicateRouteStop,
-  TRANSPORT_APPROVAL_CHANGED_EVENT,
-} from "./store";
+export { findDuplicateRouteStop, TRANSPORT_APPROVAL_CHANGED_EVENT } from "./store";
 
 export const routeSetupRepository = {
   subscribe: subscribeRouteSetup,
@@ -92,49 +77,33 @@ export const routeSetupRepository = {
     return finishRouteSetup();
   },
 
-  /** Reserved for Admin sync later — mock only. */
-  async setAdminLock(locked: boolean) {
-    await repositoryDelay(40);
-    return setRouteSetupAdminLock(locked);
-  },
-
-  async approveStop(stopId: string) {
-    await repositoryDelay(40);
-    return applyAdminApproveStop(stopId);
-  },
-
-  async declineStop(stopId: string, reason?: string) {
-    await repositoryDelay(40);
-    return applyAdminDeclineStop(stopId, reason);
-  },
-
-  listClasses() {
-    return listClasses(ROUTE_SETUP_STUDENT_DIRECTORY);
-  },
-
-  listSections(className: string) {
-    return listSections(className, ROUTE_SETUP_STUDENT_DIRECTORY);
-  },
-
-  listStudents(className: string, section: string) {
-    return listStudents(className, section, ROUTE_SETUP_STUDENT_DIRECTORY);
-  },
-
   studentsByIds(ids: string[]): StudentDirectoryEntry[] {
-    const fromDir = studentsByIds(ids, ROUTE_SETUP_STUDENT_DIRECTORY);
-    const found = new Set(fromDir.map((s) => s.id));
-    const fromEnroll = loadTransportOps()
-      .enrollments.filter((e) => ids.includes(e.studentId) && !found.has(e.studentId))
-      .map(
-        (e): StudentDirectoryEntry => ({
-          id: e.studentId,
-          name: e.studentName,
-          className: e.studentClass.split("-")[0] ?? e.studentClass,
-          section: e.studentClass.split("-")[1] ?? "",
-          rollNo: e.studentId,
-        }),
-      );
-    return [...fromDir, ...fromEnroll];
+    const byId = new Map(
+      listApiEnrollmentsForVehicle().map((e) => [e.studentId, e] as const),
+    );
+    const out: StudentDirectoryEntry[] = [];
+    for (const id of ids) {
+      const row = byId.get(id);
+      if (row) {
+        const [className, section = ""] = row.studentClass.split("-");
+        out.push({
+          id: row.studentId,
+          name: row.studentName,
+          className: className || row.studentClass,
+          section,
+          rollNo: row.studentId,
+        });
+        continue;
+      }
+      out.push({
+        id,
+        name: id,
+        className: "—",
+        section: "",
+        rollNo: id,
+      });
+    }
+    return out;
   },
 
   reset() {

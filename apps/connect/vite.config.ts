@@ -19,9 +19,12 @@ export default defineConfig({
   vite: {
     cacheDir: "../../node_modules/.vite-connect",
     server: {
+      // Firebase Phone Auth rejects hostname `localhost` (invalid-app-credential).
+      // Bind to 127.0.0.1 so local SMS OTP works when that domain is authorized.
+      host: "127.0.0.1",
       port: 5174,
       strictPort: false,
-      open: "/login",
+      open: "http://127.0.0.1:5174/login",
       warmup: {
         clientFiles: [
           "./src/routes/__root.tsx",

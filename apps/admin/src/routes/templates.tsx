@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useReloadKey } from "@/hooks/useReloadKey";
 import { AppShell } from "@/components/AppShell";
 import { PublishedCertificateCatalogView } from "@/components/templates/views/PublishedCertificateCatalogView";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -57,7 +58,7 @@ function CertificatesPage() {
   const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
-  const [reloadKey, setReloadKey] = useState(0);
+  const [reloadKey, setReloadKey] = useReloadKey();
 
   const [apiCatalogTemplates, setApiCatalogTemplates] = useState<TemplateRecord[]>([]);
   const [catalogListStatus, setCatalogListStatus] =
@@ -263,7 +264,7 @@ function CertificatesPage() {
     const issuedPart = issuedListView.rowsValid
       ? `${issuedListView.items.length} issued`
       : issuedHint ?? "…";
-    return `API mode · ${catalogPart} · ${issuedPart}`;
+    return `${catalogPart} · ${issuedPart}`;
   }, [
     apiMode,
     catalogListView.items.length,

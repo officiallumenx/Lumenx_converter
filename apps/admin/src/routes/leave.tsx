@@ -1,4 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { useLeaveRequestsQuery, adminQueryRoots } from "@/lib/admin-queries";
+import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
 import {
   Card,
@@ -43,9 +46,7 @@ import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
   decideLeave,
   cancelLeave,
-  loadLeaveRequestsList,
   resolveLeaveListView,
-  shouldCommitLeaveLoad,
   type LeaveListItem,
   type LeaveListStatus,
 } from "@/lib/leave";
@@ -121,7 +122,23 @@ function LeavePage() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const queryClient = useQueryClient();
+  const listEnabled =
+    apiMode &&
+    instituteCtx.status === "ready" &&
+    Boolean(instituteCtx.activeInstituteId);
+  const leaveQuery = useLeaveRequestsQuery(
+    instituteCtx.activeInstituteId,
+    listEnabled,
+  );
+  const bumpLeaveReload = () => {
+    invalidateAdminCache("admin:leave");
+    if (instituteCtx.activeInstituteId) {
+      void queryClient.invalidateQueries({
+        queryKey: [adminQueryRoots.leave, instituteCtx.activeInstituteId],
+      });
+    }
+  };
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
   const [q, setQ] = useState("");
@@ -138,7 +155,8 @@ function LeavePage() {
     activeInstituteId: instituteCtx.activeInstituteId,
     resolvedForInstituteId,
     storedItems: apiItems,
-    storedStatus: listStatus,
+    storedStatus:
+      leaveQuery.isLoading && !leaveQuery.data ? "loading" : listStatus,
     storedErrorMessage: listError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
@@ -181,34 +199,25 @@ function LeavePage() {
       return;
     }
 
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setListStatus("loading");
-    setListError(null);
-    void loadLeaveRequestsList(requestInstituteId).then((next) => {
-      if (
-        !shouldCommitLeaveLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setApiItems(next.items);
-      setListStatus(next.status);
-      setListError(next.errorMessage);
-      setResolvedForInstituteId(requestInstituteId);
-    });
-    return () => {
-      cancelled = true;
-    };
+    if (leaveQuery.isLoading && !leaveQuery.data) {
+      setListStatus("loading");
+      setListError(null);
+      return;
+    }
+    if (!leaveQuery.data) return;
+
+    const next = leaveQuery.data;
+    setApiItems(next.items);
+    setListStatus(next.status);
+    setListError(next.errorMessage);
+    setResolvedForInstituteId(instituteCtx.activeInstituteId);
   }, [
     apiMode,
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
-    reloadKey,
+    leaveQuery.data,
+    leaveQuery.isLoading,
   ]);
 
   const apiStudentRows = useMemo(
@@ -270,7 +279,7 @@ function LeavePage() {
       if (action === "approved") {
         void decideLeave(row.id, { outcome: "approved", note: "Accepted." })
           .then(() => {
-            setReloadKey((k) => k + 1);
+            bumpLeaveReload();
             notify("Leave accepted");
           })
           .catch((err) => {
@@ -316,7 +325,7 @@ function LeavePage() {
     if (!writesEnabled || !apiMode) return;
     void cancelLeave(row.id)
       .then(() => {
-        setReloadKey((k) => k + 1);
+        bumpLeaveReload();
         notify("Leave request cancelled");
       })
       .catch((err) => {
@@ -344,7 +353,7 @@ function LeavePage() {
           }
           setDecision(null);
           setNote("");
-          setReloadKey((k) => k + 1);
+          bumpLeaveReload();
         })
         .catch((err) => {
           notify(err instanceof Error ? err.message : "Failed to decide leave");
@@ -397,7 +406,7 @@ function LeavePage() {
       title={M.leave}
       subtitle={
         apiMode
-          ? "API mode · approve / reject / ignore"
+          ? "Approve / reject / ignore"
           : "Student leave: Parent apply → Class Teacher approve · Teacher leave: Teacher apply → Admin Approve / Reject / Ignore"
       }
       actions={

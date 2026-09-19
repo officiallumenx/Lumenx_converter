@@ -62,11 +62,11 @@ export const HOME_SHOWCASE: {
     id: "admissions",
     tagline: PRODUCT_FAMILY.admissions.role,
     description:
-      "Admissions is a first-class product in the family, delivered as a Connect portal. Applications feed the student record in Admin — they are not a separate login island.",
+      "Admissions is a first-class product in the family. Applicants discover, apply, and track intake; Admin converts accepted applications into student records.",
     points: [
       "Application pipeline into the student record",
-      "Office review stays in Admin",
-      "No separate navigation for another role",
+      "Office review stays with the same file",
+      "After conversion, families use Connect",
     ],
     preview: "admissions",
   },
@@ -74,8 +74,12 @@ export const HOME_SHOWCASE: {
     id: "careers",
     tagline: PRODUCT_FAMILY.careers.role,
     description:
-      "Careers is for hiring and opportunity boards. Your institute can turn it on when you need it.",
-    points: ["Hiring and opportunity boards", "Enabled from Nexus with other modules", "Lives with Connect, not a leftover menu"],
+      "Careers is the LumenX hiring and opportunity board. Recruiters post and review roles; Admin turns an approved hire into a teacher record.",
+    points: [
+      "Jobs and applications in one place",
+      "Standalone Careers web app",
+      "Approved hires become teachers in Admin",
+    ],
     preview: "careers",
   },
   {
@@ -96,11 +100,11 @@ export const HOME_FLOWS: {
   {
     id: "trial",
     title: "Trial",
-    lede: "Nexus (or LumenX) starts the institute. Admin configures. Families and drivers use their own apps.",
+    lede: "The institute is approved. Admin configures. Families and drivers use their own apps.",
     steps: [
-      { product: "nexus", title: "Approve", body: "The institute is approved and a 60-day trial starts." },
+      { product: "admin", title: "Start", body: "After approval, a 60-day trial can begin and Admin is ready to configure." },
       { product: "admin", title: "Configure", body: "Admin sets people, classes, fees, and routes." },
-      { product: "connect", title: "Use", body: "Families open Connect. Drivers open Transport." },
+      { product: "connect", title: "Use", body: "Families open Connect. Drivers open Transport when enabled." },
     ],
   },
   {
@@ -177,7 +181,7 @@ export const HOME_FEATURE_GROUPS: {
     items: [
       { name: "Fees", blurb: "Structures, dues, and history.", surfaces: "Admin · Connect" },
       { name: "Transport", blurb: "Routes, trips, and parent status.", surfaces: "Admin · Transport · Connect" },
-      { name: "Analytics", blurb: "Institute views — groups also see Nexus.", surfaces: "Admin · Nexus" },
+      { name: "Analytics", blurb: "Institute dashboards and reports for the office.", surfaces: "Admin" },
     ],
   },
   {
@@ -185,14 +189,14 @@ export const HOME_FEATURE_GROUPS: {
     title: "Admissions",
     lede: "Intake that becomes a student record — not a second database.",
     items: [
-      { name: "Applications", blurb: "Application pipeline into the student record.", surfaces: "Admin · Connect" },
+      { name: "Applications", blurb: "Application pipeline into the student record.", surfaces: "Admissions · Admin" },
     ],
   },
   {
     id: "careers",
     title: "Careers",
     lede: "Hiring in the same family, enabled per institute.",
-    items: [{ name: "Hiring", blurb: "Hiring and opportunity boards.", surfaces: "Admin · Connect" }],
+    items: [{ name: "Hiring", blurb: "Jobs and applications in the Careers app.", surfaces: "Careers · Admin" }],
   },
   {
     id: "documents",
@@ -298,50 +302,54 @@ export const HOME_DOWNLOAD_ORDER: ProductId[] = ["connect", "transport", "admin"
 export const HOME_FAQ: { q: string; a: string }[] = [
   {
     q: "What is LumenX?",
-    a: "LumenX is an institute platform for the office, families, and transport. Admin runs the campus day. Connect is for parents, teachers, and students. Transport, Admissions, and Careers can be added when you need them.",
+    a: "LumenX is one connected platform for managing an institution. LumenX Admin runs the campus day. LumenX Connect is for parents, teachers, and students. Transport, Admissions, and Careers can be added when you need them.",
   },
   {
-    q: "Who is it for?",
-    a: "Schools, colleges, and institute groups that want one shared record instead of scattered spreadsheets and chat groups — from a single campus to a multi-branch trust.",
+    q: "Who can use LumenX?",
+    a: "Institution heads, administrators, teachers, parents, students, and transport staff. Schools, colleges, and institute groups that want one shared record instead of scattered spreadsheets and chat groups.",
   },
   {
-    q: "Do we need every product on day one?",
-    a: "No. Most institutes start with Admin and Connect. Transport, Admissions, and Careers can be turned on later. Nexus is mainly for groups and operators.",
+    q: "What products are included?",
+    a: "The public platform includes Admin, Connect, Transport, Admissions, and Careers. Most campuses start with Admin and Connect; the others turn on when needed.",
   },
   {
-    q: "What is Admin?",
+    q: "What is LumenX Admin?",
     a: "Admin is the office console — students, teachers, parents, attendance, timetable, fees, documents, and day-to-day operations. It is the source of truth for the institute.",
   },
   {
-    q: "What is Connect?",
+    q: "What is LumenX Connect?",
     a: "Connect is how parents, teachers, and students use the same institute record. Each role sees only what they need — never another role’s screens.",
   },
   {
     q: "What are Admissions and Careers?",
-    a: "Admissions handles applications and intake. Careers handles hiring. Both are part of the LumenX family and open as portals — then Admin creates the student or teacher record when someone joins.",
+    a: "Admissions handles applications and intake (as a Connect portal). Careers is the hiring and opportunity web app. Admin creates the student or teacher record when someone joins.",
   },
   {
     q: "How do parents see the bus?",
-    a: "When Transport is on, Admin assigns students to routes, drivers run the trip in Transport, and parents see trip status in Connect. We do not claim live GPS tracking on this website.",
+    a: "When Transport is on, Admin assigns students to routes, drivers run the trip in Transport, and parents see trip status in Connect. This website does not claim live GPS tracking.",
   },
   {
-    q: "How does pricing work?",
+    q: "How is pricing calculated?",
     a: "About ₹12 per student each month on the estimate we show here (typical band ₹12–₹15). The whole campus starts from ₹8,000 per month. You can choose monthly, 6-month, or yearly tenure.",
   },
   {
-    q: "Is there a free trial?",
+    q: "Is there a trial?",
     a: "Yes. 60 days of full access after your institute is approved. This website does not take payment.",
   },
   {
-    q: "Can we pay on this website?",
-    a: "No. Use Contact or Get started to begin. Payment is arranged with our team after approval.",
+    q: "Does LumenX take payments on this website?",
+    a: "No. Use Book a Demo, Get Started, or Contact to begin. Payment is arranged with our team after approval.",
   },
   {
-    q: "Is there an Android or iOS app?",
-    a: "Connect and Transport are designed for mobile use. Public store listings and APKs appear on Downloads only when they are really available — we do not invent download links.",
+    q: "How do demos work?",
+    a: "Interactive demos use labelled mock screens. They are not live campus data, they do not save, and they do not take payment.",
   },
   {
-    q: "How do we get started?",
-    a: "Open Get started or Contact, tell us about your institute, complete verification, and begin the 60-day trial. You can also explore mock demos on this site with no login.",
+    q: "How do I get started?",
+    a: "Book a demo, open Get Started, or Contact us with your institute details. After verification, a 60-day trial can begin. You can also explore mock demos with no login.",
+  },
+  {
+    q: "How do I contact LumenX?",
+    a: "Use the Contact page for messages, demos, trials, quotes, and partnerships. Privacy and data requests use the Data Request page and the addresses in our Privacy Policy.",
   },
 ];

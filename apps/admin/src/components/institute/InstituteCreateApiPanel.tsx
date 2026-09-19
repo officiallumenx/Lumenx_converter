@@ -78,7 +78,7 @@ export function InstituteCreateApiPanel() {
     <Card>
       <CardHeader
         title="Create institute"
-        hint="POST /api/v1/institutes · platform operator only"
+        hint="Create a new institute · platform operators only"
         action={<Pill tone="info">Platform</Pill>}
       />
       <div className="space-y-3 px-5 pb-5">

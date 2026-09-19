@@ -105,7 +105,7 @@ export function ModulesApiSubscriptionPanel() {
               <Link to="/subscription">
                 <Button size="sm">Renew / pay offline</Button>
               </Link>
-              <Pill tone="neutral">API mode</Pill>
+              <Pill tone="neutral">Live data</Pill>
             </div>
           }
         />

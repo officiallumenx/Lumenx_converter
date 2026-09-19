@@ -51,7 +51,7 @@ function EnrollmentsPage() {
     return (
       <AppShell
         title="Enrollments"
-        subtitle="API mode · section rosters · enroll / transfer / status"
+        subtitle="Section rosters · enroll / transfer / status"
       >
         <EnrollmentsApiPage
           initialSectionId={search.sectionId}
@@ -100,7 +100,7 @@ function EnrollmentsDemoPage() {
   return (
     <AppShell
       title="Enrollments"
-      subtitle="Demo mode · academic year section rosters"
+      subtitle="Academic year section rosters"
     >
       <div className="space-y-4">
         <PageToolbar>
@@ -108,14 +108,14 @@ function EnrollmentsDemoPage() {
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search student, roll, class…"
-            className="w-full max-w-xs"
+            className="min-w-0 flex-1 sm:max-w-xs"
           />
           <ToolbarMeta>{rows.length} rows</ToolbarMeta>
         </PageToolbar>
 
         <Card>
           <CardHeader title="Section rosters" hint={`${rows.length} enrollments`} />
-          <div className="flex flex-wrap items-end gap-2 border-b border-border px-4 pb-3 sm:px-5">
+          <div className="lx-filter-bar flex flex-wrap items-center gap-2 border-b border-border px-3 py-2 sm:px-5 sm:py-2.5">
             <CascadingFiltersMenu
               groups={[
                 {

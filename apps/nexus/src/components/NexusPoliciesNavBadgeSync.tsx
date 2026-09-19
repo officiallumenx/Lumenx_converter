@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { isNexusApiMode } from "@/lib/auth-mode";
 import { listDerivedPlatformAlerts } from "@/lib/policies/api";
 import { setNexusActivePlatformAlertCount } from "@/lib/use-nexus-policies-nav-badge";
+import { subscribeInAppAlerts } from "@lumenx/notifications";
 
 const POLL_MS = 60_000;
 
@@ -30,9 +31,11 @@ export function NexusPoliciesNavBadgeSync(): null {
     };
 
     refresh();
+    const unsubscribePush = subscribeInAppAlerts(refresh);
     const timer = window.setInterval(refresh, POLL_MS);
     return () => {
       cancelled = true;
+      unsubscribePush();
       window.clearInterval(timer);
     };
   }, []);

@@ -17,13 +17,25 @@ export function createErrorHandler(logger: Logger) {
     const requestId: string = c.get("requestId") ?? "unknown";
 
     if (err instanceof AppError) {
+      if (err.status >= 500) {
+        logger.error({
+          msg: "app_error",
+          requestId,
+          code: err.code,
+          message: err.message,
+          details: err.details,
+        });
+      }
       return c.json(
         {
           error: {
             code: err.code,
             message: err.message,
             requestId,
-            ...(err.details !== undefined ? { details: err.details } : {}),
+            // Never leak DB internals to clients on 5xx.
+            ...(err.status < 500 && err.details !== undefined
+              ? { details: err.details }
+              : {}),
           },
         },
         err.status as ContentfulStatusCode,

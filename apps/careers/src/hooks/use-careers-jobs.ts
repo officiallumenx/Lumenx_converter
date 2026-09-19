@@ -70,7 +70,7 @@ export function useCareersJobs(options: UseCareersJobsOptions = {}) {
     return rows.filter((job) => !job.recruiterJobStatus || job.recruiterJobStatus === "open");
   }, [options.openOnly, reloadKey]);
 
-  const jobs = apiMode && state.status !== "demo" ? state.items : demoJobs;
+  const jobs = apiMode ? state.items : demoJobs;
   const loading = apiMode && state.status === "loading";
   const status: CareersLoadStatus = apiMode ? state.status : "demo";
 

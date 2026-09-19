@@ -113,7 +113,9 @@ export type SubmitLumenXFeedbackResult = {
 
 /**
  * Prefer API transport when configured + institute id available.
- * Falls back to localStorage demo otherwise.
+ * When a transport is registered (API mode), never write localStorage on failure —
+ * surface a real error so feedback E2E cannot silently "succeed".
+ * Demo/offline (no transport) still uses localStorage.
  */
 export async function submitLumenXFeedbackAsync(
   input: CreateLumenXFeedbackInput,
@@ -121,10 +123,13 @@ export async function submitLumenXFeedbackAsync(
   const transport = feedbackTransport;
   if (transport) {
     const instituteId = await transport.resolveInstituteId();
-    if (instituteId) {
-      await transport.submit({ ...input, instituteId });
-      return { mode: "api" };
+    if (!instituteId) {
+      throw new Error(
+        "Feedback requires an active institute. Select an institute and try again.",
+      );
     }
+    await transport.submit({ ...input, instituteId });
+    return { mode: "api" };
   }
   return { mode: "demo", entry: submitLumenXFeedback(input) };
 }

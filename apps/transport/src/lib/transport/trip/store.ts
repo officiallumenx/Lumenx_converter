@@ -1,5 +1,4 @@
-import { enrollmentsForVehicle, listTransportAttendanceMarks, notifyAdminTransportAttendancePending, notifyAdminTripEnded, notifyAdminTripStarted, notifyConnectBoardingStarted, notifyConnectReachedSchool } from "@lumenx/utils";
-
+import { getApiApprovedStudentCount } from "../api-roster";
 import {
   getRouteSetupDriverScope,
   getRouteSetupSnapshot,
@@ -25,20 +24,6 @@ export type TripSession = {
 export type TripActionResult =
   | { ok: true; session: TripSession }
   | { ok: false; reason: string; session: TripSession };
-
-const STORAGE_KEY = "lumenx.transport.trip.v1";
-
-type PersistedTrip = {
-  version: 1;
-  phase: TripPhase;
-  tripId: string | null;
-  startedAt: string | null;
-  completedAt: string | null;
-  vehicleId: string | null;
-  routeId: string | null;
-  currentStopIndex: number;
-  lastSummary: TripEndSummary | null;
-};
 
 const listeners = new Set<() => void>();
 
@@ -105,110 +90,13 @@ function sessionCacheKey(): string {
   ].join("|");
 }
 
-function normalizeLegacyPhase(raw: unknown): TripPhase {
-  if (raw === "idle") return "ready";
-  if (raw === "in_progress") return "running";
-  if (
-    raw === "ready" ||
-    raw === "starting" ||
-    raw === "running" ||
-    raw === "boarding" ||
-    raw === "dropping" ||
-    raw === "completed"
-  ) {
-    return raw;
-  }
-  return "ready";
-}
-
-function canUseLocalStorage(): boolean {
+// Clear legacy trip chrome key once (restore via active-trip API only).
+if (typeof window !== "undefined") {
   try {
-    return typeof localStorage !== "undefined" && localStorage != null;
+    localStorage.removeItem("lumenx.transport.trip.v1");
   } catch {
-    return false;
+    /* ignore */
   }
-}
-
-function readPersisted(): PersistedTrip | null {
-  if (!canUseLocalStorage()) return null;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<PersistedTrip> & { phase?: unknown };
-    if (!parsed || typeof parsed !== "object") return null;
-    return {
-      version: 1,
-      phase: normalizeLegacyPhase(parsed.phase),
-      tripId: typeof parsed.tripId === "string" ? parsed.tripId : null,
-      startedAt: typeof parsed.startedAt === "string" ? parsed.startedAt : null,
-      completedAt: typeof parsed.completedAt === "string" ? parsed.completedAt : null,
-      vehicleId: typeof parsed.vehicleId === "string" ? parsed.vehicleId : null,
-      routeId: typeof parsed.routeId === "string" ? parsed.routeId : null,
-      currentStopIndex:
-        typeof parsed.currentStopIndex === "number" && parsed.currentStopIndex >= 0
-          ? parsed.currentStopIndex
-          : 0,
-      lastSummary:
-        parsed.lastSummary && typeof parsed.lastSummary === "object"
-          ? (parsed.lastSummary as TripEndSummary)
-          : null,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function persist() {
-  if (!canUseLocalStorage()) return;
-  const payload: PersistedTrip = {
-    version: 1,
-    phase,
-    tripId,
-    startedAt,
-    completedAt,
-    vehicleId,
-    routeId,
-    currentStopIndex,
-    lastSummary,
-  };
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-  } catch {
-    // Ignore quota / private mode failures — in-memory state still works.
-  }
-}
-
-function hydrateFromStorage() {
-  const saved = readPersisted();
-  if (!saved) return;
-  phase = saved.phase;
-  tripId = saved.tripId;
-  startedAt = saved.startedAt;
-  completedAt = saved.completedAt;
-  vehicleId = saved.vehicleId;
-  routeId = saved.routeId;
-  currentStopIndex = saved.currentStopIndex;
-  lastSummary = saved.lastSummary;
-  // Incomplete start must not become a live trip after refresh.
-  if (phase === "starting") {
-    phase = "ready";
-    tripId = null;
-    startedAt = null;
-    completedAt = null;
-    currentStopIndex = 0;
-    persist();
-  }
-}
-
-hydrateFromStorage();
-
-if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
-  window.addEventListener("storage", (e) => {
-    if (e.key !== STORAGE_KEY && e.key !== null) return;
-    hydrateFromStorage();
-    cachedSession = null;
-    emit();
-  });
 }
 
 /** Trip assignment from logged-in driver scope + approved route-setup stops. */
@@ -224,13 +112,14 @@ export function getTripAssignmentSnapshot(): TripAssignment {
       ? [...sourceStops]
           .sort((a, b) => a.routeOrder - b.routeOrder)
           .map((s) => ({
-            id: s.id,
+            // Prefer API stop id so attendance enrollments (pickup_stop_id) match.
+            id: s.apiStopId?.trim() || s.id,
             name: s.name,
             sequence: s.routeOrder,
           }))
       : [];
 
-  const enrollments = enrollmentsForVehicle(scope.vehicleId);
+  const totalStudents = getApiApprovedStudentCount(scope.vehicleId);
 
   return {
     driver: {
@@ -254,7 +143,7 @@ export function getTripAssignmentSnapshot(): TripAssignment {
       adminRouteId: scope.routeId,
       stops,
     },
-    totalStudents: enrollments.length,
+    totalStudents,
   };
 }
 
@@ -269,6 +158,15 @@ subscribeRouteSetup(() => {
   cachedSetupRevision = "";
   emit();
 });
+
+if (typeof window !== "undefined") {
+  void import("../api-roster").then(({ subscribeApiDriverRoster }) => {
+    subscribeApiDriverRoster(() => {
+      cachedSession = null;
+      emit();
+    });
+  });
+}
 
 export function getTripSessionSnapshot(): TripSession {
   const revision = setupRevision();
@@ -357,7 +255,6 @@ export function beginStartTripSession(): TripActionResult {
   currentStopIndex = 0;
   lastSummary = null;
   cachedSession = null;
-  persist();
   emit();
   return { ok: true, session: getTripSessionSnapshot() };
 }
@@ -381,14 +278,7 @@ export function confirmStartTripSession(): TripActionResult {
   currentStopIndex = 0;
   lastSummary = null;
   cachedSession = null;
-  persist();
   emit();
-  notifyAdminTripStarted({
-    tripId: tripId!,
-    busNumber: assignment.bus.busNumber,
-    routeCode: assignment.route.code,
-    driverName: assignment.driver.name,
-  });
   return { ok: true, session: getTripSessionSnapshot() };
 }
 
@@ -416,16 +306,7 @@ export function setTripLifecyclePhase(
   }
   phase = next;
   cachedSession = null;
-  persist();
   emit();
-  if (next === "boarding" && tripId) {
-    const assignment = getTripAssignmentSnapshot();
-    notifyConnectBoardingStarted({
-      tripId,
-      busNumber: assignment.bus.busNumber,
-      routeCode: assignment.route.code,
-    });
-  }
   return { ok: true, session: getTripSessionSnapshot() };
 }
 
@@ -454,16 +335,7 @@ export function advanceTripStop(): TripActionResult {
   }
   currentStopIndex += 1;
   cachedSession = null;
-  persist();
   emit();
-  if (currentStopIndex >= stops.length - 1 && tripId) {
-    const assignment = getTripAssignmentSnapshot();
-    notifyConnectReachedSchool({
-      tripId,
-      busNumber: assignment.bus.busNumber,
-      routeCode: assignment.route.code,
-    });
-  }
   return { ok: true, session: getTripSessionSnapshot() };
 }
 
@@ -497,31 +369,7 @@ export function endTripSession(summary?: TripEndSummary | null): TripActionResul
       stopsTotal,
     } satisfies TripEndSummary);
   cachedSession = null;
-  persist();
   emit();
-  {
-    const assignment = getTripAssignmentSnapshot();
-    if (tripId) {
-      notifyAdminTripEnded({
-        tripId,
-        busNumber: assignment.bus.busNumber,
-        routeCode: assignment.route.code,
-        driverName: assignment.driver.name,
-      });
-      const pending = listTransportAttendanceMarks().filter(
-        (m) => m.tripId === tripId && m.boarding === "pending",
-      ).length;
-      if (pending > 0) {
-        notifyAdminTransportAttendancePending({
-          tripId,
-          busNumber: assignment.bus.busNumber,
-          routeCode: assignment.route.code,
-          driverName: assignment.driver.name,
-          pendingCount: pending,
-        });
-      }
-    }
-  }
   return { ok: true, session: getTripSessionSnapshot() };
 }
 
@@ -546,7 +394,6 @@ export function syncTripFromApiDto(dto: {
     lastSummary = null;
   }
   cachedSession = null;
-  persist();
   emit();
   return { ok: true, session: getTripSessionSnapshot() };
 }
@@ -570,7 +417,6 @@ export function dismissCompletedTripSession(): TripActionResult {
   currentStopIndex = 0;
   lastSummary = null;
   cachedSession = null;
-  persist();
   emit();
   return { ok: true, session: getTripSessionSnapshot() };
 }
@@ -585,14 +431,12 @@ export function resetTripSession() {
   currentStopIndex = 0;
   lastSummary = null;
   cachedSession = null;
-  if (canUseLocalStorage()) {
+  if (typeof window !== "undefined") {
     try {
-      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem("lumenx.transport.trip.v1");
     } catch {
       // ignore
     }
   }
   emit();
 }
-
-export { STORAGE_KEY as TRIP_STORAGE_KEY };

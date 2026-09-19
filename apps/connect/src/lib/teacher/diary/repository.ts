@@ -81,17 +81,13 @@ export const diaryRepository = {
   async submitToAdmin(scope: DiaryScope, date: string, rows: DiaryRow[]) {
     const draft = { date, scope, rows, updatedAt: "" };
     if (!isDiaryDayReady(draft)) {
-      throw new Error("Add at least one class with a description before submitting.");
+      throw new Error(
+        scope === "subject"
+          ? "Fill at least one row with class & section and a description."
+          : "Fill at least one row with a class and description.",
+      );
     }
     if (useApi()) {
-      if (scope === "subject") {
-        const complete = rows.filter(
-          (r) => r.className.trim() && r.description.trim(),
-        );
-        if (complete.some((r) => !r.sectionId)) {
-          throw new Error("Select a class section for each subject diary row.");
-        }
-      }
       return submitDiaryApiDay(scope, date, rows);
     }
     await delay();

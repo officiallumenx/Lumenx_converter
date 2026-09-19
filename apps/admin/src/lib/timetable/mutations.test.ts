@@ -28,7 +28,7 @@ describe("timetable mutations", () => {
         startsAt: "09:00",
         endsAt: "09:45",
       }),
-    ).rejects.toThrow(/API auth mode/);
+    ).rejects.toThrow(/API auth mode|Authentication required|Demo Mode is no longer supported/);
   });
 
   it("does not call network for invalid slot UUID on delete", async () => {

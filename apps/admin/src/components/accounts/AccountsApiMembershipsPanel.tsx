@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useReloadKey } from "@/hooks/useReloadKey";
 import {
   Button,
   Card,
@@ -115,7 +116,7 @@ export function AccountsApiMembershipsPanel() {
   const [listError, setListError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<MembershipStatus | "">("");
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const [reloadKey, setReloadKey] = useReloadKey();
   const [roleCatalog, setRoleCatalog] = useState<RoleCatalogItem[]>([]);
   const [candidates, setCandidates] = useState<MembershipCandidate[]>([]);
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -320,7 +321,7 @@ export function AccountsApiMembershipsPanel() {
           <EmptyState
             icon={<KeyRound className="size-5" />}
             title="Auth account provisioning"
-            hint="Creating login identities / temp passwords requires Supabase Auth admin APIs not exposed here. Attach an existing user_profile UUID only."
+            hint="Attach an existing login profile. Creating new logins is not available from this screen."
           />
         </Card>
         <Card>
@@ -335,7 +336,7 @@ export function AccountsApiMembershipsPanel() {
       <Card>
         <CardHeader
           title="Institute memberships"
-          hint="GET/POST/PATCH/DELETE /memberships · roles from frozen catalog"
+          hint="Institute memberships and roles"
           action={
             <div className="flex flex-wrap items-center gap-2">
               <Select
@@ -446,7 +447,7 @@ export function AccountsApiMembershipsPanel() {
         open={writesEnabled && inviteOpen}
         onClose={() => setInviteOpen(false)}
         title="Attach existing user"
-        subtitle="Requires an existing user_profile (Auth user). Does not create logins."
+        subtitle="Link someone who already has a login. This does not create new accounts."
         footer={
           <>
             <Button onClick={() => setInviteOpen(false)}>Cancel</Button>
@@ -465,7 +466,7 @@ export function AccountsApiMembershipsPanel() {
           {inviteCandidates.length > 0 ? (
             <Field
               label="Linked people"
-              hint="Teachers/students that already have a user_profile_id"
+              hint="Teachers or students who already have a login"
             >
               <Select
                 value=""
@@ -482,14 +483,14 @@ export function AccountsApiMembershipsPanel() {
               </Select>
             </Field>
           ) : null}
-          <Field label="User profile ID" required hint="UUID of an existing user_profile">
+          <Field label="User profile ID" required hint="ID of an existing login profile">
             <TextInput
               value={userId}
               onChange={(e) => setUserId(e.target.value)}
               placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
             />
           </Field>
-          <Field label="Roles" required hint="Assignable codes from GET /roles">
+          <Field label="Roles" required hint="Choose one or more roles">
             <RoleChecklist
               catalog={roleCatalog}
               selected={selectedRoles}

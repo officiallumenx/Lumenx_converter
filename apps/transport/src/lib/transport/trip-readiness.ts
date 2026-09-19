@@ -1,4 +1,4 @@
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 
 export type ReadinessKey = "internet" | "notifications" | "gps";
 
@@ -379,37 +379,56 @@ function getWebPosition(options: PositionOptions): Promise<GeolocationPosition> 
   });
 }
 
-async function getCapacitorPosition(): Promise<void> {
+const LOCATION_FIX_ATTEMPTS: PositionOptions[] = [
+  { enableHighAccuracy: true, timeout: 8_000, maximumAge: 60_000 },
+  { enableHighAccuracy: false, timeout: 12_000, maximumAge: 120_000 },
+  { enableHighAccuracy: true, timeout: 18_000, maximumAge: 0 },
+];
+
+async function getCapacitorPosition(options: PositionOptions): Promise<void> {
   const { Geolocation } = await import("@capacitor/geolocation");
   await Geolocation.getCurrentPosition({
-    enableHighAccuracy: true,
-    timeout: 18_000,
-    maximumAge: 0,
+    enableHighAccuracy: options.enableHighAccuracy ?? true,
+    timeout: options.timeout ?? 12_000,
+    maximumAge: options.maximumAge ?? 60_000,
   });
 }
 
+type LocationSettingsPlugin = {
+  isEnabled: () => Promise<{ enabled: boolean }>;
+};
+
+const locationSettings = registerPlugin<LocationSettingsPlugin>("LocationSettings");
+
+async function isNativeLocationServiceEnabled(): Promise<boolean | null> {
+  if (!isNativePlatform()) return null;
+  try {
+    return (await locationSettings.isEnabled()).enabled;
+  } catch {
+    return null;
+  }
+}
+
 async function acquireLocationFix(): Promise<void> {
+  let lastError: GeolocationPositionError | Error | null = null;
+
   if (isNativePlatform()) {
-    try {
-      await getCapacitorPosition();
-      return;
-    } catch {
-      // Fall through to web geolocation inside the Capacitor WebView.
+    for (const options of LOCATION_FIX_ATTEMPTS) {
+      try {
+        await getCapacitorPosition(options);
+        return;
+      } catch (error) {
+        lastError =
+          error instanceof GeolocationPositionError ? error : new Error("Location failed");
+      }
     }
   }
 
   if (!navigator.geolocation) {
-    throw new Error("Geolocation unavailable");
+    throw lastError ?? new Error("Geolocation unavailable");
   }
 
-  const attempts: PositionOptions[] = [
-    { enableHighAccuracy: true, timeout: 12_000, maximumAge: 0 },
-    { enableHighAccuracy: false, timeout: 15_000, maximumAge: 0 },
-    { enableHighAccuracy: true, timeout: 18_000, maximumAge: 0 },
-  ];
-
-  let lastError: GeolocationPositionError | Error | null = null;
-  for (const options of attempts) {
+  for (const options of LOCATION_FIX_ATTEMPTS) {
     try {
       await getWebPosition(options);
       return;
@@ -437,14 +456,14 @@ function locationErrorMessage(
         ? "Location permission is off. Allow it when Android asks, then check again."
         : "Location permission is off. Allow it in the browser, then check again.";
     }
-    if (error.code === error.TIMEOUT) {
-      return "GPS is taking too long. Move to an open area or wait a moment, then check again.";
+    if (error.code === error.TIMEOUT || error.code === error.POSITION_UNAVAILABLE) {
+      return "Location is on, but GPS needs a clearer signal. Step outdoors and check again.";
     }
   }
 
   return isNativePlatform()
-    ? "Could not get location. Turn on GPS/location services, then check again."
-    : "Could not get location. Turn on GPS and check again.";
+    ? "Could not get a GPS fix yet. Keep location on, step outdoors, then check again."
+    : "Could not get a GPS fix yet. Keep location on and check again.";
 }
 
 async function checkGps(options?: { request?: boolean }): Promise<Omit<ReadinessCheck, "label">> {
@@ -487,6 +506,27 @@ async function checkGps(options?: { request?: boolean }): Promise<Omit<Readiness
     return { key: "gps", status: "on", message: "GPS location is available." };
   } catch (error) {
     const geoError = error instanceof GeolocationPositionError ? error : null;
+
+    // Permission granted + system location on ≠ "location off". Weak/indoor
+    // GPS should not block starting a trip.
+    if (
+      geoError == null ||
+      geoError.code === geoError.TIMEOUT ||
+      geoError.code === geoError.POSITION_UNAVAILABLE
+    ) {
+      const serviceEnabled = await isNativeLocationServiceEnabled();
+      if (
+        serviceEnabled === true ||
+        (permission === "granted" && serviceEnabled !== false)
+      ) {
+        return {
+          key: "gps",
+          status: "on",
+          message: "Location is on. GPS will strengthen outdoors.",
+        };
+      }
+    }
+
     return {
       key: "gps",
       status: "off",

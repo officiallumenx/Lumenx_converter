@@ -47,19 +47,24 @@ describe("exams api repository", () => {
     vi.resetModules();
   });
 
-  it("refuses to call backend in demo mode", async () => {
+  it("ignores demo env and still calls API (product is API-only)", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
     const { listExams } = await import("./api");
-    const fetchMock = vi.fn();
+    const payload = [dto()];
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ data: payload }),
+      json: async () => ({ data: payload }),
+    });
     const client = createApiClient({
       getBaseUrl: () => "http://api.test",
       getAccessToken: async () => "tok",
       fetchImpl: fetchMock as unknown as typeof fetch,
     });
-    await expect(listExams({ instituteId: INST }, client)).rejects.toThrow(
-      /API auth mode/i,
-    );
-    expect(fetchMock).not.toHaveBeenCalled();
+    const rows = await listExams({ instituteId: INST }, client);
+    expect(rows).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalled();
   });
 
   it("lists exams with institute_id only in API mode", async () => {

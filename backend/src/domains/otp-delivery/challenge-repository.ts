@@ -8,7 +8,14 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ensureDbOk } from "../../db/errors.js";
 
-export type LoginOtpPurpose = "parent_login" | "staff_login";
+export type LoginOtpPurpose =
+  | "parent_login"
+  | "staff_login"
+  | "nexus_login"
+  | "connect_login"
+  | "signup_verify"
+  | "password_reset"
+  | "pin_reset";
 export type LoginOtpChannel = "sms" | "email" | "mobile";
 
 /** Failed verifies allowed before the challenge is destroyed. */
@@ -17,7 +24,7 @@ export const LOGIN_OTP_MAX_VERIFY_ATTEMPTS = 5;
 export type LoginOtpChallengeRow = {
   id: string;
   purpose: LoginOtpPurpose;
-  institute_id: string;
+  institute_id: string | null;
   challenge_key: string;
   channel: LoginOtpChannel;
   destination: string;
@@ -79,7 +86,7 @@ export async function findLoginOtpChallenge(
 
 export type UpsertLoginOtpChallengeInput = {
   purpose: LoginOtpPurpose;
-  instituteId: string;
+  instituteId?: string | null;
   challengeKey: string;
   channel: LoginOtpChannel;
   destination: string;
@@ -103,7 +110,7 @@ export async function upsertLoginOtpChallenge(
     .upsert(
       {
         purpose: input.purpose,
-        institute_id: input.instituteId,
+        institute_id: input.instituteId ?? null,
         challenge_key: input.challengeKey,
         channel: input.channel,
         destination: input.destination,

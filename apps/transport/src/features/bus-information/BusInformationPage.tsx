@@ -9,7 +9,7 @@ import { InfoField } from "@/components/ui/info-field";
 import { SectionHeader } from "@/components/ui/section-header";
 import { StatusChip } from "@/components/ui/status-chip";
 import { ROUTES } from "@/constants";
-import { useDriverAssignment } from "@/hooks/use-driver-assignment";
+import { useDriverAssignmentQuery } from "@/lib/transport-queries";
 import { useRouteSetup } from "@/hooks/use-route-setup";
 import { useTripSession } from "@/hooks/use-trip-session";
 import { routeSetupRepository } from "@/lib/transport/route-setup";
@@ -17,7 +17,7 @@ import { MODULE_COLORS } from "@/theme/colors";
 
 export function BusInformationPage() {
   const navigate = useNavigate();
-  const assignment = useDriverAssignment();
+  const assignment = useDriverAssignmentQuery();
   const session = useTripSession();
   const setup = useRouteSetup();
   const trip = session.assignment;

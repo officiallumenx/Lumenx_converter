@@ -3,6 +3,7 @@ import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
 import { listRecentSchoolAlerts } from "@/lib/school-alerts";
 import { setAdminEmergencyBroadcastCount } from "@/lib/use-admin-alerts-nav-badge";
+import { subscribeInAppAlerts } from "@lumenx/notifications";
 
 const POLL_MS = 60_000;
 
@@ -31,9 +32,11 @@ export function AdminAlertsNavBadgeSync(): null {
     };
 
     refresh();
+    const unsubscribePush = subscribeInAppAlerts(refresh);
     const timer = window.setInterval(refresh, POLL_MS);
     return () => {
       cancelled = true;
+      unsubscribePush();
       window.clearInterval(timer);
     };
   }, [instituteCtx.status, instituteCtx.activeInstituteId]);

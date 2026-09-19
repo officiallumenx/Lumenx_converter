@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef } from "react";
-import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
+import { Navigate, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 
 import { BottomNavigation } from "@/components/ui/bottom-navigation";
 import { ROUTES, getActivePrimaryNavId, PRIMARY_NAV, MORE_NAV } from "@/constants";
 import { useAlerts } from "@/hooks/use-alerts";
-import { useDriverAssignment } from "@/hooks/use-driver-assignment";
+import { useDriverAssignmentQuery } from "@/lib/transport-queries";
 import { useTripLocationGuard } from "@/hooks/use-trip-location-guard";
 import { useTransportAuth } from "@/lib/auth";
+import { getTransportProtectedRouteDecision } from "@/lib/auth/protected-route";
 import {
   useSwipeNavigation,
   toSwipeNavItems,
@@ -34,16 +35,11 @@ export function AppShell() {
   const { user, hydrated } = useTransportAuth();
   useTripLocationGuard();
   /** Keep trip / route-setup / attendance scoped to the signed-in driver. */
-  useDriverAssignment();
+  useDriverAssignmentQuery();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const activeId = getActivePrimaryNavId(pathname);
   const mainRef = useRef<HTMLElement>(null);
   const unreadAlerts = useAlerts().filter((item) => item.unread).length;
-
-  useEffect(() => {
-    if (!hydrated) return;
-    if (!user) void navigate({ to: ROUTES.login, replace: true });
-  }, [hydrated, user, navigate]);
 
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0, behavior: "auto" });
@@ -82,12 +78,16 @@ export function AppShell() {
       : item,
   );
 
-  if (!hydrated || !user) {
+  const authDecision = getTransportProtectedRouteDecision(hydrated, user);
+  if (authDecision === "loading") {
     return (
       <div className="flex h-dvh items-center justify-center bg-background">
         <Loader2 className="size-6 animate-spin text-muted-foreground" aria-hidden />
       </div>
     );
+  }
+  if (authDecision === "redirect" || !user) {
+    return <Navigate to={ROUTES.login} replace />;
   }
 
   return (

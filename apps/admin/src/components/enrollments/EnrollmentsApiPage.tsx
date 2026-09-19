@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useReloadKey } from "@/hooks/useReloadKey";
 import {
   Button,
   Card,
@@ -107,7 +108,7 @@ export function EnrollmentsApiPage({
   const [loadStatus, setLoadStatus] = useState<EnrollmentListStatus>("loading");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const [reloadKey, setReloadKey] = useReloadKey();
   const [createOpen, setCreateOpen] = useState(false);
   const [editRow, setEditRow] = useState<EnrollmentListItem | null>(null);
   const [saving, setSaving] = useState(false);
@@ -336,11 +337,11 @@ export function EnrollmentsApiPage({
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           placeholder="Search student, roll, class…"
-          className="w-full max-w-xs"
+          className="min-w-0 flex-1 sm:max-w-xs"
         />
         <ToolbarSpacer />
         <Pill tone="neutral">
-          {writesEnabled ? "API mode · create / update" : "Read-only · API mode"}
+          {writesEnabled ? "Create / update" : "Read-only"}
         </Pill>
         {writesEnabled ? (
           <Button variant="primary" onClick={openCreate} disabled={!academicYearId}>
@@ -359,7 +360,7 @@ export function EnrollmentsApiPage({
               : hint ?? "Academic enrollments"
           }
         />
-        <div className="flex flex-wrap items-end gap-2 border-b border-border px-4 pb-3 sm:px-5">
+        <div className="lx-filter-bar flex flex-wrap items-center gap-2 border-b border-border px-3 py-2 sm:px-5 sm:py-2.5">
           <CascadingFiltersMenu
             groups={[
               {

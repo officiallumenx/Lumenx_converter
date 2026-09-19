@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useReloadKey } from "@/hooks/useReloadKey";
 import { CalendarOff, Plus, Info } from "lucide-react";
 import { toast } from "sonner";
 import { Button, Textarea, cn, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@lumenx/ui";
@@ -143,7 +144,7 @@ function ApiParentLeavePage() {
   const [students, setStudents] = useState<StudentDto[]>([]);
   const [requests, setRequests] = useState<ConnectLeaveRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [reloadKey, setReloadKey] = useState(0);
+  const [reloadKey, setReloadKey] = useReloadKey();
   const [leaveChildId, setLeaveChildId] = useState(activeChildId);
   const minDate = minLeaveDateIso();
   const [leaveStartDate, setLeaveStartDate] = useState(minDate);

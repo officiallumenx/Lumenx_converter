@@ -1,11 +1,25 @@
 /** Staff attendance foundation types aligned to staff_attendance (faculty). */
 
+/** All stored statuses (includes legacy `late` for history reads). */
 export type StaffAttendanceStatus =
   | "present"
   | "late"
   | "absent"
   | "leave"
   | "half-day";
+
+/**
+ * Flowchart mark statuses (Admin Teacher attendance):
+ * present | absent | half day | leave
+ */
+export type StaffAttendanceMarkStatus =
+  | "present"
+  | "absent"
+  | "leave"
+  | "half-day";
+
+export const STAFF_ATTENDANCE_MARK_STATUSES: readonly StaffAttendanceMarkStatus[] =
+  ["present", "absent", "half-day", "leave"] as const;
 
 export type StaffAttendanceDayStatus = "draft" | "submitted";
 
@@ -55,7 +69,7 @@ export type ListStaffAttendanceFilter = {
 
 export type UpsertStaffAttendanceMarkInput = {
   teacherId: string;
-  status: StaffAttendanceStatus;
+  status: StaffAttendanceMarkStatus;
   checkIn?: string | null;
   checkOut?: string | null;
   note?: string | null;

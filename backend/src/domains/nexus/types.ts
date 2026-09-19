@@ -172,6 +172,34 @@ export type CreateOperatorInput = {
   status?: PlatformOperatorStatus;
 };
 
+export type ProvisionOperatorInput = {
+  email: string;
+  phone: string;
+  temporaryPassword: string;
+  roleCode: string;
+  handle: string;
+  displayName: string;
+  /** Login username (defaults to handle). */
+  username?: string;
+  /** Initial PIN (4–8 digits) set by Nexus root. */
+  pin?: string;
+};
+
+export type ProvisionOperatorResult = {
+  operator: PlatformOperatorDto;
+  credentials: {
+    email: string;
+    phone: string;
+    username: string;
+    temporaryPassword: string;
+    pinSet: boolean;
+    firstLoginPending: true;
+    requiresEmailOtp: true;
+    requiresMobileOtp: true;
+    requiresPasswordAndPin: true;
+  };
+};
+
 export type UpdateOperatorInput = {
   roleCode?: string;
   handle?: string;

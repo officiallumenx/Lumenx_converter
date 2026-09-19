@@ -63,6 +63,22 @@ export async function findTeacherById(
   return (result.data as TeacherRow | null) ?? null;
 }
 
+export async function findTeacherByPhoneInInstitute(
+  admin: SupabaseClient,
+  phone: string,
+  instituteId: string,
+): Promise<TeacherRow | null> {
+  const result = await admin
+    .from("teacher")
+    .select(TEACHER_COLS)
+    .eq("institute_id", instituteId)
+    .eq("phone", phone)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (result.data as TeacherRow | null) ?? null;
+}
+
 export async function insertTeacher(
   admin: SupabaseClient,
   input: CreateTeacherInput,

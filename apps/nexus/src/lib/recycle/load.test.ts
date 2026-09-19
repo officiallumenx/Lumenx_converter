@@ -6,14 +6,14 @@ describe("loadPlatformRecycleList", () => {
     vi.clearAllMocks();
   });
 
-  it("returns demo status without calling API in demo mode", async () => {
+  it("stays on API path even when VITE_NEXUS_AUTH_MODE=demo is set", async () => {
     vi.stubEnv("VITE_NEXUS_AUTH_MODE", "demo");
-    const listPlatformRecycleItems = vi.fn();
+    const listPlatformRecycleItems = vi.fn().mockResolvedValue([]);
     vi.doMock("./api", () => ({ listPlatformRecycleItems }));
     const { loadPlatformRecycleList } = await import("./load");
     const result = await loadPlatformRecycleList();
-    expect(result.status).toBe("demo");
-    expect(listPlatformRecycleItems).not.toHaveBeenCalled();
+    expect(result.status).not.toBe("demo");
+    expect(listPlatformRecycleItems).toHaveBeenCalled();
   });
 
   it("returns ready with mapped items in API mode", async () => {

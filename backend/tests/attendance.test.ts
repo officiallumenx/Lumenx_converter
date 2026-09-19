@@ -396,7 +396,7 @@ describe("attendance — tenant isolation", () => {
     const app = appWithDb(baseDb());
     const res = await app.request("/api/v1/attendance/registers", {
       method: "POST",
-      headers: { ...auth("token-admin"), "Content-Type": "application/json" },
+      headers: { ...auth("token-teacher"), "Content-Type": "application/json" },
       body: JSON.stringify({
         ...validCreateBody,
         marks: [{ enrollment_id: ENROLL_OTHER_INST, status: "present" }],
@@ -530,14 +530,14 @@ describe("attendance — workflow immutability", () => {
     const app = appWithDb(baseDb());
     const submit = await app.request(`/api/v1/attendance/registers/${REGISTER_A}/submit`, {
       method: "POST",
-      headers: auth("token-admin"),
+      headers: auth("token-teacher"),
     });
     expect(submit.status).toBe(200);
     expect((await json(submit)).data.status).toBe("submitted");
 
     const patch = await app.request(`/api/v1/attendance/registers/${REGISTER_A}`, {
       method: "PATCH",
-      headers: { ...auth("token-admin"), "Content-Type": "application/json" },
+      headers: { ...auth("token-teacher"), "Content-Type": "application/json" },
       body: JSON.stringify({
         marks: [{ enrollment_id: ENROLL_A, status: "absent" }],
       }),
@@ -549,7 +549,7 @@ describe("attendance — workflow immutability", () => {
     const app = appWithDb(baseDb());
     const badStatus = await app.request("/api/v1/attendance/registers", {
       method: "POST",
-      headers: { ...auth("token-admin"), "Content-Type": "application/json" },
+      headers: { ...auth("token-teacher"), "Content-Type": "application/json" },
       body: JSON.stringify({
         ...validCreateBody,
         marks: [{ enrollment_id: ENROLL_A, status: "late" }],
@@ -559,7 +559,7 @@ describe("attendance — workflow immutability", () => {
 
     const badEnroll = await app.request("/api/v1/attendance/registers", {
       method: "POST",
-      headers: { ...auth("token-admin"), "Content-Type": "application/json" },
+      headers: { ...auth("token-teacher"), "Content-Type": "application/json" },
       body: JSON.stringify({
         ...validCreateBody,
         marks: [
@@ -651,7 +651,7 @@ describe("attendance — submit notifications", () => {
     const app = appWithDb(db);
     const submit = await app.request(`/api/v1/attendance/registers/${REGISTER_A}/submit`, {
       method: "POST",
-      headers: auth("token-admin"),
+      headers: auth("token-teacher"),
     });
     expect(submit.status).toBe(200);
     expect(db.notification.length).toBeGreaterThan(0);

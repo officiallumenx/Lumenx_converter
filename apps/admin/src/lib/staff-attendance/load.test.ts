@@ -9,14 +9,50 @@ describe("loadStaffAttendanceDay", () => {
     vi.clearAllMocks();
   });
 
-  it("returns demo status without calling API in demo mode", async () => {
+  it("ignores demo env and still requires API (product is API-only)", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const listStaffAttendance = vi.fn();
+    const listStaffAttendance = vi.fn().mockResolvedValue([]);
     vi.doMock("./api", () => ({ listStaffAttendance }));
+    vi.doMock("@/lib/teachers/api", () => ({
+      listTeachers: vi.fn().mockResolvedValue([]),
+    }));
     const { loadStaffAttendanceDay } = await import("./load");
     const result = await loadStaffAttendanceDay(INST, "2026-06-01");
-    expect(result.status).toBe("demo");
-    expect(listStaffAttendance).not.toHaveBeenCalled();
+    expect(result.status).toBe("empty");
+    expect(listStaffAttendance).toHaveBeenCalled();
+  });
+
+  it("keeps attendance marks when teacher roster fails", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const listStaffAttendance = vi.fn().mockResolvedValue([
+      {
+        id: "m1",
+        instituteId: INST,
+        teacherId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        attendanceDate: "2026-06-01",
+        status: "present",
+        checkIn: null,
+        checkOut: null,
+        note: null,
+        dayStatus: "draft",
+        markedByUserId: "u1",
+        submittedAt: null,
+        submittedByUserId: null,
+        createdAt: "2026-06-01T10:00:00Z",
+        updatedAt: "2026-06-01T10:00:00Z",
+      },
+    ]);
+    vi.doMock("./api", () => ({ listStaffAttendance }));
+    vi.doMock("@/lib/teachers/api", () => ({
+      listTeachers: vi.fn().mockRejectedValue(new Error("teachers down")),
+    }));
+    vi.doMock("@/lib/teachers/map", () => ({
+      teacherDtosToListItems: () => [],
+    }));
+    const { loadStaffAttendanceDay } = await import("./load");
+    const result = await loadStaffAttendanceDay(INST, "2026-06-01");
+    expect(result.status).toBe("ready");
+    expect(result.summary?.marks.length).toBeGreaterThan(0);
   });
 
   it("returns forbidden on 403 without demo fallback", async () => {

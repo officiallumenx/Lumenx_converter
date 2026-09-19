@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   Field,
@@ -7,38 +7,41 @@ import {
   TextInput,
 } from "@lumenx/ui-admin";
 import { listAcademicYears, type AcademicYearDto } from "@/lib/academic-years";
-import { listSections, type SectionDto } from "@/lib/classes";
+import {
+  listClasses,
+  listSections,
+  sectionsToListItems,
+  type ClassDto,
+  type SectionDto,
+} from "@/lib/classes";
 import { listSubjects, type SubjectDto } from "@/lib/subjects";
-import { createExam, type CreateExamInput } from "@/lib/exams";
-
-type PaperRow = {
-  id: string;
-  subjectId: string;
-  paperDate: string;
-  startsAt: string;
-  endsAt: string;
-  room: string;
-};
+import { createExam, updateExam, type CreateExamInput } from "@/lib/exams";
+import {
+  assignSubjectsToDates,
+  suggestExamEndDate,
+} from "@/lib/exam-calendar-utils";
+import { buildExamHeader } from "@/lib/exam-timetable-data";
 
 type ExamApiCreateDialogProps = {
   open: boolean;
   instituteId: string;
   onClose: () => void;
-  onCreated: () => void;
+  onCreated: (result: {
+    published: boolean;
+    examId: string;
+    examName: string;
+    startDate: string;
+    endDate: string;
+  }) => void;
   onError: (message: string) => void;
 };
 
-function newPaperRow(defaults?: Partial<PaperRow>): PaperRow {
-  return {
-    id: `paper-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    subjectId: defaults?.subjectId ?? "",
-    paperDate: defaults?.paperDate ?? "",
-    startsAt: defaults?.startsAt ?? "09:00",
-    endsAt: defaults?.endsAt ?? "12:00",
-    room: defaults?.room ?? "",
-  };
-}
+type Step = "create" | "preview";
 
+/**
+ * Flowchart: Admin exams → Create exam → fields → preview →
+ * Create draft, or Create & publish timetable (opens marks entry).
+ */
 export function ExamApiCreateDialog({
   open,
   instituteId,
@@ -48,57 +51,145 @@ export function ExamApiCreateDialog({
 }: ExamApiCreateDialogProps) {
   const [years, setYears] = useState<AcademicYearDto[]>([]);
   const [sections, setSections] = useState<SectionDto[]>([]);
+  const [classes, setClasses] = useState<ClassDto[]>([]);
   const [subjects, setSubjects] = useState<SubjectDto[]>([]);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [step, setStep] = useState<Step>("create");
 
   const [academicYearId, setAcademicYearId] = useState("");
   const [name, setName] = useState("");
+  const [timetableTitle, setTimetableTitle] = useState("");
   const [header, setHeader] = useState("");
+  const [headerTouched, setHeaderTouched] = useState(false);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [endDateTouched, setEndDateTouched] = useState(false);
   const [startsAt, setStartsAt] = useState("09:00");
   const [endsAt, setEndsAt] = useState("12:00");
   const [totalMarks, setTotalMarks] = useState("100");
-  const [audienceScope, setAudienceScope] = useState<"year" | "section">("year");
+  const [internalMarks, setInternalMarks] = useState("20");
+  const [externalMarks, setExternalMarks] = useState("80");
+  const [audienceScope, setAudienceScope] = useState<"year" | "section">("section");
   const [selectedSectionIds, setSelectedSectionIds] = useState<string[]>([]);
-  const [paperRows, setPaperRows] = useState<PaperRow[]>([]);
+  const [orderedSubjectIds, setOrderedSubjectIds] = useState<string[]>([]);
+
+  // Parent often passes inline onError/onCreated — keep stable so catalog load
+  // does not re-fire and wipe the form (modal flicker / "popuping").
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+  const onCreatedRef = useRef(onCreated);
+  onCreatedRef.current = onCreated;
+  const wasOpenRef = useRef(false);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      wasOpenRef.current = false;
+      return;
+    }
+    const opening = !wasOpenRef.current;
+    wasOpenRef.current = true;
+
+    let cancelled = false;
     setLoadingCatalog(true);
     void Promise.all([
       listAcademicYears({ instituteId }),
       listSections({ instituteId }),
+      listClasses({ instituteId }),
       listSubjects({ instituteId }),
     ])
-      .then(([yearRows, sectionRows, subjectRows]) => {
+      .then(([yearRows, sectionRows, classRows, subjectRows]) => {
+        if (cancelled) return;
         setYears(yearRows);
         setSections(sectionRows);
+        setClasses(classRows);
         setSubjects(subjectRows);
-        const active = yearRows.find((y) => y.status === "active") ?? yearRows[0];
-        setAcademicYearId(active?.id ?? "");
-        setSelectedSectionIds(sectionRows[0] ? [sectionRows[0].id] : []);
-        setPaperRows(
-          subjectRows[0]
-            ? [newPaperRow({ subjectId: subjectRows[0].id, startsAt: "09:00", endsAt: "12:00" })]
-            : [],
-        );
+        // Only seed defaults when the dialog freshly opens — never mid-edit.
+        if (opening) {
+          const active = yearRows.find((y) => y.status === "active") ?? yearRows[0];
+          setAcademicYearId(active?.id ?? "");
+          setSelectedSectionIds(sectionRows.slice(0, 1).map((s) => s.id));
+          setOrderedSubjectIds([]);
+        }
       })
       .catch((err) => {
-        onError(err instanceof Error ? err.message : "Failed to load exam catalogs");
+        if (!cancelled) {
+          onErrorRef.current(
+            err instanceof Error ? err.message : "Failed to load exam catalogs",
+          );
+        }
       })
       .finally(() => {
-        setLoadingCatalog(false);
+        if (!cancelled) setLoadingCatalog(false);
       });
-  }, [open, instituteId, onError]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, instituteId]);
+
+  const autoEndDate = useMemo(() => {
+    if (!startDate || orderedSubjectIds.length === 0) return "";
+    return suggestExamEndDate(startDate, orderedSubjectIds.length);
+  }, [startDate, orderedSubjectIds.length]);
+
+  useEffect(() => {
+    if (!endDateTouched && autoEndDate) {
+      setEndDate(autoEndDate);
+    }
+  }, [autoEndDate, endDateTouched]);
+
+  const autoHeader = useMemo(() => {
+    const title = timetableTitle.trim() || name.trim();
+    return buildExamHeader(title, startDate, endDate || startDate);
+  }, [timetableTitle, name, startDate, endDate]);
+
+  useEffect(() => {
+    if (!headerTouched) {
+      setHeader(autoHeader);
+    }
+  }, [autoHeader, headerTouched]);
+
+  const paperPreview = useMemo(() => {
+    if (!startDate || orderedSubjectIds.length === 0) return [];
+    const effectiveEnd = endDate || autoEndDate || startDate;
+    const subjectNames = orderedSubjectIds.map(
+      (id) => subjects.find((s) => s.id === id)?.name ?? id.slice(0, 8),
+    );
+    return assignSubjectsToDates(startDate, effectiveEnd, subjectNames).map(
+      (row, index) => ({
+        ...row,
+        subjectId: orderedSubjectIds[index]!,
+      }),
+    );
+  }, [startDate, endDate, autoEndDate, orderedSubjectIds, subjects]);
+
+  const sectionOptions = useMemo(
+    () => sectionsToListItems(sections, classes),
+    [sections, classes],
+  );
+
+  const sectionLabelById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const item of sectionOptions) {
+      map.set(item.id, item.name);
+    }
+    return map;
+  }, [sectionOptions]);
 
   const resetAndClose = () => {
+    setStep("create");
     setName("");
+    setTimetableTitle("");
     setHeader("");
+    setHeaderTouched(false);
     setStartDate("");
     setEndDate("");
-    setPaperRows([]);
+    setEndDateTouched(false);
+    setTotalMarks("100");
+    setInternalMarks("20");
+    setExternalMarks("80");
+    setOrderedSubjectIds([]);
     setSelectedSectionIds([]);
     onClose();
   };
@@ -111,24 +202,98 @@ export function ExamApiCreateDialog({
     );
   };
 
-  const submit = () => {
-    if (!academicYearId || !name.trim() || !startDate || !endDate) {
-      onError("Name, academic year, and dates are required");
-      return;
+  const toggleSubject = (subjectId: string) => {
+    setOrderedSubjectIds((current) => {
+      if (current.includes(subjectId)) {
+        return current.filter((id) => id !== subjectId);
+      }
+      return [...current, subjectId];
+    });
+    setEndDateTouched(false);
+  };
+
+  const moveSubject = (subjectId: string, direction: -1 | 1) => {
+    setOrderedSubjectIds((current) => {
+      const index = current.indexOf(subjectId);
+      if (index < 0) return current;
+      const next = index + direction;
+      if (next < 0 || next >= current.length) return current;
+      const copy = [...current];
+      const tmp = copy[index]!;
+      copy[index] = copy[next]!;
+      copy[next] = tmp;
+      return copy;
+    });
+  };
+
+  const validateCreate = (): string | null => {
+    if (!academicYearId || !name.trim() || !startDate) {
+      return "Exam name, academic year, and start date are required";
     }
-    if (endDate < startDate) {
-      onError("End date must be on or after start date");
-      return;
+    const resolvedEnd = endDate || autoEndDate;
+    if (!resolvedEnd) {
+      return "Select subjects to calculate end date, or set end date manually";
     }
-    const marks = Number(totalMarks);
-    if (!Number.isFinite(marks) || marks <= 0) {
-      onError("Total marks must be a positive number");
-      return;
+    if (resolvedEnd < startDate) {
+      return "End date must be on or after start date";
+    }
+    if (orderedSubjectIds.length === 0) {
+      return "Select subjects order-wise";
     }
     if (audienceScope === "section" && selectedSectionIds.length === 0) {
-      onError("Select at least one target section");
+      return "Select at least one class · section";
+    }
+    const total = Number(totalMarks);
+    const internal = internalMarks.trim() === "" ? null : Number(internalMarks);
+    const external = externalMarks.trim() === "" ? null : Number(externalMarks);
+    if (!Number.isFinite(total) || total <= 0) {
+      return "Total marks must be a positive number";
+    }
+    if (internal != null && (!Number.isFinite(internal) || internal < 0)) {
+      return "Internal marks must be a non-negative number";
+    }
+    if (external != null && (!Number.isFinite(external) || external < 0)) {
+      return "External marks must be a non-negative number";
+    }
+    if (internal != null && external != null && internal + external !== total) {
+      return "Internal + external marks must equal total marks";
+    }
+    if (paperPreview.length < orderedSubjectIds.length) {
+      return "End date is too short for all subjects after skipping holidays — extend end date";
+    }
+    return null;
+  };
+
+  const applyTotalMarks = (raw: string) => {
+    setTotalMarks(raw);
+    const total = Number(raw);
+    if (!Number.isFinite(total) || total <= 0) return;
+    // Keep the default 20/80 split proportional to the new total.
+    const nextInternal = Math.round(total * 0.2);
+    setInternalMarks(String(nextInternal));
+    setExternalMarks(String(Math.max(0, total - nextInternal)));
+  };
+
+  const goPreview = () => {
+    const error = validateCreate();
+    if (error) {
+      onErrorRef.current(error);
       return;
     }
+    setStep("preview");
+  };
+
+  const submit = (publish: boolean) => {
+    const error = validateCreate();
+    if (error) {
+      onErrorRef.current(error);
+      return;
+    }
+
+    const resolvedEnd = endDate || autoEndDate;
+    const total = Number(totalMarks);
+    const internal = internalMarks.trim() === "" ? null : Number(internalMarks);
+    const external = externalMarks.trim() === "" ? null : Number(externalMarks);
 
     const targetSections =
       audienceScope === "section"
@@ -138,66 +303,151 @@ export function ExamApiCreateDialog({
             .map((s) => ({ sectionId: s.id, classId: s.classId }))
         : undefined;
 
-    const subjectSchedules = paperRows
-      .filter((row) => row.subjectId)
-      .map((row) => ({
-        subjectId: row.subjectId,
-        paperDate: row.paperDate || startDate,
-        startsAt: row.startsAt || startsAt,
-        endsAt: row.endsAt || endsAt,
-        room: row.room.trim() || null,
-      }));
+    const subjectSchedules = paperPreview.map((row) => ({
+      subjectId: row.subjectId,
+      paperDate: row.date,
+      startsAt,
+      endsAt,
+      room: null as string | null,
+    }));
+
+    const resolvedHeader =
+      header.trim() ||
+      buildExamHeader(timetableTitle.trim() || name.trim(), startDate, resolvedEnd);
 
     const input: CreateExamInput = {
       instituteId,
       academicYearId,
       name: name.trim(),
-      header: header.trim() || name.trim(),
+      header: resolvedHeader,
       startDate,
-      endDate,
+      endDate: resolvedEnd,
       defaultStartsAt: startsAt,
       defaultEndsAt: endsAt,
-      totalMarks: marks,
+      totalMarks: total,
+      internalMarks: internal,
+      externalMarks: external,
       audienceScope,
       targetSections,
-      subjectSchedules: subjectSchedules.length > 0 ? subjectSchedules : undefined,
+      subjectSchedules,
     };
 
     setSaving(true);
     void createExam(input)
-      .then(() => {
+      .then(async (created) => {
+        if (publish) {
+          await updateExam(created.id, { scheduleStatus: "published" });
+        }
         resetAndClose();
-        onCreated();
+        onCreatedRef.current({
+          published: publish,
+          examId: created.id,
+          examName: created.name?.trim() || name.trim(),
+          startDate: created.startDate || startDate,
+          endDate: created.endDate || resolvedEnd || startDate,
+        });
       })
       .catch((err) => {
-        onError(err instanceof Error ? err.message : "Failed to create exam");
+        onErrorRef.current(
+          err instanceof Error ? err.message : "Failed to create exam",
+        );
       })
       .finally(() => {
         setSaving(false);
       });
   };
 
+  const sectionLabel = (sectionId: string, fallback?: SectionDto) =>
+    sectionLabelById.get(sectionId) ??
+    (fallback
+      ? `${fallback.name?.trim() || fallback.code?.trim() || "Section"}`
+      : sectionId.slice(0, 8));
+
   return (
     <Modal
       open={open}
       onClose={resetAndClose}
-      title="Create exam (API)"
+      title={step === "preview" ? "Preview exam timetable" : "Create exam"}
       size="lg"
       footer={
         <>
           <Button onClick={resetAndClose}>Cancel</Button>
-          <Button
-            variant="primary"
-            onClick={submit}
-            disabled={saving || loadingCatalog || !academicYearId}
-          >
-            {saving ? "Creating…" : "Create exam"}
-          </Button>
+          {step === "preview" ? (
+            <>
+              <Button onClick={() => setStep("create")} disabled={saving}>
+                Back
+              </Button>
+              <Button
+                onClick={() => submit(false)}
+                disabled={saving || loadingCatalog || !academicYearId}
+              >
+                {saving ? "Creating…" : "Save as draft"}
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => submit(true)}
+                disabled={saving || loadingCatalog || !academicYearId}
+              >
+                {saving ? "Publishing…" : "Create & publish timetable"}
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="primary"
+              onClick={goPreview}
+              disabled={saving || loadingCatalog || !academicYearId}
+            >
+              Preview
+            </Button>
+          )}
         </>
       }
     >
       {loadingCatalog ? (
         <p className="text-sm text-muted-foreground">Loading academic catalogs…</p>
+      ) : step === "preview" ? (
+        <div className="space-y-4 text-sm">
+          <div className="rounded-lg border border-border bg-muted/20 p-3">
+            <p className="font-semibold">{name.trim()}</p>
+            <p className="text-muted-foreground">
+              Timetable title: {timetableTitle.trim() || name.trim()}
+            </p>
+            <p className="text-muted-foreground">Header: {header.trim() || autoHeader}</p>
+            <p className="mt-1 text-muted-foreground">
+              {startDate} → {endDate || autoEndDate} · {startsAt}–{endsAt}
+            </p>
+            <p className="text-muted-foreground">
+              Marks: total {totalMarks}
+              {internalMarks ? ` · internal ${internalMarks}` : ""}
+              {externalMarks ? ` · external ${externalMarks}` : ""}
+            </p>
+            <p className="text-muted-foreground">
+              Audience:{" "}
+              {audienceScope === "year"
+                ? "Entire academic year"
+                : selectedSectionIds
+                    .map((id) => sectionLabel(id, sections.find((s) => s.id === id)))
+                    .join(", ")}
+            </p>
+          </div>
+          <div>
+            <h3 className="mb-2 text-sm font-semibold">Subject papers (order-wise)</h3>
+            <ul className="divide-y divide-border rounded-lg border border-border">
+              {paperPreview.map((row) => (
+                <li key={row.subjectId} className="flex justify-between gap-3 px-3 py-2">
+                  <span>
+                    Paper {row.paperNumber}: {row.subject}
+                  </span>
+                  <span className="font-mono text-xs text-muted-foreground">{row.date}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Create & publish notifies students, parents, and teachers and opens marks entry.
+              Save as draft if you want to publish later from the exam timetable.
+            </p>
+          </div>
+        </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Academic year" required className="sm:col-span-2">
@@ -216,179 +466,180 @@ export function ExamApiCreateDialog({
               )}
             </Select>
           </Field>
-          <Field label="Name" required>
+
+          <Field label="Exam name" required>
             <TextInput value={name} onChange={(e) => setName(e.target.value)} />
           </Field>
-          <Field label="Header">
+          <Field label="Timetable title">
             <TextInput
-              value={header}
-              onChange={(e) => setHeader(e.target.value)}
-              placeholder="Defaults to name"
+              value={timetableTitle}
+              onChange={(e) => setTimetableTitle(e.target.value)}
+              placeholder="Defaults to exam name"
             />
           </Field>
+
           <Field label="Start date" required>
-            <TextInput type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            <TextInput
+              type="date"
+              value={startDate}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                setEndDateTouched(false);
+              }}
+            />
           </Field>
-          <Field label="End date" required>
-            <TextInput type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+          <Field
+            label="End date"
+            hint={
+              autoEndDate
+                ? `Auto from subjects (skips holidays): ${autoEndDate}`
+                : "Calculated after selecting subjects"
+            }
+            required
+          >
+            <TextInput
+              type="date"
+              value={endDate}
+              onChange={(e) => {
+                setEndDate(e.target.value);
+                setEndDateTouched(true);
+              }}
+            />
           </Field>
-          <Field label="Default start">
+
+          <Field label="Exam timings (from)">
             <TextInput type="time" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
           </Field>
-          <Field label="Default end">
+          <Field label="Exam timings (to)">
             <TextInput type="time" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
           </Field>
-          <Field label="Total marks" required>
+
+          <Field
+            label="Header"
+            hint="Auto-fetched from timetable title + dates — edit if needed"
+            className="sm:col-span-2"
+          >
+            <TextInput
+              value={header}
+              onChange={(e) => {
+                setHeader(e.target.value);
+                setHeaderTouched(true);
+              }}
+              placeholder={autoHeader || "Auto from title and dates"}
+            />
+          </Field>
+
+          <Field
+            label="Total marks"
+            required
+            hint="Changing total auto-scales internal (20%) and external (80%)"
+          >
             <TextInput
               type="number"
               min={1}
               value={totalMarks}
-              onChange={(e) => setTotalMarks(e.target.value)}
+              onChange={(e) => applyTotalMarks(e.target.value)}
             />
           </Field>
-          <Field label="Audience">
+          <Field label="Internal marks">
+            <TextInput
+              type="number"
+              min={0}
+              value={internalMarks}
+              onChange={(e) => setInternalMarks(e.target.value)}
+            />
+          </Field>
+          <Field label="External marks">
+            <TextInput
+              type="number"
+              min={0}
+              value={externalMarks}
+              onChange={(e) => setExternalMarks(e.target.value)}
+            />
+          </Field>
+          <Field label="Classes & sections">
             <Select
               value={audienceScope}
               onChange={(e) => setAudienceScope(e.target.value as "year" | "section")}
             >
-              <option value="year">All classes (year)</option>
-              <option value="section">Selected sections</option>
+              <option value="year">Entire institute (year)</option>
+              <option value="section">Selected classes & sections</option>
             </Select>
           </Field>
+
           {audienceScope === "section" ? (
-            <Field label="Target sections" required className="sm:col-span-2">
-              <div className="flex flex-wrap gap-2 rounded-lg border border-border p-3">
-                {sections.length === 0 ? (
+            <Field label="Select classes & sections" required className="sm:col-span-2">
+              <div className="flex max-h-36 flex-wrap gap-2 overflow-y-auto rounded-lg border border-border p-3">
+                {sectionOptions.length === 0 ? (
                   <span className="text-sm text-muted-foreground">No sections</span>
                 ) : (
-                  sections.map((s) => (
-                    <label key={s.id} className="inline-flex items-center gap-2 text-sm">
+                  sectionOptions.map((item) => (
+                    <label key={item.id} className="inline-flex items-center gap-2 text-sm">
                       <input
                         type="checkbox"
-                        checked={selectedSectionIds.includes(s.id)}
-                        onChange={() => toggleSection(s.id)}
+                        checked={selectedSectionIds.includes(item.id)}
+                        onChange={() => toggleSection(item.id)}
                       />
-                      {s.name} ({s.code})
+                      {item.name}
                     </label>
                   ))
                 )}
               </div>
             </Field>
           ) : null}
-          <div className="sm:col-span-2 space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold">Subject papers</h3>
-              <Button
-                type="button"
-                onClick={() =>
-                  setPaperRows((rows) => [
-                    ...rows,
-                    newPaperRow({
-                      subjectId: subjects[0]?.id ?? "",
-                      paperDate: startDate,
-                      startsAt,
-                      endsAt,
-                    }),
-                  ])
-                }
-              >
-                Add paper
-              </Button>
+
+          <Field label="Select subjects order-wise" required className="sm:col-span-2">
+            <div className="space-y-2 rounded-lg border border-border p-3">
+              {subjects.length === 0 ? (
+                <span className="text-sm text-muted-foreground">No subjects</span>
+              ) : (
+                subjects.map((subject) => {
+                  const order = orderedSubjectIds.indexOf(subject.id);
+                  const selected = order >= 0;
+                  return (
+                    <div
+                      key={subject.id}
+                      className="flex flex-wrap items-center justify-between gap-2 text-sm"
+                    >
+                      <label className="inline-flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => toggleSubject(subject.id)}
+                        />
+                        {selected ? (
+                          <span className="font-mono text-xs text-muted-foreground">
+                            #{order + 1}
+                          </span>
+                        ) : null}
+                        {subject.name}
+                      </label>
+                      {selected ? (
+                        <div className="flex gap-1">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => moveSubject(subject.id, -1)}
+                          >
+                            Up
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => moveSubject(subject.id, 1)}
+                          >
+                            Down
+                          </Button>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })
+              )}
             </div>
-            {paperRows.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Add papers to build the timetable, or leave empty for header-only draft.
-              </p>
-            ) : (
-              paperRows.map((row, index) => (
-                <div
-                  key={row.id}
-                  className="grid gap-2 rounded-lg border border-border p-3 sm:grid-cols-2"
-                >
-                  <Field label={`Paper ${index + 1} subject`}>
-                    <Select
-                      value={row.subjectId}
-                      onChange={(e) =>
-                        setPaperRows((rows) =>
-                          rows.map((r) =>
-                            r.id === row.id ? { ...r, subjectId: e.target.value } : r,
-                          ),
-                        )
-                      }
-                    >
-                      {subjects.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name} ({s.code})
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
-                  <Field label="Date">
-                    <TextInput
-                      type="date"
-                      value={row.paperDate}
-                      onChange={(e) =>
-                        setPaperRows((rows) =>
-                          rows.map((r) =>
-                            r.id === row.id ? { ...r, paperDate: e.target.value } : r,
-                          ),
-                        )
-                      }
-                    />
-                  </Field>
-                  <Field label="Start">
-                    <TextInput
-                      type="time"
-                      value={row.startsAt}
-                      onChange={(e) =>
-                        setPaperRows((rows) =>
-                          rows.map((r) =>
-                            r.id === row.id ? { ...r, startsAt: e.target.value } : r,
-                          ),
-                        )
-                      }
-                    />
-                  </Field>
-                  <Field label="End">
-                    <TextInput
-                      type="time"
-                      value={row.endsAt}
-                      onChange={(e) =>
-                        setPaperRows((rows) =>
-                          rows.map((r) =>
-                            r.id === row.id ? { ...r, endsAt: e.target.value } : r,
-                          ),
-                        )
-                      }
-                    />
-                  </Field>
-                  <Field label="Room" className="sm:col-span-2">
-                    <TextInput
-                      value={row.room}
-                      onChange={(e) =>
-                        setPaperRows((rows) =>
-                          rows.map((r) =>
-                            r.id === row.id ? { ...r, room: e.target.value } : r,
-                          ),
-                        )
-                      }
-                    />
-                  </Field>
-                  <div className="sm:col-span-2">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() =>
-                        setPaperRows((rows) => rows.filter((r) => r.id !== row.id))
-                      }
-                    >
-                      Remove paper
-                    </Button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+          </Field>
         </div>
       )}
     </Modal>

@@ -142,8 +142,8 @@ export function SettingsProfileApiPanel() {
       <Card>
         <CardHeader
           title="Logged-in profile"
-          hint="GET/PATCH /api/v1/profiles · email is read-only"
-          action={<Pill tone="neutral">API mode</Pill>}
+          hint="Your profile · email cannot be changed here"
+          action={<Pill tone="neutral">Live data</Pill>}
         />
         <div className="px-5 pb-5">
           {loadStatus === "loading" ? (

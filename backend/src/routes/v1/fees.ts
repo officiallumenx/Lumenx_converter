@@ -330,7 +330,8 @@ fees.post("/payments", async (c) => {
         amount: z.number().positive(),
         method: methodSchema,
         paid_on: dateOnly,
-        note: z.string().trim().min(1).max(500),
+        note: z.string().trim().max(500).nullable().optional(),
+        fee_component_id: uuid,
       }),
       await c.req.json(),
     );
@@ -342,6 +343,7 @@ fees.post("/payments", async (c) => {
       method: body.method,
       paidOn: body.paid_on,
       note: body.note,
+      feeComponentId: body.fee_component_id,
     });
     return { status: 201, body: { data } };
   });

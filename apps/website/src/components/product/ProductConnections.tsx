@@ -16,14 +16,21 @@ export function ProductConnections({ items }: { items: readonly ProductPageConne
             <ProductMark product={item.product} />
             <h3 className="mt-4 text-base font-semibold tracking-tight">{meta.name}</h3>
             <p className="mt-2 text-sm text-muted-foreground">{item.body}</p>
-            <Link
-              to="/products/$slug"
-              params={{ slug: item.product }}
-              className="site-btn site-btn--ghost mt-4 h-auto justify-start px-0 text-foreground"
-            >
-              Explore {meta.shortName}
-              <ArrowRight className="size-4" />
-            </Link>
+            {item.product === "nexus" ? (
+              <Link to="/about" className="site-btn site-btn--ghost mt-4 h-auto justify-start px-0 text-foreground">
+                About LumenX
+                <ArrowRight className="size-4" />
+              </Link>
+            ) : (
+              <Link
+                to="/platform/$slug"
+                params={{ slug: item.product }}
+                className="site-btn site-btn--ghost mt-4 h-auto justify-start px-0 text-foreground"
+              >
+                Explore {meta.shortName}
+                <ArrowRight className="size-4" />
+              </Link>
+            )}
           </SiteCard>
         );
       })}

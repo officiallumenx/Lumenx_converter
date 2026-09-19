@@ -70,7 +70,10 @@ export {
 } from "./in-app-alert";
 export {
   bootstrapPushDeviceToken,
+  invalidatePushDeviceTokens,
+  invalidatePushDeviceTokensBeforeSignOut,
   type DeviceApp,
   type DevicePlatform,
   type RegisterDeviceTokenFn,
+  type InvalidateDeviceTokensFn,
 } from "./push-device-token";

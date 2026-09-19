@@ -13,19 +13,18 @@ import { Magnetic } from "../experience/Magnetic";
 import { experienceAllows, useExperienceTier } from "@/experience";
 import { cn } from "@lumenx/ui";
 
-/** Perfect hexagon around the hub — equal 60° steps from top (Admin). */
+/** Five public surfaces around the hub — equal steps from top (Admin). */
 const ORBIT_R = 36;
-const ORBIT_ORDER: ProductId[] = [
+const ORBIT_ORDER: Exclude<ProductId, "nexus">[] = [
   "admin",
   "connect",
   "transport",
-  "nexus",
   "careers",
   "admissions",
 ];
 
 const ORBIT = ORBIT_ORDER.map((id, i) => {
-  const rad = ((-90 + i * 60) * Math.PI) / 180;
+  const rad = ((-90 + i * (360 / ORBIT_ORDER.length)) * Math.PI) / 180;
   return {
     id,
     x: Number((50 + ORBIT_R * Math.cos(rad)).toFixed(2)),
@@ -152,25 +151,24 @@ export function HomeHero() {
     <section className="site-section pt-10 md:pt-12 pb-6 md:pb-8">
       <Container>
         <div className="home-hero site-hero-enter">
-          <p className="site-kicker">Institute platform</p>
+          <p className="site-kicker">Connected institute platform</p>
           <h1 className="site-hero-display mt-3">
-            One ecosystem. Every part of the institute, connected.
+            Run your entire institution from one connected platform.
           </h1>
           <p className="site-lede home-hero__lede">
-            LumenX sits in the middle. Admin writes the source of truth. Connect is how families and teachers use it.
-            Transport runs the day’s trips. Admissions and Careers live in the same family. Nexus is the service
-            platform — support, feedback, and quality after go-live.
+            LumenX brings administration, academics, communication, transport, admissions and careers
+            together — so every role works from the same institute record.
           </p>
           <div className="home-hero__actions">
             <Magnetic className="w-full sm:w-auto">
               <CTAButton asChild className="w-full sm:w-auto">
-                <Link to="/contact" search={contactSearch("trial")}>
-                  Start 60-day trial
+                <Link to="/contact" search={contactSearch("demo")}>
+                  Book a Demo
                 </Link>
               </CTAButton>
             </Magnetic>
             <CTAButton asChild variant="secondary" className="w-full sm:w-auto">
-              <Link to="/products">See products</Link>
+              <Link to="/platform">Explore Platform</Link>
             </CTAButton>
           </div>
         </div>
@@ -179,7 +177,7 @@ export function HomeHero() {
           <ParticleField />
           <div
             className={cn("home-orbit", active && "home-orbit--active")}
-            aria-label="LumenX ecosystem: six products connected around one platform"
+            aria-label="LumenX ecosystem: Admin, Connect, Transport, Admissions, and Careers around one platform"
             onMouseLeave={() => setActive(null)}
           >
             <OrbitLinks active={active} flowEnabled={flowEnabled} />
@@ -197,7 +195,7 @@ export function HomeHero() {
               return (
                 <Link
                   key={node.id}
-                  to="/products/$slug"
+                  to="/platform/$slug"
                   params={{ slug: node.id }}
                   data-product={node.id}
                   className={cn("home-orbit__node", isActive && "is-active", active && !isActive && "is-dim")}
@@ -256,7 +254,7 @@ export function HomeHero() {
             </>
           ) : (
             <p className="home-orbit-detail__idle">
-              Move onto Admin, Connect, Transport, Admissions, Careers, or Nexus to see related actions.
+              Move onto Admin, Connect, Transport, Admissions, or Careers to see related actions.
             </p>
           )}
         </div>

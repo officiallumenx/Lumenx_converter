@@ -4,6 +4,9 @@ import { Button, Input } from "@lumenx/ui";
 import { Building2, MapPin, Search, Star, Users } from "lucide-react";
 import { cn } from "@lumenx/ui";
 import type { InstituteKind } from "@lumenx/types";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { loadAdmissionsDirectoryProfiles } from "@/lib/admissions/api-institute-directory";
+import type { AdmissionInstituteProfile } from "@/lib/admissions/institutes-data";
 import {
   filterInstitutes,
   getInstituteById,
@@ -17,6 +20,22 @@ import {
 } from "@/lib/institutes-data";
 import { InstituteDetailPanel } from "./InstituteDetailPanel";
 
+function filterApiInstitutes(
+  items: AdmissionInstituteProfile[],
+  opts: { q: string; state: string; city: string; kind: InstituteKind | "all" },
+) {
+  return items.filter((i) => {
+    if (opts.kind !== "all" && i.kind !== opts.kind) return false;
+    if (opts.state !== "all" && i.state && i.state !== opts.state) return false;
+    if (opts.city !== "all" && i.city && i.city !== opts.city) return false;
+    if (opts.q) {
+      const hay = `${i.name} ${i.code} ${i.city} ${i.state}`.toLowerCase();
+      if (!hay.includes(opts.q.toLowerCase())) return false;
+    }
+    return true;
+  });
+}
+
 export function InstitutesBrowsePage({
   selectedId,
   initialState,
@@ -26,19 +45,50 @@ export function InstitutesBrowsePage({
   initialState?: string;
   initialCity?: string;
 }) {
+  const apiMode = isApiAuthMode();
   const [q, setQ] = useState("");
   const [state, setState] = useState(initialState ?? "all");
   const [city, setCity] = useState(initialCity ?? "all");
   const [kind, setKind] = useState<InstituteKind | "all">("all");
   const listRef = useRef<HTMLDivElement>(null);
+  const [apiItems, setApiItems] = useState<AdmissionInstituteProfile[]>([]);
+  const [apiLoading, setApiLoading] = useState(apiMode);
+  const [apiError, setApiError] = useState<string | null>(null);
 
-  const filtered = useMemo(
-    () => filterInstitutes({ q, state, city, kind }),
-    [q, state, city, kind],
-  );
+  useEffect(() => {
+    if (!apiMode) return;
+    let cancelled = false;
+    setApiLoading(true);
+    setApiError(null);
+    void loadAdmissionsDirectoryProfiles()
+      .then((rows) => {
+        if (!cancelled) setApiItems(rows);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setApiItems([]);
+          setApiError(err instanceof Error ? err.message : "Unable to load institutes.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setApiLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiMode]);
+
+  const filtered = useMemo(() => {
+    if (apiMode) return filterApiInstitutes(apiItems, { q, state, city, kind });
+    return filterInstitutes({ q, state, city, kind });
+  }, [apiMode, apiItems, q, state, city, kind]);
 
   const activeId = selectedId ?? getSelectedInstituteId() ?? filtered[0]?.id;
-  const active = activeId ? getInstituteById(activeId) : undefined;
+  const active = apiMode
+    ? apiItems.find((i) => i.id === activeId) ?? filtered.find((i) => i.id === activeId)
+    : activeId
+      ? getInstituteById(activeId)
+      : undefined;
 
   useEffect(() => {
     const el = listRef.current;
@@ -50,11 +100,31 @@ export function InstitutesBrowsePage({
   }, []);
 
   const citiesInState = useMemo(() => {
+    if (apiMode) {
+      if (state === "all") {
+        return [...new Set(apiItems.map((i) => i.city).filter(Boolean))].sort();
+      }
+      return [
+        ...new Set(apiItems.filter((i) => i.state === state).map((i) => i.city).filter(Boolean)),
+      ].sort();
+    }
     if (state === "all") return LOCATIONS.cities;
     return [
       ...new Set(listAllInstitutes().filter((i) => i.state === state).map((i) => i.city)),
     ].sort();
-  }, [state]);
+  }, [apiMode, apiItems, state]);
+
+  if (apiMode && apiLoading) {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">Loading institutes…</div>
+    );
+  }
+
+  if (apiMode && apiError) {
+    return (
+      <div className="py-12 text-center text-sm text-destructive">{apiError}</div>
+    );
+  }
 
   return (
     <div className="animate-in fade-in duration-300">
@@ -200,7 +270,38 @@ export function InstitutesBrowsePage({
 }
 
 export function InstitutePreviewStrip() {
-  const preview = listAllInstitutes().slice(0, 4);
+  const apiMode = isApiAuthMode();
+  const [preview, setPreview] = useState<AdmissionInstituteProfile[]>(() =>
+    apiMode ? [] : listAllInstitutes().slice(0, 4),
+  );
+
+  useEffect(() => {
+    if (!apiMode) return;
+    let cancelled = false;
+    void loadAdmissionsDirectoryProfiles().then((rows) => {
+      if (!cancelled) setPreview(rows.slice(0, 4));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiMode]);
+
+  if (preview.length === 0) {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="font-display text-lg font-bold">Featured institutes</h2>
+          <Link to="/institutes" className="text-xs text-primary hover:underline">
+            View all
+          </Link>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {apiMode ? "No active institutes yet." : "No institutes available."}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -220,11 +321,14 @@ export function InstitutePreviewStrip() {
             <div className={cn("mb-3 h-20 rounded-xl bg-gradient-to-br", inst.imageGradient)} />
             <p className="font-semibold text-sm">{inst.name}</p>
             <p className="text-xs text-muted-foreground mt-1">
-              {inst.city} · {inst.heroStat}
+              {inst.city || inst.code}
+              {inst.heroStat ? ` · ${inst.heroStat}` : ""}
             </p>
-            <div className="mt-2 flex items-center gap-2 text-xs text-primary">
-              <Users className="size-3" /> {inst.seatsOpen} seats open
-            </div>
+            {!apiMode && (
+              <div className="mt-2 flex items-center gap-2 text-xs text-primary">
+                <Users className="size-3" /> {inst.seatsOpen} seats open
+              </div>
+            )}
           </Link>
         ))}
       </div>

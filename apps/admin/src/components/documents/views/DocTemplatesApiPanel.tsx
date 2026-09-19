@@ -335,7 +335,7 @@ export function DocTemplatesApiPanel({
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         title="New document template"
-        subtitle="Creates a draft template via documents API"
+        subtitle="Creates a draft template for review"
         footer={
           <>
             <Button variant="ghost" onClick={() => setCreateOpen(false)}>

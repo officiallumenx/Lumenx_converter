@@ -12,7 +12,9 @@ import {
   createMarkEntryForActor,
   deleteMarkEntryForActor,
   getMarkEntryForActor,
+  getMarkPublicationForActor,
   listMarkEntriesForActor,
+  listMarkPublicationsForActor,
   publishMarkEntryForActor,
   rejectMarkEntryForActor,
   returnMarkEntryForActor,
@@ -23,6 +25,13 @@ import {
   getStudentReportCardsForActor,
   getTeacherMarkSheetForActor,
 } from "../../domains/marks/portal.js";
+import {
+  createGradeSchemeForActor,
+  deleteGradeSchemeForActor,
+  getGradeSchemeForActor,
+  listGradeSchemesForActor,
+  updateGradeSchemeForActor,
+} from "../../domains/marks/grade-scheme-service.js";
 import { withIdempotency } from "../../domains/idempotency/with-idempotency.js";
 
 const marks = new Hono<AppBindings>();
@@ -90,6 +99,8 @@ const statusSchema = z.enum([
 const scoreItemSchema = z.object({
   enrollment_id: uuid,
   marks: z.number().int().min(0).nullable(),
+  internal_marks: z.number().int().min(0).nullable().optional(),
+  external_marks: z.number().int().min(0).nullable().optional(),
 });
 
 const idParamsSchema = z.object({ id: uuid });
@@ -166,6 +177,8 @@ marks.post("/entries", async (c) => {
     scores: body.scores?.map((s) => ({
       enrollmentId: s.enrollment_id,
       marks: s.marks,
+      internalMarks: s.internal_marks,
+      externalMarks: s.external_marks,
     })),
   });
   return c.json({ data }, 201);
@@ -181,6 +194,8 @@ marks.patch("/entries/:id", async (c) => {
     scores: body.scores?.map((s) => ({
       enrollmentId: s.enrollment_id,
       marks: s.marks,
+      internalMarks: s.internal_marks,
+      externalMarks: s.external_marks,
     })),
     adminNote: body.admin_note,
   });
@@ -248,6 +263,116 @@ marks.delete("/entries/:id", async (c) => {
   const admin = requireAdmin(c);
   const { id } = validateParams(idParamsSchema, c.req.param());
   await deleteMarkEntryForActor(admin, actor, id);
+  return c.json({ data: { ok: true } });
+});
+
+// ── Publications ─────────────────────────────────────────────────
+
+const publicationListQuerySchema = z.object({
+  institute_id: uuid,
+  section_id: uuid.optional(),
+  exam_id: uuid.optional(),
+});
+
+marks.get("/publications", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(publicationListQuerySchema, c.req.query());
+  const data = await listMarkPublicationsForActor(admin, actor, {
+    instituteId: query.institute_id,
+    sectionId: query.section_id,
+    examId: query.exam_id,
+  });
+  return c.json({ data });
+});
+
+marks.get("/publications/:id", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const data = await getMarkPublicationForActor(admin, actor, id);
+  return c.json({ data });
+});
+
+// ── Grade schemes ────────────────────────────────────────────────
+
+const gradeBandSchema = z.object({
+  min: z.number(),
+  max: z.number(),
+  grade: z.string().min(1),
+  gpa: z.number().nullable().optional(),
+});
+
+const gradeSchemeListQuerySchema = z.object({
+  institute_id: uuid,
+});
+
+const gradeSchemeCreateSchema = z.object({
+  institute_id: uuid,
+  name: z.string().min(1).max(200),
+  academic_year_id: uuid.nullable().optional(),
+  is_default: z.boolean().optional(),
+  bands: z.array(gradeBandSchema).min(1),
+});
+
+const gradeSchemeUpdateSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  academic_year_id: uuid.nullable().optional(),
+  is_default: z.boolean().optional(),
+  bands: z.array(gradeBandSchema).min(1).optional(),
+});
+
+marks.get("/grade-schemes", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(gradeSchemeListQuerySchema, c.req.query());
+  const data = await listGradeSchemesForActor(admin, actor, {
+    instituteId: query.institute_id,
+  });
+  return c.json({ data });
+});
+
+marks.get("/grade-schemes/:id", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const data = await getGradeSchemeForActor(admin, actor, id);
+  return c.json({ data });
+});
+
+marks.post("/grade-schemes", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const body = validateBody(gradeSchemeCreateSchema, await c.req.json());
+  const data = await createGradeSchemeForActor(admin, actor, {
+    instituteId: body.institute_id,
+    name: body.name,
+    academicYearId: body.academic_year_id,
+    isDefault: body.is_default,
+    bands: body.bands,
+  });
+  return c.json({ data }, 201);
+});
+
+marks.patch("/grade-schemes/:id", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const body = validateBody(gradeSchemeUpdateSchema, await c.req.json());
+  const data = await updateGradeSchemeForActor(admin, actor, id, {
+    name: body.name,
+    academicYearId: body.academic_year_id,
+    isDefault: body.is_default,
+    bands: body.bands,
+  });
+  return c.json({ data });
+});
+
+marks.delete("/grade-schemes/:id", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  await deleteGradeSchemeForActor(admin, actor, id);
   return c.json({ data: { ok: true } });
 });
 

@@ -5,12 +5,18 @@ import { findStopById, listEnrollments } from "./repository.js";
 import { etaMinutesFromDistance, haversineMeters } from "./geo.js";
 import type { TransportTripRow } from "./ops-types.js";
 
+/** Product approach bands (minutes) — once each per trip×student. */
+export const APPROACH_THRESHOLDS_MIN = [30, 15, 5] as const;
+export type ApproachThresholdMin = (typeof APPROACH_THRESHOLDS_MIN)[number];
+
 export type ApproachSnapshot = {
   stopId: string;
   stopName: string;
   distanceM: number;
   withinRadius: boolean;
   etaMinutes: number;
+  /** Nearest crossed product band, or null when farther than 30 min. */
+  band: ApproachThresholdMin | null;
 };
 
 async function guardianUserIdsForStudent(
@@ -37,14 +43,26 @@ async function guardianUserIdsForStudent(
   ];
 }
 
+export function approachBandForEta(
+  etaMinutes: number,
+): ApproachThresholdMin | null {
+  if (!Number.isFinite(etaMinutes) || etaMinutes < 0) return null;
+  // Tightest crossed band (5 before 15 before 30).
+  let band: ApproachThresholdMin | null = null;
+  for (const threshold of APPROACH_THRESHOLDS_MIN) {
+    if (etaMinutes <= threshold) band = threshold;
+  }
+  return band;
+}
+
 /**
- * On each GPS ping: if the bus enters a pickup stop's notification radius,
- * notify guardians once per trip×student (dedupe_key).
+ * On each GPS ping: evaluate 30 / 15 / 5 minute approach bands to the
+ * learner's pickup stop and notify guardians once per trip×student×band.
  */
 export async function evaluateApproachAlertsOnPing(
   admin: SupabaseClient,
   trip: TransportTripRow,
-  location: { latitude: number; longitude: number },
+  location: { latitude: number; longitude: number; speedKmh?: number | null },
   createdByUserId: string,
 ): Promise<void> {
   const enrollments = (await listEnrollments(admin, trip.institute_id)).filter(
@@ -53,6 +71,7 @@ export async function evaluateApproachAlertsOnPing(
   if (enrollments.length === 0) return;
 
   for (const enrollment of enrollments) {
+    if (!enrollment.pickup_stop_id) continue;
     const stop = await findStopById(admin, enrollment.pickup_stop_id);
     if (
       !stop ||
@@ -67,8 +86,9 @@ export async function evaluateApproachAlertsOnPing(
       latitude: Number(stop.latitude),
       longitude: Number(stop.longitude),
     });
-    const radius = Math.max(50, Number(stop.notification_radius_m) || 150);
-    if (distanceM > radius) continue;
+    const etaMinutes = etaMinutesFromDistance(distanceM, location.speedKmh);
+    const crossed = APPROACH_THRESHOLDS_MIN.filter((t) => etaMinutes <= t);
+    if (crossed.length === 0) continue;
 
     const recipients = await guardianUserIdsForStudent(
       admin,
@@ -77,28 +97,34 @@ export async function evaluateApproachAlertsOnPing(
     );
     if (recipients.length === 0) continue;
 
-    const etaMinutes = etaMinutesFromDistance(distanceM);
-    try {
-      await emitNotificationForInstituteSystem(admin, createdByUserId, {
-        instituteId: trip.institute_id,
-        category: "transport",
-        priority: "important",
-        title: "Bus approaching",
-        body: `The bus is about ${etaMinutes} min away from ${stop.name}.`,
-        deepLink: "/transport",
-        dedupeKey: `transport:approach5:${trip.id}:${enrollment.student_id}`,
-        recipientUserIds: recipients,
-        payload: {
-          tripId: trip.id,
-          studentId: enrollment.student_id,
-          stopId: stop.id,
-          distanceM: Math.round(distanceM),
-          etaMinutes,
-          kind: "approach5",
-        },
-      });
-    } catch {
-      // Non-fatal — location ping already persisted
+    for (const threshold of crossed) {
+      const kind = `approach${threshold}` as const;
+      try {
+        await emitNotificationForInstituteSystem(admin, createdByUserId, {
+          instituteId: trip.institute_id,
+          category: "transport",
+          priority: threshold <= 5 ? "important" : "normal",
+          title:
+            threshold <= 5
+              ? "Bus arriving soon"
+              : `Bus about ${threshold} min away`,
+          body: `The bus is about ${etaMinutes} min away from ${stop.name}.`,
+          deepLink: "/transport",
+          dedupeKey: `transport:${kind}:${trip.id}:${enrollment.student_id}`,
+          recipientUserIds: recipients,
+          payload: {
+            tripId: trip.id,
+            studentId: enrollment.student_id,
+            stopId: stop.id,
+            distanceM: Math.round(distanceM),
+            etaMinutes,
+            kind,
+            thresholdMin: threshold,
+          },
+        });
+      } catch {
+        // Non-fatal — location ping already persisted
+      }
     }
   }
 }
@@ -112,6 +138,7 @@ export async function computeApproachForStudent(
     studentId: string;
     latitude: number;
     longitude: number;
+    speedKmh?: number | null;
   },
 ): Promise<ApproachSnapshot | null> {
   const enrollments = await listEnrollments(admin, input.instituteId, [
@@ -120,7 +147,7 @@ export async function computeApproachForStudent(
   const enrollment = enrollments.find(
     (e) => e.route_id === input.routeId && e.deleted_at == null,
   );
-  if (!enrollment) return null;
+  if (!enrollment || !enrollment.pickup_stop_id) return null;
   const stop = await findStopById(admin, enrollment.pickup_stop_id);
   if (
     !stop ||
@@ -139,11 +166,13 @@ export async function computeApproachForStudent(
     },
   );
   const radius = Math.max(50, Number(stop.notification_radius_m) || 150);
+  const etaMinutes = etaMinutesFromDistance(distanceM, input.speedKmh);
   return {
     stopId: stop.id,
     stopName: stop.name,
     distanceM: Math.round(distanceM),
     withinRadius: distanceM <= radius,
-    etaMinutes: etaMinutesFromDistance(distanceM),
+    etaMinutes,
+    band: approachBandForEta(etaMinutes),
   };
 }

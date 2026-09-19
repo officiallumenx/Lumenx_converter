@@ -74,8 +74,11 @@ export type CreateParentInput = {
   legacyCode?: string | null;
   /** Ignored — never trust client. */
   userProfileId?: string | null;
-  /** When set, provisions Supabase Auth login after create (no invite email). */
-  password?: string;
+  /**
+   * When true, provisions a passwordless Supabase Auth login after create
+   * (Connect OTP/PIN — no app-level password).
+   */
+  provisionAccess?: boolean;
   initialLinks?: CreateGuardianLinkInput[];
 };
 

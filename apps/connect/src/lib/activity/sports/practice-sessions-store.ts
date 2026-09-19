@@ -1,3 +1,4 @@
+import { isApiAuthMode } from "@/auth/auth-mode";
 import type { CalendarActivityMark } from "@/activity-workspace/hub/calendar";
 import { getActivityByIdFromStore } from "./activities-store";
 import {
@@ -11,7 +12,7 @@ import type {
   PracticeSessionListFilters,
 } from "./practice-sessions-types";
 
-let sessionsStore: PracticeSession[] = practiceSessionsSeed.map(clonePracticeSession);
+let sessionsStore = isApiAuthMode() ? [] : practiceSessionsSeed.map(clonePracticeSession);
 
 function resolveParentActivity(activityId: string) {
   const parent = getActivityByIdFromStore(activityId);
@@ -76,7 +77,7 @@ function applySessionFilters(
 }
 
 export function resetPracticeSessionsStore() {
-  sessionsStore = practiceSessionsSeed.map(clonePracticeSession);
+  sessionsStore = isApiAuthMode() ? [] : practiceSessionsSeed.map(clonePracticeSession);
 }
 
 export function listPracticeSessionsFromStore(

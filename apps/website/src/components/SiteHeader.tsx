@@ -6,6 +6,7 @@ import { CTAButton } from "./conversion/CTAButton";
 import { Navbar } from "./navigation/Navbar";
 import { MobileNavbar } from "./navigation/MobileNavbar";
 import { Container } from "./layout/Container";
+import { contactSearch } from "@/lib/search";
 
 export function SiteHeader({
   menuOpen,
@@ -36,12 +37,23 @@ export function SiteHeader({
         </Link>
         <Navbar onNavigate={() => onMenuOpenChange(false)} />
         <div className="flex items-center gap-2">
+          <Link
+            to="/login"
+            className="site-nav-link hidden sm:inline-flex"
+            onClick={() => onMenuOpenChange(false)}
+          >
+            Login
+          </Link>
           <CTAButton asChild size="md">
-            <Link to="/get-started" search={{}} onClick={() => onMenuOpenChange(false)}>
-              Get started
+            <Link
+              to="/contact"
+              search={contactSearch("demo")}
+              onClick={() => onMenuOpenChange(false)}
+            >
+              Book a Demo
             </Link>
           </CTAButton>
-          <div className="xl:hidden">
+          <div className="lg:hidden">
             <CTAButton
               type="button"
               variant="secondary"

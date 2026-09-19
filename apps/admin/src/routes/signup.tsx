@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useRef, useCallback } from "react";
 import {
-  Sparkles, ArrowLeft, ArrowRight, ChevronLeft, Check,
+  ArrowLeft, ArrowRight, ChevronLeft, Check,
   Building2, Globe, Mail, Phone, User, MapPin, Hash,
   Lock, Upload, X, ShieldCheck, Image as ImageIcon,
   BookOpen, GraduationCap,
@@ -13,10 +13,17 @@ import { AuthSectionHeader } from "@/auth/components/AuthSectionHeader";
 import { AuthStepBar } from "@/auth/components/AuthStepBar";
 import { PasswordStrength } from "@/auth/components/PasswordStrength";
 import { PinInput } from "@/auth/components/PinInput";
+import { LumenXAdminLogo } from "@/components/LumenXAdminLogo";
+import { DemoOtpHint } from "@/auth/components/DemoOtpHint";
+import { OtpInput } from "@/auth/components/OtpInput";
 import { useAuth } from "@/auth/AuthContext";
-import { isApiAuthMode } from "@/auth/auth-mode";
-import { isAppLockRequired } from "@/auth/app-lock-policy";
+import { isApiAuthMode, isFirebaseAuthProvider } from "@/auth/auth-mode";
 import { resolvePostSignupRoute } from "@/auth/signup-routing";
+import { otpService } from "@/auth/otp-service";
+import {
+  requestSignupOtp,
+  verifySignupOtp,
+} from "@lumenx/auth";
 import { useTheme } from "@/components/theme-provider";
 import { IconChip } from "@/components/IconChip";
 import {
@@ -37,7 +44,7 @@ export const Route = createFileRoute("/signup")({
 ══════════════════════════════════════════════════════════════ */
 
 const INSTITUTE_TYPES = [
-  "School (K-12)", "Junior College", "Degree College",
+  "School (K-12)", "High School (up to Grade 10)", "Junior College", "Degree College",
   "University", "Coaching Institute", "Vocational Training", "Montessori / Pre-school",
 ];
 
@@ -61,9 +68,16 @@ const INDIA_STATES = [
   "Ladakh", "Lakshadweep", "Puducherry",
 ];
 
-const STEP_META = [
+const DEMO_STEP_META = [
   { label: "Institute Profile",    short: "Profile"  },
   { label: "Contact & Location",   short: "Contact"  },
+  { label: "Security",             short: "Security" },
+] as const;
+
+const API_STEP_META = [
+  { label: "Institute Profile",    short: "Profile"  },
+  { label: "Contact & Location",   short: "Contact"  },
+  { label: "OTP Verify",           short: "Verify"   },
   { label: "Security",             short: "Security" },
 ] as const;
 
@@ -142,13 +156,12 @@ function validateStep3(d: Step3): Errors<Step3> {
   else if (pwdErrors.length > 0)          e.password        = pwdErrors[0];
   if (!d.confirmPassword)                 e.confirmPassword = "Please confirm your password";
   else if (d.password !== d.confirmPassword) e.confirmPassword = "Passwords do not match";
-  if (isAppLockRequired()) {
-    if (!d.pin)                             e.pin             = "Security PIN is required";
-    else if (d.pin.length < 6)              e.pin             = "PIN must be exactly 6 digits";
-    else if (!/^\d{6}$/.test(d.pin))        e.pin             = "PIN must contain only digits";
-    if (!d.confirmPin)                      e.confirmPin      = "Please confirm your PIN";
-    else if (d.pin !== d.confirmPin)        e.confirmPin      = "PINs do not match";
-  }
+  // Notebook: root signup always sets password + PIN (API and demo).
+  // PinInput UI is 6 digits; backend accepts 4–8.
+  if (!d.pin)                             e.pin             = "Security PIN is required";
+  else if (!/^\d{6}$/.test(d.pin))        e.pin             = "PIN must be exactly 6 digits";
+  if (!d.confirmPin)                      e.confirmPin      = "Please confirm your PIN";
+  else if (d.pin !== d.confirmPin)        e.confirmPin      = "PINs do not match";
   if (!d.acceptTerms)                     e.acceptTerms     = "You must accept the terms to continue";
   return e;
 }
@@ -164,10 +177,19 @@ function LogoUpload({
   onClear: () => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
 
   const handleFile = useCallback(
     (file: File) => {
-      if (!file.type.startsWith("image/")) return;
+      if (!file.type.startsWith("image/")) {
+        setFileError("Choose a PNG, JPG, or SVG image.");
+        return;
+      }
+      if (file.size > 2 * 1024 * 1024) {
+        setFileError("Logo must be 2 MB or smaller.");
+        return;
+      }
+      setFileError(null);
       const reader = new FileReader();
       reader.onload = (e) => onChange(file, e.target?.result as string);
       reader.readAsDataURL(file);
@@ -236,6 +258,11 @@ function LogoUpload({
         className="sr-only"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
       />
+      {fileError ? (
+        <p className="text-[11px] text-destructive" role="alert">
+          {fileError}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -531,14 +558,13 @@ function Step3({
         }
       />
 
-      {/* PIN section — demo mode local app lock only */}
-      {isAppLockRequired() && (
+      {/* PIN section — required for Admin root notebook signup */}
       <>
       <div className="pt-2">
         <AuthSectionHeader
           icon={ShieldCheck}
           title="6-Digit Security PIN"
-          subtitle="Used for sensitive actions (approvals, document publishing, bulk operations)"
+          subtitle="Used at login and for sensitive Admin actions"
         />
       </div>
 
@@ -583,7 +609,6 @@ function Step3({
         ))}
       </div>
       </>
-      )}
 
       {/* Password strength reminder */}
       {pwdStrength < 3 && data.password && (
@@ -638,8 +663,22 @@ function SignUpPage() {
   const navigate = useNavigate();
   const { signUp, error: authError, clearError } = useAuth();
   const { theme } = useTheme();
+  const apiMode = isApiAuthMode();
+  const STEP_META = apiMode ? API_STEP_META : DEMO_STEP_META;
+  const securityStep = apiMode ? 4 : 3;
+  const verifyStep = apiMode ? 3 : -1;
   const [step,    setStep]    = useState(1);
   const [loading, setLoading] = useState(false);
+  const submittingRef = useRef(false);
+  const [verifyChannel, setVerifyChannel] = useState<"mobile" | "email">("mobile");
+  const [signupOtp, setSignupOtp] = useState("");
+  const [maskedOtpDest, setMaskedOtpDest] = useState("");
+  const [devSignupOtp, setDevSignupOtp] = useState<string | undefined>();
+  const [firebasePhoneE164, setFirebasePhoneE164] = useState<string | null>(null);
+  const [firebasePhoneIdToken, setFirebasePhoneIdToken] = useState<string | null>(null);
+  const [mobileGrant, setMobileGrant] = useState("");
+  const [emailGrant, setEmailGrant] = useState("");
+  const [verifyError, setVerifyError] = useState<string | null>(null);
 
   /* ─ form state ─ */
   const [s1, setS1] = useState<Step1>({
@@ -680,8 +719,38 @@ function SignUpPage() {
   };
 
   const scrollTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
+  const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8787").replace(
+    /\/+$/,
+    "",
+  );
+  const subjectKey = s2.email.trim().toLowerCase();
 
-  const handleNext = () => {
+  const startMobileVerify = async () => {
+    setVerifyError(null);
+    setSignupOtp("");
+    setVerifyChannel("mobile");
+    setFirebasePhoneIdToken(null);
+    if (isFirebaseAuthProvider()) {
+      const digits = s2.mobile.replace(/\D/g, "").slice(-10);
+      const phoneE164 = `+91${digits}`;
+      setFirebasePhoneE164(phoneE164);
+      const sent = await otpService.sendMobileOtp(phoneE164);
+      setMaskedOtpDest(sent.maskedDestination || `******${digits.slice(-4)}`);
+      setDevSignupOtp(undefined);
+    } else {
+      const sent = await requestSignupOtp({
+        subjectKey,
+        channel: "mobile",
+        destination: s2.mobile,
+        apiBaseUrl,
+      });
+      setMaskedOtpDest(sent.maskedDestination);
+      setDevSignupOtp(sent.devOtp);
+      setFirebasePhoneE164(null);
+    }
+  };
+
+  const handleNext = async () => {
     if (step === 1) {
       const errs = validateStep1(s1);
       if (hasErrors(errs)) { setE1(errs); return; }
@@ -692,8 +761,84 @@ function SignUpPage() {
       const errs = validateStep2(s2);
       if (hasErrors(errs)) { setE2(errs); return; }
       setE2({});
-      setStep(3);
+      if (apiMode) {
+        setLoading(true);
+        try {
+          await startMobileVerify();
+          setStep(verifyStep);
+          scrollTop();
+        } catch (reason) {
+          setVerifyError(reason instanceof Error ? reason.message : "Unable to send mobile OTP.");
+        } finally {
+          setLoading(false);
+        }
+        return;
+      }
+      setStep(securityStep);
       scrollTop();
+    }
+  };
+
+  const handleVerifyOtpContinue = async (code?: string) => {
+    const otpValue = (code ?? signupOtp).replace(/\D/g, "").slice(0, 6);
+    if (otpValue.length !== 6) {
+      setVerifyError("Enter the 6-digit code.");
+      return;
+    }
+    setSignupOtp(otpValue);
+    setLoading(true);
+    setVerifyError(null);
+    try {
+      if (verifyChannel === "mobile") {
+        if (isFirebaseAuthProvider() && firebasePhoneE164) {
+          const verified = await otpService.verifyMobileOtp(
+            firebasePhoneE164,
+            otpValue,
+            false,
+          );
+          if (!verified.success || !verified.firebaseIdToken) {
+            throw new Error(verified.error ?? "Invalid mobile OTP.");
+          }
+          setFirebasePhoneIdToken(verified.firebaseIdToken);
+          setMobileGrant("firebase-phone");
+          // Firebase has no numeric email OTP — password account proves email later.
+          setEmailGrant("firebase-email-skipped");
+          setStep(securityStep);
+          scrollTop();
+          return;
+        }
+        const verified = await verifySignupOtp({
+          subjectKey,
+          channel: "mobile",
+          otp: otpValue,
+          apiBaseUrl,
+        });
+        setMobileGrant(verified.grant);
+        const emailSent = await requestSignupOtp({
+          subjectKey,
+          channel: "email",
+          destination: s2.email.trim().toLowerCase(),
+          apiBaseUrl,
+        });
+        setMaskedOtpDest(emailSent.maskedDestination);
+        setDevSignupOtp(emailSent.devOtp);
+        setSignupOtp("");
+        setVerifyChannel("email");
+        return;
+      }
+      const verified = await verifySignupOtp({
+        subjectKey,
+        channel: "email",
+        otp: otpValue,
+        apiBaseUrl,
+      });
+      setEmailGrant(verified.grant);
+      setStep(securityStep);
+      scrollTop();
+    } catch (reason) {
+      setVerifyError(reason instanceof Error ? reason.message : "OTP verification failed.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -704,9 +849,27 @@ function SignUpPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingRef.current) return;
+    if (apiMode && !mobileGrant) {
+      setVerifyError("Verify mobile OTP before creating the account.");
+      setStep(verifyStep);
+      return;
+    }
+    if (apiMode && isFirebaseAuthProvider() && !firebasePhoneIdToken) {
+      setVerifyError("Phone verification expired. Request a new OTP and try again.");
+      setMobileGrant("");
+      setStep(verifyStep);
+      return;
+    }
+    if (apiMode && !isFirebaseAuthProvider() && !emailGrant) {
+      setVerifyError("Verify mobile and email OTP before creating the account.");
+      setStep(verifyStep);
+      return;
+    }
     const errs = validateStep3(s3);
     if (hasErrors(errs)) { setE3(errs); return; }
     setE3({});
+    submittingRef.current = true;
     setLoading(true);
     clearError();
     try {
@@ -730,14 +893,15 @@ function SignUpPage() {
       await signUp({
         fullName:        s2.principalName,
         email:           s2.email,
-        phone:           s2.mobile,
+        phone:           firebasePhoneE164 ?? s2.mobile,
         role:            "principal",
         designation:     "Principal",
         password:        s3.password,
         confirmPassword: s3.confirmPassword,
         acceptTerms:     s3.acceptTerms,
-        securityPin:     isAppLockRequired() ? s3.pin : undefined,
+        securityPin:     s3.pin,
         instituteName:   s1.instituteName,
+        firebaseIdToken: firebasePhoneIdToken ?? undefined,
         registrationPayload,
       });
       if (isApiAuthMode()) {
@@ -778,6 +942,7 @@ function SignUpPage() {
     } catch {
       // authError set by context
     } finally {
+      submittingRef.current = false;
       setLoading(false);
     }
   };
@@ -796,13 +961,7 @@ function SignUpPage() {
 
         <div className="relative z-10">
           <Link to="/" className="flex items-center gap-3 mb-10">
-            <div className="size-11 rounded-xl bg-primary flex items-center justify-center shadow-glow">
-              <Sparkles className="size-5 text-primary-foreground" />
-            </div>
-            <div>
-              <div className="font-bold text-[15px] tracking-tight">LUMENX ADMIN</div>
-              <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Institute Intelligence</div>
-            </div>
+            <LumenXAdminLogo size="lg" className="max-h-12" />
           </Link>
 
           <h2 className="text-3xl font-bold tracking-tight leading-tight">
@@ -855,10 +1014,7 @@ function SignUpPage() {
           <div className="flex items-center gap-3">
             {/* Mobile logo */}
             <div className="flex items-center gap-2 xl:hidden">
-              <div className="size-7 rounded-lg bg-primary flex items-center justify-center shadow-glow">
-                <Sparkles className="size-3.5 text-primary-foreground" />
-              </div>
-              <span className="font-bold text-xs tracking-tight">LUMENX ADMIN</span>
+              <LumenXAdminLogo size="xs" className="max-h-7" />
             </div>
           </div>
 
@@ -887,15 +1043,27 @@ function SignUpPage() {
             {/* Heading */}
             <div className="mb-6">
               <h1 className="text-xl font-bold tracking-tight">
-                {step === 1 ? "Institute Profile" : step === 2 ? "Contact & Location" : "Security Setup"}
+                {step === 1
+                  ? "Institute Profile"
+                  : step === 2
+                    ? "Contact & Location"
+                    : step === verifyStep
+                      ? "Verify contact"
+                      : "Security Setup"}
               </h1>
               <p className="text-sm text-muted-foreground mt-1">
-                {step === 1 ? "Tell us about your institution" : step === 2 ? "How can we reach you?" : "Protect your account with a strong password and PIN"}
+                {step === 1
+                  ? "Tell us about your institution"
+                  : step === 2
+                    ? "How can we reach you?"
+                    : step === verifyStep
+                      ? `Enter the Firebase SMS code sent to ${maskedOtpDest || "your phone"}`
+                      : "Protect your account with a strong password and PIN"}
               </p>
             </div>
 
             {/* Step progress bar */}
-            <AuthStepBar steps={STEP_META} current={step} />
+            <AuthStepBar steps={[...STEP_META]} current={step} />
 
             {/* Step content */}
             {step === 1 && (
@@ -910,7 +1078,36 @@ function SignUpPage() {
             {step === 2 && (
               <Step2 data={s2} errors={e2} onChange={change2} />
             )}
-            {step === 3 && (
+            {step === verifyStep && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-foreground">
+                    {verifyChannel === "mobile" ? "Mobile OTP" : "Email OTP"}
+                    {maskedOtpDest ? ` (${maskedOtpDest})` : ""}
+                  </p>
+                  <OtpInput
+                    value={signupOtp}
+                    onChange={(value) => {
+                      setSignupOtp(value);
+                      setVerifyError(null);
+                    }}
+                    onComplete={(value) => {
+                      void handleVerifyOtpContinue(value);
+                    }}
+                    error={verifyError ?? undefined}
+                    disabled={loading}
+                  />
+                </div>
+                {devSignupOtp && (
+                  <DemoOtpHint
+                    otp={devSignupOtp}
+                    channel={verifyChannel}
+                    onUse={setSignupOtp}
+                  />
+                )}
+              </div>
+            )}
+            {step === securityStep && (
               <form id="step3-form" onSubmit={handleSubmit}>
                 <Step3 data={s3} errors={e3} onChange={change3} />
               </form>
@@ -929,16 +1126,35 @@ function SignUpPage() {
                 <button
                   type="button"
                   onClick={handleBack}
+                  disabled={loading}
                   className="flex items-center gap-1.5 h-10 px-4 rounded-lg border border-border text-sm hover:bg-surface-hover transition-colors"
                 >
                   <ChevronLeft className="size-4" /> Back
                 </button>
               )}
 
-              {step < 3 ? (
-                <AuthButton type="button" onClick={handleNext} fullWidth={step === 1}>
-                  Continue <ArrowRight className="size-4" />
-                </AuthButton>
+              {step < securityStep ? (
+                step === verifyStep ? (
+                  <AuthButton
+                    type="button"
+                    onClick={() => void handleVerifyOtpContinue()}
+                    loading={loading}
+                    fullWidth={false}
+                    className="flex-1"
+                    disabled={signupOtp.length !== 6}
+                  >
+                    Verify &amp; continue <ArrowRight className="size-4" />
+                  </AuthButton>
+                ) : (
+                  <AuthButton
+                    type="button"
+                    onClick={() => void handleNext()}
+                    loading={loading}
+                    fullWidth={step === 1}
+                  >
+                    Continue <ArrowRight className="size-4" />
+                  </AuthButton>
+                )
               ) : (
                 <AuthButton
                   type="submit"

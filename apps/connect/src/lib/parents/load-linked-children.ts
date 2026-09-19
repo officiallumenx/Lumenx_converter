@@ -19,7 +19,36 @@ export type LinkedChildrenLoadStatus =
 
 function activeLinks(links: GuardianLinkDto[] | undefined): GuardianLinkDto[] {
   if (!Array.isArray(links)) return [];
-  return links.filter((link) => link.status === "active");
+  return links.filter((link) => link.status === "active" || !link.status);
+}
+
+async function childFromLink(
+  instituteId: string,
+  link: GuardianLinkDto,
+  index: number,
+): Promise<Child | null> {
+  try {
+    const dto = await getStudent(link.studentId);
+    const [cardsResult, attendanceResult] = await Promise.all([
+      loadStudentReportCards({
+        instituteId,
+        studentId: link.studentId,
+      }),
+      loadLearnerAttendancePortal({
+        instituteId,
+        studentId: link.studentId,
+      }),
+    ]);
+    const cardMetrics = reportCardsToChildMetrics(cardsResult.reportCards);
+    const attendancePct = attendanceResult.portal?.summary.attendancePct ?? 0;
+    return studentDtoToChild(dto, index, {
+      attendancePct,
+      avgScore: cardMetrics.avgScore,
+      trend: cardMetrics.trend,
+    });
+  } catch {
+    return null;
+  }
 }
 
 export async function loadLinkedChildrenFromApi(input: {
@@ -39,7 +68,9 @@ export async function loadLinkedChildrenFromApi(input: {
   try {
     const me = await getConnectApiClient().get<MeResponse>("/api/v1/me");
     const parentIdentity =
-      me.identities.parents.find((p) => p.instituteId === input.instituteId) ?? null;
+      me.identities.parents.find((p) => p.instituteId === input.instituteId) ??
+      me.identities.parents[0] ??
+      null;
     if (!parentIdentity?.parentId) {
       return { status: "empty", children: [], errorMessage: null };
     }
@@ -50,33 +81,21 @@ export async function loadLinkedChildrenFromApi(input: {
       return { status: "empty", children: [], errorMessage: null };
     }
 
-    const rows = await Promise.all(
-      links.map(async (link, index) => {
-        const [dto, cardsResult, attendanceResult] = await Promise.all([
-          getStudent(link.studentId),
-          loadStudentReportCards({
-            instituteId: input.instituteId,
-            studentId: link.studentId,
-          }),
-          loadLearnerAttendancePortal({
-            instituteId: input.instituteId,
-            studentId: link.studentId,
-          }),
-        ]);
-        const cardMetrics = reportCardsToChildMetrics(cardsResult.reportCards);
-        const attendancePct = attendanceResult.portal?.summary.attendancePct ?? 0;
-        return studentDtoToChild(dto, index, {
-          attendancePct,
-          avgScore: cardMetrics.avgScore,
-          trend: cardMetrics.trend,
-        });
-      }),
-    );
+    const rows = (
+      await Promise.all(
+        links.map((link, index) =>
+          childFromLink(input.instituteId!, link, index),
+        ),
+      )
+    ).filter((row): row is Child => row != null);
 
     return {
       status: rows.length === 0 ? "empty" : "ready",
       children: rows,
-      errorMessage: null,
+      errorMessage:
+        rows.length === 0 && links.length > 0
+          ? "Linked students could not be loaded"
+          : null,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to load linked children";

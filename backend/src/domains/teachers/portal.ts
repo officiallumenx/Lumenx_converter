@@ -11,6 +11,7 @@ import { resolveAccessibleStudentIds } from "../homework/service.js";
 import { listActiveEnrollmentsForStudents } from "../homework/repository.js";
 import { listTeacherAssignments } from "../timetable/repository.js";
 import { findTeacherById } from "./repository.js";
+import { findSectionById, listSectionsByClassTeacherId } from "../academics/repository.js";
 import type {
   PortalLearnerFacultyDto,
   PortalLearnerFacultyMemberDto,
@@ -144,6 +145,17 @@ export async function getLearnerFacultyForActor(
     byTeacher.set(assignment.teacher_id, bucket);
   }
 
+  const sectionRow = await findSectionById(admin, enrollment.section_id);
+  // Class teacher is a separate relationship from subject placement.
+  if (sectionRow?.class_teacher_id) {
+    const bucket = byTeacher.get(sectionRow.class_teacher_id) ?? {
+      subjects: new Set<string>(),
+      isClassTeacher: true,
+    };
+    bucket.isClassTeacher = true;
+    byTeacher.set(sectionRow.class_teacher_id, bucket);
+  }
+
   const teachers: PortalLearnerFacultyMemberDto[] = [];
   for (const [teacherId, meta] of byTeacher) {
     const teacher = await findTeacherById(admin, teacherId);
@@ -152,17 +164,10 @@ export async function getLearnerFacultyForActor(
     }
     if (teacher.status === "pending") continue;
 
-    const sectionKey = `${labels.classLabel}-${labels.sectionLabel}`.toLowerCase();
-    const assignedLabels = (teacher.assigned_section_labels ?? []).map((label) =>
-      label.toLowerCase(),
-    );
     const isClassTeacher =
-      teacher.teaching_scope === "dual_role" ||
-      assignedLabels.some((label) => sectionKey.includes(label) || label.includes(sectionKey));
-
-    if (isClassTeacher) {
-      meta.isClassTeacher = true;
-    }
+      sectionRow?.class_teacher_id != null &&
+      sectionRow.class_teacher_id === teacherId;
+    meta.isClassTeacher = isClassTeacher;
 
     const subjectList = [
       ...new Set([
@@ -258,6 +263,31 @@ export async function getTeacherSelfPortalForActor(
   }
 
   const assignmentSummaries = [...bySection.values()].sort((a, b) =>
+    `${a.classLabel}-${a.sectionLabel}`.localeCompare(
+      `${b.classLabel}-${b.sectionLabel}`,
+    ),
+  );
+
+  // Class-teacher sections without subject placements still belong on the portal.
+  const classTeacherSections = await listSectionsByClassTeacherId(admin, {
+    instituteId,
+    teacherId: teacher.id,
+  });
+  for (const section of classTeacherSections) {
+    if (section.status !== "active") continue;
+    if (bySection.has(section.id)) continue;
+    const labels = await loadClassSectionLabels(admin, {
+      classId: section.class_id,
+      sectionId: section.id,
+    });
+    assignmentSummaries.push({
+      sectionId: section.id,
+      classLabel: labels.classLabel,
+      sectionLabel: labels.sectionLabel,
+      subjects: ["Class teacher"],
+    });
+  }
+  assignmentSummaries.sort((a, b) =>
     `${a.classLabel}-${a.sectionLabel}`.localeCompare(
       `${b.classLabel}-${b.sectionLabel}`,
     ),

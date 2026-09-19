@@ -6,13 +6,14 @@ import {
 } from "@lumenx/module-notifications";
 import type { TeacherLeaveRequest } from "@/lib/teacher/types";
 import { teacherLeaveRequestsSeed } from "@/lib/teacher/mock-data";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { alertStore } from "@/lib/alert-store";
 import { assertTeacherCanWrite } from "@/lib/teacher/portal-access-guard";
 import { loadLeaveDecisions, listenDemoSync, saveLeaveDecision } from "@lumenx/utils";
 
 type Listener = () => void;
 
-let requests: TeacherLeaveRequest[] = teacherLeaveRequestsSeed.map((r) => ({ ...r }));
+let requests: TeacherLeaveRequest[] = [];
 let initialized = false;
 const listeners = new Set<Listener>();
 
@@ -62,6 +63,12 @@ function applyDecisions() {
 
 export const teacherLeaveStore = {
   init() {
+    if (isApiAuthMode()) {
+      requests = [];
+      initialized = true;
+      notify();
+      return;
+    }
     if (initialized) return;
     requests = teacherLeaveRequestsSeed.map((r) => ({ ...r }));
     applyDecisions();
@@ -76,6 +83,12 @@ export const teacherLeaveStore = {
   },
 
   reset() {
+    if (isApiAuthMode()) {
+      requests = [];
+      initialized = false;
+      notify();
+      return;
+    }
     requests = teacherLeaveRequestsSeed.map((r) => ({ ...r }));
     initialized = false;
     notify();

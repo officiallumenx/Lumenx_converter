@@ -12,6 +12,8 @@ export type MarkScoreDto = {
   enrollmentId: string;
   studentId: string;
   marks: number | null;
+  internalMarks: number | null;
+  externalMarks: number | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -63,6 +65,8 @@ export type TeacherMarkSheetRowDto = {
   studentName: string;
   rollNo: string | null;
   marks: number | null;
+  internalMarks: number | null;
+  externalMarks: number | null;
 };
 
 export type TeacherMarkSheetDto = {
@@ -76,6 +80,8 @@ export type TeacherMarkSheetDto = {
   subjectId: string;
   subjectName: string;
   maxMarks: number;
+  internalMax: number | null;
+  externalMax: number | null;
   status: MarkEntryStatus | "none";
   rows: TeacherMarkSheetRowDto[];
 };
@@ -86,12 +92,16 @@ export type ConnectMarkRow = {
   studentName: string;
   roll: string;
   marks: number | null;
+  internalMarks: number | null;
+  externalMarks: number | null;
   maxMarks: number;
 };
 
 export type MarkScoreInput = {
   enrollmentId: string;
   marks: number | null;
+  internalMarks?: number | null;
+  externalMarks?: number | null;
 };
 
 export type CreateMarkEntryInput = {

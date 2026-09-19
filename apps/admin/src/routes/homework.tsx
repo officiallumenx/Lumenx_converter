@@ -1,4 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { useHomeworkListQuery, adminQueryRoots } from "@/lib/admin-queries";
+import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
 import { useAdminToast } from "@/components/AdminActionToast";
 import {
@@ -25,9 +28,7 @@ import {
   deleteHomework,
   expireHomework,
   loadHomeworkDetail,
-  loadHomeworkList,
   resolveHomeworkListView,
-  shouldCommitHomeworkLoad,
   type HomeworkListItem,
   type HomeworkListStatus,
 } from "@/lib/homework";
@@ -89,7 +90,23 @@ function HomeworkLogsPage() {
   );
   const [listError, setListError] = useState<string | null>(null);
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const queryClient = useQueryClient();
+  const listEnabled =
+    apiMode &&
+    instituteCtx.status === "ready" &&
+    Boolean(instituteCtx.activeInstituteId);
+  const homeworkQuery = useHomeworkListQuery(
+    instituteCtx.activeInstituteId,
+    listEnabled,
+  );
+  const bumpHomeworkReload = () => {
+    invalidateAdminCache("admin:homework");
+    if (instituteCtx.activeInstituteId) {
+      void queryClient.invalidateQueries({
+        queryKey: [adminQueryRoots.homework, instituteCtx.activeInstituteId],
+      });
+    }
+  };
 
   const [detailId, setDetailId] = useState<string | null>(null);
   const detailIdRef = useRef(detailId);
@@ -106,7 +123,8 @@ function HomeworkLogsPage() {
     activeInstituteId: instituteCtx.activeInstituteId,
     resolvedForInstituteId,
     storedItems: apiItems,
-    storedStatus: listStatus,
+    storedStatus:
+      homeworkQuery.isLoading && !homeworkQuery.data ? "loading" : listStatus,
     storedErrorMessage: listError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
@@ -148,36 +166,25 @@ function HomeworkLogsPage() {
       return;
     }
 
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setListStatus("loading");
-    setListError(null);
-    setDetailId(null);
-    setDetail(null);
-    void loadHomeworkList(requestInstituteId).then((next) => {
-      if (
-        !shouldCommitHomeworkLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setApiItems(next.items);
-      setListStatus(next.status);
-      setListError(next.errorMessage);
-      setResolvedForInstituteId(requestInstituteId);
-    });
-    return () => {
-      cancelled = true;
-    };
+    if (homeworkQuery.isLoading && !homeworkQuery.data) {
+      setListStatus("loading");
+      setListError(null);
+      return;
+    }
+    if (!homeworkQuery.data) return;
+
+    const next = homeworkQuery.data;
+    setApiItems(next.items);
+    setListStatus(next.status);
+    setListError(next.errorMessage);
+    setResolvedForInstituteId(instituteCtx.activeInstituteId);
   }, [
     apiMode,
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
-    reloadKey,
+    homeworkQuery.data,
+    homeworkQuery.isLoading,
   ]);
 
   useEffect(() => {
@@ -229,7 +236,7 @@ function HomeworkLogsPage() {
     void expireHomework(id)
       .then(() => {
         if (activeInstituteIdRef.current !== requestInstituteId) return;
-        setReloadKey((k) => k + 1);
+        bumpHomeworkReload();
         setDetailReloadKey((k) => k + 1);
         notify("Homework expired");
       })
@@ -251,7 +258,7 @@ function HomeworkLogsPage() {
         if (activeInstituteIdRef.current !== requestInstituteId) return;
         setDetailId(null);
         setDetail(null);
-        setReloadKey((k) => k + 1);
+        bumpHomeworkReload();
         notify("Homework deleted");
       })
       .catch((err) => {
@@ -268,8 +275,8 @@ function HomeworkLogsPage() {
       subtitle={
         apiMode
           ? writesEnabled
-            ? "API mode · teacher-owned create/edit/publish · Admin can view, expire, or delete"
-            : "API mode · read-only · select an institute to govern items"
+            ? "Teacher-owned create/edit/publish · Admin can view, expire, or delete"
+            : "Read-only · select an institute to govern items"
           : "Teacher owns homework CRUD · Admin view logs only (no edit)"
       }
     >

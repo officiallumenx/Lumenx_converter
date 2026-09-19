@@ -1,4 +1,3 @@
-import { isApiAuthMode } from "@/lib/auth/auth-mode";
 import {
   getAlertsSnapshot,
   getUnreadAlertCount,
@@ -20,7 +19,7 @@ export const alertsRepository = {
   },
 
   async markRead(id: string) {
-    if (isApiAuthMode() && !id.startsWith("wf-") && !id.startsWith("seed-")) {
+    if (!id.startsWith("wf-") && !id.startsWith("seed-")) {
       try {
         await markInboxItemRead(id);
       } catch {
@@ -33,13 +32,11 @@ export const alertsRepository = {
   async markAllRead() {
     const snapshot = getAlertsSnapshot();
     const unread = snapshot.filter((a) => a.unread);
-    if (isApiAuthMode()) {
-      await Promise.all(
-        unread
-          .filter((a) => !a.id.startsWith("wf-") && !a.id.startsWith("seed-"))
-          .map((a) => markInboxItemRead(a.id).catch(() => undefined)),
-      );
-    }
+    await Promise.all(
+      unread
+        .filter((a) => !a.id.startsWith("wf-") && !a.id.startsWith("seed-"))
+        .map((a) => markInboxItemRead(a.id).catch(() => undefined)),
+    );
     markAllAlertsReadInStore();
   },
 

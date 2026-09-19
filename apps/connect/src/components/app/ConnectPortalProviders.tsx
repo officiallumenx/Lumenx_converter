@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { InAppAlertListener } from "@/components/app/InAppAlertListener";
 import { PushDeviceTokenRegistration } from "@/components/app/PushDeviceTokenRegistration";
+import { FirebaseClientServices } from "@/components/app/FirebaseClientServices";
 import { ConnectSchoolAlertsSync } from "@/components/app/ConnectSchoolAlertsSync";
 import { AppProvider } from "@/lib/app-state";
 import { ParentPortalRegistry } from "@/context/ParentPortalContext";
@@ -28,6 +29,7 @@ export function ConnectPortalProviders({
               <ActivityWorkspaceRegistry>
               <ConnectFeedbackTransportBridge />
               <InAppAlertListener />
+              <FirebaseClientServices enabled />
               <PushDeviceTokenRegistration enabled />
               <ConnectSchoolAlertsSync />
               {children}

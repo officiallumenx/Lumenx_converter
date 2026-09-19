@@ -20,10 +20,18 @@ function classKeyForId(classId: string, labels: Map<string, string>): string {
   return labels.get(classId) ?? classId;
 }
 
-export function pickActiveFeePlan(plans: FeePlanDto[]): FeePlanDto | null {
+export function pickActiveFeePlan(
+  plans: FeePlanDto[],
+  academicYearId?: string | null,
+): FeePlanDto | null {
   if (!Array.isArray(plans) || plans.length === 0) return null;
-  const published = plans.filter((plan) => plan.status === "published");
-  const pool = published.length > 0 ? published : plans;
+  const yearId = academicYearId?.trim() || null;
+  const yearFiltered = yearId
+    ? plans.filter((plan) => plan.academicYearId === yearId)
+    : plans;
+  if (yearFiltered.length === 0) return null;
+  const published = yearFiltered.filter((plan) => plan.status === "published");
+  const pool = published.length > 0 ? published : yearFiltered;
   return [...pool].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0] ?? null;
 }
 
@@ -45,6 +53,14 @@ export function feeBundleToFeesSnapshot(input: {
       if (!classDefaults[classKey]) classDefaults[classKey] = {};
       classDefaults[classKey][component.id] = amount;
     }
+  }
+
+  // Seed every institute class so Class fees / Transport / Extra can assign
+  // amounts even when no component.classAmounts exist yet.
+  for (const cls of input.classLabels) {
+    const key = cls.label.trim();
+    if (!key) continue;
+    if (!classDefaults[key]) classDefaults[key] = {};
   }
 
   const categories = input.components.map((component) => ({

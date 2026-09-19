@@ -139,10 +139,105 @@
 }
 .site-lede {
   margin-top: var(--site-space-3);
-  font-size: 1.05rem;
-  line-height: 1.55;
+  font-size: 1.0625rem;
+  line-height: 1.6;
   color: var(--muted-foreground);
-  max-width: 40rem;
+  max-width: 38rem;
+}
+.site-card-title {
+  font-size: var(--site-text-title);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+  color: inherit;
+}
+.site-caption {
+  font-size: var(--site-text-caption);
+  line-height: 1.45;
+  color: var(--muted-foreground);
+}
+
+/* Connected platform tree (homepage) */
+.site-platform-tree {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+.site-platform-tree__hub {
+  width: min(100%, 22rem);
+  border: 1px solid var(--border-brand);
+  border-radius: var(--site-radius-lg);
+  background: color-mix(in oklch, var(--site-brand-soft) 70%, var(--card));
+  padding: 1.25rem 1.5rem;
+  text-align: center;
+}
+.site-platform-tree__brand {
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--site-brand);
+}
+.site-platform-tree__tag {
+  margin-top: 0.35rem;
+  font-size: var(--site-text-caption);
+  color: var(--muted-foreground);
+}
+.site-platform-tree__spine {
+  width: 2px;
+  height: 1.5rem;
+  background: color-mix(in oklch, var(--site-brand) 35%, transparent);
+}
+.site-platform-tree__row {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  width: 100%;
+  gap: 0.75rem;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 640px) {
+  .site-platform-tree__row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1024px) {
+  .site-platform-tree__row {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+.site-platform-tree__node {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  min-height: 4.5rem;
+  height: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--site-radius-md);
+  background: var(--card);
+  padding: 0.85rem 0.9rem;
+  text-decoration: none;
+  color: inherit;
+  transition:
+    border-color var(--site-duration) ease,
+    background-color var(--site-duration) ease;
+}
+.site-platform-tree__node:hover {
+  border-color: var(--border-brand);
+  background: color-mix(in oklch, var(--site-brand-soft) 45%, var(--card));
+}
+.site-platform-tree__name {
+  display: block;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.site-platform-tree__role {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: var(--site-text-caption);
+  color: var(--muted-foreground);
 }
 
 /* —— Buttons —— */
@@ -431,6 +526,66 @@ button.site-card { text-align: left; cursor: pointer; }
 .site-nav-link[aria-current="page"] {
   color: var(--site-brand);
   background: var(--site-brand-soft);
+}
+.site-nav-trigger {
+  gap: 0.25rem;
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  font: inherit;
+}
+.site-nav-dropdown {
+  position: relative;
+}
+.site-nav-panel {
+  position: absolute;
+  top: calc(100% - 0.15rem);
+  left: 0;
+  z-index: 70;
+  min-width: 16.5rem;
+  max-width: 20rem;
+  border: 1px solid var(--border);
+  border-radius: var(--site-radius-md);
+  background: var(--card);
+  padding: 0.5rem;
+  box-shadow: none;
+}
+.site-nav-panel__overview,
+.site-nav-panel__item,
+.site-nav-panel__footer {
+  display: block;
+  border-radius: var(--site-radius-sm);
+  padding: 0.65rem 0.75rem;
+  text-decoration: none;
+  color: inherit;
+}
+.site-nav-panel__overview:hover,
+.site-nav-panel__item:hover,
+.site-nav-panel__footer:hover {
+  background: var(--site-brand-soft);
+}
+.site-nav-panel__overview {
+  margin-bottom: 0.25rem;
+  border-bottom: 1px solid var(--border);
+  border-radius: var(--site-radius-sm) var(--site-radius-sm) 0 0;
+  padding-bottom: 0.75rem;
+}
+.site-nav-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.site-nav-panel__footer {
+  margin-top: 0.25rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--site-brand);
+}
+@media (prefers-reduced-motion: reduce) {
+  .site-nav-trigger svg {
+    transition: none;
+  }
 }
 
 .site-footer-link {

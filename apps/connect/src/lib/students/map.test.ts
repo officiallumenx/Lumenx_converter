@@ -47,6 +47,25 @@ describe("connect students map", () => {
     expect(detail.className).toBe("10");
     expect(detail.parentName).toBe("Priya Sharma");
     expect(detail.marks).toEqual([]);
+    expect(detail.remarks).toEqual([]);
+  });
+
+  it("accepts API remarks without inventing seed data", () => {
+    const detail = studentDtoToTeacherDetail(dto, [guardian], [
+      {
+        id: "11111111-1111-4111-8111-111111111111",
+        studentId: dto.id,
+        studentName: "Aarav Sharma",
+        type: "academic",
+        text: "Strong progress in algebra this week.",
+        authorId: "bb111111-1111-4111-8111-111111111111",
+        authorName: "Ms Teacher",
+        createdAt: "10 Sep 2026",
+        visibleTo: ["teacher", "parent", "admin"],
+      },
+    ]);
+    expect(detail.remarks).toHaveLength(1);
+    expect(detail.remarks[0]?.text).toContain("algebra");
   });
 
   it("maps dto to student portal profile", () => {

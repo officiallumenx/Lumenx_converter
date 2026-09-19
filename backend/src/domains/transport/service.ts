@@ -14,9 +14,11 @@ import {
   findDriverById,
   findEnrollmentById,
   findRouteById,
+  findRouteByVehicleId,
   findStopById,
   findTransportSettings,
   findVehicleById,
+  clearDriverVehicleAssignment,
   insertDriver,
   insertEnrollment,
   insertRoute,
@@ -50,6 +52,10 @@ import {
   isDriverForInstitute,
   isTransportWriter,
 } from "./approval.js";
+import {
+  assertValidPin,
+  hashPin,
+} from "../auth-credentials/repository.js";
 import type {
   CreateDriverInput,
   CreateEnrollmentInput,
@@ -98,7 +104,10 @@ export const TRANSPORT_STAFF_READ_ROLES = [
   "driver",
 ] as const;
 
-export function toVehicleDto(row: VehicleRow): VehicleDto {
+export function toVehicleDto(
+  row: VehicleRow,
+  assignedDriverId: string | null = null,
+): VehicleDto {
   return {
     id: row.id,
     instituteId: row.institute_id,
@@ -107,6 +116,7 @@ export function toVehicleDto(row: VehicleRow): VehicleDto {
     capacity: row.capacity,
     status: row.status,
     notes: row.notes,
+    assignedDriverId,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -123,6 +133,8 @@ export function toDriverDto(row: DriverRow): DriverDto {
     licenseExpiry: row.license_expiry,
     status: row.status,
     notes: row.notes,
+    assignedVehicleId: row.assigned_vehicle_id ?? null,
+    hasAppPin: Boolean(row.app_pin_hash && row.app_pin_salt),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -198,6 +210,11 @@ export function toTransportSettingsDto(
     defaultNotificationRadiusM: row.default_notification_radius_m,
     defaultPickupBufferMins: row.default_pickup_buffer_mins,
     workingDays: row.working_days ?? [1, 2, 3, 4, 5],
+    notificationsEnabled: row.notifications_enabled ?? true,
+    rememberEnabled: row.remember_enabled ?? true,
+    defaultPickupTime: row.default_pickup_time
+      ? String(row.default_pickup_time).slice(0, 5)
+      : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -221,6 +238,26 @@ function assertCanSubmitTransport(actor: Actor, instituteId: string): void {
   requireInstituteId(actor, instituteId);
   if (isTransportWriter(actor, instituteId)) return;
   if (isDriverForInstitute(actor, instituteId)) return;
+  throw AppError.forbidden("Insufficient permissions");
+}
+
+/** Admin writers, or the driver who submitted a still-pending item. */
+function assertCanEditTransportSubmission(
+  actor: Actor,
+  row: {
+    institute_id: string;
+    approval_status: TransportApprovalStatus;
+    submitted_by_user_id: string | null;
+  },
+): void {
+  if (isTransportWriter(actor, row.institute_id)) return;
+  if (
+    isDriverForInstitute(actor, row.institute_id) &&
+    row.approval_status === "pending" &&
+    row.submitted_by_user_id === actor.userId
+  ) {
+    return;
+  }
   throw AppError.forbidden("Insufficient permissions");
 }
 
@@ -334,6 +371,54 @@ async function assertDriverInInstitute(
   }
 }
 
+/** Keep route.vehicle_id + route.driver_id aligned with driver.assigned_vehicle_id. */
+async function ensureDriverVehicleRouteLink(
+  admin: SupabaseClient,
+  input: {
+    instituteId: string;
+    driverId: string;
+    vehicleId: string | null;
+    vehicleNumber?: string;
+  },
+): Promise<void> {
+  if (!input.vehicleId) return;
+  const existing = await findRouteByVehicleId(
+    admin,
+    input.instituteId,
+    input.vehicleId,
+  );
+  if (existing) {
+    await updateRouteFields(admin, existing.id, {
+      driver_id: input.driverId,
+      vehicle_id: input.vehicleId,
+    });
+    return;
+  }
+  const label = input.vehicleNumber?.trim() || "Bus";
+  await insertRoute(admin, {
+    instituteId: input.instituteId,
+    name: `${label} route`,
+    vehicleId: input.vehicleId,
+    driverId: input.driverId,
+    status: "active",
+    configStatus: "not_configured",
+    approvalStatus: "approved",
+    submittedByUserId: null,
+  });
+}
+
+function pinFieldsFromInput(pin: string | null | undefined): {
+  appPinHash?: string | null;
+  appPinSalt?: string | null;
+} {
+  if (pin === undefined) return {};
+  if (pin === null || pin.trim() === "") {
+    return { appPinHash: null, appPinSalt: null };
+  }
+  const { hash, salt } = hashPin(assertValidPin(pin));
+  return { appPinHash: hash, appPinSalt: salt };
+}
+
 // ── Vehicles ─────────────────────────────────────────────────────
 
 export async function listVehiclesForActor(
@@ -343,8 +428,19 @@ export async function listVehiclesForActor(
 ): Promise<VehicleDto[]> {
   const id = requireInstituteId(actor, instituteId);
   assertTransportStaffReader(actor, id);
-  const rows = await listVehicles(admin, id);
-  return rows.map(toVehicleDto);
+  const [rows, drivers] = await Promise.all([
+    listVehicles(admin, id),
+    listDrivers(admin, id),
+  ]);
+  const driverByVehicle = new Map<string, string>();
+  for (const driver of drivers) {
+    if (driver.assigned_vehicle_id) {
+      driverByVehicle.set(driver.assigned_vehicle_id, driver.id);
+    }
+  }
+  return rows.map((row) =>
+    toVehicleDto(row, driverByVehicle.get(row.id) ?? null),
+  );
 }
 
 export async function getVehicleForActor(
@@ -355,7 +451,10 @@ export async function getVehicleForActor(
   const row = await findVehicleById(admin, vehicleId);
   if (!row) throw AppError.notFound("Vehicle not found");
   assertTransportStaffReader(actor, row.institute_id);
-  return toVehicleDto(row);
+  const drivers = await listDrivers(admin, row.institute_id);
+  const assigned =
+    drivers.find((d) => d.assigned_vehicle_id === row.id)?.id ?? null;
+  return toVehicleDto(row, assigned);
 }
 
 export async function createVehicleForActor(
@@ -381,7 +480,29 @@ export async function createVehicleForActor(
     vehicleNumber,
     registrationNumber,
   });
-  return toVehicleDto(row);
+
+  let assignedDriverId: string | null = null;
+  if (input.assignedDriverId) {
+    await assertDriverInInstitute(admin, input.assignedDriverId, instituteId);
+    await clearDriverVehicleAssignment(
+      admin,
+      instituteId,
+      row.id,
+      input.assignedDriverId,
+    );
+    await updateDriverFields(admin, input.assignedDriverId, {
+      assigned_vehicle_id: row.id,
+    });
+    await ensureDriverVehicleRouteLink(admin, {
+      instituteId,
+      driverId: input.assignedDriverId,
+      vehicleId: row.id,
+      vehicleNumber,
+    });
+    assignedDriverId = input.assignedDriverId;
+  }
+
+  return toVehicleDto(row, assignedDriverId);
 }
 
 export async function updateVehicleForActor(
@@ -407,11 +528,48 @@ export async function updateVehicleForActor(
   ) {
     throw AppError.validation("capacity must be a positive integer");
   }
-  if (Object.keys(fieldPatch).length === 0) return toVehicleDto(existing);
 
-  const updated = await updateVehicleFields(admin, vehicleId, fieldPatch);
+  const updated =
+    Object.keys(fieldPatch).length === 0
+      ? existing
+      : await updateVehicleFields(admin, vehicleId, fieldPatch);
   if (!updated) throw AppError.notFound("Vehicle not found");
-  return toVehicleDto(updated);
+
+  let assignedDriverId: string | null = null;
+  if (patch.assignedDriverId !== undefined) {
+    if (patch.assignedDriverId) {
+      await assertDriverInInstitute(
+        admin,
+        patch.assignedDriverId,
+        existing.institute_id,
+      );
+      await clearDriverVehicleAssignment(
+        admin,
+        existing.institute_id,
+        vehicleId,
+        patch.assignedDriverId,
+      );
+      await updateDriverFields(admin, patch.assignedDriverId, {
+        assigned_vehicle_id: vehicleId,
+      });
+      await ensureDriverVehicleRouteLink(admin, {
+        instituteId: existing.institute_id,
+        driverId: patch.assignedDriverId,
+        vehicleId,
+        vehicleNumber: updated.vehicle_number,
+      });
+      assignedDriverId = patch.assignedDriverId;
+    } else {
+      await clearDriverVehicleAssignment(admin, existing.institute_id, vehicleId);
+      assignedDriverId = null;
+    }
+  } else {
+    const drivers = await listDrivers(admin, existing.institute_id);
+    assignedDriverId =
+      drivers.find((d) => d.assigned_vehicle_id === vehicleId)?.id ?? null;
+  }
+
+  return toVehicleDto(updated, assignedDriverId);
 }
 
 export async function deleteVehicleForActor(
@@ -466,7 +624,23 @@ export async function createDriverForActor(
       "display_name, phone, and license_number are required",
     );
   }
+  if (!input.appAccountPin?.trim()) {
+    throw AppError.validation("app_account_pin is required", {
+      app_account_pin: ["Required"],
+    });
+  }
 
+  let assignedVehicleId = input.assignedVehicleId ?? null;
+  if (assignedVehicleId) {
+    await assertVehicleInInstitute(admin, assignedVehicleId, instituteId);
+    await clearDriverVehicleAssignment(
+      admin,
+      instituteId,
+      assignedVehicleId,
+    );
+  }
+
+  const pin = pinFieldsFromInput(input.appAccountPin);
   const row = await insertDriver(admin, {
     ...input,
     instituteId,
@@ -474,7 +648,21 @@ export async function createDriverForActor(
     phone,
     licenseNumber,
     userProfileId: null,
+    assignedVehicleId,
+    appPinHash: pin.appPinHash ?? null,
+    appPinSalt: pin.appPinSalt ?? null,
   });
+
+  if (assignedVehicleId) {
+    const vehicle = await findVehicleById(admin, assignedVehicleId);
+    await ensureDriverVehicleRouteLink(admin, {
+      instituteId,
+      driverId: row.id,
+      vehicleId: assignedVehicleId,
+      vehicleNumber: vehicle?.vehicle_number,
+    });
+  }
+
   return toDriverDto(row);
 }
 
@@ -498,10 +686,44 @@ export async function updateDriverForActor(
   if (typeof fieldPatch.license_number === "string") {
     fieldPatch.license_number = fieldPatch.license_number.trim();
   }
-  if (Object.keys(fieldPatch).length === 0) return toDriverDto(existing);
+  if (patch.appAccountPin !== undefined) {
+    const pin = pinFieldsFromInput(patch.appAccountPin);
+    fieldPatch.app_pin_hash = pin.appPinHash ?? null;
+    fieldPatch.app_pin_salt = pin.appPinSalt ?? null;
+  }
+  if (patch.assignedVehicleId !== undefined && patch.assignedVehicleId) {
+    await assertVehicleInInstitute(
+      admin,
+      patch.assignedVehicleId,
+      existing.institute_id,
+    );
+    await clearDriverVehicleAssignment(
+      admin,
+      existing.institute_id,
+      patch.assignedVehicleId,
+      driverId,
+    );
+  }
+
+  if (Object.keys(fieldPatch).length === 0 && patch.appAccountPin === undefined) {
+    return toDriverDto(existing);
+  }
 
   const updated = await updateDriverFields(admin, driverId, fieldPatch);
   if (!updated) throw AppError.notFound("Driver not found");
+
+  if (patch.assignedVehicleId !== undefined) {
+    if (patch.assignedVehicleId) {
+      const vehicle = await findVehicleById(admin, patch.assignedVehicleId);
+      await ensureDriverVehicleRouteLink(admin, {
+        instituteId: existing.institute_id,
+        driverId,
+        vehicleId: patch.assignedVehicleId,
+        vehicleNumber: vehicle?.vehicle_number,
+      });
+    }
+  }
+
   return toDriverDto(updated);
 }
 
@@ -554,6 +776,16 @@ export async function createRouteForActor(
   input: CreateRouteInput,
 ): Promise<RouteDto> {
   const instituteId = requireInstituteId(actor, input.instituteId);
+  // Flowchart: routes are created by the driver; admin only approves.
+  // (Admin vehicle↔driver assignment still auto-links via ensureDriverVehicleRouteLink.)
+  if (
+    isTransportWriter(actor, instituteId) &&
+    !isDriverForInstitute(actor, instituteId)
+  ) {
+    throw AppError.forbidden(
+      "Routes are created by drivers. Approve them in Reviews.",
+    );
+  }
   assertCanSubmitTransport(actor, instituteId);
   const writer = isTransportWriter(actor, instituteId);
   const approvalStatus = approvalStatusForCreate(actor, instituteId);
@@ -586,7 +818,7 @@ export async function updateRouteForActor(
 ): Promise<RouteDto> {
   const existing = await findRouteById(admin, routeId);
   if (!existing) throw AppError.notFound("Route not found");
-  assertTransportWriter(actor, existing.institute_id);
+  assertCanEditTransportSubmission(actor, existing);
 
   if (patch.vehicleId) {
     await assertVehicleInInstitute(admin, patch.vehicleId, existing.institute_id);
@@ -670,6 +902,15 @@ export async function createStopForActor(
   input: CreateStopInput,
 ): Promise<StopDto> {
   const instituteId = requireInstituteId(actor, input.instituteId);
+  // Flowchart note: routes/stops are created by the driver; admin only approves.
+  if (
+    isTransportWriter(actor, instituteId) &&
+    !isDriverForInstitute(actor, instituteId)
+  ) {
+    throw AppError.forbidden(
+      "Stops are created by drivers. Approve them in Reviews.",
+    );
+  }
   assertCanSubmitTransport(actor, instituteId);
   const writer = isTransportWriter(actor, instituteId);
   const approvalStatus = approvalStatusForCreate(actor, instituteId);
@@ -710,7 +951,7 @@ export async function updateStopForActor(
 ): Promise<StopDto> {
   const existing = await findStopById(admin, stopId);
   if (!existing) throw AppError.notFound("Stop not found");
-  assertTransportWriter(actor, existing.institute_id);
+  assertCanEditTransportSubmission(actor, existing);
 
   const fieldPatch = toStopUpdatePatch(patch);
   if (typeof fieldPatch.name === "string") {
@@ -808,8 +1049,12 @@ export async function createEnrollmentForActor(
   }
 
   await assertRouteInInstitute(admin, input.routeId, instituteId);
-  await assertStopOnRoute(admin, input.pickupStopId, input.routeId, instituteId);
-  await assertStopOnRoute(admin, input.dropStopId, input.routeId, instituteId);
+  if (input.pickupStopId) {
+    await assertStopOnRoute(admin, input.pickupStopId, input.routeId, instituteId);
+  }
+  if (input.dropStopId) {
+    await assertStopOnRoute(admin, input.dropStopId, input.routeId, instituteId);
+  }
 
   const row = await insertEnrollment(admin, {
     ...input,
@@ -843,13 +1088,17 @@ export async function updateEnrollmentForActor(
     patch.pickupStopId !== undefined ||
     patch.dropStopId !== undefined
   ) {
-    await assertStopOnRoute(
-      admin,
-      pickupStopId,
-      routeId,
-      existing.institute_id,
-    );
-    await assertStopOnRoute(admin, dropStopId, routeId, existing.institute_id);
+    if (pickupStopId) {
+      await assertStopOnRoute(
+        admin,
+        pickupStopId,
+        routeId,
+        existing.institute_id,
+      );
+    }
+    if (dropStopId) {
+      await assertStopOnRoute(admin, dropStopId, routeId, existing.institute_id);
+    }
   }
 
   const fieldPatch = toEnrollmentUpdatePatch(patch);
@@ -899,6 +1148,9 @@ export async function getTransportSettingsForActor(
       defaultNotificationRadiusM: 150,
       defaultPickupBufferMins: 5,
       workingDays: [1, 2, 3, 4, 5],
+      notificationsEnabled: true,
+      rememberEnabled: true,
+      defaultPickupTime: null,
       createdAt: new Date(0).toISOString(),
       updatedAt: new Date(0).toISOString(),
     };
@@ -941,6 +1193,13 @@ export async function upsertTransportSettingsForActor(
     ) {
       throw AppError.validation("working_days must be integers 0-6");
     }
+  }
+  if (
+    input.defaultPickupTime !== undefined &&
+    input.defaultPickupTime !== null &&
+    !/^\d{2}:\d{2}(:\d{2})?$/.test(input.defaultPickupTime)
+  ) {
+    throw AppError.validation("default_pickup_time must be HH:MM");
   }
 
   const row = await upsertTransportSettings(admin, { ...input, instituteId });

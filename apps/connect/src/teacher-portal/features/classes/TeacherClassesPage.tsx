@@ -46,9 +46,19 @@ export function TeacherClassesPage({ selectedId }: { selectedId?: string }) {
     <div className="min-w-0 space-y-5">
       <PageHeader
         title="My Classes"
-        subtitle={`${portal.classes.length} assigned classes · ${portal.profile?.subjects.join(", ")}`}
+        subtitle={
+          portal.profile?.subjects?.length
+            ? `${portal.classes.length} assigned classes · ${portal.profile.subjects.join(", ")}`
+            : `${portal.classes.length} assigned class${portal.classes.length === 1 ? "" : "es"}`
+        }
       />
-      {portal.classes.length ? (
+      {portal.errorMessage && portal.classes.length === 0 ? (
+        <EmptyState
+          icon={LayoutGrid}
+          title="Unable to load classes"
+          description={portal.errorMessage}
+        />
+      ) : portal.classes.length ? (
         <div className="grid gap-3 sm:grid-cols-2">
           {portal.classes.map((cls) => (
             <ClassCard key={cls.id} cls={cls} />
@@ -58,7 +68,7 @@ export function TeacherClassesPage({ selectedId }: { selectedId?: string }) {
         <EmptyState
           icon={LayoutGrid}
           title="No classes assigned"
-          description="Your class assignments will appear here once configured by admin."
+          description="Ask admin to assign you as class teacher or subject teacher for a section. Class teacher does not require a subject link."
         />
       )}
     </div>
@@ -137,7 +147,7 @@ function ClassDetailView({
         {loading ? (
           <PageSkeleton rows={3} />
         ) : students.length ? (
-          <StudentAccordionList students={students} showClassLabel={false} />
+          <StudentAccordionList students={students} showClassLabel={false} apiMode />
         ) : (
           <EmptyState icon={Users} title="No students" description="This class roster is empty." />
         )}

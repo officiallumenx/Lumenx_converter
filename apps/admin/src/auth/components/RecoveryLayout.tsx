@@ -4,8 +4,8 @@
  * ───────────────────────────────────────────────────────────── */
 
 import { Link } from "@tanstack/react-router";
-import { ArrowLeft, Check, Sparkles } from "lucide-react";
-import { IconChip } from "@/components/IconChip";
+import { ArrowLeft, Check } from "lucide-react";
+import { LumenXAdminLogo } from "@/components/LumenXAdminLogo";
 import { AUTH_PAGE_ENTER, AUTH_PAGE_MAX } from "../auth-ui";
 import type { ReactNode } from "react";
 import type { RecoveryFlowType } from "../recovery-flow-store";
@@ -40,8 +40,7 @@ export function RecoveryLayout({
       <aside className="hidden lg:flex lg:w-[38%] flex-col justify-between p-10 bg-gradient-to-br from-primary/[0.06] via-background to-muted/20 border-r border-border shrink-0">
         <div>
           <div className="flex items-center gap-2.5 mb-10">
-            <IconChip icon={Sparkles} size="sm" />
-            <span className="font-bold text-sm tracking-tight">LUMENX ADMIN</span>
+            <LumenXAdminLogo size="sm" className="max-h-9" />
           </div>
           <h2 className="text-2xl font-bold tracking-tight leading-snug">
             {type === "forgot_password" ? "Reset your password" : "Reset your security PIN"}
@@ -85,8 +84,7 @@ export function RecoveryLayout({
       <main className="flex-1 flex flex-col min-h-0">
         <div className="lx-auth-top-bar flex items-center justify-between border-b border-border/50 lg:hidden">
           <div className="flex items-center gap-2">
-            <IconChip icon={Sparkles} size="xs" />
-            <span className="text-xs font-bold">LUMENX ADMIN</span>
+            <LumenXAdminLogo size="xs" className="max-h-7" />
           </div>
           {onBack ? (
             <button type="button" onClick={onBack} className="text-xs text-muted-foreground flex items-center gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm">

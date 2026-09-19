@@ -184,7 +184,7 @@ function AcademicSettingsTab() {
           <ApiReadUnavailablePanel
             title="Attendance notifications unavailable"
             domainLabel="Attendance notification configuration"
-            hint="Notification routing for attendance has no institute-scoped read API. Demo configuration is not shown in API mode."
+            hint="Attendance notification routing is not available for this institute yet."
           />
         </>
       ) : (

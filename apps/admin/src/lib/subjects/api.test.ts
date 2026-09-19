@@ -25,19 +25,22 @@ describe("subjects api repository", () => {
     vi.resetModules();
   });
 
-  it("refuses to call backend in demo mode", async () => {
+  it("still allows API calls when demo env is set (product is API-only)", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
     const { listSubjects } = await import("./api");
-    const fetchMock = vi.fn();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      text: async () => JSON.stringify({ data: [] }),
+    });
     const client = createApiClient({
       getBaseUrl: () => "http://api.test",
       getAccessToken: async () => "tok",
       fetchImpl: fetchMock as unknown as typeof fetch,
     });
-    await expect(listSubjects({ instituteId: INST }, client)).rejects.toThrow(
-      /API auth mode/i,
-    );
-    expect(fetchMock).not.toHaveBeenCalled();
+    await expect(listSubjects({ instituteId: INST }, client)).resolves.toEqual([]);
+    expect(fetchMock).toHaveBeenCalled();
   });
 
   it("rejects non-UUID institute ids without calling fetch", async () => {

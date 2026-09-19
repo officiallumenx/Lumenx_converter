@@ -10,7 +10,7 @@ describe("exams mutations", () => {
     vi.clearAllMocks();
   });
 
-  it("refuses create in demo mode", async () => {
+  it("refuses create without authenticated API client", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
     const { createExam } = await import("./mutations");
     await expect(
@@ -26,7 +26,7 @@ describe("exams mutations", () => {
         totalMarks: 100,
         audienceScope: "year",
       }),
-    ).rejects.toThrow(/API auth mode/);
+    ).rejects.toThrow(/API auth mode|Authentication required|Demo Mode is no longer supported/);
   });
 
   it("does not call network for invalid exam UUID on delete", async () => {

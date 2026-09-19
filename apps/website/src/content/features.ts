@@ -71,7 +71,7 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
     items: [
       { name: "Fees", blurb: "Structures and dues in Admin. Families see balances in Connect. No public checkout here.", surfaces: "Admin · Connect" },
       { name: "Transport", blurb: "Routes and assignment in Admin. Trips in Transport. Status in Connect when the module is on.", surfaces: "Admin · Transport · Connect" },
-      { name: "Analytics", blurb: "Institute views in Admin. Groups also see platform intelligence in Nexus.", surfaces: "Admin · Nexus" },
+      { name: "Analytics", blurb: "Institute views in Admin for the campus office.", surfaces: "Admin" },
     ],
   },
   {
@@ -91,8 +91,8 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
     lede: "Hiring in the same family, enabled per institute.",
     related: ["careers", "admin"],
     items: [
-      { name: "Jobs & applications", blurb: "Posted and reviewed in the Careers portal — not as an Admin leftover.", surfaces: "Connect portal" },
-      { name: "Interviews", blurb: "Detail on the application. Not a campus-wide interview calendar product.", surfaces: "Connect portal" },
+      { name: "Jobs & applications", blurb: "Posted and reviewed in the Careers web app — not as an Admin leftover.", surfaces: "Careers" },
+      { name: "Interviews", blurb: "Detail on the application. Not a campus-wide interview calendar product.", surfaces: "Careers" },
       { name: "Hiring", blurb: "Admin converts an approved hire to a teacher the rest of the platform can use.", surfaces: "Admin · Connect" },
     ],
   },

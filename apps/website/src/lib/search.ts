@@ -11,10 +11,18 @@ import {
   type GetStartedStep,
 } from "@/content/get-started";
 
-export type ContactIntent = "trial" | "quote" | "partner" | "question";
+export type ContactIntent = "trial" | "quote" | "partner" | "question" | "demo";
 
 export function parseContactIntent(value: unknown): ContactIntent {
-  if (value === "quote" || value === "partner" || value === "trial" || value === "question") return value;
+  if (
+    value === "quote" ||
+    value === "partner" ||
+    value === "trial" ||
+    value === "question" ||
+    value === "demo"
+  ) {
+    return value;
+  }
   return "trial";
 }
 

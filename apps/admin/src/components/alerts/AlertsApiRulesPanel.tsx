@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useReloadKey } from "@/hooks/useReloadKey";
 import {
   Button,
   Card,
@@ -49,7 +50,7 @@ export function AlertsApiRulesPanel() {
   const [loadStatus, setLoadStatus] = useState<AlertRulesLoadStatus>("loading");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const [reloadKey, setReloadKey] = useReloadKey();
   const [evaluating, setEvaluating] = useState(false);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<AlertRuleDto | null>(null);

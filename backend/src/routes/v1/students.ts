@@ -64,6 +64,8 @@ const listQuerySchema = z.object({
   q: z.string().max(200).optional(),
 });
 
+const parentRelationshipSchema = z.enum(["mother", "father", "guardian"]);
+
 const createSchema = z.object({
   institute_id: uuid,
   first_name: z.string().min(1).max(100),
@@ -86,6 +88,20 @@ const createSchema = z.object({
   id_card_issued_on: dateOnly,
   id_card_valid_till: dateOnly,
   user_profile_id: uuid.nullable().optional(),
+  /** When set, find-or-create parent by phone and link (siblings share phone). */
+  parent_name: z.string().min(1).max(200).optional(),
+  parent_phone: z.string().min(10).max(20).optional(),
+  parent_relationship: parentRelationshipSchema.optional(),
+}).superRefine((body, ctx) => {
+  const hasName = Boolean(body.parent_name?.trim());
+  const hasPhone = Boolean(body.parent_phone?.trim());
+  if (hasName !== hasPhone) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "parent_name and parent_phone must be provided together",
+      path: hasName ? ["parent_phone"] : ["parent_name"],
+    });
+  }
 });
 
 const updateSchema = z
@@ -149,6 +165,8 @@ students.post("/", async (c) => {
   const actor = assertAuthenticated(c);
   const admin = requireAdmin(c);
   const body = validateBody(createSchema, await c.req.json());
+  const parentName = body.parent_name?.trim();
+  const parentPhone = body.parent_phone?.trim();
   const data = await createStudentForActor(admin, actor, {
     instituteId: body.institute_id,
     firstName: body.first_name,
@@ -171,6 +189,15 @@ students.post("/", async (c) => {
     idCardIssuedOn: body.id_card_issued_on,
     idCardValidTill: body.id_card_valid_till,
     userProfileId: body.user_profile_id,
+    parent:
+      parentName && parentPhone
+        ? {
+            name: parentName,
+            phone: parentPhone,
+            relationship: body.parent_relationship,
+            address: body.address,
+          }
+        : undefined,
   });
   return c.json({ data }, 201);
 });

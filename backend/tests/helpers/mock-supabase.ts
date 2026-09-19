@@ -3,6 +3,11 @@
  * Supports the query chains used by session/auth and timetable repositories.
  */
 
+import {
+  attachAdminClientCredentials,
+  LUMENX_MOCK_AUTH,
+} from "../../src/auth/create-server-session.js";
+
 type Row = Record<string, unknown>;
 
 type GetUserResult =
@@ -40,10 +45,12 @@ export type MockDb = {
   exam_subject_schedule: Row[];
   mark_entry: Row[];
   mark_score: Row[];
+  mark_score_audit: Row[];
   homework: Row[];
   homework_submission: Row[];
   diary_day: Row[];
   diary_day_row: Row[];
+  student_remark: Row[];
   notification_template: Row[];
   notification: Row[];
   notification_recipient: Row[];
@@ -102,6 +109,16 @@ export type MockDb = {
   activity_membership: Row[];
   achievement: Row[];
   practice_session: Row[];
+  venue: Row[];
+  equipment: Row[];
+  tournament: Row[];
+  match_result: Row[];
+  coach_note: Row[];
+  sports_attendance: Row[];
+  team_selection: Row[];
+  team_selection_member: Row[];
+  medical_fitness: Row[];
+  activity_calendar_event: Row[];
   message_thread: Row[];
   message_thread_participant: Row[];
   message: Row[];
@@ -119,7 +136,13 @@ export type MockDb = {
   report_job: Row[];
   institute_registration: Row[];
   login_otp_challenge: Row[];
+  auth_verification_grant: Row[];
+  connect_login_credential: Row[];
+  app_user_identity: Row[];
   api_idempotency_key: Row[];
+  grade_scheme: Row[];
+  timetable_publication: Row[];
+  mark_publication: Row[];
 };
 
 export type MockDbError = { code: string; message?: string };
@@ -254,6 +277,43 @@ class QueryBuilder {
     const rows = this.tableRows();
 
     if (this.mutateMode === "insert") {
+      if (this.table === "subscription") {
+        for (const row of this.insertRows) {
+          const duplicate = rows.find(
+            (r) =>
+              r.institute_id === row.institute_id &&
+              (r.deleted_at == null || r.deleted_at === undefined),
+          );
+          if (duplicate) {
+            return {
+              data: [],
+              error: {
+                code: "23505",
+                message: "duplicate key value violates unique constraint",
+              },
+            };
+          }
+        }
+      }
+      if (this.table === "membership") {
+        for (const row of this.insertRows) {
+          const duplicate = rows.find(
+            (r) =>
+              r.user_id === row.user_id &&
+              r.institute_id === row.institute_id &&
+              (r.deleted_at == null || r.deleted_at === undefined),
+          );
+          if (duplicate) {
+            return {
+              data: [],
+              error: {
+                code: "23505",
+                message: "duplicate key value violates unique constraint",
+              },
+            };
+          }
+        }
+      }
       const created = this.insertRows.map((row) => {
         const now = new Date().toISOString();
         const next: Row = {
@@ -294,6 +354,7 @@ class QueryBuilder {
           id: (row.id as string) ?? newId(),
           created_at: now,
           updated_at: now,
+          deleted_at: null,
           ...row,
         };
         rows.push(next);
@@ -370,8 +431,9 @@ export function createMockSupabaseClients(options: {
       admin: {
         async createUser(input: {
           email: string;
-          password: string;
+          password?: string;
           email_confirm?: boolean;
+          id?: string;
         }) {
           const normalized = input.email.trim().toLowerCase();
           if (authUsersByEmail[normalized]) {
@@ -380,9 +442,11 @@ export function createMockSupabaseClients(options: {
               error: { message: "User already registered" },
             };
           }
-          const id = crypto.randomUUID();
+          const id = input.id?.trim() || crypto.randomUUID();
           authUsersByEmail[normalized] = { id };
-          authPasswords[normalized] = input.password;
+          if (input.password !== undefined) {
+            authPasswords[normalized] = input.password;
+          }
           return {
             data: { user: { id, email: normalized } },
             error: null,
@@ -426,8 +490,26 @@ export function createMockSupabaseClients(options: {
           const token = `mock-hash-${normalized}`;
           return {
             data: {
-              properties: { hashed_token: token },
+              properties: {
+                hashed_token: token,
+                action_link: `https://example.test/auth/recover?token=${encodeURIComponent(token)}`,
+              },
             },
+            error: null,
+          };
+        },
+        async getUserById(userId: string) {
+          const entry = Object.entries(authUsersByEmail).find(
+            ([, u]) => u.id === userId,
+          );
+          if (!entry) {
+            return {
+              data: { user: null },
+              error: { message: "User not found" },
+            };
+          }
+          return {
+            data: { user: { id: userId, email: entry[0] } },
             error: null,
           };
         },
@@ -447,6 +529,7 @@ export function createMockSupabaseClients(options: {
             session: {
               access_token,
               refresh_token: `refresh-${user.id}`,
+              user: { id: user.id, email },
             },
           },
           error: null,
@@ -463,6 +546,7 @@ export function createMockSupabaseClients(options: {
         }
         return {
           data: {
+            user: { id: user.id, email },
             session: {
               access_token: `access-${user.id}`,
               refresh_token: `refresh-${user.id}`,
@@ -484,6 +568,115 @@ export function createMockSupabaseClients(options: {
     },
     from(table: string) {
       return new QueryBuilder(table, options.db, errorQueue);
+    },
+    async rpc(
+      name: string,
+      params: Record<string, unknown>,
+    ) {
+      if (name === "consume_auth_verification_grant") {
+        const row = options.db.auth_verification_grant.find(
+          (candidate) =>
+            candidate.token_hash === params.p_token_hash &&
+            candidate.purpose === params.p_purpose &&
+            candidate.consumed_at == null &&
+            Date.parse(String(candidate.expires_at)) >
+              Date.parse(String(params.p_now)),
+        );
+        if (!row) return { data: [], error: null };
+        row.consumed_at = params.p_now;
+        return {
+          data: [{
+            grant_id: row.id ?? crypto.randomUUID(),
+            subject_id: row.subject_id,
+            destination: row.destination,
+            metadata: row.metadata,
+          }],
+          error: null,
+        };
+      }
+      if (name === "set_connect_login_pin") {
+        const existing = options.db.connect_login_credential.find(
+          (candidate) =>
+            candidate.user_profile_id === params.p_user_profile_id &&
+            candidate.institute_id === params.p_institute_id &&
+            candidate.role === params.p_role,
+        );
+        if (existing) return { data: false, error: null };
+        options.db.connect_login_credential.push({
+          id: crypto.randomUUID(),
+          user_profile_id: params.p_user_profile_id,
+          institute_id: params.p_institute_id,
+          role: params.p_role,
+          phone_digits: params.p_phone_digits,
+          pin_hash: params.p_pin_hash,
+          pin_salt: params.p_pin_salt,
+          phone_verified_at: params.p_now,
+          first_login_completed_at: params.p_now,
+          failed_attempts: 0,
+          locked_until: null,
+          last_failed_at: null,
+          last_authenticated_at: null,
+          pin_set_at: params.p_now,
+          created_at: params.p_now,
+          updated_at: params.p_now,
+        });
+        return { data: true, error: null };
+      }
+      if (name === "verify_connect_login_pin") {
+        const credential = options.db.connect_login_credential.find(
+          (candidate) =>
+            candidate.user_profile_id === params.p_user_profile_id &&
+            candidate.institute_id === params.p_institute_id &&
+            candidate.role === params.p_role,
+        );
+        if (!credential) {
+          return { data: [{ outcome: "invalid", next_locked_until: null }], error: null };
+        }
+        const now = String(params.p_now);
+        if (
+          credential.locked_until &&
+          Date.parse(String(credential.locked_until)) > Date.parse(now)
+        ) {
+          return {
+            data: [{
+              outcome: "locked",
+              next_locked_until: credential.locked_until,
+            }],
+            error: null,
+          };
+        }
+        if (credential.pin_hash !== params.p_pin_hash) {
+          const attempts = Number(credential.failed_attempts ?? 0) + 1;
+          credential.failed_attempts = attempts;
+          credential.last_failed_at = now;
+          if (attempts >= Number(params.p_max_attempts ?? 5)) {
+            credential.locked_until = new Date(
+              Date.parse(now) + Number(params.p_lock_seconds ?? 900) * 1000,
+            ).toISOString();
+          }
+          return {
+            data: [{
+              outcome: credential.locked_until ? "locked" : "invalid",
+              next_locked_until: credential.locked_until ?? null,
+            }],
+            error: null,
+          };
+        }
+        credential.failed_attempts = 0;
+        credential.locked_until = null;
+        credential.last_authenticated_at = now;
+        return {
+          data: [{ outcome: "authenticated", next_locked_until: null }],
+          error: null,
+        };
+      }
+      return {
+        data: null,
+        error: {
+          code: "PGRST202",
+          message: `Unsupported mock RPC: ${name}`,
+        },
+      };
     },
     storage: {
       from(_bucket: string) {
@@ -516,6 +709,22 @@ export function createMockSupabaseClients(options: {
       },
     },
   };
+
+  attachAdminClientCredentials(
+    admin as never,
+    "https://example.supabase.co",
+    "mock-service-role-key",
+    "mock-anon-key",
+  );
+  (admin as { [key: string]: unknown })[LUMENX_MOCK_AUTH] = true;
+
+  attachAdminClientCredentials(
+    admin as never,
+    "https://example.supabase.co",
+    "mock-service-role-key",
+    "mock-anon-key",
+  );
+  (admin as Record<string, unknown>)[LUMENX_MOCK_AUTH] = true;
 
   return {
     admin: admin as never,
@@ -552,11 +761,13 @@ export function emptyMockDb(): MockDb {
     exam_subject_schedule: [],
     mark_entry: [],
     mark_score: [],
+    mark_score_audit: [],
     homework: [],
     homework_submission: [],
-    diary_day: [],
-    diary_day_row: [],
-    notification_template: [],
+  diary_day: [],
+  diary_day_row: [],
+  student_remark: [],
+  notification_template: [],
     notification: [],
     notification_recipient: [],
     notification_delivery_attempt: [],
@@ -614,6 +825,16 @@ export function emptyMockDb(): MockDb {
     activity_membership: [],
     achievement: [],
     practice_session: [],
+    venue: [],
+    equipment: [],
+    tournament: [],
+    match_result: [],
+    coach_note: [],
+    sports_attendance: [],
+    team_selection: [],
+    team_selection_member: [],
+    medical_fitness: [],
+    activity_calendar_event: [],
     message_thread: [],
     message_thread_participant: [],
     message: [],
@@ -631,6 +852,12 @@ export function emptyMockDb(): MockDb {
     report_job: [],
     institute_registration: [],
     login_otp_challenge: [],
+    auth_verification_grant: [],
+    connect_login_credential: [],
+    app_user_identity: [],
     api_idempotency_key: [],
+    grade_scheme: [],
+    timetable_publication: [],
+    mark_publication: [],
   };
 }

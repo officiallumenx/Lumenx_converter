@@ -5,7 +5,7 @@
 
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 
-interface AuthButtonProps extends Omit<ComponentPropsWithoutRef<"button">, "className"> {
+interface AuthButtonProps extends ComponentPropsWithoutRef<"button"> {
   variant?: "primary" | "outline" | "ghost";
   loading?: boolean;
   fullWidth?: boolean;
@@ -19,6 +19,7 @@ export function AuthButton({
   fullWidth = true,
   size      = "md",
   children,
+  className = "",
   disabled,
   type = "button",
   ...rest
@@ -45,7 +46,7 @@ export function AuthButton({
       type={type}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
-      className={`${base} ${variants[variant]} motion-safe:active:scale-[0.99] duration-200`}
+      className={`${base} ${variants[variant]} motion-safe:active:scale-[0.99] duration-200 ${className}`}
       {...rest}
     >
       {loading ? (

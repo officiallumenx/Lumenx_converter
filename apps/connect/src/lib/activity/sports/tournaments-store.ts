@@ -1,3 +1,4 @@
+import { isApiAuthMode } from "@/auth/auth-mode";
 import type { CalendarActivityMark } from "@/activity-workspace/hub/calendar";
 import { SPORT_TYPE_LABELS } from "./types";
 import {
@@ -15,7 +16,7 @@ import type {
   TournamentMatchInput,
 } from "./tournaments-types";
 
-let tournamentsStore: SportsTournament[] = tournamentsSeed.map(cloneTournament);
+let tournamentsStore = isApiAuthMode() ? [] : tournamentsSeed.map(cloneTournament);
 
 function applyTournamentFilters(
   items: SportsTournament[],
@@ -64,7 +65,7 @@ function applyTournamentFilters(
 }
 
 export function resetTournamentsStore() {
-  tournamentsStore = tournamentsSeed.map(cloneTournament);
+  tournamentsStore = isApiAuthMode() ? [] : tournamentsSeed.map(cloneTournament);
 }
 
 export function listTournamentsFromStore(filters?: TournamentListFilters): SportsTournament[] {

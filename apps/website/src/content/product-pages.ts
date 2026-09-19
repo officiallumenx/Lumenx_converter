@@ -79,7 +79,7 @@ export type ProductPageContent = {
   deliveryNote: string;
   device: ProductDevice;
   android: boolean;
-  demoProduct?: ProductSlug;
+  demoProduct?: ProductId;
   capabilities: readonly ProductPageFeature[];
   previewTabs: readonly ProductPreviewTab[];
   workflows: readonly { title: string; body: string }[];
@@ -214,7 +214,7 @@ export const PRODUCT_PAGES: Record<ProductId, ProductPageContent> = {
     tagline: connectApp.tagline,
     audience: connectApp.users,
     purpose:
-      "Connect is how parents, teachers, and students use the institute. One mobile-first portal with strict role isolation. Admissions and Careers are separate products in the family, delivered as Connect portals — they are not mixed into another role’s navigation.",
+      "Connect is how parents, teachers, and students use the institute. One mobile-first portal with strict role isolation. Admissions is delivered as a Connect portal. Careers is a separate hiring web app in the same family.",
     replaces: connectApp.replaces,
     doesNotReplace: connectApp.doesNotReplace,
     delivery: "app",
@@ -271,9 +271,9 @@ export const PRODUCT_PAGES: Record<ProductId, ProductPageContent> = {
     connections: [
       { product: "admin", body: "Admin writes the directory, fees, and timetable Connect is allowed to show." },
       { product: "transport", body: "Parents and students see trip status here when Transport is enabled — not a driver menu." },
-      { product: "admissions", body: "The Admissions product is a Connect portal. Converted families then use this parent/student app." },
-      { product: "careers", body: "The Careers product is a Connect portal for hiring — separate from teacher class navigation." },
-      { product: "nexus", body: "Nexus turns Connect on for the institute. It does not log in as a parent." },
+      { product: "admissions", body: "Admissions is a Connect portal. Converted families then use this parent/student app." },
+      { product: "careers", body: "Careers is the hiring web app in the same family — separate from teacher class navigation." },
+      { product: "nexus", body: "Platform licensing entitles Connect for the institute. Families still sign in to Connect." },
     ],
     highlights: [
       { title: "Role isolation", body: "Parent, teacher, student, activity, admissions, and careers do not share each other’s menus." },
@@ -676,8 +676,9 @@ export function relatedProductPages(id: ProductId): ProductPageContent[] {
   return PRODUCT_PAGE_LIST.filter((page) => page.id !== id);
 }
 
-export function productDemoSlug(id: ProductId): ProductSlug | undefined {
+export function productDemoSlug(id: ProductId): ProductId | undefined {
   const page = PRODUCT_PAGES[id];
-  if (page.demoProduct) return page.demoProduct;
-  return isProductSlug(id) ? id : undefined;
+  if (page.demoProduct) return page.demoProduct as ProductId;
+  if (id === "nexus") return undefined;
+  return id;
 }

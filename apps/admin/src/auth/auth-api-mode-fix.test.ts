@@ -4,7 +4,7 @@ import {
   writeStoredActiveInstituteId,
 } from "@/lib/active-institute";
 import { AUTH_SESSION_KEY } from "./constants";
-import { saveSession, loadSession, clearSession } from "./auth-store";
+import { saveSession, loadSession } from "./auth-store";
 import type { AuthUser } from "./types";
 
 const store = new Map<string, string>();
@@ -46,13 +46,10 @@ describe("completeSignIn / demo session guard (unit)", () => {
     vi.resetModules();
   });
 
-  it("allows demo completeSignIn persistence when mode is demo", async () => {
+  it("never allows demo completeSignIn even if AUTH_MODE=demo", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
     const { isDemoCompleteSignInAllowed } = await import("./login-flow-auth");
-    expect(isDemoCompleteSignInAllowed()).toBe(true);
-    saveSession(demoUser, false, { authSource: "demo" });
-    expect(loadSession()?.authSource).toBe("demo");
-    expect(loadSession()?.token.length).toBeGreaterThan(10);
+    expect(isDemoCompleteSignInAllowed()).toBe(false);
   });
 
   it("blocks demo completeSignIn allowance when mode is api", async () => {
@@ -64,7 +61,6 @@ describe("completeSignIn / demo session guard (unit)", () => {
   it("does not leave a demo session when API mode refuses completeSignIn", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const { isDemoCompleteSignInAllowed } = await import("./login-flow-auth");
-    // Mirror AuthContext.completeSignIn guard: refuse before saveSession.
     if (!isDemoCompleteSignInAllowed()) {
       // no save
     } else {
@@ -119,7 +115,6 @@ describe("API login path isolation (no mock fallback)", () => {
       async (_id: string, _pw: string, _remember?: boolean) => undefined,
     );
 
-    // Simulate AdminLoginFlow password submit in API mode.
     const strategy = getLoginAuthStrategy();
     if (strategy === "api") {
       await signIn("user@school.edu", "secret", true);
@@ -133,7 +128,7 @@ describe("API login path isolation (no mock fallback)", () => {
     expect(mockSignIn).not.toHaveBeenCalled();
     expect(mockLookup).not.toHaveBeenCalled();
     expect(completeSignIn).not.toHaveBeenCalled();
-    expect(loadSession()).toBeNull(); // failed/partial — no demo session invented
+    expect(loadSession()).toBeNull();
   });
 
   it("API authentication failure must not create a demo session", async () => {
@@ -154,30 +149,10 @@ describe("API login path isolation (no mock fallback)", () => {
     expect(loadSession()).toBeNull();
   });
 
-  it("demo strategy still uses mock + completeSignIn path", async () => {
+  it("demo strategy is gone — strategy stays api when env wrongly says demo", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
     const { getLoginAuthStrategy } = await import("./login-flow-auth");
-    const mockSignIn = vi.fn(async (_id: string, _pw: string) => demoUser);
-    const mockLookup = vi.fn(async (_id: string) => demoUser);
-    const completeSignIn = vi.fn((user: AuthUser) => {
-      saveSession(user, false, { authSource: "demo" });
-    });
-    const signIn = vi.fn(
-      async (_id: string, _pw: string, _remember?: boolean) => undefined,
-    );
-
-    const strategy = getLoginAuthStrategy();
-    expect(strategy).toBe("demo");
-    await mockLookup("principal@lumenx.edu");
-    await mockSignIn("principal@lumenx.edu", "pass");
-    completeSignIn(demoUser);
-
-    expect(signIn).not.toHaveBeenCalled();
-    expect(mockLookup).toHaveBeenCalled();
-    expect(mockSignIn).toHaveBeenCalled();
-    expect(completeSignIn).toHaveBeenCalled();
-    expect(loadSession()?.authSource).toBe("demo");
-    clearSession();
+    expect(getLoginAuthStrategy()).toBe("api");
   });
 });
 
@@ -189,7 +164,6 @@ describe("API bootstrap institute cleanup contract", () => {
   it("clears active institute when bootstrap finds no valid session", async () => {
     writeStoredActiveInstituteId(INSTITUTE);
     const { clearApiModeLocalIdentity } = await import("./api-local-cleanup");
-    // AuthContext calls this when tryHydrateApiSession returns null.
     clearApiModeLocalIdentity();
     expect(store.get(ACTIVE_INSTITUTE_STORAGE_KEY)).toBeUndefined();
   });

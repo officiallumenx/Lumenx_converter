@@ -6,14 +6,17 @@ import { useCareersAuth } from "@/careers-portal/core/CareersAuthProvider";
 import { continueRecruiterWithLumenxAdmin } from "@/lib/careers/repositories";
 import type { LumenxAdminIdentity } from "@/lib/admin-handoff";
 import { isApiAuthMode } from "@/auth/auth-mode";
-import { applyAdminHandoffSession } from "@/auth/api-auth";
+import { exchangeAdminHandoffCode } from "@/auth/api-auth";
 
 const searchSchema = z.object({
-  handoff: z.string().min(1),
+  handoff: z.string().optional().catch(""),
 });
 
 export const Route = createFileRoute("/_app/setup-from-admin")({
-  validateSearch: searchSchema,
+  validateSearch: (search) => {
+    const parsed = searchSchema.safeParse(search);
+    return { handoff: parsed.success ? (parsed.data.handoff ?? "") : "" };
+  },
   head: () => ({ meta: [{ title: "Setting up — Careers" }] }),
   component: CareersSetupFromAdminPage,
 });
@@ -21,8 +24,7 @@ export const Route = createFileRoute("/_app/setup-from-admin")({
 type HandoffPayload = LumenxAdminIdentity & {
   dest?: "recruiter" | "applicants" | "jobs";
   exp?: number;
-  accessToken?: string;
-  refreshToken?: string;
+  code?: string;
 };
 
 function decodeHandoff(raw: string): HandoffPayload | null {
@@ -78,16 +80,10 @@ function CareersSetupFromAdminPage() {
         return;
       }
 
+      let apiDestination: string | undefined;
       try {
-        if (isApiAuthMode() && payload.accessToken) {
-          await applyAdminHandoffSession({
-            accessToken: payload.accessToken,
-            refreshToken: payload.refreshToken,
-            instituteId: payload.instituteId,
-            instituteName: payload.instituteName || "Institute",
-            name: payload.name,
-            phone: payload.phone,
-          });
+        if (isApiAuthMode() && payload.code) {
+          apiDestination = (await exchangeAdminHandoffCode(payload.code)).destination;
         } else if (isApiAuthMode()) {
           setError(
             "Could not restore your Admin session. Sign in to Careers with your Admin email and password.",
@@ -117,7 +113,7 @@ function CareersSetupFromAdminPage() {
         await new Promise((resolve) => setTimeout(resolve, minMs - elapsed));
       }
 
-      const dest = payload.dest ?? "recruiter";
+      const dest = apiDestination ?? payload.dest ?? "recruiter";
       if (dest === "applicants") {
         nav({ to: "/recruiter/applicants", replace: true });
       } else if (dest === "jobs") {

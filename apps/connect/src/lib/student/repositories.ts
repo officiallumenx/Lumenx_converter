@@ -9,6 +9,8 @@ import {
   teachers,
   trend,
 } from "@/lib/mock-data";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { loadStudentPortalSnapshot } from "@/lib/students";
 import { STUDENT_ALL_NAV } from "@/lib/student/nav";
 import { studentNotificationStore } from "@/lib/student/notification-store";
 import {
@@ -29,6 +31,17 @@ import { attendanceSectionKey, toAttendanceStudentId } from "@/lib/attendance/se
 import type { StudentSearchResults, StudentSnapshot } from "./types";
 
 const delay = (ms = 280) => new Promise((r) => setTimeout(r, ms));
+
+const emptySearch = (): StudentSearchResults => ({
+  modules: [],
+  subjects: [],
+  certificates: [],
+  notifications: [],
+  reportCards: [],
+  teachers: [],
+  achievements: [],
+  competitions: [],
+});
 
 export const studentRepository = {
   async getSnapshot(): Promise<StudentSnapshot> {
@@ -111,33 +124,57 @@ export const studentRepository = {
     query: string,
     opts?: { instituteId?: string | null },
   ): Promise<StudentSearchResults> {
-    await delay(120);
-    if (!opts?.instituteId) {
-      return {
-        modules: [],
-        subjects: [],
-        certificates: [],
-        notifications: [],
-        reportCards: [],
-        teachers: [],
-        achievements: [],
-        competitions: [],
-      };
-    }
+    if (!opts?.instituteId) return emptySearch();
     const q = query.trim().toLowerCase();
-    if (!q) {
+    if (!q) return emptySearch();
+
+    if (isApiAuthMode()) {
+      const loaded = await loadStudentPortalSnapshot({ instituteId: opts.instituteId });
+      const snap = loaded.snapshot;
+      if (!snap) return emptySearch();
+
+      const modules = STUDENT_ALL_NAV.filter((n) => n.label.toLowerCase().includes(q)).map((n) => ({
+        label: n.label,
+        path: n.to,
+      }));
+
+      const subjects: StudentSearchResults["subjects"] = [];
+      for (const [day, periods] of Object.entries(snap.timetable)) {
+        for (const p of periods) {
+          if (p.subject.toLowerCase().includes(q) || p.teacher.toLowerCase().includes(q)) {
+            subjects.push({ subject: p.subject, teacher: p.teacher, day, time: p.time });
+          }
+        }
+      }
+
       return {
-        modules: [],
-        subjects: [],
-        certificates: [],
-        notifications: [],
-        reportCards: [],
+        modules: modules.slice(0, 6),
+        subjects: subjects.slice(0, 8),
+        certificates: snap.certificates
+          .filter(
+            (c) =>
+              c.title.toLowerCase().includes(q) ||
+              c.refNo.toLowerCase().includes(q) ||
+              c.category.includes(q),
+          )
+          .slice(0, 6),
+        notifications: snap.notifications
+          .filter((n) => n.title.toLowerCase().includes(q) || n.desc.toLowerCase().includes(q))
+          .slice(0, 6),
+        reportCards: snap.reportCards
+          .filter((r) => r.term.toLowerCase().includes(q) || r.grade.toLowerCase().includes(q))
+          .slice(0, 4),
         teachers: [],
-        achievements: [],
-        competitions: [],
+        achievements: snap.achievements
+          .filter((a) => a.title.toLowerCase().includes(q) || a.description.toLowerCase().includes(q))
+          .slice(0, 6),
+        competitions: snap.competitions
+          .filter((c) => c.title.toLowerCase().includes(q) || c.result.toLowerCase().includes(q))
+          .slice(0, 4),
       };
     }
 
+    await delay(120);
     const profile = getConnectStudentProfile();
 
     const modules = STUDENT_ALL_NAV.filter((n) => n.label.toLowerCase().includes(q)).map((n) => ({

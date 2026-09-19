@@ -47,7 +47,10 @@ export async function listTeachersForSectionPicker(instituteId: string) {
   const teachers = await listTeachers({ instituteId });
   return teachers
     .filter((t) => t.status === "active")
-    .map((t) => ({ id: t.id, label: t.name }))
+    .map((t) => ({
+      id: t.id,
+      label: t.displayName?.trim() || t.id.slice(0, 8),
+    }))
     .sort((a, b) => a.label.localeCompare(b.label));
 }
 

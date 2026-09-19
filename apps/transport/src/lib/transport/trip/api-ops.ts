@@ -1,4 +1,3 @@
-import { isApiAuthMode } from "@/lib/auth/auth-mode";
 import {
   endTransportTrip,
   getActiveTripForVehicle,
@@ -69,7 +68,6 @@ export async function endTripViaApi(): Promise<TripActionResult> {
 }
 
 export async function hydrateActiveTripFromApi(): Promise<void> {
-  if (!isApiAuthMode()) return;
   const scope = getRouteSetupDriverScope();
   if (!scope?.vehicleId) return;
   const active = await getActiveTripForVehicle(scope.vehicleId);

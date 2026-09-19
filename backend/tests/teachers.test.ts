@@ -34,6 +34,7 @@ const STUDENT_B = "ac222222-2222-4222-8222-222222222222";
 const SECTION_A = "cc111111-1111-4111-8111-111111111111";
 const SUBJECT_A = "dd111111-1111-4111-8111-111111111111";
 const SUBJECT_B = "dd222222-2222-4222-8222-222222222222";
+const SUBJECT_C = "dd333333-3333-4333-8333-333333333333";
 const YEAR_A = "ee111111-1111-4111-8111-111111111111";
 const CLASS_A = "ff111111-1111-4111-8111-111111111111";
 const ASSIGN_A = "ab111111-1111-4111-8111-111111111111";
@@ -207,6 +208,7 @@ function portalDb(): MockDb {
       class_id: CLASS_A,
       code: "A",
       name: "A",
+      class_teacher_id: TEACHER_A,
       deleted_at: null,
     },
   ];
@@ -306,6 +308,7 @@ const createBody = {
   department: "Science",
   teaching_scope: "subject_teacher",
   portal_access_level: "faculty_only",
+  phone: "9000000099",
   employee_id: "EMP-3001",
   legacy_code: "T-3001",
   subjects: ["Physics"],
@@ -374,7 +377,8 @@ describe("teachers — RBAC and privacy", () => {
     });
     expect(created.status).toBe(201);
     const createdBody = await json(created);
-    expect(createdBody.data.userProfileId).toBeNull();
+    // Connect identity is provisioned on create so /me can resolve identities.teachers.
+    expect(createdBody.data.userProfileId).toEqual(expect.any(String));
     expect(createdBody.data.displayName).toBe("New Faculty");
     expect(createdBody.data.subjects).toEqual(["Physics"]);
 
@@ -454,6 +458,69 @@ describe("teachers — validation and soft delete", () => {
   });
 });
 
+describe("teachers — credential reset", () => {
+  it("admin clears Connect PIN for a teacher", async () => {
+    const db = baseDb();
+    db.connect_login_credential = [
+      {
+        user_profile_id: USER_TEACHER,
+        institute_id: INST_A,
+        role: "teacher",
+        phone_digits: "9000000001",
+        pin_hash: "a".repeat(128),
+        pin_salt: "b".repeat(32),
+        phone_verified_at: "2026-08-01T00:00:00.000Z",
+        first_login_completed_at: "2026-08-01T00:00:00.000Z",
+        failed_attempts: 0,
+        locked_until: null,
+      },
+    ];
+    db.teacher = db.teacher.map((row) =>
+      row.id === TEACHER_A ? { ...row, email: "ananya@school.test" } : row,
+    );
+    const app = createApp(
+      loadEnv({ NODE_ENV: "test", LOG_LEVEL: "error" }),
+      silentLogger,
+      createMockSupabaseClients({
+        tokens: {
+          "token-admin": USER_ADMIN,
+          "token-teacher": USER_TEACHER,
+          "token-teacher2": USER_TEACHER2,
+          "token-student": USER_STUDENT,
+          "token-other": USER_OTHER,
+          "token-parent": USER_PARENT,
+        },
+        db,
+        authUsersByEmail: {
+          "ananya@school.test": { id: USER_TEACHER },
+          "t@x.com": { id: USER_TEACHER },
+        },
+      }),
+    );
+
+    const denied = await app.request(`/api/v1/teachers/${TEACHER_A}/reset-credentials`, {
+      method: "POST",
+      headers: jsonHeaders("token-teacher"),
+      body: "{}",
+    });
+    expect(denied.status).toBe(403);
+
+    const res = await app.request(`/api/v1/teachers/${TEACHER_A}/reset-credentials`, {
+      method: "POST",
+      headers: jsonHeaders("token-admin"),
+      body: "{}",
+    });
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(body.data.ok).toBe(true);
+    expect(body.data.pinCleared).toBe(true);
+    expect(db.connect_login_credential).toHaveLength(0);
+    const profile = db.user_profile.find((p) => p.id === USER_TEACHER);
+    expect(profile?.pin_hash).toBeNull();
+    expect(profile?.first_login_completed_at).toBeNull();
+  });
+});
+
 describe("teachers — portal reads", () => {
   it("learners and parents read faculty for an accessible student", async () => {
     const app = appWithDb(portalDb());
@@ -475,9 +542,45 @@ describe("teachers — portal reads", () => {
       expect(names).toContain("Ravi Mehta");
       const classTeacher = (
         body.data.teachers as Array<{ displayName: string; isClassTeacher: boolean }>
-      ).find((t) => t.displayName === "Ravi Mehta");
+      ).find((t) => t.displayName === "Ananya Iyer");
       expect(classTeacher?.isClassTeacher).toBe(true);
+      const subjectOnly = (
+        body.data.teachers as Array<{ displayName: string; isClassTeacher: boolean }>
+      ).find((t) => t.displayName === "Ravi Mehta");
+      expect(subjectOnly?.isClassTeacher).toBe(false);
     }
+  });
+
+  it("includes class-teacher-only faculty with no subject assignment", async () => {
+    const db = portalDb();
+    const CT_ONLY = "bb999999-9999-4999-8999-999999999999";
+    db.teacher.push(
+      teacherRow(CT_ONLY, INST_A, {
+        display_name: "Homeroom Only",
+        teaching_scope: "dual_role",
+        subjects: [],
+        assigned_section_labels: [],
+        phone: "9000000091",
+      }),
+    );
+    const section = db.section.find((row) => row.id === SECTION_A);
+    if (section) section.class_teacher_id = CT_ONLY;
+    // Remove subject assignments for CT_ONLY (none exist); keep other teachers' assignments.
+    const app = appWithDb(db);
+    const res = await app.request(
+      `/api/v1/teachers/portal/students/${STUDENT_A}?institute_id=${INST_A}`,
+      { headers: auth("token-student") },
+    );
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    const names = (body.data.teachers as Array<{ displayName: string }>).map(
+      (t) => t.displayName,
+    );
+    expect(names).toContain("Homeroom Only");
+    const ct = (
+      body.data.teachers as Array<{ displayName: string; isClassTeacher: boolean }>
+    ).find((t) => t.displayName === "Homeroom Only");
+    expect(ct?.isClassTeacher).toBe(true);
   });
 
   it("teacher reads self portal profile and assignments", async () => {
@@ -503,5 +606,143 @@ describe("teachers — portal reads", () => {
         )
       ).status,
     ).toBe(403);
+  });
+});
+
+describe("teachers — create with class links", () => {
+  it("creates teacher_assignment rows and sets section class_teacher_id", async () => {
+    const db = portalDb();
+    db.subject.push({
+      id: SUBJECT_C,
+      institute_id: INST_A,
+      name: "Chemistry",
+      code: "CHEM",
+      deleted_at: null,
+    });
+    const app = appWithDb(db);
+
+    const res = await app.request("/api/v1/teachers", {
+      method: "POST",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify({
+        ...createBody,
+        phone: "9111222333",
+        display_name: "Priya Nair",
+        subjects: ["Chemistry"],
+        assignments: [{ section_id: SECTION_A, subject_id: SUBJECT_C }],
+        class_teacher_section_ids: [SECTION_A],
+      }),
+    });
+    expect(res.status).toBe(201);
+    const body = await json(res);
+    expect(body.data.displayName).toBe("Priya Nair");
+    expect(body.data.assignmentIds).toHaveLength(1);
+    expect(body.data.classTeacherSectionIds).toEqual([SECTION_A]);
+
+    const links = db.teacher_assignment.filter(
+      (row) =>
+        row.teacher_id === body.data.id &&
+        row.subject_id === SUBJECT_C &&
+        row.deleted_at == null,
+    );
+    expect(links).toHaveLength(1);
+    expect(links[0]!.section_id).toBe(SECTION_A);
+
+    const section = db.section.find((row) => row.id === SECTION_A);
+    expect(section?.class_teacher_id).toBe(body.data.id);
+  });
+
+  it("creates class-teacher-only teacher without subject assignments", async () => {
+    const db = portalDb();
+    const app = appWithDb(db);
+    const res = await app.request("/api/v1/teachers", {
+      method: "POST",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify({
+        ...createBody,
+        phone: "9222333444",
+        display_name: "CT Only",
+        subjects: [],
+        assignments: [],
+        class_teacher_section_ids: [SECTION_A],
+      }),
+    });
+    expect(res.status).toBe(201);
+    const body = await json(res);
+    expect(body.data.classTeacherSectionIds).toEqual([SECTION_A]);
+    expect(body.data.assignmentIds ?? []).toHaveLength(0);
+    expect(db.section.find((row) => row.id === SECTION_A)?.class_teacher_id).toBe(
+      body.data.id,
+    );
+  });
+
+  it("updates and clears class_teacher_section_ids via PATCH", async () => {
+    const db = portalDb();
+    const app = appWithDb(db);
+    expect(db.section.find((row) => row.id === SECTION_A)?.class_teacher_id).toBe(
+      TEACHER_A,
+    );
+
+    const clearRes = await app.request(`/api/v1/teachers/${TEACHER_A}`, {
+      method: "PATCH",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify({ class_teacher_section_ids: [] }),
+    });
+    expect(clearRes.status).toBe(200);
+    const cleared = await json(clearRes);
+    expect(cleared.data.classTeacherSectionIds).toEqual([]);
+    expect(db.section.find((row) => row.id === SECTION_A)?.class_teacher_id).toBeNull();
+
+    const setRes = await app.request(`/api/v1/teachers/${TEACHER_B}`, {
+      method: "PATCH",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify({ class_teacher_section_ids: [SECTION_A] }),
+    });
+    expect(setRes.status).toBe(200);
+    const setBody = await json(setRes);
+    expect(setBody.data.classTeacherSectionIds).toEqual([SECTION_A]);
+    expect(db.section.find((row) => row.id === SECTION_A)?.class_teacher_id).toBe(
+      TEACHER_B,
+    );
+  });
+
+  it("rejects duplicate phone before insert", async () => {
+    const app = appWithDb(baseDb());
+    const res = await app.request("/api/v1/teachers", {
+      method: "POST",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify({
+        ...createBody,
+        phone: "9000000001",
+      }),
+    });
+    expect(res.status).toBe(409);
+    const body = await json(res);
+    expect(String(body.error?.message ?? body.message ?? "")).toMatch(/mobile number/i);
+  });
+
+  it("rejects subject already assigned in section and does not leave orphan teacher", async () => {
+    const db = portalDb();
+    const beforeTeachers = db.teacher.filter((t) => t.deleted_at == null).length;
+    const app = appWithDb(db);
+
+    const res = await app.request("/api/v1/teachers", {
+      method: "POST",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify({
+        ...createBody,
+        phone: "9444555666",
+        display_name: "Conflict Teacher",
+        assignments: [{ section_id: SECTION_A, subject_id: SUBJECT_A }],
+      }),
+    });
+    expect(res.status).toBe(409);
+    const body = await json(res);
+    expect(String(body.error?.message ?? body.message ?? "")).toMatch(
+      /already assigned/i,
+    );
+    expect(db.teacher.filter((t) => t.deleted_at == null)).toHaveLength(
+      beforeTeachers,
+    );
   });
 });

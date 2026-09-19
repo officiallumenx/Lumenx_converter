@@ -119,6 +119,8 @@ export type PortalTeacherAttendanceDto = {
   academicYearId: string;
   attendanceDate: string;
   method: string | null;
+  /** Taken By from attendance settings — Connect marks only for class/period teachers. */
+  owner: "class_teacher" | "current_period_teacher" | "attendance_incharge" | null;
   configVersionId: string | null;
   slots: PortalTeacherAttendanceSlotDto[];
 };

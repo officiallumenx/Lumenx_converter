@@ -81,6 +81,17 @@ describe("cors middleware", () => {
     expect(acao).not.toBe("https://evil.com");
   });
 
+  it("allows any loopback frontend port in development", async () => {
+    const app = testApp({ NODE_ENV: "development" });
+    const res = await app.request("/api/v1/health", {
+      headers: { Origin: "http://localhost:8080" },
+    });
+
+    expect(res.headers.get("access-control-allow-origin")).toBe(
+      "http://localhost:8080",
+    );
+  });
+
   it("does not allow wildcard (*) even implicitly", async () => {
     const app = testApp();
     const res = await app.request("/api/v1/health", {

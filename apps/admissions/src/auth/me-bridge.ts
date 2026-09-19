@@ -63,6 +63,16 @@ export function admissionsUserFromMe(
   me: MeResponse,
   options: AdmissionsUserFromMeOptions = {},
 ): AdmissionsUser {
+  if (me.profile.status !== "active") {
+    throw new Error("This Admissions account is not active.");
+  }
+  if (
+    options.forceAccountType === "institute_admin" &&
+    options.preferredInstituteId &&
+    !pickInstituteAdminMembership(me.institutes, options.preferredInstituteId)
+  ) {
+    throw new Error("This account does not have Admissions institute access.");
+  }
   const accountType = resolveAdmissionsAccountType(me, options);
   const adminMembership =
     accountType === "institute_admin"

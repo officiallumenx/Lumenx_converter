@@ -3,6 +3,10 @@ import { ApiClientError } from "@/lib/api";
 import { getConnectApiClient } from "@/lib/connect-api";
 import type { MeResponse } from "@/lib/api/me-types";
 import { isInstituteUuid } from "@/lib/institute-id";
+import {
+  listStudentRemarks,
+  mapRemarkDtoToStudentRemark,
+} from "@/lib/remarks";
 import type { StudentDetail } from "@/lib/teacher/types";
 import type { StudentSnapshot } from "@/lib/student/types";
 import { getStudent, getStudentGuardians, listStudents } from "./api";
@@ -60,16 +64,24 @@ export async function loadTeacherStudentDetail(input: {
   }
 
   try {
-    const [dto, guardians] = await Promise.all([
+    const [dto, guardians, remarkDtos] = await Promise.all([
       getStudent(input.studentId),
       getStudentGuardians(input.studentId).catch(() => [] as StudentGuardianDto[]),
+      listStudentRemarks({
+        instituteId: input.instituteId,
+        studentId: input.studentId,
+      }).catch(() => []),
     ]);
     if (dto.instituteId !== input.instituteId) {
       return { status: "empty", detail: null, errorMessage: "Student not found." };
     }
     return {
       status: "ready",
-      detail: studentDtoToTeacherDetail(dto, guardians),
+      detail: studentDtoToTeacherDetail(
+        dto,
+        guardians,
+        remarkDtos.map(mapRemarkDtoToStudentRemark),
+      ),
       errorMessage: null,
     };
   } catch (err) {

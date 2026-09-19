@@ -5,6 +5,16 @@ export type StaffAttendanceStatus =
   | "leave"
   | "half-day";
 
+/** Flowchart mark statuses: present | absent | half day | leave */
+export type StaffAttendanceMarkStatus =
+  | "present"
+  | "absent"
+  | "leave"
+  | "half-day";
+
+export const STAFF_ATTENDANCE_MARK_STATUSES: readonly StaffAttendanceMarkStatus[] =
+  ["present", "absent", "half-day", "leave"] as const;
+
 export type StaffAttendanceDayStatus = "draft" | "submitted";
 
 export type StaffAttendanceDto = {
@@ -37,7 +47,8 @@ export type StaffAttendanceMarkItem = {
   id: string;
   teacherId: string;
   teacherName: string;
-  status: StaffAttendanceStatus;
+  /** null = unmarked (must select before submit) */
+  status: StaffAttendanceStatus | null;
   checkIn: string | null;
   checkOut: string | null;
   note: string | null;
@@ -54,5 +65,6 @@ export type StaffAttendanceDaySummary = {
   absent: number;
   leave: number;
   halfDay: number;
+  unmarked: number;
   marks: StaffAttendanceMarkItem[];
 };

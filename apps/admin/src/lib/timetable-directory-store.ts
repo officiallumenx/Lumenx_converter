@@ -80,6 +80,62 @@ export function saveInstituteScheduleDefault(input: ScheduleInput): void {
   }
 }
 
+function sectionScheduleStorageKey(instituteId: string, sectionId: string): string {
+  const inst = instituteId.trim() || readAdminDataScopeKey();
+  return `${SCHEDULE_KEY_PREFIX}.section.${inst}.${sectionId.trim()}`;
+}
+
+/** Per-section bell schedule used by API-mode create wizard + assign grid. */
+export function loadSectionScheduleInput(
+  sectionId: string,
+  instituteId?: string,
+): ScheduleInput | null {
+  if (!sectionId.trim()) return null;
+  try {
+    const raw = localStorage.getItem(
+      sectionScheduleStorageKey(instituteId ?? "", sectionId),
+    );
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as ScheduleInput;
+    if (parsed && Array.isArray(parsed.days)) return parsed;
+  } catch {
+    // Fall through.
+  }
+  return null;
+}
+
+export function saveSectionScheduleInput(
+  sectionId: string,
+  input: ScheduleInput,
+  instituteId?: string,
+): void {
+  if (!sectionId.trim()) return;
+  try {
+    localStorage.setItem(
+      sectionScheduleStorageKey(instituteId ?? "", sectionId),
+      JSON.stringify(input),
+    );
+  } catch {
+    // Keep the page usable when storage is unavailable.
+  }
+}
+
+export function listSectionIdsWithSchedule(instituteId?: string): string[] {
+  const inst = (instituteId ?? "").trim() || readAdminDataScopeKey();
+  const prefix = `${SCHEDULE_KEY_PREFIX}.section.${inst}.`;
+  const ids: string[] = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key?.startsWith(prefix)) continue;
+      ids.push(key.slice(prefix.length));
+    }
+  } catch {
+    // ignore
+  }
+  return ids;
+}
+
 export function loadInstituteScheduleConfig(): TimetableScheduleConfig {
   return buildScheduleConfig(loadInstituteScheduleDefault());
 }

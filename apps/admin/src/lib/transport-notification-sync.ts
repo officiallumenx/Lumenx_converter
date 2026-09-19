@@ -66,7 +66,26 @@ let started = false;
 
 /** Call once from Admin Transport shell / notification route. */
 export function startTransportAdminNotificationSync(): void {
-  if (started || typeof window === "undefined") return;
+  // API Admin must not mirror localStorage transport demo notifications.
+  if (typeof window === "undefined") return;
+  try {
+    // Drop abandoned same-browser bridges (reviews/ops go through transport APIs).
+    localStorage.removeItem("lumenx.transport.route-setup.v1");
+    localStorage.removeItem("lumenx.transport.ops.v1");
+    localStorage.removeItem("lumenx.transport.trip-attendance.v1");
+    localStorage.removeItem("lumenx.transport.notifications.v1");
+    localStorage.removeItem("lumenx.transport.emergencies.v1");
+  } catch {
+    /* ignore */
+  }
+  try {
+    const mode = (import.meta as ImportMeta & { env?: Record<string, string> }).env
+      ?.VITE_ADMIN_AUTH_MODE;
+    if (mode !== "demo") return;
+  } catch {
+    return;
+  }
+  if (started) return;
   started = true;
   syncTransportNotificationsToAdminCenter();
   subscribeTransportNotifications(() => {

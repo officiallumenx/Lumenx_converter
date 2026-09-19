@@ -27,7 +27,7 @@ export function HomeTransportSosApiUnavailableCard() {
   return (
     <HomeApiUnavailableCard
       title="Transport emergencies"
-      reason="Active SOS / emergency count has no institute-scoped admin read API. Demo transport SOS is not shown in API mode."
+      reason="Transport emergency alerts are not available for this institute yet."
       icon={<Bus className="size-5" />}
     />
   );

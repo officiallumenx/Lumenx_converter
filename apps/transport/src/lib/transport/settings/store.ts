@@ -1,11 +1,17 @@
 import { DARK_MODE_CLASS, darkModeConfig } from "@/theme";
 
-import { transportSeed } from "../mock/seed";
 import type { NotificationPrefs, ThemeMode } from "../types";
 
 export type SettingsState = {
   theme: ThemeMode;
   notifications: NotificationPrefs;
+};
+
+const DEFAULT_NOTIFICATIONS: NotificationPrefs = {
+  location: true,
+  push: true,
+  routeUpdates: true,
+  attendanceAlerts: true,
 };
 
 const listeners = new Set<() => void>();
@@ -18,12 +24,12 @@ function readStoredTheme(): ThemeMode {
   } catch {
     /* ignore */
   }
-  return transportSeed.settings.theme;
+  return darkModeConfig.defaultMode;
 }
 
 let state: SettingsState = {
-  theme: typeof window !== "undefined" ? readStoredTheme() : transportSeed.settings.theme,
-  notifications: { ...transportSeed.settings.notifications },
+  theme: typeof window !== "undefined" ? readStoredTheme() : darkModeConfig.defaultMode,
+  notifications: { ...DEFAULT_NOTIFICATIONS },
 };
 
 function emit() {
@@ -71,8 +77,8 @@ export function setNotificationPrefInStore(key: keyof NotificationPrefs, value: 
 
 export function resetSettingsStore() {
   state = {
-    theme: transportSeed.settings.theme,
-    notifications: { ...transportSeed.settings.notifications },
+    theme: darkModeConfig.defaultMode,
+    notifications: { ...DEFAULT_NOTIFICATIONS },
   };
   applyThemeMode(state.theme);
   emit();

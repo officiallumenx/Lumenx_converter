@@ -67,7 +67,7 @@ export function TransportAnalyticsApiPanel({
 
   return (
     <PageStack>
-      <Pill tone="neutral">Analytics · API mode · {analytics.tripDate}</Pill>
+      <Pill tone="neutral">Analytics · {analytics.tripDate}</Pill>
 
       <div className="lx-kpi-grid">
         <Kpi label="Configured routes" value={String(analytics.configuredRoutes)} icon={<Route className="size-3.5" />} />
@@ -93,7 +93,7 @@ export function TransportAnalyticsApiPanel({
       <Card>
         <CardHeader
           title={`${M.transport} snapshot`}
-          hint="Live fleet KPIs from GET /api/v1/transport/analytics"
+          hint="Live fleet overview"
         />
         <p className="px-5 pb-5 text-sm text-muted-foreground">
           Showing route configuration, enrollments, trips, and emergencies for {analytics.tripDate}.

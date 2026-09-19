@@ -33,17 +33,11 @@ describe("nexus registrations api repository", () => {
     vi.resetModules();
   });
 
-  it("refuses to call backend in demo mode", async () => {
+  it("rejects VITE_NEXUS_AUTH_MODE=demo at auth boot (API-only product)", async () => {
     vi.stubEnv("VITE_NEXUS_AUTH_MODE", "demo");
-    const { listRegistrations } = await import("./api");
-    const fetchMock = vi.fn();
-    const client = createApiClient({
-      getBaseUrl: () => "http://api.test",
-      getAccessToken: async () => "tok",
-      fetchImpl: fetchMock as unknown as typeof fetch,
-    });
-    await expect(listRegistrations("all", client)).rejects.toThrow(/API auth mode/i);
-    expect(fetchMock).not.toHaveBeenCalled();
+    const { getNexusAuthMode, isNexusApiMode } = await import("@/lib/auth-mode");
+    expect(() => getNexusAuthMode()).toThrow(/Demo Mode is no longer supported/);
+    expect(isNexusApiMode()).toBe(true);
   });
 
   it("loads registrations from GET /api/nexus/registrations in API mode", async () => {

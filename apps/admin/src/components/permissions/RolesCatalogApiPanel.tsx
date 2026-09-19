@@ -58,8 +58,8 @@ export function RolesCatalogApiPanel() {
     <Card>
       <CardHeader
         title="Backend roles catalog"
-        hint="From GET /roles · assign institute roles on memberships below"
-        action={<Pill tone="neutral">Read-only · API mode</Pill>}
+        hint="Available roles · assign them on memberships below"
+        action={<Pill tone="neutral">View only</Pill>}
       />
       {hint ? (
         <EmptyState icon={<ShieldCheck className="size-5" />} title="Roles catalog" hint={hint} />

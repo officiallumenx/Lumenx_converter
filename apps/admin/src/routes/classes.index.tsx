@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { AppShell } from "@/components/AppShell";
 import { useAdminToast } from "@/components/AdminActionToast";
@@ -11,13 +12,22 @@ import {
   createClass,
   createSection,
   listClasses,
-  loadClassesList,
+  listSections,
+  invalidateClassesListCache,
   resolveClassesListView,
-  shouldCommitClassesLoad,
+  sectionDtoToListItem,
+  sortClassListItems,
   type ClassListItem,
   type ClassesListStatus,
 } from "@/lib/classes";
+import { useClassesListQuery, adminQueryRoots } from "@/lib/admin-queries";
+import { invalidateSetupChecklistCache } from "@/lib/institute-setup-checklist";
 import { listAcademicYears } from "@/lib/academic-years";
+import {
+  listTeachers,
+  updateTeacher,
+  type TeacherDto,
+} from "@/lib/teachers";
 import { Button, Card, EmptyState, Field, Modal, Pill, Select, TextInput } from "@lumenx/ui-admin";
 import { useDemoProfile } from "@/lib/demo-profile-context";
 import {
@@ -30,6 +40,17 @@ import {
   type ClassSection,
 } from "@/lib/class-directory-store";
 import { loadTimetableDirectory } from "@/lib/timetable-directory-store";
+import {
+  capitalizeClassName,
+  capitalizeSectionName,
+  classCodeFromName,
+  classIdentityKey,
+  classSectionExists,
+  classSortRank,
+  classesReferToSame,
+  normalizeSchoolClassName,
+  sectionSortRank,
+} from "@/lib/classes/name-format";
 
 export const Route = createFileRoute("/classes/")({
   head: () => ({ meta: [{ title: "Classes — LumenX Admin" }] }),
@@ -41,6 +62,7 @@ type ClassRow = ClassSection | ClassListItem;
 function ClassesPage() {
   const notify = useAdminToast();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
   const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
@@ -58,10 +80,30 @@ function ClassesPage() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const [teachersReload, setTeachersReload] = useState(0);
+  const bumpClassesReload = () => {
+    const instituteId = instituteCtx.activeInstituteId ?? undefined;
+    invalidateClassesListCache(instituteId);
+    invalidateSetupChecklistCache(instituteId);
+    setTeachersReload((k) => k + 1);
+    if (instituteCtx.activeInstituteId) {
+      void queryClient.invalidateQueries({
+        queryKey: [adminQueryRoots.classes, instituteCtx.activeInstituteId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: [adminQueryRoots.teachers, instituteCtx.activeInstituteId],
+      });
+    }
+  };
   const [creating, setCreating] = useState(false);
-  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
-  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
+  const listEnabled =
+    apiMode &&
+    instituteCtx.status === "ready" &&
+    Boolean(instituteCtx.activeInstituteId);
+  const classesQuery = useClassesListQuery(
+    instituteCtx.activeInstituteId,
+    listEnabled,
+  );
 
   const listView = resolveClassesListView({
     apiMode,
@@ -69,20 +111,28 @@ function ClassesPage() {
     activeInstituteId: instituteCtx.activeInstituteId,
     resolvedForInstituteId,
     storedItems: apiItems,
-    storedStatus: listStatus,
+    storedStatus:
+      classesQuery.isLoading && !classesQuery.data ? "loading" : listStatus,
     storedErrorMessage: listError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
-  const displayItems: ClassRow[] = apiMode ? listView.items : classes;
+  const displayItems: ClassRow[] = apiMode
+    ? sortClassListItems(listView.items)
+    : sortClassListItems(classes as ClassListItem[]);
+
 
   const [open, setOpen] = useState(false);
   const [level, setLevel] = useState(academic.levels[0]!.label);
   const [section, setSection] = useState(academic.sections[0] ?? "A");
+  const [customClassName, setCustomClassName] = useState("");
+  const [customSectionName, setCustomSectionName] = useState("");
   const [departmentId, setDepartmentId] = useState(academic.departments[0]?.id ?? "");
   const [room, setRoom] = useState("");
   const [capacity, setCapacity] = useState("50");
   const [students, setStudents] = useState("0");
   const [teacher, setTeacher] = useState(classes[0]?.teacher ?? "Prof. Meera Nair");
+  const [teacherId, setTeacherId] = useState("");
+  const [instituteTeachers, setInstituteTeachers] = useState<TeacherDto[]>([]);
   const timetables = useMemo(
     () => (apiMode ? [] : loadTimetableDirectory()),
     [apiMode, profileId],
@@ -134,40 +184,60 @@ function ClassesPage() {
     }
 
     const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setListStatus("loading");
-    setListError(null);
-    void loadClassesList(requestInstituteId).then((next) => {
-      if (
-        !shouldCommitClassesLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setApiItems(next.items);
-      setListStatus(next.status);
+    if (classesQuery.isLoading && !classesQuery.data) {
+      setListStatus("loading");
+      setListError(null);
+      return;
+    }
+    if (!classesQuery.data) return;
+
+    const next = classesQuery.data;
+    setApiItems((prev) => {
+      const items = next.items.length > 0 ? next.items : prev;
+      setListStatus(items.length > 0 ? "ready" : next.status);
       setListError(next.errorMessage);
       setResolvedForInstituteId(requestInstituteId);
+      return sortClassListItems(items);
     });
-    return () => {
-      cancelled = true;
-    };
   }, [
     apiMode,
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
-    reloadKey,
+    classesQuery.data,
+    classesQuery.isLoading,
   ]);
 
   useEffect(() => {
     setOpen(false);
     setRoom("");
     setStudents("0");
+    setTeacherId("");
   }, [instituteCtx.activeInstituteId]);
+
+  useEffect(() => {
+    if (!apiMode || !instituteCtx.activeInstituteId) {
+      setInstituteTeachers([]);
+      return;
+    }
+    let cancelled = false;
+    void listTeachers({ instituteId: instituteCtx.activeInstituteId })
+      .then((items) => {
+        if (cancelled) return;
+        setInstituteTeachers(items);
+        setTeacherId((current) =>
+          current && items.some((item) => item.id === current)
+            ? current
+            : items[0]?.id ?? "",
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setInstituteTeachers([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiMode, instituteCtx.activeInstituteId, teachersReload, classesQuery.dataUpdatedAt]);
 
   const departmentsForLevel = useMemo(() => {
     const levelId = academic.levels.find((item) => item.label === level)?.id;
@@ -180,13 +250,38 @@ function ClassesPage() {
     saveClassDirectory(next);
   };
 
+  const nameConflict = useMemo(() => {
+    if (college) return false;
+    const className = normalizeSchoolClassName(customClassName || level);
+    const sectionName = capitalizeSectionName(customSectionName || section);
+    return classSectionExists(displayItems, className, sectionName);
+  }, [college, customClassName, customSectionName, level, section, displayItems]);
+
   const addClass = () => {
     if (!writesEnabled) return;
     const cap = Number(capacity) || 50;
     const studentCount = Number(students) || 0;
-    const levelMeta = academic.levels.find((item) => item.label === level);
+    const typedClass = normalizeSchoolClassName(customClassName || level);
+    const typedSection = capitalizeSectionName(customSectionName || section);
+    const levelMeta =
+      academic.levels.find((item) => item.label === level) ??
+      academic.levels.find(
+        (item) =>
+          classIdentityKey(item.label) === classIdentityKey(typedClass) ||
+          item.label.toLowerCase() === typedClass.toLowerCase(),
+      ) ??
+      academic.levels[0];
     const department = academic.departments.find((item) => item.id === departmentId);
-    if (!levelMeta) return;
+
+    if (!college && (!typedClass || !typedSection)) {
+      notify("Enter class name and section");
+      return;
+    }
+    if (!college && nameConflict) {
+      notify("This class and section already exists — change the name");
+      return;
+    }
+    if (!levelMeta && college) return;
 
     if (apiMode) {
       const instituteId = instituteCtx.activeInstituteId;
@@ -195,51 +290,117 @@ function ClassesPage() {
         return;
       }
       const className =
-        college && department ? `${department.code} · ${level}` : level;
+        college && department ? `${department.code} · ${level}` : typedClass;
       const classCode =
         college && department
-          ? `${department.code}-${levelMeta.shortLabel}`.slice(0, 50)
-          : levelMeta.shortLabel.slice(0, 50);
+          ? `${department.code}-${levelMeta?.shortLabel ?? "Y"}`.slice(0, 50)
+          : classCodeFromName(typedClass);
+      const sectionLabel = college ? section : typedSection;
       setCreating(true);
       void (async () => {
         try {
           const years = await listAcademicYears({ instituteId });
-          const year =
-            years.find((item) => item.status === "active") ?? years[0];
+          const year = years.find((item) => item.status === "active");
           if (!year) {
-            notify("Create an academic year before adding classes");
+            notify(
+              years.length === 0
+                ? "Create an academic year before adding classes"
+                : "Activate an academic year before adding classes",
+            );
             return;
           }
           const existing = await listClasses({ instituteId });
-          let cls = existing.find(
+          const existingClass = existing.find(
             (item) =>
               item.academicYearId === year.id &&
-              item.code.toLowerCase() === classCode.toLowerCase(),
+              classesReferToSame(item, className, classCode),
           );
+          let cls = existingClass;
           if (!cls) {
             cls = await createClass({
               instituteId,
               academicYearId: year.id,
               name: className,
               code: classCode,
+              sortOrder: classSortRank(className),
             });
+          } else {
+            const classId = cls!.id;
+            const sectionsForClass = await listSections({
+              instituteId,
+              classId,
+            });
+            const sectionExists = sectionsForClass.some(
+              (item) =>
+                item.classId === classId &&
+                (item.code.toLowerCase() ===
+                  sectionLabel.slice(0, 50).toLowerCase() ||
+                  item.name.toLowerCase() === sectionLabel.toLowerCase()),
+            );
+            if (sectionExists) {
+              notify("This class and section already exists — change the name");
+              return;
+            }
           }
-          await createSection({
+          if (!cls) return;
+          const createdSection = await createSection({
             instituteId,
             academicYearId: year.id,
             classId: cls.id,
-            name: section,
-            code: section.slice(0, 50),
+            name: sectionLabel,
+            code: sectionLabel.slice(0, 50),
             capacity: cap,
             room: room.trim() || null,
+            classTeacherId: teacherId || null,
+            sortOrder: sectionSortRank(sectionLabel),
           });
+          const selectedTeacher = instituteTeachers.find(
+            (item) => item.id === teacherId,
+          );
+          if (selectedTeacher) {
+            const assignmentLabel = `${cls.code}-${createdSection.code}`;
+            await updateTeacher(selectedTeacher.id, {
+              assignedSectionLabels: [
+                ...new Set([
+                  ...(selectedTeacher.assignedSectionLabels ?? []),
+                  assignmentLabel,
+                ]),
+              ],
+            });
+          }
+          // Paint immediately so a stale empty cache cannot hide the new row.
+          const createdRow = sectionDtoToListItem(
+            createdSection,
+            new Map([[cls.id, cls]]),
+          );
+          if (selectedTeacher?.displayName) {
+            createdRow.teacher = selectedTeacher.displayName;
+          }
+          setApiItems((prev) => {
+            if (prev.some((item) => item.id === createdRow.id)) {
+              return sortClassListItems(prev);
+            }
+            return sortClassListItems([...prev, createdRow]);
+          });
+          setListStatus("ready");
+          setListError(null);
+          setResolvedForInstituteId(instituteId);
           setOpen(false);
+          setCustomClassName("");
+          setCustomSectionName("");
           setRoom("");
           setStudents("0");
-          setReloadKey((k) => k + 1);
+          setTeacherId("");
+          bumpClassesReload();
           notify("Class section created");
         } catch (err) {
-          notify(err instanceof Error ? err.message : "Failed to create class section");
+          const message =
+            err instanceof Error ? err.message : "Failed to create class section";
+          notify(
+            /already exists/i.test(message)
+              ? "This class and section already exists — change the name"
+              : message,
+          );
         } finally {
           setCreating(false);
         }
@@ -247,6 +408,7 @@ function ClassesPage() {
       return;
     }
 
+    if (!levelMeta) return;
     const created: ClassSection =
       college && department
         ? {
@@ -266,11 +428,11 @@ function ClassesPage() {
             subjectTeacherAssignments: {},
           }
         : {
-            id: `${levelMeta.shortLabel}-${section}`,
-            name: `${level}-${section}`,
+            id: `${typedClass.replace(/\s+/g, "-")}-${typedSection}`,
+            name: `${typedClass}-${typedSection}`,
             levelId: levelMeta.id,
-            timetableGrade: level,
-            section,
+            timetableGrade: typedClass,
+            section: typedSection,
             teacher,
             students: studentCount,
             capacity: cap,
@@ -279,10 +441,18 @@ function ClassesPage() {
             subjectTeacherAssignments: {},
           };
 
-    persist([...classes.filter((item) => item.id !== created.id), created]);
+    if (classes.some((item) => item.id === created.id)) {
+      notify("This class and section already exists — change the name");
+      return;
+    }
+
+    persist([...classes, created]);
     setOpen(false);
+    setCustomClassName("");
+    setCustomSectionName("");
     setRoom("");
     setStudents("0");
+    notify("Class section created");
   };
 
   const openClassDetail = (id: string) => {
@@ -310,7 +480,7 @@ function ClassesPage() {
       title={academic.classPageTitle}
       subtitle={
         apiMode
-          ? `API mode · ${countLabel(displayItems.length)} sections`
+          ? `${countLabel(displayItems.length)} sections`
           : academic.classPageSubtitle
       }
       actions={
@@ -429,19 +599,26 @@ function ClassesPage() {
                     <Link
                       to="/timetable"
                       search={
-                        timetable
+                        apiMode
                           ? {
-                              id: timetable.id,
+                              id: classSection.id,
                               createGrade: undefined,
                               createSection: undefined,
                               openCreate: undefined,
                             }
-                          : {
-                              id: undefined,
-                              openCreate: true,
-                              createGrade: classSection.timetableGrade,
-                              createSection: classSection.section,
-                            }
+                          : timetable
+                            ? {
+                                id: timetable.id,
+                                createGrade: undefined,
+                                createSection: undefined,
+                                openCreate: undefined,
+                              }
+                            : {
+                                id: undefined,
+                                openCreate: true,
+                                createGrade: classSection.timetableGrade,
+                                createSection: classSection.section,
+                              }
                       }
                       className="flex-1"
                     >
@@ -464,7 +641,11 @@ function ClassesPage() {
           footer={
             <>
               <Button onClick={() => setOpen(false)}>Cancel</Button>
-              <Button variant="primary" onClick={addClass} disabled={creating}>
+              <Button
+                variant="primary"
+                onClick={addClass}
+                disabled={creating || (!college && nameConflict)}
+              >
                 {creating ? "Creating…" : "Create"}
               </Button>
             </>
@@ -482,33 +663,104 @@ function ClassesPage() {
                 </Select>
               </Field>
             )}
-            <Field label={college ? "Year" : "Grade"} required>
-              <Select value={level} onChange={(event) => setLevel(event.target.value)}>
-                {academic.levels.map((item) => (
-                  <option key={item.id} value={item.label}>{item.label}</option>
-                ))}
-              </Select>
+            <Field label="Class name" required>
+              {college ? (
+                <Select value={level} onChange={(event) => setLevel(event.target.value)}>
+                  {academic.levels.map((item) => (
+                    <option key={item.id} value={item.label}>{item.label}</option>
+                  ))}
+                </Select>
+              ) : (
+                <TextInput
+                  value={customClassName}
+                  onChange={(event) => setCustomClassName(event.target.value)}
+                  onBlur={() =>
+                    setCustomClassName((v) =>
+                      v.trim() ? normalizeSchoolClassName(v) : v,
+                    )
+                  }
+                  placeholder="e.g. Class 8"
+                  list="lx-class-name-suggestions"
+                />
+              )}
+              {!college ? (
+                <datalist id="lx-class-name-suggestions">
+                  {academic.levels.map((item) => (
+                    <option key={item.id} value={item.label} />
+                  ))}
+                </datalist>
+              ) : null}
             </Field>
-            <Field label="Section" required>
-              <Select value={section} onChange={(event) => setSection(event.target.value)}>
-                {academic.sections.map((item) => <option key={item}>{item}</option>)}
-              </Select>
+            <Field label="Section name" required>
+              {college ? (
+                <Select value={section} onChange={(event) => setSection(event.target.value)}>
+                  {academic.sections.map((item) => <option key={item}>{item}</option>)}
+                </Select>
+              ) : (
+                <TextInput
+                  value={customSectionName}
+                  onChange={(event) => setCustomSectionName(event.target.value)}
+                  onBlur={() =>
+                    setCustomSectionName((v) => (v.trim() ? capitalizeSectionName(v) : v))
+                  }
+                  placeholder="e.g. A"
+                  list="lx-section-name-suggestions"
+                />
+              )}
+              {!college ? (
+                <datalist id="lx-section-name-suggestions">
+                  {academic.sections.map((item) => (
+                    <option key={item} value={item} />
+                  ))}
+                </datalist>
+              ) : null}
             </Field>
-            <Field label="Room">
+            {!college && nameConflict ? (
+              <p className="sm:col-span-2 text-xs text-destructive" role="alert">
+                This class and section already exists — change the name to continue.
+              </p>
+            ) : null}
+            <Field label="Room no">
               <TextInput
                 value={room}
                 onChange={(event) => setRoom(event.target.value)}
                 placeholder="Block A-101"
               />
             </Field>
-            <Field label={college ? "Faculty advisor" : "Class teacher"}>
-              <Select value={teacher} onChange={(event) => setTeacher(event.target.value)}>
-                {[...new Set(classes.map((item) => item.teacher))].map((item) => (
-                  <option key={item}>{item}</option>
-                ))}
+            <Field
+              label="Class teacher"
+              hint={
+                apiMode && instituteTeachers.length === 0
+                  ? "Optional — onboard teachers later, or leave blank"
+                  : undefined
+              }
+            >
+              <Select
+                value={apiMode ? teacherId : teacher}
+                onChange={(event) =>
+                  apiMode
+                    ? setTeacherId(event.target.value)
+                    : setTeacher(event.target.value)
+                }
+              >
+                {apiMode ? (
+                  <>
+                    <option value="">No class teacher yet</option>
+                    {instituteTeachers.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.displayName}
+                        {item.employeeId ? ` · ${item.employeeId}` : ""}
+                      </option>
+                    ))}
+                  </>
+                ) : (
+                  [...new Set(classes.map((item) => item.teacher))].map((item) => (
+                    <option key={item}>{item}</option>
+                  ))
+                )}
               </Select>
             </Field>
-            <Field label="Classroom capacity" required>
+            <Field label="Class capacity" required>
               <TextInput
                 type="number"
                 value={capacity}

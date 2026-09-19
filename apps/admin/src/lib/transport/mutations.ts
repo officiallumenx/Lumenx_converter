@@ -31,6 +31,7 @@ export type CreateVehicleInput = {
   capacity: number;
   status?: TransportAssetStatus;
   notes?: string | null;
+  assignedDriverId?: string | null;
 };
 
 export type UpdateVehicleInput = Partial<Omit<CreateVehicleInput, "instituteId">>;
@@ -44,6 +45,9 @@ export type CreateDriverInput = {
   status?: TransportAssetStatus;
   notes?: string | null;
   userProfileId?: string | null;
+  assignedVehicleId?: string | null;
+  /** Plaintext PIN — hashed server-side; never stored or returned. */
+  appAccountPin?: string | null;
 };
 
 export type UpdateDriverInput = Partial<
@@ -80,8 +84,8 @@ export type CreateEnrollmentInput = {
   instituteId: string;
   studentId: string;
   routeId: string;
-  pickupStopId: string;
-  dropStopId: string;
+  pickupStopId?: string | null;
+  dropStopId?: string | null;
   status?: EnrollmentStatus;
 };
 
@@ -94,6 +98,9 @@ export type UpsertTransportSettingsInput = {
   defaultNotificationRadiusM?: number;
   defaultPickupBufferMins?: number;
   workingDays?: number[];
+  notificationsEnabled?: boolean;
+  rememberEnabled?: boolean;
+  defaultPickupTime?: string | null;
 };
 
 export async function createVehicle(
@@ -111,6 +118,7 @@ export async function createVehicle(
     capacity: input.capacity,
     status: input.status,
     notes: input.notes,
+    assigned_driver_id: input.assignedDriverId ?? null,
   });
 }
 
@@ -133,6 +141,9 @@ export async function updateVehicle(
   if (input.capacity !== undefined) body.capacity = input.capacity;
   if (input.status !== undefined) body.status = input.status;
   if (input.notes !== undefined) body.notes = input.notes;
+  if (input.assignedDriverId !== undefined) {
+    body.assigned_driver_id = input.assignedDriverId;
+  }
   if (Object.keys(body).length === 0) {
     throw new Error("At least one field is required");
   }
@@ -170,6 +181,8 @@ export async function createDriver(
     status: input.status,
     notes: input.notes,
     user_profile_id: input.userProfileId ?? null,
+    assigned_vehicle_id: input.assignedVehicleId ?? null,
+    app_account_pin: input.appAccountPin ?? null,
   });
 }
 
@@ -191,6 +204,12 @@ export async function updateDriver(
   if (input.licenseExpiry !== undefined) body.license_expiry = input.licenseExpiry;
   if (input.status !== undefined) body.status = input.status;
   if (input.notes !== undefined) body.notes = input.notes;
+  if (input.assignedVehicleId !== undefined) {
+    body.assigned_vehicle_id = input.assignedVehicleId;
+  }
+  if (input.appAccountPin !== undefined) {
+    body.app_account_pin = input.appAccountPin;
+  }
   if (Object.keys(body).length === 0) {
     throw new Error("At least one field is required");
   }
@@ -338,18 +357,26 @@ export async function createEnrollment(
   if (!isInstituteUuid(input.routeId)) {
     throw new Error("route_id must be a valid UUID");
   }
-  if (!isInstituteUuid(input.pickupStopId)) {
+  if (
+    input.pickupStopId != null &&
+    input.pickupStopId !== "" &&
+    !isInstituteUuid(input.pickupStopId)
+  ) {
     throw new Error("pickup_stop_id must be a valid UUID");
   }
-  if (!isInstituteUuid(input.dropStopId)) {
+  if (
+    input.dropStopId != null &&
+    input.dropStopId !== "" &&
+    !isInstituteUuid(input.dropStopId)
+  ) {
     throw new Error("drop_stop_id must be a valid UUID");
   }
   return client.post<TransportEnrollmentDto>("/api/v1/transport/enrollments", {
     institute_id: input.instituteId.trim(),
     student_id: input.studentId.trim(),
     route_id: input.routeId.trim(),
-    pickup_stop_id: input.pickupStopId.trim(),
-    drop_stop_id: input.dropStopId.trim(),
+    pickup_stop_id: input.pickupStopId?.trim() || null,
+    drop_stop_id: input.dropStopId?.trim() || null,
     status: input.status,
   });
 }
@@ -406,6 +433,15 @@ export async function upsertTransportSettings(
     body.default_pickup_buffer_mins = input.defaultPickupBufferMins;
   }
   if (input.workingDays !== undefined) body.working_days = input.workingDays;
+  if (input.notificationsEnabled !== undefined) {
+    body.notifications_enabled = input.notificationsEnabled;
+  }
+  if (input.rememberEnabled !== undefined) {
+    body.remember_enabled = input.rememberEnabled;
+  }
+  if (input.defaultPickupTime !== undefined) {
+    body.default_pickup_time = input.defaultPickupTime;
+  }
   return client.put<TransportSettingsDto>(
     `/api/v1/transport/settings?${query.toString()}`,
     body,

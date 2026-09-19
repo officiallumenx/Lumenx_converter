@@ -87,7 +87,7 @@ export function CertificateRecommendationsPanel({
     <Card>
       <CardHeader
         title="Certificate recommendations"
-        hint="From Activity achievements · issue a matching certificate from Nexus templates below"
+        hint="From activity achievements · issue a matching certificate from templates below"
         action={<Pill tone="warning">{rows.length} pending</Pill>}
       />
       <CardBody className="divide-y divide-border p-0">

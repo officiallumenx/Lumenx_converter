@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { subscribeInstituteDirectory } from "@/lib/institute-directory-store";
+import type { PlatformInstitute } from "@/lib/institute-directory-store";
 import { subscribeLicenses } from "@/lib/institute-licensing-store";
 import {
   buildHealthRisksSnapshot,
@@ -29,6 +30,7 @@ import {
   type RiskLevel,
   type SuggestedAction,
 } from "@/lib/platform-health-risks";
+import { loadInstitutesDirectory } from "@/lib/institutes/load-directory";
 
 export const Route = createFileRoute("/health-risks")({
   head: () => ({ meta: [{ title: "Health & Risks — LumenX Nexus" }] }),
@@ -42,20 +44,53 @@ function HealthRisksPage() {
   const [tick, setTick] = useState(0);
   const [lane, setLane] = useState<Lane>("institute");
   const [level, setLevel] = useState<LevelFilter>("all");
+  const [apiInstitutes, setApiInstitutes] = useState<PlatformInstitute[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+    void loadInstitutesDirectory().then((dir) => {
+      if (cancelled) return;
+      if (dir.status === "ready") {
+        setApiInstitutes(dir.institutes);
+        setLoadError(null);
+      } else if (dir.status === "error") {
+        setApiInstitutes([]);
+        setLoadError(dir.message);
+      }
+    });
     const a = subscribeInstituteDirectory(() => setTick((t) => t + 1));
     const b = subscribeLicenses(() => setTick((t) => t + 1));
     return () => {
+      cancelled = true;
       a();
       b();
     };
   }, []);
 
-  const snap = useMemo(() => buildHealthRisksSnapshot(), [tick]);
+  const snap = useMemo(
+    () => buildHealthRisksSnapshot(apiInstitutes ?? undefined),
+    [tick, apiInstitutes],
+  );
   const rows = lane === "institute" ? snap.instituteRisks : snap.businessRisks;
   const stats = lane === "institute" ? snap.instituteStats : snap.businessStats;
   const filtered = level === "all" ? rows : rows.filter((r) => r.level === level);
+
+  if (apiInstitutes === null) {
+    return (
+      <AppShell title="Health & Risks" subtitle="Loading…">
+        <p className="text-sm text-muted-foreground py-8 text-center">Loading institutes…</p>
+      </AppShell>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <AppShell title="Health & Risks" subtitle="Unavailable">
+        <p className="text-sm text-destructive py-8 text-center">{loadError}</p>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell

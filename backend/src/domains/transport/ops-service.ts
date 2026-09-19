@@ -39,6 +39,13 @@ import {
   updateTripFields,
   upsertBoardingEvent,
 } from "./ops-repository.js";
+import {
+  notifyBoardingMarked,
+  notifyDroppingMarked,
+  notifyEmergencyOpened,
+  notifyTripEnded,
+  notifyTripStarted,
+} from "./ops-notifications.js";
 import type {
   BoardingStatus,
   CreateEmergencyInput,
@@ -350,6 +357,7 @@ export async function startTripForActor(
   }
 
   const trip = await insertTrip(admin, { ...input, instituteId });
+  await notifyTripStarted(admin, trip, actor.userId);
   return enrichTrip(admin, trip);
 }
 
@@ -392,6 +400,7 @@ export async function endTripForActor(
     finalized: true,
   });
   if (!updated) throw AppError.notFound("Trip not found");
+  await notifyTripEnded(admin, updated, actor.userId);
   return enrichTrip(admin, updated);
 }
 
@@ -433,6 +442,12 @@ export async function upsertBoardingForActor(
           ? null
           : undefined,
   });
+  await notifyBoardingMarked(admin, {
+    trip,
+    studentId: input.studentId,
+    boardingStatus: input.boardingStatus,
+    createdByUserId: actor.userId,
+  });
   return enrichBoarding(admin, row);
 }
 
@@ -462,6 +477,12 @@ export async function upsertDroppingForActor(
           ? null
           : undefined,
   });
+  await notifyDroppingMarked(admin, {
+    trip,
+    studentId: input.studentId,
+    droppingStatus: input.droppingStatus,
+    createdByUserId: actor.userId,
+  });
   return enrichBoarding(admin, row);
 }
 
@@ -472,9 +493,20 @@ export async function listEmergenciesForActor(
   status?: EmergencyStatus,
 ): Promise<TransportEmergencyDto[]> {
   const id = requireInstituteId(actor, instituteId);
-  assertTransportStaffReader(actor, id);
   const rows = await listEmergencies(admin, id, status);
-  return Promise.all(rows.map((row) => enrichEmergency(admin, row)));
+
+  if (isStaffReader(actor, id)) {
+    return Promise.all(rows.map((row) => enrichEmergency(admin, row)));
+  }
+
+  if (isDriverForInstitute(actor, id)) {
+    const driver = await findDriverByUserProfileId(admin, actor.userId, id);
+    if (!driver) throw AppError.forbidden("Insufficient permissions");
+    const own = rows.filter((row) => row.driver_id === driver.id);
+    return Promise.all(own.map((row) => enrichEmergency(admin, row)));
+  }
+
+  throw AppError.forbidden("Insufficient permissions");
 }
 
 export async function createEmergencyForActor(
@@ -491,6 +523,13 @@ export async function createEmergencyForActor(
   }
 
   const row = await insertEmergency(admin, { ...input, instituteId });
+  await notifyEmergencyOpened(admin, {
+    instituteId,
+    emergencyId: row.id,
+    vehicleId: input.vehicleId,
+    note: input.note ?? null,
+    createdByUserId: actor.userId,
+  });
   return enrichEmergency(admin, row);
 }
 
@@ -563,6 +602,7 @@ export async function pingLocationForActor(
     latitude: number;
     longitude: number;
     accuracyM?: number | null;
+    speedKmh?: number | null;
   },
 ): Promise<VehicleLocationDto> {
   const trip = await getTripOrThrow(admin, input.tripId);
@@ -584,7 +624,11 @@ export async function pingLocationForActor(
   await evaluateApproachAlertsOnPing(
     admin,
     trip,
-    { latitude: input.latitude, longitude: input.longitude },
+    {
+      latitude: input.latitude,
+      longitude: input.longitude,
+      speedKmh: input.speedKmh ?? null,
+    },
     actor.userId,
   );
 

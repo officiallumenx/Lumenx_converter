@@ -21,7 +21,7 @@ describe("subjects mutations", () => {
         periodsPerWeek: 5,
         applicableClassCodes: ["G10"],
       }),
-    ).rejects.toThrow(/API auth mode/);
+    ).rejects.toThrow(/Demo Mode is no longer supported|API auth mode|Authentication required/);
   });
 
   it("does not call network for invalid subject UUID on delete", async () => {
@@ -37,6 +37,10 @@ describe("subjects mutations", () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const post = vi.fn().mockResolvedValue({ id: SUBJECT });
     const client = { post } as never;
+    const teacherIds = [
+      "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+    ];
     const { createSubject } = await import("./mutations");
     await createSubject(
       {
@@ -47,6 +51,7 @@ describe("subjects mutations", () => {
         periodsPerWeek: 6,
         applicableClassCodes: ["G10", "G11"],
         status: "active",
+        teacherIds,
       },
       client,
     );
@@ -58,6 +63,7 @@ describe("subjects mutations", () => {
         code: "MATH",
         periods_per_week: 6,
         applicable_class_codes: ["G10", "G11"],
+        teacher_ids: teacherIds,
       }),
     );
   });

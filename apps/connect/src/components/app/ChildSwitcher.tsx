@@ -7,7 +7,7 @@ import { cn } from "@lumenx/ui";
 const TREND_ICON = { up: TrendingUp, down: TrendingDown, flat: Minus } as const;
 
 export const ChildSwitcher = memo(function ChildSwitcher() {
-  const { activeChildId, setActiveChildId, linkedChildren } = useApp();
+  const { activeChildId, setActiveChildId, linkedChildren, linkedChildrenLoading } = useApp();
 
   return (
     <section className="min-w-0 rounded-xl border border-border/80 bg-card/80 p-3 shadow-soft backdrop-blur-sm">
@@ -15,9 +15,20 @@ export const ChildSwitcher = memo(function ChildSwitcher() {
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Your children
         </h2>
-        <span className="text-xs text-muted-foreground/90">{linkedChildren.length} linked</span>
+        <span className="text-xs text-muted-foreground/90">
+          {linkedChildrenLoading && linkedChildren.length === 0
+            ? "Loading…"
+            : `${linkedChildren.length} linked`}
+        </span>
       </div>
 
+      {linkedChildren.length === 0 ? (
+        <p className="px-0.5 text-xs text-muted-foreground">
+          {linkedChildrenLoading
+            ? "Loading linked students…"
+            : "No linked students yet."}
+        </p>
+      ) : (
       <div
         className="-mx-0.5 flex min-w-0 gap-2 overflow-x-auto px-0.5 pb-0.5 scrollbar-hide snap-x snap-mandatory"
         role="tablist"
@@ -90,6 +101,7 @@ export const ChildSwitcher = memo(function ChildSwitcher() {
           );
         })}
       </div>
+      )}
     </section>
   );
 });

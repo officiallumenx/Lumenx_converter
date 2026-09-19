@@ -19,7 +19,7 @@ export function HomeRoles() {
       id="roles"
       eyebrow="By role"
       title="The same records. A different door for each person."
-      lede="Admin, teacher, parent, student, driver, applicant, and careers each get the surface that matches the job."
+      lede="Administrators, teachers, parents, students, and drivers each get the surface that matches the job."
       tone="muted"
     >
       <div
@@ -71,7 +71,7 @@ export function HomeRoles() {
         </div>
         <div className="mt-8">
           <CTAButton asChild variant="secondary">
-            <Link to="/solutions" search={{}}>
+            <Link to="/solutions">
               Solutions by role
             </Link>
           </CTAButton>

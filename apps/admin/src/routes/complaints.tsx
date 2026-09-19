@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
 import { Card, CardHeader, Button, Pill, PageStack, Modal, Field, TextInput, TextArea, Select } from "@lumenx/ui-admin";
 import { Lock, FileText, Plus } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { DEMO_COMPLAINTS_SEED } from "@/lib/complaints-data";
 import {
@@ -21,15 +22,14 @@ import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
   createComplaint,
   deleteComplaint,
-  loadComplaintsList,
   resolveComplaintsListView,
-  shouldCommitComplaintsLoad,
   transitionComplaint,
   type ComplaintListItem,
-  type ComplaintsListStatus,
   type ComplaintStatus as BackendComplaintStatus,
 } from "@/lib/complaints";
+import { useComplaintsListQuery, adminQueryRoots } from "@/lib/admin-queries";
 import { refreshAdminComplaintsPendingCount } from "@/lib/complaints/pending-count-store";
+import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 
 export const Route = createFileRoute("/complaints")({
   head: () => ({ meta: [{ title: "Complaints — LumenX Admin" }] }),
@@ -47,22 +47,41 @@ const cols: { key: ComplaintStatus; label: string; tone: "warning" | "info" | "s
 
 function ComplaintsPage() {
   const notify = useAdminToast();
+  const queryClient = useQueryClient();
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
 
-  const [items, setItems] = useState<Complaint[]>(() =>
+  const [demoItems, setDemoItems] = useState<Complaint[]>(() =>
     apiMode ? [] : (loadDemoComplaints(DEMO_COMPLAINTS_SEED) as Complaint[]),
   );
-  const [listStatus, setListStatus] = useState<ComplaintsListStatus>(() =>
-    apiMode ? "loading" : "demo",
+  const listEnabled =
+    apiMode &&
+    instituteCtx.status === "ready" &&
+    Boolean(instituteCtx.activeInstituteId);
+  const complaintsQuery = useComplaintsListQuery(
+    instituteCtx.activeInstituteId,
+    listEnabled,
   );
-  const [listError, setListError] = useState<string | null>(null);
-  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
-    string | null
-  >(null);
-  const [reloadKey, setReloadKey] = useState(0);
-  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
-  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
+  const bumpComplaintsReload = () => {
+    invalidateAdminCache("admin:complaints");
+    if (instituteCtx.activeInstituteId) {
+      void queryClient.invalidateQueries({
+        queryKey: [adminQueryRoots.complaints, instituteCtx.activeInstituteId],
+      });
+      void refreshAdminComplaintsPendingCount(instituteCtx.activeInstituteId);
+    }
+  };
+
+  const items = apiMode ? (complaintsQuery.data?.items ?? []) : demoItems;
+  const listStatus =
+    complaintsQuery.isLoading && !complaintsQuery.data
+      ? "loading"
+      : (complaintsQuery.data?.status ?? (listEnabled ? "loading" : "needs_institute"));
+  const listError = complaintsQuery.data?.errorMessage ?? null;
+  const resolvedForInstituteId =
+    complaintsQuery.data && instituteCtx.activeInstituteId
+      ? instituteCtx.activeInstituteId
+      : null;
 
   const [detailId, setDetailId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -87,79 +106,17 @@ function ComplaintsPage() {
   const displayError = listView.errorMessage;
 
   useEffect(() => {
-    if (!apiMode) {
-      setItems(loadDemoComplaints(DEMO_COMPLAINTS_SEED) as Complaint[]);
-      setListStatus("demo");
-      setListError(null);
-      setResolvedForInstituteId(null);
-      return;
-    }
-
-    if (instituteCtx.status === "loading") {
-      setItems([]);
-      setListStatus("loading");
-      setListError(null);
-      setResolvedForInstituteId(null);
-      return;
-    }
-
-    if (instituteCtx.status === "error" || instituteCtx.status === "forbidden") {
-      setItems([]);
-      setListStatus(instituteCtx.status === "forbidden" ? "forbidden" : "error");
-      setListError(instituteCtx.errorMessage);
-      setResolvedForInstituteId(null);
-      return;
-    }
-
-    if (
-      instituteCtx.status === "needs_selection" ||
-      instituteCtx.status === "empty" ||
-      !instituteCtx.activeInstituteId
-    ) {
-      setItems([]);
-      setListStatus("needs_institute");
-      setListError(null);
-      setResolvedForInstituteId(null);
-      return;
-    }
-
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setListStatus("loading");
-    setListError(null);
-    void loadComplaintsList(requestInstituteId).then((next) => {
-      if (
-        !shouldCommitComplaintsLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setItems(next.items);
-      setListStatus(next.status);
-      setListError(next.errorMessage);
-      setResolvedForInstituteId(requestInstituteId);
-      void refreshAdminComplaintsPendingCount(requestInstituteId);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    apiMode,
-    instituteCtx.status,
-    instituteCtx.activeInstituteId,
-    instituteCtx.errorMessage,
-    reloadKey,
-  ]);
-
-  useEffect(() => {
     if (apiMode) return;
+    setDemoItems(loadDemoComplaints(DEMO_COMPLAINTS_SEED) as Complaint[]);
     return listenDemoSync("complaints", () => {
-      setItems(loadDemoComplaints(DEMO_COMPLAINTS_SEED) as Complaint[]);
+      setDemoItems(loadDemoComplaints(DEMO_COMPLAINTS_SEED) as Complaint[]);
     });
   }, [apiMode]);
+
+  useEffect(() => {
+    if (!listEnabled || !instituteCtx.activeInstituteId || !complaintsQuery.data) return;
+    void refreshAdminComplaintsPendingCount(instituteCtx.activeInstituteId);
+  }, [listEnabled, instituteCtx.activeInstituteId, complaintsQuery.dataUpdatedAt]);
 
   const detail = useMemo(
     () => (detailId ? displayItems.find((c) => c.id === detailId) ?? null : null),
@@ -174,8 +131,7 @@ function ComplaintsPage() {
         responseNote: reason?.trim() || null,
       })
         .then(() => {
-          setReloadKey((k) => k + 1);
-          void refreshAdminComplaintsPendingCount(instituteCtx.activeInstituteId);
+          bumpComplaintsReload();
           notify(`Complaint ${id} moved to ${status.replace("_", " ")}`);
         })
         .catch((err) => {
@@ -184,8 +140,10 @@ function ComplaintsPage() {
       return;
     }
     const current = items.find((c) => c.id === id);
-    setItems((prev) => {
-      const next = prev.map((c) => (c.id === id ? { ...c, status } : c));
+    setDemoItems((prev) => {
+      const next = prev.map((c) =>
+        c.id === id ? { ...c, status: status as Complaint["status"] } : c,
+      );
       saveDemoComplaints(next as DemoComplaint[]);
       return next;
     });
@@ -242,7 +200,7 @@ function ComplaintsPage() {
         setNewBody("");
         setNewCategory("general");
         setNewPriority("medium");
-        setReloadKey((k) => k + 1);
+        bumpComplaintsReload();
         notify("Complaint created");
       })
       .catch((err) => {
@@ -255,7 +213,7 @@ function ComplaintsPage() {
     void deleteComplaint(id)
       .then(() => {
         setDetailId(null);
-        setReloadKey((k) => k + 1);
+        bumpComplaintsReload();
         notify("Complaint deleted");
       })
       .catch((err) => {
@@ -281,7 +239,7 @@ function ComplaintsPage() {
       title="Complaint Triage"
       subtitle={
         apiMode
-          ? "API mode · create / transition / delete"
+          ? "Create / transition / delete"
           : "Destination required (Class Teacher or Principal/Admin) · Priority Low / Medium / High · No automatic routing"
       }
       actions={
@@ -555,7 +513,7 @@ function ComplaintsPage() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         title="New complaint"
-        subtitle="Creates via institute complaints API"
+        subtitle="Create a new complaint"
         size="md"
         footer={
           <>

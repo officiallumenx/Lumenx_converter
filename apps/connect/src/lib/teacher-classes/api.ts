@@ -27,6 +27,7 @@ export type SectionDto = {
   room: string | null;
   sortOrder: number;
   status: "active" | "inactive";
+  classTeacherId?: string | null;
   createdAt: string;
   updatedAt: string;
 };

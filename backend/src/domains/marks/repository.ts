@@ -5,6 +5,7 @@ import type {
   ListMarkEntriesFilter,
   MarkEntryRow,
   MarkEntryStatus,
+  MarkPublicationRow,
   MarkScoreRow,
   ScoreInput,
 } from "./types.js";
@@ -13,7 +14,7 @@ const ENTRY_COLS =
   "id, institute_id, academic_year_id, class_id, section_id, exam_id, subject_id, teacher_id, max_marks, status, submitted_at, published_at, admin_note, created_at, updated_at, deleted_at";
 
 const SCORE_COLS =
-  "id, institute_id, mark_entry_id, student_id, enrollment_id, marks, created_at, updated_at, deleted_at";
+  "id, institute_id, mark_entry_id, student_id, enrollment_id, marks, internal_marks, external_marks, created_at, updated_at, deleted_at";
 
 export type ExamGraphRow = {
   id: string;
@@ -226,6 +227,62 @@ export async function listScoresForEntryIds(
   return ensureDbOk(result) as MarkScoreRow[];
 }
 
+export async function findTeacherAssignmentForSubject(
+  admin: SupabaseClient,
+  input: {
+    instituteId: string;
+    academicYearId: string;
+    classId: string;
+    sectionId: string;
+    subjectId: string;
+  },
+): Promise<{ teacher_id: string } | null> {
+  const result = await admin
+    .from("teacher_assignment")
+    .select("teacher_id")
+    .eq("institute_id", input.instituteId)
+    .eq("academic_year_id", input.academicYearId)
+    .eq("class_id", input.classId)
+    .eq("section_id", input.sectionId)
+    .eq("subject_id", input.subjectId)
+    .eq("status", "active")
+    .is("deleted_at", null)
+    .limit(1);
+  const rows = ensureDbOk(result) as Array<{ teacher_id: string }>;
+  return rows[0] ?? null;
+}
+
+export async function findAnyActiveTeacherId(
+  admin: SupabaseClient,
+  instituteId: string,
+): Promise<string | null> {
+  const result = await admin
+    .from("teacher")
+    .select("id")
+    .eq("institute_id", instituteId)
+    .eq("status", "active")
+    .is("deleted_at", null)
+    .limit(1);
+  const rows = ensureDbOk(result) as Array<{ id: string }>;
+  return rows[0]?.id ?? null;
+}
+
+export async function findMarkEntryByExamSectionSubject(
+  admin: SupabaseClient,
+  input: { examId: string; sectionId: string; subjectId: string },
+): Promise<MarkEntryRow | null> {
+  const result = await admin
+    .from("mark_entry")
+    .select(ENTRY_COLS)
+    .eq("exam_id", input.examId)
+    .eq("section_id", input.sectionId)
+    .eq("subject_id", input.subjectId)
+    .is("deleted_at", null)
+    .limit(1);
+  const rows = ensureDbOk(result) as MarkEntryRow[];
+  return rows[0] ?? null;
+}
+
 export async function insertMarkEntry(
   admin: SupabaseClient,
   input: CreateMarkEntryInput & { teacherId: string },
@@ -329,8 +386,125 @@ export async function insertScores(
         student_id: s.studentId,
         enrollment_id: s.enrollmentId,
         marks: s.marks,
+        internal_marks: s.internalMarks ?? null,
+        external_marks: s.externalMarks ?? null,
       })),
     )
     .select(SCORE_COLS);
   return ensureDbOk(result) as MarkScoreRow[];
+}
+
+export async function insertMarkScoreAudit(
+  admin: SupabaseClient,
+  rows: Array<{
+    instituteId: string;
+    markEntryId: string;
+    markScoreId: string | null;
+    enrollmentId: string;
+    studentId: string;
+    action: string;
+    previousMarks: number | null;
+    previousInternal: number | null;
+    previousExternal: number | null;
+    nextMarks: number | null;
+    nextInternal: number | null;
+    nextExternal: number | null;
+    actorUserId: string | null;
+    note?: string | null;
+  }>,
+): Promise<void> {
+  if (rows.length === 0) return;
+  const result = await admin.from("mark_score_audit").insert(
+    rows.map((r) => ({
+      institute_id: r.instituteId,
+      mark_entry_id: r.markEntryId,
+      mark_score_id: r.markScoreId,
+      enrollment_id: r.enrollmentId,
+      student_id: r.studentId,
+      action: r.action,
+      previous_marks: r.previousMarks,
+      previous_internal: r.previousInternal,
+      previous_external: r.previousExternal,
+      next_marks: r.nextMarks,
+      next_internal: r.nextInternal,
+      next_external: r.nextExternal,
+      actor_user_id: r.actorUserId,
+      note: r.note ?? null,
+    })),
+  );
+  ensureDbOk(result);
+}
+
+// ── mark_publication ────────────────────────────────────────────
+
+const PUBLICATION_COLS =
+  "id, institute_id, mark_entry_id, academic_year_id, class_id, section_id, exam_id, subject_id, published_at, published_by_user_id, score_count, note, created_at, updated_at, deleted_at";
+
+export async function insertMarkPublication(
+  admin: SupabaseClient,
+  input: {
+    instituteId: string;
+    markEntryId: string;
+    academicYearId: string;
+    classId: string;
+    sectionId: string;
+    examId: string;
+    subjectId: string;
+    publishedByUserId: string;
+    scoreCount: number;
+    note?: string | null;
+  },
+): Promise<MarkPublicationRow> {
+  const result = await admin
+    .from("mark_publication")
+    .insert({
+      institute_id: input.instituteId,
+      mark_entry_id: input.markEntryId,
+      academic_year_id: input.academicYearId,
+      class_id: input.classId,
+      section_id: input.sectionId,
+      exam_id: input.examId,
+      subject_id: input.subjectId,
+      published_by_user_id: input.publishedByUserId,
+      score_count: input.scoreCount,
+      note: input.note ?? null,
+    })
+    .select(PUBLICATION_COLS)
+    .single();
+  return ensureDbOk(result) as MarkPublicationRow;
+}
+
+export async function listMarkPublications(
+  admin: SupabaseClient,
+  filter: {
+    instituteId: string;
+    sectionId?: string;
+    examId?: string;
+  },
+): Promise<MarkPublicationRow[]> {
+  let query = admin
+    .from("mark_publication")
+    .select(PUBLICATION_COLS)
+    .eq("institute_id", filter.instituteId)
+    .is("deleted_at", null);
+
+  if (filter.sectionId) query = query.eq("section_id", filter.sectionId);
+  if (filter.examId) query = query.eq("exam_id", filter.examId);
+
+  const result = await query;
+  return ensureDbOk(result) as MarkPublicationRow[];
+}
+
+export async function findMarkPublicationById(
+  admin: SupabaseClient,
+  id: string,
+): Promise<MarkPublicationRow | null> {
+  const result = await admin
+    .from("mark_publication")
+    .select(PUBLICATION_COLS)
+    .eq("id", id)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (result.data as MarkPublicationRow | null) ?? null;
 }

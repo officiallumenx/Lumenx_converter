@@ -19,7 +19,13 @@ import {
   type FeesSnapshot,
 } from "@lumenx/module-fees";
 import { useAdminToast } from "@/components/AdminActionToast";
-import { findCategoryByKind, replaceCoreClassAmounts, syncTuitionBooksRow } from "@/lib/fees";
+import {
+  findCategoryByKind,
+  publishFeePlan,
+  replaceCoreClassAmounts,
+  syncTuitionBooksRow,
+} from "@/lib/fees";
+import type { ClassIdsByLabel } from "@/lib/fees/class-ids";
 
 function resolveCoreIds(snapshot: FeesSnapshot) {
   return {
@@ -51,6 +57,7 @@ export function FeesClassFeesView({
   apiMode = false,
   feePlanId = null,
   classIdByLabel = {},
+  classIdsByLabel = {},
   onApiReload,
 }: {
   snapshot: FeesSnapshot;
@@ -59,6 +66,7 @@ export function FeesClassFeesView({
   apiMode?: boolean;
   feePlanId?: string | null;
   classIdByLabel?: Record<string, string>;
+  classIdsByLabel?: ClassIdsByLabel;
   onApiReload?: () => void;
 }) {
   const notify = useAdminToast();
@@ -104,6 +112,7 @@ export function FeesClassFeesView({
         feePlanId,
         snapshot,
         classIdByLabel,
+        classIdsByLabel,
         classKey,
         tuition,
         books,
@@ -126,46 +135,35 @@ export function FeesClassFeesView({
     notify(`Tuition & books saved for ${classKey}`);
   };
 
-  const saveAll = () => {
-    if (!writesEnabled || saving) return;
+  const persistAllAmounts = async (): Promise<void> => {
     if (apiMode) {
       if (!feePlanId) {
-        notify("No fee plan available");
-        return;
+        throw new Error("No fee plan available");
       }
-      setSaving(true);
       const tuitionByClass: Record<string, number> = {};
       const booksByClass: Record<string, number> = {};
       for (const ck of classKeys) {
         tuitionByClass[ck] = parseAmount(draft[ck]?.[ids.tuition]);
         booksByClass[ck] = parseAmount(draft[ck]?.[ids.books]);
       }
-      void (async () => {
-        await replaceCoreClassAmounts({
-          feePlanId,
-          snapshot,
-          classIdByLabel,
-          kind: "tuition",
-          name: "Tuition",
-          amountsByClassKey: tuitionByClass,
-        });
-        await replaceCoreClassAmounts({
-          feePlanId,
-          snapshot,
-          classIdByLabel,
-          kind: "books",
-          name: "Books",
-          amountsByClassKey: booksByClass,
-        });
-      })()
-        .then(() => {
-          onApiReload?.();
-          notify("Class tuition & books saved");
-        })
-        .catch((err) => {
-          notify(err instanceof Error ? err.message : "Failed to save class fees");
-        })
-        .finally(() => setSaving(false));
+      await replaceCoreClassAmounts({
+        feePlanId,
+        snapshot,
+        classIdByLabel,
+        classIdsByLabel,
+        kind: "tuition",
+        name: "Tuition",
+        amountsByClassKey: tuitionByClass,
+      });
+      await replaceCoreClassAmounts({
+        feePlanId,
+        snapshot,
+        classIdByLabel,
+        classIdsByLabel,
+        kind: "books",
+        name: "Books",
+        amountsByClassKey: booksByClass,
+      });
       return;
     }
 
@@ -185,7 +183,41 @@ export function FeesClassFeesView({
       );
     }
     onChange(next);
-    notify("Class tuition & books saved");
+  };
+
+  const saveAll = () => {
+    if (!writesEnabled || saving) return;
+    setSaving(true);
+    void persistAllAmounts()
+      .then(() => {
+        onApiReload?.();
+        notify("Class tuition & books saved");
+      })
+      .catch((err) => {
+        notify(err instanceof Error ? err.message : "Failed to save class fees");
+      })
+      .finally(() => setSaving(false));
+  };
+
+  const saveAndPublish = () => {
+    if (!writesEnabled || saving) return;
+    setSaving(true);
+    void persistAllAmounts()
+      .then(async () => {
+        if (apiMode && feePlanId) {
+          await publishFeePlan(feePlanId, { publishScope: "institute" });
+        }
+        onApiReload?.();
+        notify(
+          apiMode
+            ? "Class fees saved & published"
+            : "Class tuition & books saved",
+        );
+      })
+      .catch((err) => {
+        notify(err instanceof Error ? err.message : "Failed to save & publish");
+      })
+      .finally(() => setSaving(false));
   };
 
   return (
@@ -198,13 +230,23 @@ export function FeesClassFeesView({
               ? apiMode
                 ? "Default tuition and books per class · saved via fees components API"
                 : "Default tuition and books per class · transport is set in Transport fees"
-              : "Read-only tuition and books from API"
+              : "View-only tuition and books"
           }
           action={
             writesEnabled ? (
-              <Button size="sm" variant="primary" onClick={saveAll} disabled={saving}>
-                Save all
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" onClick={() => void saveAll()} disabled={saving}>
+                  Save all
+                </Button>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={saveAndPublish}
+                  disabled={saving}
+                >
+                  Save & publish
+                </Button>
+              </div>
             ) : undefined
           }
         />

@@ -85,8 +85,7 @@ export async function syncAdminSubscriptionAccessFromApi(
 /** Refresh lifecycle + subscriptionExpired flag + in-app renewal reminder state. */
 export function syncAdminSubscriptionAccess(): void {
   if (isApiAuthMode()) {
-    const instituteId = getAdminBoundNexusInstituteId();
-    if (instituteId) void syncAdminSubscriptionAccessFromApi(instituteId);
+    // Prefer real active institute UUID — never default to demo `ins-test1school`.
     return;
   }
   const instituteId = getAdminBoundNexusInstituteId();

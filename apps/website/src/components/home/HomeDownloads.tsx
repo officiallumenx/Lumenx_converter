@@ -21,7 +21,7 @@ export function HomeDownloads() {
       </Grid>
       <p className="mt-6">
         <CTAButton asChild variant="ghost" className="px-0">
-          <Link to="/downloads" search={{}}>
+          <Link to="/resources/downloads" search={{}}>
             All download details
           </Link>
         </CTAButton>

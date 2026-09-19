@@ -4,14 +4,15 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
-  useState,
   type ReactNode,
 } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApp } from "@/lib/app-state";
 import { isApiAuthMode } from "@/auth/auth-mode";
+import { isInstituteUuid } from "@/lib/institute-id";
 import { loadStudentPortalSnapshot } from "@/lib/students";
 import { studentRepository } from "@/lib/student/repositories";
+import { connectQueryKeys } from "@/lib/connect-queries";
 import type { StudentSnapshot } from "@/lib/student/types";
 
 /** Flat shape so consumers can read fields without brittle discriminant narrowing. */
@@ -26,49 +27,50 @@ const StudentPortalCtx = createContext<StudentPortalState | undefined>(undefined
 
 export function StudentPortalRegistry({ children }: { children: ReactNode }) {
   const { role, activeInstituteId, user } = useApp();
-  const [snapshot, setSnapshot] = useState<StudentSnapshot | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [tick, setTick] = useState(0);
-  const seq = useRef(0);
+  const queryClient = useQueryClient();
+  const isStudent = role === "student";
+  const canRun =
+    isStudent &&
+    Boolean(activeInstituteId) &&
+    (isApiAuthMode() ? isInstituteUuid(activeInstituteId ?? "") : true);
 
-  const refresh = useCallback(() => setTick((t) => t + 1), []);
-
-  useEffect(() => {
-    if (role !== "student") {
-      setSnapshot((s) => (s === null ? s : null));
-      setIsLoading((loading) => (loading ? false : loading));
-      return;
-    }
-
-    const my = ++seq.current;
-    setIsLoading(true);
-
-    const load = isApiAuthMode()
-      ? loadStudentPortalSnapshot({
+  const query = useQuery({
+    queryKey: connectQueryKeys.studentPortal(activeInstituteId ?? "_"),
+    queryFn: async () => {
+      if (isApiAuthMode()) {
+        const result = await loadStudentPortalSnapshot({
           instituteId: activeInstituteId,
           userDisplayName: user?.name,
           userEmail: user?.email,
-        }).then((result) => (result.status === "ready" ? result.snapshot : null))
-      : studentRepository.getSnapshot();
+        });
+        return result.status === "ready" ? result.snapshot : null;
+      }
+      return studentRepository.getSnapshot();
+    },
+    enabled: canRun,
+  });
 
-    load
-      .then((s) => {
-        if (seq.current !== my) return;
-        setSnapshot(s);
-        setIsLoading(false);
-      })
-      .catch(() => {
-        if (seq.current !== my) return;
-        setIsLoading(false);
-      });
-  }, [role, tick, activeInstituteId, user?.name, user?.email]);
+  useEffect(() => {
+    if (isStudent) return;
+    queryClient.removeQueries({ queryKey: ["student-portal"] });
+  }, [isStudent, queryClient]);
+
+  const refresh = useCallback(() => {
+    if (!activeInstituteId) return;
+    void queryClient.invalidateQueries({
+      queryKey: connectQueryKeys.studentPortal(activeInstituteId),
+    });
+  }, [activeInstituteId, queryClient]);
+
+  const snapshot = query.data ?? null;
+  const isLoading = isStudent && canRun && query.isLoading && !snapshot;
 
   const value = useMemo<StudentPortalState>(() => {
-    if (role !== "student") {
+    if (!isStudent) {
       return { isStudent: false, snapshot: null, isLoading: false, refresh };
     }
     return { isStudent: true, snapshot, isLoading, refresh };
-  }, [role, snapshot, isLoading, refresh]);
+  }, [isStudent, snapshot, isLoading, refresh]);
 
   return <StudentPortalCtx.Provider value={value}>{children}</StudentPortalCtx.Provider>;
 }

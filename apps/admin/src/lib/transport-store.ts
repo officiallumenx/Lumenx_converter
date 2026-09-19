@@ -1,5 +1,6 @@
-/** Transport foundation — types + mock localStorage repository. */
+/** Transport foundation — types + localStorage repository (API mode: empty, no seed). */
 
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { readAdminDataScopeKey } from "@/lib/admin-tenant";
 import {
   deleteDriverAccount,
@@ -46,6 +47,8 @@ export type TransportDriver = {
   licenseNumber: string;
   licenseExpiry: string;
   assignedVehicleId: string | null;
+  /** True when API reports an app PIN is set (plaintext never stored locally). */
+  hasAppPin?: boolean;
   status: EntityStatus;
   notes: string;
 };
@@ -59,6 +62,8 @@ export type TransportStop = {
   notificationRadiusM: number;
   /** Present when stop is loaded from a transport route (API mode). */
   routeId?: string;
+  /** Driver submission workflow: pending → approved (published) | rejected. */
+  approvalStatus?: "pending" | "approved" | "rejected";
 };
 
 /**
@@ -76,6 +81,9 @@ export type AdminRouteStop = {
   createdByName: string;
   studentIds: string[];
   routeOrder: number;
+  /** Per-stop parent notification radius (meters). */
+  notificationRadiusM?: number;
+  approvalStatus?: "pending" | "approved" | "rejected";
 };
 
 export type TransportRoute = {
@@ -161,6 +169,10 @@ export type TransportSettings = {
   defaultNotificationRadiusM: number;
   defaultPickupBufferMins: number;
   workingDays: string[];
+  notificationsEnabled?: boolean;
+  rememberEnabled?: boolean;
+  /** HH:MM, default "07:30". */
+  defaultPickupTime?: string;
 };
 
 export type TransportSnapshot = {
@@ -235,6 +247,9 @@ function normalizeSnapshot(raw: TransportSnapshot): TransportSnapshot {
       workingDays: Array.isArray(raw.settings?.workingDays)
         ? raw.settings.workingDays
         : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+      notificationsEnabled: raw.settings?.notificationsEnabled ?? true,
+      rememberEnabled: raw.settings?.rememberEnabled ?? true,
+      defaultPickupTime: raw.settings?.defaultPickupTime?.trim() || "07:30",
     },
   };
 }
@@ -598,6 +613,28 @@ function seedSnapshot(): TransportSnapshot {
       defaultNotificationRadiusM: 100,
       defaultPickupBufferMins: 5,
       workingDays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+      notificationsEnabled: true,
+      rememberEnabled: true,
+      defaultPickupTime: "07:30",
+    },
+  };
+}
+
+function emptyTransportSnapshot(): TransportSnapshot {
+  return {
+    vehicles: [],
+    drivers: [],
+    stops: [],
+    routes: [],
+    assignments: [],
+    trips: [],
+    settings: {
+      defaultNotificationRadiusM: 100,
+      defaultPickupBufferMins: 5,
+      workingDays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+      notificationsEnabled: true,
+      rememberEnabled: true,
+      defaultPickupTime: "07:30",
     },
   };
 }
@@ -608,6 +645,9 @@ export function loadTransportSnapshot(): TransportSnapshot {
 
 /** Apply driver-synced stops onto matching Admin routes (by vehicle / route id). */
 function mergeDriverStopsIntoSnapshot(snapshot: TransportSnapshot): TransportSnapshot {
+  // API mode uses transport APIs for routes/stops — do not merge localStorage ops bridge.
+  if (isApiAuthMode()) return snapshot;
+
   const ops = loadTransportOps();
   const syncEntries = Object.values(ops.driverStopsByRoute);
   if (syncEntries.length === 0) return snapshot;
@@ -648,6 +688,24 @@ export function saveTransportSnapshot(snapshot: TransportSnapshot): void {
 
 function parseTransportSnapshot(raw: string): TransportSnapshot {
   const parsed = JSON.parse(raw) as TransportSnapshot;
+  if (isApiAuthMode()) {
+    return mergeDriverStopsIntoSnapshot(
+      normalizeSnapshot({
+        ...emptyTransportSnapshot(),
+        ...parsed,
+        settings: {
+          ...emptyTransportSnapshot().settings,
+          ...parsed.settings,
+        },
+        routes: Array.isArray(parsed.routes) ? parsed.routes : [],
+        vehicles: Array.isArray(parsed.vehicles) ? parsed.vehicles : [],
+        drivers: Array.isArray(parsed.drivers) ? parsed.drivers : [],
+        stops: Array.isArray(parsed.stops) ? parsed.stops : [],
+        assignments: Array.isArray(parsed.assignments) ? parsed.assignments : [],
+        trips: Array.isArray(parsed.trips) ? parsed.trips : [],
+      }),
+    );
+  }
   const seed = seedSnapshot();
   return mergeDriverStopsIntoSnapshot(
     normalizeSnapshot({
@@ -663,7 +721,10 @@ const transportSnapshotStore = createLocalStorageStore<TransportSnapshot>({
   storageKey,
   eventName: TRANSPORT_SNAPSHOT_EVENT,
   externalEvents: [TRANSPORT_OPS_CHANGED_EVENT],
-  seed: () => mergeDriverStopsIntoSnapshot(seedSnapshot()),
+  seed: () =>
+    isApiAuthMode()
+      ? emptyTransportSnapshot()
+      : mergeDriverStopsIntoSnapshot(seedSnapshot()),
   parse: parseTransportSnapshot,
   normalize: normalizeSnapshot,
 });
@@ -680,8 +741,8 @@ export function getTransportDashboard(snapshot: TransportSnapshot) {
   const routes = snapshot.routes.map(normalizeRoute);
   const allSetupStops = routes.flatMap((r) => r.setupStops);
   const studentIds = new Set(allSetupStops.flatMap((s) => s.studentIds));
-  // Prefer live ops enrollments (Admin → Driver bridge) over legacy snapshot assignments.
-  const opsEnrollmentCount = loadTransportOps().enrollments.length;
+  // Prefer live ops enrollments only in legacy local mode.
+  const opsEnrollmentCount = isApiAuthMode() ? 0 : loadTransportOps().enrollments.length;
   const transportStudents =
     opsEnrollmentCount || studentIds.size || snapshot.assignments.length;
   return {

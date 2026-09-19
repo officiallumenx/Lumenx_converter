@@ -38,35 +38,6 @@ async function transportFetch<T>(
   return json.data as T;
 }
 
-export type TransportExamDto = {
-  id: string;
-  instituteId: string;
-  name: string;
-  header: string;
-  startDate: string;
-  endDate: string;
-  defaultStartsAt: string;
-  defaultEndsAt: string;
-  scheduleStatus: "draft" | "published";
-  lifecycleStatus: "open" | "closed";
-  subjectSchedules: Array<{
-    id: string;
-    subjectId: string;
-    paperDate: string;
-    startsAt: string;
-    endsAt: string;
-    room: string | null;
-  }>;
-};
-
-export async function listPublishedExams(instituteId: string): Promise<TransportExamDto[]> {
-  const query = new URLSearchParams({
-    institute_id: instituteId,
-    schedule_status: "published",
-  });
-  return transportFetch<TransportExamDto[]>(`/api/v1/exams?${query.toString()}`);
-}
-
 export type DriverMe = {
   driverId: string;
   instituteId: string;
@@ -240,6 +211,8 @@ export type TransportBoardingEventDto = {
 
 export type TransportEmergencyDto = {
   id: string;
+  instituteId?: string;
+  tripId?: string | null;
   status: "active" | "acknowledged" | "resolved";
   emergencyType: string;
   note: string | null;
@@ -247,6 +220,15 @@ export type TransportEmergencyDto = {
   longitude: number | null;
   vehicleId: string;
   driverId: string;
+  driverName?: string | null;
+  vehicleNumber?: string | null;
+  routeName?: string | null;
+  acknowledgedAt?: string | null;
+  resolvedAt?: string | null;
+  resolveNote?: string | null;
+  timeline?: Array<{ id: string; at: string; label: string; note?: string }>;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export async function startTransportTrip(input: {
@@ -349,6 +331,17 @@ export async function markTripDropping(
         dropping_status: input.droppingStatus,
       },
     },
+  );
+}
+
+export async function listTransportEmergenciesApi(input: {
+  instituteId: string;
+  status?: "active" | "acknowledged" | "resolved";
+}): Promise<TransportEmergencyDto[]> {
+  const query = new URLSearchParams({ institute_id: input.instituteId });
+  if (input.status) query.set("status", input.status);
+  return transportFetch<TransportEmergencyDto[]>(
+    `/api/v1/transport/emergencies?${query.toString()}`,
   );
 }
 

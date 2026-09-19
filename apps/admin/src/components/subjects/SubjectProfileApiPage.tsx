@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useReloadKey } from "@/hooks/useReloadKey";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
@@ -55,7 +56,7 @@ export function SubjectProfileApiPage({ subjectId }: { subjectId: string }) {
   const [status, setStatus] = useState<SubjectsListStatus>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const [reloadKey, setReloadKey] = useReloadKey();
   const [saving, setSaving] = useState(false);
   const [periods, setPeriods] = useState("5");
   const [subjectStatus, setSubjectStatus] = useState<SubjectStatus>("active");
@@ -160,7 +161,7 @@ export function SubjectProfileApiPage({ subjectId }: { subjectId: string }) {
   return (
     <AppShell
       title={displaySubject?.name ?? "Subject"}
-      subtitle="API mode · subject catalog record"
+      subtitle="Subject catalog record"
       actions={
         <Link to="/subjects">
           <Button variant="outline" size="sm">
@@ -197,7 +198,7 @@ export function SubjectProfileApiPage({ subjectId }: { subjectId: string }) {
               </div>
             </Card>
             <Card>
-              <CardHeader title="Edit subject" hint="PATCH /subjects/:id" />
+              <CardHeader title="Edit subject" hint="Update subject details" />
               <div className="grid gap-4 px-4 pb-5 sm:grid-cols-2 sm:px-5">
                 <Field label="Periods per week">
                   <TextInput

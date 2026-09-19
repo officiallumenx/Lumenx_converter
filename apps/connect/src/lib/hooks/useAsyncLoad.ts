@@ -4,6 +4,7 @@ import {
   useState,
   type DependencyList,
 } from "react";
+import { useReloadKey } from "@/hooks/useReloadKey";
 
 type UseAsyncLoadOptions<T> = {
   /** Value before the first successful load. */
@@ -33,11 +34,11 @@ export function useAsyncLoad<T>(
 
   const [data, setData] = useState<T>(initial);
   const [loading, setLoading] = useState(initialLoading);
-  const [reloadToken, setReloadToken] = useState(0);
+  const [reloadToken, setReloadToken] = useReloadKey();
 
   const reload = useCallback(() => {
     setReloadToken((n) => n + 1);
-  }, []);
+  }, [setReloadToken]);
 
   useEffect(() => {
     if (!enabled) {

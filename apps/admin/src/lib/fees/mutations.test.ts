@@ -13,12 +13,12 @@ describe("fees mutations", () => {
     vi.clearAllMocks();
   });
 
-  it("refuses create plan in demo mode", async () => {
+  it("refuses create plan without authenticated API client", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
     const { createFeePlan } = await import("./mutations");
     await expect(
       createFeePlan({ instituteId: INST, academicYearId: YEAR }),
-    ).rejects.toThrow(/API auth mode/);
+    ).rejects.toThrow(/API auth mode|Authentication required|Demo Mode is no longer supported/);
   });
 
   it("does not call network for invalid student UUID on concession", async () => {
@@ -66,9 +66,9 @@ describe("fees mutations", () => {
     );
   });
 
-  it("posts payment payload in API mode", async () => {
+  it("posts payment with fee_component_id; cash note optional", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
-    const post = vi.fn().mockResolvedValue({ id: PLAN });
+    const post = vi.fn().mockResolvedValue({ id: PLAN, feeComponentId: COMPONENT });
     const client = { post } as never;
     const { recordPayment } = await import("./mutations");
     await recordPayment(
@@ -76,10 +76,11 @@ describe("fees mutations", () => {
         feePlanId: PLAN,
         studentId: STUDENT,
         classId: CLASS,
+        feeComponentId: COMPONENT,
         amount: 1000,
         method: "cash",
         paidOn: "2026-08-29",
-        note: "Cash at reception",
+        note: null,
       },
       client,
     );
@@ -88,11 +89,35 @@ describe("fees mutations", () => {
       expect.objectContaining({
         fee_plan_id: PLAN,
         class_id: CLASS,
+        fee_component_id: COMPONENT,
         method: "cash",
         paid_on: "2026-08-29",
-        note: "Cash at reception",
+        note: null,
       }),
     );
+  });
+
+  it("requires transaction note for non-cash payment methods", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const post = vi.fn();
+    const client = { post } as never;
+    const { recordPayment } = await import("./mutations");
+    await expect(
+      recordPayment(
+        {
+          feePlanId: PLAN,
+          studentId: STUDENT,
+          classId: CLASS,
+          feeComponentId: COMPONENT,
+          amount: 1000,
+          method: "upi_office",
+          paidOn: "2026-08-29",
+          note: "   ",
+        },
+        client,
+      ),
+    ).rejects.toThrow(/Transaction ID \/ note is required/);
+    expect(post).not.toHaveBeenCalled();
   });
 
   it("posts void payment payload in API mode", async () => {

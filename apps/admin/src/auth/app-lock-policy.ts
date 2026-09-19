@@ -20,9 +20,10 @@ export function isLocalPinStorageAllowed(): boolean {
   return isDemoAuthMode();
 }
 
-/** Demo OTP/PIN recovery routes are not used in API mode. */
+/** Demo-only local app-lock routes. API PIN recovery lives in Admin login flow. */
 export function resolveAppLockDemoRouteBlock(pathname: string): string | null {
   if (!isApiAuthMode()) return null;
-  if (pathname === "/forgot-pin") return "/forgot-password";
+  // Keep /forgot-pin available in API mode for deep-links; login embeds recovery.
+  if (pathname === "/forgot-pin") return null;
   return null;
 }

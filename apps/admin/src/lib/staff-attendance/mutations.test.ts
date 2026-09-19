@@ -10,7 +10,7 @@ describe("staff attendance mutations", () => {
     vi.clearAllMocks();
   });
 
-  it("refuses upsert in demo mode", async () => {
+  it("refuses upsert without authenticated API client", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
     const { upsertStaffAttendanceDay } = await import("./mutations");
     await expect(
@@ -19,7 +19,7 @@ describe("staff attendance mutations", () => {
         date: "2026-08-29",
         marks: [{ teacherId: TEACHER, status: "present" }],
       }),
-    ).rejects.toThrow(/API auth mode/);
+    ).rejects.toThrow(/API auth mode|Authentication required|Demo Mode is no longer supported/);
   });
 
   it("does not call network for invalid attendance UUID on delete", async () => {
@@ -42,7 +42,7 @@ describe("staff attendance mutations", () => {
       {
         instituteId: INST,
         date: "2026-08-29",
-        marks: [{ teacherId: TEACHER, status: "late", note: "Traffic" }],
+        marks: [{ teacherId: TEACHER, status: "half-day", note: "PM leave" }],
       },
       client,
     );
@@ -54,8 +54,8 @@ describe("staff attendance mutations", () => {
         marks: [
           expect.objectContaining({
             teacher_id: TEACHER,
-            status: "late",
-            note: "Traffic",
+            status: "half-day",
+            note: "PM leave",
           }),
         ],
       }),

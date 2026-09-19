@@ -27,7 +27,7 @@ export function DemoCTA({
   };
   return (
     <CTAButton asChild variant={variant} size="md">
-      <Link to="/demo" search={search}>
+      <Link to="/resources/demo" search={search}>
         {label}
       </Link>
     </CTAButton>

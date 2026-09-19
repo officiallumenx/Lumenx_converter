@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { createPortal } from "react-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
@@ -6,9 +7,7 @@ import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import { isInstituteUuid } from "@/lib/active-institute";
 import {
-  loadParentsList,
   resolveParentsListView,
-  shouldCommitParentsLoad,
   createParent as createParentApi,
   updateParent as updateParentApi,
   deleteParent as deleteParentApi,
@@ -16,6 +15,8 @@ import {
   type ParentListItem,
   type ParentsListStatus,
 } from "@/lib/parents";
+import { useParentsListQuery, adminQueryRoots } from "@/lib/admin-queries";
+import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { Mail, MoreHorizontal, Phone, Plus, Users } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
@@ -39,8 +40,6 @@ import {
   TextInput,
   Th,
   ToolbarGroup,
-  ToolbarMeta,
-  ToolbarSpacer,
   CascadingFiltersMenu,
 } from "@lumenx/ui-admin";
 import {
@@ -129,6 +128,7 @@ function ParentsPage() {
   const notify = useAdminToast();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
   const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
@@ -144,9 +144,24 @@ function ParentsPage() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
-  const [reloadKey, setReloadKey] = useState(0);
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
+  const listEnabled =
+    apiMode &&
+    instituteCtx.status === "ready" &&
+    Boolean(instituteCtx.activeInstituteId);
+  const parentsQuery = useParentsListQuery(
+    instituteCtx.activeInstituteId,
+    listEnabled,
+  );
+  const bumpParentsReload = () => {
+    invalidateAdminCache("admin:parents");
+    if (instituteCtx.activeInstituteId) {
+      void queryClient.invalidateQueries({
+        queryKey: [adminQueryRoots.parents, instituteCtx.activeInstituteId],
+      });
+    }
+  };
 
   const listView = resolveParentsListView({
     apiMode,
@@ -154,7 +169,8 @@ function ParentsPage() {
     activeInstituteId: instituteCtx.activeInstituteId,
     resolvedForInstituteId,
     storedItems: apiItems,
-    storedStatus: listStatus,
+    storedStatus:
+      parentsQuery.isLoading && !parentsQuery.data ? "loading" : listStatus,
     storedErrorMessage: listError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
@@ -219,34 +235,25 @@ function ParentsPage() {
       return;
     }
 
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setListStatus("loading");
-    setListError(null);
-    void loadParentsList(requestInstituteId).then((next) => {
-      if (
-        !shouldCommitParentsLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setApiItems(next.items);
-      setListStatus(next.status);
-      setListError(next.errorMessage);
-      setResolvedForInstituteId(requestInstituteId);
-    });
-    return () => {
-      cancelled = true;
-    };
+    if (parentsQuery.isLoading && !parentsQuery.data) {
+      setListStatus("loading");
+      setListError(null);
+      return;
+    }
+    if (!parentsQuery.data) return;
+
+    const next = parentsQuery.data;
+    setApiItems(next.items);
+    setListStatus(next.status);
+    setListError(next.errorMessage);
+    setResolvedForInstituteId(instituteCtx.activeInstituteId);
   }, [
     apiMode,
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
-    reloadKey,
+    parentsQuery.data,
+    parentsQuery.isLoading,
   ]);
 
   useEffect(() => {
@@ -277,7 +284,7 @@ function ParentsPage() {
       if (!writesEnabled) return;
       void updateParentApi(id, { accessStatus })
         .then(() => {
-          setReloadKey((k) => k + 1);
+          bumpParentsReload();
           const action =
             accessStatus === "hold"
               ? "placed on hold"
@@ -304,7 +311,7 @@ function ParentsPage() {
       void deleteParentApi(id)
         .then(() => {
           setPendingDelete(null);
-          setReloadKey((k) => k + 1);
+          bumpParentsReload();
           notify("Parent deleted");
         })
         .catch((err) => {
@@ -332,7 +339,7 @@ function ParentsPage() {
       if (!writesEnabled) return;
       void updateParentApi(id, { inviteStatus: "active" })
         .then(() => {
-          setReloadKey((k) => k + 1);
+          bumpParentsReload();
           notify("Invite marked active");
         })
         .catch((err) => {
@@ -479,7 +486,7 @@ function ParentsPage() {
           setDraft(EMPTY_DRAFT);
           setError("");
           setOpen(false);
-          setReloadKey((k) => k + 1);
+          bumpParentsReload();
           notify(`${created.name} created · parent can sign in with mobile OTP`);
         })
         .catch((err) => {
@@ -582,7 +589,7 @@ function ParentsPage() {
       title="Parent Directory"
       subtitle={
         apiMode
-          ? `API mode · ${countLabel(list.length)} guardians`
+          ? `${countLabel(list.length)} guardians`
           : `${list.length} guardians · ${scopeLabel}`
       }
       actions={
@@ -603,13 +610,11 @@ function ParentsPage() {
                 ? "Search guardian, email, phone, or ID…"
                 : "Search parent, ID, email, phone, or child…"
             }
-            className="w-full min-w-0 flex-1"
+            className="min-w-0 flex-1 sm:w-full"
           />
           <ToolbarGroup className="lx-people-filters">
             <CascadingFiltersMenu groups={filterGroups} />
           </ToolbarGroup>
-          <ToolbarSpacer />
-          <ToolbarMeta>{countLabel(list.length)} results</ToolbarMeta>
         </PageToolbar>
 
         {!listView.rowsValid ? (

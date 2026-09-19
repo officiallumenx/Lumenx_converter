@@ -29,6 +29,7 @@ import {
   type StudentLifecycleStatus,
 } from "@/lib/academic-management-data";
 import { listClassesCatalog, type ClassDto, type SectionDto } from "@/lib/classes";
+import { classSortRank, sectionSortRank } from "@/lib/classes/name-format";
 import {
   enrollmentStatusLabel,
   loadEnrollmentsList,
@@ -401,7 +402,10 @@ function StudentStatusApiView() {
 
   const classOptions = useMemo(() => {
     return [...classes].sort(
-      (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name),
+      (a, b) =>
+        classSortRank(a.name || a.code) - classSortRank(b.name || b.code) ||
+        (a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
+        a.name.localeCompare(b.name),
     );
   }, [classes]);
 
@@ -409,7 +413,12 @@ function StudentStatusApiView() {
     if (!currentClassId) return [];
     return sections
       .filter((row) => row.classId === currentClassId)
-      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+      .sort(
+        (a, b) =>
+          sectionSortRank(a.code || a.name) - sectionSortRank(b.code || b.name) ||
+          (a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
+          a.name.localeCompare(b.name),
+      );
   }, [sections, currentClassId]);
 
   useEffect(() => {
@@ -504,7 +513,7 @@ function StudentStatusApiView() {
       <Card>
         <CardHeader
           title="Student status"
-          hint="Live enrollments · update status via API"
+          hint="Live enrollments · update student status"
         />
         <CardBody className="border-b border-border space-y-4">
           {loadHint ? (

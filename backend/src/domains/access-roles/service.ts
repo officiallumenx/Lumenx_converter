@@ -14,6 +14,7 @@ import {
   listRolesForMemberships,
   replaceMembershipRoles,
   updateMembershipFields,
+  updateProfileFields,
 } from "../identity/repository.js";
 import { findTeacherById, updateTeacherFields } from "../teachers/repository.js";
 import { findStaffAccountById, updateStaffAccountFields } from "../staff/repository.js";
@@ -21,11 +22,18 @@ import { provisionAuthUser, ensureParentProfile } from "../parents/provision.js"
 import { SYSTEM_ACCESS_ROLE_SEEDS } from "./defaults.js";
 import { allPermissions, isAdminModuleRoute } from "./module-routes.js";
 import {
+  assertValidPin,
+  assertValidUsername,
+  findCredentialByUserId,
+  upsertUserAuthCredential,
+} from "../auth-credentials/repository.js";
+import {
   countAssignmentsForRole,
   findAccessAssignmentById,
   findAccessAssignmentByMembershipId,
   findAccessRoleById,
   findAccessRoleBySystemKey,
+  findProfileByEmailOrPhone,
   insertAccessAssignment,
   insertAccessRole,
   listAccessAssignmentsForInstitute,
@@ -33,6 +41,7 @@ import {
   listPermissionsForRoles,
   replaceRolePermissions,
   softDeleteAccessAssignment,
+  softDeleteAccessAssignmentsForRole,
   softDeleteAccessRole,
   updateAccessAssignmentFields,
   updateAccessRoleFields,
@@ -232,7 +241,8 @@ export async function deleteAccessRoleForActor(
   admin: SupabaseClient,
   actor: Actor,
   roleId: string,
-): Promise<void> {
+  opts?: { removeAssignees?: boolean },
+): Promise<{ removedAssignees: number }> {
   const existing = await findAccessRoleById(admin, roleId);
   if (!existing) throw AppError.notFound("Access role not found");
   assertAccessAdmin(actor, existing.institute_id);
@@ -240,11 +250,18 @@ export async function deleteAccessRoleForActor(
     throw AppError.forbidden("System roles cannot be deleted");
   }
   const count = await countAssignmentsForRole(admin, roleId);
+  let removedAssignees = 0;
   if (count > 0) {
-    throw AppError.conflict("Role has assigned users and cannot be deleted");
+    if (!opts?.removeAssignees) {
+      throw AppError.conflict(
+        `Role has ${count} assigned user(s). Remove assignments first, or confirm delete with remove_assignees=true.`,
+      );
+    }
+    removedAssignees = await softDeleteAccessAssignmentsForRole(admin, roleId);
   }
   const ok = await softDeleteAccessRole(admin, roleId);
   if (!ok) throw AppError.notFound("Access role not found");
+  return { removedAssignees };
 }
 
 async function resolveAuthEmail(
@@ -297,6 +314,7 @@ async function assigneeDtoFromRows(
   if (!membership) throw AppError.notFound("Membership not found");
   const profile = await findProfileById(admin, membership.user_id);
   const role = await findAccessRoleById(admin, assignment.access_role_id);
+  const cred = await findCredentialByUserId(admin, membership.user_id);
 
   return {
     id: assignment.id,
@@ -308,6 +326,8 @@ async function assigneeDtoFromRows(
     displayName: profile?.display_name ?? "User",
     email: profile?.email ?? null,
     phone: profile?.phone ?? null,
+    username: cred?.username ?? null,
+    hasPin: Boolean(cred?.pin_hash),
     membershipStatus: membership.status,
     linkedTeacherId: assignment.linked_teacher_id,
     linkedStaffId: assignment.linked_staff_id,
@@ -338,7 +358,7 @@ export async function createAccessAssigneeForActor(
   admin: SupabaseClient,
   actor: Actor,
   input: CreateAccessAssigneeInput,
-): Promise<AccessAssigneeDto> {
+): Promise<AccessAssigneeDto & { identityProvisioned: boolean }> {
   assertAccessAdmin(actor, input.instituteId);
 
   const role = await findAccessRoleById(admin, input.accessRoleId);
@@ -346,14 +366,20 @@ export async function createAccessAssigneeForActor(
     throw AppError.notFound("Access role not found");
   }
 
+  const linkedTeacher = input.linkedTeacherId
+    ? await findTeacherById(admin, input.linkedTeacherId)
+    : null;
+  const linkedStaff = input.linkedStaffId
+    ? await findStaffAccountById(admin, input.linkedStaffId)
+    : null;
   if (input.linkedTeacherId) {
-    const teacher = await findTeacherById(admin, input.linkedTeacherId);
+    const teacher = linkedTeacher;
     if (!teacher || teacher.institute_id !== input.instituteId) {
       throw AppError.notFound("Teacher not found");
     }
   }
   if (input.linkedStaffId) {
-    const staff = await findStaffAccountById(admin, input.linkedStaffId);
+    const staff = linkedStaff;
     if (!staff || staff.institute_id !== input.instituteId) {
       throw AppError.notFound("Staff account not found");
     }
@@ -372,40 +398,101 @@ export async function createAccessAssigneeForActor(
     input.instituteId,
   );
 
-  let userId: string;
   const linkedUserId =
-    (input.linkedTeacherId
-      ? (await findTeacherById(admin, input.linkedTeacherId))?.user_profile_id
-      : null) ??
-    (input.linkedStaffId
-      ? (await findStaffAccountById(admin, input.linkedStaffId))?.user_profile_id
-      : null);
+    linkedTeacher?.user_profile_id ?? linkedStaff?.user_profile_id ?? null;
+  const matchedProfile = linkedUserId
+    ? null
+    : await findProfileByEmailOrPhone(admin, {
+        email: input.email ?? undefined,
+        phone: input.phone ?? undefined,
+      });
+  const existingUserId = linkedUserId ?? matchedProfile?.id ?? null;
 
-  if (linkedUserId) {
-    userId = linkedUserId;
-    const { error } = await admin.auth.admin.updateUserById(userId, {
-      password,
-      email: authEmail,
+  // Duplicate checks precede auth/profile/membership mutations.
+  let existingMembership = null;
+  if (existingUserId) {
+    const memberships = await listMemberships(admin, {
+      instituteId: input.instituteId,
+      userId: existingUserId,
     });
-    if (error) {
-      throw AppError.validation("Unable to update staff login credentials.");
+    existingMembership =
+      memberships.find((m) => m.status === "active") ??
+      memberships.find((m) => m.status !== "ended") ??
+      memberships[0] ??
+      null;
+    if (
+      existingMembership &&
+      (await findAccessAssignmentByMembershipId(admin, existingMembership.id))
+    ) {
+      throw AppError.conflict("This user already has an access assignment");
     }
-  } else {
-    userId = await provisionAuthUser(admin, authEmail, password);
   }
 
-  await ensureParentProfile(admin, {
-    userId,
-    displayName: input.displayName.trim() || "Staff",
-    email: authEmail,
-    phone: phoneDigits ?? "",
-  });
+  // Password here is Admin staff login only — not Connect parent/teacher/student
+  // provisioning (Connect identities are created passwordless elsewhere).
+  const userId = existingUserId ?? await provisionAuthUser(admin, authEmail, password);
+  if (!existingUserId) {
+    await ensureParentProfile(admin, {
+      userId,
+      displayName: input.displayName.trim() || "Staff",
+      email: authEmail,
+      phone: phoneDigits ?? "",
+    });
+  } else {
+    // Linked profile: set Admin password on the Auth user. Do not rewrite Auth
+    // email to a synthetic portal address when the profile already has a real one.
+    const existingProfile = await findProfileById(admin, userId);
+    const { error: pwdError } = await admin.auth.admin.updateUserById(userId, {
+      password,
+    });
+    if (pwdError) {
+      throw AppError.validation(
+        pwdError.message || "Unable to set Admin login password for this user.",
+      );
+    }
 
-  const memberships = await listMemberships(admin, {
-    instituteId: input.instituteId,
-    userId,
-  });
-  let membership = memberships[0] ?? null;
+    const { data: authUser } = await admin.auth.admin.getUserById(userId);
+    const currentAuthEmail = authUser.user?.email?.trim().toLowerCase() ?? null;
+    const preferredEmail =
+      existingProfile?.email &&
+      !existingProfile.email.includes("@portal.lumenx.local")
+        ? existingProfile.email.trim().toLowerCase()
+        : authEmail;
+    if (
+      preferredEmail &&
+      currentAuthEmail &&
+      currentAuthEmail !== preferredEmail &&
+      currentAuthEmail.includes("@portal.lumenx.local")
+    ) {
+      const { error: emailError } = await admin.auth.admin.updateUserById(userId, {
+        email: preferredEmail,
+      });
+      if (emailError) {
+        throw AppError.validation(
+          emailError.message || "Unable to update Admin login email for this user.",
+        );
+      }
+    }
+
+    const profilePatch: Record<string, unknown> = {};
+    if (input.displayName.trim()) {
+      profilePatch.display_name = input.displayName.trim();
+    }
+    if (
+      preferredEmail &&
+      (!existingProfile?.email || existingProfile.email.includes("@portal.lumenx.local"))
+    ) {
+      profilePatch.email = preferredEmail;
+    }
+    if (phoneDigits && phoneDigits.length === 10) {
+      profilePatch.phone = phoneDigits;
+    }
+    if (Object.keys(profilePatch).length > 0) {
+      await updateProfileFields(admin, userId, profilePatch);
+    }
+  }
+
+  let membership = existingMembership;
   if (!membership) {
     membership = await insertMembership(admin, {
       userId,
@@ -420,14 +507,12 @@ export async function createAccessAssigneeForActor(
       })) ?? membership;
   }
 
-  await replaceMembershipRoles(admin, membership.id, ["staff"]);
-
-  const existingAssignment = await findAccessAssignmentByMembershipId(
-    admin,
-    membership.id,
-  );
-  if (existingAssignment) {
-    throw AppError.conflict("This user already has an access assignment");
+  const currentRoles = await listRolesForMemberships(admin, [membership.id]);
+  const roleCodes = currentRoles
+    .filter((row) => row.membership_id === membership!.id)
+    .map((row) => row.role_code);
+  if (!roleCodes.includes("staff")) {
+    await replaceMembershipRoles(admin, membership.id, [...new Set([...roleCodes, "staff"])]);
   }
 
   const assignment = await insertAccessAssignment(admin, {
@@ -445,7 +530,20 @@ export async function createAccessAssigneeForActor(
     userId,
   });
 
-  return assigneeDtoFromRows(admin, assignment);
+  if (input.username?.trim() || input.pin?.trim()) {
+    await upsertUserAuthCredential(admin, {
+      userId,
+      username: input.username?.trim()
+        ? assertValidUsername(input.username)
+        : undefined,
+      pin: input.pin?.trim() ? assertValidPin(input.pin) : undefined,
+    });
+  }
+
+  return {
+    ...(await assigneeDtoFromRows(admin, assignment)),
+    identityProvisioned: !existingUserId,
+  };
 }
 
 export async function updateAccessAssigneeForActor(
@@ -461,6 +559,16 @@ export async function updateAccessAssigneeForActor(
   const membership = await findMembershipById(admin, existing.membership_id);
   if (!membership) throw AppError.notFound("Membership not found");
 
+  if (
+    input.password !== undefined ||
+    input.email !== undefined ||
+    input.phone !== undefined
+  ) {
+    throw AppError.validation(
+      "Access assignments cannot change global login email, phone, or password",
+    );
+  }
+
   if (input.accessRoleId) {
     const role = await findAccessRoleById(admin, input.accessRoleId);
     if (!role || role.institute_id !== existing.institute_id) {
@@ -471,36 +579,6 @@ export async function updateAccessAssigneeForActor(
   if (input.membershipStatus) {
     await updateMembershipFields(admin, membership.id, {
       status: input.membershipStatus,
-    });
-  }
-
-  if (input.password || input.email !== undefined || input.phone !== undefined || input.displayName) {
-    const profile = await findProfileById(admin, membership.user_id);
-    const { authEmail, phoneDigits } = await resolveAuthEmail(
-      input.email ?? profile?.email,
-      input.phone ?? profile?.phone,
-      existing.institute_id,
-    );
-    const patch: Parameters<typeof admin.auth.admin.updateUserById>[1] = {
-      email: authEmail,
-    };
-    if (input.password) {
-      if (input.password.length < 8) {
-        throw AppError.validation("password must be at least 8 characters", {
-          password: ["Too short"],
-        });
-      }
-      patch.password = input.password;
-    }
-    const { error } = await admin.auth.admin.updateUserById(membership.user_id, patch);
-    if (error) {
-      throw AppError.validation("Unable to update login credentials.");
-    }
-    await ensureParentProfile(admin, {
-      userId: membership.user_id,
-      displayName: input.displayName?.trim() || profile?.display_name || "Staff",
-      email: authEmail,
-      phone: phoneDigits ?? profile?.phone ?? "",
     });
   }
 

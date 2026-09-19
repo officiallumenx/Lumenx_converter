@@ -14,6 +14,7 @@ import {
   otpService,
   DEMO_OTP,
   OTP_RESEND_COOLDOWN_SEC,
+  shouldShowDemoOtpHint,
 } from "../otp-service";
 
 export interface OtpVerificationStepProps {
@@ -152,9 +153,14 @@ export function OtpVerificationStep({
         {success ? (successLabel ?? defaultSuccess) : (verifyLabel ?? defaultVerify)}
       </AuthButton>
 
-      <p className="text-center text-xs text-muted-foreground">
-        Demo OTP: <span className="font-mono font-semibold tracking-widest text-foreground">{DEMO_OTP}</span>
-      </p>
+      {shouldShowDemoOtpHint() && (
+        <p className="text-center text-xs text-muted-foreground">
+          Demo OTP:{" "}
+          <span className="font-mono font-semibold tracking-widest text-foreground">
+            {DEMO_OTP}
+          </span>
+        </p>
+      )}
 
       <div className="flex flex-col items-center gap-1.5 text-sm">
         <span className="text-muted-foreground text-xs sm:text-sm">Didn't receive it?</span>

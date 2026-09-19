@@ -122,6 +122,7 @@ transport.post("/vehicles", async (c) => {
       capacity: z.number().int().positive(),
       status: assetStatusSchema.optional(),
       notes: z.string().max(2000).nullable().optional(),
+      assigned_driver_id: uuid.nullable().optional(),
     }),
     await c.req.json(),
   );
@@ -132,6 +133,7 @@ transport.post("/vehicles", async (c) => {
     capacity: body.capacity,
     status: body.status,
     notes: body.notes,
+    assignedDriverId: body.assigned_driver_id,
   });
   return c.json({ data }, 201);
 });
@@ -156,6 +158,7 @@ transport.patch("/vehicles/:id", async (c) => {
         capacity: z.number().int().positive().optional(),
         status: assetStatusSchema.optional(),
         notes: z.string().max(2000).nullable().optional(),
+        assigned_driver_id: uuid.nullable().optional(),
       })
       .refine((v) => Object.keys(v).length > 0, {
         message: "At least one field is required",
@@ -168,6 +171,7 @@ transport.patch("/vehicles/:id", async (c) => {
     capacity: body.capacity,
     status: body.status,
     notes: body.notes,
+    assignedDriverId: body.assigned_driver_id,
   });
   return c.json({ data });
 });
@@ -206,6 +210,8 @@ transport.post("/drivers", async (c) => {
       status: assetStatusSchema.optional(),
       notes: z.string().max(2000).nullable().optional(),
       user_profile_id: uuid.nullable().optional(),
+      assigned_vehicle_id: uuid.nullable().optional(),
+      app_account_pin: z.string().min(4).max(8).regex(/^\d+$/),
     }),
     await c.req.json(),
   );
@@ -218,6 +224,8 @@ transport.post("/drivers", async (c) => {
     status: body.status,
     notes: body.notes,
     userProfileId: body.user_profile_id,
+    assignedVehicleId: body.assigned_vehicle_id,
+    appAccountPin: body.app_account_pin,
   });
   return c.json({ data }, 201);
 });
@@ -255,6 +263,14 @@ transport.patch("/drivers/:id", async (c) => {
         license_expiry: dateOnly,
         status: assetStatusSchema.optional(),
         notes: z.string().max(2000).nullable().optional(),
+        assigned_vehicle_id: uuid.nullable().optional(),
+        app_account_pin: z
+          .string()
+          .min(4)
+          .max(8)
+          .regex(/^\d+$/)
+          .nullable()
+          .optional(),
       })
       .refine((v) => Object.keys(v).length > 0, {
         message: "At least one field is required",
@@ -268,6 +284,8 @@ transport.patch("/drivers/:id", async (c) => {
     licenseExpiry: body.license_expiry,
     status: body.status,
     notes: body.notes,
+    assignedVehicleId: body.assigned_vehicle_id,
+    appAccountPin: body.app_account_pin,
   });
   return c.json({ data });
 });
@@ -468,8 +486,8 @@ transport.post("/enrollments", async (c) => {
       institute_id: uuid,
       student_id: uuid,
       route_id: uuid,
-      pickup_stop_id: uuid,
-      drop_stop_id: uuid,
+      pickup_stop_id: uuid.nullable().optional(),
+      drop_stop_id: uuid.nullable().optional(),
       status: enrollmentStatusSchema.optional(),
     }),
     await c.req.json(),
@@ -478,8 +496,8 @@ transport.post("/enrollments", async (c) => {
     instituteId: body.institute_id,
     studentId: body.student_id,
     routeId: body.route_id,
-    pickupStopId: body.pickup_stop_id,
-    dropStopId: body.drop_stop_id,
+    pickupStopId: body.pickup_stop_id ?? null,
+    dropStopId: body.drop_stop_id ?? null,
     status: body.status,
   });
   return c.json({ data }, 201);
@@ -501,8 +519,8 @@ transport.patch("/enrollments/:id", async (c) => {
     z
       .object({
         route_id: uuid.optional(),
-        pickup_stop_id: uuid.optional(),
-        drop_stop_id: uuid.optional(),
+        pickup_stop_id: uuid.nullable().optional(),
+        drop_stop_id: uuid.nullable().optional(),
         status: enrollmentStatusSchema.optional(),
       })
       .refine((v) => Object.keys(v).length > 0, {
@@ -556,6 +574,13 @@ transport.put("/settings", async (c) => {
       default_notification_radius_m: z.number().int().positive().optional(),
       default_pickup_buffer_mins: z.number().int().min(0).optional(),
       working_days: z.array(z.number().int().min(0).max(6)).optional(),
+      notifications_enabled: z.boolean().optional(),
+      remember_enabled: z.boolean().optional(),
+      default_pickup_time: z
+        .string()
+        .regex(/^\d{2}:\d{2}(:\d{2})?$/)
+        .nullable()
+        .optional(),
     }),
     await c.req.json(),
   );
@@ -564,6 +589,9 @@ transport.put("/settings", async (c) => {
     defaultNotificationRadiusM: body.default_notification_radius_m,
     defaultPickupBufferMins: body.default_pickup_buffer_mins,
     workingDays: body.working_days,
+    notificationsEnabled: body.notifications_enabled,
+    rememberEnabled: body.remember_enabled,
+    defaultPickupTime: body.default_pickup_time,
   });
   return c.json({ data });
 });
@@ -1032,6 +1060,7 @@ transport.post("/trips/:id/location", async (c) => {
       latitude: z.number(),
       longitude: z.number(),
       accuracy_m: z.number().nullable().optional(),
+      speed_kmh: z.number().nullable().optional(),
     }),
     await c.req.json(),
   );
@@ -1040,6 +1069,7 @@ transport.post("/trips/:id/location", async (c) => {
     latitude: body.latitude,
     longitude: body.longitude,
     accuracyM: body.accuracy_m,
+    speedKmh: body.speed_kmh,
   });
   return c.json({ data }, 201);
 });

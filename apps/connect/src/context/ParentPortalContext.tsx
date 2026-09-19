@@ -1,14 +1,10 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useEffect, useMemo, type ReactNode } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApp } from "@/lib/app-state";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { isInstituteUuid } from "@/lib/institute-id";
 import { fetchParentPortalSnapshot, parentPortalQueryKeys } from "@/api/parent-portal";
+import { connectQueryKeys } from "@/lib/connect-queries";
 import type { ParentPortalSnapshot } from "@/lib/parent-portal-data";
 
 /** Flat shape so consumers can read fields without brittle discriminant narrowing. */
@@ -25,57 +21,63 @@ export type ParentPortalState = {
 const ParentPortalCtx = createContext<ParentPortalState | undefined>(undefined);
 
 /**
- * Single subscription for parent scoped data. Keeps the previous snapshot visible during
- * same-child refetch; hides data only when the active learner changes until the new payload arrives.
+ * Parent scoped data via TanStack Query.
+ * Keeps previous snapshot visible during same-child refetch; hides data only when the
+ * active learner changes until the new payload arrives.
  */
 export function ParentPortalRegistry({ children }: { children: ReactNode }) {
   const { role, activeChildId, activeInstituteId } = useApp();
-  const [cached, setCached] = useState<ParentPortalSnapshot | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const seq = useRef(0);
-  const activeChildRef = useRef(activeChildId);
-  activeChildRef.current = activeChildId;
+  const queryClient = useQueryClient();
+  const isParent = role === "parent";
+  const canRun =
+    isParent &&
+    isApiAuthMode() &&
+    Boolean(activeInstituteId) &&
+    isInstituteUuid(activeInstituteId ?? "") &&
+    Boolean(activeChildId) &&
+    isInstituteUuid(activeChildId);
 
-  const snapshot = useMemo(() => {
-    if (role !== "parent") return null;
-    if (!cached) return null;
-    if (isLoading && cached.child.id !== activeChildId) return null;
-    return cached;
-  }, [role, cached, isLoading, activeChildId]);
+  const queryKey = connectQueryKeys.parentPortal(
+    activeInstituteId ?? "_",
+    activeChildId || "_",
+  );
+
+  const query = useQuery({
+    queryKey,
+    queryFn: ({ signal }) =>
+      fetchParentPortalSnapshot(activeInstituteId!, activeChildId, signal),
+    enabled: canRun,
+    placeholderData: (previous) => {
+      if (!previous) return undefined;
+      if (previous.child.id === activeChildId) return previous;
+      return undefined;
+    },
+  });
 
   useEffect(() => {
-    if (role !== "parent") {
-      setCached(null);
-      setIsLoading(false);
-      return;
-    }
+    if (isParent) return;
+    queryClient.removeQueries({ queryKey: ["parent-portal"] });
+  }, [isParent, queryClient]);
 
-    const my = ++seq.current;
-    const ac = new AbortController();
-    setIsLoading(true);
+  const cached = query.data ?? null;
+  const isFetchingNewChild =
+    Boolean(cached) && cached!.child.id !== activeChildId && query.isFetching;
 
-    fetchParentPortalSnapshot(activeInstituteId, activeChildId, ac.signal)
-      .then((data) => {
-        if (seq.current !== my) return;
-        if (data.child.id !== activeChildRef.current) return;
-        setCached(data);
-        setIsLoading(false);
-      })
-      .catch((e: unknown) => {
-        if (seq.current !== my) return;
-        if (e instanceof DOMException && e.name === "AbortError") {
-          setIsLoading(false);
-          return;
-        }
-        setIsLoading(false);
-        setCached((prev) => (prev && prev.child.id === activeChildRef.current ? prev : null));
-      });
+  const snapshot = useMemo(() => {
+    if (!isParent) return null;
+    if (!cached) return null;
+    if (isFetchingNewChild) return null;
+    if (cached.child.id !== activeChildId && query.isLoading) return null;
+    return cached.child.id === activeChildId ? cached : null;
+  }, [isParent, cached, activeChildId, isFetchingNewChild, query.isLoading]);
 
-    return () => ac.abort();
-  }, [role, activeChildId, activeInstituteId]);
+  const isLoading =
+    isParent &&
+    canRun &&
+    ((query.isLoading && !snapshot) || isFetchingNewChild);
 
   const value = useMemo<ParentPortalState>(() => {
-    if (role !== "parent") {
+    if (!isParent) {
       return {
         isParent: false,
         snapshot: null,
@@ -88,12 +90,12 @@ export function ParentPortalRegistry({ children }: { children: ReactNode }) {
     return {
       isParent: true,
       snapshot,
-      isLoading,
+      isLoading: !activeInstituteId || !activeChildId ? false : isLoading,
       activeChildId,
       instituteId: activeInstituteId,
       queryKey: parentPortalQueryKeys.snapshot(activeInstituteId, activeChildId),
     };
-  }, [role, snapshot, isLoading, activeChildId, activeInstituteId]);
+  }, [isParent, snapshot, isLoading, activeChildId, activeInstituteId]);
 
   return <ParentPortalCtx.Provider value={value}>{children}</ParentPortalCtx.Provider>;
 }

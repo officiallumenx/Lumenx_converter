@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
 import { SectionCard } from "@/components/app/SectionCard";
 import { ChildSwitcher } from "@/components/app/ChildSwitcher";
 import { LearnerSportsView } from "@/components/app/sports/LearnerSportsView";
 import { type LearnerRef } from "@/lib/sports-utils";
 import { isApiAuthMode } from "@/auth/auth-mode";
-import { loadLearnerActivities, type LearnerActivitiesData, type LearnerTeamAnnouncement } from "@/lib/activity/learner-load";
+import { useLearnerActivitiesQuery } from "@/lib/connect-queries/hooks";
+import type { LearnerActivitiesData, LearnerTeamAnnouncement } from "@/lib/activity/learner-load";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@lumenx/ui";
 import { Clock } from "lucide-react";
 import type { LearnerRef as SportsLearnerRef } from "@/lib/sports-utils";
@@ -179,38 +179,22 @@ export function LearnerActivitiesView({
   studentId,
 }: Props) {
   const apiMode = isApiAuthMode();
-  const canLoadApi = apiMode && instituteId && studentId;
-  const [apiData, setApiData] = useState<LearnerActivitiesData | null>(null);
-  const [loading, setLoading] = useState(Boolean(canLoadApi));
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const canLoadApi = Boolean(apiMode && instituteId && studentId);
 
-  useEffect(() => {
-    if (!canLoadApi) {
-      setApiData(null);
-      setLoading(false);
-      setLoadError(null);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    setLoadError(null);
-    void loadLearnerActivities({ instituteId, studentId })
-      .then((data) => {
-        if (!cancelled) {
-          setApiData(data);
-          setLoading(false);
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setLoadError(err instanceof Error ? err.message : "Could not load activities");
-          setLoading(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [canLoadApi, instituteId, studentId]);
+  const {
+    data: apiData,
+    isLoading,
+    isError,
+    error: queryError,
+  } = useLearnerActivitiesQuery(instituteId, studentId, canLoadApi);
+
+  const loading = canLoadApi && isLoading && !apiData;
+  const loadError =
+    isError
+      ? queryError instanceof Error
+        ? queryError.message
+        : "Could not load activities"
+      : null;
 
   if (apiMode && !studentId) {
     return (

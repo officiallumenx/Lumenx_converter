@@ -8,7 +8,7 @@ import {
   requireInstituteId,
   requireTeacherIdentity,
 } from "../../authorization/index.js";
-import { findTeacherById } from "../teachers/repository.js";
+import { findTeacherById, listTeachers } from "../teachers/repository.js";
 import {
   findStaffAttendanceById,
   listStaffAttendance,
@@ -20,10 +20,12 @@ import type {
   DayActionInput,
   ListStaffAttendanceFilter,
   StaffAttendanceDto,
+  StaffAttendanceMarkStatus,
   StaffAttendanceRow,
   StaffAttendanceStatus,
   UpsertStaffAttendanceDayInput,
 } from "./types.js";
+import { STAFF_ATTENDANCE_MARK_STATUSES } from "./types.js";
 
 /** Admin day register write + submit/reopen. */
 export const STAFF_ATTENDANCE_WRITE_ROLES = [
@@ -108,6 +110,19 @@ function assertOptionalTime(
     throw AppError.validation("Referenced resource is invalid", {
       [field]: ["Must be HH:MM or HH:MM:SS"],
     });
+  }
+}
+
+function assertMarkStatus(status: string): asserts status is StaffAttendanceMarkStatus {
+  if (
+    !(STAFF_ATTENDANCE_MARK_STATUSES as readonly string[]).includes(status)
+  ) {
+    throw AppError.validation(
+      "Select status: present, absent, half day, or leave",
+      {
+        status: ["Must be present, absent, half-day, or leave"],
+      },
+    );
   }
 }
 
@@ -234,6 +249,8 @@ export async function upsertStaffAttendanceDayForActor(
     }
     seen.add(mark.teacherId);
 
+    assertMarkStatus(mark.status);
+
     const teacher = await findTeacherById(admin, mark.teacherId);
     if (!teacher || teacher.institute_id !== instituteId) {
       throw AppError.validation("Referenced resource is invalid", {
@@ -279,6 +296,21 @@ export async function submitStaffAttendanceDayForActor(
   }
   if (existing.every((r) => r.day_status === "submitted")) {
     return existing.map(toStaffAttendanceDto);
+  }
+
+  const activeTeachers = await listTeachers(admin, {
+    instituteId,
+    status: "active",
+  });
+  const markedIds = new Set(existing.map((r) => r.teacher_id));
+  const unmarked = activeTeachers.filter((t) => !markedIds.has(t.id));
+  if (unmarked.length > 0) {
+    throw AppError.validation(
+      `Mark all teachers before submitting (${unmarked.length} unmarked)`,
+      {
+        marks: [`${unmarked.length} teacher(s) unmarked`],
+      },
+    );
   }
 
   const now = new Date().toISOString();

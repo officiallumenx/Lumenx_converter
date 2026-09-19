@@ -1,26 +1,22 @@
 import { repositoryDelay } from "../utils";
 import { captureCurrentGps } from "../capture-gps";
-import { isApiAuthMode } from "@/lib/auth/auth-mode";
 import {
   createTransportEmergency as createTransportEmergencyApi,
   getOpenEmergencyForVehicle as getOpenEmergencyForVehicleApi,
+  listTransportEmergenciesApi,
   type TransportEmergencyDto,
 } from "@/lib/transport-api";
 import { getRouteSetupDriverScope } from "../route-setup/store";
 import { getTripSessionSnapshot } from "../trip/store";
-import {
-  createTransportEmergency,
-  findOpenEmergencyForDriver,
-  findOpenEmergencyForVehicle,
-  getTransportEmergencyById,
-  listActiveTransportEmergencies,
-  listResolvedTransportEmergencies,
-  listTransportEmergencies,
-  notifyAdminEmergency,
-  type TransportEmergency,
-} from "@lumenx/utils";
+import type { TransportEmergency } from "@lumenx/utils";
 
 let apiOpenEmergencyCache: TransportEmergency | null = null;
+let apiEmergencyListCache: TransportEmergency[] = [];
+const apiListeners = new Set<() => void>();
+
+function emitApi() {
+  apiListeners.forEach((listener) => listener());
+}
 
 function mapApiEmergencyToLocal(
   dto: TransportEmergencyDto,
@@ -28,39 +24,65 @@ function mapApiEmergencyToLocal(
   vehicleNumber?: string,
   route?: { code: string; name: string },
 ): TransportEmergency {
-  const now = new Date().toISOString();
+  const createdAt = dto.createdAt ?? new Date().toISOString();
   return {
     id: dto.id,
     type: (dto.emergencyType as TransportEmergency["type"]) ?? "general",
     status: dto.status,
-    createdAt: now,
-    acknowledgedAt: null,
+    createdAt,
+    acknowledgedAt: dto.acknowledgedAt ?? null,
     acknowledgedBy: null,
-    resolvedAt: null,
+    resolvedAt: dto.resolvedAt ?? null,
     resolvedBy: null,
-    resolveNote: null,
+    resolveNote: dto.resolveNote ?? null,
     driverId: dto.driverId,
-    driverName: driverName ?? "Driver",
+    driverName: dto.driverName ?? driverName ?? "Driver",
     vehicleId: dto.vehicleId,
-    vehicleNumber: vehicleNumber ?? "—",
+    vehicleNumber: dto.vehicleNumber ?? vehicleNumber ?? "—",
     routeCode: route?.code ?? "—",
-    routeName: route?.name ?? "—",
+    routeName: dto.routeName ?? route?.name ?? "—",
     latitude: dto.latitude,
     longitude: dto.longitude,
     note: dto.note,
-    timeline: [{ id: "1", at: now, label: "SOS triggered" }],
+    timeline:
+      dto.timeline && dto.timeline.length > 0
+        ? dto.timeline.map((t) => ({ id: t.id, at: t.at, label: t.label }))
+        : [{ id: "1", at: createdAt, label: "SOS triggered" }],
   };
 }
 
+export function subscribeApiEmergencies(listener: () => void): () => void {
+  apiListeners.add(listener);
+  return () => apiListeners.delete(listener);
+}
+
 export async function refreshApiOpenEmergency(): Promise<void> {
-  if (!isApiAuthMode()) return;
   const session = getTripSessionSnapshot();
   const vehicleId = session.assignment.bus.vehicleId;
+  const scope = getRouteSetupDriverScope();
+
+  if (scope?.instituteId) {
+    try {
+      const rows = await listTransportEmergenciesApi({ instituteId: scope.instituteId });
+      apiEmergencyListCache = rows.map((row) =>
+        mapApiEmergencyToLocal(
+          row,
+          session.assignment.driver.name,
+          session.assignment.bus.vehicleNumber,
+          session.assignment.route,
+        ),
+      );
+    } catch {
+      // Keep prior cache on transient failures.
+    }
+  }
+
   if (!vehicleId) {
     apiOpenEmergencyCache = null;
+    emitApi();
     return;
   }
-  const open = await getOpenEmergencyForVehicleApi(vehicleId);
+  const open = await getOpenEmergencyForVehicleApi(vehicleId).catch(() => null);
   apiOpenEmergencyCache = open
     ? mapApiEmergencyToLocal(
         open,
@@ -69,6 +91,7 @@ export async function refreshApiOpenEmergency(): Promise<void> {
         session.assignment.route,
       )
     : null;
+  emitApi();
 }
 
 export type EmergencyTriggerResult =
@@ -86,37 +109,28 @@ export type EmergencyTriggerResult =
       emergency: TransportEmergency;
     };
 
-/**
- * Emergency actions — frontend demo store (shared with Admin via localStorage).
- * No SMS, push, or phone calls.
- */
+/** Emergency actions — API list/create only. */
 export const emergencyRepository = {
   list(): TransportEmergency[] {
-    return listTransportEmergencies();
+    return apiEmergencyListCache;
   },
 
   listActive(): TransportEmergency[] {
-    return listActiveTransportEmergencies();
+    return apiEmergencyListCache.filter(
+      (e) => e.status === "active" || e.status === "acknowledged",
+    );
   },
 
   listHistory(): TransportEmergency[] {
-    return listResolvedTransportEmergencies();
+    return apiEmergencyListCache.filter((e) => e.status === "resolved");
   },
 
   getById(id: string): TransportEmergency | null {
-    return getTransportEmergencyById(id);
+    return apiEmergencyListCache.find((e) => e.id === id) ?? null;
   },
 
   getOpenForCurrentDriver(): TransportEmergency | null {
-    if (isApiAuthMode()) {
-      return apiOpenEmergencyCache;
-    }
-    const session = getTripSessionSnapshot();
-    const driverId = session.assignment.driver.employeeId || session.assignment.driver.id;
-    const vehicleId = session.assignment.bus.vehicleId;
-    return (
-      findOpenEmergencyForDriver(driverId) ?? findOpenEmergencyForVehicle(vehicleId) ?? null
-    );
+    return apiOpenEmergencyCache;
   },
 
   async triggerEmergency(): Promise<EmergencyTriggerResult> {
@@ -128,113 +142,71 @@ export const emergencyRepository = {
     let latitude: number | null = null;
     let longitude: number | null = null;
     try {
-      const fix = await captureCurrentGps({ allowDemo: true });
+      const fix = await captureCurrentGps({ allowDemo: false });
       latitude = fix.latitude;
       longitude = fix.longitude;
     } catch {
       // Location optional for SOS — still create emergency without coords
     }
 
-    if (isApiAuthMode()) {
-      const scope = getRouteSetupDriverScope();
-      if (!scope?.instituteId) {
-        return {
-          ok: false,
-          created: false,
-          message: "Institute context missing",
-          emergency: mapApiEmergencyToLocal({
-            id: "pending",
-            status: "active",
-            emergencyType: "general",
-            note: null,
-            latitude,
-            longitude,
-            vehicleId: bus.vehicleId,
-            driverId,
-          }),
-        };
-      }
-      try {
-        const created = await createTransportEmergencyApi({
-          instituteId: scope.instituteId,
-          tripId: session.tripId,
-          driverId: scope.driverId ?? driverId,
-          vehicleId: bus.vehicleId,
-          note: "SOS triggered by driver",
-          latitude,
-          longitude,
-        });
-        const emergency = mapApiEmergencyToLocal(created, driver.name, bus.vehicleNumber, route);
-        apiOpenEmergencyCache = emergency;
-        return {
-          ok: true,
-          created: true,
-          simulated: false,
-          message: `Emergency ${created.id} created`,
-          emergency,
-        };
-      } catch (err) {
-        return {
-          ok: false,
-          created: false,
-          message: err instanceof Error ? err.message : "Failed to trigger SOS",
-          emergency: mapApiEmergencyToLocal({
-            id: "failed",
-            status: "active",
-            emergencyType: "general",
-            note: null,
-            latitude,
-            longitude,
-            vehicleId: bus.vehicleId,
-            driverId,
-          }),
-        };
-      }
-    }
-
-    const result = createTransportEmergency({
-      type: "general",
-      driverId,
-      driverName: driver.name,
-      vehicleId: bus.vehicleId,
-      vehicleNumber: bus.vehicleNumber || bus.busNumber,
-      routeCode: route.code,
-      routeName: route.name,
-      latitude,
-      longitude,
-    });
-
-    if (!result.ok) {
+    const scope = getRouteSetupDriverScope();
+    if (!scope?.instituteId) {
       return {
         ok: false,
         created: false,
-        message: result.reason,
-        emergency: result.emergency,
+        message: "Institute context missing",
+        emergency: mapApiEmergencyToLocal({
+          id: "pending",
+          status: "active",
+          emergencyType: "general",
+          note: null,
+          latitude,
+          longitude,
+          vehicleId: bus.vehicleId,
+          driverId,
+        }),
       };
     }
-
-    const kind =
-      result.emergency.type === "breakdown"
-        ? ("breakdown" as const)
-        : result.emergency.type === "delay"
-          ? ("delay" as const)
-          : result.emergency.type === "route_issue"
-            ? ("route_issue" as const)
-            : ("sos" as const);
-    notifyAdminEmergency({
-      emergencyId: result.emergency.id,
-      driverName: driver.name,
-      vehicleNumber: bus.vehicleNumber || bus.busNumber,
-      routeCode: route.code,
-      kind,
-    });
-
-    return {
-      ok: true,
-      created: true,
-      simulated: true,
-      message: `Emergency ${result.emergency.id} created`,
-      emergency: result.emergency,
-    };
+    try {
+      const created = await createTransportEmergencyApi({
+        instituteId: scope.instituteId,
+        tripId: session.tripId,
+        driverId: scope.driverId ?? driverId,
+        vehicleId: bus.vehicleId,
+        note: "SOS triggered by driver",
+        latitude,
+        longitude,
+      });
+      const emergency = mapApiEmergencyToLocal(created, driver.name, bus.vehicleNumber, route);
+      apiOpenEmergencyCache = emergency;
+      apiEmergencyListCache = [
+        emergency,
+        ...apiEmergencyListCache.filter((e) => e.id !== emergency.id),
+      ];
+      emitApi();
+      return {
+        ok: true,
+        created: true,
+        simulated: false,
+        message: `Emergency ${created.id} created`,
+        emergency,
+      };
+    } catch (err) {
+      return {
+        ok: false,
+        created: false,
+        message: err instanceof Error ? err.message : "Failed to trigger SOS",
+        emergency: mapApiEmergencyToLocal({
+          id: "failed",
+          status: "active",
+          emergencyType: "general",
+          note: null,
+          latitude,
+          longitude,
+          vehicleId: bus.vehicleId,
+          driverId,
+        }),
+      };
+    }
   },
 };

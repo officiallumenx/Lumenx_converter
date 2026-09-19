@@ -237,7 +237,7 @@ describe("staff attendance api", () => {
       body: JSON.stringify({
         institute_id: INST_A,
         date: DAY,
-        marks: [{ teacher_id: TEACHER_A, status: "late", check_in: "09:00" }],
+        marks: [{ teacher_id: TEACHER_A, status: "absent", check_in: null }],
       }),
     });
     expect(blocked.status).toBe(409);

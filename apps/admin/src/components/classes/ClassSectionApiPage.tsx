@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useReloadKey } from "@/hooks/useReloadKey";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
@@ -28,6 +29,7 @@ import {
   type SectionDetailItem,
   type SectionStatus,
 } from "@/lib/classes";
+import { listTeachersForSectionPicker } from "@/lib/classes/section-teachers";
 import { SectionRosterPanel } from "@/components/classes/SectionRosterPanel";
 import { SectionTeachersPanel } from "@/components/classes/SectionTeachersPanel";
 
@@ -66,7 +68,7 @@ export function ClassSectionApiPage({ sectionId }: { sectionId: string }) {
   const [status, setStatus] = useState<ClassesListStatus>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const [reloadKey, setReloadKey] = useReloadKey();
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -74,6 +76,10 @@ export function ClassSectionApiPage({ sectionId }: { sectionId: string }) {
   const [capacity, setCapacity] = useState("0");
   const [sectionStatus, setSectionStatus] = useState<SectionStatus>("active");
   const [classStatus, setClassStatus] = useState<ClassStatus>("active");
+  const [classTeacherId, setClassTeacherId] = useState("");
+  const [teacherOptions, setTeacherOptions] = useState<Array<{ id: string; label: string }>>(
+    [],
+  );
 
   const detailView = resolveSectionDetailView({
     apiMode: true,
@@ -120,7 +126,12 @@ export function ClassSectionApiPage({ sectionId }: { sectionId: string }) {
     setSection(null);
     setStatus("loading");
     setErrorMessage(null);
-    void loadSectionDetail(sectionId, requestInstituteId).then((next) => {
+    void Promise.all([
+      loadSectionDetail(sectionId, requestInstituteId),
+      listTeachersForSectionPicker(requestInstituteId).catch(
+        () => [] as Array<{ id: string; label: string }>,
+      ),
+    ]).then(([next, teachers]) => {
       if (
         !shouldCommitClassesLoad({
           cancelled,
@@ -134,11 +145,13 @@ export function ClassSectionApiPage({ sectionId }: { sectionId: string }) {
       setStatus(next.status);
       setErrorMessage(next.errorMessage);
       setResolvedForInstituteId(requestInstituteId);
+      setTeacherOptions(teachers);
       if (next.section) {
         setRoom(next.section.room === "—" ? "" : next.section.room);
         setCapacity(String(next.section.capacity ?? 0));
         setSectionStatus(next.section.sectionStatus);
         setClassStatus(next.section.classStatus);
+        setClassTeacherId(next.section.classTeacherId ?? "");
       }
     });
     return () => {
@@ -163,6 +176,7 @@ export function ClassSectionApiPage({ sectionId }: { sectionId: string }) {
         room: room.trim() || null,
         capacity: Number(capacity) || 0,
         status: sectionStatus,
+        classTeacherId: classTeacherId.trim() || null,
       }),
     ];
     if (classStatus !== displaySection.classStatus) {
@@ -203,8 +217,8 @@ export function ClassSectionApiPage({ sectionId }: { sectionId: string }) {
       title={displaySection?.name ?? "Class section"}
       subtitle={
         writesEnabled
-          ? "API mode · section catalog record"
-          : "API mode · read-only · select an institute to edit"
+          ? "Section catalog record"
+          : "Read-only · select an institute to edit"
       }
       actions={
         <div className="flex flex-wrap gap-2">
@@ -246,7 +260,16 @@ export function ClassSectionApiPage({ sectionId }: { sectionId: string }) {
                 <DetailField label="Room" value={displaySection.room} />
                 <DetailField label="Capacity" value={String(displaySection.capacity)} />
                 <DetailField label="Students" value={String(displaySection.students)} />
-                <DetailField label="Teachers" value={displaySection.teacher} />
+                <DetailField label="Subject teachers" value={displaySection.teacher} />
+                <DetailField
+                  label="Class teacher"
+                  value={
+                    teacherOptions.find((t) => t.id === displaySection.classTeacherId)?.label ??
+                    (displaySection.classTeacherId
+                      ? displaySection.classTeacherId.slice(0, 8) + "…"
+                      : "—")
+                  }
+                />
                 <DetailField
                   label="Academic year id"
                   value={displaySection.academicYearId.slice(0, 8) + "…"}
@@ -259,7 +282,7 @@ export function ClassSectionApiPage({ sectionId }: { sectionId: string }) {
             </Card>
             {writesEnabled ? (
               <Card>
-                <CardHeader title="Edit section" hint="PATCH /sections/:id · class status via PATCH /classes/:id" />
+                <CardHeader title="Edit section" hint="Update section and class status" />
                 <div className="grid gap-4 px-4 pb-5 sm:grid-cols-2 sm:px-5 lg:grid-cols-4">
                   <Field label="Room">
                     <TextInput value={room} onChange={(e) => setRoom(e.target.value)} />
@@ -288,6 +311,19 @@ export function ClassSectionApiPage({ sectionId }: { sectionId: string }) {
                     >
                       <option value="active">Active</option>
                       <option value="inactive">Inactive</option>
+                    </Select>
+                  </Field>
+                  <Field label="Class teacher (homeroom)">
+                    <Select
+                      value={classTeacherId}
+                      onChange={(e) => setClassTeacherId(e.target.value)}
+                    >
+                      <option value="">— Not assigned —</option>
+                      {teacherOptions.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.label}
+                        </option>
+                      ))}
                     </Select>
                   </Field>
                   <div className="sm:col-span-2 lg:col-span-4">

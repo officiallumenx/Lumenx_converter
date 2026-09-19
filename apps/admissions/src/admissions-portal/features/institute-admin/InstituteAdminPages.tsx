@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   Button,
@@ -47,7 +47,7 @@ import {
   newFormFieldId,
   saveAdmissionForm,
   updateApplicationByInstituteAdmin,
-} from "@/lib/institute-admin";
+} from "@/lib/admissions/institute-admin";
 import { getInstituteById } from "@/lib/institutes-data";
 import {
   getAdmissionsInstituteProfile,
@@ -86,6 +86,7 @@ import {
   openAdmissionDocumentPreview,
 } from "@/lib/admissions/documents-service";
 import { ensureDemoOpenings, getOpeningsForInstitute } from "@/lib/admissions/openings-store";
+import { useAdmissionsApplications } from "@/hooks/use-admissions-applications";
 
 const BOARD_STAGES: { id: AdminAdmissionStage; label: string }[] = [
   { id: "submitted", label: "Submitted" },
@@ -115,8 +116,14 @@ function useInstituteContext() {
 
 export function InstituteAdminDashboardPage() {
   const { user, instituteId, profile } = useInstituteContext();
+  const apiMode = isApiAuthMode();
+  const {
+    applications: apiApps,
+    loading: appsLoading,
+    errorMessage: appsError,
+  } = useAdmissionsApplications({ scope: "institute_admin" });
   const [refreshTick, setRefreshTick] = useState(0);
-  const apps = getAllApplications();
+  const apps = apiMode ? apiApps : getAllApplications();
   const stats = useMemo(() => getInstituteApplicationStats(instituteId, apps), [instituteId, apps]);
   const recent = useMemo(
     () => getApplicationsForInstitute(instituteId, apps).slice(0, 5),
@@ -124,16 +131,34 @@ export function InstituteAdminDashboardPage() {
   );
   const waitlist = useMemo(() => {
     void refreshTick;
+    if (apiMode) {
+      return apps.filter((app) => app.status === "waitlisted");
+    }
     return getInstituteWaitlist(instituteId);
-  }, [instituteId, refreshTick]);
+  }, [apiMode, apps, instituteId, refreshTick]);
   const waitlistOldestAge = useMemo(() => {
     if (waitlist.length === 0) return 0;
     return Math.max(...waitlist.map((app) => getWaitlistAgeDays(app) ?? 0));
   }, [waitlist]);
 
   useEffect(() => {
-    if (instituteId) ensureDemoOpenings(instituteId);
-  }, [instituteId]);
+    if (!apiMode && instituteId) ensureDemoOpenings(instituteId);
+  }, [apiMode, instituteId]);
+
+  if (apiMode && appsLoading) {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">Loading dashboard…</div>
+    );
+  }
+
+  if (apiMode && appsError) {
+    return (
+      <div className="py-12 text-center space-y-2">
+        <p className="text-sm text-destructive">{appsError}</p>
+        <p className="text-sm text-muted-foreground">Unable to load applications from the API.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-in fade-in duration-300 space-y-6">

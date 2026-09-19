@@ -25,7 +25,7 @@ import { toLocalIsoDate } from "@lumenx/utils";
 import { toast } from "sonner";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useAdmissionsAuth } from "@/admissions-portal/core/AdmissionsAuthProvider";
-import { ConnectDatePicker } from "@/components/app/attendance/AttendanceDatePicker";
+import { ConnectDatePicker } from "@/components/app/ConnectDatePicker";
 import { AdmissionsPageHeader } from "@/admissions-portal/shared/ui/AdmissionsPageHeader";
 import type { AdmissionOpening, AdmissionOpeningStatus } from "@/lib/admissions/types";
 import {

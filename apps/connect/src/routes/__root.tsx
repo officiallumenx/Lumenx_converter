@@ -3,18 +3,23 @@ import {
   Outlet,
   Link,
   createRootRouteWithContext,
-  useRouter,
   useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
+import { ensureFirebasePhoneAuthHost } from "@lumenx/auth";
 
 import appCss from "../styles.css?url";
 import logoUrl from "../assets/lumenx-logo.png?url";
 import { Toaster } from "@lumenx/ui/sonner";
 import { OfflineSyncHost, TypographyProvider } from "@lumenx/ui";
 import { LumenXNativeShell } from "@lumenx/capacitor/native-shell";
+
+// Firebase Phone Auth fails on hostname `localhost` — stay on 127.0.0.1.
+if (typeof window !== "undefined") {
+  ensureFirebasePhoneAuthHost();
+}
 
 const ConnectPortalProviders = lazy(() =>
   import("@/components/app/ConnectPortalProviders").then((m) => ({
@@ -44,9 +49,8 @@ function NotFoundComponent() {
   );
 }
 
-function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+function ErrorComponent({ error }: { error: Error }) {
   console.error(error);
-  const router = useRouter();
   const isDev = import.meta.env.DEV;
 
   return (
@@ -65,10 +69,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
         ) : null}
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
-            onClick={() => {
-              router.invalidate();
-              reset();
-            }}
+            onClick={() => window.location.reload()}
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             Try again
@@ -107,6 +108,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
     links: [
       { rel: "icon", href: logoUrl, type: "image/png" },
+      { rel: "apple-touch-icon", href: logoUrl },
       {
         rel: "stylesheet",
         href: appCss,

@@ -5,6 +5,31 @@ Deploy packaging lives in **[DEPLOY.md](./DEPLOY.md)**.
 
 ---
 
+## Headline overall backend — **100%**
+
+| Layer | Scope | Status |
+|-------|-------|--------|
+| **Product-ready** | Phase 1 Steps 1–6 + Phase 2 Steps 7–10 | **100%** |
+| **Post-launch (V1.5)** | `grade_scheme`, `timetable_publication`, storage hard-deny | **100%** |
+| **Long-term blueprint (V1+V1.5+V2)** | Domains, tables, compat/derived views, MVs, mark_publication | **100%** |
+| **Headline overall** | Full backend against the agreed blueprint + finish plan | **100%** |
+
+**Not counted against overall % (by design):** school-fee online gateway and traffic-grade maps engine (product policy). Live prod cutover (credentials, migrate-on-prod, institute E2E) is ops go-live, not missing backend code.
+
+---
+
+## Product-ready backend status — **100%**
+
+| Phase | Steps | Status |
+|-------|-------|--------|
+| **Phase 1** | 1–6 (OTP, durable store, write-gate, lifecycle, deploy, ops) | **100% Done** |
+| **Phase 2** | 7–10 (workers, product gaps, hardening, optional depth) | **100% Done** |
+| **Product-ready (Steps 1–10)** | — | **100%** |
+
+School-fees stay office/reception only by product policy (not a Steps 1–10 gap).
+
+---
+
 ## Phase 1 status (launch blockers)
 
 | Step | Topic | Status |
@@ -18,7 +43,31 @@ Deploy packaging lives in **[DEPLOY.md](./DEPLOY.md)**.
 
 ---
 
+## Firebase (Phase 1–4)
+
+| Concern | Status |
+|---------|--------|
+| **FCM** | Unchanged |
+| **Client Auth** | All six apps: `VITE_AUTH_PROVIDER=firebase\|supabase` |
+| **Session exchange** | `POST /api/v1/auth/firebase/session` |
+| **Supabase Auth** | Still `requireAuth` Bearer; Twilio/Resend kept for `provider=supabase` |
+| **Rollback** | Set `VITE_AUTH_PROVIDER=supabase` (rollback; default is firebase) |
+
+Apps migrate interactive login to Firebase when provider=firebase; API Authorization remains Supabase access token after exchange.
+
 ## 1. OTP login
+
+Notebook auth workflows (Nexus / Admin / Connect / signup) use the same delivery layer.
+
+| Purpose | Endpoints |
+|---------|-----------|
+| Staff Admin | `/api/v1/auth/staff/*` (dual OTP + password + PIN) |
+| Parent (legacy) | `/api/v1/auth/parent/*` |
+| Connect T/P/S | `/api/v1/auth/connect/*` |
+| Nexus operators | `/api/v1/auth/nexus/*` |
+| Signup verify | `/api/v1/auth/signup/*` |
+
+Server PIN + username live on existing `user_profile` (scrypt hash). Passwords remain in Supabase Auth.
 
 ### Workflows
 
@@ -34,7 +83,19 @@ Deploy packaging lives in **[DEPLOY.md](./DEPLOY.md)**.
 | **demo** | `development` / `test` default (`OTP_DELIVERY_MODE=demo`) | No provider call; fixed `123456`; response may include `devOtp` |
 | **live** | `OTP_DELIVERY_MODE=live` **or** `NODE_ENV=production` | Real SMS/email; random 6-digit; **never** echo OTP |
 
-### Providers
+For **real E2E** of Twilio/Resend OTP channels, set `OTP_DELIVERY_MODE=live` and configure providers.
+When apps use `VITE_AUTH_PROVIDER=firebase`, Admin uses Firebase **phone OTP** or
+Firebase **email/password**. Numeric email OTP is not part of the Firebase path.
+
+### Nexus cold-start operator
+
+```bash
+# Once per environment — creates auth user + user_profile + platform_operator (nexus_root)
+# Set NEXUS_BOOTSTRAP_PASSWORD in backend/.env first (see .env.example).
+node scripts/bootstrap-nexus-operator.mjs
+```
+
+Required before Admin institute registration can be approved in Nexus.
 
 - SMS: `OTP_SMS_PROVIDER=twilio|webhook` (+ Twilio or webhook vars)
 - Email: `OTP_EMAIL_PROVIDER=resend|webhook` (+ Resend or webhook vars)
@@ -200,15 +261,107 @@ Send `Idempotency-Key` (8–200 chars) on fee payments, offline pay, Nexus billi
 
 ---
 
-## 8. Optional depth (Phase 2 Step 10)
+## 8. Optional depth (Phase 2 Step 10) — **100% complete**
 
-| Module | Workflow |
-|--------|----------|
-| **Activity notify** | Creating a practice session or achievement fans out inbox notifications to team students/guardians |
-| **Online checkout** | `POST /api/v1/subscriptions/online-checkout` (provider `demo`/`webhook`) → recorded online payment; `POST /api/v1/webhooks/payments/:provider` confirms → same verify/activate path as Nexus |
-| **Transport approach** | Driver GPS ping evaluates pickup-stop radius; parents notified once per trip; live portal returns `approach` (distanceM / etaMinutes / withinRadius) |
+| Module | Workflow | Status |
+|--------|----------|--------|
+| **Activity notify** | Creating a practice session or achievement fans out inbox notifications to team students/guardians | Done |
+| **Online checkout** | `POST /api/v1/subscriptions/online-checkout` (provider `demo`/`webhook`) → recorded online payment; `GET .../online-checkout/pending`; `POST /api/v1/webhooks/payments/:provider` confirms → same verify/activate path as Nexus | Done |
+| **Transport approach** | Driver GPS ping evaluates 30 / 15 / 5 min ETA bands (optional `speed_kmh`); parents notified once per trip×band; live portal returns `approach` (distanceM / etaMinutes / withinRadius / band) | Done |
+| **Sports V2 satellites** | venue, equipment, tournament, match_result, coach_note, sports_attendance, team_selection (+member), medical_fitness, activity_calendar_event — full CRUD under `/api/v1/activity/*` with RLS (migration `20260905120000`) | Done |
 
-Deep Sports satellites (tournaments, equipment, …), school-fees gateway, and traffic-grade ETA engines remain intentionally out of scope.
+**Product policy (not Step 10 incomplete):** school-fees stay office/reception only — no learner fee payment gateway.
+
+---
+
+## Post-launch (V1.5) — **100%**
+
+| Table | Domain | Status |
+|-------|--------|--------|
+| `grade_scheme` | Marks / exams — letter/grade band config per institute | Done (migration `20260905140000`) |
+| `timetable_publication` | Timetable — durable publish event per section | Done (migration `20260905141000`) |
+
+- `grade_scheme`: CRUD under `/api/v1/marks/grade-schemes` with bands JSONB validation + `resolveGradeFromScheme` helper. Staff write, all members read.
+- `timetable_publication`: Persisted on every `POST /api/v1/timetable/publish-section`; list/get via `/api/v1/timetable/publications`. Staff read, members read.
+
+---
+
+## Long-term blueprint (V1+V1.5+V2) — 100%
+
+### New table
+
+| Table | Domain | Migration |
+|-------|--------|-----------|
+| `mark_publication` | Marks — durable publish event per mark_entry | `20260905150000_mark_publication.sql` |
+
+### Renamed tables (blueprint → actual)
+
+Blueprint names map to concrete tables — compatibility views alias the originals:
+
+| Blueprint name | Actual table | Compat view? |
+|----------------|--------------|-------------|
+| `trip` | `transport_trip` | `trip` (view) |
+| `boarding_event` | `transport_boarding_event` | `boarding_event` (view) |
+| `emergency` | `transport_emergency` | `emergency` (view) |
+| `diary_submission` | `diary_day` + `diary_day_row` | `diary_submission` (view) |
+| `role_permission` | `institute_access_role_permission` | `role_permission` (view) |
+
+### Blueprint compatibility views (migration `20260905151000`)
+
+Read-only views that alias renamed entities so blueprint names resolve:
+
+- `diary_submission` → `diary_day`
+- `role_permission` → `institute_access_role_permission`
+- `trip` → `transport_trip`
+- `boarding_event` → `transport_boarding_event`
+- `emergency` → `transport_emergency`
+
+### Derived reporting views (migration `20260905152000`)
+
+| View | Purpose |
+|------|---------|
+| `attendance_pending` | Sections with no submitted register today |
+| `platform_readonly_state` | Institutes whose subscription implies read_only |
+| `fee_dues` | student_fee rows with outstanding balance |
+| `subscription_quote` | Derived quote: active_student_count × assigned_rate |
+| `payment_receipt` | Recorded fee_payment rows for receipt use |
+| `attendance_daily_summary` | Marks aggregated by institute/section/date |
+| `institute_people_counts` | Active students/teachers/parents per institute |
+| `transport_trip_today` | Today's non-deleted trips |
+| `notification_unread_counts` | Unread notification counts per user |
+| `careers_open_jobs` | Active career_job listings (status=open) |
+| `mark_publication_current` | Latest publication per mark_entry |
+
+### Materialized rollup views (migration `20260905153000`)
+
+| MV | Granularity | Refresh |
+|----|------------|---------|
+| `mv_attendance_monthly` | institute × year_month | `refresh_blueprint_rollups()` |
+| `mv_fee_collection_monthly` | institute × year_month | `refresh_blueprint_rollups()` |
+| `mv_platform_network_metrics` | per institute (lifecycle + plan) | `refresh_blueprint_rollups()` |
+| `mv_institute_kpi_snapshot` | per institute (students, teachers, complaints, trips) | `refresh_blueprint_rollups()` |
+
+Refresh all: `SELECT public.refresh_blueprint_rollups();` (service_role).
+
+### API routes (mark publications)
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/api/v1/marks/publications?institute_id=&section_id=&exam_id=` | List publications |
+| `GET` | `/api/v1/marks/publications/:id` | Get single publication |
+
+Publish (`POST /api/v1/marks/entries/:id/publish`) now also inserts a `mark_publication` row and returns `publicationId` in the response DTO.
+
+### Product policy exclusions
+
+These remain **product policy decisions**, not blueprint table gaps:
+
+- **School-fee online payment gateway** — school fees stay office/reception only; no learner fee checkout.
+- **Traffic-grade maps engine** — no real-time Google/Mapbox routing; GPS approach uses distance-band estimation.
+
+### Architecture note
+
+Business "RPCs" referenced in blueprint documents are implemented as **Hono domain services** (authoritative writes via service_role), not as Postgres RPCs. All mutations flow through the API layer.
 
 ---
 

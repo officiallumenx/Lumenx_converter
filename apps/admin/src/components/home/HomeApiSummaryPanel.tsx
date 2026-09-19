@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useDataRefreshGeneration } from "@/hooks/useReloadKey";
 import { Link } from "@tanstack/react-router";
 import { Card, CardHeader, Kpi, Pill, Button, EmptyState } from "@lumenx/ui-admin";
 import { useInstituteContext } from "@/lib/institutes";
@@ -28,6 +29,9 @@ import {
 import {
   HomeAttendanceMissingSectionsUnavailableCard,
 } from "@/components/home/HomeApiUnavailableCards";
+import { HomeQuickActionsCard } from "@/components/HomeQuickActionsCard";
+import { SetupChecklistBanner } from "@/components/setup/SetupChecklistPanel";
+import { useSetupChecklist } from "@/lib/institute-setup-checklist";
 import { listTransportEmergencies } from "@/lib/transport/ops-api";
 import { syncPendingReviewsComplaintsApi } from "@/lib/pending-reviews";
 import { IconChip } from "@/components/IconChip";
@@ -67,6 +71,7 @@ function formatSubmittedAt(iso: string | null): string {
 
 export function HomeApiSummaryPanel() {
   const instituteCtx = useInstituteContext();
+  const dataRefreshGeneration = useDataRefreshGeneration();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loadStatus, setLoadStatus] = useState<DashboardLoadStatus>("loading");
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -74,6 +79,7 @@ export function HomeApiSummaryPanel() {
   const [transportEmergencies, setTransportEmergencies] = useState<
     Awaited<ReturnType<typeof listTransportEmergencies>>
   >([]);
+  const { state: setupState } = useSetupChecklist();
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(null);
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
@@ -110,9 +116,12 @@ export function HomeApiSummaryPanel() {
 
     const requestInstituteId = instituteCtx.activeInstituteId;
     let cancelled = false;
-    setLoadStatus("loading");
-    setLoadError(null);
-    setWidgets((w) => ({ ...w, status: "loading" }));
+    // Soft refresh: keep showing prior data; only spin on first load / institute switch.
+    if (resolvedForInstituteId !== requestInstituteId) {
+      setLoadStatus("loading");
+      setLoadError(null);
+      setWidgets((w) => ({ ...w, status: "loading" }));
+    }
 
     void Promise.all([
       loadDashboardSummary(requestInstituteId),
@@ -146,7 +155,7 @@ export function HomeApiSummaryPanel() {
     return () => {
       cancelled = true;
     };
-  }, [instituteCtx.status, instituteCtx.activeInstituteId, instituteCtx.errorMessage]);
+  }, [instituteCtx.status, instituteCtx.activeInstituteId, instituteCtx.errorMessage, dataRefreshGeneration]);
 
   const view = resolveDashboardSummaryView({
     apiMode: true,
@@ -235,11 +244,67 @@ export function HomeApiSummaryPanel() {
 
   return (
     <div className="space-y-4">
+      <SetupChecklistBanner state={setupState} />
+
+      <Card>
+        <CardHeader
+          title="Today's birthdays"
+          hint="Students and teachers with a birthday today"
+          action={
+            widgetsValid && widgets.birthdays.status !== "error" ? (
+              <Pill tone={widgets.birthdays.rows.length > 0 ? "info" : "neutral"}>
+                {widgets.birthdays.rows.length}
+              </Pill>
+            ) : null
+          }
+        />
+        <div className="px-3 pb-3">
+          {!widgetsValid ? (
+            <p className="text-sm text-muted-foreground px-1">Loading birthdays…</p>
+          ) : widgets.birthdays.status === "error" ? (
+            <p className="text-sm text-muted-foreground px-1">
+              {widgets.birthdays.errorMessage ?? "Failed to load birthdays."}
+            </p>
+          ) : widgets.birthdays.rows.length === 0 ? (
+            <p className="text-sm text-muted-foreground px-1">No birthdays today.</p>
+          ) : (
+            <ul className="divide-y divide-border rounded-lg border border-border">
+              {widgets.birthdays.rows.map((person) => (
+                <li key={`${person.role}-${person.id}`} className="flex items-center gap-2.5 px-2.5 py-2">
+                  <IconChip icon={Cake} size="sm" variant="brand" />
+                  <span className="min-w-0 flex-1">
+                    {person.role === "Student" ? (
+                      <Link
+                        to="/students/$id"
+                        params={{ id: person.id }}
+                        className="block text-sm font-semibold text-foreground hover:underline"
+                      >
+                        {person.name}
+                      </Link>
+                    ) : (
+                      <Link to="/teachers" className="block text-sm font-semibold text-foreground hover:underline">
+                        {person.name}
+                      </Link>
+                    )}
+                    <span className="block text-[11px] text-muted-foreground">
+                      {person.role} · {person.detail}
+                      {person.turningAge != null ? ` · Turning ${person.turningAge}` : ""}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </Card>
+
+      <HomeQuickActionsCard />
+
       <Card>
         <CardHeader
           title="Institute overview"
-          hint="Live counts from GET /api/v1/analytics"
-          action={<Pill tone="neutral">Read-only · API mode</Pill>}
+          hint="Live institute counts"
+          action={<Pill tone="neutral">Read-only</Pill>}
         />
         {hint ? (
           <p className="px-4 pb-4 text-sm text-muted-foreground">{hint}</p>
@@ -269,7 +334,7 @@ export function HomeApiSummaryPanel() {
 
       {view.rowsValid || widgetsValid ? (
         <Card>
-          <CardHeader title="Needs attention" hint="Actionable items from API-backed modules" />
+          <CardHeader title="Needs attention" hint="Items that need your attention" />
           <div className="px-4 pb-4 space-y-2">
             {attentionItems.length === 0 ? (
               <p className="text-sm text-muted-foreground">No actionable API alerts right now.</p>
@@ -292,72 +357,7 @@ export function HomeApiSummaryPanel() {
         </Card>
       ) : null}
 
-      <Card>
-        <CardHeader title="Quick links" hint="API-backed modules" />
-        <div className="px-4 pb-4 flex flex-wrap gap-2">
-          <Link to="/students"><Button size="sm" variant="outline">Students</Button></Link>
-          <Link to="/teachers"><Button size="sm" variant="outline">Teachers</Button></Link>
-          <Link to="/attendance"><Button size="sm" variant="outline">Attendance</Button></Link>
-          <Link to="/diary"><Button size="sm" variant="outline">Diary</Button></Link>
-          <Link to="/marks"><Button size="sm" variant="outline">Marks</Button></Link>
-          <Link to="/homework"><Button size="sm" variant="outline">Homework</Button></Link>
-          <Link to="/fees" search={{ view: "students" }}><Button size="sm" variant="outline">Fees</Button></Link>
-        </div>
-      </Card>
-
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader
-            title="Today's birthdays"
-            hint="From student & teacher date_of_birth · no WhatsApp wish in API mode"
-            action={
-              widgetsValid && widgets.birthdays.status !== "error" ? (
-                <Pill tone={widgets.birthdays.rows.length > 0 ? "info" : "neutral"}>
-                  {widgets.birthdays.rows.length}
-                </Pill>
-              ) : null
-            }
-          />
-          <div className="px-3 pb-3">
-            {!widgetsValid ? (
-              <p className="text-sm text-muted-foreground px-1">Loading birthdays…</p>
-            ) : widgets.birthdays.status === "error" ? (
-              <p className="text-sm text-muted-foreground px-1">
-                {widgets.birthdays.errorMessage ?? "Failed to load birthdays."}
-              </p>
-            ) : widgets.birthdays.rows.length === 0 ? (
-              <p className="text-sm text-muted-foreground px-1">No birthdays today.</p>
-            ) : (
-              <ul className="divide-y divide-border rounded-lg border border-border">
-                {widgets.birthdays.rows.map((person) => (
-                  <li key={`${person.role}-${person.id}`} className="flex items-center gap-2.5 px-2.5 py-2">
-                    <IconChip icon={Cake} size="sm" variant="brand" />
-                    <span className="min-w-0 flex-1">
-                      {person.role === "Student" ? (
-                        <Link
-                          to="/students/$id"
-                          params={{ id: person.id }}
-                          className="block text-sm font-semibold text-foreground hover:underline"
-                        >
-                          {person.name}
-                        </Link>
-                      ) : (
-                        <Link to="/teachers" className="block text-sm font-semibold text-foreground hover:underline">
-                          {person.name}
-                        </Link>
-                      )}
-                      <span className="block text-[11px] text-muted-foreground">
-                        {person.role} · {person.detail}
-                        {person.turningAge != null ? ` · Turning ${person.turningAge}` : ""}
-                      </span>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </Card>
-
         <Card>
           <CardHeader
             title="Diary submissions"
@@ -415,7 +415,7 @@ export function HomeApiSummaryPanel() {
         <Card>
           <CardHeader
             title="Attendance drafts today"
-            hint="Registers with status draft for today · not a full missing-sections matrix"
+            hint="Attendance registers still in draft for today"
             action={
               <div className="flex items-center gap-1.5">
                 {widgetsValid && widgets.attendanceDrafts.status !== "error" ? (
@@ -464,7 +464,7 @@ export function HomeApiSummaryPanel() {
         <Card>
           <CardHeader
             title="Pending mark reviews"
-            hint="Mark entries with status submitted · awaiting publish"
+            hint="Mark entries submitted and awaiting publish"
             action={
               <div className="flex items-center gap-1.5">
                 {widgetsValid && widgets.marksPending.status !== "error" ? (
@@ -517,7 +517,7 @@ export function HomeApiSummaryPanel() {
         <Card>
           <CardHeader
             title="Transport emergencies"
-            hint="Active driver SOS from GET /api/v1/transport/emergencies"
+            hint="Active driver SOS alerts"
             action={
               transportEmergencies.length > 0 ? (
                 <Pill tone="danger">{transportEmergencies.length} active</Pill>

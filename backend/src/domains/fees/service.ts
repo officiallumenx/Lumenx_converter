@@ -28,6 +28,7 @@ import {
   listConcessionsForPlan,
   listFeePlans,
   listPaymentsForPlan,
+  listClassRowsForSiblingMap,
   softDeleteComponent,
   softDeleteConcession,
   softDeletePayment,
@@ -37,6 +38,7 @@ import {
   updateFeePlanFields,
   upsertStudentFeeLedger,
 } from "./repository.js";
+import { buildClassSiblingMap, siblingClassIds } from "./class-siblings.js";
 import type {
   ConcessionDto,
   ConcessionRow,
@@ -46,6 +48,7 @@ import type {
   FeeComponentRow,
   FeeLineDto,
   FeePaymentDto,
+  FeePaymentMethod,
   FeePaymentRow,
   FeePlanDto,
   FeePlanRow,
@@ -133,6 +136,7 @@ export function toPaymentDto(row: FeePaymentRow): FeePaymentDto {
     instituteId: row.institute_id,
     studentFeeId: row.student_fee_id,
     studentId: row.student_id,
+    feeComponentId: row.fee_component_id ?? null,
     amount: num(row.amount),
     method: row.method,
     receiptNo: row.receipt_no,
@@ -172,6 +176,30 @@ async function assertFeeWriter(
   if (effective.permissions["/fees"] === "full") return;
 
   throw AppError.forbidden("Insufficient permissions");
+}
+
+/** Flowchart: note/txn ID required for every mode except cash (offline). */
+function requirePaymentNoteForMethod(
+  method: FeePaymentMethod,
+  note: string | null | undefined,
+): string | null {
+  const trimmed = typeof note === "string" ? note.trim() : "";
+  if (method === "cash") {
+    if (trimmed.length > 500) {
+      throw AppError.validation("note must be at most 500 characters");
+    }
+    return trimmed || null;
+  }
+  if (!trimmed) {
+    throw AppError.validation(
+      "Transaction ID / note is required for this payment mode",
+      { note: ["Required"] },
+    );
+  }
+  if (trimmed.length > 500) {
+    throw AppError.validation("note must be at most 500 characters");
+  }
+  return trimmed;
 }
 
 function requirePaymentNote(note: string | null | undefined, label = "note"): string {
@@ -231,16 +259,48 @@ function validateClassAmounts(amounts: Record<string, number>): Record<string, n
   return out;
 }
 
-function componentApplies(row: FeeComponentRow, classId: string): boolean {
+function componentApplies(
+  row: FeeComponentRow,
+  classId: string,
+  siblingIds: string[] = [classId],
+): boolean {
   if (!row.active) return false;
   if (row.assigned_to_all) return true;
-  return (row.assigned_class_ids ?? []).includes(classId);
+  const assigned = row.assigned_class_ids ?? [];
+  return siblingIds.some((id) => assigned.includes(id));
 }
 
-export function classInPublishScope(plan: FeePlanRow, classId: string): boolean {
+export function classInPublishScope(
+  plan: FeePlanRow,
+  classId: string,
+  siblingIds: string[] = [classId],
+): boolean {
   if (plan.status !== "published") return false;
   if (plan.publish_scope === "institute") return true;
-  return (plan.published_class_ids ?? []).includes(classId);
+  const published = plan.published_class_ids ?? [];
+  return siblingIds.some((id) => published.includes(id));
+}
+
+function amountForClass(
+  component: FeeComponentRow,
+  classId: string,
+  siblingIds: string[] = [classId],
+): number {
+  const amounts = component.class_amounts ?? {};
+  const direct = Number(amounts[classId] ?? 0);
+  if (Number.isFinite(direct) && direct > 0) return direct;
+  for (const id of siblingIds) {
+    const n = Number(amounts[id] ?? 0);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  // Flat class-scoped extras often store one amount under a single assigned id.
+  if (!component.assigned_to_all) {
+    for (const id of component.assigned_class_ids ?? []) {
+      const n = Number(amounts[id] ?? 0);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+  }
+  return Number.isFinite(direct) ? Math.max(0, direct) : 0;
 }
 
 export function resolveLines(
@@ -249,8 +309,12 @@ export function resolveLines(
   concessions: ConcessionRow[],
   classId: string,
   requirePublished: boolean,
+  paidByComponent: Map<string, number> = new Map(),
+  siblingIds: string[] = [classId],
 ): FeeLineDto[] {
-  if (requirePublished && !classInPublishScope(plan, classId)) return [];
+  if (requirePublished && !classInPublishScope(plan, classId, siblingIds)) {
+    return [];
+  }
 
   const overrideByComponent = new Map(
     concessions.map((c) => [c.fee_component_id, c]),
@@ -258,16 +322,20 @@ export function resolveLines(
 
   const lines: FeeLineDto[] = [];
   for (const component of components) {
-    if (!componentApplies(component, classId)) continue;
-    const defaultAmount = Number(component.class_amounts?.[classId] ?? 0);
+    if (!componentApplies(component, classId, siblingIds)) continue;
+    const defaultAmount = amountForClass(component, classId, siblingIds);
     const ov = overrideByComponent.get(component.id);
     if (defaultAmount <= 0 && !ov) continue;
+    const amount = ov ? num(ov.amount) : defaultAmount;
+    const paidAmount = Math.min(amount, paidByComponent.get(component.id) ?? 0);
     lines.push({
       feeComponentId: component.id,
       kind: component.kind,
       name: component.name,
       defaultAmount,
-      amount: ov ? num(ov.amount) : defaultAmount,
+      amount,
+      paidAmount,
+      balanceAmount: Math.max(0, amount - paidAmount),
       overridden: Boolean(ov),
       note: ov?.note ?? undefined,
     });
@@ -558,6 +626,13 @@ export async function getStudentFeeAccountForActor(
     instituteId: plan.institute_id,
   });
 
+  const classRows = await listClassRowsForSiblingMap(admin, {
+    instituteId: plan.institute_id,
+    academicYearId: plan.academic_year_id,
+  });
+  const siblingMap = buildClassSiblingMap(classRows);
+  const siblings = siblingClassIds(siblingMap, input.classId);
+
   // Non-staff: mirror RLS can_learner_read_fee_student (published + class scope).
   if (!staffReader) {
     if (plan.status !== "published") {
@@ -569,10 +644,10 @@ export async function getStudentFeeAccountForActor(
           "class_id does not match the student's active enrollment",
         );
       }
-      if (!classInPublishScope(plan, enrollment.class_id)) {
+      if (!classInPublishScope(plan, enrollment.class_id, siblings)) {
         throw AppError.forbidden("Fees are not published for this class");
       }
-    } else if (!classInPublishScope(plan, input.classId)) {
+    } else if (!classInPublishScope(plan, input.classId, siblings)) {
       throw AppError.forbidden("Fees are not published for this class");
     }
   } else if (enrollment && enrollment.class_id !== input.classId) {
@@ -586,19 +661,28 @@ export async function getStudentFeeAccountForActor(
     plan.id,
     input.studentId,
   );
+  const payments = await listPaymentsForPlan(admin, plan.id, input.studentId);
+  const paidByComponent = new Map<string, number>();
+  for (const payment of payments) {
+    const componentId = payment.fee_component_id;
+    if (!componentId) continue;
+    paidByComponent.set(
+      componentId,
+      (paidByComponent.get(componentId) ?? 0) + num(payment.amount),
+    );
+  }
+
   const lines = resolveLines(
     plan,
     components,
     concessions,
     input.classId,
     !staffReader,
+    paidByComponent,
+    siblings,
   );
   const billedAmount = lines.reduce((sum, l) => sum + l.amount, 0);
-  const paidAmount = await sumPaymentsForStudent(
-    admin,
-    plan.id,
-    input.studentId,
-  );
+  const paidAmount = payments.reduce((sum, p) => sum + num(p.amount), 0);
   const dueAmount = Math.max(0, billedAmount - paidAmount);
   const status = statusFromAmounts(billedAmount, paidAmount);
   const ledger = await findStudentFee(admin, plan.id, input.studentId);
@@ -607,7 +691,7 @@ export async function getStudentFeeAccountForActor(
     feePlanId: plan.id,
     studentId: input.studentId,
     classId: input.classId,
-    published: classInPublishScope(plan, input.classId),
+    published: classInPublishScope(plan, input.classId, siblings),
     lines,
     billedAmount,
     paidAmount,
@@ -640,7 +724,12 @@ export async function recordPaymentForActor(
   await assertFeeWriter(admin, actor, plan.institute_id);
 
   if (input.amount <= 0) throw AppError.validation("amount must be > 0");
-  const note = requirePaymentNote(input.note);
+  const note = requirePaymentNoteForMethod(input.method, input.note);
+  if (!input.feeComponentId?.trim()) {
+    throw AppError.validation("fee_component_id is required", {
+      fee_component_id: ["Required"],
+    });
+  }
 
   const student = await findStudentById(admin, input.studentId);
   if (!student || student.institute_id !== plan.institute_id) {
@@ -677,6 +766,18 @@ export async function recordPaymentForActor(
   if (account.billedAmount <= 0) {
     throw AppError.validation("Cannot record payment when billed amount is 0");
   }
+  const line = account.lines.find((l) => l.feeComponentId === input.feeComponentId);
+  if (!line) {
+    throw AppError.validation("fee_component_id is not on this student's fee account", {
+      fee_component_id: ["Invalid"],
+    });
+  }
+  if (input.amount > line.balanceAmount + 0.001) {
+    throw AppError.validation(
+      `Amount exceeds category balance (${line.balanceAmount})`,
+      { amount: ["Exceeds balance"] },
+    );
+  }
 
   // Ensure ledger row exists for FK, using current payment sum (not pre-incremented).
   const currentPaid = await sumPaymentsForStudent(
@@ -698,6 +799,7 @@ export async function recordPaymentForActor(
     feePlanId: plan.id,
     studentFeeId: ledger.id,
     studentId: input.studentId,
+    feeComponentId: input.feeComponentId,
     amount: input.amount,
     method: input.method,
     receiptNo: receiptNo(),

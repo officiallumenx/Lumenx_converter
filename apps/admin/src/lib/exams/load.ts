@@ -49,7 +49,7 @@ export async function loadExamsList(
   try {
     const [rows, subjects] = await Promise.all([
       listExams({ instituteId: activeInstituteId }),
-      listSubjects(activeInstituteId),
+      listSubjects({ instituteId: activeInstituteId }),
     ]);
     const subjectLabels = new Map(
       subjects.map((s) => [s.id, s.name?.trim() || s.code?.trim() || s.id]),

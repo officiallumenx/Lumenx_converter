@@ -1,10 +1,24 @@
+import {
+  firebaseEmailLoginToLumenXSession,
+  firebaseLogout,
+  signInWithFirebaseEmail,
+} from "@lumenx/auth";
+import { invalidatePushDeviceTokensBeforeSignOut } from "@lumenx/notifications";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import {
   clearStoredActiveInstituteId,
+  isInstituteUuid,
   resolveActiveInstitute,
   selectActiveInstitute,
+  writeStoredActiveInstituteId,
 } from "@/lib/active-institute";
-import { authUserFromMe, fetchInstituteName, fetchMe } from "@/auth/me-bridge";
+import {
+  authUserFromMe,
+  fetchInstituteName,
+  fetchMe,
+  hasAdminAppAccess,
+  isPendingAdminApplicant,
+} from "@/auth/me-bridge";
 import type { AuthUser } from "@/auth/types";
 import { ApiClientError } from "@/lib/api";
 import {
@@ -15,6 +29,7 @@ import {
   verifyStaffPasswordLogin,
 } from "@/lib/access-roles";
 import { demoRoleIdForSystemKey } from "@/lib/access-roles/system-keys";
+import { isFirebaseAuthProvider } from "@/auth/auth-mode";
 
 export type ApiAuthHydration = {
   user: AuthUser;
@@ -22,13 +37,25 @@ export type ApiAuthHydration = {
   activeInstituteId: string | null;
 };
 
+export type HydrateAccessOptions = {
+  /**
+   * After institute registration, applicants have an active profile but no
+   * institute membership until Nexus approval. Allow session hydrate so they
+   * can reach pending-verification.
+   */
+  allowPendingApplicant?: boolean;
+};
+
 /**
- * Sign in with Supabase Auth (email + password), then hydrate via GET /api/v1/me.
- * Does not accept or generate mock JWTs.
+ * Sign in with email + password, then hydrate via GET /api/v1/me.
+ * When VITE_AUTH_PROVIDER=firebase (default): Firebase Auth → ID token → /auth/firebase/session.
+ * When supabase (explicit rollback): Supabase Auth password sign-in.
+ * Does not accept or generate mock JWTs. Never falls back to demo.
  */
 export async function apiSignInWithPassword(
   email: string,
   password: string,
+  opts?: HydrateAccessOptions,
 ): Promise<ApiAuthHydration> {
   const normalized = email.trim().toLowerCase();
   if (!normalized.includes("@")) {
@@ -36,6 +63,23 @@ export async function apiSignInWithPassword(
   }
 
   const supabase = getSupabaseBrowserClient();
+
+  if (isFirebaseAuthProvider()) {
+    const session = await firebaseEmailLoginToLumenXSession({
+      email: normalized,
+      password,
+      autoLink: true,
+      setSupabaseSession: async ({ accessToken, refreshToken }) => {
+        const { error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (error) throw new Error(error.message || "Unable to establish session.");
+      },
+    });
+    return hydrateFromAccessToken(session.accessToken, null, opts);
+  }
+
   const { data, error } = await supabase.auth.signInWithPassword({
     email: normalized,
     password,
@@ -45,35 +89,69 @@ export async function apiSignInWithPassword(
     throw new Error(error?.message ?? "Sign-in failed. Check your email and password.");
   }
 
-  return hydrateFromAccessToken(data.session.access_token);
+  return hydrateFromAccessToken(data.session.access_token, null, opts);
 }
 
 export async function hydrateFromAccessToken(
   accessToken: string,
   preferredInstituteId?: string | null,
+  opts?: HydrateAccessOptions,
 ): Promise<ApiAuthHydration> {
   let me;
   try {
     me = await fetchMe(accessToken);
   } catch (err) {
-    // Failed real auth must not fall back to demo identity.
-    await getSupabaseBrowserClient().auth.signOut().catch(() => undefined);
-    clearStoredActiveInstituteId();
-    if (err instanceof ApiClientError) {
+    if (err instanceof ApiClientError && (err.status === 401 || err.status === 403)) {
+      await getSupabaseBrowserClient().auth.signOut().catch(() => undefined);
+      clearStoredActiveInstituteId();
       throw new Error(err.message);
     }
     throw err;
+  }
+
+  if (!hasAdminAppAccess(me)) {
+    if (opts?.allowPendingApplicant && isPendingAdminApplicant(me)) {
+      const user = authUserFromMe(me, null, "", null);
+      return {
+        user: {
+          ...user,
+          // Not institute-activated until Nexus approval.
+          isVerified: false,
+          instituteId: "",
+          instituteName: "",
+        },
+        meInstitutes: me.institutes,
+        activeInstituteId: null,
+      };
+    }
+    await getSupabaseBrowserClient().auth.signOut().catch(() => undefined);
+    clearStoredActiveInstituteId();
+    if (isPendingAdminApplicant(me)) {
+      throw new Error(
+        "Your institute registration is still under review. Open Pending verification after signup, or wait for Nexus approval.",
+      );
+    }
+    throw new Error("This account does not have active LumenX Admin access.");
   }
 
   if (preferredInstituteId) {
     try {
       selectActiveInstitute(preferredInstituteId, me.institutes);
     } catch {
-      // Fall back to stored / single-institute resolution.
+      // Platform operators may lack a membership row for the login institute.
+      if (me.platformOperator?.active && isInstituteUuid(preferredInstituteId)) {
+        writeStoredActiveInstituteId(preferredInstituteId);
+      }
     }
   }
 
-  const resolved = resolveActiveInstitute(me.institutes);
+  const resolved = resolveActiveInstitute(
+    me.institutes,
+    undefined,
+    me.platformOperator?.active && preferredInstituteId && isInstituteUuid(preferredInstituteId)
+      ? { allowInstituteIds: [preferredInstituteId] }
+      : undefined,
+  );
   let instituteName = "";
   if (resolved.instituteId) {
     instituteName = await fetchInstituteName(resolved.instituteId, accessToken);
@@ -98,15 +176,38 @@ export async function hydrateFromAccessToken(
 }
 
 /**
- * Staff Admin login: institute + email/mobile OTP + password every session.
+ * Staff Admin login:
+ * - Firebase phone: SMS OTP + PIN
+ * - Firebase email: email/password + PIN
+ * - Explicit legacy provider: dual OTP + password + PIN on first login
  */
 export async function apiSignInWithStaffOtp(input: {
   instituteId: string;
   identifier: string;
-  otp: string;
-  password: string;
+  otp?: string;
+  mobileOtp?: string;
+  emailOtp?: string;
+  mobileOtpGrant?: string;
+  emailOtpGrant?: string;
+  firebaseIdToken?: string;
+  password?: string;
+  pin: string;
 }): Promise<ApiAuthHydration> {
-  const session = await verifyStaffLogin(input);
+  if (!input.password || input.password.length < 1) {
+    throw new Error("Enter your password after OTP verification.");
+  }
+  const session = await verifyStaffLogin({
+    instituteId: input.instituteId,
+    identifier: input.identifier,
+    otp: input.otp,
+    mobileOtp: input.mobileOtp,
+    emailOtp: input.emailOtp,
+    mobileOtpGrant: input.mobileOtpGrant,
+    emailOtpGrant: input.emailOtpGrant,
+    firebaseIdToken: input.firebaseIdToken,
+    password: input.password,
+    pin: input.pin,
+  });
   const supabase = getSupabaseBrowserClient();
   const { error } = await supabase.auth.setSession({
     access_token: session.accessToken,
@@ -122,8 +223,27 @@ export async function apiSignInWithStaffPassword(input: {
   instituteId: string;
   identifier: string;
   password: string;
+  pin: string;
 }): Promise<ApiAuthHydration> {
-  const session = await verifyStaffPasswordLogin(input);
+  let firebaseIdToken: string | undefined;
+  if (isFirebaseAuthProvider() && input.identifier.trim().includes("@")) {
+    try {
+      const firebaseEmail = await signInWithFirebaseEmail(
+        input.identifier,
+        input.password,
+      );
+      firebaseIdToken = firebaseEmail.idToken;
+    } catch {
+      // Password may have been updated in Supabase only (recovery). Fall back
+      // to server password verification, then continue with Supabase session.
+      firebaseIdToken = undefined;
+    }
+  }
+  const session = await verifyStaffPasswordLogin({
+    ...input,
+    password: firebaseIdToken ? undefined : input.password,
+    firebaseIdToken,
+  });
   const supabase = getSupabaseBrowserClient();
   const { error } = await supabase.auth.setSession({
     access_token: session.accessToken,
@@ -143,12 +263,22 @@ export async function tryHydrateApiSession(): Promise<ApiAuthHydration | null> {
 }
 
 export async function apiSignOut(): Promise<void> {
-  try {
-    const supabase = getSupabaseBrowserClient();
-    await supabase.auth.signOut();
-  } catch {
-    // still clear local API state
-  }
+  await invalidatePushDeviceTokensBeforeSignOut({
+    app: "admin",
+    apiBaseUrl: (import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8787").replace(
+      /\/+$/,
+      "",
+    ),
+    getAccessToken: async () => {
+      const { data } = await getSupabaseBrowserClient().auth.getSession();
+      return data.session?.access_token;
+    },
+  });
+  await firebaseLogout({
+    clearSupabaseSession: async () => {
+      await getSupabaseBrowserClient().auth.signOut().catch(() => undefined);
+    },
+  });
   clearStoredActiveInstituteId();
   clearApiAccessState();
 }

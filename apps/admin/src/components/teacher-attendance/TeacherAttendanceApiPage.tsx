@@ -1,4 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  useStaffAttendanceDayQuery,
+  useStaffAttendanceRangeQuery,
+  adminQueryRoots,
+} from "@/lib/admin-queries";
+import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import {
   Button,
   Card,
@@ -35,13 +42,12 @@ import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import { listTeachers, teacherDtosToListItems, type TeacherListItem } from "@/lib/teachers";
 import {
   canEditSubmittedStaffAttendanceDay,
-  loadStaffAttendanceDay,
-  loadStaffAttendanceSubmittedRange,
+  defaultStaffAttendanceRangeFrom,
   mergeTeachersIntoDaySummary,
   reopenStaffAttendanceDay,
   resolveStaffAttendanceDayView,
-  shouldCommitStaffAttendanceLoad,
   staffAttendanceEditWindowRemainingMs,
+  STAFF_ATTENDANCE_MARK_STATUSES,
   STAFF_ATTENDANCE_REOPEN_WINDOW_HOURS,
   submitStaffAttendanceDay,
   upsertStaffAttendanceDay,
@@ -49,19 +55,22 @@ import {
   type StaffAttendanceHistoryDay,
   type StaffAttendanceLoadStatus,
   type StaffAttendanceMarkItem,
+  type StaffAttendanceMarkStatus,
   type StaffAttendanceOverviewRow,
   type StaffAttendanceStatus,
 } from "@/lib/staff-attendance";
 
 type PageTab = "mark" | "overview" | "history";
 
-const STATUS_OPTIONS: StaffAttendanceStatus[] = [
-  "present",
-  "late",
-  "absent",
-  "leave",
-  "half-day",
+/** Flowchart: present · absent · half day · leave */
+const STATUS_OPTIONS: StaffAttendanceMarkStatus[] = [
+  ...STAFF_ATTENDANCE_MARK_STATUSES,
 ];
+
+function markStatusLabel(status: StaffAttendanceStatus | null): string {
+  if (!status) return "Mark…";
+  return statusMeta(status).label;
+}
 
 function loadHint(status: StaffAttendanceLoadStatus, errorMessage: string | null): string | null {
   if (status === "loading") return "Loading teacher attendance…";
@@ -132,8 +141,30 @@ export function TeacherAttendanceApiPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(null);
   const [resolvedDate, setResolvedDate] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
-  const [rangeReloadKey, setRangeReloadKey] = useState(0);
+  const queryClient = useQueryClient();
+  const listEnabled =
+    instituteCtx.status === "ready" && Boolean(instituteCtx.activeInstituteId);
+  const dayQuery = useStaffAttendanceDayQuery(
+    instituteCtx.activeInstituteId,
+    date,
+    listEnabled,
+  );
+  const rangeFrom = useMemo(() => defaultStaffAttendanceRangeFrom(), []);
+  const rangeTo = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const rangeQuery = useStaffAttendanceRangeQuery(
+    instituteCtx.activeInstituteId,
+    rangeFrom,
+    rangeTo,
+    listEnabled && tab !== "mark",
+  );
+  const bumpAttendanceReload = () => {
+    invalidateAdminCache("admin:attendance");
+    if (instituteCtx.activeInstituteId) {
+      void queryClient.invalidateQueries({
+        queryKey: [adminQueryRoots.attendance, instituteCtx.activeInstituteId],
+      });
+    }
+  };
   const [saving, setSaving] = useState(false);
   const [submitOpen, setSubmitOpen] = useState(false);
   const [overview, setOverview] = useState<StaffAttendanceOverviewRow[]>([]);
@@ -151,7 +182,8 @@ export function TeacherAttendanceApiPage() {
     requestDate: date,
     resolvedDate,
     storedSummary: summary,
-    storedStatus: loadStatus,
+    storedStatus:
+      dayQuery.isLoading && !dayQuery.data ? "loading" : loadStatus,
     storedErrorMessage: loadError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
@@ -171,58 +203,61 @@ export function TeacherAttendanceApiPage() {
       return;
     }
 
+    if (dayQuery.isLoading && !dayQuery.data) {
+      setLoadStatus("loading");
+      setLoadError(null);
+      return;
+    }
+    if (!dayQuery.data) return;
+
     const requestInstituteId = instituteCtx.activeInstituteId;
     let cancelled = false;
-    setLoadStatus("loading");
-    setLoadError(null);
-    void Promise.all([
-      loadStaffAttendanceDay(requestInstituteId, date),
-      listTeachers({ instituteId: requestInstituteId }).then(teacherDtosToListItems),
-    ]).then(([next, teacherRows]) => {
-      if (
-        !shouldCommitStaffAttendanceLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-          requestDate: date,
-          activeDate: date,
-        })
-      ) {
-        return;
-      }
-      setTeachers(teacherRows);
-      const base =
-        next.summary ??
-        ({
-          date,
-          dayStatus: "draft",
-          submittedAt: null,
-          total: 0,
-          present: 0,
-          late: 0,
-          absent: 0,
-          leave: 0,
-          halfDay: 0,
-          marks: [],
-        } satisfies StaffAttendanceDaySummary);
-      const merged = mergeTeachersIntoDaySummary(base, teacherRows);
-      setSummary(merged);
-      setDraftMarks(merged.marks);
-      setLoadStatus(
-        next.status === "error" || next.status === "forbidden"
-          ? next.status
-          : teacherRows.length === 0 && merged.marks.length === 0
-            ? "empty"
-            : "ready",
-      );
-      setLoadError(next.errorMessage);
-      setResolvedForInstituteId(requestInstituteId);
-      setResolvedDate(date);
-    });
+    void listTeachers({ instituteId: requestInstituteId })
+      .then(teacherDtosToListItems)
+      .catch(() => [] as ReturnType<typeof teacherDtosToListItems>)
+      .then((teacherRows) => {
+        if (cancelled || activeInstituteIdRef.current !== requestInstituteId) return;
+        const next = dayQuery.data!;
+        setTeachers(teacherRows);
+        const base =
+          next.summary ??
+          ({
+            date,
+            dayStatus: "draft",
+            submittedAt: null,
+            total: 0,
+            present: 0,
+            late: 0,
+            absent: 0,
+            leave: 0,
+            halfDay: 0,
+            unmarked: 0,
+            marks: [],
+          } satisfies StaffAttendanceDaySummary);
+        const merged = mergeTeachersIntoDaySummary(base, teacherRows);
+        setSummary(merged);
+        setDraftMarks(merged.marks);
+        setLoadStatus(
+          next.status === "error" || next.status === "forbidden"
+            ? next.status
+            : teacherRows.length === 0 && merged.marks.length === 0
+              ? "empty"
+              : "ready",
+        );
+        setLoadError(next.errorMessage);
+        setResolvedForInstituteId(requestInstituteId);
+        setResolvedDate(date);
+      });
     return () => {
       cancelled = true;
     };
-  }, [instituteCtx.status, instituteCtx.activeInstituteId, date, reloadKey]);
+  }, [
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    date,
+    dayQuery.data,
+    dayQuery.isLoading,
+  ]);
 
   useEffect(() => {
     if (tab === "mark") return;
@@ -234,21 +269,25 @@ export function TeacherAttendanceApiPage() {
       return;
     }
 
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setRangeStatus("loading");
-    setRangeError(null);
-    void loadStaffAttendanceSubmittedRange(requestInstituteId).then((next) => {
-      if (cancelled || activeInstituteIdRef.current !== requestInstituteId) return;
-      setOverview(next.overview);
-      setHistory(next.history);
-      setRangeStatus(next.status);
-      setRangeError(next.errorMessage);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [instituteCtx.status, instituteCtx.activeInstituteId, tab, rangeReloadKey, reloadKey]);
+    if (rangeQuery.isLoading && !rangeQuery.data) {
+      setRangeStatus("loading");
+      setRangeError(null);
+      return;
+    }
+    if (!rangeQuery.data) return;
+
+    const next = rangeQuery.data;
+    setOverview(next.overview);
+    setHistory(next.history);
+    setRangeStatus(next.status);
+    setRangeError(next.errorMessage);
+  }, [
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    tab,
+    rangeQuery.data,
+    rangeQuery.isLoading,
+  ]);
 
   const displaySummary = useMemo(() => {
     if (!dayView.rowsValid) return null;
@@ -264,6 +303,7 @@ export function TeacherAttendanceApiPage() {
         absent: 0,
         leave: 0,
         halfDay: 0,
+        unmarked: 0,
         marks: [],
       }),
       total: draftMarks.length,
@@ -272,6 +312,7 @@ export function TeacherAttendanceApiPage() {
       absent: draftMarks.filter((m) => m.status === "absent").length,
       leave: draftMarks.filter((m) => m.status === "leave").length,
       halfDay: draftMarks.filter((m) => m.status === "half-day").length,
+      unmarked: draftMarks.filter((m) => m.status == null).length,
       marks: draftMarks,
     };
   }, [dayView.rowsValid, dayView.summary, draftMarks, date]);
@@ -315,10 +356,23 @@ export function TeacherAttendanceApiPage() {
     dayLocked && canEditSubmittedStaffAttendanceDay(submittedAt);
   const canEdit = writesEnabled && !dayLocked && dayView.rowsValid;
 
-  const setMarkStatus = (teacherId: string, status: StaffAttendanceStatus) => {
+  const setMarkStatus = (teacherId: string, status: StaffAttendanceMarkStatus) => {
     if (!canEdit) return;
     setDraftMarks((prev) =>
-      prev.map((mark) => (mark.teacherId === teacherId ? { ...mark, status } : mark)),
+      prev.map((mark) =>
+        mark.teacherId === teacherId
+          ? {
+              ...mark,
+              status,
+              checkIn:
+                status === "present" || status === "half-day"
+                  ? mark.checkIn ?? "08:15"
+                  : null,
+              checkOut:
+                status === "absent" || status === "leave" ? null : mark.checkOut,
+            }
+          : mark,
+      ),
     );
   };
 
@@ -326,7 +380,13 @@ export function TeacherAttendanceApiPage() {
     if (!canEdit) return;
     setDraftMarks((prev) =>
       prev.map((mark) =>
-        mark.status === "leave" ? mark : { ...mark, status: "present" as const },
+        mark.status === "leave"
+          ? mark
+          : {
+              ...mark,
+              status: "present" as const,
+              checkIn: mark.checkIn ?? "08:15",
+            },
       ),
     );
     notify("Marked everyone present (leave unchanged)");
@@ -334,21 +394,26 @@ export function TeacherAttendanceApiPage() {
 
   const saveDay = () => {
     if (!canEdit || !instituteCtx.activeInstituteId || draftMarks.length === 0) return;
+    const unmarked = draftMarks.filter((mark) => !mark.status);
+    if (unmarked.length > 0) {
+      notify(`Select status for all teachers (${unmarked.length} unmarked)`);
+      return;
+    }
     setSaving(true);
     void upsertStaffAttendanceDay({
       instituteId: instituteCtx.activeInstituteId,
       date,
       marks: draftMarks.map((mark) => ({
         teacherId: mark.teacherId,
-        status: mark.status,
+        status: mark.status as StaffAttendanceMarkStatus,
         checkIn: mark.checkIn,
         checkOut: mark.checkOut,
         note: mark.note,
       })),
     })
       .then(() => {
-        setReloadKey((k) => k + 1);
-        setRangeReloadKey((k) => k + 1);
+        bumpAttendanceReload();
+        bumpAttendanceReload();
         notify("Teacher attendance saved");
       })
       .catch((err) => {
@@ -359,6 +424,11 @@ export function TeacherAttendanceApiPage() {
 
   const submitDay = () => {
     if (!writesEnabled || !instituteCtx.activeInstituteId) return;
+    const unmarked = draftMarks.filter((mark) => !mark.status);
+    if (unmarked.length > 0) {
+      notify(`Mark all teachers before submitting (${unmarked.length} unmarked)`);
+      return;
+    }
     setSaving(true);
     const instituteId = instituteCtx.activeInstituteId;
     const run = async () => {
@@ -368,7 +438,7 @@ export function TeacherAttendanceApiPage() {
           date,
           marks: draftMarks.map((mark) => ({
             teacherId: mark.teacherId,
-            status: mark.status,
+            status: mark.status as StaffAttendanceMarkStatus,
             checkIn: mark.checkIn,
             checkOut: mark.checkOut,
             note: mark.note,
@@ -380,8 +450,8 @@ export function TeacherAttendanceApiPage() {
     void run()
       .then(() => {
         setSubmitOpen(false);
-        setReloadKey((k) => k + 1);
-        setRangeReloadKey((k) => k + 1);
+        bumpAttendanceReload();
+        bumpAttendanceReload();
         notify("Teacher attendance submitted");
       })
       .catch((err) => {
@@ -398,8 +468,8 @@ export function TeacherAttendanceApiPage() {
       date,
     })
       .then(() => {
-        setReloadKey((k) => k + 1);
-        setRangeReloadKey((k) => k + 1);
+        bumpAttendanceReload();
+        bumpAttendanceReload();
         notify("Teacher attendance reopened");
       })
       .catch((err) => {
@@ -428,8 +498,8 @@ export function TeacherAttendanceApiPage() {
         setDate(dayDate);
         setHistoryDay(null);
         setTab("mark");
-        setReloadKey((k) => k + 1);
-        setRangeReloadKey((k) => k + 1);
+        bumpAttendanceReload();
+        bumpAttendanceReload();
         notify(`Opened ${formatDisplayDate(dayDate)} for editing`);
       })
       .catch((err) => {
@@ -454,7 +524,7 @@ export function TeacherAttendanceApiPage() {
           ]}
         />
         <Pill tone="neutral">
-          {writesEnabled ? "API mode · mark / submit / reopen" : "Read-only · API mode"}
+          {writesEnabled ? "Mark / submit / reopen" : "Read-only"}
         </Pill>
         {teachers.length > 0 ? (
           <span className="text-xs text-muted-foreground">{teachers.length} teachers</span>
@@ -465,9 +535,9 @@ export function TeacherAttendanceApiPage() {
         <>
           <div className="lx-kpi-grid">
             <Kpi label="Avg attendance" value={`${overviewKpis.avgPct}%`} />
-            <Kpi label="Late / half" value={String(overviewKpis.lates)} icon={<Clock className="size-3.5" />} />
+            <Kpi label="Half day / exceptions" value={String(overviewKpis.lates)} icon={<Clock className="size-3.5" />} />
             <Kpi label="Leave" value={String(overviewKpis.leaves)} />
-            <Kpi label="Absent" value={String(overviewKpis.absent)} tone="down" icon={<UserX className="size-3.5" />} />
+            <Kpi label="Absent" value={String(overviewKpis.absents)} tone="down" icon={<UserX className="size-3.5" />} />
           </div>
           <OverviewPanel
             list={overviewList}
@@ -507,9 +577,12 @@ export function TeacherAttendanceApiPage() {
           {displaySummary ? (
             <div className="lx-kpi-grid">
               <Kpi label="Present" value={String(displaySummary.present)} tone="up" icon={<CheckCircle2 className="size-3.5" />} />
-              <Kpi label="Late" value={String(displaySummary.late)} icon={<Clock className="size-3.5" />} />
               <Kpi label="Absent" value={String(displaySummary.absent)} tone="down" icon={<UserX className="size-3.5" />} />
-              <Kpi label="Leave / half" value={String(displaySummary.leave + displaySummary.halfDay)} />
+              <Kpi label="Half day" value={String(displaySummary.halfDay)} icon={<Clock className="size-3.5" />} />
+              <Kpi label="Leave" value={String(displaySummary.leave)} />
+              {displaySummary.unmarked > 0 ? (
+                <Kpi label="Unmarked" value={String(displaySummary.unmarked)} tone="down" />
+              ) : null}
             </div>
           ) : null}
 
@@ -550,7 +623,7 @@ export function TeacherAttendanceApiPage() {
               }
             />
 
-            <div className="flex flex-wrap items-end gap-2 border-b border-border px-4 pb-3 sm:px-5">
+            <div className="lx-filter-bar flex flex-wrap items-center gap-2 border-b border-border px-3 py-2 sm:px-5 sm:py-2.5">
               <CascadingFiltersMenu
                 groups={[
                   {
@@ -611,14 +684,17 @@ export function TeacherAttendanceApiPage() {
                       <Td>
                         {canEdit ? (
                           <Select
-                            value={mark.status}
+                            value={mark.status ?? ""}
                             onChange={(e) =>
                               setMarkStatus(
                                 mark.teacherId,
-                                e.target.value as StaffAttendanceStatus,
+                                e.target.value as StaffAttendanceMarkStatus,
                               )
                             }
                           >
+                            <option value="" disabled>
+                              Mark…
+                            </option>
                             {STATUS_OPTIONS.map((status) => (
                               <option key={status} value={status}>
                                 {statusMeta(status).label}
@@ -626,8 +702,8 @@ export function TeacherAttendanceApiPage() {
                             ))}
                           </Select>
                         ) : (
-                          <Pill tone={statusMeta(mark.status).tone}>
-                            {statusMeta(mark.status).label}
+                          <Pill tone={mark.status ? statusMeta(mark.status).tone : "neutral"}>
+                            {markStatusLabel(mark.status)}
                           </Pill>
                         )}
                       </Td>
@@ -648,7 +724,7 @@ export function TeacherAttendanceApiPage() {
         title="Submit this day’s attendance?"
         subtitle={
           displaySummary
-            ? `${formatDisplayDate(date)} · ${displaySummary.present} present · ${displaySummary.absent} absent · ${displaySummary.leave} leave`
+            ? `${formatDisplayDate(date)} · ${displaySummary.present} present · ${displaySummary.absent} absent · ${displaySummary.halfDay} half day · ${displaySummary.leave} leave`
             : undefined
         }
         footer={
@@ -708,7 +784,7 @@ function OverviewPanel({
         title="Teacher overview"
         hint="One row per teacher — tap a row for leave, absent, late & half-day dates"
       />
-      <div className="flex flex-wrap items-end gap-2 border-b border-border px-4 pb-3 sm:px-5">
+      <div className="lx-filter-bar flex flex-wrap items-center gap-2 border-b border-border px-3 py-2 sm:px-5 sm:py-2.5">
         <CascadingFiltersMenu
           groups={[
             {
@@ -965,8 +1041,8 @@ function HistoryDayDetail({
         }
       />
       <div className="border-b border-border bg-muted/30 px-4 py-2 text-[11px] text-muted-foreground sm:px-5">
-        {day.present} present · {day.late} late · {day.halfDay} half day · {day.leave} leave ·{" "}
-        {day.absent} absent
+        {day.present} present · {day.absent} absent · {day.halfDay} half day · {day.leave} leave
+        {day.late > 0 ? ` · ${day.late} late (legacy)` : ""}
         {canEdit
           ? ` · edit for ${remaining}`
           : ` · edit closed after ${STAFF_ATTENDANCE_REOPEN_WINDOW_HOURS} hours`}
@@ -980,7 +1056,9 @@ function HistoryDayDetail({
             <div className="min-w-0">
               <div className="truncate text-sm font-medium">{mark.teacherName}</div>
             </div>
-            <Pill tone={statusMeta(mark.status).tone}>{statusMeta(mark.status).label}</Pill>
+            <Pill tone={mark.status ? statusMeta(mark.status).tone : "neutral"}>
+              {markStatusLabel(mark.status)}
+            </Pill>
           </li>
         ))}
       </ul>
@@ -1023,7 +1101,8 @@ function SubmittedDayView({
             {canEdit ? "Attendance submitted" : "Attendance locked"}
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {present} present · {late} late · {half} half day · {leave} leave · {absent} absent
+            {present} present · {absent} absent · {half} half day · {leave} leave
+            {late > 0 ? ` · ${late} late (legacy)` : ""}
             {canEdit
               ? ` · edit for ${remaining}`
               : ` · edit closed after ${STAFF_ATTENDANCE_REOPEN_WINDOW_HOURS} hours`}
@@ -1044,7 +1123,9 @@ function SubmittedDayView({
             <div className="min-w-0">
               <div className="truncate text-sm font-medium">{mark.teacherName}</div>
             </div>
-            <Pill tone={statusMeta(mark.status).tone}>{statusMeta(mark.status).label}</Pill>
+            <Pill tone={mark.status ? statusMeta(mark.status).tone : "neutral"}>
+              {markStatusLabel(mark.status)}
+            </Pill>
           </li>
         ))}
       </ul>

@@ -18,11 +18,9 @@ import {
   listMarksForRegister,
   listRegisters,
 } from "./repository.js";
-import {
-  assertCanWriteAttendance,
-} from "./service.js";
+import { pickConfigForSection } from "./config-resolve.js";
+import { assertCanViewTeacherAttendance } from "./service.js";
 import type {
-  AttendanceConfigVersionRow,
   AttendanceMethod,
   AttendanceRegisterRow,
   AttendanceSlotKind,
@@ -56,35 +54,6 @@ type ExpectedSlot = {
 function weekdayFromIso(date: string): number {
   const day = new Date(`${date.slice(0, 10)}T12:00:00`).getUTCDay();
   return day === 0 ? 7 : day;
-}
-
-function pickConfigForSection(
-  configs: AttendanceConfigVersionRow[],
-  attendanceDate: string,
-  classCode: string,
-  sectionCode: string,
-): AttendanceConfigVersionRow | null {
-  return (
-    configs
-      .filter((c) => c.effective_from <= attendanceDate)
-      .filter((c) => {
-        if (c.scope === "institute") return true;
-        if (c.scope === "class") {
-          return (
-            (c.class_codes ?? []).length === 0 ||
-            (c.class_codes ?? []).includes(classCode)
-          );
-        }
-        if (c.scope === "section") {
-          return (
-            (c.section_codes ?? []).length === 0 ||
-            (c.section_codes ?? []).includes(sectionCode)
-          );
-        }
-        return false;
-      })
-      .sort((a, b) => b.effective_from.localeCompare(a.effective_from))[0] ?? null
-  );
 }
 
 async function loadClassSectionCodes(
@@ -346,7 +315,7 @@ export async function getTeacherAttendancePortalForActor(
     throw AppError.notFound("Section not found");
   }
 
-  await assertCanWriteAttendance(admin, actor, {
+  await assertCanViewTeacherAttendance(admin, actor, {
     instituteId,
     sectionId: section.id,
     academicYearId: section.academic_year_id,
@@ -406,6 +375,7 @@ export async function getTeacherAttendancePortalForActor(
     academicYearId: section.academic_year_id,
     attendanceDate: input.attendanceDate,
     method: config?.method ?? null,
+    owner: config?.owner ?? null,
     configVersionId: config?.id ?? null,
     slots,
   };

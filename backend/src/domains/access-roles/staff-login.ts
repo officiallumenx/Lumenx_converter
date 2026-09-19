@@ -1,6 +1,18 @@
+/**
+ * Admin staff / root login (exact notebook workflows):
+ *   First login: identifier → mobile OTP → email OTP → password → PIN → modules
+ *   Returning:   identifier → password → PIN → modules
+ * Recovery:
+ *   forgot password → mobile+email OTPs → set password → PIN
+ *   forgot PIN → mobile+email OTPs → set PIN → dashboard
+ * Firebase adaptation: phone SMS OTP replaces numeric mobile OTP; email OTP skipped
+ * (Firebase has no numeric email OTP). Password is still required after phone OTP.
+ */
+
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AppError } from "../../errors/app-error.js";
 import {
+  findInstituteById,
   listActiveInstitutesForLogin,
   listMemberships,
   listRolesForMemberships,
@@ -8,10 +20,29 @@ import {
 import { findAccessAssignmentForUserInstitute } from "./repository.js";
 import {
   maskStaffIdentifier,
-  storeStaffLoginOtp,
   verifyStoredStaffLoginOtp,
 } from "./staff-otp.js";
 import { deliverLoginOtp } from "../otp-delivery/index.js";
+import {
+  assertPinMatches,
+  assertValidPin,
+  assertValidUsername,
+  findCredentialByUserId,
+  findCredentialByUsername,
+  upsertUserAuthCredential,
+  workflowFlagsFromCredential,
+} from "../auth-credentials/repository.js";
+import {
+  maskWorkflowDestination,
+  storeWorkflowOtp,
+  verifyWorkflowOtp,
+} from "../auth-credentials/workflow-otp.js";
+import {
+  consumeAuthVerificationGrant,
+  issueAuthVerificationGrant,
+} from "../auth-credentials/verification-grant.js";
+import { linkFirebaseIdentityToExistingUser } from "../firebase-identity/service.js";
+import { createServerAuthSessionForEmail, verifyPasswordWithoutPoisoning } from "../../auth/create-server-session.js";
 
 const INSTITUTE_WIDE_ROLES = new Set([
   "institute_admin",
@@ -46,6 +77,13 @@ export type ResolveStaffLoginModeInput = {
 
 export type StaffLoginModeResult = {
   requiresOtp: boolean;
+  requiresDualOtp: boolean;
+  requiresPin: boolean;
+  firstLogin: boolean;
+  hasUsername: boolean;
+  hasPin: boolean;
+  isAssigned: boolean;
+  isInstituteRoot: boolean;
   displayName: string;
 };
 
@@ -59,8 +97,22 @@ export async function resolveStaffLoginMode(
     input.identifier,
     { allowInstituteWide: true },
   );
+  const cred = await findCredentialByUserId(admin, resolved.userId);
+  // Assignees need first-login OTP; institute-wide admin uses password + PIN only.
+  const flags = workflowFlagsFromCredential(cred, {
+    dualOtpOnFirstLogin: true,
+    pinAlways: true,
+  });
+  const requiresOtp = resolved.isAssigned && flags.firstLogin;
   return {
-    requiresOtp: resolved.requiresOtp,
+    requiresOtp,
+    requiresDualOtp: requiresOtp,
+    requiresPin: true,
+    firstLogin: flags.firstLogin,
+    hasUsername: flags.hasUsername,
+    hasPin: flags.hasPin,
+    isAssigned: resolved.isAssigned,
+    isInstituteRoot: resolved.isInstituteRoot,
     displayName: resolved.displayName,
   };
 }
@@ -72,6 +124,12 @@ function normalizePhoneDigits(value: string): string {
 export type RequestStaffOtpInput = {
   instituteId: string;
   identifier: string;
+  channel?: "email" | "mobile";
+  /**
+   * `firebase_client` — return phone for client Firebase SMS; do not send Twilio OTP.
+   * Default `server` — store + deliver via Twilio/Resend.
+   */
+  delivery?: "server" | "firebase_client";
 };
 
 export type RequestStaffOtpResult = {
@@ -79,6 +137,8 @@ export type RequestStaffOtpResult = {
   channel: "email" | "mobile";
   displayName: string;
   devOtp?: string;
+  /** E.164 / digits for Firebase phone auth when delivery=firebase_client. */
+  phoneE164?: string;
 };
 
 type StaffProfile = {
@@ -100,13 +160,27 @@ async function resolveStaffLoginUser(
   authEmail: string;
   channel: "email" | "mobile";
   destination: string;
+  isAssigned: boolean;
+  isInstituteRoot: boolean;
   requiresOtp: boolean;
+  phone: string | null;
+  email: string | null;
 }> {
+  const institute = await findInstituteById(admin, instituteId);
+  if (!institute || institute.status !== "active") {
+    throw AppError.notFound(
+      "This institute is not available for login. Contact support.",
+    );
+  }
+
   const trimmed = identifier.trim();
   const isEmail = trimmed.includes("@");
-  const channel: "email" | "mobile" = isEmail ? "email" : "mobile";
+  const phoneDigits = normalizePhoneDigits(trimmed);
+  const looksLikePhone = !isEmail && phoneDigits.length === 10 && /^\d+$/.test(trimmed.replace(/\D/g, ""));
 
   let profile: StaffProfile | null = null;
+  let channel: "email" | "mobile" = isEmail ? "email" : "mobile";
+
   if (isEmail) {
     const email = trimmed.toLowerCase();
     const { data, error } = await admin
@@ -117,26 +191,70 @@ async function resolveStaffLoginUser(
       .maybeSingle();
     if (error) throw error;
     profile = (data as StaffProfile | null) ?? null;
-  } else {
-    const phone = normalizePhoneDigits(trimmed);
-    if (phone.length !== 10) {
-      throw AppError.validation("Enter a valid email or 10-digit mobile number", {
-        identifier: ["Invalid"],
-      });
-    }
+  } else if (looksLikePhone) {
     const { data, error } = await admin
       .from("user_profile")
       .select("id, display_name, email, phone, status")
-      .eq("phone", phone)
-      .is("deleted_at", null)
-      .maybeSingle();
+      .eq("phone_digits", phoneDigits)
+      .is("deleted_at", null);
     if (error) throw error;
-    profile = (data as StaffProfile | null) ?? null;
+    let candidates = (data ?? []) as StaffProfile[];
+
+    // Canonical-phone backfill deliberately leaves legacy collisions NULL so
+    // the unique index can be enabled safely. Keep those owners able to log in
+    // and resolve the correct profile using the selected institute membership.
+    if (candidates.length === 0) {
+      const fallback = await admin
+        .from("user_profile")
+        .select("id, display_name, email, phone, status")
+        .is("phone_digits", null)
+        .is("deleted_at", null);
+      if (fallback.error) throw fallback.error;
+      candidates = ((fallback.data ?? []) as StaffProfile[]).filter(
+        (candidate) =>
+          candidate.phone != null &&
+          normalizePhoneDigits(candidate.phone) === phoneDigits,
+      );
+    }
+
+    if (candidates.length <= 1) {
+      profile = candidates[0] ?? null;
+    } else {
+      const instituteMatches: StaffProfile[] = [];
+      for (const candidate of candidates) {
+        const candidateMemberships = await listMemberships(admin, {
+          instituteId,
+          userId: candidate.id,
+        });
+        if (candidateMemberships.some((m) => m.status !== "ended")) {
+          instituteMatches.push(candidate);
+        }
+      }
+      if (instituteMatches.length > 1) {
+        throw AppError.conflict(
+          "Multiple Admin accounts use this mobile number in the selected institute. Use email or username.",
+        );
+      }
+      profile = instituteMatches[0] ?? null;
+    }
+  } else {
+    const cred = await findCredentialByUsername(admin, trimmed);
+    if (cred) {
+      const { data, error } = await admin
+        .from("user_profile")
+        .select("id, display_name, email, phone, status")
+        .eq("id", cred.user_id)
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (error) throw error;
+      profile = (data as StaffProfile | null) ?? null;
+      channel = profile?.email ? "email" : "mobile";
+    }
   }
 
   if (!profile || profile.status === "disabled") {
     throw AppError.notFound(
-      "No staff account found for this institute. Contact your administrator.",
+      "No active Admin access was found for this institute. Check the institute and identifier.",
     );
   }
 
@@ -150,7 +268,7 @@ async function resolveStaffLoginUser(
     null;
   if (!membership) {
     throw AppError.notFound(
-      "No staff account found for this institute. Contact your administrator.",
+      "No active Admin access was found for this institute. Check the institute and identifier.",
     );
   }
   if (membership.status === "suspended") {
@@ -165,16 +283,24 @@ async function resolveStaffLoginUser(
   const roleRows = await listRolesForMemberships(admin, [membership.id]);
   const codes = roleRows.map((r) => r.role_code);
   const instituteWide = codes.some((c) => INSTITUTE_WIDE_ROLES.has(c));
+  const isAssigned = Boolean(assignment);
+  const isInstituteRoot = !assignment && instituteWide;
 
-  let requiresOtp = Boolean(assignment);
-  if (!assignment && instituteWide && opts?.allowInstituteWide) {
-    requiresOtp = false;
-  }
   if (!assignment && !instituteWide) {
     throw AppError.notFound(
       "No Admin account found for this institute. Contact your administrator.",
     );
   }
+  if (!assignment && instituteWide && !opts?.allowInstituteWide) {
+    throw AppError.notFound(
+      "No Admin account found for this institute. Contact your administrator.",
+    );
+  }
+
+  const cred = await findCredentialByUserId(admin, profile.id);
+  const firstLogin = !cred?.first_login_completed_at;
+  // Assignees: OTP on first login only. Institute-wide admin/root: password + PIN.
+  const requiresOtp = isAssigned && firstLogin;
 
   const authEmail = profile.email?.trim().toLowerCase();
   if (!authEmail) {
@@ -187,7 +313,11 @@ async function resolveStaffLoginUser(
     authEmail,
     channel,
     destination: channel === "email" ? authEmail : (profile.phone ?? trimmed),
+    isAssigned,
+    isInstituteRoot,
     requiresOtp,
+    phone: profile.phone,
+    email: authEmail,
   };
 }
 
@@ -199,24 +329,68 @@ export async function requestStaffLoginOtp(
     admin,
     input.instituteId.trim(),
     input.identifier,
+    { allowInstituteWide: true },
   );
-  if (!resolved.requiresOtp) {
+  const cred = await findCredentialByUserId(admin, resolved.userId);
+  const firstLogin = !cred?.first_login_completed_at;
+
+  if (!resolved.isAssigned) {
     throw AppError.validation(
-      "This account uses email and password only — continue without OTP.",
+      "OTP is not required for this account. Use password and PIN.",
+    );
+  }
+  if (!firstLogin) {
+    throw AppError.validation(
+      "OTP is only required on first login. Use password and PIN for returning sign-in.",
     );
   }
 
-  const stored = await storeStaffLoginOtp(admin, {
+  const channel = input.channel ?? "mobile";
+  const destination =
+    channel === "email" ? resolved.email : resolved.phone;
+  if (!destination) {
+    throw AppError.validation(
+      channel === "email"
+        ? "Account email is missing."
+        : "Account mobile number is missing.",
+    );
+  }
+
+  const delivery = input.delivery ?? "server";
+
+  // Firebase client SMS — return E.164 for the web SDK; do not store/send Twilio OTP.
+  if (delivery === "firebase_client") {
+    if (channel !== "mobile") {
+      throw AppError.validation(
+        "Firebase client delivery is only supported for the mobile channel.",
+      );
+    }
+    const digits = normalizePhoneDigits(destination);
+    const phoneE164 = destination.trim().startsWith("+")
+      ? destination.trim().replace(/\s+/g, "")
+      : `+91${digits}`;
+    return {
+      maskedDestination: maskStaffIdentifier(destination, "mobile"),
+      channel: "mobile",
+      displayName: resolved.displayName,
+      phoneE164,
+    };
+  }
+
+  // Dual-channel first login uses workflow OTP keys so email + mobile can coexist.
+  const stored = await storeWorkflowOtp(admin, {
+    purpose: "staff_login",
+    challengeKey: `staff:${channel}:${input.instituteId.trim()}:${resolved.userId}`,
     instituteId: input.instituteId.trim(),
-    identifier: input.identifier.trim(),
-    channel: resolved.channel,
-    userId: resolved.userId,
+    channel,
+    destination,
+    subjectId: resolved.userId,
   });
 
   if (stored.shouldDeliver) {
     await deliverLoginOtp({
-      channel: resolved.channel === "email" ? "email" : "sms",
-      destination: resolved.destination,
+      channel: channel === "email" ? "email" : "sms",
+      destination,
       otp: stored.otp,
       purpose: "staff_login",
     });
@@ -225,8 +399,8 @@ export async function requestStaffLoginOtp(
   return {
     maskedDestination:
       stored.maskedDestination ||
-      maskStaffIdentifier(resolved.destination, resolved.channel),
-    channel: resolved.channel,
+      maskStaffIdentifier(destination, channel),
+    channel,
     displayName: resolved.displayName,
     devOtp: stored.devOtp,
   };
@@ -235,14 +409,25 @@ export async function requestStaffLoginOtp(
 export type VerifyStaffLoginInput = {
   instituteId: string;
   identifier: string;
-  otp: string;
-  password: string;
+  otp?: string;
+  mobileOtp?: string;
+  emailOtp?: string;
+  /** One-use grants from verifyStaffChannelOtp (preferred over re-submitting OTPs). */
+  mobileOtpGrant?: string;
+  emailOtpGrant?: string;
+  /** Firebase phone Auth ID token — replaces mobile OTP when present. */
+  firebaseIdToken?: string;
+  password?: string;
+  pin: string;
 };
 
 export type VerifyStaffPasswordLoginInput = {
   instituteId: string;
   identifier: string;
-  password: string;
+  password?: string;
+  /** Firebase email/password ID token — replaces server password verification. */
+  firebaseIdToken?: string;
+  pin: string;
 };
 
 export type StaffLoginSession = {
@@ -256,35 +441,70 @@ async function createAuthSessionForEmail(
   admin: SupabaseClient,
   email: string,
 ): Promise<{ accessToken: string; refreshToken: string }> {
-  const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
-    type: "magiclink",
-    email: email.trim().toLowerCase(),
-  });
+  return createServerAuthSessionForEmail(admin, email, "staff session");
+}
 
-  if (linkError || !linkData.properties?.hashed_token) {
-    throw AppError.internal("Unable to start staff session");
+async function resolveAuthLoginEmail(
+  admin: SupabaseClient,
+  userId: string,
+  fallbackEmail?: string | null,
+): Promise<string> {
+  const { data, error } = await admin.auth.admin.getUserById(userId);
+  if (!error && data.user?.email?.trim()) {
+    return data.user.email.trim().toLowerCase();
   }
+  const fallback = fallbackEmail?.trim().toLowerCase();
+  if (fallback) return fallback;
+  throw AppError.validation(
+    "Account is missing a login email. Contact your administrator.",
+  );
+}
 
-  const { data: sessionData, error: verifyError } = await admin.auth.verifyOtp({
-    token_hash: linkData.properties.hashed_token,
-    type: "email",
-  });
-
-  if (verifyError || !sessionData.session) {
-    throw AppError.internal("Unable to complete staff session");
-  }
-
-  return {
-    accessToken: sessionData.session.access_token,
-    refreshToken: sessionData.session.refresh_token,
+async function assertPasswordForUser(
+  admin: SupabaseClient,
+  userId: string,
+  password: string,
+  fallbackEmail?: string | null,
+): Promise<string> {
+  const candidates: string[] = [];
+  const push = (value: string | null | undefined) => {
+    const email = value?.trim().toLowerCase();
+    if (email && !candidates.includes(email)) candidates.push(email);
   };
+
+  const { data, error } = await admin.auth.admin.getUserById(userId);
+  if (!error) push(data.user?.email ?? null);
+  push(fallbackEmail);
+
+  if (candidates.length === 0) {
+    throw AppError.validation(
+      "Account is missing a login email. Contact your administrator.",
+    );
+  }
+
+  for (const email of candidates) {
+    const ok = await verifyPasswordWithoutPoisoning(admin, email, password);
+    if (ok) return email;
+  }
+
+  throw AppError.validation("Incorrect password. Please try again.", {
+    password: ["Invalid"],
+  });
 }
 
 export async function verifyStaffPasswordLogin(
   admin: SupabaseClient,
   input: VerifyStaffPasswordLoginInput,
+  opts?: {
+    verifyFirebaseIdToken?: (idToken: string) => Promise<{
+      email?: string;
+      uid: string;
+      signInProvider?: string;
+    }>;
+  },
 ): Promise<StaffLoginSession> {
-  if (!input.password || input.password.length < 1) {
+  const firebaseToken = input.firebaseIdToken?.trim();
+  if (!firebaseToken && (!input.password || input.password.length < 1)) {
     throw AppError.validation("password is required", { password: ["Required"] });
   }
 
@@ -294,23 +514,86 @@ export async function verifyStaffPasswordLogin(
     input.identifier,
     { allowInstituteWide: true },
   );
-  if (resolved.requiresOtp) {
+  const cred = await findCredentialByUserId(admin, resolved.userId);
+  const firstLogin = !cred?.first_login_completed_at;
+
+  if (firstLogin && !firebaseToken && resolved.isAssigned) {
     throw AppError.validation(
-      "This account requires OTP verification before password.",
+      "This account requires OTP verification on first login.",
     );
   }
 
-  const { error: signInError } = await admin.auth.signInWithPassword({
-    email: resolved.authEmail,
-    password: input.password,
-  });
-  if (signInError) {
-    throw AppError.validation("Incorrect password. Please try again.", {
-      password: ["Invalid"],
-    });
+  let sessionEmail = resolved.authEmail;
+  if (firebaseToken) {
+    if (!opts?.verifyFirebaseIdToken) {
+      throw AppError.internal(
+        "Firebase Auth is not configured on the API. Cannot verify email login.",
+      );
+    }
+    let decoded: { email?: string; uid: string; signInProvider?: string };
+    try {
+      decoded = await opts.verifyFirebaseIdToken(firebaseToken);
+    } catch {
+      throw AppError.validation("Invalid or expired Firebase email session.");
+    }
+    sessionEmail = await resolveAuthLoginEmail(
+      admin,
+      resolved.userId,
+      resolved.authEmail,
+    );
+    if (
+      decoded.signInProvider !== "password" ||
+      !decoded.email ||
+      decoded.email.trim().toLowerCase() !== sessionEmail
+    ) {
+      throw AppError.validation(
+        "Firebase email does not match this staff account.",
+      );
+    }
+    try {
+      await linkFirebaseIdentityToExistingUser(admin, {
+        userProfileId: resolved.userId,
+        firebaseUid: decoded.uid,
+      });
+    } catch (error) {
+      // Phone OTP may already own a different Firebase UID on this profile.
+      // Email/password factor is already verified above — continue to session.
+      if (!(error instanceof AppError) || error.status !== 409) throw error;
+    }
+  } else {
+    sessionEmail = await assertPasswordForUser(
+      admin,
+      resolved.userId,
+      input.password!,
+      resolved.authEmail,
+    );
   }
 
-  const session = await createAuthSessionForEmail(admin, resolved.authEmail);
+  if (firstLogin) {
+    // First Firebase email/password login (or principal signup): set/confirm PIN.
+    assertValidPin(input.pin);
+    if (cred?.pin_hash) {
+      assertPinMatches(cred, input.pin, { required: true });
+    } else {
+      await upsertUserAuthCredential(admin, {
+        userId: resolved.userId,
+        pin: input.pin,
+        markFirstLoginCompleted: true,
+        markEmailVerified: Boolean(firebaseToken),
+      });
+    }
+    if (cred?.pin_hash) {
+      await upsertUserAuthCredential(admin, {
+        userId: resolved.userId,
+        markFirstLoginCompleted: true,
+        markEmailVerified: Boolean(firebaseToken),
+      });
+    }
+  } else {
+    assertPinMatches(cred, input.pin, { required: true });
+  }
+
+  const session = await createAuthSessionForEmail(admin, sessionEmail);
 
   return {
     ...session,
@@ -322,48 +605,498 @@ export async function verifyStaffPasswordLogin(
 export async function verifyStaffLogin(
   admin: SupabaseClient,
   input: VerifyStaffLoginInput,
+  opts?: {
+    /** Verify Firebase ID token (mobile OTP replacement). */
+    verifyFirebaseIdToken?: (idToken: string) => Promise<{
+      phone_number?: string;
+      uid: string;
+      signInProvider?: string;
+    }>;
+  },
 ): Promise<StaffLoginSession> {
+  const firebaseToken = input.firebaseIdToken?.trim();
   if (!input.password || input.password.length < 1) {
     throw AppError.validation("password is required", { password: ["Required"] });
-  }
-
-  const verified = await verifyStoredStaffLoginOtp(admin, {
-    instituteId: input.instituteId,
-    identifier: input.identifier,
-    otp: input.otp,
-  });
-  if (!verified) {
-    throw AppError.validation("Incorrect or expired code. Try again or request a new OTP.");
   }
 
   const resolved = await resolveStaffLoginUser(
     admin,
     input.instituteId.trim(),
     input.identifier,
+    { allowInstituteWide: true },
   );
-  if (resolved.userId !== verified.userId) {
-    throw AppError.forbidden("Login challenge mismatch");
-  }
   if (!resolved.requiresOtp) {
-    throw AppError.validation("OTP is not required for this account.");
+    throw AppError.validation(
+      "OTP login is only for first-time Admin sign-in. Use password + PIN.",
+    );
   }
 
-  // Verify password against Auth without leaving a long-lived session from password grant.
-  const { error: signInError } = await admin.auth.signInWithPassword({
-    email: resolved.authEmail,
-    password: input.password,
-  });
-  if (signInError) {
-    throw AppError.validation("Incorrect password. Please try again.", {
-      password: ["Invalid"],
+  const cred = await findCredentialByUserId(admin, resolved.userId);
+  const firstLogin = !cred?.first_login_completed_at;
+  if (!firstLogin) {
+    throw AppError.validation("Use password + PIN login for returning Admin users.");
+  }
+
+  let mobileVerified = false;
+  let firebasePhoneGrant = false;
+  if (firebaseToken) {
+    if (!opts?.verifyFirebaseIdToken) {
+      throw AppError.internal(
+        "Firebase Auth is not configured on the API. Cannot verify phone OTP.",
+      );
+    }
+    let decoded: { phone_number?: string; uid: string; signInProvider?: string };
+    try {
+      decoded = await opts.verifyFirebaseIdToken(firebaseToken);
+    } catch {
+      throw AppError.validation("Invalid or expired Firebase phone verification.");
+    }
+    const tokenPhone = decoded.phone_number;
+    if (decoded.signInProvider !== "phone" || !tokenPhone || !resolved.phone) {
+      throw AppError.validation(
+        "Firebase phone verification does not match this staff account.",
+      );
+    }
+    if (normalizePhoneDigits(tokenPhone) !== normalizePhoneDigits(resolved.phone)) {
+      throw AppError.validation(
+        "Firebase phone verification does not match this staff account.",
+      );
+    }
+    try {
+      await linkFirebaseIdentityToExistingUser(admin, {
+        userProfileId: resolved.userId,
+        firebaseUid: decoded.uid,
+      });
+    } catch (error) {
+      // Profile may already be linked to email/password Firebase UID. Phone OTP
+      // is still valid as a factor once the numbers match above.
+      if (!(error instanceof AppError) || error.status !== 409) throw error;
+    }
+    mobileVerified = true;
+    firebasePhoneGrant = true;
+  } else if (input.mobileOtpGrant?.trim()) {
+    const consumed = await consumeAuthVerificationGrant(admin, {
+      purpose: "staff_login",
+      grant: input.mobileOtpGrant.trim(),
+      subjectId: resolved.userId,
+      metadata: { channel: "mobile" },
+    });
+    mobileVerified = true;
+    firebasePhoneGrant = consumed.metadata.firebasePhone === true;
+  } else {
+    const mobileOtp = input.mobileOtp ?? input.otp;
+    if (!mobileOtp || mobileOtp.length !== 6) {
+      throw AppError.validation("Mobile OTP is required.", { mobile_otp: ["Required"] });
+    }
+    const mobileOk = await verifyWorkflowOtp(admin, {
+      purpose: "staff_login",
+      challengeKey: `staff:mobile:${input.instituteId.trim()}:${resolved.userId}`,
+      otp: mobileOtp,
+    });
+    mobileVerified =
+      Boolean(mobileOk) && mobileOk!.subjectId === resolved.userId;
+    if (!mobileVerified && input.otp) {
+      const legacy = await verifyStoredStaffLoginOtp(admin, {
+        instituteId: input.instituteId,
+        identifier: input.identifier,
+        otp: input.otp,
+      });
+      mobileVerified = Boolean(legacy) && legacy!.userId === resolved.userId;
+    }
+  }
+  if (!mobileVerified) {
+    throw AppError.validation("Incorrect or expired mobile OTP.");
+  }
+
+  if (!firebaseToken && !firebasePhoneGrant) {
+    if (input.emailOtpGrant?.trim()) {
+      await consumeAuthVerificationGrant(admin, {
+        purpose: "staff_login",
+        grant: input.emailOtpGrant.trim(),
+        subjectId: resolved.userId,
+        metadata: { channel: "email" },
+      });
+    } else {
+      const emailOtp = input.emailOtp;
+      if (!emailOtp || emailOtp.length !== 6) {
+        throw AppError.validation("Email OTP is required.", { email_otp: ["Required"] });
+      }
+      const emailOk = await verifyWorkflowOtp(admin, {
+        purpose: "staff_login",
+        challengeKey: `staff:email:${input.instituteId.trim()}:${resolved.userId}`,
+        otp: emailOtp,
+      });
+      if (!emailOk || emailOk.subjectId !== resolved.userId) {
+        throw AppError.validation("Incorrect or expired email OTP.");
+      }
+    }
+  }
+
+  // Notebook: password is always required after OTP (including Firebase phone OTP).
+  // Verify against Auth user id — profile.email can diverge from auth.users.email.
+  if (!input.password || input.password.length < 1) {
+    throw AppError.validation("password is required", { password: ["Required"] });
+  }
+  const sessionEmail = await assertPasswordForUser(
+    admin,
+    resolved.userId,
+    input.password,
+    resolved.authEmail,
+  );
+
+  assertValidPin(input.pin);
+  if (cred?.pin_hash) {
+    assertPinMatches(cred, input.pin, { required: true });
+    await upsertUserAuthCredential(admin, {
+      userId: resolved.userId,
+      markFirstLoginCompleted: true,
+      markPhoneVerified: true,
+      markEmailVerified: !firebaseToken || Boolean(resolved.email),
+    });
+  } else {
+    await upsertUserAuthCredential(admin, {
+      userId: resolved.userId,
+      pin: input.pin,
+      markFirstLoginCompleted: true,
+      markPhoneVerified: true,
+      markEmailVerified: true,
     });
   }
 
-  const session = await createAuthSessionForEmail(admin, resolved.authEmail);
+  const session = await createAuthSessionForEmail(admin, sessionEmail);
 
   return {
     ...session,
     instituteId: input.instituteId.trim(),
     displayName: resolved.displayName,
   };
+}
+
+async function requestStaffRecoveryOtp(
+  admin: SupabaseClient,
+  input: {
+    instituteId: string;
+    identifier: string;
+    channel: "email" | "mobile";
+    purpose: "password_reset" | "pin_reset";
+    /** `firebase_client` — return phone for Firebase SMS; do not send Twilio. */
+    delivery?: "server" | "firebase_client";
+  },
+) {
+  const resolved = await resolveStaffLoginUser(
+    admin,
+    input.instituteId.trim(),
+    input.identifier,
+    { allowInstituteWide: true },
+  );
+  const destination =
+    input.channel === "email" ? resolved.email : resolved.phone;
+  if (!destination) {
+    throw AppError.validation(
+      input.channel === "email"
+        ? "Account email is missing."
+        : "Account mobile number is missing.",
+    );
+  }
+
+  if (input.delivery === "firebase_client") {
+    if (input.channel !== "mobile") {
+      throw AppError.validation(
+        "Firebase client delivery is only supported for the mobile channel.",
+      );
+    }
+    const digits = normalizePhoneDigits(destination);
+    const phoneE164 = destination.trim().startsWith("+")
+      ? destination.trim().replace(/\s+/g, "")
+      : `+91${digits}`;
+    return {
+      maskedDestination: maskWorkflowDestination(destination, "mobile"),
+      channel: "mobile" as const,
+      displayName: resolved.displayName,
+      phoneE164,
+    };
+  }
+
+  const stored = await storeWorkflowOtp(admin, {
+    purpose: input.purpose,
+    challengeKey: `staff:${input.purpose}:${input.channel}:${input.instituteId.trim()}:${resolved.userId}`,
+    instituteId: input.instituteId.trim(),
+    channel: input.channel,
+    destination,
+    subjectId: resolved.userId,
+  });
+
+  if (stored.shouldDeliver) {
+    await deliverLoginOtp({
+      channel: input.channel === "email" ? "email" : "sms",
+      destination,
+      otp: stored.otp,
+      purpose: input.purpose,
+    });
+  }
+
+  return {
+    maskedDestination:
+      stored.maskedDestination ||
+      maskWorkflowDestination(destination, input.channel),
+    channel: input.channel,
+    displayName: resolved.displayName,
+    devOtp: stored.devOtp,
+  };
+}
+
+/**
+ * After Firebase phone SMS confirmation, issue a recovery grant for the mobile channel.
+ */
+export async function verifyStaffRecoveryFirebasePhone(
+  admin: SupabaseClient,
+  input: {
+    instituteId: string;
+    identifier: string;
+    purpose: "password_reset" | "pin_reset" | "staff_login";
+    firebaseIdToken: string;
+  },
+  opts: {
+    verifyFirebaseIdToken: (idToken: string) => Promise<{
+      phone_number?: string;
+      uid: string;
+      signInProvider?: string;
+    }>;
+  },
+) {
+  const resolved = await resolveStaffLoginUser(
+    admin,
+    input.instituteId.trim(),
+    input.identifier,
+    { allowInstituteWide: true },
+  );
+  if (!resolved.phone) {
+    throw AppError.validation("Account mobile number is missing.");
+  }
+  let decoded: { phone_number?: string; uid: string; signInProvider?: string };
+  try {
+    decoded = await opts.verifyFirebaseIdToken(input.firebaseIdToken);
+  } catch {
+    throw AppError.validation("Invalid or expired Firebase phone verification.");
+  }
+  if (
+    decoded.signInProvider !== "phone" ||
+    !decoded.phone_number ||
+    normalizePhoneDigits(decoded.phone_number) !==
+      normalizePhoneDigits(resolved.phone)
+  ) {
+    throw AppError.validation(
+      "Firebase phone verification does not match this Admin account.",
+    );
+  }
+  await linkFirebaseIdentityToExistingUser(admin, {
+    userProfileId: resolved.userId,
+    firebaseUid: decoded.uid,
+  });
+  const issued = await issueAuthVerificationGrant(admin, {
+    purpose: input.purpose,
+    subjectId: resolved.userId,
+    destination: resolved.phone,
+    metadata: {
+      channel: "mobile",
+      instituteId: input.instituteId.trim(),
+      ...(input.purpose === "staff_login" ? { firebasePhone: true } : {}),
+    },
+    ttlMs: 10 * 60 * 1000,
+  });
+  return { ok: true as const, channel: "mobile" as const, ...issued };
+}
+
+async function verifyStaffRecoveryOtp(
+  admin: SupabaseClient,
+  input: {
+    instituteId: string;
+    identifier: string;
+    channel: "email" | "mobile";
+    otp: string;
+    purpose: "password_reset" | "pin_reset" | "staff_login";
+  },
+) {
+  const resolved = await resolveStaffLoginUser(
+    admin,
+    input.instituteId.trim(),
+    input.identifier,
+    { allowInstituteWide: true },
+  );
+  const verified = await verifyWorkflowOtp(admin, {
+    purpose: input.purpose,
+    challengeKey:
+      input.purpose === "staff_login"
+        ? `staff:${input.channel}:${input.instituteId.trim()}:${resolved.userId}`
+        : `staff:${input.purpose}:${input.channel}:${input.instituteId.trim()}:${resolved.userId}`,
+    otp: input.otp,
+  });
+  if (!verified || verified.subjectId !== resolved.userId) {
+    throw AppError.validation("Incorrect or expired code. Try again or request a new OTP.");
+  }
+  const issued = await issueAuthVerificationGrant(admin, {
+    purpose: input.purpose,
+    subjectId: resolved.userId,
+    destination: verified.destination,
+    metadata: {
+      channel: input.channel,
+      instituteId: input.instituteId.trim(),
+    },
+    ttlMs: 10 * 60 * 1000,
+  });
+  return { ok: true as const, channel: input.channel, ...issued };
+}
+
+export async function verifyStaffChannelOtp(
+  admin: SupabaseClient,
+  input: {
+    instituteId: string;
+    identifier: string;
+    channel: "email" | "mobile";
+    otp: string;
+  },
+) {
+  return verifyStaffRecoveryOtp(admin, { ...input, purpose: "staff_login" });
+}
+
+export async function requestStaffPasswordResetOtp(
+  admin: SupabaseClient,
+  input: {
+    instituteId: string;
+    identifier: string;
+    channel: "email" | "mobile";
+    delivery?: "server" | "firebase_client";
+  },
+) {
+  return requestStaffRecoveryOtp(admin, { ...input, purpose: "password_reset" });
+}
+
+export async function verifyStaffPasswordResetOtp(
+  admin: SupabaseClient,
+  input: {
+    instituteId: string;
+    identifier: string;
+    channel: "email" | "mobile";
+    otp: string;
+  },
+) {
+  return verifyStaffRecoveryOtp(admin, { ...input, purpose: "password_reset" });
+}
+
+export async function completeStaffPasswordReset(
+  admin: SupabaseClient,
+  input: {
+    instituteId: string;
+    identifier: string;
+    mobileOtpGrant: string;
+    /** Optional when Firebase phone already proved the account (no numeric email OTP). */
+    emailOtpGrant?: string;
+    newPassword: string;
+  },
+) {
+  if (!input.newPassword || input.newPassword.length < 8) {
+    throw AppError.validation("Password must be at least 8 characters.", {
+      new_password: ["Too short"],
+    });
+  }
+  const resolved = await resolveStaffLoginUser(
+    admin,
+    input.instituteId.trim(),
+    input.identifier,
+    { allowInstituteWide: true },
+  );
+  await consumeAuthVerificationGrant(admin, {
+    purpose: "password_reset",
+    grant: input.mobileOtpGrant,
+    subjectId: resolved.userId,
+    metadata: { channel: "mobile" },
+  });
+  const emailGrant = input.emailOtpGrant?.trim();
+  if (emailGrant && emailGrant !== "firebase-email-skipped") {
+    await consumeAuthVerificationGrant(admin, {
+      purpose: "password_reset",
+      grant: emailGrant,
+      subjectId: resolved.userId,
+      metadata: { channel: "email" },
+    });
+  }
+  const { error } = await admin.auth.admin.updateUserById(resolved.userId, {
+    password: input.newPassword,
+  });
+  if (error) throw AppError.internal("Unable to update password.");
+  return {
+    ok: true as const,
+    userId: resolved.userId,
+    email: resolved.authEmail,
+  };
+}
+
+export async function requestStaffPinResetOtp(
+  admin: SupabaseClient,
+  input: {
+    instituteId: string;
+    identifier: string;
+    channel: "email" | "mobile";
+    delivery?: "server" | "firebase_client";
+  },
+) {
+  return requestStaffRecoveryOtp(admin, { ...input, purpose: "pin_reset" });
+}
+
+export async function verifyStaffPinResetOtp(
+  admin: SupabaseClient,
+  input: {
+    instituteId: string;
+    identifier: string;
+    channel: "email" | "mobile";
+    otp: string;
+  },
+) {
+  return verifyStaffRecoveryOtp(admin, { ...input, purpose: "pin_reset" });
+}
+
+export async function completeStaffPinReset(
+  admin: SupabaseClient,
+  input: {
+    instituteId: string;
+    identifier: string;
+    mobileOtpGrant: string;
+    /** Optional when Firebase phone already proved the account. */
+    emailOtpGrant?: string;
+    newPin: string;
+  },
+) {
+  const pin = assertValidPin(input.newPin);
+  const resolved = await resolveStaffLoginUser(
+    admin,
+    input.instituteId.trim(),
+    input.identifier,
+    { allowInstituteWide: true },
+  );
+  await consumeAuthVerificationGrant(admin, {
+    purpose: "pin_reset",
+    grant: input.mobileOtpGrant,
+    subjectId: resolved.userId,
+    metadata: { channel: "mobile" },
+  });
+  const emailGrant = input.emailOtpGrant?.trim();
+  if (emailGrant && emailGrant !== "firebase-email-skipped") {
+    await consumeAuthVerificationGrant(admin, {
+      purpose: "pin_reset",
+      grant: emailGrant,
+      subjectId: resolved.userId,
+      metadata: { channel: "email" },
+    });
+  }
+  const cred = await findCredentialByUserId(admin, resolved.userId);
+  await upsertUserAuthCredential(admin, {
+    userId: resolved.userId,
+    username:
+      cred?.username ||
+      resolved.email?.split("@")[0] ||
+      assertValidUsername("operator"),
+    pin,
+    markFirstLoginCompleted: true,
+  });
+  return { ok: true as const };
 }

@@ -33,27 +33,34 @@ import {
 import { useAdminToast } from "@/components/AdminActionToast";
 import { isApiAuthMode } from "@/auth/auth-mode";
 
+type DriverDraft = Omit<TransportDriver, "id"> & {
+  id?: string;
+  appAccountPin?: string;
+};
+
 type Props = {
   snapshot: TransportSnapshot;
   onChange: (next: TransportSnapshot) => void;
   writesEnabled?: boolean;
   listBlocked?: boolean;
   listHint?: string | null;
-  onPersistDriver?: (
-    draft: Omit<TransportDriver, "id"> & { id?: string },
-  ) => void | Promise<void>;
+  onPersistDriver?: (draft: DriverDraft) => void | Promise<void>;
   onRemoveDriver?: (id: string) => void | Promise<void>;
 };
 
-const EMPTY: Omit<TransportDriver, "id"> = {
+const EMPTY: Omit<TransportDriver, "id"> & { appAccountPin?: string } = {
   name: "",
   phone: "",
   licenseNumber: "",
   licenseExpiry: "",
   assignedVehicleId: null,
+  hasAppPin: false,
   status: "active",
   notes: "",
+  appAccountPin: "",
 };
+
+const APP_PIN_PATTERN = /^\d{4,8}$/;
 
 const OPS_EVENTS = [TRANSPORT_OPS_CHANGED_EVENT, "storage"] as const;
 
@@ -69,7 +76,7 @@ export function TransportDriversView({
   const notify = useAdminToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState<Omit<TransportDriver, "id"> & { id?: string }>(EMPTY);
+  const [draft, setDraft] = useState<DriverDraft>(EMPTY);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [createAccount, setCreateAccount] = useState(true);
   const [accountTick, setAccountTick] = useState(0);
@@ -100,6 +107,12 @@ export function TransportDriversView({
     return account.status === "active" ? "Active" : "Inactive";
   };
 
+  const pinStatusLabel = (driver: TransportDriver) => {
+    if (driver.hasAppPin) return "PIN set";
+    const account = findDriverAccountByAdminDriverId(driver.id);
+    return account ? "Account only" : "No PIN";
+  };
+
   const startCreate = () => {
     setDraft({ ...EMPTY });
     setCreateAccount(true);
@@ -107,7 +120,7 @@ export function TransportDriversView({
   };
 
   const startEdit = (driver: TransportDriver) => {
-    setDraft({ ...driver });
+    setDraft({ ...driver, appAccountPin: "" });
     setCreateAccount(false);
     setOpen(true);
   };
@@ -121,11 +134,22 @@ export function TransportDriversView({
       return;
     }
 
+    const pin = draft.appAccountPin?.trim() ?? "";
+    if (!draft.id) {
+      if (!APP_PIN_PATTERN.test(pin)) {
+        notify("App account PIN must be 4–8 digits");
+        return;
+      }
+    } else if (pin && !APP_PIN_PATTERN.test(pin)) {
+      notify("App account PIN must be 4–8 digits");
+      return;
+    }
+
     if (onPersistDriver) {
       void Promise.resolve(onPersistDriver(draft))
         .then(() => {
           setOpen(false);
-          notify(draft.id ? "Driver updated" : "Driver added");
+          notify(draft.id ? "Driver updated" : "Driver added to the institute");
         })
         .catch((err) => {
           notify(err instanceof Error ? err.message : "Failed to save driver");
@@ -155,8 +179,8 @@ export function TransportDriversView({
       draft.id
         ? "Driver updated"
         : createAccount
-          ? "Driver added · Transport app account created"
-          : "Driver added",
+          ? "Driver added to the institute · Transport app account created"
+          : "Driver added to the institute",
     );
   };
 
@@ -189,7 +213,7 @@ export function TransportDriversView({
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search drivers…"
-          className="w-full max-w-xs"
+          className="min-w-0 flex-1 sm:max-w-xs"
         />
         <ToolbarSpacer />
         {writesEnabled ? (
@@ -238,12 +262,16 @@ export function TransportDriversView({
                   <th className="py-2 pr-3 font-medium">Vehicle</th>
                   {writesEnabled ? (
                   <>
+                  <th className="py-2 pr-3 font-medium">App PIN</th>
                   <th className="py-2 pr-3 font-medium">App account</th>
                   <th className="py-2 pr-3 font-medium">Status</th>
                   <th className="py-2 font-medium text-right">Actions</th>
                   </>
                   ) : (
+                  <>
+                  <th className="py-2 pr-3 font-medium">App PIN</th>
                   <th className="py-2 pr-3 font-medium">Status</th>
+                  </>
                   )}
                 </tr>
               </thead>
@@ -256,6 +284,11 @@ export function TransportDriversView({
                     <td className="py-2.5 pr-3">{vehicleLabel(d.assignedVehicleId)}</td>
                     {writesEnabled ? (
                     <>
+                    <td className="py-2.5 pr-3">
+                      <Pill tone={d.hasAppPin ? "success" : "neutral"}>
+                        {pinStatusLabel(d)}
+                      </Pill>
+                    </td>
                     <td className="py-2.5 pr-3">
                       <Pill
                         tone={
@@ -284,9 +317,16 @@ export function TransportDriversView({
                     </td>
                     </>
                     ) : (
+                    <>
+                    <td className="py-2.5 pr-3">
+                      <Pill tone={d.hasAppPin ? "success" : "neutral"}>
+                        {pinStatusLabel(d)}
+                      </Pill>
+                    </td>
                     <td className="py-2.5 pr-3">
                       <Pill tone={ENTITY_STATUS_PILL_TONE[d.status]}>{d.status}</Pill>
                     </td>
+                    </>
                     )}
                   </tr>
                 ))}
@@ -353,6 +393,31 @@ export function TransportDriversView({
                 </option>
               ))}
             </Select>
+          </Field>
+          <Field
+            label="App account PIN"
+            required={!draft.id}
+            hint={
+              draft.id
+                ? draft.hasAppPin
+                  ? "PIN is set · enter a new 4–8 digit PIN to replace"
+                  : "Optional · 4–8 digits to set a PIN"
+                : "Required · 4–8 digits (never shown again)"
+            }
+          >
+            <TextInput
+              type="password"
+              inputMode="numeric"
+              autoComplete="new-password"
+              value={draft.appAccountPin ?? ""}
+              onChange={(e) =>
+                setDraft({
+                  ...draft,
+                  appAccountPin: e.target.value.replace(/\D/g, "").slice(0, 8),
+                })
+              }
+              placeholder={draft.id && draft.hasAppPin ? "••••" : "4–8 digits"}
+            />
           </Field>
           <Field label="Status">
             <Select

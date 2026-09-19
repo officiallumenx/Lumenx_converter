@@ -25,6 +25,8 @@ function mapScores(
         enrollment?.studentName?.trim() ||
         shortRef(score.studentId, "Student"),
       marks: score.marks,
+      internalMarks: score.internalMarks ?? null,
+      externalMarks: score.externalMarks ?? null,
     };
   });
 }

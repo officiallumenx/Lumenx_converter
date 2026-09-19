@@ -1,7 +1,7 @@
 import { type FormEvent, useState } from "react";
 import { Input, Label, Textarea } from "@lumenx/ui";
 import { CTAButton } from "./CTAButton";
-import { saveWebsiteLead } from "@/lib/leads";
+import { submitWebsiteLead } from "@/lib/leads";
 import { cn } from "@lumenx/ui";
 
 export function LeaveMessageForm({
@@ -11,12 +11,14 @@ export function LeaveMessageForm({
   className?: string;
   submitLabel?: string;
 }) {
-  const [sent, setSent] = useState(false);
+  const [status, setStatus] = useState<"idle" | "sending" | "ok" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
 
-  function onSubmit(e: FormEvent<HTMLFormElement>) {
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    setFeedback(null);
     const form = new FormData(e.currentTarget);
     const name = String(form.get("name") ?? "").trim();
     const email = String(form.get("email") ?? "").trim();
@@ -40,7 +42,8 @@ export function LeaveMessageForm({
       return;
     }
 
-    saveWebsiteLead({
+    setStatus("sending");
+    const result = await submitWebsiteLead({
       name,
       institute: "",
       role: "",
@@ -50,13 +53,20 @@ export function LeaveMessageForm({
       message,
       intent: "question",
     });
-    setSent(true);
+
+    if (result.ok) {
+      setStatus("ok");
+      setFeedback("Thank you. We received your message and will get back to you at the email you shared.");
+    } else {
+      setStatus("error");
+      setFeedback(result.message);
+    }
   }
 
-  if (sent) {
+  if (status === "ok") {
     return (
       <p className={cn("rounded-2xl border bg-card p-6 text-sm leading-relaxed", className)} role="status">
-        Thank you. We received your message and will get back to you at the email you shared.
+        {feedback}
       </p>
     );
   }
@@ -122,7 +132,14 @@ export function LeaveMessageForm({
           {error}
         </p>
       ) : null}
-      <CTAButton type="submit">{submitLabel}</CTAButton>
+      {feedback && status === "error" ? (
+        <p className="text-sm text-destructive" role="alert">
+          {feedback}
+        </p>
+      ) : null}
+      <CTAButton type="submit" disabled={status === "sending"}>
+        {status === "sending" ? "Sending…" : submitLabel}
+      </CTAButton>
     </form>
   );
 }

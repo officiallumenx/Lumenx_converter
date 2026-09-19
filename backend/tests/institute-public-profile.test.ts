@@ -24,6 +24,16 @@ describe("institute public profile", () => {
     expect(profile.logo).toContain("data:image");
   });
 
+  it("accepts registration logos within the signup 2 MB file limit", () => {
+    const logoPreview = `data:image/png;base64,${"a".repeat(250_000)}`;
+    const profile = publicProfileFromRegistrationPayload("Logo School", {
+      instituteName: "Logo School",
+      logoPreview,
+    });
+
+    expect(profile.logo).toBe(logoPreview);
+  });
+
   it("merges profile patch without dropping other settings keys", () => {
     const merged = mergeInstituteSettingsJson(
       { attendance: { mode: "daily" }, profile: emptyPublicProfile("Old") },

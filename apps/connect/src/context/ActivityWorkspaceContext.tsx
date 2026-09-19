@@ -1,7 +1,17 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  type ReactNode,
+} from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApp } from "@/lib/app-state";
 import { useTeacherPortalAccess } from "@/lib/teacher-session";
 import { activityRepository } from "@/lib/activity/repositories";
+import { connectQueryKeys } from "@/lib/connect-queries";
+import { isInstituteUuid } from "@/lib/institute-id";
 import type { ActivityDashboardSnapshot } from "@/lib/activity/types";
 
 export type ActivityWorkspaceState =
@@ -17,45 +27,37 @@ const ActivityWorkspaceCtx = createContext<ActivityWorkspaceState | undefined>(u
 
 /** Loads Activity Workspace dashboard data when the teacher role is in activity mode. */
 export function ActivityWorkspaceRegistry({ children }: { children: ReactNode }) {
-  const { role } = useApp();
+  const { role, activeInstituteId } = useApp();
   const access = useTeacherPortalAccess();
-  const [dashboard, setDashboard] = useState<ActivityDashboardSnapshot | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [tick, setTick] = useState(0);
-  const seq = useRef(0);
-  const loadedRef = useRef(false);
-
-  const refresh = useCallback(() => setTick((t) => t + 1), []);
+  const queryClient = useQueryClient();
 
   const isActive =
     role === "teacher" &&
     (access.isActivityWorkspaceActive ?? access.isActivityPortalActive);
 
+  const canRun =
+    isActive && Boolean(activeInstituteId) && isInstituteUuid(activeInstituteId ?? "");
+
+  const query = useQuery({
+    queryKey: connectQueryKeys.activityWorkspace(activeInstituteId ?? "_"),
+    queryFn: () => activityRepository.getDashboard(),
+    enabled: canRun,
+  });
+
   useEffect(() => {
-    if (!isActive) {
-      loadedRef.current = false;
-      setDashboard((d) => (d === null ? d : null));
-      setIsLoading((loading) => (loading ? false : loading));
-      return;
-    }
+    if (isActive) return;
+    queryClient.removeQueries({ queryKey: ["activity-workspace"] });
+  }, [isActive, queryClient]);
 
-    const my = ++seq.current;
-    const showSpinner = !loadedRef.current;
-    if (showSpinner) setIsLoading(true);
+  const refresh = useCallback(() => {
+    if (!activeInstituteId) return;
+    void queryClient.invalidateQueries({
+      queryKey: connectQueryKeys.activityWorkspace(activeInstituteId),
+    });
+  }, [activeInstituteId, queryClient]);
 
-    activityRepository
-      .getDashboard()
-      .then((d) => {
-        if (seq.current !== my) return;
-        setDashboard(d);
-        loadedRef.current = true;
-        if (showSpinner) setIsLoading(false);
-      })
-      .catch(() => {
-        if (seq.current !== my) return;
-        if (showSpinner) setIsLoading(false);
-      });
-  }, [isActive, tick]);
+  const dashboard = query.data ?? null;
+  const isLoading = canRun && query.isLoading && !dashboard;
 
   const value = useMemo<ActivityWorkspaceState>(() => {
     if (!isActive) return { isActivityMode: false };

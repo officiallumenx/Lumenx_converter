@@ -34,9 +34,11 @@ import { useAdminToast } from "@/components/AdminActionToast";
 import {
   deleteConcession,
   findCategoryByKind,
+  publishFeePlan,
   upsertConcession,
   upsertCoreClassAmount,
 } from "@/lib/fees";
+import type { ClassIdsByLabel } from "@/lib/fees/class-ids";
 import {
   feesStudentClasses,
   feesStudentSections,
@@ -59,6 +61,7 @@ export function FeesTransportView({
   apiMode = false,
   feePlanId = null,
   classIdByLabel = {},
+  classIdsByLabel = {},
   onApiReload,
 }: {
   snapshot: FeesSnapshot;
@@ -70,6 +73,7 @@ export function FeesTransportView({
   apiMode?: boolean;
   feePlanId?: string | null;
   classIdByLabel?: Record<string, string>;
+  classIdsByLabel?: ClassIdsByLabel;
   onApiReload?: () => void;
 }) {
   const notify = useAdminToast();
@@ -81,6 +85,7 @@ export function FeesTransportView({
   const [feeDraft, setFeeDraft] = useState("");
   const [noteDraft, setNoteDraft] = useState("");
   const [classFilter, setClassFilter] = useState<string>("all");
+  const [publishing, setPublishing] = useState(false);
 
   useEffect(() => {
     setClassFilter("all");
@@ -246,6 +251,7 @@ export function FeesTransportView({
         feePlanId,
         snapshot,
         classIdByLabel,
+        classIdsByLabel,
         kind: "transport",
         name: "Transport",
         classKey,
@@ -262,6 +268,46 @@ export function FeesTransportView({
     }
     onChange(setClassDefaultAmount(snapshot, classKey, catId, amount));
     notify(`Class transport default saved for ${classKey}`);
+  };
+
+  const saveAndPublish = () => {
+    if (!writesEnabled || publishing) return;
+    setPublishing(true);
+    void (async () => {
+      if (apiMode) {
+        if (!feePlanId) {
+          throw new Error("No fee plan available");
+        }
+        for (const ck of classKeys) {
+          const amount = Number((classDraft[ck] ?? "0").replace(/,/g, "")) || 0;
+          await upsertCoreClassAmount({
+            feePlanId,
+            snapshot,
+            classIdByLabel,
+            classIdsByLabel,
+            kind: "transport",
+            name: "Transport",
+            classKey: ck,
+            amount,
+          });
+        }
+        await publishFeePlan(feePlanId, { publishScope: "institute" });
+        onApiReload?.();
+        notify("Transport fees saved & published");
+        return;
+      }
+      let next = snapshot;
+      for (const ck of classKeys) {
+        const amount = Number((classDraft[ck] ?? "0").replace(/,/g, "")) || 0;
+        next = setClassDefaultAmount(next, ck, catId, amount);
+      }
+      onChange(next);
+      notify("Transport fees saved");
+    })()
+      .catch((err) => {
+        notify(err instanceof Error ? err.message : "Failed to save & publish");
+      })
+      .finally(() => setPublishing(false));
   };
 
   return (
@@ -435,6 +481,18 @@ export function FeesTransportView({
         <CardHeader
           title="Class transport defaults"
           hint="Fallback when no parent agreement · still not linked to stops"
+          action={
+            writesEnabled ? (
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={saveAndPublish}
+                disabled={publishing}
+              >
+                Save & publish
+              </Button>
+            ) : undefined
+          }
         />
         <CardBody className="p-0">
           <DataTable>

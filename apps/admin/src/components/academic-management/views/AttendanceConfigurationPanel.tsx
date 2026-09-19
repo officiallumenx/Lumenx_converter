@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useReloadKey } from "@/hooks/useReloadKey";
 import {
   Button,
   Card,
@@ -42,6 +43,7 @@ import {
   type AttendanceConfigLoadStatus,
 } from "@/lib/attendance";
 import { listClassesCatalog, type ClassDto, type SectionDto } from "@/lib/classes";
+import { classSortRank, normalizeSchoolClassName, sectionSortRank } from "@/lib/classes/name-format";
 import { useInstituteContext } from "@/lib/institutes";
 
 function dtoToHistoryVersion(dto: AttendanceConfigDto): AttendanceConfigVersion {
@@ -84,7 +86,7 @@ function AttendanceConfigurationApiPanel() {
   const [items, setItems] = useState<AttendanceConfigDto[]>([]);
   const [loadStatus, setLoadStatus] = useState<AttendanceConfigLoadStatus>("loading");
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const [reloadKey, setReloadKey] = useReloadKey();
   const [classes, setClasses] = useState<ClassDto[]>([]);
   const [sections, setSections] = useState<SectionDto[]>([]);
   const [saving, setSaving] = useState(false);
@@ -161,23 +163,53 @@ function AttendanceConfigurationApiPanel() {
   const classOptions = useMemo(() => {
     const seen = new Set<string>();
     return [...classes]
-      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+      .sort(
+        (a, b) =>
+          classSortRank(a.name || a.code) - classSortRank(b.name || b.code) ||
+          (a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
+          a.name.localeCompare(b.name),
+      )
       .flatMap((cls) => {
         const code = cls.code.trim() || cls.name.trim();
         if (!code || seen.has(code)) return [];
         seen.add(code);
-        return [{ value: code, label: cls.name.trim() || code }];
+        return [
+          {
+            value: code,
+            label:
+              normalizeSchoolClassName(cls.name) || cls.name.trim() || code,
+          },
+        ];
       });
   }, [classes]);
 
   const sectionOptions = useMemo(() => {
     const classesById = new Map(classes.map((cls) => [cls.id, cls]));
     return [...sections]
-      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+      .sort(
+        (a, b) =>
+          classSortRank(
+            classesById.get(a.classId)?.name ||
+              classesById.get(a.classId)?.code ||
+              "",
+          ) -
+            classSortRank(
+              classesById.get(b.classId)?.name ||
+                classesById.get(b.classId)?.code ||
+                "",
+            ) ||
+          sectionSortRank(a.code || a.name) - sectionSortRank(b.code || b.name) ||
+          (a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
+          a.name.localeCompare(b.name),
+      )
       .map((section) => {
         const cls = classesById.get(section.classId);
         const code = section.code.trim() || section.name.trim();
-        const classLabel = cls?.name.trim() || cls?.code.trim() || "Class";
+        const classLabel =
+          normalizeSchoolClassName(cls?.name ?? "") ||
+          cls?.name.trim() ||
+          cls?.code.trim() ||
+          "Class";
         return {
           id: section.id,
           key: code,

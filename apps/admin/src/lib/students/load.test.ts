@@ -40,10 +40,17 @@ describe("loadStudentsList", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    vi.doMock("@/auth/auth-mode", () => ({
+      isApiAuthMode: () => true,
+      isDemoAuthMode: () => false,
+    }));
   });
 
   it("returns demo status without calling API in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
+    vi.doMock("@/auth/auth-mode", () => ({
+      isApiAuthMode: () => false,
+      isDemoAuthMode: () => true,
+    }));
     const listStudents = vi.fn();
     vi.doMock("./api", () => ({ listStudents }));
     const { loadStudentsList } = await import("./load");
@@ -155,10 +162,17 @@ describe("loadStudentDetail", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    vi.doMock("@/auth/auth-mode", () => ({
+      isApiAuthMode: () => true,
+      isDemoAuthMode: () => false,
+    }));
   });
 
   it("returns demo status in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
+    vi.doMock("@/auth/auth-mode", () => ({
+      isApiAuthMode: () => false,
+      isDemoAuthMode: () => true,
+    }));
     const getStudent = vi.fn();
     vi.doMock("./api", () => ({ getStudent }));
     const { loadStudentDetail } = await import("./load");

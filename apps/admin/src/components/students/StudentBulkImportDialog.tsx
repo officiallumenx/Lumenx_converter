@@ -1,41 +1,47 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Download, FileSpreadsheet, Upload } from "lucide-react";
 import { Button, Modal, Pill } from "@lumenx/ui-admin";
-import { read, utils, writeFile } from "xlsx";
+import { read, utils } from "xlsx";
 
 import {
   STUDENT_CSV_HEADERS,
-  STUDENT_IMPORT_SAMPLE_ROW,
   type StudentImportRow,
 } from "@/lib/student-directory-store";
-import { parseCsv, parseSheetRows, STUDENT_IMPORT_REQUIRED_HEADERS } from "@/lib/student-import-parse";
-
-function downloadTemplate(): void {
-  const worksheet = utils.aoa_to_sheet([
-    [...STUDENT_CSV_HEADERS],
-    [...STUDENT_IMPORT_SAMPLE_ROW],
-  ]);
-  worksheet["!cols"] = STUDENT_CSV_HEADERS.map((header) => ({
-    wch: Math.max(header.length + 2, 18),
-  }));
-  const workbook = utils.book_new();
-  utils.book_append_sheet(workbook, worksheet, "Students");
-  writeFile(workbook, "students-bulk-import-template.xlsx", { bookType: "xlsx" });
-}
+import {
+  parseCsv,
+  parseSheetRows,
+  STUDENT_IMPORT_REQUIRED_HEADERS,
+} from "@/lib/student-import-parse";
+import type { StudentImportClassOption } from "@/lib/students/bulk-import";
+import { downloadStudentBulkImportTemplate } from "@/lib/students/bulk-import-template";
 
 export function StudentBulkImportDialog({
   open,
   onClose,
   onImport,
+  importing = false,
+  instituteName,
+  classOptions = [],
 }: {
   open: boolean;
   onClose: () => void;
   onImport: (rows: StudentImportRow[]) => void;
+  importing?: boolean;
+  instituteName?: string;
+  /** Live institute class + section labels for template dropdowns and validation. */
+  classOptions?: StudentImportClassOption[];
 }) {
   const [fileName, setFileName] = useState("");
   const [rows, setRows] = useState<StudentImportRow[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const [reading, setReading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  const catalog = useMemo(() => ({ classOptions }), [classOptions]);
+  const sectionCount = useMemo(
+    () => classOptions.reduce((sum, item) => sum + item.sectionLabels.length, 0),
+    [classOptions],
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -43,7 +49,22 @@ export function StudentBulkImportDialog({
     setRows([]);
     setErrors([]);
     setReading(false);
+    setDownloading(false);
   }, [open]);
+
+  const downloadTemplate = async () => {
+    setDownloading(true);
+    try {
+      await downloadStudentBulkImportTemplate({
+        instituteName,
+        classOptions,
+      });
+    } catch {
+      setErrors(["Could not build the Excel template. Try again."]);
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const selectFile = async (file?: File) => {
     if (!file) return;
@@ -59,13 +80,17 @@ export function StudentBulkImportDialog({
     try {
       const result =
         extension === "csv"
-          ? parseCsv(await file.text())
+          ? parseCsv(await file.text(), catalog)
           : await (async () => {
               const workbook = read(await file.arrayBuffer(), {
                 type: "array",
                 raw: false,
               });
-              const worksheet = workbook.Sheets[workbook.SheetNames[0] ?? ""];
+              const preferred =
+                workbook.SheetNames.find(
+                  (name) => name.trim().toLowerCase() === "students",
+                ) ?? workbook.SheetNames[0];
+              const worksheet = preferred ? workbook.Sheets[preferred] : undefined;
               if (!worksheet) {
                 return { rows: [], errors: ["The workbook has no readable worksheet."] };
               }
@@ -75,6 +100,7 @@ export function StudentBulkImportDialog({
                   raw: false,
                   defval: "",
                 }),
+                catalog,
               );
             })();
       setRows(result.rows);
@@ -91,17 +117,20 @@ export function StudentBulkImportDialog({
       open={open}
       onClose={onClose}
       title="Bulk import students"
-      subtitle="Download the Excel template, fill it, then upload it here"
+      subtitle="Download the institute template (with dropdowns), fill it, then upload"
       size="xl"
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={onClose} disabled={importing}>
+            Cancel
+          </Button>
           <Button
             variant="primary"
-            disabled={reading || rows.length === 0 || errors.length > 0}
+            disabled={reading || importing || rows.length === 0 || errors.length > 0}
             onClick={() => onImport(rows)}
           >
-            <Upload className="size-3.5" /> Import {rows.length || ""} Students
+            <Upload className="size-3.5" />{" "}
+            {importing ? "Importing…" : `Import ${rows.length || ""} Students`}
           </Button>
         </>
       }
@@ -117,7 +146,7 @@ export function StudentBulkImportDialog({
                 {reading ? "Reading file…" : fileName || "Choose Excel file"}
               </div>
               <div className="mt-1 text-[11px] text-muted-foreground">
-                Use the provided template · up to 5,000 rows
+                Use this institute’s template · up to 5,000 rows
               </div>
               <input
                 type="file"
@@ -127,9 +156,26 @@ export function StudentBulkImportDialog({
               />
             </div>
           </label>
-          <Button className="mt-3 w-full" onClick={downloadTemplate}>
-            <Download className="size-3.5" /> Download Excel Template
+          <Button
+            className="mt-3 w-full"
+            onClick={() => void downloadTemplate()}
+            disabled={downloading}
+          >
+            <Download className="size-3.5" />{" "}
+            {downloading ? "Building template…" : "Download institute Excel template"}
           </Button>
+          {classOptions.length === 0 ? (
+            <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-400">
+              No active classes/sections yet — create them first, then re-download so
+              dropdowns match this institute.
+            </p>
+          ) : (
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              Template includes {classOptions.length} class
+              {classOptions.length === 1 ? "" : "es"} and {sectionCount} section
+              {sectionCount === 1 ? "" : "s"} from this institute.
+            </p>
+          )}
         </div>
 
         <div className="rounded-xl border border-border p-4">
@@ -138,7 +184,13 @@ export function StudentBulkImportDialog({
             {STUDENT_CSV_HEADERS.map((header) => (
               <Pill
                 key={header}
-                tone={STUDENT_IMPORT_REQUIRED_HEADERS.includes(header as (typeof STUDENT_IMPORT_REQUIRED_HEADERS)[number]) ? "info" : "neutral"}
+                tone={
+                  STUDENT_IMPORT_REQUIRED_HEADERS.includes(
+                    header as (typeof STUDENT_IMPORT_REQUIRED_HEADERS)[number],
+                  )
+                    ? "info"
+                    : "neutral"
+                }
               >
                 {header}
               </Pill>
@@ -149,14 +201,17 @@ export function StudentBulkImportDialog({
             class, parent name, address, 10-digit parent phone and gender.
           </div>
           <div className="mt-2 text-[11px] text-muted-foreground">
+            <span className="font-medium text-foreground">Dropdowns (this institute):</span>{" "}
+            class, section, gender. Use Lists sheet valid_class / valid_section pairs.
+          </div>
+          <div className="mt-2 text-[11px] text-muted-foreground">
             <span className="font-medium text-foreground">Optional:</span> date of birth,
-            admission number and section. To create a Connect account automatically, enter
-            student phone and/or email plus an account password.
+            admission number. To create a Connect account, enter student phone and/or email
+            plus an account password.
           </div>
           <div className="mt-4 rounded-lg bg-muted/25 p-3 text-[11px] text-muted-foreground">
-            Siblings using the same parent phone are linked automatically. Account rows are
-            created with “First login pending” status. Duplicate rows (same admission number,
-            student phone/email, or name + parent phone) are skipped and counted in the result.
+            Re-download after you add classes so Excel lists stay in sync. Upload rejects
+            class/section values that are not in this institute.
           </div>
         </div>
       </div>

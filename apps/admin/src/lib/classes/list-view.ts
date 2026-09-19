@@ -86,11 +86,24 @@ export function resolveClassesListView(
     };
   }
 
+  // Soft refresh: keep painting known rows while a forced reload is in flight.
+  if (input.storedStatus === "loading" && input.storedItems.length > 0) {
+    return {
+      status: "loading",
+      items: input.storedItems,
+      errorMessage: null,
+      rowsValid: true,
+    };
+  }
+
+  const rowsValid =
+    input.storedStatus === "ready" || input.storedStatus === "empty";
+
   return {
     status: input.storedStatus,
-    items: input.storedItems,
+    items: rowsValid ? input.storedItems : [],
     errorMessage: input.storedErrorMessage,
-    rowsValid: true,
+    rowsValid,
   };
 }
 

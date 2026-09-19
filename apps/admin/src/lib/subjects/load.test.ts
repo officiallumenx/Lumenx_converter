@@ -26,14 +26,14 @@ describe("loadSubjectsList", () => {
     vi.clearAllMocks();
   });
 
-  it("returns demo status without calling API in demo mode", async () => {
+  it("ignores demo env and still requires API (product is API-only)", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const listSubjects = vi.fn();
+    const listSubjects = vi.fn().mockResolvedValue([]);
     vi.doMock("./api", () => ({ listSubjects }));
     const { loadSubjectsList } = await import("./load");
     const result = await loadSubjectsList(INST);
-    expect(result).toEqual({ status: "demo", items: [], errorMessage: null });
-    expect(listSubjects).not.toHaveBeenCalled();
+    expect(result.status).toBe("empty");
+    expect(listSubjects).toHaveBeenCalled();
   });
 
   it("requires a valid active institute UUID in API mode", async () => {
@@ -141,13 +141,13 @@ describe("loadSubjectDetail", () => {
     vi.clearAllMocks();
   });
 
-  it("returns demo status in demo mode", async () => {
+  it("rejects invalid subject ids even if demo env is set (API-only)", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
     const getSubject = vi.fn();
     vi.doMock("./api", () => ({ getSubject }));
     const { loadSubjectDetail } = await import("./load");
     const result = await loadSubjectDetail("sub-1");
-    expect(result.status).toBe("demo");
+    expect(result.status).toBe("error");
     expect(getSubject).not.toHaveBeenCalled();
   });
 

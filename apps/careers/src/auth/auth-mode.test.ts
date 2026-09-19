@@ -10,16 +10,16 @@ describe("getCareersAuthMode", () => {
     expect(isDemoAuthMode()).toBe(false);
   });
 
-  it("reads demo when VITE_CAREERS_AUTH_MODE=demo", async () => {
+  it("rejects demo when VITE_CAREERS_AUTH_MODE=demo", async () => {
     vi.resetModules();
     vi.stubEnv("VITE_CAREERS_AUTH_MODE", "demo");
     const { getCareersAuthMode, isDemoAuthMode, isApiAuthMode } = await import("./auth-mode");
-    expect(getCareersAuthMode()).toBe("demo");
-    expect(isDemoAuthMode()).toBe(true);
-    expect(isApiAuthMode()).toBe(false);
+    expect(() => getCareersAuthMode()).toThrow(/Demo Mode is no longer supported/);
+    expect(isApiAuthMode()).toBe(true);
+    expect(isDemoAuthMode()).toBe(false);
   });
 
-  it("reads api when VITE_CAREERS_AUTH_MODE=api", async () => {
+  it("accepts api explicitly", async () => {
     vi.resetModules();
     vi.stubEnv("VITE_CAREERS_AUTH_MODE", "api");
     const { getCareersAuthMode, isApiAuthMode } = await import("./auth-mode");

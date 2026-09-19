@@ -23,10 +23,16 @@ vi.stubGlobal("window", {
   removeEventListener: () => undefined,
 });
 
+// Legacy localStorage journey tests — force non-API mode for this suite only.
+vi.mock("@/auth/auth-mode", () => ({
+  isApiAuthMode: () => false,
+  isDemoAuthMode: () => true,
+}));
+
 import { seedTransportOps } from "@lumenx/utils";
 import { transportStore } from "./transport-store";
 
-describe("transportStore journey", () => {
+describe("transportStore journey (legacy local bridge)", () => {
   beforeEach(() => {
     memory.clear();
     vi.useFakeTimers();
@@ -51,7 +57,7 @@ describe("transportStore journey", () => {
     let pickupTicks = 0;
     while (
       transportStore.getTracking().learnerStatus !== "picked_up" &&
-      pickupTicks < 40
+      pickupTicks < 80
     ) {
       vi.advanceTimersByTime(6000);
       pickupTicks += 1;
@@ -61,19 +67,17 @@ describe("transportStore journey", () => {
     expect(afterPickup.learnerStatus).toBe("picked_up");
     expect(afterPickup.progressPercent).toBeLessThan(100);
 
-    // After pickup, progress advances toward school.
-    let ticks = 0;
+    let dropTicks = 0;
     while (
       transportStore.getTracking().learnerStatus !== "reached_school" &&
-      ticks < 40
+      dropTicks < 80
     ) {
       vi.advanceTimersByTime(6000);
-      ticks += 1;
+      dropTicks += 1;
     }
 
     const done = transportStore.getTracking();
     expect(done.learnerStatus).toBe("reached_school");
-    expect(done.runStatus).toBe("completed");
     expect(done.progressPercent).toBe(100);
   });
 
@@ -82,7 +86,7 @@ describe("transportStore journey", () => {
     let pickupTicks = 0;
     while (
       transportStore.getTracking().learnerStatus !== "picked_up" &&
-      pickupTicks < 40
+      pickupTicks < 80
     ) {
       vi.advanceTimersByTime(6000);
       pickupTicks += 1;

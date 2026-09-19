@@ -133,7 +133,13 @@ export function TeacherStudentsPage() {
         {filtered.length} students · Tap again to collapse · Tap another to switch
       </p>
 
-      {filtered.length ? (
+      {portal.errorMessage && portal.students.length === 0 ? (
+        <EmptyState
+          icon={Users}
+          title="Unable to load students"
+          description={portal.errorMessage}
+        />
+      ) : filtered.length ? (
         <StudentAccordionList
           key={listKey}
           students={filtered}
@@ -144,7 +150,11 @@ export function TeacherStudentsPage() {
         <EmptyState
           icon={Users}
           title="No students found"
-          description="Try a different class, section, or search term."
+          description={
+            portal.classes.length === 0
+              ? "Ask admin to assign you as class teacher or subject teacher for a section, and enroll students in that section."
+              : "No active enrollments in your assigned sections yet — or try a different class / section filter."
+          }
         />
       )}
     </div>

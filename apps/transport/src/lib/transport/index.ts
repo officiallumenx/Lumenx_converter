@@ -1,18 +1,10 @@
 /**
- * Driver Transport data layer.
- * Pages should depend on repositories/stores here — swap implementations for real APIs later.
+ * Driver Transport data layer — API-backed repositories and stores.
  */
 
 export type * from "./types";
 
-export { transportSeed } from "./mock/seed";
-export { DEMO_ROUTE_SETUP_ACCOUNT, getDemoRouteSetupAccount } from "./demo-route-setup-account";
-export {
-  listDemoDriverHints,
-  resolveDriverAssignment,
-  subscribeDriverAssignment,
-} from "./driver-assignment";
-export type { DriverAssignment, DriverAssignmentStatus } from "./driver-assignment";
+export type { DriverAssignment, DriverAssignmentStatus, DriverAccountSnapshot } from "./driver-assignment";
 export { tripRepository } from "./trip";
 export type {
   TripPhase,
@@ -27,7 +19,12 @@ export { setAttendanceVehicleScope } from "./attendance/store";
 export { alertsRepository } from "./alerts";
 export { settingsRepository } from "./settings";
 export { supportRepository } from "./support";
-export { emergencyRepository } from "./emergency";
+export {
+  emergencyRepository,
+  refreshApiOpenEmergency,
+  subscribeApiEmergencies,
+} from "./emergency";
+
 export { routeSetupRepository } from "./route-setup";
 export { captureCurrentGps } from "./capture-gps";
 export { resetTransportStores } from "./reset";

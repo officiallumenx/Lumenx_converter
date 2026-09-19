@@ -1,4 +1,5 @@
 import type { ConnectEventItem } from "@/lib/events";
+import { safeMeta } from "@/lib/safe-meta";
 import { Badge, cn } from "@lumenx/ui";
 import {
   Calendar,
@@ -26,6 +27,10 @@ export const KIND_META: Record<
   announcement: { label: "Notice", icon: Megaphone, cls: "bg-muted text-foreground" },
 };
 
+export function eventKindMeta(kind: string | null | undefined) {
+  return safeMeta(KIND_META, kind, KIND_META.event);
+}
+
 export function startOfDay(d: Date) {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
@@ -42,7 +47,7 @@ export function CountdownBanner({ event }: { event: ConnectEventItem }) {
     0,
     Math.ceil((+new Date(event.date) - +startOfDay(new Date())) / 86400000),
   );
-  const meta = KIND_META[event.kind];
+  const meta = eventKindMeta(event.kind);
   const Icon = meta.icon;
   return (
     <div className="max-w-full min-w-0 rounded-3xl bg-gradient-primary p-5 text-primary-foreground shadow-glow relative overflow-hidden md:p-7">
@@ -89,7 +94,7 @@ export function CountdownBanner({ event }: { event: ConnectEventItem }) {
 }
 
 export function EventRow({ event }: { event: ConnectEventItem }) {
-  const meta = KIND_META[event.kind];
+  const meta = eventKindMeta(event.kind);
   const Icon = meta.icon;
   return (
     <div className="flex min-w-0 items-center gap-2 rounded-xl border border-border p-3 sm:gap-3">

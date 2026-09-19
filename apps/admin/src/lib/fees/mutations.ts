@@ -61,10 +61,11 @@ export type RecordPaymentInput = {
   feePlanId: string;
   studentId: string;
   classId: string;
+  feeComponentId: string;
   amount: number;
   method: FeePaymentMethod;
   paidOn: string;
-  note: string;
+  note?: string | null;
 };
 
 export type VoidPaymentInput = {
@@ -221,18 +222,23 @@ export async function recordPayment(
   if (!isInstituteUuid(input.classId)) {
     throw new Error("class_id must be a valid UUID");
   }
-  const note = input.note.trim();
-  if (!note) {
-    throw new Error("Payment note is required");
+  if (!isInstituteUuid(input.feeComponentId)) {
+    throw new Error("fee_component_id must be a valid UUID");
+  }
+  const note =
+    typeof input.note === "string" ? input.note.trim() : "";
+  if (input.method !== "cash" && !note) {
+    throw new Error("Transaction ID / note is required");
   }
   return client.post<FeePaymentDto>("/api/v1/fees/payments", {
     fee_plan_id: input.feePlanId.trim(),
     student_id: input.studentId.trim(),
     class_id: input.classId.trim(),
+    fee_component_id: input.feeComponentId.trim(),
     amount: input.amount,
     method: input.method,
     paid_on: input.paidOn,
-    note,
+    note: note || null,
   });
 }
 

@@ -8,11 +8,10 @@ import {
   EmptyState,
 } from "@lumenx/ui-admin";
 import { useInstituteContext } from "@/lib/institutes";
+import { useAnalyticsSummaryQuery } from "@/lib/admin-queries";
 import {
-  loadAnalyticsSummary,
   loadAnalyticsSeries,
   resolveAnalyticsSummaryView,
-  shouldCommitAnalyticsLoad,
   chartHasAttendanceData,
   chartHasEnrollmentData,
   chartHasFeeData,
@@ -152,7 +151,7 @@ function AnalyticsCharts({
         <div>
           <h2 className="text-sm font-semibold">Charts & trends</h2>
           <p className="text-[11px] text-muted-foreground">
-            Live series from GET /api/v1/analytics/series · {series.fromMonth} → {series.toMonth}
+            Monthly trends · {series.fromMonth} → {series.toMonth}
           </p>
         </div>
         <SegmentedControl
@@ -425,6 +424,13 @@ export function AnalyticsApiSummaryPanel() {
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
+  const listEnabled =
+    instituteCtx.status === "ready" && Boolean(instituteCtx.activeInstituteId);
+  const summaryQuery = useAnalyticsSummaryQuery(
+    instituteCtx.activeInstituteId,
+    listEnabled,
+  );
+
   useEffect(() => {
     if (instituteCtx.status === "loading") {
       setSummary(null);
@@ -461,33 +467,42 @@ export function AnalyticsApiSummaryPanel() {
       return;
     }
 
+    if (summaryQuery.isLoading && !summaryQuery.data) {
+      setLoadStatus("loading");
+      setLoadError(null);
+      return;
+    }
+    if (!summaryQuery.data) return;
+
+    const summaryNext = summaryQuery.data;
+    setSummary(summaryNext.summary);
+    setLoadStatus(summaryNext.status);
+    setLoadError(summaryNext.errorMessage);
+    setResolvedForInstituteId(instituteCtx.activeInstituteId);
+  }, [
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    instituteCtx.errorMessage,
+    summaryQuery.data,
+    summaryQuery.isLoading,
+  ]);
+
+  useEffect(() => {
+    if (
+      instituteCtx.status !== "ready" ||
+      !instituteCtx.activeInstituteId
+    ) {
+      return;
+    }
     const requestInstituteId = instituteCtx.activeInstituteId;
     let cancelled = false;
-    setLoadStatus("loading");
     setSeriesStatus("loading");
-    setLoadError(null);
     setSeriesError(null);
-
-    void Promise.all([
-      loadAnalyticsSummary(requestInstituteId),
-      loadAnalyticsSeries(requestInstituteId, range),
-    ]).then(([summaryNext, seriesNext]) => {
-      if (
-        !shouldCommitAnalyticsLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setSummary(summaryNext.summary);
-      setLoadStatus(summaryNext.status);
-      setLoadError(summaryNext.errorMessage);
+    void loadAnalyticsSeries(requestInstituteId, range).then((seriesNext) => {
+      if (cancelled || activeInstituteIdRef.current !== requestInstituteId) return;
       setSeries(seriesNext.series);
       setSeriesStatus(seriesNext.status);
       setSeriesError(seriesNext.errorMessage);
-      setResolvedForInstituteId(requestInstituteId);
     });
     return () => {
       cancelled = true;
@@ -495,7 +510,6 @@ export function AnalyticsApiSummaryPanel() {
   }, [
     instituteCtx.status,
     instituteCtx.activeInstituteId,
-    instituteCtx.errorMessage,
     range,
   ]);
 
@@ -505,7 +519,8 @@ export function AnalyticsApiSummaryPanel() {
     activeInstituteId: instituteCtx.activeInstituteId,
     resolvedForInstituteId,
     storedSummary: summary,
-    storedStatus: loadStatus,
+    storedStatus:
+      summaryQuery.isLoading && !summaryQuery.data ? "loading" : loadStatus,
     storedErrorMessage: loadError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
@@ -522,8 +537,8 @@ export function AnalyticsApiSummaryPanel() {
       <Card>
         <CardHeader
           title="Institute analytics"
-          hint="Live counts from GET /api/v1/analytics"
-          action={<Pill tone="neutral">Read-only · API mode</Pill>}
+          hint="Live institute counts"
+          action={<Pill tone="neutral">View only</Pill>}
         />
         {hint ? (
           <p className="px-4 pb-4 text-sm text-muted-foreground">{hint}</p>

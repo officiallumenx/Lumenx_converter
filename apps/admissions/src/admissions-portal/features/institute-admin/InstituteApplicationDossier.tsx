@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Badge } from "@lumenx/ui";
 import type { AdmissionApplication, ApplicationDocument } from "@/lib/admissions/types";
 import { statusLabel } from "@/lib/admissions/mock-data";
-import { getAdmissionForm } from "@/lib/institute-admin";
+import { getAdmissionForm } from "@/lib/admissions/institute-admin";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (

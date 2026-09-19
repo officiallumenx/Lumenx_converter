@@ -7,13 +7,12 @@ export function StorageDocumentsHubPanel() {
     <Card>
       <CardHeader
         title="Document registry moved"
-        hint="Storage documents registry is not available here in API mode"
+        hint="Document storage registry is not available here yet"
       />
       <div className="px-5 pb-5 space-y-4">
         <p className="text-sm text-muted-foreground leading-relaxed">
-          The legacy storage documents registry was a demo-only surface. In API mode,
-          document templates, generation, and publishing are managed in the dedicated
-          Documents module.
+          Document templates, generation, and publishing are managed in the Documents
+          module.
         </p>
         <Link to="/documents">
           <Button variant="primary">

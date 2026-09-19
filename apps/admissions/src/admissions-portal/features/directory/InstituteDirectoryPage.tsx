@@ -1,24 +1,38 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Input } from "@lumenx/ui";
-import { Search, Sparkles, TrendingUp, Clock } from "lucide-react";
+import { Search } from "lucide-react";
 import type { InstituteKind } from "@lumenx/types";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { loadAdmissionsDirectoryProfiles } from "@/lib/admissions/api-institute-directory";
 import {
   filterInstitutes,
   listAllInstitutes,
   LOCATIONS,
   INSTITUTE_KIND_LABEL,
 } from "@/lib/institutes-data";
-import {
-  getFeaturedInstitutes,
-  getPopularInstitutes,
-  getRecentlyAddedInstitutes,
-} from "@/lib/institute-profiles";
+import type { AdmissionInstituteProfile } from "@/lib/admissions/institutes-data";
 import { InstituteDirectoryCard } from "@/admissions-portal/shared/ui/v2/AdmissionsV2Widgets";
 import { useAdmissionsAuth } from "@/admissions-portal/core/AdmissionsAuthProvider";
 import { toggleSavedInstitute } from "@/lib/admissions/saved-store";
 import { SectionCard } from "@/components/app/SectionCard";
 
 type SortKey = "rating" | "seats" | "name" | "recent";
+
+function filterApiInstitutes(
+  items: AdmissionInstituteProfile[],
+  opts: { q: string; state: string; city: string; kind: InstituteKind | "all" },
+) {
+  return items.filter((i) => {
+    if (opts.kind !== "all" && i.kind !== opts.kind) return false;
+    if (opts.state !== "all" && i.state && i.state !== opts.state) return false;
+    if (opts.city !== "all" && i.city && i.city !== opts.city) return false;
+    if (opts.q) {
+      const hay = `${i.name} ${i.code} ${i.city} ${i.state}`.toLowerCase();
+      if (!hay.includes(opts.q.toLowerCase())) return false;
+    }
+    return true;
+  });
+}
 
 export function InstituteDirectoryPage({
   initialState,
@@ -27,44 +41,62 @@ export function InstituteDirectoryPage({
   initialState?: string;
   initialCity?: string;
 }) {
+  const apiMode = isApiAuthMode();
   const { user } = useAdmissionsAuth();
   const [q, setQ] = useState("");
   const [state, setState] = useState(initialState ?? "all");
   const [city, setCity] = useState(initialCity ?? "all");
   const [kind, setKind] = useState<InstituteKind | "all">("all");
-  const [sort, setSort] = useState<SortKey>("rating");
+  const [sort, setSort] = useState<SortKey>("name");
   const [, refresh] = useState(0);
+  const [apiItems, setApiItems] = useState<AdmissionInstituteProfile[]>([]);
+  const [loading, setLoading] = useState(apiMode);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!apiMode) return;
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    void loadAdmissionsDirectoryProfiles()
+      .then((rows) => {
+        if (!cancelled) setApiItems(rows);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setApiItems([]);
+          setError(err instanceof Error ? err.message : "Unable to load institutes.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiMode]);
 
   const filtered = useMemo(() => {
-    let list = filterInstitutes({ q, state, city, kind });
-    const featured = new Set(getFeaturedInstitutes());
-    const popular = new Set(getPopularInstitutes());
-    const recent = new Set(getRecentlyAddedInstitutes(6));
+    let list = apiMode
+      ? filterApiInstitutes(apiItems, { q, state, city, kind })
+      : filterInstitutes({ q, state, city, kind });
 
     list = [...list].sort((a, b) => {
       if (sort === "rating") return b.rating - a.rating;
       if (sort === "seats") return b.seatsOpen - a.seatsOpen;
       if (sort === "name") return a.name.localeCompare(b.name);
-      if (sort === "recent") {
-        const ar = recent.has(a.id) ? 1 : 0;
-        const br = recent.has(b.id) ? 1 : 0;
-        return br - ar || b.rating - a.rating;
-      }
-      return 0;
+      return b.rating - a.rating;
     });
-    return { list, featured, popular, recent };
-  }, [q, state, city, kind, sort]);
+    return { list };
+  }, [apiMode, apiItems, q, state, city, kind, sort]);
 
   const citiesInState = useMemo(() => {
-    if (state === "all") return LOCATIONS.cities;
-    return [
-      ...new Set(listAllInstitutes().filter((i) => i.state === state).map((i) => i.city)),
-    ].sort();
-  }, [state]);
-
-  const featuredList = filtered.list.filter((i) => filtered.featured.has(i.id));
-  const popularList = filtered.list.filter((i) => filtered.popular.has(i.id));
-  const recentList = filtered.list.filter((i) => filtered.recent.has(i.id));
+    const source = apiMode ? apiItems : listAllInstitutes();
+    if (state === "all") {
+      return [...new Set(source.map((i) => i.city).filter(Boolean))].sort();
+    }
+    return [...new Set(source.filter((i) => i.state === state).map((i) => i.city).filter(Boolean))].sort();
+  }, [apiMode, apiItems, state]);
 
   const renderGrid = (items: typeof filtered.list) => (
     <div className="grid gap-4 sm:grid-cols-2">
@@ -83,6 +115,16 @@ export function InstituteDirectoryPage({
     </div>
   );
 
+  if (apiMode && loading) {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">Loading institutes…</div>
+    );
+  }
+
+  if (apiMode && error) {
+    return <div className="py-12 text-center text-sm text-destructive">{error}</div>;
+  }
+
   return (
     <div className="animate-in fade-in duration-300 space-y-8">
       <div>
@@ -98,31 +140,34 @@ export function InstituteDirectoryPage({
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search name, city, code…"
             className="pl-9"
+            placeholder="Search institutes…"
           />
         </div>
         <select
+          className="h-10 rounded-md border border-border bg-background px-3 text-sm"
           value={state}
           onChange={(e) => {
             setState(e.target.value);
             setCity("all");
           }}
           aria-label="Filter by state"
-          className="h-10 rounded-md border border-border bg-background px-3 text-sm"
         >
           <option value="all">All states</option>
-          {LOCATIONS.states.map((s) => (
+          {(apiMode
+            ? [...new Set(apiItems.map((i) => i.state).filter(Boolean))].sort()
+            : LOCATIONS.states
+          ).map((s) => (
             <option key={s} value={s}>
               {s}
             </option>
           ))}
         </select>
         <select
+          className="h-10 rounded-md border border-border bg-background px-3 text-sm"
           value={city}
           onChange={(e) => setCity(e.target.value)}
           aria-label="Filter by city"
-          className="h-10 rounded-md border border-border bg-background px-3 text-sm"
         >
           <option value="all">All cities</option>
           {citiesInState.map((c) => (
@@ -132,63 +177,33 @@ export function InstituteDirectoryPage({
           ))}
         </select>
         <select
+          className="h-10 rounded-md border border-border bg-background px-3 text-sm"
           value={kind}
           onChange={(e) => setKind(e.target.value as InstituteKind | "all")}
-          aria-label="Filter by type"
-          className="h-10 rounded-md border border-border bg-background px-3 text-sm"
+          aria-label="Filter by kind"
         >
           <option value="all">All types</option>
-          {(Object.keys(INSTITUTE_KIND_LABEL) as InstituteKind[]).map((k) => (
+          {Object.entries(INSTITUTE_KIND_LABEL).map(([k, v]) => (
             <option key={k} value={k}>
-              {INSTITUTE_KIND_LABEL[k]}
+              {v}
             </option>
           ))}
         </select>
         <select
+          className="h-10 rounded-md border border-border bg-background px-3 text-sm"
           value={sort}
           onChange={(e) => setSort(e.target.value as SortKey)}
-          aria-label="Sort results"
-          className="h-10 rounded-md border border-border bg-background px-3 text-sm"
+          aria-label="Sort"
         >
-          <option value="rating">Sort: Rating</option>
-          <option value="seats">Sort: Seats open</option>
-          <option value="name">Sort: Name</option>
-          <option value="recent">Sort: Recently added</option>
+          <option value="name">Name</option>
+          {!apiMode && <option value="rating">Rating</option>}
+          {!apiMode && <option value="seats">Seats</option>}
         </select>
       </div>
 
-      {!q && state === "all" && city === "all" && kind === "all" && (
-        <>
-          {featuredList.length > 0 && (
-            <SectionCard title="Featured institutes">
-              <div className="flex items-center gap-2 text-primary text-xs mb-3">
-                <Sparkles className="size-3.5" /> Curated for 2026–27 admissions
-              </div>
-              {renderGrid(featuredList)}
-            </SectionCard>
-          )}
-          {popularList.length > 0 && (
-            <SectionCard title="Popular institutes">
-              <div className="flex items-center gap-2 text-muted-foreground text-xs mb-3">
-                <TrendingUp className="size-3.5" /> Most viewed this season
-              </div>
-              {renderGrid(popularList)}
-            </SectionCard>
-          )}
-          {recentList.length > 0 && (
-            <SectionCard title="Recently added">
-              <div className="flex items-center gap-2 text-muted-foreground text-xs mb-3">
-                <Clock className="size-3.5" /> New on LumenX Admissions
-              </div>
-              {renderGrid(recentList)}
-            </SectionCard>
-          )}
-        </>
-      )}
-
-      <SectionCard title={`All institutes (${filtered.list.length})`}>
+      <SectionCard title={`${filtered.list.length} institutes`}>
         {filtered.list.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-6 text-center">
+          <p className="py-8 text-center text-sm text-muted-foreground">
             No institutes match your filters.
           </p>
         ) : (

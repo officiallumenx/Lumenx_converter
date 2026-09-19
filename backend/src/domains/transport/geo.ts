@@ -1,6 +1,8 @@
 /** Earth-surface distance helpers for transport approach alerts. */
 
 const EARTH_RADIUS_M = 6_371_000;
+/** Fallback urban bus speed when GPS speed is missing (~30 km/h ≈ 500 m/min). */
+const DEFAULT_SPEED_M_PER_MIN = 500;
 
 function toRad(deg: number): number {
   return (deg * Math.PI) / 180;
@@ -21,8 +23,18 @@ export function haversineMeters(
   return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-/** Rough ETA assuming ~30 km/h urban bus speed (~500 m/min). */
-export function etaMinutesFromDistance(distanceM: number): number {
+/**
+ * ETA minutes from distance.
+ * Uses optional GPS `speedKmh` when finite and ≥ 5 km/h; otherwise ~30 km/h urban default.
+ */
+export function etaMinutesFromDistance(
+  distanceM: number,
+  speedKmh?: number | null,
+): number {
   if (!Number.isFinite(distanceM) || distanceM <= 0) return 0;
-  return Math.max(1, Math.ceil(distanceM / 500));
+  const speedMPerMin =
+    speedKmh != null && Number.isFinite(speedKmh) && speedKmh >= 5
+      ? (speedKmh * 1000) / 60
+      : DEFAULT_SPEED_M_PER_MIN;
+  return Math.max(1, Math.ceil(distanceM / speedMPerMin));
 }

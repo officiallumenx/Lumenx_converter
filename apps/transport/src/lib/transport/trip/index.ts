@@ -11,7 +11,7 @@ export {
   advanceTripStop,
   resetTripSession,
   subscribeTripSession,
-  TRIP_STORAGE_KEY,
+  syncTripFromApiDto,
   type TripSession,
   type TripActionResult,
 } from "./store";

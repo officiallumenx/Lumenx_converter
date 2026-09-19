@@ -36,12 +36,12 @@ export const ATTENDANCE_METHOD_OPTIONS: {
   },
   {
     value: "morning_afternoon",
-    label: "Morning + Afternoon",
+    label: "Morning+Afternoon First",
     description: "Separate morning and afternoon session marks",
   },
   {
     value: "period_wise",
-    label: "Period Wise",
+    label: "Every Period",
     description: "Attendance marked for each timetable period",
   },
 ];

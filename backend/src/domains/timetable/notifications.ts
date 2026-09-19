@@ -4,47 +4,6 @@ import { emitNotificationForInstituteSystem } from "../notifications/service.js"
 import { listLinksForStudent } from "../parents/repository.js";
 import { findParentById } from "../parents/repository.js";
 
-const STAFF_NOTIFY_ROLES = [
-  "institute_admin",
-  "principal",
-  "vice_principal",
-  "coordinator",
-  "teacher",
-  "staff",
-] as const;
-
-async function listInstituteUserIdsByRoles(
-  admin: SupabaseClient,
-  instituteId: string,
-  roleCodes: readonly string[],
-): Promise<string[]> {
-  const membershipResult = await admin
-    .from("membership")
-    .select("id, user_id")
-    .eq("institute_id", instituteId)
-    .eq("status", "active")
-    .is("deleted_at", null);
-  const memberships = ensureDbOk(membershipResult) as Array<{
-    id: string;
-    user_id: string;
-  }>;
-  if (memberships.length === 0) return [];
-
-  const membershipIds = memberships.map((m) => m.id);
-  const rolesResult = await admin
-    .from("membership_role")
-    .select("membership_id, role_code")
-    .in("membership_id", membershipIds)
-    .in("role_code", [...roleCodes]);
-  const roleRows = ensureDbOk(rolesResult) as Array<{ membership_id: string }>;
-  const matched = new Set(roleRows.map((r) => r.membership_id));
-  return [
-    ...new Set(
-      memberships.filter((m) => matched.has(m.id)).map((m) => m.user_id),
-    ),
-  ];
-}
-
 async function listParentUserIdsForStudent(
   admin: SupabaseClient,
   studentId: string,
@@ -137,6 +96,39 @@ async function listSectionTeacherUserIds(
   ];
 }
 
+async function listClassTeacherUserIds(
+  admin: SupabaseClient,
+  input: { instituteId: string; sectionId: string },
+): Promise<string[]> {
+  const sectionRes = await admin
+    .from("section")
+    .select("class_teacher_id")
+    .eq("id", input.sectionId)
+    .eq("institute_id", input.instituteId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  const section = sectionRes.data as { class_teacher_id: string | null } | null;
+  const teacherId = section?.class_teacher_id?.trim();
+  if (!teacherId) return [];
+
+  const teacherRes = await admin
+    .from("teacher")
+    .select("user_profile_id")
+    .eq("id", teacherId)
+    .eq("institute_id", input.instituteId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  const teacher = teacherRes.data as { user_profile_id: string | null } | null;
+  return teacher?.user_profile_id ? [teacher.user_profile_id] : [];
+}
+
+async function listPeriodTeacherUserIds(
+  admin: SupabaseClient,
+  input: { instituteId: string; sectionId: string },
+): Promise<string[]> {
+  return listSectionTeacherUserIds(admin, input);
+}
+
 export async function emitTimetableSectionPublishedNotifications(
   admin: SupabaseClient,
   actorUserId: string,
@@ -152,22 +144,23 @@ export async function emitTimetableSectionPublishedNotifications(
   const classAudience = `${input.classLabel} · Sec ${input.sectionLabel}`;
   const body = `${input.activatedCount} period${input.activatedCount === 1 ? "" : "s"} now live`;
 
+  // Flowchart SYSTEM fan-out: whole class students (+ parents), class teacher,
+  // and teachers for their assigned periods — not a blanket staff blast.
   const learnerIds = await listSectionLearnerRecipientUserIds(admin, {
     instituteId: input.instituteId,
     sectionId: input.sectionId,
     academicYearId: input.academicYearId,
   });
-  const staffIds = await listInstituteUserIdsByRoles(
-    admin,
-    input.instituteId,
-    STAFF_NOTIFY_ROLES,
-  );
-  const teacherIds = await listSectionTeacherUserIds(admin, {
+  const classTeacherIds = await listClassTeacherUserIds(admin, {
+    instituteId: input.instituteId,
+    sectionId: input.sectionId,
+  });
+  const periodTeacherIds = await listPeriodTeacherUserIds(admin, {
     instituteId: input.instituteId,
     sectionId: input.sectionId,
   });
   const recipientUserIds = [
-    ...new Set([...learnerIds, ...staffIds, ...teacherIds]),
+    ...new Set([...learnerIds, ...classTeacherIds, ...periodTeacherIds]),
   ];
   if (recipientUserIds.length === 0) return;
 

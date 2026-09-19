@@ -24,6 +24,7 @@ import { useAdminToast } from "@/components/AdminActionToast";
 import { prependAdminNotification } from "@/lib/notification-center-store";
 import { FeesClassChecklist } from "@/components/fees/FeesClassChecklist";
 import { publishFeePlan, unpublishFeePlan } from "@/lib/fees";
+import { idsForClassLabel, type ClassIdsByLabel } from "@/lib/fees/class-ids";
 
 export function FeesPublishView({
   snapshot,
@@ -32,6 +33,7 @@ export function FeesPublishView({
   apiMode = false,
   feePlanId = null,
   classIdByLabel = {},
+  classIdsByLabel = {},
   onApiReload,
 }: {
   snapshot: FeesSnapshot;
@@ -40,6 +42,7 @@ export function FeesPublishView({
   apiMode?: boolean;
   feePlanId?: string | null;
   classIdByLabel?: Record<string, string>;
+  classIdsByLabel?: ClassIdsByLabel;
   onApiReload?: () => void;
 }) {
   const notify = useAdminToast();
@@ -67,7 +70,13 @@ export function FeesPublishView({
       }
       const publishedClassIds = scopeAll
         ? undefined
-        : selected.map((ck) => classIdByLabel[ck]).filter(Boolean);
+        : [
+            ...new Set(
+              selected.flatMap((ck) =>
+                idsForClassLabel(ck, classIdsByLabel, classIdByLabel),
+              ),
+            ),
+          ];
       if (!scopeAll && (!publishedClassIds || publishedClassIds.length === 0)) {
         notify("Select classes with valid class ids");
         return;

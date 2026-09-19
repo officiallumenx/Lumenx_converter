@@ -10,15 +10,29 @@ describe("loadStudentFeeAccountView", () => {
     vi.clearAllMocks();
   });
 
-  it("returns demo status in demo mode", async () => {
+  it("ignores demo env and loads via API (product is API-only)", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
+    const getStudentFeeAccount = vi.fn().mockResolvedValue({
+      feePlanId: PLAN,
+      studentId: STUDENT,
+      classId: CLASS,
+      published: true,
+      lines: [],
+      billedAmount: 0,
+      paidAmount: 0,
+      dueAmount: 0,
+      status: "due",
+      studentFeeId: null,
+    });
+    vi.doMock("./api", () => ({ getStudentFeeAccount }));
     const { loadStudentFeeAccountView } = await import("./account-load");
     const result = await loadStudentFeeAccountView({
       planId: PLAN,
       studentId: STUDENT,
       classId: CLASS,
     });
-    expect(result.status).toBe("demo");
+    expect(result.status).toBe("ready");
+    expect(getStudentFeeAccount).toHaveBeenCalled();
   });
 
   it("returns invalid without network call for bad student UUID", async () => {

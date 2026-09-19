@@ -89,13 +89,17 @@ export function GetStartedFlow({
               <p className="mt-2 max-w-2xl text-muted-foreground">{view.lede}</p>
               <div className="mt-6 flex flex-wrap gap-3">
                 <CTAButton asChild variant="secondary">
-                  <Link to="/products/$slug" params={{ slug: view.product }}>
-                    Read about {PRODUCT_FAMILY[view.product].shortName}
-                  </Link>
+                  {view.product === "nexus" ? (
+                    <Link to="/about">About LumenX</Link>
+                  ) : (
+                    <Link to="/platform/$slug" params={{ slug: view.product }}>
+                      Read about {PRODUCT_FAMILY[view.product].shortName}
+                    </Link>
+                  )}
                 </CTAButton>
                 {view.demo ? (
                   <CTAButton asChild variant="ghost">
-                    <Link to="/demo" search={{ product: view.product }}>
+                    <Link to="/resources/demo" search={{ product: view.product }}>
                       Try the mock demo
                     </Link>
                   </CTAButton>
@@ -142,7 +146,7 @@ export function GetStartedFlow({
           <div className="mt-8 flex flex-wrap gap-3">
             {view?.demo ? (
               <CTAButton asChild variant="secondary">
-                <Link to="/demo" search={{ product: view.product }}>
+                <Link to="/resources/demo" search={{ product: view.product }}>
                   Open demo
                 </Link>
               </CTAButton>

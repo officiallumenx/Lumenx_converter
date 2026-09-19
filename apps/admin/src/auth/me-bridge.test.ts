@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authUserFromMe } from "./me-bridge";
+import { authUserFromMe, hasAdminAppAccess, isPendingAdminApplicant } from "./me-bridge";
 import type { MeResponse } from "@/lib/api/me-types";
 
 const meFixture: MeResponse = {
@@ -35,5 +35,32 @@ describe("authUserFromMe", () => {
     expect(user.role).toBe("principal");
     expect(user.email).toBe("principal@example.com");
     expect(user.isVerified).toBe(true);
+  });
+
+  it("rejects restoration without an Admin app role", () => {
+    expect(hasAdminAppAccess(meFixture)).toBe(true);
+    expect(
+      hasAdminAppAccess({
+        ...meFixture,
+        institutes: [{ ...meFixture.institutes[0]!, roles: ["parent"] }],
+      }),
+    ).toBe(false);
+  });
+
+  it("allows platform operators without institute membership", () => {
+    expect(
+      hasAdminAppAccess({
+        ...meFixture,
+        institutes: [],
+        platformOperator: { active: true, roleCode: "nexus_operator" },
+      }),
+    ).toBe(true);
+    expect(
+      isPendingAdminApplicant({
+        ...meFixture,
+        institutes: [],
+        platformOperator: { active: false, roleCode: null },
+      }),
+    ).toBe(true);
   });
 });

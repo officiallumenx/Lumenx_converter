@@ -216,11 +216,13 @@ describe("fees api", () => {
         method: "cash",
         paid_on: "2026-08-01",
         note: "Term 1 cash at reception",
+        fee_component_id: COMP_A,
       }),
     });
     expect(pay.status).toBe(201);
     const payment = (await json(pay)).data;
     expect(payment.amount).toBe(4000);
+    expect(payment.feeComponentId).toBe(COMP_A);
     expect(payment.receiptNo).toMatch(/^RCP-/);
     expect(payment.note).toBe("Term 1 cash at reception");
 
@@ -253,7 +255,37 @@ describe("fees api", () => {
     expect(voidAcct.status).toBe("due");
   });
 
-  it("rejects payment without note", async () => {
+  it("rejects non-cash payment without txn note", async () => {
+    const db = baseDb();
+    const app = appWithDb(db);
+    await app.request(`/api/v1/fees/plans/${PLAN_A}/publish`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-admin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ publish_scope: "institute" }),
+    });
+    const pay = await app.request("/api/v1/fees/payments", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-admin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        fee_plan_id: PLAN_A,
+        student_id: STUDENT_A,
+        class_id: CLASS_A,
+        amount: 100,
+        method: "upi_office",
+        paid_on: "2026-08-01",
+        fee_component_id: COMP_A,
+      }),
+    });
+    expect(pay.status).toBe(400);
+  });
+
+  it("allows cash offline payment without note", async () => {
     const db = baseDb();
     const app = appWithDb(db);
     await app.request(`/api/v1/fees/plans/${PLAN_A}/publish`, {
@@ -277,9 +309,11 @@ describe("fees api", () => {
         amount: 100,
         method: "cash",
         paid_on: "2026-08-01",
+        fee_component_id: COMP_A,
       }),
     });
-    expect(pay.status).toBe(400);
+    expect(pay.status).toBe(201);
+    expect((await json(pay)).data.note).toBeNull();
   });
 
   it("blocks teacher from recording payments", async () => {
@@ -297,6 +331,7 @@ describe("fees api", () => {
         amount: 100,
         method: "cash",
         paid_on: "2026-08-01",
+        fee_component_id: COMP_A,
         note: "Attempt",
       }),
     });

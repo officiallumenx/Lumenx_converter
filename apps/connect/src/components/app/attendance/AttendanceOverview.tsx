@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { SectionCard } from "@/components/app/SectionCard";
@@ -12,8 +12,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useApp } from "@/lib/app-state";
 import { isInstituteUuid } from "@/lib/institute-id";
-import { loadInstituteHolidays } from "@/lib/events";
-import { loadLearnerAttendancePortal } from "@/lib/attendance/load";
+import {
+  useLearnerAttendanceQuery,
+  useHolidaysQuery,
+} from "@/lib/connect-queries/hooks";
 import {
   monthIsoRange,
   overlayPortalAttendanceDays,
@@ -35,7 +37,7 @@ import {
   normalizeIsoRange,
   shiftMonth,
 } from "@/lib/attendance/calendar";
-import type { AttendanceDay, AttendanceDayStatus, InstituteHoliday } from "@/lib/attendance/types";
+import type { AttendanceDay, AttendanceDayStatus } from "@/lib/attendance/types";
 
 type AttendanceOverviewProps = {
   title?: string;
@@ -68,54 +70,38 @@ export function AttendanceOverview({
   const [rangeStart, setRangeStart] = useState("");
   const [rangeEnd, setRangeEnd] = useState("");
   const { activeInstituteId } = useApp();
-  const [apiHolidays, setApiHolidays] = useState<InstituteHoliday[] | null>(null);
-  const [portalStatusByDate, setPortalStatusByDate] = useState<Map<
-    string,
-    AttendanceDayStatus
-  > | null>(null);
 
   const apiPortalStudentId =
     portalStudentId && isInstituteUuid(portalStudentId) ? portalStudentId : null;
 
-  useEffect(() => {
-    if (!isApiAuthMode() || !apiPortalStudentId || !activeInstituteId) {
-      setPortalStatusByDate(null);
-      return;
-    }
-    let cancelled = false;
-    const { from, to } = monthIsoRange(year, month);
-    void loadLearnerAttendancePortal({
-      instituteId: activeInstituteId,
-      studentId: apiPortalStudentId,
-      fromDate: from,
-      toDate: to,
-    }).then((result) => {
-      if (cancelled) return;
-      if (result.portal) {
-        setPortalStatusByDate(portalDaysToStatusMap(result.portal));
-      } else {
-        setPortalStatusByDate(new Map());
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeInstituteId, apiPortalStudentId, year, month]);
+  const { from, to } = useMemo(() => monthIsoRange(year, month), [year, month]);
 
-  useEffect(() => {
-    if (!isApiAuthMode()) {
-      setApiHolidays(null);
-      return;
+  const attendanceEnabled =
+    isApiAuthMode() && Boolean(apiPortalStudentId) && Boolean(activeInstituteId);
+  const attendanceQuery = useLearnerAttendanceQuery(
+    activeInstituteId,
+    apiPortalStudentId,
+    from,
+    to,
+    attendanceEnabled,
+  );
+
+  const holidaysQuery = useHolidaysQuery(
+    activeInstituteId,
+    isApiAuthMode() && Boolean(activeInstituteId),
+  );
+
+  const portalStatusByDate = useMemo(() => {
+    if (!attendanceEnabled) return null;
+    if (!attendanceQuery.data) return null;
+    if (attendanceQuery.data.portal) {
+      return portalDaysToStatusMap(attendanceQuery.data.portal);
     }
-    let cancelled = false;
-    void loadInstituteHolidays({ instituteId: activeInstituteId }).then((items) => {
-      if (cancelled) return;
-      setApiHolidays(items.length > 0 ? items : []);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeInstituteId]);
+    return new Map<string, AttendanceDayStatus>();
+  }, [attendanceEnabled, attendanceQuery.data]);
+
+  const apiHolidays =
+    isApiAuthMode() && holidaysQuery.data !== undefined ? holidaysQuery.data : null;
 
   const holidayList = isApiAuthMode() && apiHolidays !== null ? apiHolidays : undefined;
 

@@ -96,7 +96,7 @@ export function TransportTripsApiPanel({ instituteId }: Props) {
         <EmptyState
           icon={Navigation}
           title="No trips yet"
-          description="Trips appear here when drivers start runs in the Transport app."
+          hint="Trips appear here when drivers start runs in the Transport app."
         />
       ) : (
         <>

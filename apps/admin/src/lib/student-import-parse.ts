@@ -13,6 +13,10 @@ export const STUDENT_IMPORT_REQUIRED_HEADERS = [
   "gender",
 ] as const;
 
+export type StudentImportCatalog = {
+  classOptions?: Array<{ classLabel: string; sectionLabels: string[] }>;
+};
+
 export function parseCsvLine(line: string): string[] {
   const values: string[] = [];
   let current = "";
@@ -37,7 +41,10 @@ export function parseCsvLine(line: string): string[] {
   return values;
 }
 
-export function parseCsv(content: string): {
+export function parseCsv(
+  content: string,
+  catalog?: StudentImportCatalog,
+): {
   rows: StudentImportRow[];
   errors: string[];
 } {
@@ -45,10 +52,13 @@ export function parseCsv(content: string): {
     .replace(/^\uFEFF/, "")
     .split(/\r?\n/)
     .filter((line) => line.trim());
-  return parseSheetRows(lines.map(parseCsvLine));
+  return parseSheetRows(lines.map(parseCsvLine), catalog);
 }
 
-export function parseSheetRows(sheetRows: string[][]): {
+export function parseSheetRows(
+  sheetRows: string[][],
+  catalog?: StudentImportCatalog,
+): {
   rows: StudentImportRow[];
   errors: string[];
 } {
@@ -90,6 +100,8 @@ export function parseSheetRows(sheetRows: string[][]): {
       accountPassword: value(cells, "account_password"),
     };
   });
-  const errors = rows.flatMap((row, index) => validateImportRow(row, index + 2));
+  const errors = rows.flatMap((row, index) =>
+    validateImportRow(row, index + 2, catalog),
+  );
   return { rows, errors };
 }

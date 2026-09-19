@@ -1,5 +1,4 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { randomBytes } from "node:crypto";
 import { AppError } from "../../errors/app-error.js";
 import { findParentById, findParentByPhoneInInstitute, updateParentFields } from "./repository.js";
 import {
@@ -17,6 +16,7 @@ import {
   ensureParentProfile,
   provisionAuthUser,
 } from "./provision.js";
+import { createServerAuthSessionForEmail } from "../../auth/create-server-session.js";
 
 export type RequestParentOtpInput = {
   instituteId: string;
@@ -52,8 +52,8 @@ async function ensureParentLoginIdentity(
     return { userId: parent.user_profile_id, authEmail };
   }
 
-  const randomPassword = randomBytes(24).toString("base64url");
-  const userId = await provisionAuthUser(admin, authEmail, randomPassword);
+  // Passwordless Auth user — Connect parents never receive an app-level password.
+  const userId = await provisionAuthUser(admin, authEmail);
   await ensureParentProfile(admin, {
     userId,
     displayName: parent.name.trim() || "Parent",
@@ -138,28 +138,7 @@ async function createAuthSessionForEmail(
   admin: SupabaseClient,
   email: string,
 ): Promise<{ accessToken: string; refreshToken: string }> {
-  const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
-    type: "magiclink",
-    email: email.trim().toLowerCase(),
-  });
-
-  if (linkError || !linkData.properties?.hashed_token) {
-    throw AppError.internal("Unable to start parent session");
-  }
-
-  const { data: sessionData, error: verifyError } = await admin.auth.verifyOtp({
-    token_hash: linkData.properties.hashed_token,
-    type: "email",
-  });
-
-  if (verifyError || !sessionData.session) {
-    throw AppError.internal("Unable to complete parent session");
-  }
-
-  return {
-    accessToken: sessionData.session.access_token,
-    refreshToken: sessionData.session.refresh_token,
-  };
+  return createServerAuthSessionForEmail(admin, email, "parent session");
 }
 
 export async function verifyParentLoginOtp(

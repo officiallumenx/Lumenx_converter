@@ -52,7 +52,6 @@ export const TeacherStaffCard = memo(function TeacherStaffCard({
           <TeacherAvatar name={teacher.name} />
           <div>
             <div className="text-sm font-medium">{teacher.name}</div>
-            <div className="text-[11px] text-muted-foreground">{teacher.dept}</div>
             <div className="text-[10px] text-muted-foreground font-mono mt-0.5">{teacher.id}</div>
           </div>
         </div>

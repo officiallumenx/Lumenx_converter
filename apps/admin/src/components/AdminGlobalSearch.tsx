@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
   CommandDialog,
@@ -14,13 +14,18 @@ import {
   LayoutDashboard,
   Users,
 } from "lucide-react";
-import { buildAdminSearchIndex, type AdminSearchItem } from "@/lib/admin-search-data";
-import { CURRENT_INSTITUTE_ID } from "@/lib/institute-billing-store";
-import { useDemoProfile } from "@/lib/demo-profile-context";
+import {
+  buildAdminPeopleSearchItems,
+  buildAdminSearchIndex,
+  type AdminSearchItem,
+} from "@/lib/admin-search-data";
 import { useAuth } from "@/auth/AuthContext";
 import { getRolePermission, useRolesAccessRevision } from "@/lib/roles-access";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
+import { listStudents } from "@/lib/students/api";
+import { listTeachers } from "@/lib/teachers/api";
+import { isInstituteUuid } from "@/lib/active-institute";
 
 interface AdminGlobalSearchProps {
   open: boolean;
@@ -33,31 +38,60 @@ function groupItems(items: AdminSearchItem[], group: AdminSearchItem["group"]) {
 
 export function AdminGlobalSearch({ open, onOpenChange }: AdminGlobalSearchProps) {
   const navigate = useNavigate();
-  const { profileId } = useDemoProfile();
   const { user } = useAuth();
   const rolesRevision = useRolesAccessRevision();
   const instituteCtx = useInstituteContext();
   const instituteId = isApiAuthMode()
     ? instituteCtx.activeInstituteId || ""
-    : user?.instituteId || CURRENT_INSTITUTE_ID;
+    : "";
+  const [peopleItems, setPeopleItems] = useState<AdminSearchItem[]>([]);
 
-  const index = useMemo(() => {
-    void profileId;
+  const pageIndex = useMemo(() => {
     if (!instituteId) return [];
     return buildAdminSearchIndex({
       instituteId,
       accessRoleId: user?.accessRoleId,
     });
-  }, [profileId, instituteId, user?.accessRoleId, rolesRevision]);
+  }, [instituteId, user?.accessRoleId, rolesRevision]);
+
+  useEffect(() => {
+    if (!open || !instituteId || !isInstituteUuid(instituteId)) {
+      setPeopleItems([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [students, teachers] = await Promise.all([
+          listStudents({ instituteId }),
+          listTeachers({ instituteId }),
+        ]);
+        if (cancelled) return;
+        setPeopleItems(
+          buildAdminPeopleSearchItems({
+            instituteId,
+            accessRoleId: user?.accessRoleId,
+            students,
+            teachers,
+          }),
+        );
+      } catch {
+        if (!cancelled) setPeopleItems([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, instituteId, user?.accessRoleId]);
 
   const canSeeStudents =
     !user?.accessRoleId || getRolePermission(user.accessRoleId, "/students") !== "none";
   const canSeeTeachers =
     !user?.accessRoleId || getRolePermission(user.accessRoleId, "/teachers") !== "none";
 
-  const pages = useMemo(() => groupItems(index, "pages"), [index]);
-  const students = useMemo(() => groupItems(index, "students"), [index]);
-  const teachers = useMemo(() => groupItems(index, "teachers"), [index]);
+  const pages = useMemo(() => groupItems(pageIndex, "pages"), [pageIndex]);
+  const students = useMemo(() => groupItems(peopleItems, "students"), [peopleItems]);
+  const teachers = useMemo(() => groupItems(peopleItems, "teachers"), [peopleItems]);
 
   const go = (item: AdminSearchItem) => {
     if (item.instituteId !== instituteId) return;

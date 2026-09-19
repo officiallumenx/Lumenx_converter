@@ -86,6 +86,52 @@ docker build -f backend/Dockerfile -t lumenx-api .
 | 5 | Deploy packaging | ✓ |
 | 6 | Ops docs | ✓ |
 
+## Phase 2 (product-ready finish) — **100%**
+
+| Step | Item | Done |
+|------|------|------|
+| 7 | Background workers (announcements, alert rules, diary) | ✓ |
+| 8 | Careers hire, class-teacher leave, storage quota hard-deny | ✓ |
+| 9 | Rate limit, Idempotency-Key, FCM outbox retry | ✓ |
+| 10 | Activity notify, online checkout, GPS 30/15/5, Sports V2 | ✓ |
+
+**Product-ready backend (Steps 1–10): 100%.** See [OPS.md](./OPS.md).
+
+## Post-launch (V1.5) — **100%**
+
+| Table | Domain | Done |
+|-------|--------|------|
+| `grade_scheme` | Marks — letter/grade band config | ✓ |
+| `timetable_publication` | Timetable — durable publish event | ✓ |
+
+## Long-term blueprint (V1+V1.5+V2) — **100%**
+
+| Artifact | Migration | Done |
+|----------|-----------|------|
+| `mark_publication` table | `20260905150000` | ✓ |
+| Blueprint compat views (5) | `20260905151000` | ✓ |
+| Derived reporting views (11) | `20260905152000` | ✓ |
+| Materialized rollups (4) + refresh fn | `20260905153000` | ✓ |
+
+Renamed tables: `trip`→`transport_trip`, `diary_submission`→`diary_day`, `role_permission`→`institute_access_role_permission`, `boarding_event`→`transport_boarding_event`, `emergency`→`transport_emergency`.
+
+Compatibility views alias the blueprint names back to the concrete tables (read-only).
+
+**Product policy exclusions** (not blueprint gaps): school-fee online gateway, traffic-grade maps engine.
+
+Business "RPCs" are implemented as Hono domain services (authoritative writes), not Postgres RPCs.
+
+See [OPS.md](./OPS.md) for full view/MV/route details.
+
+## Headline overall backend — **100%**
+
+| Layer | Status |
+|-------|--------|
+| Product-ready (Steps 1–10) | **100%** |
+| Post-launch (V1.5) | **100%** |
+| Long-term blueprint (V1+V1.5+V2) | **100%** |
+| **Headline overall** | **100%** |
+
 ## Layout
 
 ```

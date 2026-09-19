@@ -1,4 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { useEventsListQuery, adminQueryRoots } from "@/lib/admin-queries";
+import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
 import {
   Card,
@@ -48,10 +51,8 @@ import {
   cancelEvent,
   createEvent,
   deleteEvent,
-  loadEventsList,
   publishEvent,
   resolveEventsListView,
-  shouldCommitEventsLoad,
   updateEvent,
   type EventKind,
   type EventReminder,
@@ -132,7 +133,23 @@ function EventsPage() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const queryClient = useQueryClient();
+  const listEnabled =
+    apiMode &&
+    instituteCtx.status === "ready" &&
+    Boolean(instituteCtx.activeInstituteId);
+  const eventsQuery = useEventsListQuery(
+    instituteCtx.activeInstituteId,
+    listEnabled,
+  );
+  const bumpEventsReload = () => {
+    invalidateAdminCache("admin:events");
+    if (instituteCtx.activeInstituteId) {
+      void queryClient.invalidateQueries({
+        queryKey: [adminQueryRoots.events, instituteCtx.activeInstituteId],
+      });
+    }
+  };
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
@@ -142,7 +159,8 @@ function EventsPage() {
     activeInstituteId: instituteCtx.activeInstituteId,
     resolvedForInstituteId,
     storedItems: apiItems,
-    storedStatus: listStatus,
+    storedStatus:
+      eventsQuery.isLoading && !eventsQuery.data ? "loading" : listStatus,
     storedErrorMessage: listError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
@@ -186,34 +204,25 @@ function EventsPage() {
       return;
     }
 
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setListStatus("loading");
-    setListError(null);
-    void loadEventsList(requestInstituteId).then((next) => {
-      if (
-        !shouldCommitEventsLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setApiItems(next.items);
-      setListStatus(next.status);
-      setListError(next.errorMessage);
-      setResolvedForInstituteId(requestInstituteId);
-    });
-    return () => {
-      cancelled = true;
-    };
+    if (eventsQuery.isLoading && !eventsQuery.data) {
+      setListStatus("loading");
+      setListError(null);
+      return;
+    }
+    if (!eventsQuery.data) return;
+
+    const next = eventsQuery.data;
+    setApiItems(next.items);
+    setListStatus(next.status);
+    setListError(next.errorMessage);
+    setResolvedForInstituteId(instituteCtx.activeInstituteId);
   }, [
     apiMode,
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
-    reloadKey,
+    eventsQuery.data,
+    eventsQuery.isLoading,
   ]);
 
   useEffect(() => {
@@ -427,7 +436,7 @@ function EventsPage() {
       const done = () => {
         resetForm();
         setOpen(false);
-        setReloadKey((k) => k + 1);
+        bumpEventsReload();
       };
       if (editingId) {
         void updateEvent(editingId, payload)
@@ -506,7 +515,7 @@ function EventsPage() {
     if (apiMode) {
       void publishEvent(id)
         .then(() => {
-          setReloadKey((k) => k + 1);
+          bumpEventsReload();
           notify("Event published to all portals");
         })
         .catch((err) => {
@@ -538,7 +547,7 @@ function EventsPage() {
         const reason = window.prompt("Cancellation reason (shown to recipients):", "") ?? "";
         void cancelEvent(id, { cancellationReason: reason })
           .then(() => {
-            setReloadKey((k) => k + 1);
+            bumpEventsReload();
             notify("Event cancelled — recipients notified");
           })
           .catch((err) => {
@@ -547,7 +556,7 @@ function EventsPage() {
       } else {
         void deleteEvent(id)
           .then(() => {
-            setReloadKey((k) => k + 1);
+            bumpEventsReload();
             notify("Event removed");
           })
           .catch((err) => {
@@ -586,7 +595,7 @@ function EventsPage() {
       title={M.events}
       subtitle={
         apiMode
-          ? "API mode · create / publish / cancel via events API"
+          ? "Create / publish / cancel events"
           : "Institute events owned by Admin · Activity events stay with Activity Teacher"
       }
       actions={

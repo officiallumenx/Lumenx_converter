@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { TeacherCard, TeacherDetailDialog } from "@/components/app/TeacherDetailDialog";
-import { loadLearnerTeachers } from "@/lib/teachers";
 import { useApp } from "@/lib/app-state";
+import { useLearnerTeachersQuery } from "@/lib/connect-queries/hooks";
 
 type LearnerTeachersApiPanelProps = {
   studentId: string;
@@ -11,31 +11,18 @@ type LearnerTeachersApiPanelProps = {
 
 export function LearnerTeachersApiPanel({ studentId, subtitle }: LearnerTeachersApiPanelProps) {
   const { activeInstituteId } = useApp();
-  const [status, setStatus] = useState<string>("loading");
-  const [error, setError] = useState<string | null>(null);
-  const [teachers, setTeachers] = useState<
-    ReturnType<typeof loadLearnerTeachers> extends Promise<infer T> ? T["teachers"] : never
-  >([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const { data, isLoading, isError, refresh } = useLearnerTeachersQuery(
+    activeInstituteId,
+    studentId,
+  );
 
-  useEffect(() => {
-    let cancelled = false;
-    setStatus("loading");
-    void loadLearnerTeachers({ instituteId: activeInstituteId, studentId }).then((result) => {
-      if (cancelled) return;
-      setTeachers(result.teachers);
-      setStatus(result.status);
-      setError(result.errorMessage);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeInstituteId, studentId, reloadKey]);
-
+  const status = data?.status ?? (isLoading ? "loading" : isError ? "error" : "loading");
+  const teachers = data?.teachers ?? [];
+  const error = data?.errorMessage ?? (isError ? "Failed to load teachers." : null);
   const selected = teachers.find((teacher) => teacher.id === selectedId) ?? null;
 
-  if (status === "loading") {
+  if (status === "loading" || (isLoading && !data)) {
     return (
       <div className="min-w-0 max-w-full space-y-4">
         <PageHeader title="Teachers" subtitle={subtitle} />
@@ -60,11 +47,7 @@ export function LearnerTeachersApiPanel({ studentId, subtitle }: LearnerTeachers
           title="Teachers"
           subtitle={subtitle}
           action={
-            <button
-              type="button"
-              className="text-sm text-primary underline"
-              onClick={() => setReloadKey((key) => key + 1)}
-            >
+            <button type="button" className="text-sm text-primary underline" onClick={refresh}>
               Retry
             </button>
           }

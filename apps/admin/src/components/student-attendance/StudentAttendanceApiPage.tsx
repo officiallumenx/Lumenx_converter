@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useAttendanceRegistersQuery, adminQueryRoots } from "@/lib/admin-queries";
+import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { Link } from "@tanstack/react-router";
 import {
   Button,
@@ -33,13 +36,12 @@ import {
   createAttendanceRegister,
   loadAttendanceConfigList,
   loadAttendanceRegisterDetail,
-  loadAttendanceRegistersList,
   pickAttendanceConfigForRegister,
   resolveAttendanceRegistersListView,
-  shouldCommitAttendanceRegistersLoad,
   slotFieldsFromMethod,
   slotFieldsFromPeriod,
   afternoonSlotFields,
+  emptyAttendanceSlotCreateMessage,
   submitAttendanceRegister,
   updateAttendanceRegister,
   type AttendanceListStatus,
@@ -77,7 +79,7 @@ function attendanceHint(
 }
 
 function summaryFromMarks(
-  marks: { status: AttendanceMarkStatus }[],
+  marks: { status: AttendanceMarkStatus | undefined }[],
 ): StudentAttendanceSummaryModel {
   if (marks.length === 0) return EMPTY_ATTENDANCE_SUMMARY;
   return {
@@ -85,7 +87,7 @@ function summaryFromMarks(
     present: marks.filter((m) => m.status === "present").length,
     absent: marks.filter((m) => m.status === "absent").length,
     leave: marks.filter((m) => m.status === "leave").length,
-    unmarked: 0,
+    unmarked: marks.filter((m) => !m.status).length,
   };
 }
 
@@ -124,8 +126,29 @@ export function StudentAttendanceApiPage() {
   const [registersStatus, setRegistersStatus] = useState<AttendanceListStatus>("loading");
   const [registersError, setRegistersError] = useState<string | null>(null);
   const [registersResolvedKey, setRegistersResolvedKey] = useState<string | null>(null);
-  const [registersReloadKey, setRegistersReloadKey] = useState(0);
   const [detailReloadKey, setDetailReloadKey] = useState(0);
+  const queryClient = useQueryClient();
+  const registersEnabled =
+    instituteCtx.status === "ready" &&
+    Boolean(instituteCtx.activeInstituteId) &&
+    Boolean(state.sectionId) &&
+    Boolean(state.date);
+  const registersQuery = useAttendanceRegistersQuery(
+    instituteCtx.activeInstituteId,
+    {
+      sectionId: state.sectionId || undefined,
+      attendanceDate: state.date || undefined,
+    },
+    registersEnabled,
+  );
+  const bumpRegistersReload = () => {
+    invalidateAdminCache("admin:attendance");
+    if (instituteCtx.activeInstituteId) {
+      void queryClient.invalidateQueries({
+        queryKey: [adminQueryRoots.attendance, instituteCtx.activeInstituteId],
+      });
+    }
+  };
   const [submitting, setSubmitting] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -157,7 +180,10 @@ export function StudentAttendanceApiPage() {
     activeInstituteId: instituteCtx.activeInstituteId,
     resolvedForInstituteId: registersResolvedKey?.split("|")[0] ?? null,
     storedItems: registers,
-    storedStatus: registersStatus,
+    storedStatus:
+      registersQuery.isLoading && !registersQuery.data
+        ? "loading"
+        : registersStatus,
     storedErrorMessage: registersError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
@@ -329,44 +355,29 @@ export function StudentAttendanceApiPage() {
       return;
     }
 
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    const requestKey = `${requestInstituteId}|${queryKey}`;
-    let cancelled = false;
-    setRegistersStatus("loading");
-    setRegistersError(null);
-    void loadAttendanceRegistersList(requestInstituteId, {
-      sectionId: state.sectionId,
-      attendanceDate: state.date,
-    }).then((next) => {
-      if (
-        !shouldCommitAttendanceRegistersLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-          requestKey,
-          activeKey: activeInstituteIdRef.current
-            ? `${activeInstituteIdRef.current}|${queryKey}`
-            : null,
-        })
-      ) {
-        return;
-      }
-      setRegisters(next.items);
-      setRegistersStatus(next.status);
-      setRegistersError(next.errorMessage);
-      setRegistersResolvedKey(`${requestInstituteId}|${queryKey}`);
-      setActiveRegisterId(next.items[0]?.id ?? "");
-    });
-    return () => {
-      cancelled = true;
-    };
+    if (registersQuery.isLoading && !registersQuery.data) {
+      setRegistersStatus("loading");
+      setRegistersError(null);
+      return;
+    }
+    if (!registersQuery.data) return;
+
+    const next = registersQuery.data;
+    setRegisters(next.items);
+    setRegistersStatus(next.status);
+    setRegistersError(next.errorMessage);
+    setRegistersResolvedKey(
+      `${instituteCtx.activeInstituteId}|${queryKey}`,
+    );
+    setActiveRegisterId(next.items[0]?.id ?? "");
   }, [
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     state.sectionId,
     state.date,
     queryKey,
-    registersReloadKey,
+    registersQuery.data,
+    registersQuery.isLoading,
   ]);
 
   useEffect(() => {
@@ -480,7 +491,6 @@ export function StudentAttendanceApiPage() {
     classesById,
     sectionsById,
     registers,
-    registersReloadKey,
   ]);
 
   useEffect(() => {
@@ -552,6 +562,15 @@ export function StudentAttendanceApiPage() {
       notify("Select an attendance slot to mark");
       return;
     }
+    if (markConfig.owner !== "attendance_incharge") {
+      notify("Attendance is taken in Connect for the current Taken By setting");
+      return;
+    }
+    const unmarked = enrollmentsView.items.filter((row) => !draftMarks[row.id]);
+    if (unmarked.length > 0) {
+      notify(`Mark all students before submitting (${unmarked.length} unmarked)`);
+      return;
+    }
 
     const requestInstituteId = instituteCtx.activeInstituteId;
     const classRow = classesById.get(state.classId);
@@ -578,13 +597,13 @@ export function StudentAttendanceApiPage() {
       endsAt: activeCreateSlot.endsAt,
       marks: enrollmentsView.items.map((row) => ({
         enrollmentId: row.id,
-        status: draftMarks[row.id] ?? "present",
+        status: draftMarks[row.id]!,
       })),
     })
       .then((created) => {
         if (activeInstituteIdRef.current !== requestInstituteId) return;
         notify("Attendance register created");
-        setRegistersReloadKey((k) => k + 1);
+        bumpRegistersReload();
         setActiveRegisterId(created.id);
         setCreatingSlotCode(null);
       })
@@ -611,7 +630,7 @@ export function StudentAttendanceApiPage() {
       .then(() => {
         if (activeInstituteIdRef.current !== requestInstituteId) return;
         notify("Attendance marks saved");
-        setRegistersReloadKey((k) => k + 1);
+        bumpRegistersReload();
         setDetailReloadKey((k) => k + 1);
       })
       .catch((err) => {
@@ -624,6 +643,23 @@ export function StudentAttendanceApiPage() {
 
   const submitDraft = () => {
     if (!writesEnabled || !detail || detail.status !== "draft" || submitting) return;
+    if (detail.owner !== "attendance_incharge") {
+      notify("Attendance is taken in Connect for the current Taken By setting");
+      return;
+    }
+    const rosterIds =
+      enrollmentsView.items.length > 0
+        ? enrollmentsView.items.map((row) => row.id)
+        : detail.marks.map((mark) => mark.enrollmentId);
+    const unmarked = rosterIds.filter((id) => {
+      const fromDraft = draftMarks[id];
+      if (fromDraft) return false;
+      return !detail.marks.some((mark) => mark.enrollmentId === id);
+    });
+    if (unmarked.length > 0) {
+      notify(`Mark all students before submitting (${unmarked.length} unmarked)`);
+      return;
+    }
     const requestInstituteId = instituteCtx.activeInstituteId;
     const requestRegisterId = detail.id;
     if (!requestInstituteId) return;
@@ -632,7 +668,7 @@ export function StudentAttendanceApiPage() {
       .then(() => {
         if (activeInstituteIdRef.current !== requestInstituteId) return;
         notify("Attendance register submitted");
-        setRegistersReloadKey((k) => k + 1);
+        bumpRegistersReload();
         setDetailReloadKey((k) => k + 1);
       })
       .catch((err) => {
@@ -653,13 +689,14 @@ export function StudentAttendanceApiPage() {
     unmarkedSlots.length > 0 &&
     Boolean(state.classId && state.sectionId && state.date) &&
     Boolean(markConfig) &&
+    markConfig?.owner === "attendance_incharge" &&
     (registersView.items.length === 0 || creatingSlotCode !== null);
 
   const summary = useMemo(() => {
     if (createMode) {
       return summaryFromMarks(
         enrollmentsView.items.map((row) => ({
-          status: draftMarks[row.id] ?? "present",
+          status: draftMarks[row.id],
         })),
       );
     }
@@ -673,10 +710,14 @@ export function StudentAttendanceApiPage() {
     return summaryFromDetail(detail);
   }, [createMode, detail, draftMarks, enrollmentsView.items]);
 
+  const adminMarkingAllowed = markConfig?.owner === "attendance_incharge";
+  const takenByConnect =
+    Boolean(markConfig) && markConfig?.owner !== "attendance_incharge";
+
   const filteredCreateRoster = useMemo(() => {
     let rows = enrollmentsView.items;
     if (state.status !== "all") {
-      rows = rows.filter((row) => (draftMarks[row.id] ?? "present") === state.status);
+      rows = rows.filter((row) => draftMarks[row.id] === state.status);
     }
     const q = state.search.trim().toLowerCase();
     if (q) {
@@ -715,7 +756,8 @@ export function StudentAttendanceApiPage() {
     (instituteCtx.status === "loading" ? "Loading institute…" : null) ??
     (!catalogReady ? "Loading classes…" : null);
 
-  const canWrite = writesEnabled && !saving && !submitting;
+  const canWrite =
+    writesEnabled && !saving && !submitting && (!markConfig || adminMarkingAllowed);
 
   return (
     <PageStack>
@@ -723,14 +765,32 @@ export function StudentAttendanceApiPage() {
         <Pill tone="neutral">{M.attendance}</Pill>
         <Pill tone="info">
           {writesEnabled
-            ? "API mode · create / mark / submit"
-            : "API mode · select institute to write"}
+            ? adminMarkingAllowed
+              ? "Attendance Coordinator · Admin mark"
+              : takenByConnect
+                ? "Taken By routes to Connect"
+                : "Create / mark / submit"
+            : "Select institute to write"}
         </Pill>
         <span className="text-border">·</span>
         <Link to="/attendance" className="font-medium text-primary hover:underline">
           Monitor & analytics
         </Link>
       </div>
+
+      {takenByConnect ? (
+        <Card>
+          <div className="px-4 py-3 text-sm text-muted-foreground sm:px-5">
+            Taken By is{" "}
+            <span className="font-medium text-foreground">
+              {markConfig?.owner === "class_teacher"
+                ? "Class Teacher"
+                : "Current Period Teacher"}
+            </span>
+            . Mark attendance in the Connect app for this class · section.
+          </div>
+        </Card>
+      ) : null}
 
       <StudentAttendanceFilters
         state={state}
@@ -815,7 +875,7 @@ export function StudentAttendanceApiPage() {
             </div>
           ) : !activeCreateSlot ? (
             <div className="px-4 pb-8 text-center text-sm text-muted-foreground sm:px-5">
-              All slots are marked for this date.
+              {emptyAttendanceSlotCreateMessage(markConfig?.method, markSlots.length)}
             </div>
           ) : !enrollmentsView.rowsValid ? (
             <div className="px-4 pb-8 text-center text-sm text-muted-foreground sm:px-5">
@@ -852,12 +912,15 @@ export function StudentAttendanceApiPage() {
                     <Td>{row.rollNo}</Td>
                     <Td>
                       <Select
-                        value={draftMarks[row.id] ?? "present"}
+                        value={draftMarks[row.id] ?? ""}
                         disabled={!canWrite}
                         onChange={(e) =>
                           setEnrollmentMark(row.id, e.target.value as AttendanceMarkStatus)
                         }
                       >
+                        <option value="" disabled>
+                          Mark…
+                        </option>
                         {MARK_OPTIONS.map((status) => (
                           <option key={status} value={status}>
                             {status}

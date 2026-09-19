@@ -23,6 +23,7 @@ const detailA: SectionDetailItem = {
   classStatus: "active",
   academicYearId: "cc111111-1111-4111-8111-111111111111",
   updatedAt: "2026-06-01T10:00:00Z",
+  classTeacherId: null,
 };
 
 describe("resolveSectionDetailView", () => {

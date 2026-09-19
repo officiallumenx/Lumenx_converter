@@ -1,3 +1,4 @@
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { getPracticeSessionByIdFromStore, listPracticeSessionsFromStore } from "./practice-sessions-store";
 import {
   cloneAttendanceRecord,
@@ -12,7 +13,7 @@ import type {
   SportsAttendanceListFilters,
 } from "./sports-attendance-types";
 
-let attendanceStore: SportsAttendanceRecord[] = sportsAttendanceSeed.map(cloneAttendanceRecord);
+let attendanceStore = isApiAuthMode() ? [] : sportsAttendanceSeed.map(cloneAttendanceRecord);
 /** Sessions where attendance has been finalized and notifications sent (mock). */
 let completedSessionIds = new Set<string>(["psess-1"]);
 
@@ -99,7 +100,7 @@ function applyAttendanceFilters(
 }
 
 export function resetSportsAttendanceStore() {
-  attendanceStore = sportsAttendanceSeed.map(cloneAttendanceRecord);
+  attendanceStore = isApiAuthMode() ? [] : sportsAttendanceSeed.map(cloneAttendanceRecord);
   completedSessionIds = new Set(["psess-1"]);
 }
 

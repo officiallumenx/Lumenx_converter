@@ -1,11 +1,14 @@
 import { Bell } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeader } from "@/components/ui/section-header";
 import { StatusChip } from "@/components/ui/status-chip";
 import { useAlerts } from "@/hooks/use-alerts";
+import { useTransportAuth } from "@/lib/auth/transport-auth";
 import { alertsRepository } from "@/lib/transport";
+import { useInboxQuery, transportQueryKeys } from "@/lib/transport-queries";
 
 import { TransportNotificationCard } from "./TransportNotificationCard";
 
@@ -18,15 +21,25 @@ export function NotificationsPage({
   title = "Notifications",
   subtitle = "Route updates, reminders, and school notices",
 }: NotificationsPageProps) {
+  const { user } = useTransportAuth();
+  const queryClient = useQueryClient();
+  useInboxQuery(user?.instituteId);
   const notifications = useAlerts();
   const unreadCount = notifications.filter((notification) => notification.unread).length;
 
+  const invalidateInbox = () => {
+    if (!user?.instituteId) return;
+    void queryClient.invalidateQueries({
+      queryKey: transportQueryKeys.inbox(user.instituteId),
+    });
+  };
+
   const markRead = (id: string) => {
-    void alertsRepository.markRead(id);
+    void alertsRepository.markRead(id).then(invalidateInbox);
   };
 
   const markAllRead = () => {
-    void alertsRepository.markAllRead();
+    void alertsRepository.markAllRead().then(invalidateInbox);
   };
 
   return (

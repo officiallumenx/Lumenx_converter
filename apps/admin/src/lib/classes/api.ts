@@ -16,9 +16,21 @@ function assertApiMode(): void {
 
 export { assertApiMode };
 
-function buildQuery(instituteId: string): string {
+function buildQuery(
+  params: ListClassesParams,
+  opts?: { includeClassId?: boolean; includeAcademicYearId?: boolean },
+): string {
   const query = new URLSearchParams();
-  query.set("institute_id", instituteId.trim());
+  query.set("institute_id", params.instituteId.trim());
+  if (opts?.includeAcademicYearId && params.academicYearId) {
+    query.set("academic_year_id", params.academicYearId.trim());
+  }
+  if (opts?.includeClassId && params.classId) {
+    query.set("class_id", params.classId.trim());
+  }
+  if (params.status) {
+    query.set("status", params.status);
+  }
   return query.toString();
 }
 
@@ -30,7 +42,18 @@ export async function listSections(
   if (!isInstituteUuid(params.instituteId)) {
     throw new Error("institute_id must be a valid UUID");
   }
-  return client.get<SectionDto[]>(`/api/v1/sections?${buildQuery(params.instituteId)}`);
+  if (params.classId && !isInstituteUuid(params.classId)) {
+    throw new Error("class_id must be a valid UUID");
+  }
+  if (params.academicYearId && !isInstituteUuid(params.academicYearId)) {
+    throw new Error("academic_year_id must be a valid UUID");
+  }
+  return client.get<SectionDto[]>(
+    `/api/v1/sections?${buildQuery(params, {
+      includeClassId: true,
+      includeAcademicYearId: true,
+    })}`,
+  );
 }
 
 export async function listClasses(
@@ -41,7 +64,12 @@ export async function listClasses(
   if (!isInstituteUuid(params.instituteId)) {
     throw new Error("institute_id must be a valid UUID");
   }
-  return client.get<ClassDto[]>(`/api/v1/classes?${buildQuery(params.instituteId)}`);
+  if (params.academicYearId && !isInstituteUuid(params.academicYearId)) {
+    throw new Error("academic_year_id must be a valid UUID");
+  }
+  return client.get<ClassDto[]>(
+    `/api/v1/classes?${buildQuery(params, { includeAcademicYearId: true })}`,
+  );
 }
 
 export async function getClass(

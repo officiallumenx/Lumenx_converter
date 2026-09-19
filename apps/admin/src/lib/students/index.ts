@@ -14,6 +14,7 @@ export {
   updateStudent,
   deleteStudent,
   type CreateStudentInput,
+  type CreateStudentResult,
   type UpdateStudentInput,
 } from "./mutations";
 export {
@@ -26,6 +27,8 @@ export {
   loadStudentDetail,
   loadStudentGuardians,
   loadStudentsList,
+  peekStudentsListCache,
+  invalidateStudentsListCache,
   type StudentDetailState,
   type StudentsListState,
   type StudentsListStatus,

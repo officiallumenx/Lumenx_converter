@@ -1,0 +1,233 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
+import { PageHeader } from "@/components/app/PageHeader";
+import { TimetableDayPicker } from "@/components/app/timetable/TimetableDayPicker";
+import { LearnerTimetableApiPanel } from "@/components/app/timetable/LearnerTimetableApiPanel";
+import { buildStudentPeriodRows, PeriodTimeline } from "@/components/app/timetable/PeriodTimeline";
+import { useApp } from "@/lib/app-state";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { useParentPortal } from "@/context/ParentPortalContext";
+import { useStudentPortal } from "@/context/StudentPortalContext";
+import { days, studentTimetable } from "@/lib/mock-data";
+import {
+  getCurrentAndNextPeriod,
+  getDefaultTimetableDay,
+  getTodayDayName,
+  splitPeriodTime,
+  subjectStyle,
+} from "@/lib/student/timetable-utils";
+import { TeacherTimetablePage } from "@/teacher-portal";
+import { Badge, cn } from "@lumenx/ui";
+import { Clock, User } from "lucide-react";
+
+export const Route = createFileRoute("/_authenticated/timetable")({
+  head: () => ({ meta: [{ title: "Timetable — LumenX Connect" }] }),
+  component: () => (
+    <TimetablePage />
+  ),
+});
+
+function TimetablePage() {
+  const { role } = useApp();
+  if (role === "teacher") return <TeacherTimetablePage />;
+  return <LearnerTimetablePage />;
+}
+
+function LearnerTimetablePage() {
+  const parentPortal = useParentPortal();
+  const studentPortal = useStudentPortal();
+  const { role } = useApp();
+
+  const parentSnap = role === "parent" && parentPortal.isParent ? parentPortal.snapshot : null;
+  const studentSnap = role === "student" && studentPortal.isStudent ? studentPortal.snapshot : null;
+
+  const apiStudentId = parentSnap?.child.id ?? studentSnap?.profile.id ?? null;
+  const subtitle = parentSnap
+    ? `${parentSnap.child.name} · ${parentSnap.classTag}`
+    : studentSnap
+      ? `${studentSnap.profile.name} · ${studentSnap.profile.class} ${studentSnap.profile.section}`
+      : "Your weekly schedule at a glance";
+
+  if (isApiAuthMode()) {
+    if (!apiStudentId) {
+      return (
+        <div className="min-w-0 max-w-full space-y-4">
+          <PageHeader title="Timetable" subtitle={subtitle} />
+          <p className="text-sm text-muted-foreground">
+            No linked student found for this account. Timetable is unavailable until a student
+            is linked in Admin.
+          </p>
+        </div>
+      );
+    }
+    return <LearnerTimetableApiPanel studentId={apiStudentId} subtitle={subtitle} />;
+  }
+
+  return (
+    <DemoLearnerTimetablePage
+      parentSnap={parentSnap}
+      studentSnap={studentSnap}
+      subtitle={subtitle}
+    />
+  );
+}
+
+function DemoLearnerTimetablePage({
+  parentSnap,
+  studentSnap,
+  subtitle,
+}: {
+  parentSnap: ReturnType<typeof useParentPortal>["snapshot"];
+  studentSnap: ReturnType<typeof useStudentPortal>["snapshot"];
+  subtitle: string;
+}) {
+  const data = useMemo(() => {
+    if (parentSnap) return parentSnap.timetable;
+    if (studentSnap) return studentSnap.timetable;
+    return studentTimetable;
+  }, [parentSnap, studentSnap]);
+
+  const todayName = getTodayDayName();
+  const [day, setDay] = useState(() => getDefaultTimetableDay(days));
+  // Only "today" when the real weekday is an actual school day (avoids flagging Monday as
+  // today on a Sunday, when there are no classes).
+  const isToday = day === todayName && days.includes(todayName);
+
+  const periodCounts = useMemo(
+    () =>
+      Object.fromEntries(days.map((d) => [d, (data[d] ?? []).length])) as Record<string, number>,
+    [data],
+  );
+
+  const dayPeriods = (data[day] ?? []) as { time: string; subject: string; teacher: string }[];
+
+  const { current, next } = useMemo(
+    () => (isToday ? getCurrentAndNextPeriod(dayPeriods) : { current: null, next: null }),
+    [dayPeriods, isToday],
+  );
+
+  const periodRows = useMemo(
+    () => buildStudentPeriodRows(dayPeriods, { isToday, current, next }),
+    [dayPeriods, isToday, current, next],
+  );
+
+  return (
+    <div className="min-w-0 max-w-full space-y-4">
+      <PageHeader title="Timetable" subtitle={subtitle} />
+
+      <TimetableDayPicker
+        days={days}
+        selected={day}
+        onSelect={setDay}
+        todayName={todayName}
+        periodCounts={periodCounts}
+      />
+
+      {isToday && (current || next) && (
+        <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
+          {current && <NowNextHighlight period={current} variant="now" />}
+          {next && <NowNextHighlight period={next} variant="next" />}
+        </div>
+      )}
+
+      {isToday && !current && !next && dayPeriods.length > 0 && (
+        <div className="rounded-2xl border border-dashed border-border bg-muted/10 p-4 text-center text-sm text-muted-foreground">
+          No more classes scheduled for today.
+        </div>
+      )}
+
+      <section className="min-w-0 rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-5">
+        <header className="mb-4 flex flex-wrap items-end justify-between gap-2 border-b border-border pb-4">
+          <div>
+            <h2 className="font-semibold text-primary">{day}</h2>
+            <p className="text-xs text-muted-foreground">
+              {dayPeriods.length} period{dayPeriods.length === 1 ? "" : "s"}
+              {isToday ? " · Today’s schedule" : ""}
+            </p>
+          </div>
+          {isToday && current && (
+            <Badge className="border-0 bg-primary text-white">In session</Badge>
+          )}
+        </header>
+
+        <PeriodTimeline
+          periods={periodRows}
+          emptyMessage={`No classes on ${day}.`}
+          showPastMuted={isToday}
+        />
+      </section>
+    </div>
+  );
+}
+
+function NowNextHighlight({
+  period,
+  variant,
+}: {
+  period: { time: string; subject: string; teacher: string };
+  variant: "now" | "next";
+}) {
+  const { start, end } = splitPeriodTime(period.time);
+  const isNow = variant === "now";
+  const style = subjectStyle(period.subject);
+
+  return (
+    <div
+      className="relative min-w-0 overflow-hidden rounded-2xl border p-4 text-foreground shadow-soft sm:p-5"
+      style={{
+        backgroundColor: style.surface,
+        borderColor: isNow ? style.primary : style.border,
+        boxShadow: isNow ? `0 8px 20px -10px ${style.primary}55` : undefined,
+      }}
+    >
+      <div
+        className="absolute inset-y-0 left-0 w-1"
+        style={{ backgroundColor: style.primary }}
+        aria-hidden
+      />
+      <div className="pl-3">
+        <Badge
+          className={cn("mb-3", isNow ? "border-0 text-white" : "")}
+          variant={isNow ? "default" : "outline"}
+          style={
+            isNow
+              ? { backgroundColor: style.primary }
+              : {
+                  color: style.primary,
+                  borderColor: `${style.primary}55`,
+                  backgroundColor: style.chipBg,
+                }
+          }
+        >
+          {isNow ? "Now" : "Up next"}
+        </Badge>
+        <div
+          className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold"
+          style={{
+            color: style.primary,
+            backgroundColor: style.chipBg,
+            borderColor: `${style.primary}33`,
+          }}
+        >
+          {period.subject}
+        </div>
+        <div className="mt-2 flex flex-col gap-1.5 text-sm text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5 tabular-nums text-foreground">
+            <Clock className="size-3.5 shrink-0" style={{ color: style.primary }} />
+            <span className="sm:hidden">
+              {start}
+              {end ? ` – ${end}` : ""}
+            </span>
+            <span className="hidden sm:inline">{period.time}</span>
+          </span>
+          {period.teacher !== "—" && (
+            <span className="inline-flex items-center gap-1.5">
+              <User className="size-3.5 shrink-0" style={{ color: style.primary }} />
+              {period.teacher}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -4,10 +4,8 @@ import {
   isSharedTripActive,
   projectConnectAttendanceForStudent,
   transportEmergencyStatusLabel,
-  TRANSPORT_ATTENDANCE_CHANGED_EVENT,
   type SharedTripAttendanceMeta,
 } from "@lumenx/utils";
-import { SCHOOL_STOP, initialTracking } from "@/lib/transport/mock-data";
 import type {
   StudentTransportAssignment,
   TransportStop,
@@ -16,6 +14,31 @@ import type {
 import type { LearnerTransportSummary, LearnerTransportLiveDto } from "./api-types";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { getLearnerTransportLive } from "./api";
+
+const PENDING_SCHOOL_STOP: TransportStop = {
+  id: "school-pending",
+  name: "School",
+  address: "Drop stop pending",
+  scheduledTime: "—",
+  order: 99,
+};
+
+const EMPTY_TRACKING: TransportTracking = {
+  phase: "morning_pickup",
+  runStatus: "scheduled",
+  learnerStatus: "awaiting_pickup",
+  currentStopIndex: 0,
+  progressPercent: 0,
+  etaMinutes: 0,
+  nextStopName: "Pickup stop",
+  lastUpdated: "Just now",
+  delayMinutes: 0,
+  lat: 0,
+  lng: 0,
+  sharedTripActive: false,
+  emergencyActive: false,
+  emergencyLabel: null,
+};
 
 function formatDriverPhone(phone: string | null | undefined): string {
   const digits = phone?.replace(/\D/g, "") ?? "";
@@ -51,7 +74,7 @@ export function mapLearnerSummaryToAssignment(
         scheduledTime: "15:40",
         order: summary.dropStop.routeOrder + 1,
       }
-    : { ...SCHOOL_STOP };
+    : { ...PENDING_SCHOOL_STOP };
 
   return {
     studentId: summary.studentId,
@@ -85,8 +108,12 @@ export function buildLiveTracking(
   assignment: StudentTransportAssignment,
   live?: LearnerTransportLiveDto | null,
 ): TransportTracking {
-  if (isApiAuthMode() && live) {
-    return buildLiveTrackingFromApi(summary, assignment, live);
+  if (isApiAuthMode()) {
+    if (live) return buildLiveTrackingFromApi(summary, assignment, live);
+    return {
+      ...EMPTY_TRACKING,
+      nextStopName: assignment.pickupStop.name,
+    };
   }
 
   const vehicleId = summary.vehicleId;
@@ -97,7 +124,7 @@ export function buildLiveTracking(
   const emergency = vehicleId ? findOpenEmergencyForVehicle(vehicleId) : null;
 
   let tracking: TransportTracking = {
-    ...initialTracking,
+    ...EMPTY_TRACKING,
     nextStopName: assignment.pickupStop.name,
     learnerStatus:
       attendance?.boarding === "boarded"
@@ -174,7 +201,7 @@ export function buildLiveTrackingFromApi(
   const emergency = live.openEmergency;
 
   let tracking: TransportTracking = {
-    ...initialTracking,
+    ...EMPTY_TRACKING,
     nextStopName: assignment.pickupStop.name,
     learnerStatus:
       boarding?.boardingStatus === "boarded"
@@ -239,10 +266,10 @@ export async function loadLearnerTransportLive(input: {
   }
 }
 
-export function subscribeLearnerLiveTrip(listener: () => void): () => void {
-  const onAttendance = () => listener();
-  window.addEventListener(TRANSPORT_ATTENDANCE_CHANGED_EVENT, onAttendance);
-  return () => window.removeEventListener(TRANSPORT_ATTENDANCE_CHANGED_EVENT, onAttendance);
+export function subscribeLearnerLiveTrip(_listener: () => void): () => void {
+  // Live updates come from Supabase realtime + API poll in LearnerTransportApiView.
+  // Do not listen to the deprecated localStorage attendance bridge.
+  return () => undefined;
 }
 
 export function summaryStopsToTimeline(
@@ -256,5 +283,5 @@ export function summaryStopsToTimeline(
     order: stop.routeOrder + 1,
   }));
   if (summary.dropStop) return routeStops;
-  return [...routeStops, { ...SCHOOL_STOP }];
+  return [...routeStops, { ...PENDING_SCHOOL_STOP }];
 }

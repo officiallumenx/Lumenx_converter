@@ -22,10 +22,6 @@ import {
   Progress,
   Avatar,
   AvatarFallback,
-  DashboardCustomizeBar,
-  DashboardLayoutProvider,
-  DashboardWidgets,
-  type DashboardWidgetDef,
 } from "@lumenx/ui";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from "recharts";
 import { AchievementBadge } from "@/components/app/motivation/AchievementBadge";
@@ -104,17 +100,18 @@ const QUICK_LINK_DEFS = [
   { to: "/attendance", icon: ClipboardCheck },
   { to: "/timetable", icon: Calendar },
   { to: "/assignments", icon: BookOpen },
-  { to: "/sports", icon: Trophy },
+  { to: "/activities", icon: Trophy },
   { to: "/marks", icon: GraduationCap },
   { to: "/messages", icon: MessageSquare },
 ] as const;
 
-const QUICK_LINKS = QUICK_LINK_DEFS.map(({ to, icon }) => {
-  const nav = getStudentNavItem(to)!;
-  return { to, label: nav.label, icon, moduleColor: nav.moduleColor };
+const QUICK_LINKS = QUICK_LINK_DEFS.flatMap(({ to, icon }) => {
+  const nav = getStudentNavItem(to);
+  if (!nav) return [];
+  return [{ to, label: nav.label, icon, moduleColor: nav.moduleColor }];
 });
 
-const STUDENT_HOME_WIDGETS: DashboardWidgetDef[] = [
+const STUDENT_HOME_WIDGETS: { id: string; label: string }[] = [
   { id: "stats", label: "Snapshot" },
   { id: "attendance", label: "Attendance" },
   { id: "quick-actions", label: "Quick Actions" },
@@ -232,14 +229,9 @@ export function StudentDashboardPage() {
         </div>
       </div>
 
-      <DashboardLayoutProvider
-        storageKey={`connect.student.${activeInstituteId ?? "default"}`}
-        widgets={STUDENT_HOME_WIDGETS}
-      >
-        <div className="min-w-0 space-y-6">
-        <DashboardCustomizeBar />
-        <DashboardWidgets
-          render={(id) => {
+      <div className="min-w-0 space-y-6">
+        {STUDENT_HOME_WIDGETS.map(({ id }) => {
+          const node = (() => {
             if (id === "stats") {
               return (
                 <div className="grid min-w-0 grid-cols-2 items-stretch gap-2 sm:grid-cols-4 sm:gap-2.5">
@@ -609,10 +601,10 @@ export function StudentDashboardPage() {
             }
 
             return null;
-          }}
-        />
+          })();
+          return node ? <div key={id}>{node}</div> : null;
+        })}
         </div>
-      </DashboardLayoutProvider>
     </div>
   );
 }

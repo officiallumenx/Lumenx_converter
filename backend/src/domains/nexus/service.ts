@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Auth, UserRecord } from "firebase-admin/auth";
 import { AppError } from "../../errors/app-error.js";
 import type { Actor } from "../../auth/types.js";
 import {
@@ -8,9 +9,15 @@ import {
 import { syncSubscriptionLifecycles } from "../subscriptions/lifecycle-sync.js";
 import { findInstituteById, findProfileById } from "../identity/repository.js";
 import {
+  assertValidPin,
+  assertValidUsername,
+  upsertUserAuthCredential,
+} from "../auth-credentials/repository.js";
+import {
   clearCurrentPeriods,
   findLicenseById,
   findLicenseByInstituteId,
+  findOperatorByHandle,
   findOperatorById,
   findOperatorByUserId,
   findPeriodById,
@@ -46,6 +53,8 @@ import type {
   ModuleEntitlementRow,
   PlatformOperatorDto,
   PlatformOperatorRow,
+  ProvisionOperatorInput,
+  ProvisionOperatorResult,
   SubscriptionDto,
   SubscriptionPeriodDto,
   SubscriptionPeriodRow,
@@ -182,6 +191,29 @@ function assertNexusRoot(actor: Actor): void {
   assertPlatformRoles(actor, [...NEXUS_ROOT_ROLES]);
 }
 
+function normalizeOperatorEmail(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function normalizeOperatorPhone(value: string): string {
+  const trimmed = value.trim();
+  const digits = trimmed.replace(/\D/g, "");
+  if (trimmed.startsWith("+") && digits.length >= 10) return `+${digits}`;
+  if (digits.length === 10) return `+91${digits}`;
+  throw AppError.validation("Operator phone must be a valid mobile number");
+}
+
+async function firebaseUserOrNull(
+  load: () => Promise<UserRecord>,
+): Promise<UserRecord | null> {
+  try {
+    return await load();
+  } catch (error) {
+    if ((error as { code?: string })?.code === "auth/user-not-found") return null;
+    throw error;
+  }
+}
+
 function validateEntitlement(e: EntitlementInput): void {
   const targetId = e.targetId.trim();
   if (!targetId) {
@@ -286,6 +318,148 @@ export async function createOperatorForActor(
     displayName,
   });
   return toOperatorDto(row);
+}
+
+/**
+ * Creates a fresh Nexus identity across both auth providers and the durable
+ * profile/operator records. Existing identities are never adopted or mutated.
+ * Any failure after auth creation is compensated before it is surfaced.
+ */
+export async function provisionOperatorForActor(
+  admin: SupabaseClient,
+  firebaseAuth: Auth,
+  actor: Actor,
+  input: ProvisionOperatorInput,
+): Promise<ProvisionOperatorResult> {
+  assertNexusRoot(actor);
+
+  const email = normalizeOperatorEmail(input.email);
+  const phone = normalizeOperatorPhone(input.phone);
+  const handle = input.handle.trim().toLowerCase();
+  const displayName = input.displayName.trim();
+  const username = assertValidUsername(input.username?.trim() || handle);
+  if (!email || !handle || !displayName) {
+    throw AppError.validation("email, handle and displayName are required");
+  }
+  if (input.temporaryPassword.length < 8) {
+    throw AppError.validation("temporaryPassword must be at least 8 characters");
+  }
+  if (input.pin !== undefined && input.pin !== null && String(input.pin).trim() !== "") {
+    assertValidPin(String(input.pin));
+  }
+  if (!PLATFORM_ROLE_CODES.includes(input.roleCode as (typeof PLATFORM_ROLE_CODES)[number])) {
+    throw AppError.validation("Invalid platform roleCode");
+  }
+
+  // All duplicate checks happen before the first mutation.
+  if (await findOperatorByHandle(admin, handle)) {
+    throw AppError.conflict("Operator handle is already in use");
+  }
+  const profileResult = await admin
+    .from("user_profile")
+    .select("id")
+    .or(`email.ilike.${email},phone_digits.eq.${phone.replace(/\D/g, "").slice(-10)}`)
+    .is("deleted_at", null)
+    .limit(1);
+  if (profileResult.error) throw profileResult.error;
+  if ((profileResult.data ?? []).length > 0) {
+    throw AppError.conflict("An existing LumenX identity uses this email or phone");
+  }
+  const [firebaseEmailOwner, firebasePhoneOwner] = await Promise.all([
+    firebaseUserOrNull(() => firebaseAuth.getUserByEmail(email)),
+    firebaseUserOrNull(() => firebaseAuth.getUserByPhoneNumber(phone)),
+  ]);
+  if (firebaseEmailOwner || firebasePhoneOwner) {
+    throw AppError.conflict("An existing Firebase identity uses this email or phone");
+  }
+
+  let userId: string | null = null;
+  let firebaseUid: string | null = null;
+  try {
+    const created = await admin.auth.admin.createUser({
+      email,
+      phone,
+      password: input.temporaryPassword,
+      email_confirm: true,
+      phone_confirm: true,
+      user_metadata: { display_name: displayName, account_type: "nexus_operator" },
+    });
+    if (created.error || !created.data.user?.id) {
+      const message = created.error?.message?.toLowerCase() ?? "";
+      if (message.includes("already") || message.includes("exists") || message.includes("registered")) {
+        throw AppError.conflict("An existing Supabase identity uses this email or phone");
+      }
+      throw AppError.internal("Unable to create Nexus login");
+    }
+    userId = created.data.user.id;
+
+    const firebaseUser = await firebaseAuth.createUser({
+      uid: userId,
+      email,
+      phoneNumber: phone,
+      password: input.temporaryPassword,
+      displayName,
+      emailVerified: true,
+    });
+    firebaseUid = firebaseUser.uid;
+
+    const linkedAt = new Date().toISOString();
+    const profileInsert = await admin.from("user_profile").insert({
+      id: userId,
+      display_name: displayName,
+      email,
+      phone,
+      status: "active",
+      firebase_uid: firebaseUid,
+      firebase_linked_at: linkedAt,
+      email_verified_at: linkedAt,
+      phone_verified_at: linkedAt,
+      username,
+    });
+    if (profileInsert.error) throw profileInsert.error;
+
+    const pin = input.pin?.trim();
+    if (pin) {
+      await upsertUserAuthCredential(admin, {
+        userId,
+        username,
+        pin,
+        markFirstLoginCompleted: true,
+        markEmailVerified: true,
+        markPhoneVerified: true,
+      });
+    }
+
+    const operator = await insertOperator(admin, {
+      userId,
+      roleCode: input.roleCode,
+      handle,
+      displayName,
+      status: "invited",
+    });
+    return {
+      operator: toOperatorDto(operator),
+      credentials: {
+        email,
+        phone,
+        username,
+        temporaryPassword: input.temporaryPassword,
+        pinSet: Boolean(pin),
+        firstLoginPending: true,
+        requiresEmailOtp: true,
+        requiresMobileOtp: true,
+        requiresPasswordAndPin: true,
+      },
+    };
+  } catch (error) {
+    if (firebaseUid) {
+      await firebaseAuth.deleteUser(firebaseUid).catch(() => undefined);
+    }
+    if (userId) {
+      await admin.auth.admin.deleteUser(userId).catch(() => undefined);
+    }
+    throw error;
+  }
 }
 
 export async function updateOperatorForActor(

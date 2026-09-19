@@ -34,10 +34,17 @@ describe("loadTeachersList", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    vi.doMock("@/auth/auth-mode", () => ({
+      isApiAuthMode: () => true,
+      isDemoAuthMode: () => false,
+    }));
   });
 
   it("returns demo status without calling API in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
+    vi.doMock("@/auth/auth-mode", () => ({
+      isApiAuthMode: () => false,
+      isDemoAuthMode: () => true,
+    }));
     const listTeachers = vi.fn();
     vi.doMock("./api", () => ({ listTeachers }));
     const { loadTeachersList } = await import("./load");
@@ -163,6 +170,10 @@ describe("loadTeacherDetail", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    vi.doMock("@/auth/auth-mode", () => ({
+      isApiAuthMode: () => true,
+      isDemoAuthMode: () => false,
+    }));
   });
 
   it("maps teacher detail on success", async () => {

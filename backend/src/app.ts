@@ -5,12 +5,15 @@ import {
   createSupabaseClients,
   type SupabaseClients,
 } from "./integrations/supabase.js";
+import { initFirebaseAdmin } from "./integrations/firebase.js";
+import type { App as FirebaseApp } from "firebase-admin/app";
 import { requestId } from "./middleware/request-id.js";
 import { corsMiddleware } from "./middleware/cors.js";
 import { securityHeaders } from "./middleware/security-headers.js";
 import { requestLogMiddleware } from "./middleware/request-log.js";
 import { rateLimitMiddleware } from "./middleware/rate-limit.js";
 import { supabaseContext } from "./middleware/supabase-context.js";
+import { firebaseContext } from "./middleware/firebase-context.js";
 import { createErrorHandler, notFoundHandler } from "./errors/error-handler.js";
 import v1 from "./routes/v1/index.js";
 import nexus from "./routes/nexus/index.js";
@@ -21,15 +24,20 @@ import type { AppBindings } from "./types/app.js";
  *
  * @param supabase - Pass explicitly to inject clients. When `undefined`,
  *   clients are created from env (null if not configured in non-production).
+ * @param firebaseApp - Pass explicitly to inject Firebase Admin. When `undefined`,
+ *   initialized from env (null if not configured in non-production).
  */
 export function createApp(
   env: Env,
   logger?: Logger,
   supabase?: SupabaseClients | null,
+  firebaseApp?: FirebaseApp | null,
 ) {
   const log = logger ?? createLogger(env.LOG_LEVEL);
   const clients =
     supabase === undefined ? createSupabaseClients(env, log) : supabase;
+  const firebase =
+    firebaseApp === undefined ? initFirebaseAdmin(env, log) : firebaseApp;
 
   const app = new Hono<AppBindings>();
 
@@ -39,6 +47,7 @@ export function createApp(
   app.use("*", securityHeaders);
   app.use("*", rateLimitMiddleware(env));
   app.use("*", supabaseContext(clients));
+  app.use("*", firebaseContext(firebase));
   app.use("*", requestLogMiddleware(log));
 
   // ── Error handling ───────────────────────────────────────────────

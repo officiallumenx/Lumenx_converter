@@ -52,6 +52,7 @@ VITE_ADMISSIONS_ORIGIN=http://localhost:5177
     path: join(root, "apps", "nexus", ".env"),
     body: `# Generated for API mode — do not commit
 VITE_NEXUS_AUTH_MODE=api
+VITE_NEXUS_REQUIRE_LOGIN=false
 VITE_API_BASE_URL=${api}
 VITE_SUPABASE_URL=${url}
 VITE_SUPABASE_ANON_KEY=${key}

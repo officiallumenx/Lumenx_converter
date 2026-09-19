@@ -7,6 +7,7 @@ import { findStudentById } from "../students/repository.js";
 import {
   findFeePlanByInstituteYear,
   findPrimaryActiveEnrollment,
+  listClassRowsForSiblingMap,
   listComponentsForPlan,
   listConcessionsForPlan,
   listPaymentsForPlan,
@@ -21,10 +22,39 @@ import {
   toFeePlanDto,
   toPaymentDto,
 } from "./service.js";
+import { buildClassSiblingMap, siblingClassIds } from "./class-siblings.js";
 import type {
   SectionFeeRosterRowDto,
   StudentFeePortalDto,
 } from "./types.js";
+
+function emptyRosterRow(input: {
+  studentId: string;
+  studentName: string;
+  rollNo: string | null;
+  classId: string;
+  className: string;
+  sectionId: string;
+  sectionName: string;
+}): SectionFeeRosterRowDto {
+  return {
+    studentId: input.studentId,
+    studentName: input.studentName,
+    rollNo: input.rollNo,
+    classId: input.classId,
+    className: input.className,
+    sectionId: input.sectionId,
+    sectionName: input.sectionName,
+    billedAmount: 0,
+    paidAmount: 0,
+    dueAmount: 0,
+    status: "due",
+    tuitionDue: 0,
+    booksDue: 0,
+    transportDue: 0,
+    otherDue: 0,
+  };
+}
 
 async function loadClassSectionLabels(
   admin: SupabaseClient,
@@ -128,7 +158,16 @@ export async function getStudentFeePortalForActor(
     };
   }
 
-  if (!classInPublishScope(planRow, enrollment.class_id)) {
+  const classRows = await listClassRowsForSiblingMap(admin, {
+    instituteId,
+    academicYearId: enrollment.academic_year_id,
+  });
+  const siblings = siblingClassIds(
+    buildClassSiblingMap(classRows),
+    enrollment.class_id,
+  );
+
+  if (!classInPublishScope(planRow, enrollment.class_id, siblings)) {
     return {
       studentId: input.studentId,
       studentName,
@@ -193,6 +232,12 @@ export async function listSectionFeeRosterForActor(
       ? await listComponentsForPlan(admin, planRow.id)
       : [];
 
+  const classRows = await listClassRowsForSiblingMap(admin, {
+    instituteId,
+    academicYearId,
+  });
+  const siblingMap = buildClassSiblingMap(classRows);
+
   const sectionRes = await admin
     .from("section")
     .select("name, code, class_id")
@@ -218,29 +263,35 @@ export async function listSectionFeeRosterForActor(
   for (const enr of enrollments) {
     const student = await findStudentById(admin, enr.student_id);
     const studentName = student?.display_name?.trim() || "Student";
+    const siblings = siblingClassIds(siblingMap, enr.class_id);
 
     if (!planRow || planRow.status !== "published") {
-      rows.push({
-        studentId: enr.student_id,
-        studentName,
-        rollNo: enr.roll_no,
-        classId: enr.class_id,
-        className,
-        sectionId: enr.section_id,
-        sectionName,
-        billedAmount: 0,
-        paidAmount: 0,
-        dueAmount: 0,
-        status: "due",
-        tuitionDue: 0,
-        booksDue: 0,
-        transportDue: 0,
-        otherDue: 0,
-      });
+      rows.push(
+        emptyRosterRow({
+          studentId: enr.student_id,
+          studentName,
+          rollNo: enr.roll_no,
+          classId: enr.class_id,
+          className,
+          sectionId: enr.section_id,
+          sectionName,
+        }),
+      );
       continue;
     }
 
-    if (!classInPublishScope(planRow, enr.class_id)) {
+    if (!classInPublishScope(planRow, enr.class_id, siblings)) {
+      rows.push(
+        emptyRosterRow({
+          studentId: enr.student_id,
+          studentName,
+          rollNo: enr.roll_no,
+          classId: enr.class_id,
+          className,
+          sectionId: enr.section_id,
+          sectionName,
+        }),
+      );
       continue;
     }
 
@@ -255,6 +306,8 @@ export async function listSectionFeeRosterForActor(
       concessions,
       enr.class_id,
       false,
+      new Map(),
+      siblings,
     );
     const billedAmount = lines.reduce((sum, l) => sum + l.amount, 0);
     const paidAmount = await sumPaymentsForStudent(

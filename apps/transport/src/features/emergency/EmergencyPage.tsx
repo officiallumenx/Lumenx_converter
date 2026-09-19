@@ -3,7 +3,6 @@ import { AlertTriangle, CheckCircle2, Clock3, History, MapPin, Siren } from "luc
 import { toast } from "sonner";
 import {
   isEmergencyOpen,
-  subscribeTransportEmergencies,
   transportEmergencyStatusLabel,
   transportEmergencyTypeLabel,
   type TransportEmergency,
@@ -12,7 +11,9 @@ import {
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { SectionHeader } from "@/components/ui/section-header";
-import { emergencyRepository } from "@/lib/transport";
+import { useTransportAuth } from "@/lib/auth/transport-auth";
+import { emergencyRepository, subscribeApiEmergencies } from "@/lib/transport";
+import { useDriverAssignmentQuery, useEmergenciesQuery } from "@/lib/transport-queries";
 
 function formatWhen(iso: string): string {
   try {
@@ -28,11 +29,18 @@ function formatWhen(iso: string): string {
 }
 
 function useEmergencies() {
-  return useSyncExternalStore(
-    subscribeTransportEmergencies,
+  const { user } = useTransportAuth();
+  const assignment = useDriverAssignmentQuery();
+  const vehicleId = assignment.bus?.vehicleId ?? null;
+  const { refresh } = useEmergenciesQuery(user?.instituteId, vehicleId);
+
+  const emergencies = useSyncExternalStore(
+    subscribeApiEmergencies,
     () => emergencyRepository.list(),
     () => emergencyRepository.list(),
   );
+
+  return { emergencies, refresh };
 }
 
 export function EmergencyPage({
@@ -41,7 +49,7 @@ export function EmergencyPage({
   /** When true (e.g. deep-link from active trip), open confirm sheet if no open SOS. */
   autoConfirm?: boolean;
 }) {
-  const emergencies = useEmergencies();
+  const { emergencies, refresh } = useEmergencies();
   const open = useMemo(
     () => emergencies.filter((e) => isEmergencyOpen(e.status)),
     [emergencies],
@@ -111,6 +119,7 @@ export function EmergencyPage({
       setJustCreated(result.emergency);
       setSelectedId(result.emergency.id);
       setTab("active");
+      refresh();
       if (!result.ok) {
         toast.error("SOS already active", { description: result.message });
         return;

@@ -23,6 +23,7 @@
   "dependencies": {
     "@cloudflare/vite-plugin": "^1.25.5",
     "@lumenx/config": "*",
+    "@lumenx/auth": "*",
     "@lumenx/module-certificates": "*",
     "@lumenx/notifications": "*",
     "@lumenx/ui": "*",

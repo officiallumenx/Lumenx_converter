@@ -127,6 +127,11 @@ export type SignUpRegistrationPayload = {
 export type SignUpFormData = SignUpStep1Data & SignUpStep2Data & {
   securityPin?: string;
   instituteName?: string;
+  /**
+   * Firebase phone ID token captured at OTP verify (API + Firebase).
+   * Prefer this over re-reading the Auth session at final submit.
+   */
+  firebaseIdToken?: string;
   /** Full institute payload for POST /api/v1/registrations (API mode only). */
   registrationPayload?: SignUpRegistrationPayload;
 };
@@ -200,15 +205,22 @@ export interface AuthContextValue {
   signInWithStaffOtp(input: {
     instituteId: string;
     identifier: string;
-    otp: string;
-    password: string;
+    otp?: string;
+    mobileOtp?: string;
+    emailOtp?: string;
+    mobileOtpGrant?: string;
+    emailOtpGrant?: string;
+    firebaseIdToken?: string;
+    password?: string;
+    pin: string;
     remember?: boolean;
   }): Promise<void>;
-  /** API principal / institute-wide login: institute + identifier + password (no OTP). */
+  /** API principal / institute-wide / returning assigned: institute + identifier + password + PIN. */
   signInWithStaffPassword(input: {
     instituteId: string;
     identifier: string;
     password: string;
+    pin: string;
     remember?: boolean;
   }): Promise<void>;
   completeSignIn(user: AuthUser, remember?: boolean): void;

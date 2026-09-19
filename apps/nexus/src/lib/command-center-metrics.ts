@@ -1,8 +1,9 @@
 /**
- * Nexus Command Center — platform aggregates (demo only).
- * Institute-level and portfolio counts only. No person-level PII.
+ * Nexus Command Center — platform aggregates.
+ * Pass API-loaded institutes when available; never fall back to seed directory in API mode.
  */
 
+import { isNexusApiMode } from "@/lib/auth-mode";
 import {
   directoryStats,
   formatCount,
@@ -42,7 +43,18 @@ export type PlatformActivityItem = {
   time: string;
 };
 
-/** Demo support / SLA / health signals (not institute ops). */
+/** Real ops telemetry is not available — zeros in API mode (never invent tickets/SLA). */
+const PLATFORM_OPS_EMPTY = {
+  openTickets: 0,
+  slaBreaches: 0,
+  healthLabel: "Unknown",
+  healthTone: "neutral" as const,
+  apiP99Ms: 0,
+  ingestLagSec: 0,
+  jobFailures24h: 0,
+};
+
+/** Demo support / SLA / health signals (offline review only). */
 const PLATFORM_OPS_DEMO = {
   openTickets: 17,
   slaBreaches: 3,
@@ -220,8 +232,8 @@ export const PLATFORM_ACTIVITY_SEED: PlatformActivityItem[] = [
   },
 ];
 
-export function buildMissionControlSnapshot() {
-  const institutes = listPlatformInstitutes();
+export function buildMissionControlSnapshot(institutesOverride?: PlatformInstitute[]) {
+  const institutes = institutesOverride ?? (isNexusApiMode() ? [] : listPlatformInstitutes());
   const live = liveInstitutes(institutes);
   const stats = directoryStats(institutes);
 
@@ -320,6 +332,9 @@ export function buildMissionControlSnapshot() {
     (i) => i.paymentStatus === "overdue" || i.renewalStatus === "overdue",
   );
 
+  const opsHealth = isNexusApiMode() ? PLATFORM_OPS_EMPTY : PLATFORM_OPS_DEMO;
+  const activityFeed = isNexusApiMode() ? [] : PLATFORM_ACTIVITY_SEED;
+
   return {
     kpis: {
       totalInstitutes: stats.total,
@@ -366,9 +381,9 @@ export function buildMissionControlSnapshot() {
         status: i.status,
         usagePct: i.activeUsagePct,
       })),
-      health: PLATFORM_OPS_DEMO,
-      openTickets: PLATFORM_OPS_DEMO.openTickets,
-      slaBreaches: PLATFORM_OPS_DEMO.slaBreaches,
+      health: opsHealth,
+      openTickets: opsHealth.openTickets,
+      slaBreaches: opsHealth.slaBreaches,
     },
     risk: {
       topRisky: topRisky(institutes, licenses),
@@ -378,7 +393,7 @@ export function buildMissionControlSnapshot() {
       storageRisk,
       supportRisk,
     },
-    activity: PLATFORM_ACTIVITY_SEED,
+    activity: activityFeed,
     format: {
       count: formatCount,
       money: formatMoneyInr,

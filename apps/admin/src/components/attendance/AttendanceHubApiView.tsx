@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Card,
   CardHeader,
@@ -19,12 +19,11 @@ import { listClassesCatalog } from "@/lib/classes/api";
 import { classLabelForSection } from "@/lib/classes/map";
 import type { ClassDto, SectionDto } from "@/lib/classes/types";
 import {
-  loadAttendanceRegistersList,
   resolveAttendanceRegistersListView,
-  shouldCommitAttendanceRegistersLoad,
   type AttendanceListStatus,
   type AttendanceRegisterListItem,
 } from "@/lib/attendance";
+import { useAttendanceRegistersQuery } from "@/lib/admin-queries";
 import { loadAnalyticsSeries, type AnalyticsSeriesDto } from "@/lib/analytics";
 import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
 
@@ -59,9 +58,6 @@ function presentRate(item: AttendanceRegisterListItem): number {
 
 function useAttendanceHubRegisters(dateFilter: string | undefined) {
   const instituteCtx = useInstituteContext();
-  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
-  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
-
   const requestKey = dateFilter ?? "all";
   const [items, setItems] = useState<AttendanceRegisterListItem[]>([]);
   const [status, setStatus] = useState<AttendanceListStatus>("loading");
@@ -71,13 +67,22 @@ function useAttendanceHubRegisters(dateFilter: string | undefined) {
   const [sectionsById, setSectionsById] = useState<Map<string, SectionDto>>(new Map());
   const [classesById, setClassesById] = useState<Map<string, ClassDto>>(new Map());
 
+  const listEnabled =
+    instituteCtx.status === "ready" && Boolean(instituteCtx.activeInstituteId);
+  const registersQuery = useAttendanceRegistersQuery(
+    instituteCtx.activeInstituteId,
+    { attendanceDate: dateFilter },
+    listEnabled,
+  );
+
   const listView = resolveAttendanceRegistersListView({
     apiMode: true,
     instituteStatus: instituteCtx.status,
     activeInstituteId: instituteCtx.activeInstituteId,
     resolvedForInstituteId: resolvedKey?.split("|")[0] ?? null,
     storedItems: items,
-    storedStatus: status,
+    storedStatus:
+      registersQuery.isLoading && !registersQuery.data ? "loading" : status,
     storedErrorMessage: errorMessage,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
@@ -109,36 +114,26 @@ function useAttendanceHubRegisters(dateFilter: string | undefined) {
       return;
     }
 
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    const requestKey = `${requestInstituteId}|${dateFilter ?? "all"}`;
-    let cancelled = false;
-    setStatus("loading");
-    setErrorMessage(null);
-    void loadAttendanceRegistersList(requestInstituteId, {
-      attendanceDate: dateFilter,
-    }).then((next) => {
-      if (
-        !shouldCommitAttendanceRegistersLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-          requestKey,
-          activeKey: activeInstituteIdRef.current
-            ? `${activeInstituteIdRef.current}|${dateFilter ?? "all"}`
-            : null,
-        })
-      ) {
-        return;
-      }
-      setItems(next.items);
-      setStatus(next.status);
-      setErrorMessage(next.errorMessage);
-      setResolvedKey(requestKey);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [instituteCtx.status, instituteCtx.activeInstituteId, dateFilter]);
+    if (registersQuery.isLoading && !registersQuery.data) {
+      setStatus("loading");
+      setErrorMessage(null);
+      return;
+    }
+    if (!registersQuery.data) return;
+
+    const next = registersQuery.data;
+    setItems(next.items);
+    setStatus(next.status);
+    setErrorMessage(next.errorMessage);
+    setResolvedKey(`${instituteCtx.activeInstituteId}|${requestKey}`);
+  }, [
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    dateFilter,
+    requestKey,
+    registersQuery.data,
+    registersQuery.isLoading,
+  ]);
 
   return { listView, sectionsById, classesById };
 }
@@ -196,7 +191,7 @@ function MonitorView() {
 
   return (
     <PageStack>
-      <Pill tone="neutral">Read-only · API mode</Pill>
+      <Pill tone="neutral">Read-only</Pill>
       <div className="lx-kpi-grid">
         <Kpi
           label="Submitted today"
@@ -241,10 +236,10 @@ function ReportsView() {
 
   return (
     <PageStack>
-      <Pill tone="neutral">Read-only · API mode · tabular reports</Pill>
+      <Pill tone="neutral">Read-only · tabular reports</Pill>
       <Card>
         <CardHeader title="Attendance reports" hint={hint ?? "Registers for selected date"} />
-        <div className="border-b border-border px-4 pb-3 sm:px-5">
+        <div className="lx-filter-bar border-b border-border px-3 py-2 sm:px-5">
           <CascadingFiltersMenu
             groups={[
               {
@@ -333,7 +328,7 @@ function AnalyticsView() {
 
   return (
     <PageStack>
-      <Pill tone="neutral">Read-only · API mode · institute-wide aggregates</Pill>
+      <Pill tone="neutral">Read-only · institute-wide aggregates</Pill>
       <div className="lx-kpi-grid">
         <Kpi label="Overall rate" value={`${totals.rate}%`} tone="up" icon={<ClipboardCheck className="size-3.5" />} />
         <Kpi label="Present marks" value={String(totals.present)} />
@@ -346,7 +341,7 @@ function AnalyticsView() {
           title="Monthly attendance marks"
           hint={
             monthly.length === 0
-              ? "No monthly series yet from GET /api/v1/analytics/series"
+              ? "No monthly attendance trends yet"
               : "From institute analytics series"
           }
         />

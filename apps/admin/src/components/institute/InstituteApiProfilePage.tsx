@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useReloadKey } from "@/hooks/useReloadKey";
 import type { DemoInstituteProfile } from "@lumenx/types";
 import { normalizeInstituteProfile } from "@lumenx/utils";
 import { AppShell } from "@/components/AppShell";
@@ -31,7 +32,7 @@ import type {
   InstituteStatus,
 } from "@/lib/institutes/types";
 import { InstituteCreateApiPanel } from "@/components/institute/InstituteCreateApiPanel";
-import { InstituteRichProfileEditor } from "@/components/institute/InstituteRichProfileEditor";
+import { AdminInstituteProfileEditor } from "@/components/institute/InstituteRichProfileEditor";
 import { Building2 } from "lucide-react";
 
 function profileHint(status: InstituteProfileStatus, error: string | null): string {
@@ -65,7 +66,7 @@ export function InstituteApiProfilePage() {
   const [loadStatus, setLoadStatus] = useState<InstituteProfileStatus>("loading");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const [reloadKey, setReloadKey] = useReloadKey();
   const [savingIdentity, setSavingIdentity] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
   const [name, setName] = useState("");
@@ -241,7 +242,7 @@ export function InstituteApiProfilePage() {
         ) : view.detailValid && view.institute ? (
           <div className="grid gap-4 lg:grid-cols-2">
             <Card>
-              <CardHeader title="Identity" hint="PATCH /institutes/:id" />
+              <CardHeader title="Identity" hint="Institute identity" />
               <CardBody className="space-y-3">
                 <Field label="Name" required>
                   <TextInput value={name} onChange={(e) => setName(e.target.value)} />
@@ -286,7 +287,7 @@ export function InstituteApiProfilePage() {
               </CardBody>
             </Card>
             <Card>
-              <CardHeader title="Settings" hint="PATCH /institutes/:id/settings" />
+              <CardHeader title="Settings" hint="Institute settings" />
               <CardBody className="space-y-3">
                 <Field label="Timezone" required>
                   <TextInput
@@ -323,7 +324,7 @@ export function InstituteApiProfilePage() {
                   hint="Stored in institute_settings.settings.profile · shown in Admissions and Careers"
                 />
                 <CardBody className="space-y-4">
-                  <InstituteRichProfileEditor
+                  <AdminInstituteProfileEditor
                     value={richProfile}
                     onChange={(next) => setRichProfile(normalizeInstituteProfile(next))}
                   />

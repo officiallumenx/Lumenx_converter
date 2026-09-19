@@ -16,14 +16,14 @@ export function ApiReadUnavailablePanel({
   return (
     <Card>
       <div className="px-4 py-3 sm:px-5">
-        <Pill tone="neutral">Read-only · API mode · unavailable</Pill>
+        <Pill tone="neutral">Unavailable</Pill>
       </div>
       <EmptyState
         icon={<ShieldOff className="size-5" />}
         title={title}
         hint={
           hint ??
-          `${domainLabel} does not have an institute-scoped read API yet. Demo data is not shown in API mode. Use demo auth mode for the local workflow, or defer this cutover until a backend read endpoint exists.`
+          `${domainLabel} is not available for this institute yet. Check back after the backend endpoint is enabled.`
         }
       />
     </Card>

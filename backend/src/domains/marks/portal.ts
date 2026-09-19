@@ -231,17 +231,29 @@ export async function getTeacherMarkSheetForActor(
   });
   const entry = entries[0] ?? null;
   const scores = entry ? await listScoresForEntry(admin, entry.id) : [];
-  const scoreByEnrollment = new Map(scores.map((s) => [s.enrollment_id, s.marks]));
+  const scoreByEnrollment = new Map(
+    scores.map((s) => [
+      s.enrollment_id,
+      {
+        marks: s.marks,
+        internalMarks: s.internal_marks,
+        externalMarks: s.external_marks,
+      },
+    ]),
+  );
 
   const rows: TeacherMarkSheetRowDto[] = [];
   for (const enr of enrollments) {
     const student = await findStudentById(admin, enr.student_id);
+    const score = scoreByEnrollment.get(enr.id);
     rows.push({
       studentId: enr.student_id,
       enrollmentId: enr.id,
       studentName: student?.display_name?.trim() || "Student",
       rollNo: enr.roll_no,
-      marks: scoreByEnrollment.get(enr.id) ?? null,
+      marks: score?.marks ?? null,
+      internalMarks: score?.internalMarks ?? null,
+      externalMarks: score?.externalMarks ?? null,
     });
   }
 
@@ -264,6 +276,8 @@ export async function getTeacherMarkSheetForActor(
     subjectId: input.subjectId,
     subjectName,
     maxMarks: entry?.max_marks ?? exam.total_marks ?? 100,
+    internalMax: exam.internal_marks ?? null,
+    externalMax: exam.external_marks ?? null,
     status: entry?.status ?? "none",
     rows,
   };

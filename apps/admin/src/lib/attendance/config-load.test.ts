@@ -8,14 +8,14 @@ describe("loadAttendanceConfigList", () => {
     vi.clearAllMocks();
   });
 
-  it("returns demo status without calling API in demo mode", async () => {
+  it("ignores demo env and still requires API (product is API-only)", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const listAttendanceConfig = vi.fn();
+    const listAttendanceConfig = vi.fn().mockResolvedValue([]);
     vi.doMock("./api", () => ({ listAttendanceConfig }));
     const { loadAttendanceConfigList } = await import("./config-load");
     const result = await loadAttendanceConfigList(INST);
-    expect(result.status).toBe("demo");
-    expect(listAttendanceConfig).not.toHaveBeenCalled();
+    expect(result.status).toBe("empty");
+    expect(listAttendanceConfig).toHaveBeenCalled();
   });
 
   it("returns needs_institute for invalid UUID", async () => {

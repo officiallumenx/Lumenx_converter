@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { Button } from "@lumenx/ui";
 import { ArrowRight, Calendar, Sparkles, Trophy } from "lucide-react";
 import { SectionCard } from "@/components/app/SectionCard";
@@ -14,8 +15,26 @@ import {
 } from "@/lib/admissions/mock-data";
 import { getFeaturedPrograms, getProgramsGroupedByInstitute } from "@/lib/programs-data";
 import { listAllInstitutes } from "@/lib/institutes-data";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { loadAdmissionsDirectoryProfiles } from "@/lib/admissions/api-institute-directory";
 
 export function AdmissionsHomePage() {
+  const apiMode = isApiAuthMode();
+  const [instituteCount, setInstituteCount] = useState(() =>
+    apiMode ? 0 : listAllInstitutes().length,
+  );
+
+  useEffect(() => {
+    if (!apiMode) return;
+    let cancelled = false;
+    void loadAdmissionsDirectoryProfiles().then((rows) => {
+      if (!cancelled) setInstituteCount(rows.length);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiMode]);
+
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
       <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/15 via-primary/5 to-background border border-primary/20 p-6 sm:p-8">
@@ -24,7 +43,8 @@ export function AdmissionsHomePage() {
             Admissions 2026–27
           </p>
           <h1 className="mt-2 font-display text-3xl font-bold tracking-tight sm:text-4xl">
-            Discover & apply to {listAllInstitutes().length}+ institutes
+            Discover & apply to{" "}
+            {instituteCount > 0 ? `${instituteCount} institute${instituteCount === 1 ? "" : "s"}` : "institutes"}
           </h1>
           <p className="mt-3 text-sm text-muted-foreground sm:text-base">
             Browse schools and colleges, compare programs, apply online, and track your admission

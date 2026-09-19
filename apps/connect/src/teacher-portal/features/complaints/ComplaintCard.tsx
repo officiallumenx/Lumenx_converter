@@ -20,8 +20,8 @@ export function ComplaintStatusBadge({
   className?: string;
 }) {
   return (
-    <Badge className={cn("shrink-0 border-0", COMPLAINT_STATUS_STYLE[status], className)}>
-      {COMPLAINT_STATUS_LABEL[status]}
+    <Badge className={cn("shrink-0 border-0", COMPLAINT_STATUS_STYLE[status] ?? "bg-muted text-muted-foreground", className)}>
+      {COMPLAINT_STATUS_LABEL[status] ?? status}
     </Badge>
   );
 }

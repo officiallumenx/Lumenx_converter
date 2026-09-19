@@ -21,6 +21,7 @@ export type CreateSubjectInput = {
   periodsPerWeek: number;
   applicableClassCodes: string[];
   status?: SubjectStatus;
+  teacherIds?: string[];
 };
 
 export type UpdateSubjectInput = {
@@ -48,6 +49,7 @@ export async function createSubject(
     periods_per_week: input.periodsPerWeek,
     applicable_class_codes: input.applicableClassCodes,
     status: input.status,
+    teacher_ids: input.teacherIds,
   });
 }
 

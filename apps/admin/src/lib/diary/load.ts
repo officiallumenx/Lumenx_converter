@@ -44,10 +44,16 @@ export async function loadDiaryDaysList(
   }
 
   try {
-    const [dtos, teachers] = await Promise.all([
-      listDiaryDays({ instituteId: activeInstituteId }),
-      teacherDtosToListItems(await listTeachers({ instituteId: activeInstituteId })),
-    ]);
+    const dtos = await listDiaryDays({ instituteId: activeInstituteId });
+    let teachers: TeacherListItem[] = [];
+    try {
+      teachers = teacherDtosToListItems(
+        await listTeachers({ instituteId: activeInstituteId }),
+      );
+    } catch {
+      // Keep diary rows even when teacher labels cannot be resolved.
+      teachers = [];
+    }
     const teachersById = new Map<string, TeacherListItem>(
       teachers.map((teacher) => [teacher.id, teacher]),
     );

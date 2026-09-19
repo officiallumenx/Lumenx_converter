@@ -1,4 +1,3 @@
-import { isApiAuthMode } from "@/lib/auth/auth-mode";
 import { pingTripLocation } from "@/lib/transport-api";
 import { captureCurrentGps } from "./capture-gps";
 import { getTripSessionSnapshot, subscribeTripSession } from "./trip/store";
@@ -21,7 +20,6 @@ async function pingOnce() {
 }
 
 export function startTripGpsPing() {
-  if (!isApiAuthMode()) return;
   stopTripGpsPing();
   void pingOnce();
   pingTimer = setInterval(() => {
@@ -39,12 +37,7 @@ export function stopTripGpsPing() {
 if (typeof window !== "undefined") {
   subscribeTripSession(() => {
     const trip = getTripSessionSnapshot();
-    if (
-      isApiAuthMode() &&
-      trip.tripId &&
-      trip.phase !== "completed" &&
-      trip.phase !== "ready"
-    ) {
+    if (trip.tripId && trip.phase !== "completed" && trip.phase !== "ready") {
       if (!pingTimer) startTripGpsPing();
     } else {
       stopTripGpsPing();

@@ -46,12 +46,15 @@ export async function loadMarksList(
   }
 
   try {
-    const [rows, exams, subjects, teacherDtos, catalog] = await Promise.all([
-      listMarkEntries({ instituteId: activeInstituteId }),
-      listExams({ instituteId: activeInstituteId }),
-      listSubjects({ instituteId: activeInstituteId }),
-      listTeachers({ instituteId: activeInstituteId }),
-      listClassesCatalog({ instituteId: activeInstituteId }),
+    const rows = await listMarkEntries({ instituteId: activeInstituteId });
+    const [exams, subjects, teacherDtos, catalog] = await Promise.all([
+      listExams({ instituteId: activeInstituteId }).catch(() => []),
+      listSubjects({ instituteId: activeInstituteId }).catch(() => []),
+      listTeachers({ instituteId: activeInstituteId }).catch(() => []),
+      listClassesCatalog({ instituteId: activeInstituteId }).catch(() => ({
+        classes: [],
+        sections: [],
+      })),
     ]);
 
     const teachers = teacherDtosToListItems(teacherDtos);

@@ -27,6 +27,7 @@ export function assignmentsToTeacherClasses(
   classes: ClassDto[],
   enrollments: EnrollmentDto[],
   subjects: SubjectDto[],
+  teacherId?: string,
 ): TeacherClass[] {
   const sectionsById = new Map(sections.map((s) => [s.id, s]));
   const classesById = new Map(classes.map((c) => [c.id, c]));
@@ -60,7 +61,9 @@ export function assignmentsToTeacherClasses(
       section: sectionLabel(section),
       subject: subjectsForSection.join(", "),
       studentCount: enrollmentCountBySection.get(sectionId) ?? 0,
-      isClassTeacher: false,
+      isClassTeacher: Boolean(
+        teacherId && section.classTeacherId && section.classTeacherId === teacherId,
+      ),
       attendanceRate: 0,
       homeworkSubmissionRate: 0,
       avgScore: 0,

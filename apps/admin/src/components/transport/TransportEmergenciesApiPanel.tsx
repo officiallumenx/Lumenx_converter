@@ -166,7 +166,7 @@ export function TransportEmergenciesApiPanel({
         <EmptyState
           icon={Siren}
           title={tab === "active" ? "No active emergencies" : "No resolved cases"}
-          description={
+          hint={
             tab === "active"
               ? "SOS alerts from drivers appear here in real time."
               : "Resolved emergencies are listed here for audit."

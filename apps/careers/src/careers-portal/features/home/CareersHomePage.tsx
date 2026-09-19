@@ -24,7 +24,7 @@ import {
   WHY_WORK,
 } from "@/lib/careers/mock-data";
 import { JOB_CATEGORY_LABEL } from "@/lib/careers/jobs-data";
-import { getJobs } from "@/lib/careers/repositories";
+import { useCareersJobs } from "@/hooks/use-careers-jobs";
 import { getRecruiterJobsForOrg } from "@/lib/careers/recruiter-jobs-store";
 import type { JobCategory, JobPosting } from "@/lib/careers/types";
 
@@ -50,7 +50,7 @@ export function CareersHomePage() {
   const [keyword, setKeyword] = useState("");
   const recruiter = isRecruiter(user);
 
-  const allJobs = useMemo(() => getJobs(), []);
+  const { jobs: allJobs, loading: jobsLoading, errorMessage: jobsError } = useCareersJobs();
   const featured = useMemo(() => pickFeaturedJobs(allJobs), [allJobs]);
   const myJobs = useMemo(
     () => (recruiter && user?.organizationId ? getRecruiterJobsForOrg(user.organizationId) : []),
@@ -219,7 +219,11 @@ export function CareersHomePage() {
       )}
 
       <SectionCard title="Featured openings" link="/jobs" linkLabel="View all">
-        {featured.length === 0 ? (
+        {jobsLoading ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">Loading openings…</p>
+        ) : jobsError ? (
+          <p className="text-sm text-destructive py-4 text-center">{jobsError}</p>
+        ) : featured.length === 0 ? (
           <p className="text-sm text-muted-foreground py-4 text-center">
             No open roles right now. Check back soon.
           </p>

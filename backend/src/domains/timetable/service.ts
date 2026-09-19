@@ -20,6 +20,11 @@ import {
   softDeleteTimetableSlot,
   updateTimetableSlot,
 } from "./repository.js";
+import {
+  findTimetablePublicationById,
+  insertTimetablePublication,
+  listTimetablePublications,
+} from "./publication-repository.js";
 import { emitTimetableSectionPublishedNotifications } from "./notifications.js";
 import type {
   CreateTeacherAssignmentInput,
@@ -31,6 +36,11 @@ import type {
   TimetableSlotRow,
   UpdateTimetableSlotInput,
 } from "./types.js";
+import type {
+  ListTimetablePublicationsFilter,
+  TimetablePublicationDto,
+  TimetablePublicationRow,
+} from "./publication-types.js";
 
 /** Matches Admin product: timetable editing is staff-scoped, not teacher self-serve. */
 export const TIMETABLE_WRITE_ROLES = [
@@ -47,6 +57,7 @@ export const TIMETABLE_READ_ROLES = [
   "vice_principal",
   "coordinator",
   "teacher",
+  "class_teacher",
   "accountant",
   "admissions_officer",
   "it_admin",
@@ -91,6 +102,24 @@ export function toTeacherAssignmentDto(row: {
     subjectId: row.subject_id,
     teacherId: row.teacher_id,
     status: row.status === "inactive" ? "inactive" : "active",
+  };
+}
+
+export function toTimetablePublicationDto(
+  row: TimetablePublicationRow,
+): TimetablePublicationDto {
+  return {
+    id: row.id,
+    instituteId: row.institute_id,
+    academicYearId: row.academic_year_id,
+    classId: row.class_id,
+    sectionId: row.section_id,
+    publishedAt: row.published_at,
+    publishedByUserId: row.published_by_user_id,
+    note: row.note,
+    slotCount: row.slot_count,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 
@@ -303,10 +332,53 @@ export async function createSlotForActor(
     sectionId: input.sectionId,
   });
 
+  // Reuse existing cell (section × day × period) instead of stacking drafts
+  // that later break publish on the active unique index.
+  const existing = await listTimetableSlots(admin, {
+    instituteId,
+    sectionId: input.sectionId,
+  });
+  const sameCell = existing
+    .filter(
+      (row) =>
+        row.day_of_week === input.dayOfWeek &&
+        row.period_index === input.periodIndex,
+    )
+    .sort((a, b) =>
+      (b.updated_at || b.created_at || "").localeCompare(
+        a.updated_at || a.created_at || "",
+      ),
+    );
+
+  if (sameCell.length > 0) {
+    const keep =
+      sameCell.find((row) => row.status === "active") ?? sameCell[0]!;
+    for (const row of sameCell) {
+      if (row.id !== keep.id) {
+        await softDeleteTimetableSlot(admin, row.id);
+      }
+    }
+    const nextStatus =
+      keep.status === "active" ? "active" : (input.status ?? "inactive");
+    const row = await updateTimetableSlot(admin, keep.id, {
+      teacherAssignmentId: input.teacherAssignmentId,
+      dayOfWeek: input.dayOfWeek,
+      periodIndex: input.periodIndex,
+      startsAt: input.startsAt,
+      endsAt: input.endsAt,
+      room: input.room ?? null,
+      academicYearId: input.academicYearId,
+      classId: input.classId,
+      sectionId: input.sectionId,
+      status: nextStatus,
+    });
+    return toTimetableSlotDto(row);
+  }
+
   const row = await insertTimetableSlot(admin, {
     ...input,
     instituteId,
-    status: input.status ?? "active",
+    status: input.status ?? "inactive",
   });
   return toTimetableSlotDto(row);
 }
@@ -383,7 +455,7 @@ export async function publishSectionTimetableForActor(
   admin: SupabaseClient,
   actor: Actor,
   input: { instituteId: string; sectionId: string },
-): Promise<{ sectionId: string; activatedCount: number }> {
+): Promise<{ sectionId: string; activatedCount: number; publicationId?: string }> {
   const instituteId = requireInstituteId(actor, input.instituteId);
   assertCanWriteTimetable(actor, instituteId);
 
@@ -396,6 +468,25 @@ export async function publishSectionTimetableForActor(
     instituteId,
     sectionId: input.sectionId,
   });
+
+  let publicationId: string | undefined;
+
+  const allSlots = await listTimetableSlots(admin, {
+    instituteId,
+    sectionId: input.sectionId,
+  });
+  const activeCount = allSlots.filter((s) => s.status === "active").length;
+
+  const publication = await insertTimetablePublication(admin, {
+    instituteId,
+    academicYearId: section.academic_year_id,
+    classId: section.class_id,
+    sectionId: input.sectionId,
+    publishedByUserId: actor.userId,
+    note: null,
+    slotCount: activeCount,
+  });
+  publicationId = publication.id;
 
   if (activated.length > 0) {
     const classRes = await admin
@@ -426,5 +517,31 @@ export async function publishSectionTimetableForActor(
     });
   }
 
-  return { sectionId: input.sectionId, activatedCount: activated.length };
+  return { sectionId: input.sectionId, activatedCount: activated.length, publicationId };
+}
+
+export async function listPublicationsForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  filter: ListTimetablePublicationsFilter,
+): Promise<TimetablePublicationDto[]> {
+  const instituteId = requireInstituteId(actor, filter.instituteId);
+  assertCanReadTimetable(actor, instituteId);
+  const rows = await listTimetablePublications(admin, {
+    instituteId,
+    sectionId: filter.sectionId,
+  });
+  return rows.map(toTimetablePublicationDto);
+}
+
+export async function getPublicationForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  id: string,
+): Promise<TimetablePublicationDto> {
+  const row = await findTimetablePublicationById(admin, id);
+  if (!row) throw AppError.notFound("Publication not found");
+  requireInstituteId(actor, row.institute_id);
+  assertCanReadTimetable(actor, row.institute_id);
+  return toTimetablePublicationDto(row);
 }

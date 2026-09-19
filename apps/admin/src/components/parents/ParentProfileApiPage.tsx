@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useReloadKey } from "@/hooks/useReloadKey";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Pencil, Save, Trash2, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
@@ -79,7 +80,7 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
   const [status, setStatus] = useState<ParentsListStatus>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const [reloadKey, setReloadKey] = useReloadKey();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<EditDraft | null>(null);
   const [saveError, setSaveError] = useState("");
@@ -302,7 +303,7 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
   return (
     <AppShell
       title={displayParent?.name ?? "Parent profile"}
-      subtitle="API mode · guardian directory record"
+      subtitle="Guardian directory record"
       actions={
         <>
           {displayParent && editing ? (

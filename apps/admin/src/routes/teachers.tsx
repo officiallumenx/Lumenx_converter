@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
 import { ADMIN_STORAGE_KEYS } from "@lumenx/config";
 import {
@@ -10,10 +11,8 @@ import {
   TextArea,
   Select,
   SearchInput,
-  SegmentedControl,
   PageToolbar,
-  ToolbarSpacer,
-  ToolbarMeta,
+  ToolbarGroup,
   EmptyState,
 } from "@lumenx/ui-admin";
 import {
@@ -25,36 +24,54 @@ import {
   Eye,
   EyeOff,
   Send,
+  Upload,
 } from "lucide-react";
 import { useAdminToast } from "@/components/AdminActionToast";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
-  loadTeachersList,
   loadTeacherDetail,
   resolveTeachersListView,
-  shouldCommitTeachersLoad,
   createTeacher as createTeacherApi,
   updateTeacher as updateTeacherApi,
   deleteTeacher as deleteTeacherApi,
+  resetTeacherCredentials as resetTeacherCredentialsApi,
   roleToTeachingScope,
   portalAccessLabelToLevel,
   teacherStatusToApi,
+  invalidateTeachersListCache,
   type TeacherListItem,
-  type TeachersListStatus,
 } from "@/lib/teachers";
+import {
+  useTeachersListQuery,
+  useCatalogSubjectsQuery,
+  useCatalogClassesQuery,
+  adminQueryRoots,
+  adminQueryKeys,
+} from "@/lib/admin-queries";
 import {
   assignSubjectsToTeacher,
   getAssignedSubjectIdsForTeacher,
   getAssignedSubjectNamesForTeacher,
   getSubjectCatalog,
 } from "@/lib/subjects-data";
-import { listSubjects } from "@/lib/subjects/api";
 import { subjectDtosToListItems } from "@/lib/subjects/map";
 import type { SubjectListItem } from "@/lib/subjects/types";
 import { loadTeacherSubjectAssignments } from "@/lib/timetable";
+import { invalidateClassesListCache, listClassesCatalog } from "@/lib/classes";
+import type { ClassDto, SectionDto } from "@/lib/classes/types";
+import {
+  normalizeTeacherPhone,
+  parseTeachingScope,
+  splitCsvList,
+  type TeacherImportRow,
+} from "@/lib/teachers/bulk-import-parse";
+import { matchSectionIdsByTeacherLabels } from "@/lib/teachers/bulk-import-resolve";
+import { TeacherBulkImportDialog } from "@/components/teachers/TeacherBulkImportDialog";
+import { formatApiClientError } from "@/lib/api";
+import { normalizeDateOnlyInput } from "@/lib/date-only";
 import { TEACHERS_CHANGED_EVENT } from "@/lib/career-to-teacher";
 import {
   TEACHER_ROLES,
@@ -290,16 +307,6 @@ const INITIAL: Teacher[] = [
   },
 ];
 
-const DEPARTMENTS = [
-  "Mathematics",
-  "Physics",
-  "Biology",
-  "Chemistry",
-  "English",
-  "History",
-  "Physical Education",
-  "Computer Science",
-] as const;
 const TEACHER_ROLE_VALUES = TEACHER_ROLES.map((r) => r.value);
 const TEACHER_STATUS_VALUES = ["active", "on-leave", "pending"] as const satisfies readonly TeacherStatus[];
 const STATUS_FILTERS = ["all", ...TEACHER_STATUS_VALUES] as const;
@@ -352,37 +359,17 @@ type TeacherEditForm = Partial<Teacher> & {
 
 function TeachersPage() {
   const notify = useAdminToast();
+  const queryClient = useQueryClient();
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
   const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
   const [rows, setRows] = useState<Teacher[]>(() =>
     apiMode ? [] : loadTeachers(),
   );
-  const [apiItems, setApiItems] = useState<TeacherListItem[]>([]);
-  const [listStatus, setListStatus] = useState<TeachersListStatus>(() =>
-    apiMode ? "loading" : "demo",
-  );
-  const [listError, setListError] = useState<string | null>(null);
-  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
-    string | null
-  >(null);
-  const [reloadKey, setReloadKey] = useState(0);
   const [pendingDelete, setPendingDelete] = useState<TeacherRow | null>(null);
-  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
-  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
-
-  const listView = resolveTeachersListView({
-    apiMode,
-    instituteStatus: instituteCtx.status,
-    activeInstituteId: instituteCtx.activeInstituteId,
-    resolvedForInstituteId,
-    storedItems: apiItems,
-    storedStatus: listStatus,
-    storedErrorMessage: listError,
-    instituteErrorMessage: instituteCtx.errorMessage,
-  });
-  const displayItems: TeacherRow[] = apiMode ? listView.items : rows;
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [bulkImportOpen, setBulkImportOpen] = useState(false);
+  const [bulkImporting, setBulkImporting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]>("all");
   const [roleFilter, setRoleFilter] = useState<"all" | TeacherRole>("all");
@@ -395,18 +382,127 @@ function TeachersPage() {
   const [messageBody, setMessageBody] = useState("");
   const [messageError, setMessageError] = useState("");
 
-  const [newName, setNewName] = useState("");
+  const [newFirstName, setNewFirstName] = useState("");
+  const [newSurname, setNewSurname] = useState("");
   const [newRole, setNewRole] = useState<TeacherRole>("subject-teacher");
-  const [newDept, setNewDept] = useState("Mathematics");
+  const [newPhone, setNewPhone] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [newDateOfBirth, setNewDateOfBirth] = useState("");
   const [newPassword, setNewPassword] = useState("Teacher@123");
   const [newSubjectIds, setNewSubjectIds] = useState<string[]>([]);
+  const [newSectionIds, setNewSectionIds] = useState<string[]>([]);
+  const [newClassTeacherSectionId, setNewClassTeacherSectionId] = useState("");
   const [showProfilePassword, setShowProfilePassword] = useState(false);
   const [showEditPassword, setShowEditPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
-  const [apiSubjectCatalog, setApiSubjectCatalog] = useState<SubjectListItem[]>([]);
   const [apiAssignmentSubjects, setApiAssignmentSubjects] = useState<string[]>([]);
+  const [detailOverrides, setDetailOverrides] = useState<
+    Record<string, TeacherListItem>
+  >({});
+  const [editClassTeacherSectionId, setEditClassTeacherSectionId] = useState("");
+
+  const listEnabled =
+    apiMode &&
+    instituteCtx.status === "ready" &&
+    Boolean(instituteCtx.activeInstituteId);
+  const listFilters = {
+    status: statusFilter !== "all" ? teacherStatusToApi(statusFilter) : undefined,
+    teachingScope: roleFilter !== "all" ? roleToTeachingScope(roleFilter) : undefined,
+    q: searchQuery.trim() || undefined,
+  };
+  const teachersQuery = useTeachersListQuery(
+    instituteCtx.activeInstituteId,
+    listFilters,
+    listEnabled,
+  );
+  const subjectsCatalogQuery = useCatalogSubjectsQuery(
+    instituteCtx.activeInstituteId,
+    listEnabled,
+  );
+  const classesCatalogQuery = useCatalogClassesQuery(
+    instituteCtx.activeInstituteId,
+    listEnabled,
+  );
+
+  const apiItems = useMemo(() => {
+    const base = teachersQuery.data?.items ?? [];
+    if (Object.keys(detailOverrides).length === 0) return base;
+    return base.map((item) => detailOverrides[item.id] ?? item);
+  }, [teachersQuery.data?.items, detailOverrides]);
+  const listStatus =
+    teachersQuery.data?.status ?? (listEnabled ? "loading" : "needs_institute");
+  const listError = teachersQuery.data?.errorMessage ?? null;
+  const resolvedForInstituteId =
+    teachersQuery.data && instituteCtx.activeInstituteId
+      ? instituteCtx.activeInstituteId
+      : null;
+
+  const [detailReload, setDetailReload] = useState(0);
+  const bumpTeachersReload = () => {
+    const instituteId = instituteCtx.activeInstituteId ?? undefined;
+    invalidateTeachersListCache(instituteId);
+    invalidateClassesListCache(instituteId);
+    setDetailReload((k) => k + 1);
+    if (instituteCtx.activeInstituteId) {
+      void queryClient.invalidateQueries({
+        queryKey: [adminQueryRoots.teachers, instituteCtx.activeInstituteId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: [adminQueryRoots.classes, instituteCtx.activeInstituteId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.catalogClasses(instituteCtx.activeInstituteId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: adminQueryKeys.catalogSubjects(instituteCtx.activeInstituteId),
+      });
+    }
+  };
+
+  const listView = resolveTeachersListView({
+    apiMode,
+    instituteStatus: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+    resolvedForInstituteId,
+    storedItems: apiItems,
+    storedStatus:
+      teachersQuery.isLoading && !teachersQuery.data ? "loading" : listStatus,
+    storedErrorMessage: listError,
+    instituteErrorMessage: instituteCtx.errorMessage,
+  });
+  const displayItems: TeacherRow[] = apiMode ? listView.items : rows;
+
+  const apiSubjectCatalog = useMemo(
+    () =>
+      subjectDtosToListItems(subjectsCatalogQuery.data ?? []).filter(
+        (subject) => subject.status === "active",
+      ),
+    [subjectsCatalogQuery.data],
+  );
+
+  const apiClassOptions = useMemo(() => {
+    const classes = classesCatalogQuery.data?.classes;
+    const sections = classesCatalogQuery.data?.sections;
+    if (!classes || !sections) return [];
+    const classesById = new Map(classes.map((item) => [item.id, item]));
+    return sections
+      .filter((item) => item.status === "active")
+      .map((item) => {
+        const cls = classesById.get(item.classId);
+        const classCode = cls?.code ?? cls?.name ?? "Class";
+        return {
+          sectionId: item.id,
+          classId: item.classId,
+          academicYearId: item.academicYearId,
+          classTeacherId: item.classTeacherId ?? null,
+          value: `${classCode}-${item.code}`,
+          label: `${cls?.name ?? cls?.code ?? "Class"} · Section ${item.name}`,
+        };
+      })
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [classesCatalogQuery.data]);
+
+  const newName = `${newFirstName} ${newSurname}`.trim();
   const subjectCatalog = useMemo(
     () =>
       apiMode
@@ -429,104 +525,6 @@ function TeachersPage() {
       // Keep current page state when storage is unavailable.
     }
   }, [apiMode, rows]);
-
-  useEffect(() => {
-    if (!apiMode) return;
-
-    if (instituteCtx.status === "loading") {
-      setApiItems([]);
-      setListStatus("loading");
-      setListError(null);
-      setResolvedForInstituteId(null);
-      return;
-    }
-
-    if (
-      instituteCtx.status === "error" ||
-      instituteCtx.status === "forbidden"
-    ) {
-      setApiItems([]);
-      setListStatus(
-        instituteCtx.status === "forbidden" ? "forbidden" : "error",
-      );
-      setListError(instituteCtx.errorMessage);
-      setResolvedForInstituteId(null);
-      return;
-    }
-
-    if (
-      instituteCtx.status === "needs_selection" ||
-      instituteCtx.status === "empty" ||
-      !instituteCtx.activeInstituteId
-    ) {
-      setApiItems([]);
-      setListStatus("needs_institute");
-      setListError(null);
-      setResolvedForInstituteId(null);
-      return;
-    }
-
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setListStatus("loading");
-    setListError(null);
-    const apiStatus =
-      statusFilter !== "all" ? teacherStatusToApi(statusFilter) : undefined;
-    const apiTeachingScope =
-      roleFilter !== "all" ? roleToTeachingScope(roleFilter) : undefined;
-    void loadTeachersList(requestInstituteId, {
-      status: apiStatus,
-      teachingScope: apiTeachingScope,
-      q: searchQuery.trim() || undefined,
-    }).then((next) => {
-      if (
-        !shouldCommitTeachersLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setApiItems(next.items);
-      setListStatus(next.status);
-      setListError(next.errorMessage);
-      setResolvedForInstituteId(requestInstituteId);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    apiMode,
-    instituteCtx.status,
-    instituteCtx.activeInstituteId,
-    instituteCtx.errorMessage,
-    reloadKey,
-    searchQuery,
-    statusFilter,
-    roleFilter,
-  ]);
-
-  useEffect(() => {
-    if (!apiMode || !instituteCtx.activeInstituteId) {
-      setApiSubjectCatalog([]);
-      return;
-    }
-    let cancelled = false;
-    void listSubjects({ instituteId: instituteCtx.activeInstituteId })
-      .then((dtos) => {
-        if (cancelled) return;
-        setApiSubjectCatalog(
-          subjectDtosToListItems(dtos).filter((subject) => subject.status === "active"),
-        );
-      })
-      .catch(() => {
-        if (!cancelled) setApiSubjectCatalog([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [apiMode, instituteCtx.activeInstituteId, reloadKey]);
 
   useEffect(() => {
     if (!apiMode || !instituteCtx.activeInstituteId || !selectedId) {
@@ -555,7 +553,7 @@ function TeachersPage() {
     return () => {
       cancelled = true;
     };
-  }, [apiMode, instituteCtx.activeInstituteId, selectedId, reloadKey]);
+  }, [apiMode, instituteCtx.activeInstituteId, selectedId, detailReload]);
 
   useEffect(() => {
     setSearchQuery("");
@@ -571,6 +569,7 @@ function TeachersPage() {
     setShowEditPassword(false);
     setShowNewPassword(false);
     setPendingDelete(null);
+    setDetailOverrides({});
   }, [instituteCtx.activeInstituteId]);
 
   useEffect(() => {
@@ -593,19 +592,12 @@ function TeachersPage() {
       const normalizedQuery = searchQuery.toLowerCase();
       return (
         t.name.toLowerCase().includes(normalizedQuery) ||
-        t.dept.toLowerCase().includes(normalizedQuery) ||
         t.email.toLowerCase().includes(normalizedQuery) ||
-        teacherRoleLabel(t.role).toLowerCase().includes(normalizedQuery)
+        teacherRoleLabel(t.role).toLowerCase().includes(normalizedQuery) ||
+        t.subjects.some((subject) => subject.toLowerCase().includes(normalizedQuery))
       );
     });
   }, [apiMode, displayItems, searchQuery, statusFilter, roleFilter]);
-
-  const departmentCount = useMemo(() => {
-    const departments = new Set(
-      displayItems.map((teacher) => teacher.dept).filter(Boolean),
-    );
-    return departments.size;
-  }, [displayItems]);
 
   const countLabel = (count: number) =>
     apiMode && !listView.rowsValid ? "…" : String(count);
@@ -642,13 +634,10 @@ function TeachersPage() {
       void loadTeacherDetail(t.id, instituteId).then((next) => {
         if (next.status !== "ready" || !next.teacher) return;
         if (instituteCtx.activeInstituteId !== instituteId) return;
-        setApiItems((prev) => {
-          const exists = prev.some((row) => row.id === next.teacher!.id);
-          if (!exists) return [...prev, next.teacher!];
-          return prev.map((row) =>
-            row.id === next.teacher!.id ? next.teacher! : row,
-          );
-        });
+        setDetailOverrides((prev) => ({
+          ...prev,
+          [next.teacher!.id]: next.teacher!,
+        }));
       });
     },
     [apiMode, instituteCtx.activeInstituteId],
@@ -664,7 +653,7 @@ function TeachersPage() {
 
   const openMessage = useCallback((teacher: TeacherRow) => {
     if (apiMode) {
-      notify("Messaging is not available in API mode");
+      notify("Messaging is not available here");
       return;
     }
     if (!guardWrite()) return;
@@ -710,6 +699,12 @@ function TeachersPage() {
       subjects: selected.subjects,
       sectionsText: selected.assignedSections.join(", "),
     });
+    setEditClassTeacherSectionId(
+      apiMode
+        ? (apiClassOptions.find((option) => option.classTeacherId === selected.id)
+            ?.sectionId ?? "")
+        : "",
+    );
     setShowEditPassword(false);
     setEditing(true);
   };
@@ -728,7 +723,6 @@ function TeachersPage() {
     if (apiMode) {
       void updateTeacherApi(selected.id, {
         displayName: editForm.name.trim(),
-        department: editForm.dept ?? selected.dept,
         teachingScope: roleToTeachingScope(nextRole),
         portalAccessLevel: portalAccessLabelToLevel(
           editForm.portalAccess ?? selected.portalAccess,
@@ -739,6 +733,9 @@ function TeachersPage() {
         qualification: (editForm.qualification ?? selected.qualification) || null,
         dateOfBirth: editForm.dateOfBirth?.trim() || null,
         assignedSectionLabels: assignedSections,
+        classTeacherSectionIds: editClassTeacherSectionId
+          ? [editClassTeacherSectionId]
+          : [],
         subjects:
           nextRole === "activity-coordinator"
             ? []
@@ -747,11 +744,12 @@ function TeachersPage() {
         .then((updated) => {
           setEditing(false);
           setEditForm({});
-          setReloadKey((k) => k + 1);
+          setEditClassTeacherSectionId("");
+          bumpTeachersReload();
           notify(`${updated.displayName} updated successfully`);
         })
         .catch((err) => {
-          notify(err instanceof Error ? err.message : "Failed to update teacher");
+          notify(formatApiClientError(err, "Failed to update teacher"));
         });
       return;
     }
@@ -770,7 +768,6 @@ function TeachersPage() {
               ...t,
               name: editForm.name!.trim(),
               role: editForm.role ?? t.role,
-              dept: editForm.dept ?? t.dept,
               email: editForm.email ?? t.email,
               phone: editForm.phone ?? t.phone,
               password: editForm.password?.trim() || t.password,
@@ -791,13 +788,29 @@ function TeachersPage() {
   };
 
   const confirmReset = () => {
-    if (apiMode) {
-      notify("Credential reset is not available in API mode");
-      setResetTarget(null);
-      return;
-    }
     if (!guardWrite()) return;
     if (!resetTarget) return;
+    if (apiMode) {
+      void resetTeacherCredentialsApi(resetTarget.id)
+        .then((result) => {
+          setResetTarget(null);
+          if (result.delivery === "email") {
+            notify(`Password reset link sent to ${result.email ?? resetTarget.email}`);
+          } else if (result.delivery === "demo" && result.recoveryLink) {
+            notify(
+              `Connect PIN cleared. Demo recovery link ready for ${result.email ?? resetTarget.email}`,
+            );
+          } else {
+            notify(
+              `Connect PIN cleared for ${resetTarget.name}. They will set a new PIN on next login.`,
+            );
+          }
+        })
+        .catch((err) => {
+          notify(formatApiClientError(err, "Failed to reset credentials"));
+        });
+      return;
+    }
     const sentAt = new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" });
     setRows((prev) =>
       prev.map((t) => (t.id === resetTarget.id ? { ...t, credentialsSentAt: sentAt } : t)),
@@ -813,11 +826,11 @@ function TeachersPage() {
         .then(() => {
           setPendingDelete(null);
           closeDetail();
-          setReloadKey((k) => k + 1);
+          bumpTeachersReload();
           notify("Teacher deleted");
         })
         .catch((err) => {
-          notify(err instanceof Error ? err.message : "Failed to delete teacher");
+          notify(formatApiClientError(err, "Failed to delete teacher"));
         });
       return;
     }
@@ -827,9 +840,31 @@ function TeachersPage() {
     notify("Teacher removed");
   };
 
+  const resetCreateForm = () => {
+    setNewFirstName("");
+    setNewSurname("");
+    setNewRole("subject-teacher");
+    setNewPhone("");
+    setNewEmail("");
+    setNewDateOfBirth("");
+    setNewPassword("Teacher@123");
+    setNewSubjectIds([]);
+    setNewSectionIds([]);
+    setNewClassTeacherSectionId("");
+    setShowNewPassword(false);
+  };
+
   const onboard = () => {
     if (!guardWrite()) return;
-    if (!newName.trim()) return;
+    if (!newFirstName.trim() || !newSurname.trim()) {
+      notify("Enter name and surname");
+      return;
+    }
+    const phone = newPhone.replace(/\D/g, "").slice(-10);
+    if (phone.length !== 10) {
+      notify("Enter a valid 10-digit mobile number");
+      return;
+    }
 
     if (apiMode) {
       const instituteId = instituteCtx.activeInstituteId;
@@ -837,64 +872,117 @@ function TeachersPage() {
         notify("Select an institute before creating a teacher");
         return;
       }
-      const subjects =
+      if (newSectionIds.length === 0 && !newClassTeacherSectionId) {
+        notify(
+          apiClassOptions.length === 0
+            ? "Create classes and sections first, then onboard the teacher"
+            : "Assign subject classes and/or pick one homeroom class",
+        );
+        return;
+      }
+      const selectedSubjects =
         newRole === "activity-coordinator"
           ? []
-          : subjectCatalog
-              .filter((subject) => newSubjectIds.includes(subject.id))
-              .map((subject) => subject.name);
+          : subjectCatalog.filter((subject) => newSubjectIds.includes(subject.id));
+      if (
+        newRole !== "activity-coordinator" &&
+        selectedSubjects.length === 0 &&
+        !newClassTeacherSectionId
+      ) {
+        notify(
+          subjectCatalog.length === 0
+            ? "Create subjects in the catalog, or pick one homeroom class"
+            : "Select subjects this teacher teaches, or pick one homeroom class",
+        );
+        return;
+      }
+      if (
+        newRole !== "activity-coordinator" &&
+        selectedSubjects.length > 0 &&
+        newSectionIds.length === 0
+      ) {
+        notify("Select subject classes / sections for the subjects they teach");
+        return;
+      }
+      const subjects = selectedSubjects.map((subject) => subject.name);
+      const department =
+        subjects[0]?.trim() ||
+        (newRole === "activity-coordinator" ? "Activities" : "General");
+      const assignments =
+        newRole === "activity-coordinator"
+          ? []
+          : newSectionIds.flatMap((sectionId) =>
+              selectedSubjects.map((subject) => ({
+                sectionId,
+                subjectId: subject.id,
+              })),
+            );
+      // Homeroom is a single section — separate from subject teaching sections.
+      const classTeacherSectionIds = newClassTeacherSectionId
+        ? [newClassTeacherSectionId]
+        : [];
+      const assignedSectionLabels = apiClassOptions
+        .filter(
+          (option) =>
+            newSectionIds.includes(option.sectionId) ||
+            option.sectionId === newClassTeacherSectionId,
+        )
+        .map((option) => option.value);
+
       void createTeacherApi({
         instituteId,
-        displayName: newName.trim(),
-        department: newDept,
+        displayName: newName,
+        department,
         teachingScope: roleToTeachingScope(newRole),
         portalAccessLevel: "faculty_grading",
-        status: "pending",
+        status: "active",
+        phone,
         email: newEmail.trim() || null,
         dateOfBirth: newDateOfBirth.trim() || null,
         subjects,
+        assignedSectionLabels,
+        assignments,
+        classTeacherSectionIds,
       })
         .then((created) => {
-          setNewName("");
-          setNewRole("subject-teacher");
-          setNewEmail("");
-          setNewDateOfBirth("");
-          setNewPassword("Teacher@123");
-          setNewSubjectIds([]);
-          setShowNewPassword(false);
+          resetCreateForm();
           setCreateDialogOpen(false);
-          setReloadKey((k) => k + 1);
-          notify(`${created.displayName} onboarded`);
+          bumpTeachersReload();
+          const linkCount = created.assignmentIds?.length ?? assignments.length;
+          notify(
+            `${created.displayName} onboarded · ${linkCount} class link${linkCount === 1 ? "" : "s"} ready for Connect`,
+          );
         })
         .catch((err) => {
-          notify(err instanceof Error ? err.message : "Failed to create teacher");
+          notify(formatApiClientError(err, "Failed to create teacher"));
         });
       return;
     }
 
     const id = `T-${String(rows.length + 1).padStart(3, "0")}`;
+    const demoSubjects =
+      newRole === "activity-coordinator"
+        ? []
+        : subjectCatalog
+            .filter((subject) => newSubjectIds.includes(subject.id))
+            .map((subject) => subject.name);
     setRows((p) => [
       ...p,
       {
         id,
-        name: newName.trim(),
+        name: newName,
         role: newRole,
-        dept: newDept,
-        email: newEmail.trim() || `${newName.trim().split(" ")[0].toLowerCase()}@institute.edu`,
-        phone: "",
+        dept: demoSubjects[0]?.trim() || (newRole === "activity-coordinator" ? "Activities" : "General"),
+        email: newEmail.trim() || `${newFirstName.trim().toLowerCase()}@institute.edu`,
+        phone,
         password: newPassword.trim() || "Teacher@123",
         employeeId: `EMP-${1040 + p.length + 1}`,
         joined: new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" }),
         dateOfBirth: newDateOfBirth.trim() || undefined,
-        classes: 0,
-        assignedSections: [],
+        classes: newSectionIds.length,
+        assignedSections: newSectionIds,
         status: "pending",
-        subjects:
-          newRole === "activity-coordinator"
-            ? []
-            : subjectCatalog
-                .filter((subject) => newSubjectIds.includes(subject.id))
-                .map((subject) => subject.name),
+        subjects: demoSubjects,
         portalAccess: "Faculty + Grading",
         qualification: "",
         lastLogin: "Never",
@@ -905,15 +993,103 @@ function TeachersPage() {
       id,
       newRole === "activity-coordinator" ? [] : newSubjectIds,
     );
-    setNewName("");
-    setNewRole("subject-teacher");
-    setNewEmail("");
-    setNewDateOfBirth("");
-    setNewPassword("Teacher@123");
-    setNewSubjectIds([]);
-    setShowNewPassword(false);
+    resetCreateForm();
     setCreateDialogOpen(false);
-    notify(`${newName.trim()} onboarded · portal invite sent`);
+    notify(`${newName} onboarded · portal invite sent`);
+  };
+
+  const importTeachers = (importRows: TeacherImportRow[]) => {
+    if (!apiMode) {
+      notify("Bulk import is available");
+      return;
+    }
+    if (!writesEnabled || !instituteCtx.activeInstituteId) {
+      notify("Select an institute before importing teachers");
+      return;
+    }
+    const instituteId = instituteCtx.activeInstituteId;
+    setBulkImporting(true);
+    void (async () => {
+      let created = 0;
+      let failed = 0;
+      const failures: string[] = [];
+      let classes: ClassDto[] = [];
+      let sections: SectionDto[] = [];
+      try {
+        const catalog = await listClassesCatalog({ instituteId });
+        classes = catalog.classes;
+        sections = catalog.sections;
+      } catch {
+        // Soft labels still work without catalog; class-teacher UUID resolve may be empty.
+      }
+
+      const existingPhones = new Set(
+        (apiItems as TeacherListItem[])
+          .map((t) => normalizeTeacherPhone(t.phone ?? ""))
+          .filter((p) => p.length === 10),
+      );
+
+      for (const imported of importRows) {
+        const phone = normalizeTeacherPhone(imported.phone);
+        if (existingPhones.has(phone)) {
+          failed += 1;
+          failures.push(`${imported.displayName}: phone already exists`);
+          continue;
+        }
+        const assignedSectionLabels = splitCsvList(imported.assignedSections);
+        const classTeacherLabels = splitCsvList(imported.classTeacherSections);
+        const classTeacherSectionIds = matchSectionIdsByTeacherLabels(
+          classTeacherLabels,
+          sections,
+          classes,
+        );
+        const subjects = splitCsvList(imported.subjects);
+        try {
+          await createTeacherApi({
+            instituteId,
+            displayName: imported.displayName.trim(),
+            department: imported.department.trim() || "General",
+            teachingScope: parseTeachingScope(imported.teachingScope),
+            portalAccessLevel: "faculty_grading",
+            status: "active",
+            phone,
+            email: imported.email.trim() || null,
+            employeeId: imported.employeeId.trim() || null,
+            qualification: imported.qualification.trim() || null,
+            dateOfBirth:
+              normalizeDateOnlyInput(imported.dateOfBirth) ||
+              imported.dateOfBirth.trim() ||
+              null,
+            joinedOn:
+              normalizeDateOnlyInput(imported.joinedOn) ||
+              imported.joinedOn.trim() ||
+              null,
+            subjects: subjects.length > 0 ? subjects : null,
+            assignedSectionLabels:
+              assignedSectionLabels.length > 0 ? assignedSectionLabels : null,
+            classTeacherSectionIds:
+              classTeacherSectionIds.length > 0 ? classTeacherSectionIds : undefined,
+          });
+          created += 1;
+          existingPhones.add(phone);
+        } catch (err) {
+          failed += 1;
+          failures.push(
+            `${imported.displayName}: ${formatApiClientError(err, "create failed")}`,
+          );
+        }
+      }
+
+      setBulkImporting(false);
+      setBulkImportOpen(false);
+      bumpTeachersReload();
+      const summary = `${created} teachers created${failed ? ` · ${failed} failed` : ""}`;
+      notify(
+        failures.length > 0
+          ? `${summary}. ${failures.slice(0, 3).join(" · ")}${failures.length > 3 ? "…" : ""}`
+          : summary,
+      );
+    })();
   };
 
   return (
@@ -921,89 +1097,98 @@ function TeachersPage() {
       title="Academic Staff"
       subtitle={
         apiMode
-          ? `API mode · ${countLabel(list.length)} teachers · ${departmentCount} departments`
-          : `${list.length} teachers · ${departmentCount || 12} departments`
+          ? `${countLabel(list.length)} teachers`
+          : `${list.length} teachers`
       }
       actions={
         writesEnabled ? (
-          <Button variant="primary" onClick={() => setCreateDialogOpen(true)}>
-            <Plus className="size-3.5" /> Add Teacher
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {apiMode ? (
+              <Button onClick={() => setBulkImportOpen(true)} disabled={bulkImporting}>
+                <Upload className="size-3.5" /> Bulk Import
+              </Button>
+            ) : null}
+            <Button variant="primary" onClick={() => setCreateDialogOpen(true)}>
+              <Plus className="size-3.5" /> Add Teacher
+            </Button>
+          </div>
         ) : undefined
       }
     >
-      <Card className="mb-4">
+      <Card>
         <PageToolbar className="lx-people-toolbar">
           <SearchInput
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search name, department, or role…"
-            className="w-full min-w-0 flex-1"
+            placeholder="Search name, role, or subject…"
+            className="min-w-0 flex-1 sm:w-full"
           />
-          <SegmentedControl
-            value={statusFilter}
-            onChange={setStatusFilter}
-            options={STATUS_FILTERS.map((f) => ({
-              value: f,
-              label: f === "all" ? "All" : TEACHER_STATUS_LABELS[f],
-            }))}
-          />
-          <Select
-            fieldSize="compact"
-            value={roleFilter}
-            onChange={(event) =>
-              setRoleFilter(event.target.value as "all" | TeacherRole)
-            }
-            className="w-44"
-            aria-label="Filter by teacher role"
-          >
-            <option value="all">All roles</option>
-            {TEACHER_ROLES.map((role) => (
-              <option key={role.value} value={role.value}>
-                {role.label}
-              </option>
-            ))}
-          </Select>
-          <ToolbarSpacer />
-          <ToolbarMeta>{countLabel(list.length)} results</ToolbarMeta>
+          <ToolbarGroup className="lx-people-filters">
+            <Select
+              fieldSize="compact"
+              value={statusFilter}
+              onChange={(event) =>
+                setStatusFilter(event.target.value as (typeof STATUS_FILTERS)[number])
+              }
+              className="w-[7.5rem] sm:w-36"
+              aria-label="Filter by status"
+            >
+              <option value="all">All</option>
+              {TEACHER_STATUS_VALUES.map((status) => (
+                <option key={status} value={status}>
+                  {TEACHER_STATUS_LABELS[status]}
+                </option>
+              ))}
+            </Select>
+            <Select
+              fieldSize="compact"
+              value={roleFilter}
+              onChange={(event) =>
+                setRoleFilter(event.target.value as "all" | TeacherRole)
+              }
+              className="w-[7.5rem] sm:w-40"
+              aria-label="Filter by teacher role"
+            >
+              <option value="all">All roles</option>
+              {TEACHER_ROLES.map((role) => (
+                <option key={role.value} value={role.value}>
+                  {role.label}
+                </option>
+              ))}
+            </Select>
+          </ToolbarGroup>
         </PageToolbar>
-      </Card>
 
-      {!listView.rowsValid ? (
-        <Card className="p-5">
-          <div className="py-12 text-sm text-muted-foreground text-center">
+        {!listView.rowsValid ? (
+          <div className="px-4 py-12 text-center text-sm text-muted-foreground sm:px-5">
             {listHint ?? "Loading teachers…"}
           </div>
-        </Card>
-      ) : list.length === 0 ? (
-        <EmptyState
-          title="No teachers found"
-          hint={
-            apiMode
-              ? "Try another search or status filter."
-              : "Try another search, or onboard a teacher to get started."
-          }
-        />
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-          {list.map((t) => (
+        ) : list.length === 0 ? (
+          <EmptyState
+            title="No teachers found"
+            hint={
+              apiMode
+                ? "Try another search or status filter."
+                : "Try another search, or onboard a teacher to get started."
+            }
+          />
+        ) : (
+          <div className="grid grid-cols-1 gap-3 p-3 sm:gap-4 sm:p-4 md:grid-cols-2 lg:grid-cols-3">
+            {list.map((t) => (
               <TeacherStaffCard
                 key={t.id}
                 teacher={t as Teacher}
                 onOpen={(teacher) => openDetail(teacher)}
                 onMessage={(teacher) => openMessage(teacher)}
                 onReset={(teacher) => {
-                  if (apiMode) {
-                    notify("Credential reset is not available in API mode");
-                    return;
-                  }
                   if (!guardWrite()) return;
                   setResetTarget(teacher as Teacher);
                 }}
               />
             ))}
-        </div>
-      )}
+          </div>
+        )}
+      </Card>
 
       {/* Teacher detail / edit */}
       <Modal
@@ -1023,6 +1208,7 @@ function TeachersPage() {
                 onClick={() => {
                   setEditing(false);
                   setEditForm({});
+                  setEditClassTeacherSectionId("");
                 }}
               >
                 Cancel
@@ -1043,11 +1229,9 @@ function TeachersPage() {
                   <Mail className="size-3.5" /> Message
                 </Button>
               ) : null}
-              {!apiMode ? (
-                <Button onClick={() => selected && setResetTarget(selected as Teacher)}>
-                  <KeyRound className="size-3.5" /> Reset credentials
-                </Button>
-              ) : null}
+              <Button onClick={() => selected && setResetTarget(selected as Teacher)}>
+                <KeyRound className="size-3.5" /> Reset credentials
+              </Button>
               <Button
                 onClick={() => selected && setPendingDelete(selected)}
                 className="text-destructive hover:bg-destructive/10"
@@ -1068,6 +1252,10 @@ function TeachersPage() {
             <ApiTeacherProfileSummary
               teacher={selected}
               assignmentSubjects={apiAssignmentSubjects}
+              classTeacherLabel={
+                apiClassOptions.find((o) => o.classTeacherId === selected.id)?.label ??
+                null
+              }
             />
           ) : (
             <TeacherProfileReadonly
@@ -1081,6 +1269,10 @@ function TeachersPage() {
           <ApiTeacherProfileSummary
             teacher={selected}
             assignmentSubjects={apiAssignmentSubjects}
+            classTeacherLabel={
+              apiClassOptions.find((o) => o.classTeacherId === selected.id)?.label ??
+              null
+            }
           />
         ) : null}
 
@@ -1110,16 +1302,6 @@ function TeachersPage() {
                   <option key={role.value} value={role.value}>
                     {role.label}
                   </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Department" required>
-              <Select
-                value={editForm.dept ?? "Mathematics"}
-                onChange={(e) => setEditForm((d) => ({ ...d, dept: e.target.value }))}
-              >
-                {DEPARTMENTS.map((d) => (
-                  <option key={d}>{d}</option>
                 ))}
               </Select>
             </Field>
@@ -1273,14 +1455,103 @@ function TeachersPage() {
               </Field>
             </div>
             <div className="sm:col-span-2">
-              <Field label="Assigned sections" hint="e.g. 10-A, 11-B">
-                <TextInput
-                  value={editForm.sectionsText ?? ""}
-                  onChange={(e) => setEditForm((d) => ({ ...d, sectionsText: e.target.value }))}
-                  placeholder="10-A, 10-B, 11-A"
-                />
+              <Field
+                label="Assigned classes"
+                hint="Select one or more classes from this institute"
+              >
+                {apiMode ? (
+                  <details className="relative">
+                    <summary className="flex min-h-10 cursor-pointer list-none items-center rounded-md border border-border bg-background px-3 py-2 text-sm">
+                      {editForm.sectionsText?.trim()
+                        ? editForm.sectionsText
+                        : "Select classes"}
+                    </summary>
+                    <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-border bg-background p-2 shadow-lg">
+                      {apiClassOptions.length > 0 ? (
+                        apiClassOptions.map((option) => {
+                          const selectedLabels = (editForm.sectionsText ?? "")
+                            .split(",")
+                            .map((value) => value.trim())
+                            .filter(Boolean);
+                          const checked = selectedLabels.includes(option.value);
+                          return (
+                            <label
+                              key={option.value}
+                              className="flex cursor-pointer items-center gap-2 rounded px-2 py-2 text-sm hover:bg-surface-hover"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => {
+                                  const next = checked
+                                    ? selectedLabels.filter(
+                                        (value) => value !== option.value,
+                                      )
+                                    : [...selectedLabels, option.value];
+                                  setEditForm((current) => ({
+                                    ...current,
+                                    sectionsText: next.join(", "),
+                                  }));
+                                }}
+                              />
+                              <span>{option.label}</span>
+                            </label>
+                          );
+                        })
+                      ) : (
+                        <div className="px-2 py-3 text-xs text-muted-foreground">
+                          No active classes are available.
+                        </div>
+                      )}
+                    </div>
+                  </details>
+                ) : (
+                  <TextInput
+                    value={editForm.sectionsText ?? ""}
+                    onChange={(e) =>
+                      setEditForm((d) => ({
+                        ...d,
+                        sectionsText: e.target.value,
+                      }))
+                    }
+                    placeholder="10-A, 10-B, 11-A"
+                  />
+                )}
               </Field>
             </div>
+            {apiMode ? (
+              <div className="sm:col-span-2">
+                <Field
+                  label="Class teacher (homeroom)"
+                  hint="One home class only — separate from subject teaching above"
+                >
+                  {apiClassOptions.length === 0 ? (
+                    <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+                      Create classes and sections first.
+                    </div>
+                  ) : (
+                    <Select
+                      value={editClassTeacherSectionId}
+                      onChange={(e) => setEditClassTeacherSectionId(e.target.value)}
+                    >
+                      <option value="">— Not assigned —</option>
+                      {apiClassOptions.map((option) => {
+                        const takenByOther =
+                          option.classTeacherId &&
+                          selected &&
+                          option.classTeacherId !== selected.id;
+                        return (
+                          <option key={`edit-ct-${option.sectionId}`} value={option.sectionId}>
+                            {option.label}
+                            {takenByOther ? " (has another class teacher)" : ""}
+                          </option>
+                        );
+                      })}
+                    </Select>
+                  )}
+                </Field>
+              </div>
+            ) : null}
             <div className="sm:col-span-2 text-[11px] text-muted-foreground">
               Employee ID {selected.employeeId} · Teacher ID {selected.id} (read-only)
             </div>
@@ -1293,29 +1564,51 @@ function TeachersPage() {
         open={!!resetTarget}
         onClose={() => setResetTarget(null)}
         title="Reset credentials"
-        subtitle={`Send a secure password reset link to ${resetTarget?.email ?? ""}`}
+        subtitle={
+          apiMode
+            ? `Clear Connect PIN for ${resetTarget?.name ?? "this teacher"}`
+            : `Send a secure password reset link to ${resetTarget?.email ?? ""}`
+        }
         footer={
           <>
             <Button onClick={() => setResetTarget(null)}>Cancel</Button>
             <Button variant="primary" onClick={confirmReset}>
-              <KeyRound className="size-3.5" /> Send reset link
+              <KeyRound className="size-3.5" />{" "}
+              {apiMode ? "Reset credentials" : "Send reset link"}
             </Button>
           </>
         }
       >
         <div className="space-y-3 text-sm">
-          <p className="text-muted-foreground">
-            This will email <span className="text-foreground font-medium">{resetTarget?.name}</span>{" "}
-            a one-time link to set a new password.
-          </p>
+          {apiMode ? (
+            <p className="text-muted-foreground">
+              This clears the Connect PIN for{" "}
+              <span className="text-foreground font-medium">{resetTarget?.name}</span>.
+              They will verify their phone and set a new PIN on next login.
+              {resetTarget?.email
+                ? " If email delivery is configured, a password reset link is also sent."
+                : ""}
+            </p>
+          ) : (
+            <p className="text-muted-foreground">
+              This will email <span className="text-foreground font-medium">{resetTarget?.name}</span>{" "}
+              a one-time link to set a new password.
+            </p>
+          )}
           <div className="p-3 rounded-md border border-border bg-background/40 text-xs space-y-1">
             <div>
               <span className="text-muted-foreground">Portal:</span> {resetTarget?.portalAccess}
             </div>
-            <div>
-              <span className="text-muted-foreground">Last credentials sent:</span>{" "}
-              {resetTarget?.credentialsSentAt ?? "Never"}
-            </div>
+            {!apiMode ? (
+              <div>
+                <span className="text-muted-foreground">Last credentials sent:</span>{" "}
+                {resetTarget?.credentialsSentAt ?? "Never"}
+              </div>
+            ) : resetTarget?.email ? (
+              <div>
+                <span className="text-muted-foreground">Email:</span> {resetTarget.email}
+              </div>
+            ) : null}
           </div>
         </div>
       </Modal>
@@ -1418,23 +1711,42 @@ function TeachersPage() {
         open={createDialogOpen}
         onClose={() => setCreateDialogOpen(false)}
         title="Onboard teacher"
-        subtitle="Create faculty record, portal access and timetable assignment"
+        subtitle={
+          apiMode
+            ? "Creates teacher, subject↔class links, and class-teacher status for Connect"
+            : "Create faculty record, portal access and timetable assignment"
+        }
         size="lg"
         footer={
           <>
             <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
-            <Button variant="primary" onClick={onboard} disabled={!newName.trim()}>
+            <Button
+              variant="primary"
+              onClick={onboard}
+              disabled={
+                !newFirstName.trim() ||
+                !newSurname.trim() ||
+                newPhone.replace(/\D/g, "").length < 10
+              }
+            >
               <UserPlus className="size-3.5" /> Onboard
             </Button>
           </>
         }
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Full name" required>
+          <Field label="Name" required>
             <TextInput
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="Dr. Maya Robinson"
+              value={newFirstName}
+              onChange={(e) => setNewFirstName(e.target.value)}
+              placeholder="Maya"
+            />
+          </Field>
+          <Field label="Surname" required>
+            <TextInput
+              value={newSurname}
+              onChange={(e) => setNewSurname(e.target.value)}
+              placeholder="Robinson"
             />
           </Field>
           <Field
@@ -1455,19 +1767,26 @@ function TeachersPage() {
               ))}
             </Select>
           </Field>
-          <Field label="Department" required>
-            <Select value={newDept} onChange={(e) => setNewDept(e.target.value)}>
-              {DEPARTMENTS.map((d) => (
-                <option key={d}>{d}</option>
-              ))}
-            </Select>
-          </Field>
           <Field label="Email">
             <TextInput
               type="email"
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}
               placeholder="faculty@institute.edu"
+            />
+          </Field>
+          <Field
+            label="Mobile number"
+            required
+            hint="Used for Connect OTP sign-in"
+          >
+            <TextInput
+              type="tel"
+              inputMode="tel"
+              value={newPhone}
+              onChange={(e) => setNewPhone(e.target.value)}
+              placeholder="+91 98765 43210"
+              autoComplete="tel"
             />
           </Field>
           <Field label="Date of birth">
@@ -1504,11 +1823,12 @@ function TeachersPage() {
           ) : null}
           <div className="sm:col-span-2">
             <Field
-              label="Assigned subjects"
+              label="Subjects this teacher teaches"
+              required={apiMode && newRole !== "activity-coordinator"}
               hint={
                 newRole === "activity-coordinator"
                   ? "Subject assignment is available for Subject Teacher or Both Roles"
-                  : "Select subjects from the institute catalog"
+                  : "Pick subjects only — class teacher is separate below"
               }
             >
               {newRole === "activity-coordinator" ? (
@@ -1550,20 +1870,105 @@ function TeachersPage() {
               )}
             </Field>
           </div>
+          {apiMode ? (
+            <>
+              <div className="sm:col-span-2">
+                <Field
+                  label="Subject classes / sections"
+                  required={
+                    apiMode &&
+                    newRole !== "activity-coordinator" &&
+                    newSubjectIds.length > 0
+                  }
+                  hint="Where they teach those subjects (not the same as class teacher)"
+                >
+                  {apiClassOptions.length === 0 ? (
+                    <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+                      No active sections found. Create classes first.
+                    </div>
+                  ) : (
+                    <div className="mt-1 grid gap-2 sm:grid-cols-2">
+                      {apiClassOptions.map((option) => {
+                        const checked = newSectionIds.includes(option.sectionId);
+                        return (
+                          <label
+                            key={option.sectionId}
+                            className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-xs ${
+                              checked ? "border-primary bg-primary/5" : "border-border"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => {
+                                setNewSectionIds((ids) =>
+                                  checked
+                                    ? ids.filter((id) => id !== option.sectionId)
+                                    : [...ids, option.sectionId],
+                                );
+                              }}
+                            />
+                            <span className="font-medium">{option.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </Field>
+              </div>
+              <div className="sm:col-span-2">
+                <Field
+                  label="Class teacher (homeroom)"
+                  hint="One home class only — independent of subject teaching above"
+                >
+                  {apiClassOptions.length === 0 ? (
+                    <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+                      Create classes and sections first.
+                    </div>
+                  ) : (
+                    <Select
+                      value={newClassTeacherSectionId}
+                      onChange={(e) => setNewClassTeacherSectionId(e.target.value)}
+                    >
+                      <option value="">— Not assigned —</option>
+                      {apiClassOptions.map((option) => (
+                        <option key={`ct-${option.sectionId}`} value={option.sectionId}>
+                          {option.label}
+                          {option.classTeacherId ? " (has a class teacher)" : ""}
+                        </option>
+                      ))}
+                    </Select>
+                  )}
+                </Field>
+              </div>
+            </>
+          ) : null}
           <Field label="Portal access">
             <Select>
               <option>Faculty + Grading</option>
               <option>Faculty only</option>
             </Select>
           </Field>
-          <Field label="Credentials">
-            <Select>
-              <option>Email invite</option>
-              <option>Generate temp password</option>
-            </Select>
-          </Field>
         </div>
       </Modal>
+      ) : null}
+
+      {apiMode && writesEnabled ? (
+        <TeacherBulkImportDialog
+          open={bulkImportOpen}
+          onClose={() => {
+            if (!bulkImporting) setBulkImportOpen(false);
+          }}
+          onImport={importTeachers}
+          importing={bulkImporting}
+          instituteName={
+            instituteCtx.displayLabel ||
+            instituteCtx.activeInstitute?.name ||
+            undefined
+          }
+          sectionLabels={apiClassOptions.map((option) => option.value)}
+          subjectNames={apiSubjectCatalog.map((subject) => subject.name)}
+        />
       ) : null}
     </AppShell>
   );
@@ -1596,7 +2001,6 @@ function TeacherDirectoryCard({
           <TeacherAvatar name={teacher.name} />
           <div>
             <div className="text-sm font-medium">{teacher.name}</div>
-            <div className="text-[11px] text-muted-foreground">{teacher.dept}</div>
             <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
               {teacherIdentityCode(teacher)}
             </div>
@@ -1635,9 +2039,11 @@ function TeacherDirectoryCard({
 function ApiTeacherProfileSummary({
   teacher,
   assignmentSubjects = [],
+  classTeacherLabel = null,
 }: {
   teacher: TeacherRow;
   assignmentSubjects?: string[];
+  classTeacherLabel?: string | null;
 }) {
   const subjects =
     teacher.subjects.length > 0 ? teacher.subjects : assignmentSubjects;
@@ -1647,7 +2053,6 @@ function ApiTeacherProfileSummary({
         <TeacherAvatar name={teacher.name} size="lg" />
         <div className="flex-1 min-w-0">
           <div className="text-base font-semibold">{teacher.name}</div>
-          <div className="text-sm text-muted-foreground">{teacher.dept}</div>
           <div className="mt-2 flex flex-wrap gap-1.5">
             <TeacherRolePill role={teacher.role} />
             <TeacherStatusPill status={teacher.status} />
@@ -1668,6 +2073,10 @@ function ApiTeacherProfileSummary({
           value={teacher.dateOfBirth || "—"}
         />
         <TeacherDetailRow label="Portal access" value={teacher.portalAccess} />
+        <TeacherDetailRow
+          label="Class teacher (homeroom)"
+          value={classTeacherLabel || "—"}
+        />
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <TeacherStatTile label="Sections" value={String(teacher.classes)} />

@@ -19,8 +19,18 @@ import {
 } from "@lumenx/ui-admin";
 import { KeyRound, Plus, Shield, UserPlus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { isNexusApiMode } from "@/lib/auth-mode";
+import {
+  formatProvisionError,
+  getCurrentOperatorApi,
+  listOperatorsApi,
+  provisionOperatorApi,
+  updateOperatorApi,
+  type ProvisionOperatorInput,
+} from "@/lib/operators-api";
 import {
   NEXUS_ACCESS_AREAS,
+  DEFAULT_NEXUS_ROLES,
   assignOperatorRole,
   cyclePerm,
   formatAccessDate,
@@ -59,15 +69,46 @@ const PERM_DOT: Record<NexusPermLevel, string> = {
 };
 
 function PlatformAccessPage() {
+  const apiMode = isNexusApiMode();
   const [tick, setTick] = useState(0);
   const [tab, setTab] = useState<Tab>("matrix");
   const [selectedRoleId, setSelectedRoleId] = useState<NexusRoleId>("operations");
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [apiOperators, setApiOperators] = useState<NexusOperator[]>([]);
+  const [isRoot, setIsRoot] = useState(!apiMode);
+  const [error, setError] = useState<string | null>(null);
+  const [credentials, setCredentials] = useState<{
+    email: string;
+    phone?: string;
+    username?: string;
+    temporaryPassword: string;
+    pinSet?: boolean;
+  } | null>(null);
 
-  useEffect(() => subscribePlatformAccess(() => setTick((t) => t + 1)), []);
+  const reloadOperators = async () => {
+    try {
+      const [operators, current] = await Promise.all([
+        listOperatorsApi(),
+        getCurrentOperatorApi(),
+      ]);
+      setApiOperators(operators);
+      setIsRoot(current.isRoot);
+      setError(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to load operators");
+    }
+  };
 
-  const roles = useMemo(() => listNexusRoles(), [tick]);
-  const operators = useMemo(() => listNexusOperators(), [tick]);
+  useEffect(() => {
+    if (apiMode) {
+      void reloadOperators();
+      return;
+    }
+    return subscribePlatformAccess(() => setTick((t) => t + 1));
+  }, [apiMode]);
+
+  const roles = apiMode ? DEFAULT_NEXUS_ROLES : listNexusRoles();
+  const operators = apiMode ? apiOperators : listNexusOperators();
   const stats = useMemo(() => platformAccessStats(roles, operators), [roles, operators]);
   const selectedRole = roles.find((r) => r.id === selectedRoleId) ?? roles[0]!;
 
@@ -76,7 +117,7 @@ function PlatformAccessPage() {
       title="Platform Access"
       subtitle="Nexus operator roles & permissions · not institute Admin roles"
       actions={
-        <Button variant="primary" onClick={() => setInviteOpen(true)}>
+        <Button variant="primary" onClick={() => setInviteOpen(true)} disabled={apiMode && !isRoot}>
           <UserPlus className="size-3.5" /> Invite operator
         </Button>
       }
@@ -102,7 +143,9 @@ function PlatformAccessPage() {
             />
           </ToolbarGroup>
           <ToolbarSpacer />
-          <ToolbarMeta>Demo permissions only · no backend auth</ToolbarMeta>
+          <ToolbarMeta>
+            {apiMode ? "Live operator API · role matrix is policy-defined" : "Offline demo data"}
+          </ToolbarMeta>
         </PageToolbar>
       </Card>
 
@@ -160,6 +203,7 @@ function PlatformAccessPage() {
             />
             <RolePermEditor
               role={selectedRole}
+              readOnly={apiMode}
               onChange={(area, level) => {
                 setRolePerm(selectedRole.id, area, level);
                 setTick((t) => t + 1);
@@ -191,7 +235,7 @@ function PlatformAccessPage() {
                           <td key={a.id} className="px-3 py-3 text-center">
                             <button
                               type="button"
-                              disabled={r.id === "nexus_root"}
+                              disabled={apiMode || r.id === "nexus_root"}
                               title={`${a.label}: ${labelPerm(level)}`}
                               onClick={() => {
                                 setRolePerm(r.id, a.id, cyclePerm(level));
@@ -218,14 +262,27 @@ function PlatformAccessPage() {
         <OperatorsPanel
           operators={operators}
           roles={roles}
-          sessionOperatorId={getActiveNexusOperatorId()}
+          sessionOperatorId={apiMode ? "" : getActiveNexusOperatorId()}
+          readOnly={apiMode && !isRoot}
           onAssign={(opId, roleId) => {
-            assignOperatorRole(opId, roleId);
-            setTick((t) => t + 1);
+            if (apiMode) {
+              void updateOperatorApi(opId, { roleCode: roleId })
+                .then(reloadOperators)
+                .catch((cause) => setError(cause instanceof Error ? cause.message : "Update failed"));
+            } else {
+              assignOperatorRole(opId, roleId);
+              setTick((t) => t + 1);
+            }
           }}
           onStatus={(opId, status) => {
-            setOperatorStatus(opId, status);
-            setTick((t) => t + 1);
+            if (apiMode) {
+              void updateOperatorApi(opId, { status })
+                .then(reloadOperators)
+                .catch((cause) => setError(cause instanceof Error ? cause.message : "Update failed"));
+            } else {
+              setOperatorStatus(opId, status);
+              setTick((t) => t + 1);
+            }
           }}
           onUseSession={(opId) => {
             setActiveNexusOperatorId(opId);
@@ -237,28 +294,58 @@ function PlatformAccessPage() {
       <InviteOperatorModal
         open={inviteOpen}
         roles={roles}
+        apiMode={apiMode}
         onClose={() => setInviteOpen(false)}
         onInvite={(input) => {
-          const op = inviteNexusOperator(input);
-          if (op) {
-            setInviteOpen(false);
-            setTab("operators");
-            setTick((t) => t + 1);
+          if (apiMode) {
+            void provisionOperatorApi(input as ProvisionOperatorInput)
+              .then((result) => {
+                setCredentials(result.credentials);
+                setInviteOpen(false);
+                setTab("operators");
+                setError(null);
+                return reloadOperators();
+              })
+              .catch((cause) => setError(formatProvisionError(cause)));
+            return;
           }
+          const op = inviteNexusOperator(input);
+          if (!op) return;
+          setInviteOpen(false);
+          setTab("operators");
+          setTick((t) => t + 1);
         }}
       />
+      {error ? <p className="mt-4 text-xs text-destructive">{error}</p> : null}
+      {credentials ? (
+        <Card className="mt-4 p-4 text-xs">
+          Operator credentials (copy now): <strong>{credentials.email}</strong>
+          {credentials.phone ? <> · {credentials.phone}</> : null}
+          {credentials.username ? (
+            <>
+              {" "}
+              · username <code>{credentials.username}</code>
+            </>
+          ) : null}{" "}
+          · password <code>{credentials.temporaryPassword}</code>
+          {credentials.pinSet ? " · Access PIN recorded" : " · Access PIN not set"}.
+          Operator signs in at /login (OTP → password → PIN). Device app lock is optional in Settings → Security.
+        </Card>
+      ) : null}
     </AppShell>
   );
 }
 
 function RolePermEditor({
   role,
+  readOnly,
   onChange,
 }: {
   role: NexusRoleDef;
+  readOnly: boolean;
   onChange: (area: NexusAccessArea, level: NexusPermLevel) => void;
 }) {
-  const locked = role.id === "nexus_root";
+  const locked = readOnly || role.id === "nexus_root";
   return (
     <div className="px-5 pb-5 space-y-2">
       {NEXUS_ACCESS_AREAS.map((a) => {
@@ -306,6 +393,7 @@ function OperatorsPanel({
   operators,
   roles,
   sessionOperatorId,
+  readOnly,
   onAssign,
   onStatus,
   onUseSession,
@@ -313,6 +401,7 @@ function OperatorsPanel({
   operators: NexusOperator[];
   roles: NexusRoleDef[];
   sessionOperatorId: string;
+  readOnly: boolean;
   onAssign: (opId: string, roleId: NexusRoleId) => void;
   onStatus: (opId: string, status: NexusOperator["status"]) => void;
   onUseSession: (opId: string) => void;
@@ -337,7 +426,7 @@ function OperatorsPanel({
           </thead>
           <tbody className="divide-y divide-border">
             {operators.map((op) => {
-              const role = getNexusRole(op.roleId);
+              const role = roles.find((candidate) => candidate.id === op.roleId) ?? getNexusRole(op.roleId);
               const isSession = op.id === sessionOperatorId;
               return (
                 <tr key={op.id} className="hover:bg-surface-hover">
@@ -351,6 +440,7 @@ function OperatorsPanel({
                   <td className="px-5 py-3">
                     <Select
                       value={op.roleId}
+                      disabled={readOnly}
                       onChange={(e) => onAssign(op.id, e.target.value as NexusRoleId)}
                       className="min-w-[150px]"
                     >
@@ -370,13 +460,13 @@ function OperatorsPanel({
                   </td>
                   <td className="px-5 py-3">
                     <div className="flex flex-wrap gap-1.5">
-                      {!isSession && op.status === "active" && (
+                      {!readOnly && sessionOperatorId && !isSession && op.status === "active" && (
                         <Button onClick={() => onUseSession(op.id)}>Use session</Button>
                       )}
-                      {op.status !== "active" && (
+                      {!readOnly && op.status !== "active" && (
                         <Button onClick={() => onStatus(op.id, "active")}>Activate</Button>
                       )}
-                      {op.status !== "disabled" && (
+                      {!readOnly && op.status !== "disabled" && (
                         <Button onClick={() => onStatus(op.id, "disabled")}>Disable</Button>
                       )}
                     </div>
@@ -394,30 +484,53 @@ function OperatorsPanel({
 function InviteOperatorModal({
   open,
   roles,
+  apiMode,
   onClose,
   onInvite,
 }: {
   open: boolean;
   roles: NexusRoleDef[];
+  apiMode: boolean;
   onClose: () => void;
-  onInvite: (input: { handle: string; displayName: string; roleId: NexusRoleId }) => void;
+  onInvite: (input: {
+    handle: string;
+    displayName: string;
+    roleId: NexusRoleId;
+    email?: string;
+    phone?: string;
+    temporaryPassword?: string;
+    username?: string;
+    pin?: string;
+    roleCode?: NexusRoleId;
+  }) => void;
 }) {
   const [handle, setHandle] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [roleId, setRoleId] = useState<NexusRoleId>("support");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [temporaryPassword, setTemporaryPassword] = useState("");
+  const [username, setUsername] = useState("");
+  const [pin, setPin] = useState("");
 
   useEffect(() => {
     if (open) {
       setHandle("");
       setDisplayName("");
       setRoleId("support");
+      setEmail("");
+      setPhone("");
+      setTemporaryPassword("");
+      setUsername("");
+      setPin("");
     }
   }, [open]);
 
   return (
     <Modal open={open} onClose={onClose} title="Invite Nexus operator" size="md">
       <p className="text-[11px] text-muted-foreground mb-4">
-        Creates a platform operator account with a Nexus role. This is not an institute Admin user.
+        Nexus root creates the operator and credentials (username, mobile, email, password, PIN).
+        This is not an institute Admin user.
       </p>
       <FormGrid>
         <Field label="Display name" className="sm:col-span-2">
@@ -443,15 +556,66 @@ function InviteOperatorModal({
             ))}
           </Select>
         </Field>
+        {apiMode ? (
+          <>
+            <Field label="Email">
+              <TextInput value={email} onChange={(e) => setEmail(e.target.value)} />
+            </Field>
+            <Field label="Mobile">
+              <TextInput value={phone} onChange={(e) => setPhone(e.target.value)} />
+            </Field>
+            <Field label="Username">
+              <TextInput
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Defaults to handle"
+              />
+            </Field>
+            <Field label="PIN (4–8 digits)">
+              <TextInput
+                value={pin}
+                onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                placeholder="Optional at invite"
+              />
+            </Field>
+            <Field label="Password" className="sm:col-span-2">
+              <TextInput
+                type="password"
+                value={temporaryPassword}
+                onChange={(e) => setTemporaryPassword(e.target.value)}
+              />
+            </Field>
+          </>
+        ) : null}
       </FormGrid>
       <div className="flex justify-end gap-2 mt-5">
         <Button onClick={onClose}>Cancel</Button>
         <Button
           variant="primary"
-          onClick={() => onInvite({ handle, displayName, roleId })}
-          disabled={!handle.trim() || !displayName.trim()}
+          onClick={() =>
+            onInvite({
+              handle: handle.trim(),
+              displayName: displayName.trim(),
+              roleId,
+              ...(apiMode
+                ? {
+                    email: email.trim(),
+                    phone: phone.trim(),
+                    temporaryPassword,
+                    username: username.trim() || undefined,
+                    pin: pin.trim() || undefined,
+                    roleCode: roleId,
+                  }
+                : {}),
+            })
+          }
+          disabled={
+            !handle.trim() ||
+            !displayName.trim() ||
+            (apiMode && (!email.trim() || !phone.trim() || temporaryPassword.length < 8))
+          }
         >
-          <Plus className="size-3.5" /> Invite
+          <Plus className="size-3.5" /> Create operator
         </Button>
       </div>
     </Modal>

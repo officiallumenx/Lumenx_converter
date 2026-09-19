@@ -5,12 +5,27 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./firebase": "./src/firebase/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@lumenx/types": "*"
+    "@lumenx/types": "*",
+    "firebase": "^11.10.0"
+  },
+  "peerDependencies": {
+    "@capacitor-firebase/crashlytics": ">=7.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@capacitor-firebase/crashlytics": {
+      "optional": true
+    }
   },
   "devDependencies": {
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
   }
 }

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useReloadKey } from "@/hooks/useReloadKey";
 import {
   Button,
   Card,
@@ -61,7 +62,7 @@ export function StorageApiUsagePanel() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const [reloadKey, setReloadKey] = useReloadKey();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadPurpose, setUploadPurpose] = useState<"logo" | "general">("logo");
@@ -202,7 +203,7 @@ export function StorageApiUsagePanel() {
           hint="Real usage from stored files · upload via Logo or General"
           action={
             <div className="flex flex-wrap items-center gap-2">
-              <Pill tone="neutral">API mode</Pill>
+              <Pill tone="neutral">Live data</Pill>
               {writesEnabled ? (
                 <>
                   <select
@@ -324,7 +325,7 @@ export function StorageApiUsagePanel() {
         <Card>
           <CardHeader
             title="Assets"
-            hint="Institute-scoped · soft-delete via DELETE /assets/:id"
+            hint="Files for this institute · deleted items go to recycle bin"
           />
           {displayAssets.length === 0 ? (
             <p className="px-4 pb-4 text-sm text-muted-foreground">

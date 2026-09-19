@@ -1,10 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Bus, MapPinned, Play, Route, Users } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
-import {
-  newEnrollmentsForVehicle,
-  TRANSPORT_OPS_CHANGED_EVENT,
-} from "@lumenx/utils";
 import { toast } from "sonner";
 
 import { DriverAssignmentGate } from "@/components/app/driver-assignment-state";
@@ -17,9 +13,13 @@ import { LocationTrackingBanner } from "@/components/app/location-tracking-banne
 import { OfflineTripBanner } from "@/components/app/offline-trip-banner";
 import { ROUTES } from "@/constants";
 import { useAttendanceStudents } from "@/hooks/use-attendance-students";
-import { useDriverAssignment } from "@/hooks/use-driver-assignment";
+import { useDriverAssignmentQuery } from "@/lib/transport-queries";
 import { useRouteSetup } from "@/hooks/use-route-setup";
 import { useTripSession } from "@/hooks/use-trip-session";
+import {
+  getApiPendingStopCount,
+  subscribeApiDriverRoster,
+} from "@/lib/transport/api-roster";
 import { isTripActive, tripPhaseLabel, tripRepository } from "@/lib/transport/trip";
 import { MODULE_COLORS } from "@/theme/colors";
 
@@ -35,7 +35,7 @@ function getGreeting(hour = new Date().getHours()): string {
 
 export function HomePage() {
   const navigate = useNavigate();
-  const assignment = useDriverAssignment();
+  const assignment = useDriverAssignmentQuery();
   const session = useTripSession();
   const routeSetup = useRouteSetup();
   const students = useAttendanceStudents();
@@ -90,15 +90,9 @@ export function HomePage() {
       setPendingStops(0);
       return;
     }
-    const refresh = () =>
-      setPendingStops(newEnrollmentsForVehicle(bus.vehicleId).length);
+    const refresh = () => setPendingStops(getApiPendingStopCount(bus.vehicleId));
     refresh();
-    window.addEventListener(TRANSPORT_OPS_CHANGED_EVENT, refresh);
-    window.addEventListener("storage", refresh);
-    return () => {
-      window.removeEventListener(TRANSPORT_OPS_CHANGED_EVENT, refresh);
-      window.removeEventListener("storage", refresh);
-    };
+    return subscribeApiDriverRoster(refresh);
   }, [bus.vehicleId]);
 
   const handlePrimaryAction = () => {

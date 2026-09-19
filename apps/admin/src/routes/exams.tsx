@@ -1,4 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { useExamsListQuery, adminQueryRoots } from "@/lib/admin-queries";
+import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
 import {
   Card,
@@ -27,9 +30,7 @@ import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
   deleteExam as deleteExamApi,
   getExam,
-  loadExamsList,
   resolveExamsListView,
-  shouldCommitExamsLoad,
   updateExam,
   type ExamListItem,
   type ExamTimetableListItem,
@@ -102,7 +103,23 @@ function ExamsPage() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const queryClient = useQueryClient();
+  const listEnabled =
+    apiMode &&
+    instituteCtx.status === "ready" &&
+    Boolean(instituteCtx.activeInstituteId);
+  const examsQuery = useExamsListQuery(
+    instituteCtx.activeInstituteId,
+    listEnabled,
+  );
+  const bumpExamsReload = () => {
+    invalidateAdminCache("admin:exams");
+    if (instituteCtx.activeInstituteId) {
+      void queryClient.invalidateQueries({
+        queryKey: [adminQueryRoots.exams, instituteCtx.activeInstituteId],
+      });
+    }
+  };
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
@@ -113,7 +130,8 @@ function ExamsPage() {
     resolvedForInstituteId,
     storedItems: apiItems,
     storedTimetables: apiTimetables,
-    storedStatus: listStatus,
+    storedStatus:
+      examsQuery.isLoading && !examsQuery.data ? "loading" : listStatus,
     storedErrorMessage: listError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
@@ -198,35 +216,26 @@ function ExamsPage() {
       return;
     }
 
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setListStatus("loading");
-    setListError(null);
-    void loadExamsList(requestInstituteId).then((next) => {
-      if (
-        !shouldCommitExamsLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setApiItems(next.items);
-      setApiTimetables(next.timetables);
-      setListStatus(next.status);
-      setListError(next.errorMessage);
-      setResolvedForInstituteId(requestInstituteId);
-    });
-    return () => {
-      cancelled = true;
-    };
+    if (examsQuery.isLoading && !examsQuery.data) {
+      setListStatus("loading");
+      setListError(null);
+      return;
+    }
+    if (!examsQuery.data) return;
+
+    const next = examsQuery.data;
+    setApiItems(next.items);
+    setApiTimetables(next.timetables);
+    setListStatus(next.status);
+    setListError(next.errorMessage);
+    setResolvedForInstituteId(instituteCtx.activeInstituteId);
   }, [
     apiMode,
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
-    reloadKey,
+    examsQuery.data,
+    examsQuery.isLoading,
   ]);
 
   useEffect(() => {
@@ -353,7 +362,7 @@ function ExamsPage() {
             const curTt = displayTimetables.find((t) => t.id === cur);
             return curTt?.examId === id ? null : cur;
           });
-          setReloadKey((k) => k + 1);
+          bumpExamsReload();
           notify("Exam deleted");
         })
         .catch((err) => {
@@ -378,7 +387,7 @@ function ExamsPage() {
       void deleteExamApi(tt.examId)
         .then(() => {
           setSelectedTtId(null);
-          setReloadKey((k) => k + 1);
+          bumpExamsReload();
           notify("Exam timetable deleted");
         })
         .catch((err) => {
@@ -423,7 +432,7 @@ function ExamsPage() {
         )
         .then(() => {
           setAddPaperOpen(false);
-          setReloadKey((k) => k + 1);
+          bumpExamsReload();
           notify("Paper added to exam schedule");
         })
         .catch((err) => {
@@ -456,14 +465,14 @@ function ExamsPage() {
     if (apiMode) {
       void updateExam(tt.examId, { scheduleStatus: "published" })
         .then(() => {
-          setReloadKey((k) => k + 1);
+          bumpExamsReload();
           notifyExamTimetablePublished({
             examId: tt.examId,
             examName: tt.examName,
             dateRange: examTimetableRange(tt.slots),
             classLabel: tt.grade,
           });
-          notify("Timetable published to students & parents");
+          notify("Timetable published to students, parents & teachers · marks entry opened");
         })
         .catch((err) => {
           notify(err instanceof Error ? err.message : "Failed to publish timetable");
@@ -577,7 +586,7 @@ function ExamsPage() {
                           }),
                         )
                         .then(() => {
-                          setReloadKey((k) => k + 1);
+                          bumpExamsReload();
                           notify("Paper removed");
                         })
                         .catch((err) => {
@@ -619,7 +628,7 @@ function ExamsPage() {
                           }),
                         )
                         .then(() => {
-                          setReloadKey((k) => k + 1);
+                          bumpExamsReload();
                           notify("Timetable updated");
                         })
                         .catch((err) => {
@@ -689,7 +698,7 @@ function ExamsPage() {
       title="Exams"
       subtitle={
         apiMode
-          ? `API mode · ${countLabel(displayExams.length)} exams`
+          ? `${countLabel(displayExams.length)} exams`
           : "Exam pipeline, exam timetables, and grading · marks in Marks module"
       }
       actions={
@@ -712,7 +721,7 @@ function ExamsPage() {
           title="Exam timetables"
           hint={
             apiMode
-              ? "Schedules from API · publish / add papers when writes are enabled"
+              ? "Exam schedules · publish or add papers when editing is enabled"
               : "Created with each exam · publish to share with students & parents"
           }
         />
@@ -902,9 +911,25 @@ function ExamsPage() {
           open={scheduleOpen}
           instituteId={instituteCtx.activeInstituteId}
           onClose={() => setScheduleOpen(false)}
-          onCreated={() => {
-            setReloadKey((k) => k + 1);
-            notify("Exam created (draft)");
+          onCreated={({ published, examId, examName, startDate, endDate }) => {
+            bumpExamsReload();
+            if (published) {
+              const dateRange =
+                startDate && endDate && startDate !== endDate
+                  ? `${startDate} – ${endDate}`
+                  : startDate || endDate || "See timetable";
+              notifyExamTimetablePublished({
+                examId,
+                examName,
+                dateRange,
+                classLabel: "assigned classes",
+              });
+              notify(
+                "Exam created and timetable published · marks entry opened for teachers",
+              );
+              return;
+            }
+            notify("Exam created as draft — open the timetable to publish when ready");
           }}
           onError={(message) => notify(message)}
         />

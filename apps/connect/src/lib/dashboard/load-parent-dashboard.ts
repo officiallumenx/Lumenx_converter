@@ -11,6 +11,7 @@ import { loadStudentReportCards } from "@/lib/marks";
 import { getStudent } from "@/lib/students/api";
 import { loadLearnerTimetable } from "@/lib/timetable";
 import { reportCardsToChildMetrics, studentDtoToChild } from "@/lib/parents/map";
+import { listStudentRemarks, mapRemarkDtoToParentCard } from "@/lib/remarks";
 import {
   reportCardsToPerformance,
   reportCardsToTrend,
@@ -45,7 +46,7 @@ export async function loadParentPortalSnapshotFromApi(input: {
 
   const dto = await getStudent(studentId);
 
-  const [cardsResult, homeworkResult, attendanceResult, inbox, timetableResult] =
+  const [cardsResult, homeworkResult, attendanceResult, inbox, timetableResult, remarkDtos] =
     await Promise.all([
       loadStudentReportCards({ instituteId, studentId }),
       loadStudentHomeworkItems({
@@ -56,6 +57,7 @@ export async function loadParentPortalSnapshotFromApi(input: {
       loadLearnerAttendancePortal({ instituteId, studentId }),
       loadConnectPortalInbox(instituteId),
       loadLearnerTimetable({ instituteId, studentId }),
+      listStudentRemarks({ instituteId, studentId }).catch(() => []),
     ]);
 
   const reportCards =
@@ -86,7 +88,7 @@ export async function loadParentPortalSnapshotFromApi(input: {
     classTag,
     performance: reportCardsToPerformance(reportCards),
     trend: reportCardsToTrend(reportCards),
-    remarks: [],
+    remarks: remarkDtos.map(mapRemarkDtoToParentCard),
     achievements: [],
     streaks: [],
     goals: [],

@@ -1,38 +1,20 @@
-import { createFileRoute, notFound } from "@tanstack/react-router";
-import { ProductPage } from "@/components/product/ProductPage";
-import { PRODUCT_PAGES, isProductPageSlug } from "@/content/product-pages";
-import { PRODUCT_SEO, breadcrumbJsonLd, pageHead, productJsonLd } from "@/lib/seo";
-import { JsonLd } from "@/components/seo/JsonLd";
+import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
+import { isProductPageSlug } from "@/content/product-pages";
 
 export const Route = createFileRoute("/products/$slug")({
   beforeLoad: ({ params }) => {
-    if (!isProductPageSlug(params.slug)) throw notFound();
-  },
-  head: ({ params }) => {
-    const slug = isProductPageSlug(params.slug) ? params.slug : null;
-    if (!slug) {
-      return pageHead({ title: "Product — LumenX", description: "LumenX product.", path: "/products" });
+    if (params.slug === "nexus") {
+      throw redirect({ to: "/about" });
     }
-    return pageHead(PRODUCT_SEO[slug]);
+    if (isProductPageSlug(params.slug) && params.slug !== "nexus") {
+      throw redirect({
+        to: "/platform/$slug",
+        params: { slug: params.slug },
+      });
+    }
+    throw notFound();
   },
-  component: ProductDetailPage,
+  component: function ProductsSlugRedirect() {
+    return null;
+  },
 });
-
-function ProductDetailPage() {
-  const { slug } = Route.useParams();
-  if (!isProductPageSlug(slug)) return null;
-  const content = PRODUCT_PAGES[slug];
-  return (
-    <>
-      <JsonLd data={productJsonLd(slug)} />
-      <JsonLd
-        data={breadcrumbJsonLd([
-          { name: "Home", path: "/" },
-          { name: "Products", path: "/products" },
-          { name: content.shortName, path: `/products/${slug}` },
-        ])}
-      />
-      <ProductPage content={content} />
-    </>
-  );
-}

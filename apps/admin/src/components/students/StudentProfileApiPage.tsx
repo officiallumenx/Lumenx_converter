@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useReloadKey } from "@/hooks/useReloadKey";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Pencil, Save, Trash2, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
@@ -108,7 +109,7 @@ export function StudentProfileApiPage({ studentId }: { studentId: string }) {
   const [status, setStatus] = useState<StudentsListStatus>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const [reloadKey, setReloadKey] = useReloadKey();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<EditDraft | null>(null);
   const [saveError, setSaveError] = useState("");
@@ -293,7 +294,7 @@ export function StudentProfileApiPage({ studentId }: { studentId: string }) {
   return (
     <AppShell
       title={displayStudent?.name ?? "Student profile"}
-      subtitle="API mode · student directory record"
+      subtitle="Student directory record"
       actions={
         <>
           {displayStudent && editing ? (
@@ -339,7 +340,7 @@ export function StudentProfileApiPage({ studentId }: { studentId: string }) {
           </Card>
         ) : editing && draft ? (
           <Card>
-            <CardHeader title={displayStudent.name} hint="PATCH /api/v1/students/:id" />
+            <CardHeader title={displayStudent.name} hint="Student profile" />
             <div className="grid gap-4 px-4 pb-5 sm:grid-cols-2 sm:px-5">
               <Field label="First name" required>
                 <TextInput
@@ -556,7 +557,7 @@ export function StudentProfileApiPage({ studentId }: { studentId: string }) {
         }
       >
         <p className="text-xs leading-relaxed text-muted-foreground">
-          Soft-delete via DELETE /api/v1/students/:id. Related academic history remains
+          This moves the student to the recycle bin. Related academic history remains
           according to backend retention rules.
         </p>
       </Modal>

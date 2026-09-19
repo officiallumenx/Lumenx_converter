@@ -35,11 +35,19 @@ type SelectGroup = {
   options: SelectOption[];
 };
 
+function nodeText(node: ReactNode): string {
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(nodeText).join("");
+  if (isValidElement(node)) {
+    return nodeText((node.props as { children?: ReactNode }).children);
+  }
+  return "";
+}
+
 function optionLabel(child: ReactElement): string {
   const props = child.props as { children?: ReactNode; label?: string; value?: string | number };
-  if (typeof props.children === "string" || typeof props.children === "number") {
-    return String(props.children);
-  }
+  const childrenLabel = nodeText(props.children);
+  if (childrenLabel) return childrenLabel;
   if (props.label != null) return String(props.label);
   if (props.value != null) return String(props.value);
   return "";

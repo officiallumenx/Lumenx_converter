@@ -42,18 +42,56 @@ const activityTone: Record<PlatformActivityKind, string> = {
 
 function MissionControlPage() {
   const [tick, setTick] = useState(0);
+  const [apiInstitutes, setApiInstitutes] = useState<
+    import("@/lib/institute-directory-store").PlatformInstitute[] | null
+  >(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   useEffect(() => {
+    let cancelled = false;
+    void import("@/lib/institutes/load-directory").then(({ loadInstitutesDirectory }) =>
+      loadInstitutesDirectory().then((dir) => {
+        if (cancelled) return;
+        if (dir.status === "ready") {
+          setApiInstitutes(dir.institutes);
+          setLoadError(null);
+        } else if (dir.status === "error") {
+          setApiInstitutes([]);
+          setLoadError(dir.message);
+        }
+      }),
+    );
     const unsubDir = subscribeInstituteDirectory(() => setTick((t) => t + 1));
     const unsubLic = subscribeLicenses(() => setTick((t) => t + 1));
     return () => {
+      cancelled = true;
       unsubDir();
       unsubLic();
     };
   }, []);
 
-  const snap = useMemo(() => buildMissionControlSnapshot(), [tick]);
+  const snap = useMemo(
+    () => buildMissionControlSnapshot(apiInstitutes ?? undefined),
+    [tick, apiInstitutes],
+  );
   const { kpis, business, platform, risk, activity, format } = snap;
   const planTotal = business.planMix.core + business.planMix.plus + business.planMix.max || 1;
+
+  if (apiInstitutes === null) {
+    return (
+      <AppShell title="Command Center" subtitle="Loading platform overview…">
+        <p className="text-sm text-muted-foreground py-8 text-center">Loading institutes…</p>
+      </AppShell>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <AppShell title="Command Center" subtitle="Platform overview unavailable">
+        <p className="text-sm text-destructive py-8 text-center">{loadError}</p>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell

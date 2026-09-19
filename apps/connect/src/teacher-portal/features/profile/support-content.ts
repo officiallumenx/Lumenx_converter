@@ -54,6 +54,6 @@ export const HELP_TOPICS = [
   },
   {
     title: "Account & notifications",
-    body: "Update your display name under Edit profile. Email and phone are read-only from admin. Manage notification toggles in Profile and change password with OTP verification.",
+    body: "Update your display name under Edit profile. Email and phone are read-only from admin. Manage notification toggles in Profile. Sign-in uses your mobile number and Login PIN.",
   },
 ] as const;

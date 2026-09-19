@@ -1,9 +1,15 @@
-import { buildParentPortalSnapshot } from "@/lib/parent-portal-data";
-import { teachers } from "@/lib/mock-data";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { fetchParentPortalSnapshot } from "@/api/parent-portal";
 import { getParentNav } from "./nav";
 import type { ParentSearchResults } from "./types";
 
-const delay = (ms = 120) => new Promise((r) => setTimeout(r, ms));
+const empty: ParentSearchResults = {
+  modules: [],
+  assignments: [],
+  notifications: [],
+  reportCards: [],
+  teachers: [],
+};
 
 export const parentRepository = {
   async search(
@@ -12,56 +18,44 @@ export const parentRepository = {
     studentIncludedMode: boolean,
     query: string,
   ): Promise<ParentSearchResults> {
-    await delay();
-    // Current institute + selected child only — never other institutes.
-    if (!instituteId) {
-      return {
-        modules: [],
-        assignments: [],
-        notifications: [],
-        reportCards: [],
-        teachers: [],
-      };
-    }
-    const snap = buildParentPortalSnapshot(instituteId, childId);
+    if (!instituteId) return empty;
     const q = query.trim().toLowerCase();
-    if (!q) {
+    if (!q) return empty;
+
+    if (!isApiAuthMode()) return empty;
+
+    try {
+      const snap = await fetchParentPortalSnapshot(instituteId, childId);
+      const modules = getParentNav(studentIncludedMode)
+        .filter((n) => n.label.toLowerCase().includes(q))
+        .map((n) => ({ label: n.label, path: n.to }));
+
+      const assignments = snap.assignments
+        .filter(
+          (a) =>
+            a.title.toLowerCase().includes(q) ||
+            a.subject.toLowerCase().includes(q) ||
+            a.class.toLowerCase().includes(q),
+        )
+        .map((a) => ({ id: a.id, title: a.title, subject: a.subject }));
+
+      const notifications = snap.notifications
+        .filter((n) => n.title.toLowerCase().includes(q) || n.desc.toLowerCase().includes(q))
+        .map((n) => ({ id: n.id, title: n.title }));
+
+      const reportCards = snap.reportCards
+        .filter((r) => r.term.toLowerCase().includes(q))
+        .map((r) => ({ id: r.id, term: r.term, percentage: r.percentage }));
+
       return {
-        modules: [],
-        assignments: [],
-        notifications: [],
-        reportCards: [],
+        modules,
+        assignments,
+        notifications,
+        reportCards,
         teachers: [],
       };
+    } catch {
+      return empty;
     }
-
-    const modules = getParentNav(studentIncludedMode)
-      .filter((n) => n.label.toLowerCase().includes(q))
-      .map((n) => ({ label: n.label, path: n.to }));
-
-    const assignments = snap.assignments
-      .filter(
-        (a) =>
-          a.title.toLowerCase().includes(q) ||
-          a.subject.toLowerCase().includes(q) ||
-          a.class.toLowerCase().includes(q),
-      )
-      .map((a) => ({ id: a.id, title: a.title, subject: a.subject }));
-
-    const notifications = snap.notifications
-      .filter((n) => n.title.toLowerCase().includes(q) || n.desc.toLowerCase().includes(q))
-      .map((n) => ({ id: n.id, title: n.title }));
-
-    const reportCards = snap.reportCards
-      .filter((r) => r.term.toLowerCase().includes(q))
-      .map((r) => ({ id: r.id, term: r.term, percentage: r.percentage }));
-
-    // Prefer teachers surfaced for this child/institute snapshot when present.
-    const teacherMatches = teachers
-      .filter((t) => t.name.toLowerCase().includes(q) || t.subject.toLowerCase().includes(q))
-      .slice(0, 6)
-      .map((t) => ({ id: t.id, name: t.name, subject: t.subject }));
-
-    return { modules, assignments, notifications, reportCards, teachers: teacherMatches };
   },
 };

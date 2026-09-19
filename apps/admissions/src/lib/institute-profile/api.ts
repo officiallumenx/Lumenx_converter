@@ -3,6 +3,7 @@ import type { AdmissionsApiClient } from "@/lib/api";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { isInstituteUuid } from "@/lib/institute-id";
 import type { DemoInstituteProfile } from "@lumenx/types";
+import type { InstituteSettingsDto } from "./types";
 
 function assertApiMode(): void {
   if (!isApiAuthMode()) {
@@ -27,13 +28,39 @@ export async function updateInstituteSettings(
   instituteId: string,
   input: { settings: Record<string, unknown> },
   client: AdmissionsApiClient = getAdmissionsApiClient(),
-): Promise<{ instituteId: string; settings: Record<string, unknown> }> {
+): Promise<InstituteSettingsDto> {
   assertApiMode();
   if (!isInstituteUuid(instituteId)) {
     throw new Error("institute_id must be a valid UUID");
   }
-  return client.patch<{ instituteId: string; settings: Record<string, unknown> }>(
+  return client.patch<InstituteSettingsDto>(
     `/api/v1/institutes/${instituteId.trim()}/settings`,
     input,
+  );
+}
+
+export async function getInstituteSettings(
+  instituteId: string,
+  client: AdmissionsApiClient = getAdmissionsApiClient(),
+): Promise<InstituteSettingsDto> {
+  assertApiMode();
+  if (!isInstituteUuid(instituteId)) {
+    throw new Error("institute_id must be a valid UUID");
+  }
+  return client.get<InstituteSettingsDto>(
+    `/api/v1/institutes/${instituteId.trim()}/settings`,
+  );
+}
+
+export async function getInstitute(
+  instituteId: string,
+  client: AdmissionsApiClient = getAdmissionsApiClient(),
+): Promise<{ id: string; name: string; code: string }> {
+  assertApiMode();
+  if (!isInstituteUuid(instituteId)) {
+    throw new Error("institute_id must be a valid UUID");
+  }
+  return client.get<{ id: string; name: string; code: string }>(
+    `/api/v1/institutes/${instituteId.trim()}`,
   );
 }

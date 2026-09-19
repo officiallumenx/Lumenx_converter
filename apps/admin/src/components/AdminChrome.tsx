@@ -1,6 +1,6 @@
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
-  Search, ChevronRight, Sparkles, Bell, Sun, Moon, Menu,
+  Search, ChevronRight, Bell, Sun, Moon, Menu,
   LogOut, User, ChevronDown, MoreHorizontal, Settings,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
@@ -11,11 +11,11 @@ import {
   adminMobileNavIconStyle,
   adminMoreTileStyle,
   adminSidebarAccentStyle,
-  getAdminModuleColor,
   getAdminModuleColorForPath,
 } from "@/lib/admin-module-colors";
 import { isAdminRouteModuleEnabled, useEnabledModules } from "@/lib/admin-plan-config";
 import { IconChip } from "@/components/IconChip";
+import { LumenXAdminLogo } from "@/components/LumenXAdminLogo";
 import { useDemoProfile } from "@/lib/demo-profile-context";
 import { useSignOut } from "@/auth/hooks/useSignOut";
 import { useAuth } from "@/auth/AuthContext";
@@ -25,8 +25,10 @@ import { AdminSubscriptionLifecycleBanner } from "@/components/AdminSubscription
 import { AdminRenewalReminderBanner } from "@/components/AdminRenewalReminderBanner";
 import { AdminBillingAdjustmentBanner } from "@/components/AdminBillingAdjustmentBanner";
 import { AdminPlatformReadOnlyBanner } from "@/components/AdminPlatformReadOnlyBanner";
-import { OfflineSyncStatusBar } from "@/components/OfflineSyncStatusBar";
+import { SetupHeaderShortcut } from "@/components/setup/SetupHeaderShortcut";
 import { RouteOutletErrorBoundary } from "@/components/RouteOutletErrorBoundary";
+import { PullToRefresh, DataRefreshStatusBar } from "@/components/PullToRefresh";
+import { DataRefreshHost } from "@/components/DataRefreshHost";
 import { loadAcademicYears } from "@/lib/academic-management-data";
 import { loadAcademicYearsList } from "@/lib/academic-years";
 import {
@@ -40,7 +42,6 @@ import {
   syncAcademicYearLocked,
 } from "@lumenx/utils";
 import {
-  PendingSyncBadge,
   OfflineBanner,
   OfflineSyncProgress,
   useIsMobile,
@@ -74,6 +75,13 @@ import { startTransportAdminNotificationSync } from "@/lib/transport-notificatio
 import { ApiInstituteSwitcher } from "@/components/ApiInstituteSwitcher";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { InstituteContextProvider, useInstituteContext } from "@/lib/institutes";
+import {
+  SetupChecklistProvider,
+  getSetupNavGate,
+  resolveSidebarNavTarget,
+  isPathAllowedDuringSetup,
+  subscribeSetupNavGate,
+} from "@/lib/institute-setup-checklist";
 import { AdminFeedbackTransportBridge } from "@/components/AdminFeedbackTransportBridge";
 import { warnAdminNavContractIfNeeded } from "@/lib/admin-navigation-contract";
 import { useAdminMountTrace, useAdminRouteTransitionTrace } from "@/hooks/useAdminPerformanceTrace";
@@ -250,15 +258,38 @@ export function AdminChrome() {
     (to: string) => {
       setMoreOpen(false);
       setMobileOpen(false);
-      const direction = getModuleNavDirection(path, to, swipePrimaryPaths, swipeMorePaths, {
+      const gatedTo = resolveSidebarNavTarget(to, getSetupNavGate());
+      const direction = getModuleNavDirection(path, gatedTo, swipePrimaryPaths, swipeMorePaths, {
         settingsPath,
       });
       navigateWithModuleTransition(() => {
-        void navigate({ to: to as never });
+        void navigate({ to: gatedTo as never });
       }, direction);
     },
     [navigate, path, settingsPath, swipeMorePaths, swipePrimaryPaths],
   );
+
+  /** Sidebar / bottom-nav Links bypass goToAdminModule — gate them here. */
+  const onModuleLinkClick = useCallback(
+    (to: string, event: { preventDefault: () => void }) => {
+      const gatedTo = resolveSidebarNavTarget(to, getSetupNavGate());
+      if (gatedTo === to) return;
+      event.preventDefault();
+      goToAdminModule(to);
+    },
+    [goToAdminModule],
+  );
+
+  useEffect(() => {
+    const redirectIfBlocked = () => {
+      const gate = getSetupNavGate();
+      if (!isPathAllowedDuringSetup(path, gate)) {
+        void navigate({ to: "/setup", replace: true });
+      }
+    };
+    redirectIfBlocked();
+    return subscribeSetupNavGate(redirectIfBlocked);
+  }, [navigate, path]);
 
   useSwipeNavigation({
     containerRef: mainRef,
@@ -286,10 +317,10 @@ export function AdminChrome() {
   const displayName = user?.name ?? profile.admin.principalName;
   const displayTitle = user?.title ?? profile.admin.principalTitle;
   const displayIdentity = user?.email || user?.phone || "Admin user";
-  const moduleColor = getAdminModuleColor(path);
+  /** Shell wash stays brand blue; per-module hues stay on IconChip only. */
   const chromeAccentStyle = {
-    ["--lx-module-accent" as string]: moduleColor.primary,
-    ["--lx-module-chip" as string]: moduleColor.iconBackground,
+    ["--lx-module-accent" as string]: "#2563EB",
+    ["--lx-module-chip" as string]: "#DBEAFE",
   } as CSSProperties;
   const canAccessSettings =
     !user?.accessRoleId || getRolePermission(user.accessRoleId, "/settings") !== "none";
@@ -354,11 +385,8 @@ export function AdminChrome() {
   const SidebarContent = (
     <>
       <div className="flex items-center gap-2.5 px-6 h-16 border-b border-sidebar-border shrink-0">
-        <span className="lx-icon-chip lx-icon-chip--sm shadow-glow" aria-hidden>
-          <Sparkles strokeWidth={2} />
-        </span>
+        <LumenXAdminLogo size="sm" className="max-h-9" />
         <div className="leading-tight min-w-0">
-          <div className="font-semibold tracking-tight text-sm">LUMENX ADMIN</div>
           {apiMode ? (
             <ApiInstituteSwitcher className="mt-0.5" />
           ) : (
@@ -409,7 +437,10 @@ export function AdminChrome() {
                         key={item.to}
                         to={item.to}
                         preload="intent"
-                        onClick={() => setMobileOpen(false)}
+                        onClick={(event) => {
+                          onModuleLinkClick(item.to, event);
+                          setMobileOpen(false);
+                        }}
                         aria-current={active ? "page" : undefined}
                         style={adminSidebarAccentStyle(accent, active)}
                         className={`group relative flex items-center gap-3 rounded-md px-3 py-2.5 min-h-10 text-sm transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] ${
@@ -465,7 +496,10 @@ export function AdminChrome() {
             {canAccessSettings && <div className="p-1.5 space-y-0.5">
               <Link
                 to="/settings"
-                onClick={() => setProfileOpen(false)}
+                onClick={(event) => {
+                  onModuleLinkClick("/settings", event);
+                  setProfileOpen(false);
+                }}
                 className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-full"
               >
                 <User className="size-3.5 text-muted-foreground" />
@@ -474,7 +508,10 @@ export function AdminChrome() {
               <Link
                 to="/settings"
                 search={{ tab: "appearance" } as never}
-                onClick={() => setProfileOpen(false)}
+                onClick={(event) => {
+                  onModuleLinkClick("/settings", event);
+                  setProfileOpen(false);
+                }}
                 className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-full"
               >
                 <Sun className="size-3.5 text-muted-foreground" />
@@ -514,6 +551,7 @@ export function AdminChrome() {
 
   return (
     <InstituteContextProvider>
+    <SetupChecklistProvider>
     <AdminFeedbackTransportBridge />
     <AcademicYearLockSync />
     <AdminAlertsNavBadgeSync />
@@ -568,13 +606,8 @@ export function AdminChrome() {
               >
                 <Menu className="size-5" />
               </Button>
-              <span className="lx-icon-chip lx-icon-chip--sm shrink-0 shadow-glow" aria-hidden>
-                <Sparkles strokeWidth={2} />
-              </span>
+              <LumenXAdminLogo size="xs" className="max-h-8 shrink-0" />
               <div className="hidden min-w-0 sm:block">
-                <div className="font-display text-sm font-semibold leading-none">
-                  LumenX Admin
-                </div>
                 {apiMode ? (
                   <ApiInstituteSwitcher className="mt-0.5 max-w-[14rem]" />
                 ) : (
@@ -612,9 +645,8 @@ export function AdminChrome() {
                   Ctrl K
                 </kbd>
               </Button>
-              <PendingSyncBadge className="hidden sm:inline-flex lg:hidden" />
-              <div className="hidden lg:block">
-                <OfflineSyncStatusBar compact />
+              <div className="hidden sm:block">
+                <SetupHeaderShortcut />
               </div>
               <Button
                 type="button"
@@ -626,7 +658,11 @@ export function AdminChrome() {
               >
                 {theme === "dark" ? <Sun className="size-5" /> : <Moon className="size-5" />}
               </Button>
-              <Link to="/notifications" search={{ tab: "inbox" }}>
+              <Link
+                to="/notifications"
+                search={{ tab: "inbox" }}
+                onClick={(event) => onModuleLinkClick("/notifications", event)}
+              >
                 <Button
                   type="button"
                   variant="ghost"
@@ -666,7 +702,15 @@ export function AdminChrome() {
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   {canAccessSettings ? (
-                    <DropdownMenuItem onClick={() => navigate({ to: "/settings" })}>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        const gated = resolveSidebarNavTarget(
+                          "/settings",
+                          getSetupNavGate(),
+                        );
+                        void navigate({ to: gated as never });
+                      }}
+                    >
                       <Settings className="mr-2 size-4" /> Settings
                     </DropdownMenuItem>
                   ) : null}
@@ -697,6 +741,7 @@ export function AdminChrome() {
         <div className="shrink-0">
           <OfflineBanner />
           <OfflineSyncProgress />
+          <DataRefreshStatusBar />
         </div>
 
         <main
@@ -704,24 +749,27 @@ export function AdminChrome() {
           id="main-content"
           className="relative z-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain scroll-smooth px-3 sm:px-5 md:px-6 pt-3 pb-[calc(var(--lx-mobile-nav-height)+0.75rem)] sm:pt-4 lg:pt-6 lg:pb-[max(1.5rem,env(safe-area-inset-bottom))]"
         >
-          <AdminSubscriptionLifecycleBanner />
-          <AdminRenewalReminderBanner />
-          <AdminBillingAdjustmentBanner />
-          <AdminPlatformReadOnlyBanner />
-          <div className="lx-module-swipe-stage min-w-0 w-full">
-            <ModuleTransitionRoot
-              pathname={path}
-              primaryPaths={swipePrimaryPaths}
-              morePaths={swipeMorePaths.length > 0 ? swipeMorePaths : undefined}
-              settingsPath={settingsPath}
-              enabled={isMobile}
-              className="min-w-0"
-            >
-              <RouteOutletErrorBoundary key={path}>
-                <Outlet />
-              </RouteOutletErrorBoundary>
-            </ModuleTransitionRoot>
-          </div>
+          <DataRefreshHost />
+          <PullToRefresh scrollRef={mainRef}>
+            <AdminSubscriptionLifecycleBanner />
+            <AdminRenewalReminderBanner />
+            <AdminBillingAdjustmentBanner />
+            <AdminPlatformReadOnlyBanner />
+            <div className="lx-module-swipe-stage min-w-0 w-full">
+              <ModuleTransitionRoot
+                pathname={path}
+                primaryPaths={swipePrimaryPaths}
+                morePaths={swipeMorePaths.length > 0 ? swipeMorePaths : undefined}
+                settingsPath={settingsPath}
+                enabled={isMobile}
+                className="min-w-0"
+              >
+                <RouteOutletErrorBoundary>
+                  <Outlet />
+                </RouteOutletErrorBoundary>
+              </ModuleTransitionRoot>
+            </div>
+          </PullToRefresh>
         </main>
 
         {/* Section-scoped mobile bottom nav — order from active drawer section only */}
@@ -750,7 +798,10 @@ export function AdminChrome() {
                     key={item.to}
                     to={item.to}
                     preload="intent"
-                    onClick={() => setMoreOpen(false)}
+                    onClick={(event) => {
+                      onModuleLinkClick(item.to, event);
+                      setMoreOpen(false);
+                    }}
                     aria-current={active ? "page" : undefined}
                     aria-label={item.label}
                     className={cn(
@@ -821,7 +872,10 @@ export function AdminChrome() {
                             key={item.to}
                             to={item.to}
                             preload="intent"
-                            onClick={() => setMoreOpen(false)}
+                            onClick={(event) => {
+                              onModuleLinkClick(item.to, event);
+                              setMoreOpen(false);
+                            }}
                             aria-current={active ? "page" : undefined}
                             className="lx-admin-more-tile"
                             style={adminMoreTileStyle(accent, active)}
@@ -853,6 +907,7 @@ export function AdminChrome() {
       {openSearch ? <AdminGlobalSearch open={openSearch} onOpenChange={setOpenSearch} /> : null}
       </div>
     </AdminWriteAccessProvider>
+    </SetupChecklistProvider>
     </InstituteContextProvider>
   );
 }

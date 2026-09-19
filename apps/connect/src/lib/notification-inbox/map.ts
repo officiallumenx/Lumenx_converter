@@ -45,11 +45,15 @@ export function relativeInboxTimeLabel(iso: string): string {
   });
 }
 
-function uiCategory(category: BackendNotificationCategory): NotificationCategory {
-  return BACKEND_TO_UI_CATEGORY[category] ?? "circulars";
+function uiCategory(category: BackendNotificationCategory | string): NotificationCategory {
+  return (
+    BACKEND_TO_UI_CATEGORY[category as BackendNotificationCategory] ?? "circulars"
+  );
 }
 
-function presentationType(priority: BackendNotificationPriority): AppNotification["type"] {
+function presentationType(
+  priority: BackendNotificationPriority | string | null | undefined,
+): AppNotification["type"] {
   if (priority === "critical" || priority === "important") return "warning";
   if (priority === "success") return "positive";
   return "info";

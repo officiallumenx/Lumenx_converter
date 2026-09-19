@@ -40,8 +40,10 @@ import {
   reportCards,
   categorizedNotifications,
 } from "@/lib/mock-data";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { useApp } from "@/lib/app-state";
 import { useParentPortal } from "@/context/ParentPortalContext";
+import { useStudentPortal } from "@/context/StudentPortalContext";
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
 import { useTeacherPortalAccess } from "@/lib/teacher-session";
 import { teacherRepository } from "@/lib/teacher/repositories";
@@ -66,9 +68,12 @@ export function GlobalSearch() {
   const nav = useNavigate();
   const { role, studentIncludedMode, activeChildId, activeInstituteId, institute } = useApp();
   const portal = useParentPortal();
+  const studentPortal = useStudentPortal();
   const teacherPortal = useTeacherPortal();
   const teacherAccess = useTeacherPortalAccess();
+  const apiMode = isApiAuthMode();
   const snap = role === "parent" && portal.isParent ? portal.snapshot : null;
+  const studentSnap = role === "student" && studentPortal.isStudent ? studentPortal.snapshot : null;
   const isTeacher = role === "teacher";
   const isActivityWorkspace =
     teacherAccess.isReady && teacherAccess.isActivityWorkspaceActive;
@@ -87,8 +92,20 @@ export function GlobalSearch() {
     return { instituteId: activeInstituteId, portal: portalKey };
   }, [activeInstituteId, role, isActivityWorkspace]);
 
-  const assignmentSearch = snap?.assignments ?? assignments;
-  const reportSearch = snap?.reportCards ?? reportCards;
+  const assignmentSearch = snap?.assignments ?? (apiMode ? [] : assignments);
+  const reportSearch = snap?.reportCards ?? (apiMode ? [] : reportCards);
+  const studentAssignments = apiMode ? [] : assignments;
+  const studentExams = studentSnap?.exams ?? (apiMode ? [] : exams);
+  const studentReports = studentSnap?.reportCards ?? (apiMode ? [] : reportCards);
+  const studentEvents = studentSnap?.schoolEvents ?? (apiMode ? [] : schoolEvents);
+  const parentExams = apiMode ? [] : exams;
+  const parentEvents = apiMode ? [] : schoolEvents;
+  const browseTeachers = apiMode ? [] : teachers;
+  const browseRoster = apiMode
+    ? teacherStudents
+    : isTeacher
+      ? teacherStudents
+      : studentsInClass;
 
   useEffect(() => {
     if (!open) {
@@ -165,8 +182,10 @@ export function GlobalSearch() {
 
   const notifs = useMemo(() => {
     if (role === "parent" && snap) return snap.notifications;
+    if (role === "student" && studentSnap) return studentSnap.notifications;
+    if (apiMode) return [];
     return categorizedNotifications[role ?? "student"] ?? [];
-  }, [role, snap]);
+  }, [role, snap, studentSnap, apiMode]);
 
   const recent = useMemo(
     () => (open && searchScope ? getRecentSearches(searchScope) : []),
@@ -764,11 +783,11 @@ export function GlobalSearch() {
             </>
           )}
 
-          {showClassRoster && (
+          {showClassRoster && browseRoster.length > 0 && (
             <>
               <CommandSeparator />
               <CommandGroup heading="Students (your classes)">
-                {(isTeacher ? teacherStudents : studentsInClass).slice(0, 8).map((s) => (
+                {browseRoster.slice(0, 8).map((s) => (
                   <CommandItem
                     key={s.id}
                     value={`student ${s.name} ${s.roll}`}
@@ -809,77 +828,93 @@ export function GlobalSearch() {
 
           {role === "student" && !studentQuery.trim() && (
             <>
-              <CommandSeparator />
-              <CommandGroup heading="Teachers">
-                {teachers.map((t) => (
-                  <CommandItem
-                    key={t.id}
-                    value={`teacher ${t.name} ${t.subject}`}
-                    onSelect={() => go("/teachers", `Teacher ${t.name}`)}
-                  >
-                    <Users className="size-4 mr-2 text-muted-foreground" />
-                    <span>{t.name}</span>
-                    <span className="ml-auto text-xs text-muted-foreground">{t.subject}</span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-              <CommandSeparator />
-              <CommandGroup heading="Assignments">
-                {assignments.map((a) => (
-                  <CommandItem
-                    key={a.id}
-                    value={`assignment ${a.title} ${a.subject}`}
-                    onSelect={() => go("/assignments", a.title)}
-                  >
-                    <BookOpen className="size-4 mr-2 text-muted-foreground" />
-                    <span className="truncate">{a.title}</span>
-                    <span className="ml-auto text-xs text-muted-foreground">{a.subject}</span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-              <CommandSeparator />
-              <CommandGroup heading="Exams & Report cards">
-                {exams.map((e) => (
-                  <CommandItem
-                    key={e.id}
-                    value={`exam ${e.title} ${e.subject}`}
-                    onSelect={() => go("/exams", e.title)}
-                  >
-                    <GraduationCap className="size-4 mr-2 text-muted-foreground" />
-                    <span className="truncate">{e.title}</span>
-                    <span className="ml-auto text-xs text-muted-foreground">{e.date}</span>
-                  </CommandItem>
-                ))}
-                {reportCards.map((r) => (
-                  <CommandItem
-                    key={r.id}
-                    value={`report ${r.term}`}
-                    onSelect={() => go("/marks", r.term)}
-                  >
-                    <FileText className="size-4 mr-2 text-muted-foreground" />
-                    <span>{r.term}</span>
-                    <span className="ml-auto text-xs text-muted-foreground">
-                      {r.percentage}% • {r.grade}
-                    </span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-              <CommandSeparator />
-              <CommandGroup heading="Events & Holidays">
-                {schoolEvents.slice(0, 8).map((e) => (
-                  <CommandItem
-                    key={e.id}
-                    value={`event ${e.title} ${e.kind}`}
-                    onSelect={() => go("/events", e.title)}
-                  >
-                    <Calendar className="size-4 mr-2 text-muted-foreground" />
-                    <span className="truncate">{e.title}</span>
-                    <span className="ml-auto text-xs text-muted-foreground capitalize">
-                      {e.kind}
-                    </span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
+              {browseTeachers.length > 0 && (
+                <>
+                  <CommandSeparator />
+                  <CommandGroup heading="Teachers">
+                    {browseTeachers.map((t) => (
+                      <CommandItem
+                        key={t.id}
+                        value={`teacher ${t.name} ${t.subject}`}
+                        onSelect={() => go("/teachers", `Teacher ${t.name}`)}
+                      >
+                        <Users className="size-4 mr-2 text-muted-foreground" />
+                        <span>{t.name}</span>
+                        <span className="ml-auto text-xs text-muted-foreground">{t.subject}</span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </>
+              )}
+              {studentAssignments.length > 0 && (
+                <>
+                  <CommandSeparator />
+                  <CommandGroup heading="Assignments">
+                    {studentAssignments.map((a) => (
+                      <CommandItem
+                        key={a.id}
+                        value={`assignment ${a.title} ${a.subject}`}
+                        onSelect={() => go("/assignments", a.title)}
+                      >
+                        <BookOpen className="size-4 mr-2 text-muted-foreground" />
+                        <span className="truncate">{a.title}</span>
+                        <span className="ml-auto text-xs text-muted-foreground">{a.subject}</span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </>
+              )}
+              {(studentExams.length > 0 || studentReports.length > 0) && (
+                <>
+                  <CommandSeparator />
+                  <CommandGroup heading="Exams & Report cards">
+                    {studentExams.map((e) => (
+                      <CommandItem
+                        key={e.id}
+                        value={`exam ${e.title} ${e.subject}`}
+                        onSelect={() => go("/exams", e.title)}
+                      >
+                        <GraduationCap className="size-4 mr-2 text-muted-foreground" />
+                        <span className="truncate">{e.title}</span>
+                        <span className="ml-auto text-xs text-muted-foreground">{e.date}</span>
+                      </CommandItem>
+                    ))}
+                    {studentReports.map((r) => (
+                      <CommandItem
+                        key={r.id}
+                        value={`report ${r.term}`}
+                        onSelect={() => go("/marks", r.term)}
+                      >
+                        <FileText className="size-4 mr-2 text-muted-foreground" />
+                        <span>{r.term}</span>
+                        <span className="ml-auto text-xs text-muted-foreground">
+                          {r.percentage}% • {r.grade}
+                        </span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </>
+              )}
+              {studentEvents.length > 0 && (
+                <>
+                  <CommandSeparator />
+                  <CommandGroup heading="Events & Holidays">
+                    {studentEvents.slice(0, 8).map((e) => (
+                      <CommandItem
+                        key={e.id}
+                        value={`event ${e.title} ${e.kind}`}
+                        onSelect={() => go("/events", e.title)}
+                      >
+                        <Calendar className="size-4 mr-2 text-muted-foreground" />
+                        <span className="truncate">{e.title}</span>
+                        <span className="ml-auto text-xs text-muted-foreground capitalize">
+                          {e.kind}
+                        </span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </>
+              )}
               <CommandSeparator />
               <CommandGroup heading="Sports">
                 <CommandItem onSelect={() => go("/sports", "Sports")}>
@@ -892,88 +927,104 @@ export function GlobalSearch() {
 
           {role === "parent" && (
             <>
-              <CommandSeparator />
-              <CommandGroup
-                heading={
-                  snap ? `Teachers · ${snap.classTag} · ${instituteLabel}` : `Teachers · ${instituteLabel}`
-                }
-              >
-                  {teachers.map((t) => (
-                    <CommandItem
-                      key={t.id}
-                      value={`teacher ${t.name} ${t.subject}`}
-                      onSelect={() => go("/teachers", `Teacher ${t.name}`)}
-                    >
-                      <Users className="size-4 mr-2 text-muted-foreground" />
-                      <span>{t.name}</span>
-                      <span className="ml-auto text-xs text-muted-foreground">{t.subject}</span>
-                    </CommandItem>
-                  ))}
-              </CommandGroup>
+              {browseTeachers.length > 0 && (
+                <>
+                  <CommandSeparator />
+                  <CommandGroup
+                    heading={
+                      snap
+                        ? `Teachers · ${snap.classTag} · ${instituteLabel}`
+                        : `Teachers · ${instituteLabel}`
+                    }
+                  >
+                    {browseTeachers.map((t) => (
+                      <CommandItem
+                        key={t.id}
+                        value={`teacher ${t.name} ${t.subject}`}
+                        onSelect={() => go("/teachers", `Teacher ${t.name}`)}
+                      >
+                        <Users className="size-4 mr-2 text-muted-foreground" />
+                        <span>{t.name}</span>
+                        <span className="ml-auto text-xs text-muted-foreground">{t.subject}</span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </>
+              )}
 
-              <CommandSeparator />
-              <CommandGroup
-                heading={
-                  snap ? `Homework · ${snap.shortName}` : "Assignments"
-                }
-              >
-                {assignmentSearch.map((a) => (
-                  <CommandItem
-                    key={a.id}
-                    value={`assignment ${a.title} ${a.subject}`}
-                    onSelect={() => go("/assignments", a.title)}
+              {assignmentSearch.length > 0 && (
+                <>
+                  <CommandSeparator />
+                  <CommandGroup
+                    heading={snap ? `Homework · ${snap.shortName}` : "Assignments"}
                   >
-                    <BookOpen className="size-4 mr-2 text-muted-foreground" />
-                    <span className="truncate">{a.title}</span>
-                    <span className="ml-auto text-xs text-muted-foreground">{a.subject}</span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
+                    {assignmentSearch.map((a) => (
+                      <CommandItem
+                        key={a.id}
+                        value={`assignment ${a.title} ${a.subject}`}
+                        onSelect={() => go("/assignments", a.title)}
+                      >
+                        <BookOpen className="size-4 mr-2 text-muted-foreground" />
+                        <span className="truncate">{a.title}</span>
+                        <span className="ml-auto text-xs text-muted-foreground">{a.subject}</span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </>
+              )}
 
-              <CommandSeparator />
-              <CommandGroup heading="Exams & Report cards">
-                {exams.map((e) => (
-                  <CommandItem
-                    key={e.id}
-                    value={`exam ${e.title} ${e.subject}`}
-                    onSelect={() => go("/exams", e.title)}
-                  >
-                    <GraduationCap className="size-4 mr-2 text-muted-foreground" />
-                    <span className="truncate">{e.title}</span>
-                    <span className="ml-auto text-xs text-muted-foreground">{e.date}</span>
-                  </CommandItem>
-                ))}
-                {reportSearch.map((r) => (
-                  <CommandItem
-                    key={r.id}
-                    value={`report ${r.term}`}
-                    onSelect={() => go("/marks", r.term)}
-                  >
-                    <FileText className="size-4 mr-2 text-muted-foreground" />
-                    <span>{r.term}</span>
-                    <span className="ml-auto text-xs text-muted-foreground">
-                      {r.percentage}% • {r.grade}
-                    </span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
+              {(parentExams.length > 0 || reportSearch.length > 0) && (
+                <>
+                  <CommandSeparator />
+                  <CommandGroup heading="Exams & Report cards">
+                    {parentExams.map((e) => (
+                      <CommandItem
+                        key={e.id}
+                        value={`exam ${e.title} ${e.subject}`}
+                        onSelect={() => go("/exams", e.title)}
+                      >
+                        <GraduationCap className="size-4 mr-2 text-muted-foreground" />
+                        <span className="truncate">{e.title}</span>
+                        <span className="ml-auto text-xs text-muted-foreground">{e.date}</span>
+                      </CommandItem>
+                    ))}
+                    {reportSearch.map((r) => (
+                      <CommandItem
+                        key={r.id}
+                        value={`report ${r.term}`}
+                        onSelect={() => go("/marks", r.term)}
+                      >
+                        <FileText className="size-4 mr-2 text-muted-foreground" />
+                        <span>{r.term}</span>
+                        <span className="ml-auto text-xs text-muted-foreground">
+                          {r.percentage}% • {r.grade}
+                        </span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </>
+              )}
 
-              <CommandSeparator />
-              <CommandGroup heading="Events & Holidays">
-                {schoolEvents.slice(0, 8).map((e) => (
-                  <CommandItem
-                    key={e.id}
-                    value={`event ${e.title} ${e.kind}`}
-                    onSelect={() => go("/events", e.title)}
-                  >
-                    <Calendar className="size-4 mr-2 text-muted-foreground" />
-                    <span className="truncate">{e.title}</span>
-                    <span className="ml-auto text-xs text-muted-foreground capitalize">
-                      {e.kind}
-                    </span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
+              {parentEvents.length > 0 && (
+                <>
+                  <CommandSeparator />
+                  <CommandGroup heading="Events & Holidays">
+                    {parentEvents.slice(0, 8).map((e) => (
+                      <CommandItem
+                        key={e.id}
+                        value={`event ${e.title} ${e.kind}`}
+                        onSelect={() => go("/events", e.title)}
+                      >
+                        <Calendar className="size-4 mr-2 text-muted-foreground" />
+                        <span className="truncate">{e.title}</span>
+                        <span className="ml-auto text-xs text-muted-foreground capitalize">
+                          {e.kind}
+                        </span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </>
+              )}
             </>
           )}
 

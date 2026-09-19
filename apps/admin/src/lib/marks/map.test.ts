@@ -55,6 +55,8 @@ describe("marks DTO mapping", () => {
             marks: 88,
             createdAt: "",
             updatedAt: "",
+            internalMarks: 18,
+            externalMarks: 70,
           },
         ],
       }),
@@ -103,6 +105,8 @@ describe("marks DTO mapping", () => {
       name: "Aanya",
       rollNo: "12",
       marks: 88,
+      internalMarks: 18,
+      externalMarks: 70,
     });
   });
 

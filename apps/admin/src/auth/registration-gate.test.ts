@@ -84,7 +84,7 @@ describe("resolveRegistrationGate", () => {
     });
   });
 
-  it("still evaluates demo funnel when mode is demo", async () => {
+  it("does not use demo OTP registration funnel (API-only)", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
     vi.doMock("@lumenx/utils", () => ({
       findInstituteRegistrationByEmail: () => null,
@@ -99,6 +99,7 @@ describe("resolveRegistrationGate", () => {
       loadSession: () => null,
     }));
     const { resolveRegistrationGate } = await import("./registration-gate");
-    expect(resolveRegistrationGate(user).kind).toBe("verify_email");
+    // Demo funnel removed — unverified demo OTP path no longer applies.
+    expect(resolveRegistrationGate(user).kind).toBe("allow");
   });
 });

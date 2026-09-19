@@ -173,6 +173,8 @@ export type LearnerTransportLiveDto = {
     distanceM: number;
     withinRadius: boolean;
     etaMinutes: number;
+    /** Nearest product band (30 / 15 / 5), or null when farther than 30 min. */
+    band: 30 | 15 | 5 | null;
   } | null;
 };
 

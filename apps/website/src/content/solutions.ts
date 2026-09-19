@@ -41,9 +41,9 @@ export const SOLUTIONS: SolutionView[] = [
     title: "Institutions",
     outcome: "Run the whole institute on one set of records — not five disconnected tools.",
     narrative:
-      "LumenX is the institute platform. Admin writes people, classes, and fees. Connect is how families and teachers use that record. Transport, Admissions, and Careers switch on per institute. Nexus is the service platform for groups — licensing, support, and feedback. A single campus may never open Nexus.",
+      "LumenX is the institute platform. Admin writes people, classes, and fees. Connect is how families and teachers use that record. Transport, Admissions, and Careers switch on per institute when you need them.",
     product: "admin",
-    products: ["admin", "connect", "transport", "admissions", "careers", "nexus"],
+    products: ["admin", "connect", "transport", "admissions", "careers"],
     icon: Building2,
     points: [
       "One directory instead of parallel spreadsheets",

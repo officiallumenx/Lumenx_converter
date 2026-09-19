@@ -30,7 +30,7 @@ export function vehicleDtoToTransportVehicle(dto: VehicleDto): TransportVehicle 
     registrationNumber: dto.registrationNumber,
     capacity: dto.capacity,
     status: dto.status,
-    assignedDriverId: null,
+    assignedDriverId: dto.assignedDriverId ?? null,
     notes: dto.notes ?? "",
   };
 }
@@ -49,7 +49,8 @@ export function driverDtoToTransportDriver(dto: DriverDto): TransportDriver {
     phone: dto.phone,
     licenseNumber: dto.licenseNumber,
     licenseExpiry: formatLicenseExpiry(dto.licenseExpiry),
-    assignedVehicleId: null,
+    assignedVehicleId: dto.assignedVehicleId ?? null,
+    hasAppPin: Boolean(dto.hasAppPin),
     status: dto.status,
     notes: dto.notes ?? "",
   };
@@ -74,6 +75,8 @@ export function stopDtoToAdminRouteStop(dto: StopDto): AdminRouteStop {
     createdByName: "—",
     studentIds: [],
     routeOrder: dto.routeOrder,
+    notificationRadiusM: dto.notificationRadiusM,
+    approvalStatus: dto.approvalStatus,
   };
 }
 
@@ -125,18 +128,23 @@ export function transportSettingsDtoToTransportSettings(
     defaultNotificationRadiusM: dto.defaultNotificationRadiusM,
     defaultPickupBufferMins: dto.defaultPickupBufferMins,
     workingDays: workingDayNumbersToLabels(dto.workingDays),
+    notificationsEnabled: dto.notificationsEnabled ?? true,
+    rememberEnabled: dto.rememberEnabled ?? true,
+    defaultPickupTime: dto.defaultPickupTime?.slice(0, 5) || "07:30",
   };
 }
 
-function shortRef(id: string, prefix: string): string {
-  const token = id?.trim().slice(0, 8) || "—";
+function shortRef(id: string | null, prefix: string): string {
+  if (!id) return "—";
+  const token = id.trim().slice(0, 8) || "—";
   return `${prefix} · ${token}`;
 }
 
 function stopNameById(
   routes: TransportRoute[],
-  stopId: string,
+  stopId: string | null,
 ): string {
+  if (!stopId) return "—";
   for (const route of routes) {
     const stop = route.setupStops.find((item) => item.id === stopId);
     if (stop) return stop.name;
@@ -153,8 +161,11 @@ export function enrollmentDtoToListItem(
   const route = routesById.get(dto.routeId);
   return {
     id: dto.id,
+    studentId: dto.studentId,
     studentName: student?.name ?? shortRef(dto.studentId, "Student"),
     studentClass: student?.grade ?? "—",
+    classLabel: student?.classLabel ?? null,
+    sectionLabel: student?.sectionLabel ?? null,
     routeName: route?.name ?? shortRef(dto.routeId, "Route"),
     pickupStopName: route ? stopNameById([route], dto.pickupStopId) : shortRef(dto.pickupStopId, "Stop"),
     dropStopName: route ? stopNameById([route], dto.dropStopId) : shortRef(dto.dropStopId, "Stop"),

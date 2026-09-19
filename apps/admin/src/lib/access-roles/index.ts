@@ -10,6 +10,8 @@ export type {
 } from "./types";
 
 export {
+  completeStaffPasswordReset,
+  completeStaffPinReset,
   createAccessAssignee,
   createAccessRole,
   deleteAccessAssignee,
@@ -19,11 +21,19 @@ export {
   listAccessRoles,
   listStaffLoginInstitutes,
   requestStaffLoginOtp,
+  requestStaffPasswordResetOtp,
+  requestStaffPinResetOtp,
   resolveStaffLoginMode,
   updateAccessAssignee,
   updateAccessRole,
+  verifyStaffChannelOtp,
   verifyStaffLogin,
+  verifyStaffLoginFirebasePhone,
   verifyStaffPasswordLogin,
+  verifyStaffPasswordResetFirebasePhone,
+  verifyStaffPasswordResetOtp,
+  verifyStaffPinResetFirebasePhone,
+  verifyStaffPinResetOtp,
 } from "./api";
 
 export type { StaffLoginInstituteDto } from "./api";

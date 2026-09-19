@@ -31,8 +31,8 @@ export function HomeFeatures() {
       </Grid>
       <div className="mt-8">
         <CTAButton asChild variant="secondary">
-          <Link to="/features" search={{}}>
-            See the full capability map
+          <Link to="/modules">
+            Browse all modules
           </Link>
         </CTAButton>
       </div>

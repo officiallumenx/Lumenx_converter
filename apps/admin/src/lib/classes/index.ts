@@ -29,14 +29,18 @@ export {
 } from "./mutations";
 export {
   classLabelForSection,
+  compareClassListItems,
   sectionDtoToDetailItem,
   sectionDtoToListItem,
   sectionsToListItems,
+  sortClassListItems,
 } from "./map";
 export { buildSectionEnrichment, type SectionEnrichment } from "./enrich";
 export {
   loadClassesList,
   loadSectionDetail,
+  peekClassesListCache,
+  invalidateClassesListCache,
   type ClassesListState,
   type ClassesListStatus,
   type SectionDetailState,

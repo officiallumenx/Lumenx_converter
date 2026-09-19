@@ -17,13 +17,25 @@ import {
 } from "./repository.js";
 import type {
   CreateStudentInput,
+  CreateStudentResult,
   ListStudentsFilter,
   StudentDto,
   StudentGuardianDto,
   StudentRow,
   UpdateStudentInput,
 } from "./types.js";
-import { findParentById, listLinksForStudent } from "../parents/repository.js";
+import { canonicalPhoneDigits } from "../identity/phone.js";
+import {
+  createGuardianLinkForActor,
+  createParentForActor,
+} from "../parents/service.js";
+import {
+  findParentById,
+  findParentByPhoneInInstitute,
+  listLinksForStudent,
+  updateParentFields,
+} from "../parents/repository.js";
+import type { GuardianRelationship } from "../parents/types.js";
 
 export const STUDENT_STAFF_WRITE_ROLES = [
   "institute_admin",
@@ -159,11 +171,75 @@ export async function getStudentForActor(
   return toStudentDto(row);
 }
 
+async function linkOrCreateParentForStudent(
+  admin: SupabaseClient,
+  actor: Actor,
+  instituteId: string,
+  studentId: string,
+  parentInput: NonNullable<CreateStudentInput["parent"]>,
+  fallbackAddress: string,
+): Promise<string> {
+  const name = parentInput.name.trim();
+  const phone = canonicalPhoneDigits(parentInput.phone);
+  if (!name) {
+    throw AppError.validation("parent name is required", {
+      parent_name: ["Required"],
+    });
+  }
+  if (!phone) {
+    throw AppError.validation("parent phone must contain exactly 10 digits", {
+      parent_phone: ["Invalid"],
+    });
+  }
+
+  const relationship: GuardianRelationship =
+    parentInput.relationship ?? "guardian";
+  const address =
+    parentInput.address?.trim() || fallbackAddress.trim() || null;
+
+  const existing = await findParentByPhoneInInstitute(
+    admin,
+    phone,
+    instituteId,
+  );
+
+  if (existing) {
+    // Same phone → sibling: link this student to the existing parent.
+    await createGuardianLinkForActor(admin, actor, existing.id, {
+      studentId,
+      relationship,
+      isPrimary: true,
+      isEmergencyContact: true,
+    });
+    // Backfill parent address when the guardian row was created without one.
+    if (address && !existing.address?.trim()) {
+      await updateParentFields(admin, existing.id, { address });
+    }
+    return existing.id;
+  }
+
+  const parent = await createParentForActor(admin, actor, {
+    instituteId,
+    name,
+    phone,
+    address,
+    initialLinks: [
+      {
+        studentId,
+        relationship,
+        isPrimary: true,
+        isEmergencyContact: true,
+      },
+    ],
+  });
+  return parent.id;
+}
+
 export async function createStudentForActor(
   admin: SupabaseClient,
   actor: Actor,
   input: CreateStudentInput,
-): Promise<StudentDto> {
+): Promise<CreateStudentResult> {
   const instituteId = requireInstituteId(actor, input.instituteId);
   assertStaffWriter(actor, instituteId);
 
@@ -187,7 +263,21 @@ export async function createStudentForActor(
     surname,
     displayName,
   });
-  return toStudentDto(row);
+  const student = toStudentDto(row);
+
+  if (!input.parent) {
+    return student;
+  }
+
+  const parentId = await linkOrCreateParentForStudent(
+    admin,
+    actor,
+    instituteId,
+    student.id,
+    input.parent,
+    input.address,
+  );
+  return { ...student, parentId };
 }
 
 export async function updateStudentForActor(

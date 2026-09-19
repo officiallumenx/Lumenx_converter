@@ -1,5 +1,5 @@
-import { forwardRef, useEffect, useRef, useState } from "react";
-import { ArrowLeft, Eye, EyeOff, Lock } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import {
   Button,
   Dialog,
@@ -7,19 +7,13 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
-  InputOTP,
-  InputOTPGroup,
-  InputOTPSlot,
 } from "@lumenx/ui";
-import { DEMO_CONNECT_OTP, DEMO_CONNECT_PASSWORD } from "@lumenx/auth";
 import type { Role } from "@lumenx/types";
 import { appLockStore } from "@/lib/app-lock-store";
-import { attemptStudentPassword } from "@/lib/student-auth-store";
 import { toast } from "sonner";
 
-type ForgotStep = "password" | "otp" | "newPin" | "confirmPin" | "verifyPin";
-/** Current App Lock PIN → OTP → New PIN → Confirm */
-type ChangeStep = "oldPin" | "otp" | "newPin" | "confirmPin";
+/** Current App Lock PIN → New PIN → Confirm */
+type ChangeStep = "oldPin" | "newPin" | "confirmPin";
 
 function PinField({
   label,
@@ -64,127 +58,6 @@ function PinField({
   );
 }
 
-function PinFieldPair({
-  pin,
-  confirmPin,
-  onPin,
-  onConfirm,
-  pinLabel = "New PIN",
-  confirmLabel = "Re-enter PIN",
-}: {
-  pin: string;
-  confirmPin: string;
-  onPin: (v: string) => void;
-  onConfirm: (v: string) => void;
-  pinLabel?: string;
-  confirmLabel?: string;
-}) {
-  return (
-    <div className="space-y-3">
-      <PinField label={pinLabel} value={pin} onChange={onPin} autoFocus />
-      <PinField label={confirmLabel} value={confirmPin} onChange={onConfirm} />
-    </div>
-  );
-}
-
-const PasswordField = forwardRef<
-  HTMLInputElement,
-  {
-    value: string;
-    onChange: (v: string) => void;
-    autoFocus?: boolean;
-  }
->(function PasswordField({ value, onChange, autoFocus }, ref) {
-  const [visible, setVisible] = useState(false);
-  return (
-    <div className="space-y-2">
-      <label className="text-sm font-medium">Account password</label>
-      <div className="relative">
-        <Lock className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          ref={ref}
-          type={visible ? "text" : "password"}
-          autoComplete="current-password"
-          autoFocus={autoFocus}
-          placeholder="Your login password"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="h-12 rounded-xl pl-10 pr-10 text-base"
-        />
-        <button
-          type="button"
-          onClick={() => setVisible((v) => !v)}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-          aria-label={visible ? "Hide password" : "Show password"}
-        >
-          {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-        </button>
-      </div>
-      <p className="text-[11px] text-muted-foreground">
-        Demo: <span className="font-mono">{DEMO_CONNECT_PASSWORD}</span>
-      </p>
-    </div>
-  );
-});
-
-function OtpBlock({
-  otp,
-  onChange,
-  onVerify,
-  loading,
-  label = "Verify OTP",
-}: {
-  otp: string;
-  onChange: (v: string) => void;
-  onVerify: () => void;
-  loading: boolean;
-  label?: string;
-}) {
-  return (
-    <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        Enter the 6-digit code sent to your registered mobile number.
-      </p>
-      <div className="flex justify-center">
-        <InputOTP maxLength={6} value={otp} onChange={onChange} autoFocus>
-          <InputOTPGroup>
-            {[0, 1, 2, 3, 4, 5].map((i) => (
-              <InputOTPSlot key={i} index={i} className="size-11 rounded-xl" />
-            ))}
-          </InputOTPGroup>
-        </InputOTP>
-      </div>
-      <p className="text-[11px] text-center text-muted-foreground">
-        Demo OTP: <span className="font-mono">{DEMO_CONNECT_OTP}</span>
-      </p>
-      <Button
-        className="w-full rounded-xl"
-        disabled={loading || otp.length !== 6}
-        onClick={onVerify}
-      >
-        {loading ? "Verifying…" : label}
-      </Button>
-    </div>
-  );
-}
-
-function verifyDemoOtp(otp: string): boolean {
-  return otp.trim() === DEMO_CONNECT_OTP;
-}
-
-function verifyAccountPassword(
-  phone: string,
-  instituteId: string | null,
-  role: Role | null,
-  password: string,
-): boolean {
-  if (role === "student" && instituteId) {
-    const result = attemptStudentPassword(phone, instituteId, password);
-    return result.ok;
-  }
-  return password === DEMO_CONNECT_PASSWORD;
-}
-
 function DialogActions({
   onBack,
   onNext,
@@ -214,14 +87,10 @@ function DialogActions({
   );
 }
 
-/** Forgot PIN: password → OTP → new PIN → re-enter → enter PIN → unlock */
+/** App Lock is device-local and cannot be recovered with account credentials. */
 export function AppLockForgotPinFlow({
   active,
   onClose,
-  onSuccess,
-  phone,
-  role,
-  instituteId,
 }: {
   active: boolean;
   onClose: () => void;
@@ -230,81 +99,7 @@ export function AppLockForgotPinFlow({
   role: Role | null;
   instituteId: string | null;
 }) {
-  const [step, setStep] = useState<ForgotStep>("password");
-  const [accountPassword, setAccountPassword] = useState("");
-  const [otp, setOtp] = useState("");
-  const [pin, setPin] = useState("");
-  const [confirmPin, setConfirmPin] = useState("");
-  const [verifyPin, setVerifyPin] = useState("");
-  const [loading, setLoading] = useState(false);
-  const passwordRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (!active) {
-      setStep("password");
-      setAccountPassword("");
-      setOtp("");
-      setPin("");
-      setConfirmPin("");
-      setVerifyPin("");
-      setLoading(false);
-      return;
-    }
-    // Defer focus so the sheet paints above the lock screen before the keyboard opens.
-    const t = window.setTimeout(() => passwordRef.current?.focus(), 120);
-    return () => window.clearTimeout(t);
-  }, [active]);
-
   if (!active) return null;
-
-  const verifyPassword = () => {
-    if (!accountPassword.trim()) return toast.error("Enter your account password");
-    if (!verifyAccountPassword(phone, instituteId, role, accountPassword)) {
-      return toast.error("Incorrect password");
-    }
-    setOtp("");
-    setStep("otp");
-    toast.success(`OTP sent (demo: ${DEMO_CONNECT_OTP})`);
-  };
-
-  const verifyOtp = () => {
-    if (!verifyDemoOtp(otp)) return toast.error(`Incorrect OTP (demo: ${DEMO_CONNECT_OTP})`);
-    setPin("");
-    setConfirmPin("");
-    setStep("newPin");
-  };
-
-  const continueNewPin = () => {
-    if (!/^\d{6}$/.test(pin)) return toast.error("Enter a 6-digit PIN");
-    setConfirmPin("");
-    setStep("confirmPin");
-  };
-
-  const continueConfirmPin = () => {
-    if (pin !== confirmPin) return toast.error("PINs do not match");
-    setVerifyPin("");
-    setStep("verifyPin");
-  };
-
-  const finishUnlock = () => {
-    if (verifyPin !== pin) return toast.error("PIN does not match what you set");
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      appLockStore.updatePin(pin);
-      toast.success("App lock PIN reset — you're in");
-      onClose();
-      onSuccess?.();
-    }, 280);
-  };
-
-  const stepTitle: Record<ForgotStep, string> = {
-    password: "Forgot app lock PIN",
-    otp: "Verify OTP",
-    newPin: "New PIN",
-    confirmPin: "Re-enter PIN",
-    verifyPin: "Confirm PIN",
-  };
 
   return (
     <div
@@ -313,76 +108,25 @@ export function AppLockForgotPinFlow({
       aria-modal="true"
       aria-labelledby="forgot-pin-title"
     >
-      <header className="flex items-center gap-2 border-b border-border px-4 py-3">
-        <button
-          type="button"
-          onClick={() => (step === "password" ? onClose() : setStep(
-            step === "otp" ? "password"
-            : step === "newPin" ? "otp"
-            : step === "confirmPin" ? "newPin"
-            : "confirmPin",
-          ))}
-          className="inline-flex size-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-          aria-label="Go back"
-        >
-          <ArrowLeft className="size-4" />
-        </button>
+      <header className="border-b border-border px-4 py-3">
         <h2 id="forgot-pin-title" className="text-sm font-semibold">
-          {stepTitle[step]}
+          Forgot app lock PIN
         </h2>
       </header>
 
       <main className="flex-1 overflow-y-auto overscroll-contain px-4 py-6">
         <div className="mx-auto w-full max-w-sm space-y-4">
-          {step === "password" && (
-            <>
-              <p className="text-sm text-muted-foreground">
-                Confirm your account password to reset your app lock PIN.
-              </p>
-              <PasswordField
-                ref={passwordRef}
-                value={accountPassword}
-                onChange={setAccountPassword}
-              />
-              <DialogActions
-                onBack={onClose}
-                backLabel="Cancel"
-                onNext={verifyPassword}
-                nextDisabled={!accountPassword}
-              />
-            </>
-          )}
-
-          {step === "otp" && (
-            <OtpBlock otp={otp} onChange={setOtp} onVerify={verifyOtp} loading={loading} label="Continue" />
-          )}
-
-          {step === "newPin" && (
-            <>
-              <PinField label="New PIN" value={pin} onChange={setPin} autoFocus />
-              <DialogActions onNext={continueNewPin} nextDisabled={pin.length !== 6} />
-            </>
-          )}
-
-          {step === "confirmPin" && (
-            <>
-              <PinField label="Re-enter PIN" value={confirmPin} onChange={setConfirmPin} autoFocus />
-              <DialogActions onNext={continueConfirmPin} nextDisabled={confirmPin.length !== 6} />
-            </>
-          )}
-
-          {step === "verifyPin" && (
-            <>
-              <p className="text-sm text-muted-foreground">Enter your new PIN to unlock the app.</p>
-              <PinField label="Enter PIN" value={verifyPin} onChange={setVerifyPin} autoFocus />
-              <DialogActions
-                onNext={finishUnlock}
-                nextLabel="Unlock"
-                nextDisabled={verifyPin.length !== 6}
-                loading={loading}
-              />
-            </>
-          )}
+          <p className="text-sm text-muted-foreground">
+            App Lock protects only this device. Your account Login PIN and mobile verification
+            cannot unlock or reset it.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Close Connect and clear this app&apos;s local data to remove the device lock, then sign
+            in again. This also removes locally cached preferences.
+          </p>
+          <Button className="w-full rounded-xl" onClick={onClose}>
+            Back
+          </Button>
         </div>
       </main>
     </div>
@@ -410,7 +154,7 @@ export function AppLockForgotPinDialog(props: {
   );
 }
 
-/** Change PIN: current App Lock PIN → OTP → new PIN → confirm */
+/** Change PIN: current App Lock PIN → new PIN → confirm */
 export function AppLockChangePinDialog({
   open,
   onOpenChange,
@@ -422,8 +166,6 @@ export function AppLockChangePinDialog({
   const [oldPin, setOldPin] = useState("");
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
-  const [otp, setOtp] = useState("");
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -431,20 +173,11 @@ export function AppLockChangePinDialog({
       setOldPin("");
       setNewPin("");
       setConfirmPin("");
-      setOtp("");
-      setLoading(false);
     }
   }, [open]);
 
   const verifyOld = () => {
     if (!appLockStore.verifyPin(oldPin)) return toast.error("Incorrect current PIN");
-    setOtp("");
-    setStep("otp");
-    toast.success(`OTP sent (demo: ${DEMO_CONNECT_OTP})`);
-  };
-
-  const verifyOtpStep = () => {
-    if (!verifyDemoOtp(otp)) return toast.error(`Incorrect OTP (demo: ${DEMO_CONNECT_OTP})`);
     setNewPin("");
     setConfirmPin("");
     setStep("newPin");
@@ -459,13 +192,9 @@ export function AppLockChangePinDialog({
 
   const finish = () => {
     if (newPin !== confirmPin) return toast.error("PINs do not match");
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      appLockStore.updatePin(newPin);
-      toast.success("App lock PIN changed");
-      onOpenChange(false);
-    }, 280);
+    appLockStore.updatePin(newPin);
+    toast.success("App lock PIN changed");
+    onOpenChange(false);
   };
 
   return (
@@ -487,21 +216,11 @@ export function AppLockChangePinDialog({
           </div>
         )}
 
-        {step === "otp" && (
-          <OtpBlock
-            otp={otp}
-            onChange={setOtp}
-            onVerify={verifyOtpStep}
-            loading={false}
-            label="Verify OTP"
-          />
-        )}
-
         {step === "newPin" && (
           <div className="space-y-4">
             <PinField label="New App Lock PIN" value={newPin} onChange={setNewPin} autoFocus />
             <DialogActions
-              onBack={() => setStep("otp")}
+              onBack={() => setStep("oldPin")}
               onNext={continueNewPin}
               nextDisabled={newPin.length !== 6}
             />
@@ -519,8 +238,8 @@ export function AppLockChangePinDialog({
             <DialogActions
               onBack={() => setStep("newPin")}
               onNext={finish}
-              nextDisabled={loading || confirmPin.length !== 6}
-              nextLabel={loading ? "Saving…" : "Save PIN"}
+              nextDisabled={confirmPin.length !== 6}
+              nextLabel="Save PIN"
             />
           </div>
         )}

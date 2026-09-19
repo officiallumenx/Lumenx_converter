@@ -5,27 +5,44 @@ import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import {
-  existingEnrollmentsForVehicle,
-  newEnrollmentsForVehicle,
-  TRANSPORT_OPS_CHANGED_EVENT,
-  type TransportBusEnrollment,
-} from "@lumenx/utils";
-import { cn } from "@lumenx/ui";
+  listApiExistingEnrollmentsForVehicle,
+  listApiNewEnrollmentsForVehicle,
+  subscribeApiDriverRoster,
+  type ApiRosterEnrollment,
+} from "@/lib/transport/api-roster";
 import { studentIdsAssignedElsewhere } from "@/lib/transport/route-setup/store";
+import { cn } from "@lumenx/ui";
 
 type StudentMode = "new" | "existing";
+
+type PickerStudent = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  studentClass: string;
+  vehicleNumber: string;
+  stopName: string | null;
+};
 
 type Props = {
   selectedIds: string[];
   onChange: (ids: string[]) => void;
   disabled?: boolean;
-  /** Admin vehicle id for this driver's bus */
   vehicleId: string;
-  /** Display bus number */
   busNumber?: string;
-  /** When editing a stop, exclude it from duplicate checks */
   excludeStopId?: string;
 };
+
+function fromApi(row: ApiRosterEnrollment): PickerStudent {
+  return {
+    id: row.id,
+    studentId: row.studentId,
+    studentName: row.studentName,
+    studentClass: row.studentClass,
+    vehicleNumber: row.vehicleNumber,
+    stopName: row.stopName,
+  };
+}
 
 /**
  * Student picker from Admin bus enrollments — search, select, remove, duplicate guard.
@@ -42,26 +59,20 @@ export function StudentAssignmentPicker({
   const [query, setQuery] = useState("");
   const [tick, setTick] = useState(0);
 
-  useEffect(() => {
-    const refresh = () => setTick((n) => n + 1);
-    window.addEventListener(TRANSPORT_OPS_CHANGED_EVENT, refresh);
-    window.addEventListener("storage", refresh);
-    return () => {
-      window.removeEventListener(TRANSPORT_OPS_CHANGED_EVENT, refresh);
-      window.removeEventListener("storage", refresh);
-    };
-  }, []);
+  useEffect(() => subscribeApiDriverRoster(() => setTick((n) => n + 1)), []);
 
   const occupiedElsewhere = useMemo(() => {
     void tick;
     return studentIdsAssignedElsewhere(excludeStopId);
   }, [excludeStopId, tick]);
 
-  const list = useMemo((): TransportBusEnrollment[] => {
+  const list = useMemo((): PickerStudent[] => {
     void tick;
-    return mode === "new"
-      ? newEnrollmentsForVehicle(vehicleId)
-      : existingEnrollmentsForVehicle(vehicleId);
+    const rows =
+      mode === "new"
+        ? listApiNewEnrollmentsForVehicle(vehicleId)
+        : listApiExistingEnrollmentsForVehicle(vehicleId);
+    return rows.map(fromApi);
   }, [mode, vehicleId, tick]);
 
   const filtered = useMemo(() => {
@@ -78,12 +89,13 @@ export function StudentAssignmentPicker({
   const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
 
   const selectedRows = useMemo(() => {
-    const byId = new Map(
-      [...newEnrollmentsForVehicle(vehicleId), ...existingEnrollmentsForVehicle(vehicleId)].map(
-        (s) => [s.studentId, s] as const,
-      ),
-    );
-    return selectedIds.map((id) => byId.get(id)).filter(Boolean) as TransportBusEnrollment[];
+    void tick;
+    const pool = [
+      ...listApiNewEnrollmentsForVehicle(vehicleId),
+      ...listApiExistingEnrollmentsForVehicle(vehicleId),
+    ].map(fromApi);
+    const byId = new Map(pool.map((s) => [s.studentId, s] as const));
+    return selectedIds.map((id) => byId.get(id)).filter(Boolean) as PickerStudent[];
   }, [selectedIds, vehicleId, tick]);
 
   const toggle = (id: string) => {

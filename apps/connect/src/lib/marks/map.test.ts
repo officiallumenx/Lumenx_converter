@@ -49,6 +49,8 @@ describe("connect marks map", () => {
       subjectId: "dd111111-1111-4111-8111-111111111111",
       subjectName: "Mathematics",
       maxMarks: 100,
+      internalMax: 20,
+      externalMax: 80,
       status: "pending",
       rows: [
         {
@@ -57,12 +59,16 @@ describe("connect marks map", () => {
           studentName: "Aarav",
           rollNo: "12",
           marks: 80,
+          internalMarks: 16,
+          externalMarks: 64,
         },
       ],
     };
 
     const rows = teacherSheetToConnectRows(sheet);
     expect(rows[0]?.marks).toBe(80);
+    expect(rows[0]?.internalMarks).toBe(16);
+    expect(rows[0]?.externalMarks).toBe(64);
     expect(rows[0]?.maxMarks).toBe(100);
   });
 });

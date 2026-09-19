@@ -1,10 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-  Sparkles, ArrowRight, BarChart3, Users, ShieldCheck,
+  ArrowRight, BarChart3, Users, ShieldCheck,
   GraduationCap, CalendarRange, FileBarChart, Award,
 } from "lucide-react";
 import { AuthButton } from "@/auth/components/AuthButton";
 import { IconChip } from "@/components/IconChip";
+import { LumenXAdminLogo } from "@/components/LumenXAdminLogo";
 import { RegistrationOnboardingCallout } from "@/components/registration/RegistrationOnboardingCallout";
 
 export const Route = createFileRoute("/welcome")({
@@ -40,10 +41,7 @@ function WelcomePage() {
       {/* ── Top nav ──────────────────────────────────────────── */}
       <header className="lx-auth-top-bar relative z-10 flex items-center justify-between border-b border-border/50 backdrop-blur-sm">
         <div className="flex items-center gap-2.5">
-          <div className="size-8 rounded-lg bg-primary flex items-center justify-center shadow-glow">
-            <Sparkles className="size-4 text-primary-foreground" />
-          </div>
-          <span className="font-bold tracking-tight text-sm">LUMENX ADMIN</span>
+          <LumenXAdminLogo size="sm" className="max-h-9" />
         </div>
         <div className="flex items-center gap-2">
           <Link to="/login">

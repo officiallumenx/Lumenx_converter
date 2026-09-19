@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AppError } from "../../errors/app-error.js";
+import { ensureDbOk } from "../../db/errors.js";
 import type { Actor } from "../../auth/types.js";
 import {
   assertInstituteAccess,
@@ -8,19 +9,41 @@ import {
 } from "../../authorization/index.js";
 import {
   findTeacherById,
+  findTeacherByPhoneInInstitute,
   insertTeacher,
   listTeachers,
   softDeleteTeacher,
   toTeacherUpdatePatch,
   updateTeacherFields,
 } from "./repository.js";
+import {
+  findClassById,
+  findSectionById,
+  findSubjectById,
+  listSectionsByClassTeacherId,
+  updateSectionFields,
+} from "../academics/repository.js";
+import {
+  findActiveAssignmentBySectionSubject,
+  insertTeacherAssignment,
+  softDeleteTeacherAssignmentsForTeacher,
+} from "../timetable/repository.js";
 import type {
   CreateTeacherInput,
+  CreateTeacherResult,
   ListTeachersFilter,
   TeacherDto,
   TeacherRow,
   UpdateTeacherInput,
 } from "./types.js";
+
+export type UpdateTeacherResult = TeacherDto & {
+  classTeacherSectionIds?: string[];
+};
+import { canonicalPhoneDigits } from "../identity/phone.js";
+import { ensureTeacherConnectIdentity } from "../auth-credentials/connect-login.js";
+import { isOtpDemoMode } from "../otp-delivery/index.js";
+import { loadEnv } from "../../config/env.js";
 
 export const TEACHER_STAFF_WRITE_ROLES = [
   "institute_admin",
@@ -137,7 +160,7 @@ export async function createTeacherForActor(
   admin: SupabaseClient,
   actor: Actor,
   input: CreateTeacherInput,
-): Promise<TeacherDto> {
+): Promise<CreateTeacherResult> {
   const instituteId = requireInstituteId(actor, input.instituteId);
   assertStaffWriter(actor, instituteId);
 
@@ -149,14 +172,189 @@ export async function createTeacherForActor(
       department: !department ? ["Required"] : undefined,
     });
   }
+  const phone = canonicalPhoneDigits(input.phone ?? "");
+  if (!phone) {
+    throw AppError.validation("A valid 10-digit mobile number is required", {
+      phone: ["Invalid"],
+    });
+  }
+
+  const phoneOwner = await findTeacherByPhoneInInstitute(
+    admin,
+    phone,
+    instituteId,
+  );
+  if (phoneOwner) {
+    throw AppError.conflict(
+      "A teacher with this mobile number already exists in this institute",
+    );
+  }
+
+  const assignments = input.assignments ?? [];
+  const classTeacherSectionIds = [
+    ...new Set((input.classTeacherSectionIds ?? []).filter(Boolean)),
+  ];
+
+  // Deduplicate assignment pairs in the request.
+  const uniqueAssignments = new Map<
+    string,
+    { sectionId: string; subjectId: string }
+  >();
+  for (const link of assignments) {
+    uniqueAssignments.set(`${link.sectionId}:${link.subjectId}`, {
+      sectionId: link.sectionId,
+      subjectId: link.subjectId,
+    });
+  }
+
+  type ResolvedAssignment = {
+    sectionId: string;
+    subjectId: string;
+    academicYearId: string;
+    classId: string;
+    sectionLabel: string;
+    subjectLabel: string;
+  };
+  const resolvedAssignments: ResolvedAssignment[] = [];
+  const classTeacherLabels: string[] = [];
+  const sectionCache = new Map<
+    string,
+    NonNullable<Awaited<ReturnType<typeof findSectionById>>>
+  >();
+
+  async function loadSection(sectionId: string) {
+    const cached = sectionCache.get(sectionId);
+    if (cached) return cached;
+    const section = await findSectionById(admin, sectionId);
+    if (!section || section.institute_id !== instituteId) {
+      throw AppError.validation("Referenced resource is invalid", {
+        section_id: [`Section not found: ${sectionId}`],
+      });
+    }
+    sectionCache.set(sectionId, section);
+    return section;
+  }
+
+  for (const sectionId of classTeacherSectionIds) {
+    const section = await loadSection(sectionId);
+    const klass = await findClassById(admin, section.class_id);
+    const classCode = klass?.code?.trim() || klass?.name?.trim() || "Class";
+    classTeacherLabels.push(`${classCode}-${section.code}`);
+  }
+
+  for (const link of uniqueAssignments.values()) {
+    const section = await loadSection(link.sectionId);
+    const subject = await findSubjectById(admin, link.subjectId);
+    if (!subject || subject.institute_id !== instituteId) {
+      throw AppError.validation("Referenced resource is invalid", {
+        subject_id: [`Subject not found: ${link.subjectId}`],
+      });
+    }
+
+    const existing = await findActiveAssignmentBySectionSubject(admin, {
+      sectionId: section.id,
+      subjectId: subject.id,
+    });
+    if (existing) {
+      const klass = await findClassById(admin, section.class_id);
+      const classCode = klass?.code?.trim() || klass?.name?.trim() || "Class";
+      const subjectLabel =
+        subject.name?.trim() || subject.code?.trim() || "Subject";
+      throw AppError.conflict(
+        `${subjectLabel} is already assigned to another teacher in ${classCode}-${section.code}`,
+      );
+    }
+
+    const klass = await findClassById(admin, section.class_id);
+    const classCode = klass?.code?.trim() || klass?.name?.trim() || "Class";
+    resolvedAssignments.push({
+      sectionId: section.id,
+      subjectId: subject.id,
+      academicYearId: section.academic_year_id,
+      classId: section.class_id,
+      sectionLabel: `${classCode}-${section.code}`,
+      subjectLabel: subject.name?.trim() || subject.code?.trim() || "Subject",
+    });
+  }
+
+  const assignedSectionLabels = [
+    ...new Set([
+      ...(input.assignedSectionLabels ?? []).map((l) => l.trim()).filter(Boolean),
+      ...classTeacherLabels,
+      ...resolvedAssignments.map((a) => a.sectionLabel),
+    ]),
+  ];
 
   const row = await insertTeacher(admin, {
     ...input,
     instituteId,
     displayName,
     department,
+    phone,
+    assignedSectionLabels:
+      assignedSectionLabels.length > 0
+        ? assignedSectionLabels
+        : input.assignedSectionLabels,
   });
-  return toTeacherDto(row);
+
+  const assignmentIds: string[] = [];
+  const classTeacherRollback: Array<{
+    sectionId: string;
+    previousTeacherId: string | null;
+  }> = [];
+  try {
+    for (const link of resolvedAssignments) {
+      const created = await insertTeacherAssignment(admin, {
+        instituteId,
+        academicYearId: link.academicYearId,
+        classId: link.classId,
+        sectionId: link.sectionId,
+        subjectId: link.subjectId,
+        teacherId: row.id,
+        status: "active",
+      });
+      assignmentIds.push(created.id);
+    }
+
+    for (const sectionId of classTeacherSectionIds) {
+      const section = await loadSection(sectionId);
+      classTeacherRollback.push({
+        sectionId,
+        previousTeacherId: section.class_teacher_id ?? null,
+      });
+      await updateSectionFields(admin, sectionId, {
+        class_teacher_id: row.id,
+      });
+    }
+  } catch (error) {
+    // Roll back partial create so Admin does not leave an orphan teacher.
+    await softDeleteTeacherAssignmentsForTeacher(admin, row.id).catch(
+      () => undefined,
+    );
+    for (const item of classTeacherRollback) {
+      await updateSectionFields(admin, item.sectionId, {
+        class_teacher_id: item.previousTeacherId,
+      }).catch(() => undefined);
+    }
+    await softDeleteTeacher(admin, row.id).catch(() => undefined);
+    throw error;
+  }
+
+  // Provision Connect login identity (user_profile + membership) so the teacher
+  // can sign in and /me exposes identities.teachers for My Classes / Students.
+  try {
+    await ensureTeacherConnectIdentity(admin, instituteId, phone);
+  } catch {
+    // Directory + assignments already committed; login can still be repaired via
+    // Admin credential reset. Do not roll back the teacher row.
+  }
+
+  const linked = await findTeacherById(admin, row.id);
+  return {
+    ...toTeacherDto(linked ?? row),
+    assignmentIds,
+    classTeacherSectionIds,
+  };
 }
 
 export async function updateTeacherForActor(
@@ -164,7 +362,7 @@ export async function updateTeacherForActor(
   actor: Actor,
   teacherId: string,
   patch: UpdateTeacherInput,
-): Promise<TeacherDto> {
+): Promise<UpdateTeacherResult> {
   const existing = await findTeacherById(admin, teacherId);
   if (!existing) throw AppError.notFound("Teacher not found");
 
@@ -178,13 +376,57 @@ export async function updateTeacherForActor(
     fieldPatch.department = fieldPatch.department.trim();
   }
 
-  if (Object.keys(fieldPatch).length === 0) {
+  const hasClassTeacherUpdate = patch.classTeacherSectionIds !== undefined;
+  if (Object.keys(fieldPatch).length === 0 && !hasClassTeacherUpdate) {
     return toTeacherDto(existing);
   }
 
-  const updated = await updateTeacherFields(admin, teacherId, fieldPatch);
-  if (!updated) throw AppError.notFound("Teacher not found");
-  return toTeacherDto(updated);
+  let row = existing;
+  if (Object.keys(fieldPatch).length > 0) {
+    const updated = await updateTeacherFields(admin, teacherId, fieldPatch);
+    if (!updated) throw AppError.notFound("Teacher not found");
+    row = updated;
+  }
+
+  let classTeacherSectionIds: string[] | undefined;
+  if (hasClassTeacherUpdate) {
+    const desired = [
+      ...new Set((patch.classTeacherSectionIds ?? []).filter(Boolean)),
+    ];
+    const current = await listSectionsByClassTeacherId(admin, {
+      instituteId: existing.institute_id,
+      teacherId,
+    });
+    const desiredSet = new Set(desired);
+
+    for (const section of current) {
+      if (!desiredSet.has(section.id)) {
+        await updateSectionFields(admin, section.id, {
+          class_teacher_id: null,
+        });
+      }
+    }
+
+    for (const sectionId of desired) {
+      const section = await findSectionById(admin, sectionId);
+      if (!section || section.institute_id !== existing.institute_id) {
+        throw AppError.validation("Referenced resource is invalid", {
+          section_id: [`Section not found: ${sectionId}`],
+        });
+      }
+      if (section.class_teacher_id !== teacherId) {
+        await updateSectionFields(admin, sectionId, {
+          class_teacher_id: teacherId,
+        });
+      }
+    }
+    classTeacherSectionIds = desired;
+  }
+
+  return {
+    ...toTeacherDto(row),
+    ...(classTeacherSectionIds !== undefined ? { classTeacherSectionIds } : {}),
+  };
 }
 
 export async function deleteTeacherForActor(
@@ -213,4 +455,165 @@ export async function deleteTeacherForActor(
     title: existing.display_name?.trim() || "Teacher",
     subtitle: existing.employee_id,
   });
+}
+
+export type ResetTeacherCredentialsResult = {
+  ok: true;
+  pinCleared: boolean;
+  email: string | null;
+  delivery: "demo" | "email" | "pin_only";
+  /** Only returned in OTP demo mode when a recovery link was generated. */
+  recoveryLink: string | null;
+};
+
+function isDeliverableEmail(value: string | null | undefined): value is string {
+  const email = value?.trim().toLowerCase() ?? "";
+  if (!email || !email.includes("@")) return false;
+  if (
+    email.endsWith(".invalid") ||
+    email.endsWith("@portal.lumenx.local") ||
+    email.endsWith("@portal.lumenx.internal") ||
+    email.endsWith("@connect.lumenx.invalid")
+  ) {
+    return false;
+  }
+  return true;
+}
+
+async function sendTeacherRecoveryEmail(
+  to: string,
+  recoveryLink: string,
+): Promise<boolean> {
+  const env = loadEnv();
+  if (env.OTP_EMAIL_PROVIDER !== "resend" || !env.RESEND_API_KEY || !env.OTP_EMAIL_FROM) {
+    return false;
+  }
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${env.RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: env.OTP_EMAIL_FROM,
+      to: [to],
+      subject: "LumenX password reset",
+      text: [
+        "Your institute admin requested a password reset for your LumenX account.",
+        "",
+        "Open this link to set a new password:",
+        recoveryLink,
+        "",
+        "If you did not expect this, contact your institute admin.",
+      ].join("\n"),
+    }),
+  });
+  return res.ok;
+}
+
+/**
+ * Admin-initiated credential reset for a teacher:
+ * - Clears Connect PIN so the next login requires a new PIN
+ * - Optionally emails a password recovery link when a real email is present
+ */
+export async function resetTeacherCredentialsForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  teacherId: string,
+): Promise<ResetTeacherCredentialsResult> {
+  const existing = await findTeacherById(admin, teacherId);
+  if (!existing) throw AppError.notFound("Teacher not found");
+
+  assertStaffWriter(actor, existing.institute_id);
+
+  let userId = existing.user_profile_id;
+  if (!userId) {
+    const phone = canonicalPhoneDigits(existing.phone ?? "");
+    if (!phone) {
+      throw AppError.validation(
+        "Teacher needs a phone number or linked login before credentials can be reset",
+        { phone: ["Required"] },
+      );
+    }
+    await ensureTeacherConnectIdentity(admin, existing.institute_id, phone);
+    const refreshed = await findTeacherById(admin, teacherId);
+    userId = refreshed?.user_profile_id ?? null;
+  }
+  if (!userId) {
+    throw AppError.conflict("Unable to resolve teacher login account");
+  }
+
+  const pinDelete = await admin
+    .from("connect_login_credential")
+    .delete()
+    .eq("user_profile_id", userId)
+    .eq("institute_id", existing.institute_id)
+    .eq("role", "teacher");
+  if (pinDelete.error) ensureDbOk(pinDelete);
+
+  const profileClear = await admin
+    .from("user_profile")
+    .update({
+      pin_hash: null,
+      pin_salt: null,
+      pin_set_at: null,
+      first_login_completed_at: null,
+    })
+    .eq("id", userId)
+    .is("deleted_at", null);
+  if (profileClear.error) ensureDbOk(profileClear);
+
+  const email = isDeliverableEmail(existing.email)
+    ? existing.email.trim().toLowerCase()
+    : null;
+
+  let recoveryLink: string | null = null;
+  let delivery: ResetTeacherCredentialsResult["delivery"] = "pin_only";
+
+  if (email) {
+    const { data: authUser } = await admin.auth.admin.getUserById(userId);
+    const authEmail = authUser.user?.email?.trim().toLowerCase() ?? null;
+    const linkEmail =
+      isDeliverableEmail(authEmail) ? authEmail : email;
+
+    if (
+      authEmail &&
+      authEmail !== linkEmail &&
+      (authEmail.endsWith(".invalid") || authEmail.includes("@portal.lumenx."))
+    ) {
+      const { error: emailError } = await admin.auth.admin.updateUserById(userId, {
+        email: linkEmail,
+      });
+      if (emailError) {
+        throw AppError.validation(
+          emailError.message || "Unable to update login email for password reset",
+        );
+      }
+    }
+
+    const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
+      type: "recovery",
+      email: linkEmail,
+    });
+    if (!linkError) {
+      const actionLink =
+        (linkData.properties as { action_link?: string } | null)?.action_link ??
+        null;
+      if (isOtpDemoMode()) {
+        delivery = "demo";
+        recoveryLink = actionLink;
+      } else if (actionLink) {
+        const sent = await sendTeacherRecoveryEmail(linkEmail, actionLink);
+        delivery = sent ? "email" : "pin_only";
+      }
+    }
+  }
+
+  return {
+    ok: true,
+    pinCleared: true,
+    email,
+    delivery,
+    recoveryLink,
+  };
 }

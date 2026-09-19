@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
 import {
   Card,
@@ -9,8 +10,6 @@ import {
   SearchInput,
   PageToolbar,
   ToolbarGroup,
-  ToolbarSpacer,
-  ToolbarMeta,
   DataTable,
   EmptyState,
   Th as TableTh,
@@ -35,20 +34,24 @@ import {
   Upload,
   Users,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
-  loadStudentsList,
   resolveStudentsListView,
-  shouldCommitStudentsLoad,
   createStudent as createStudentApi,
   deleteStudent as deleteStudentApi,
+  invalidateStudentsListCache,
   type StudentListItem,
-  type StudentsListStatus,
 } from "@/lib/students";
+import {
+  useStudentsListQuery,
+  useCatalogClassesQuery,
+  useCatalogYearsQuery,
+  adminQueryRoots,
+} from "@/lib/admin-queries";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { syncSubscriptionHeadcountAfterStudentChange } from "@/lib/subscription-headcount";
 import { useAuth } from "@/auth/AuthContext";
@@ -68,8 +71,23 @@ import {
   type DepartmentFilter,
   type SectionFilter,
 } from "@/lib/class-section-filter";
-import { StudentCreateDialog } from "@/components/students/StudentCreateDialog";
+import {
+  StudentCreateDialog,
+  type StudentClassOption,
+} from "@/components/students/StudentCreateDialog";
 import { StudentBulkImportDialog } from "@/components/students/StudentBulkImportDialog";
+import { listClassesCatalog } from "@/lib/classes";
+import { createEnrollment } from "@/lib/enrollments";
+import {
+  mapImportGender,
+  resolveStudentImportPlacement,
+} from "@/lib/students/bulk-import";
+import {
+  buildStudentClassOptions,
+  buildStudentSectionOptions,
+  resolveStudentCreatePlacement,
+} from "@/lib/students/class-options";
+import type { StudentSectionOption } from "@/components/students/StudentCreateDialog";
 import { PeopleDirectoryCard } from "@/components/people/PeopleDirectoryCard";
 import {
   downloadStudentDirectoryCsv,
@@ -80,12 +98,17 @@ import {
   saveStudentDirectory,
   splitImportRowsByDuplicate,
   studentFromDraft,
+  STUDENTS_CHANGED_EVENT,
   type StudentAccessStatus,
   type StudentDirectoryRecord,
   type StudentDraft,
   type StudentGender,
   type StudentImportRow,
 } from "@/lib/student-directory-store";
+import {
+  ADMIN_TENANT_CHANGED_EVENT,
+  subscribeAdminTenant,
+} from "@/lib/admin-tenant";
 
 export const Route = createFileRoute("/students/")({
   head: () => ({ meta: [{ title: "Students — LumenX Admin" }] }),
@@ -98,6 +121,7 @@ function StudentsPage() {
   const notify = useAdminToast();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
   const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
@@ -111,29 +135,6 @@ function StudentsPage() {
   const [rows, setRows] = useState<StudentDirectoryRecord[]>(() =>
     apiMode ? [] : loadStudentDirectory(),
   );
-  const [apiItems, setApiItems] = useState<StudentListItem[]>([]);
-  const [listStatus, setListStatus] = useState<StudentsListStatus>(() =>
-    apiMode ? "loading" : "demo",
-  );
-  const [listError, setListError] = useState<string | null>(null);
-  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
-    string | null
-  >(null);
-  const [reloadKey, setReloadKey] = useState(0);
-  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
-  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
-
-  const listView = resolveStudentsListView({
-    apiMode,
-    instituteStatus: instituteCtx.status,
-    activeInstituteId: instituteCtx.activeInstituteId,
-    resolvedForInstituteId,
-    storedItems: apiItems,
-    storedStatus: listStatus,
-    storedErrorMessage: listError,
-    instituteErrorMessage: instituteCtx.errorMessage,
-  });
-  const displayItems: StudentRow[] = apiMode ? listView.items : rows;
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState<"all" | StudentStatus>("all");
   const [sort, setSort] = useState<{ key: AdminStudentSortKey; dir: "asc" | "desc" }>({
@@ -142,6 +143,7 @@ function StudentsPage() {
   });
   const [createOpen, setCreateOpen] = useState(false);
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
+  const [bulkImporting, setBulkImporting] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [classFilter, setClassFilter] = useState<ClassFilter>("all");
   const [sectionFilter, setSectionFilter] = useState<SectionFilter>("all");
@@ -150,6 +152,89 @@ function StudentsPage() {
   const [pendingDelete, setPendingDelete] = useState<StudentRow | null>(null);
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 25;
+
+  const listEnabled =
+    apiMode &&
+    instituteCtx.status === "ready" &&
+    Boolean(instituteCtx.activeInstituteId);
+  const listFilters = {
+    q: searchQuery.trim() || undefined,
+    status: filter !== "all" ? (filter as StudentStatus) : undefined,
+    classLabel: classFilter !== "all" ? classFilter : undefined,
+    sectionLabel: sectionFilter !== "all" ? sectionFilter : undefined,
+  };
+  const studentsQuery = useStudentsListQuery(
+    instituteCtx.activeInstituteId,
+    listFilters,
+    listEnabled,
+  );
+  const catalogEnabled = listEnabled;
+  const classesCatalogQuery = useCatalogClassesQuery(
+    instituteCtx.activeInstituteId,
+    catalogEnabled,
+  );
+  const yearsCatalogQuery = useCatalogYearsQuery(
+    instituteCtx.activeInstituteId,
+    catalogEnabled,
+  );
+
+  const apiItems = studentsQuery.data?.items ?? [];
+  const listStatus = studentsQuery.data?.status ?? (listEnabled ? "loading" : "needs_institute");
+  const listError = studentsQuery.data?.errorMessage ?? null;
+  const resolvedForInstituteId =
+    studentsQuery.data && instituteCtx.activeInstituteId
+      ? instituteCtx.activeInstituteId
+      : null;
+
+  const bumpStudentsReload = () => {
+    invalidateStudentsListCache(instituteCtx.activeInstituteId ?? undefined);
+    if (instituteCtx.activeInstituteId) {
+      void queryClient.invalidateQueries({
+        queryKey: [adminQueryRoots.students, instituteCtx.activeInstituteId],
+      });
+    }
+  };
+
+  const apiStudentClassOptions = useMemo((): StudentClassOption[] => {
+    const classes = classesCatalogQuery.data?.classes;
+    const sections = classesCatalogQuery.data?.sections;
+    const years = yearsCatalogQuery.data;
+    if (!classes || !sections || !years) return [];
+    const activeYearId =
+      years.find((item) => item.status === "active")?.id ?? null;
+    return buildStudentClassOptions({
+      classes,
+      sections,
+      activeAcademicYearId: activeYearId,
+    });
+  }, [classesCatalogQuery.data, yearsCatalogQuery.data]);
+
+  const apiStudentSectionOptions = useMemo((): StudentSectionOption[] => {
+    const classes = classesCatalogQuery.data?.classes;
+    const sections = classesCatalogQuery.data?.sections;
+    const years = yearsCatalogQuery.data;
+    if (!classes || !sections || !years) return [];
+    const activeYearId =
+      years.find((item) => item.status === "active")?.id ?? null;
+    return buildStudentSectionOptions({
+      classes,
+      sections,
+      activeAcademicYearId: activeYearId,
+    });
+  }, [classesCatalogQuery.data, yearsCatalogQuery.data]);
+
+  const listView = resolveStudentsListView({
+    apiMode,
+    instituteStatus: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+    resolvedForInstituteId,
+    storedItems: apiItems,
+    storedStatus:
+      studentsQuery.isLoading && !studentsQuery.data ? "loading" : listStatus,
+    storedErrorMessage: listError,
+    instituteErrorMessage: instituteCtx.errorMessage,
+  });
+  const displayItems: StudentRow[] = apiMode ? listView.items : rows;
 
   const persist = (next: StudentDirectoryRecord[]) => {
     setRows(next);
@@ -165,7 +250,7 @@ function StudentsPage() {
       void import("@/lib/students").then(({ updateStudent }) =>
         updateStudent(id, { accessStatus })
           .then(() => {
-            setReloadKey((k) => k + 1);
+            bumpStudentsReload();
             const label =
               accessStatus === "hold"
                 ? "held"
@@ -189,87 +274,47 @@ function StudentsPage() {
 
   useEffect(() => {
     if (apiMode) return;
-    const next = loadStudentDirectory();
-    setRows(next);
-    publishStudentIdCardSync(next);
+    const reload = () => {
+      const next = loadStudentDirectory();
+      setRows(next);
+      publishStudentIdCardSync(next);
+      // Keep Nexus operator headcount in sync with this institute's roster.
+      try {
+        syncSubscriptionHeadcountAfterStudentChange();
+      } catch {
+        // Headcount mirror must not block the directory UI.
+      }
+    };
+    reload();
     setClassFilter("all");
     setSectionFilter("all");
     setDepartmentFilter("all");
+    const onStudents = () => reload();
+    window.addEventListener(STUDENTS_CHANGED_EVENT, onStudents);
+    window.addEventListener(ADMIN_TENANT_CHANGED_EVENT, onStudents);
+    window.addEventListener("lumenx-demo-profile-change", onStudents);
+    const unsubTenant = subscribeAdminTenant(onStudents);
+    return () => {
+      window.removeEventListener(STUDENTS_CHANGED_EVENT, onStudents);
+      window.removeEventListener(ADMIN_TENANT_CHANGED_EVENT, onStudents);
+      window.removeEventListener("lumenx-demo-profile-change", onStudents);
+      unsubTenant();
+    };
   }, [apiMode, profileId, profile.academic]);
 
   useEffect(() => {
-    if (!apiMode) return;
-
-    if (instituteCtx.status === "loading") {
-      setApiItems([]);
-      setListStatus("loading");
-      setListError(null);
-      setResolvedForInstituteId(null);
-      return;
-    }
-
     if (
-      instituteCtx.status === "error" ||
-      instituteCtx.status === "forbidden"
+      (createOpen || bulkImportOpen) &&
+      (classesCatalogQuery.isError || yearsCatalogQuery.isError)
     ) {
-      setApiItems([]);
-      setListStatus(
-        instituteCtx.status === "forbidden" ? "forbidden" : "error",
-      );
-      setListError(instituteCtx.errorMessage);
-      setResolvedForInstituteId(null);
-      return;
+      notify("Could not load class and section options");
     }
-
-    if (
-      instituteCtx.status === "needs_selection" ||
-      instituteCtx.status === "empty" ||
-      !instituteCtx.activeInstituteId
-    ) {
-      setApiItems([]);
-      setListStatus("needs_institute");
-      setListError(null);
-      setResolvedForInstituteId(null);
-      return;
-    }
-
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setListStatus("loading");
-    setListError(null);
-    void loadStudentsList(requestInstituteId, {
-      q: searchQuery.trim() || undefined,
-      status: filter !== "all" ? (filter as StudentStatus) : undefined,
-      classLabel: classFilter !== "all" ? classFilter : undefined,
-      sectionLabel: sectionFilter !== "all" ? sectionFilter : undefined,
-    }).then((next) => {
-      if (
-        !shouldCommitStudentsLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setApiItems(next.items);
-      setListStatus(next.status);
-      setListError(next.errorMessage);
-      setResolvedForInstituteId(requestInstituteId);
-    });
-    return () => {
-      cancelled = true;
-    };
   }, [
-    apiMode,
-    instituteCtx.status,
-    instituteCtx.activeInstituteId,
-    instituteCtx.errorMessage,
-    reloadKey,
-    searchQuery,
-    filter,
-    classFilter,
-    sectionFilter,
+    createOpen,
+    bulkImportOpen,
+    classesCatalogQuery.isError,
+    yearsCatalogQuery.isError,
+    notify,
   ]);
 
   useEffect(() => {
@@ -355,7 +400,7 @@ function StudentsPage() {
       void deleteStudentApi(id)
         .then(() => {
           setPendingDelete(null);
-          setReloadKey((k) => k + 1);
+          bumpStudentsReload();
           notify("Student deleted");
         })
         .catch((err) => {
@@ -389,6 +434,27 @@ function StudentsPage() {
         notify("Select an institute before creating a student");
         return;
       }
+      const placement = resolveStudentCreatePlacement({
+        classOptions: apiStudentClassOptions,
+        sectionOptions: apiStudentSectionOptions,
+        classValue: draft.className,
+        sectionValue: draft.section,
+      });
+      if (!placement) {
+        notify(
+          "Create an active academic year, then a class with a section, before adding students",
+        );
+        return;
+      }
+      const {
+        classId,
+        sectionId,
+        academicYearId,
+        classLabel,
+        sectionLabel,
+      } = placement;
+      const rollNo = draft.rollNo.trim();
+
       void createStudentApi({
         instituteId,
         firstName: draft.firstName.trim(),
@@ -396,16 +462,53 @@ function StudentsPage() {
         gender: mapDraftGender(draft.gender),
         address: draft.address.trim() || "—",
         dateOfBirth: draft.dateOfBirth.trim() || null,
-        classLabel: draft.className.trim() || null,
-        sectionLabel: draft.section.trim() || null,
-        rollNo: draft.rollNo.trim() || null,
+        classLabel: classLabel || null,
+        sectionLabel: sectionLabel || null,
+        rollNo: rollNo || null,
         admissionNumber: draft.admissionNumber.trim() || null,
         status: "active",
         accessStatus: "active",
+        parentName: draft.parentName.trim(),
+        parentPhone: draft.parentPhone,
+        parentRelationship: "guardian",
       })
-        .then((created) => {
-          setReloadKey((k) => k + 1);
-          notify(`${created.displayName || created.firstName} created`);
+        .then(async (created) => {
+          try {
+            await createEnrollment({
+              instituteId,
+              academicYearId,
+              studentId: created.id,
+              classId,
+              sectionId,
+              rollNo: rollNo || created.rollNo?.trim() || "1",
+              enrolledOn: new Date().toISOString().slice(0, 10),
+              status: "active",
+            });
+            bumpStudentsReload();
+            notify(
+              created.parentId
+                ? `${created.displayName || created.firstName} created · assigned to ${classLabel} ${sectionLabel} · parent linked`
+                : `${created.displayName || created.firstName} created · assigned to ${classLabel} ${sectionLabel}`,
+            );
+          } catch (enrollErr) {
+            try {
+              await deleteStudentApi(created.id);
+            } catch (rollbackErr) {
+              bumpStudentsReload();
+              notify(
+                enrollErr instanceof Error
+                  ? `Class assignment failed and cleanup failed: ${enrollErr.message}. Remove the student manually if needed.`
+                  : "Class assignment failed and cleanup failed. Remove the student manually if needed.",
+              );
+              if (!addSibling) setCreateOpen(false);
+              return;
+            }
+            notify(
+              enrollErr instanceof Error
+                ? `Could not assign class/section: ${enrollErr.message}. Student was not saved.`
+                : "Could not assign class/section. Student was not saved.",
+            );
+          }
           if (!addSibling) setCreateOpen(false);
         })
         .catch((err) => {
@@ -427,6 +530,137 @@ function StudentsPage() {
   };
 
   const importStudents = (importRows: StudentImportRow[]) => {
+    if (apiMode) {
+      if (!writesEnabled || !instituteCtx.activeInstituteId) {
+        notify("Select an institute before importing students");
+        return;
+      }
+      const instituteId = instituteCtx.activeInstituteId;
+      setBulkImporting(true);
+      void (async () => {
+        let created = 0;
+        let enrolled = 0;
+        let failed = 0;
+        const failures: string[] = [];
+        try {
+          const { classes, sections } = await listClassesCatalog({ instituteId });
+          const existingKeys = new Set(
+            (apiItems as StudentListItem[]).flatMap((item) => {
+              const keys: string[] = [];
+              if (item.admissionNumber?.trim()) {
+                keys.push(`admission:${item.admissionNumber.trim().toLowerCase()}`);
+              }
+              keys.push(
+                `identity:${item.name.trim().toLowerCase().replace(/\s+/g, " ")}`,
+              );
+              return keys;
+            }),
+          );
+
+          for (const imported of importRows) {
+            const admission = imported.admissionNumber?.trim().toLowerCase();
+            const identityKey = [
+              "identity",
+              imported.firstName.trim().toLowerCase(),
+              imported.surname.trim().toLowerCase(),
+              normalizePhone(imported.parentPhone),
+            ].join(":");
+            const dupKey = admission ? `admission:${admission}` : identityKey;
+            if (existingKeys.has(dupKey) || (admission && existingKeys.has(`admission:${admission}`))) {
+              failed += 1;
+              failures.push(
+                `${imported.firstName} ${imported.surname}: duplicate skipped`,
+              );
+              continue;
+            }
+
+            const placement = resolveStudentImportPlacement(
+              classes,
+              sections,
+              imported.className,
+              imported.section ?? "",
+            );
+            if (!placement) {
+              failed += 1;
+              failures.push(
+                `${imported.firstName} ${imported.surname}: class/section not found (${imported.className}${imported.section ? ` / ${imported.section}` : ""})`,
+              );
+              continue;
+            }
+
+            try {
+              const student = await createStudentApi({
+                instituteId,
+                firstName: imported.firstName.trim(),
+                surname: imported.surname.trim(),
+                gender: mapImportGender(imported.gender),
+                address: imported.address.trim() || "—",
+                dateOfBirth: imported.dateOfBirth?.trim() || null,
+                classLabel: placement.classLabel,
+                sectionLabel: placement.sectionLabel,
+                rollNo: imported.rollNo?.trim() || null,
+                admissionNumber: imported.admissionNumber?.trim() || null,
+                status: "active",
+                accessStatus: "active",
+                parentName: imported.parentName.trim(),
+                parentPhone: normalizePhone(imported.parentPhone),
+                parentRelationship: "guardian",
+              });
+              try {
+                await createEnrollment({
+                  instituteId,
+                  academicYearId: placement.academicYearId,
+                  studentId: student.id,
+                  classId: placement.classId,
+                  sectionId: placement.sectionId,
+                  rollNo:
+                    imported.rollNo?.trim() ||
+                    student.rollNo?.trim() ||
+                    String(created + 1),
+                  enrolledOn: new Date().toISOString().slice(0, 10),
+                  status: "active",
+                });
+                created += 1;
+                enrolled += 1;
+                existingKeys.add(dupKey);
+              } catch (enrollErr) {
+                try {
+                  await deleteStudentApi(student.id);
+                } catch {
+                  // Student may remain; still count as failed import row.
+                }
+                failed += 1;
+                failures.push(
+                  `${imported.firstName} ${imported.surname}: enrollment failed — student not kept (${enrollErr instanceof Error ? enrollErr.message : "error"})`,
+                );
+              }
+            } catch (err) {
+              failed += 1;
+              failures.push(
+                `${imported.firstName} ${imported.surname}: ${err instanceof Error ? err.message : "create failed"}`,
+              );
+            }
+          }
+        } catch (err) {
+          notify(err instanceof Error ? err.message : "Bulk import failed");
+          setBulkImporting(false);
+          return;
+        }
+
+        setBulkImporting(false);
+        setBulkImportOpen(false);
+        bumpStudentsReload();
+        void syncSubscriptionHeadcountAfterStudentChange();
+        const summary = `${created} created · ${enrolled} enrolled${failed ? ` · ${failed} failed` : ""}`;
+        notify(
+          failures.length > 0
+            ? `${summary}. ${failures.slice(0, 3).join(" · ")}${failures.length > 3 ? "…" : ""}`
+            : summary,
+        );
+      })();
+      return;
+    }
+
     const { unique, duplicates } = splitImportRowsByDuplicate(importRows, rows);
     const next = [...rows];
     for (const imported of unique) {
@@ -539,17 +773,15 @@ function StudentsPage() {
       title={M.students}
       subtitle={
         apiMode
-          ? `API mode · ${countLabel(list.length)} students · ${scopeLabel}`
+          ? `${countLabel(list.length)} students · ${scopeLabel}`
           : `${list.length} students · ${scopeLabel}`
       }
       actions={
         writesEnabled ? (
           <>
-            {!apiMode ? (
-              <Button onClick={() => setBulkImportOpen(true)}>
-                <Upload className="size-3.5" /> Bulk Import
-              </Button>
-            ) : null}
+            <Button onClick={() => setBulkImportOpen(true)} disabled={bulkImporting}>
+              <Upload className="size-3.5" /> Bulk Import
+            </Button>
             {!apiMode ? (
             <Button
               onClick={() => {
@@ -563,7 +795,20 @@ function StudentsPage() {
             <Button onClick={() => setFiltersOpen(!filtersOpen)}>
               <Filter className="size-3.5" /> Filters
             </Button>
-            <Button variant="primary" onClick={() => setCreateOpen(true)}>
+            <Button
+              variant="primary"
+              onClick={() => {
+                if (
+                  apiMode &&
+                  !apiStudentClassOptions.some((item) => item.sections.length > 0)
+                ) {
+                  notify(
+                    "Create an academic year and a class with a section before adding students",
+                  );
+                }
+                setCreateOpen(true);
+              }}
+            >
               <Plus className="size-3.5" /> Add Student
             </Button>
           </>
@@ -572,16 +817,15 @@ function StudentsPage() {
       mobileActions={
         writesEnabled ? (
           <>
-            {!apiMode ? (
             <Button
               type="button"
               aria-label="Bulk import"
               onClick={() => setBulkImportOpen(true)}
+              disabled={bulkImporting}
             >
               <Upload />
               Import
             </Button>
-            ) : null}
             <Button
               type="button"
               aria-label="Export CSV"
@@ -605,7 +849,17 @@ function StudentsPage() {
               type="button"
               variant="primary"
               aria-label="Add student"
-              onClick={() => setCreateOpen(true)}
+              onClick={() => {
+                if (
+                  apiMode &&
+                  !apiStudentClassOptions.some((item) => item.sections.length > 0)
+                ) {
+                  notify(
+                    "Create an academic year and a class with a section before adding students",
+                  );
+                }
+                setCreateOpen(true);
+              }}
             >
               <Plus />
               Add
@@ -627,7 +881,7 @@ function StudentsPage() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search by name or ID…"
-            className="w-full min-w-0 flex-1"
+            className="min-w-0 flex-1 sm:w-full"
           />
           <ToolbarGroup className="lx-people-filters">
             <CascadingFiltersMenu
@@ -681,8 +935,6 @@ function StudentsPage() {
               }
             />
           </ToolbarGroup>
-          <ToolbarSpacer />
-          <ToolbarMeta>{countLabel(list.length)} results</ToolbarMeta>
         </PageToolbar>
         {writesEnabled && filtersOpen && (
           <div className="px-4 sm:px-5 py-4 border-b border-border flex flex-wrap gap-4 bg-background/40">
@@ -716,8 +968,10 @@ function StudentsPage() {
             icon={<Users className="size-5" />}
             title="No students found"
             hint={
-              listHint ??
-              `No students in ${scopeLabel}. Try another class, section, or search term.`
+              apiMode && !apiStudentClassOptions.some((item) => item.sections.length > 0)
+                ? "Setup first: academic year → class + section, then add students from here or the checklist."
+                : (listHint ??
+                  `No students in ${scopeLabel}. Try another class, section, or search term.`)
             }
           />
         ) : (
@@ -920,16 +1174,31 @@ function StudentsPage() {
         open={createOpen}
         academic={apiMode ? null : profile.academic}
         apiMode={apiMode}
+        instituteId={instituteCtx.activeInstituteId}
+        classOptions={apiStudentClassOptions}
+        sectionOptions={apiStudentSectionOptions}
         onClose={() => setCreateOpen(false)}
         onCreate={createStudent}
       />
       ) : null}
 
-      {!apiMode && writesEnabled ? (
+      {writesEnabled ? (
       <StudentBulkImportDialog
         open={bulkImportOpen}
-        onClose={() => setBulkImportOpen(false)}
+        onClose={() => {
+          if (!bulkImporting) setBulkImportOpen(false);
+        }}
         onImport={importStudents}
+        importing={bulkImporting}
+        instituteName={
+          instituteCtx.displayLabel ||
+          instituteCtx.activeInstitute?.name ||
+          undefined
+        }
+        classOptions={apiStudentClassOptions.map((item) => ({
+          classLabel: item.label,
+          sectionLabels: item.sections.map((section) => section.label),
+        }))}
       />
       ) : null}
     </AppShell>

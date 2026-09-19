@@ -173,7 +173,16 @@ export async function getTeacherTimetableForActor(
       teacherId,
       status: "active",
     });
-    if (assignments.length === 0) {
+    const sectionRes = await admin
+      .from("section")
+      .select("class_teacher_id")
+      .eq("id", input.sectionId)
+      .eq("institute_id", instituteId)
+      .is("deleted_at", null)
+      .maybeSingle();
+    const section = sectionRes.data as { class_teacher_id: string | null } | null;
+    const isClassTeacher = section?.class_teacher_id === teacherId;
+    if (assignments.length === 0 && !isClassTeacher) {
       throw AppError.forbidden("Insufficient permissions");
     }
 

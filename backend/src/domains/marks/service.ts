@@ -11,15 +11,22 @@ import {
 import {
   findEnrollmentById,
   findExamGraph,
+  findAnyActiveTeacherId,
+  findMarkEntryByExamSectionSubject,
   findMarkEntryById,
+  findMarkPublicationById,
   findSectionById,
   findSubjectById,
+  findTeacherAssignmentForSubject,
   findTeacherAssignmentMatch,
   findTeacherById,
   insertMarkEntry,
+  insertMarkPublication,
+  insertMarkScoreAudit,
   insertScores,
   listGuardianStudentIds,
   listMarkEntries,
+  listMarkPublications,
   listScoresForEntry,
   listScoresForEntryIds,
   softDeleteMarkEntry,
@@ -33,6 +40,8 @@ import type {
   MarkEntryDto,
   MarkEntryRow,
   MarkEntryStatus,
+  MarkPublicationDto,
+  MarkPublicationRow,
   MarkScoreDto,
   MarkScoreRow,
   ScoreInput,
@@ -68,6 +77,27 @@ export function toScoreDto(row: MarkScoreRow): MarkScoreDto {
     enrollmentId: row.enrollment_id,
     studentId: row.student_id,
     marks: row.marks,
+    internalMarks: row.internal_marks,
+    externalMarks: row.external_marks,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function toPublicationDto(row: MarkPublicationRow): MarkPublicationDto {
+  return {
+    id: row.id,
+    instituteId: row.institute_id,
+    markEntryId: row.mark_entry_id,
+    academicYearId: row.academic_year_id,
+    classId: row.class_id,
+    sectionId: row.section_id,
+    examId: row.exam_id,
+    subjectId: row.subject_id,
+    publishedAt: row.published_at,
+    publishedByUserId: row.published_by_user_id,
+    scoreCount: row.score_count,
+    note: row.note,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -258,6 +288,66 @@ function assertMarksValue(marks: number | null, maxMarks: number): void {
   }
 }
 
+function assertSplitMarks(
+  score: ScoreInput,
+  maxMarks: number,
+  ceilings: { internalMax: number | null; externalMax: number | null },
+): { marks: number | null; internalMarks: number | null; externalMarks: number | null } {
+  let internal = score.internalMarks ?? null;
+  let external = score.externalMarks ?? null;
+  let total = score.marks;
+
+  if (internal != null || external != null) {
+    if (internal == null || external == null) {
+      throw AppError.validation("Internal and external marks are both required", {
+        marks: ["Provide internal_marks and external_marks"],
+      });
+    }
+    if (!Number.isInteger(internal) || internal < 0) {
+      throw AppError.validation("internal_marks must be a non-negative integer", {
+        internal_marks: ["Invalid"],
+      });
+    }
+    if (!Number.isInteger(external) || external < 0) {
+      throw AppError.validation("external_marks must be a non-negative integer", {
+        external_marks: ["Invalid"],
+      });
+    }
+    if (ceilings.internalMax != null && internal > ceilings.internalMax) {
+      throw AppError.validation("internal_marks exceed exam internal ceiling", {
+        internal_marks: [`Must be <= ${ceilings.internalMax}`],
+      });
+    }
+    if (ceilings.externalMax != null && external > ceilings.externalMax) {
+      throw AppError.validation("external_marks exceed exam external ceiling", {
+        external_marks: [`Must be <= ${ceilings.externalMax}`],
+      });
+    }
+    const sum = internal + external;
+    if (total != null && total !== sum) {
+      throw AppError.validation("Internal + external must equal total marks", {
+        marks: ["Must equal internal_marks + external_marks"],
+      });
+    }
+    total = sum;
+  }
+
+  assertMarksValue(total, maxMarks);
+  return { marks: total, internalMarks: internal, externalMarks: external };
+}
+
+async function loadExamMarkCeilings(
+  admin: SupabaseClient,
+  examId: string,
+): Promise<{ internalMax: number | null; externalMax: number | null }> {
+  const { findExamById } = await import("../exams/repository.js");
+  const exam = await findExamById(admin, examId);
+  return {
+    internalMax: exam?.internal_marks ?? null,
+    externalMax: exam?.external_marks ?? null,
+  };
+}
+
 async function resolveScores(
   admin: SupabaseClient,
   entryGraph: {
@@ -265,6 +355,7 @@ async function resolveScores(
     academicYearId: string;
     classId: string;
     sectionId: string;
+    examId?: string;
   },
   maxMarks: number,
   scores: ScoreInput[],
@@ -276,9 +367,13 @@ async function resolveScores(
     });
   }
 
+  const ceilings = entryGraph.examId
+    ? await loadExamMarkCeilings(admin, entryGraph.examId)
+    : { internalMax: null, externalMax: null };
+
   const resolved: Array<ScoreInput & { studentId: string }> = [];
   for (const score of scores) {
-    assertMarksValue(score.marks, maxMarks);
+    const split = assertSplitMarks(score, maxMarks, ceilings);
     const enrollment = await findEnrollmentById(admin, score.enrollmentId);
     if (!enrollment || enrollment.status !== "active") {
       throw AppError.validation("Referenced resource is invalid", {
@@ -298,7 +393,9 @@ async function resolveScores(
     resolved.push({
       enrollmentId: enrollment.id,
       studentId: enrollment.student_id,
-      marks: score.marks,
+      marks: split.marks,
+      internalMarks: split.internalMarks,
+      externalMarks: split.externalMarks,
     });
   }
   return resolved;
@@ -453,6 +550,7 @@ export async function createMarkEntryForActor(
       academicYearId: input.academicYearId,
       classId: input.classId,
       sectionId: input.sectionId,
+      examId: input.examId,
     },
     input.maxMarks,
     input.scores ?? [],
@@ -503,6 +601,7 @@ export async function updateMarkEntryForActor(
   let scores = await listScoresForEntry(admin, entryId);
 
   if (patch.scores !== undefined) {
+    const previous = scores;
     const resolved = await resolveScores(
       admin,
       {
@@ -510,9 +609,31 @@ export async function updateMarkEntryForActor(
         academicYearId: existing.academic_year_id,
         classId: existing.class_id,
         sectionId: existing.section_id,
+        examId: existing.exam_id,
       },
       nextMax,
       patch.scores,
+    );
+    await insertMarkScoreAudit(
+      admin,
+      previous.map((row) => {
+        const next = resolved.find((s) => s.enrollmentId === row.enrollment_id);
+        return {
+          instituteId: existing.institute_id,
+          markEntryId: entryId,
+          markScoreId: row.id,
+          enrollmentId: row.enrollment_id,
+          studentId: row.student_id,
+          action: "replace",
+          previousMarks: row.marks,
+          previousInternal: row.internal_marks,
+          previousExternal: row.external_marks,
+          nextMarks: next?.marks ?? null,
+          nextInternal: next?.internalMarks ?? null,
+          nextExternal: next?.externalMarks ?? null,
+          actorUserId: actor.userId,
+        };
+      }),
     );
     await softDeleteScoresForEntry(admin, entryId);
     scores = await insertScores(admin, entry, resolved);
@@ -535,6 +656,51 @@ export async function submitMarkEntryForActor(
 
   await assertCanEditScores(admin, actor, existing);
 
+  const scores = await listScoresForEntry(admin, entryId);
+  const { listEnrollments } = await import("../academics/repository.js");
+  const roster = await listEnrollments(admin, {
+    instituteId: existing.institute_id,
+    academicYearId: existing.academic_year_id,
+    classId: existing.class_id,
+    sectionId: existing.section_id,
+    status: "active",
+  });
+  const byEnrollment = new Map(scores.map((s) => [s.enrollment_id, s]));
+  const incomplete = roster.filter((enr) => {
+    const score = byEnrollment.get(enr.id);
+    return (
+      !score ||
+      score.marks == null ||
+      score.internal_marks == null ||
+      score.external_marks == null
+    );
+  });
+  if (roster.length === 0) {
+    throw AppError.validation("Cannot submit marks with no enrolled students", {
+      scores: ["No active enrollments"],
+    });
+  }
+  if (incomplete.length > 0) {
+    throw AppError.validation(
+      `Enter internal and external marks for all students (${incomplete.length} incomplete)`,
+      {
+        scores: [`${incomplete.length} student(s) incomplete`],
+      },
+    );
+  }
+  for (const score of scores) {
+    if (
+      score.internal_marks != null &&
+      score.external_marks != null &&
+      score.marks != null &&
+      score.internal_marks + score.external_marks !== score.marks
+    ) {
+      throw AppError.validation("Internal + external must equal total marks", {
+        scores: ["Invalid"],
+      });
+    }
+  }
+
   const submitted = await transitionMarkEntryStatus(admin, {
     id: entryId,
     fromStatuses: SUBMIT_FROM,
@@ -544,7 +710,24 @@ export async function submitMarkEntryForActor(
   if (!submitted) {
     throw AppError.conflict("Mark entry cannot be submitted in its current status");
   }
-  const scores = await listScoresForEntry(admin, entryId);
+  await insertMarkScoreAudit(
+    admin,
+    scores.map((row) => ({
+      instituteId: existing.institute_id,
+      markEntryId: entryId,
+      markScoreId: row.id,
+      enrollmentId: row.enrollment_id,
+      studentId: row.student_id,
+      action: "submit",
+      previousMarks: row.marks,
+      previousInternal: row.internal_marks,
+      previousExternal: row.external_marks,
+      nextMarks: row.marks,
+      nextInternal: row.internal_marks,
+      nextExternal: row.external_marks,
+      actorUserId: actor.userId,
+    })),
+  );
   return toEntryDto(submitted, scores);
 }
 
@@ -552,7 +735,7 @@ export async function publishMarkEntryForActor(
   admin: SupabaseClient,
   actor: Actor,
   entryId: string,
-): Promise<MarkEntryDto> {
+): Promise<MarkEntryDto & { publicationId?: string }> {
   const existing = await findMarkEntryById(admin, entryId);
   if (!existing) throw AppError.notFound("Mark entry not found");
 
@@ -568,10 +751,23 @@ export async function publishMarkEntryForActor(
     throw AppError.conflict("Mark entry cannot be published in its current status");
   }
   const scores = await listScoresForEntry(admin, entryId);
+
+  const publication = await insertMarkPublication(admin, {
+    instituteId: published.institute_id,
+    markEntryId: published.id,
+    academicYearId: published.academic_year_id,
+    classId: published.class_id,
+    sectionId: published.section_id,
+    examId: published.exam_id,
+    subjectId: published.subject_id,
+    publishedByUserId: actor.userId,
+    scoreCount: scores.length,
+  });
+
   const dto = toEntryDto(published, scores);
   const { emitMarkEntryPublishedNotifications } = await import("./notifications.js");
   await emitMarkEntryPublishedNotifications(admin, actor.userId, dto, dto.scores ?? []);
-  return dto;
+  return { ...dto, publicationId: publication.id };
 }
 
 export async function returnMarkEntryForActor(
@@ -598,7 +794,10 @@ export async function returnMarkEntryForActor(
     throw AppError.conflict("Mark entry cannot be returned in its current status");
   }
   const scores = await listScoresForEntry(admin, entryId);
-  return toEntryDto(returned, scores);
+  const dto = toEntryDto(returned, scores);
+  const { emitMarkEntryWorkflowNotifications } = await import("./notifications.js");
+  await emitMarkEntryWorkflowNotifications(admin, actor.userId, dto, "returned");
+  return dto;
 }
 
 export async function rejectMarkEntryForActor(
@@ -625,7 +824,10 @@ export async function rejectMarkEntryForActor(
     throw AppError.conflict("Mark entry cannot be rejected in its current status");
   }
   const scores = await listScoresForEntry(admin, entryId);
-  return toEntryDto(rejected, scores);
+  const dto = toEntryDto(rejected, scores);
+  const { emitMarkEntryWorkflowNotifications } = await import("./notifications.js");
+  await emitMarkEntryWorkflowNotifications(admin, actor.userId, dto, "rejected");
+  return dto;
 }
 
 export async function deleteMarkEntryForActor(
@@ -640,4 +842,134 @@ export async function deleteMarkEntryForActor(
 
   await softDeleteScoresForEntry(admin, entryId);
   await softDeleteMarkEntry(admin, entryId);
+}
+
+// ── Mark publications ─────────────────────────────────────────────
+
+export async function listMarkPublicationsForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  filter: { instituteId: string; sectionId?: string; examId?: string },
+): Promise<MarkPublicationDto[]> {
+  const instituteId = requireInstituteId(actor, filter.instituteId);
+  assertInstituteAccess(actor, instituteId);
+  const rows = await listMarkPublications(admin, { ...filter, instituteId });
+  return rows.map(toPublicationDto);
+}
+
+export async function getMarkPublicationForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  publicationId: string,
+): Promise<MarkPublicationDto> {
+  const row = await findMarkPublicationById(admin, publicationId);
+  if (!row) throw AppError.notFound("Mark publication not found");
+  assertInstituteAccess(actor, row.institute_id);
+  return toPublicationDto(row);
+}
+
+/**
+ * Flowchart: on exam publish, create marks-entry structure for each
+ * class · section · subject so teachers can enter marks immediately.
+ */
+export async function seedMarkEntriesForExamPublish(
+  admin: SupabaseClient,
+  actor: Actor,
+  input: {
+    instituteId: string;
+    academicYearId: string;
+    examId: string;
+    maxMarks: number;
+    targets: Array<{ sectionId: string; classId: string }>;
+    subjectIds: string[];
+  },
+): Promise<{ created: number; skipped: number }> {
+  const instituteId = requireInstituteId(actor, input.instituteId);
+  assertInstituteRoles(actor, instituteId, [
+    "institute_admin",
+    "principal",
+    "vice_principal",
+    "coordinator",
+  ]);
+
+  if (input.subjectIds.length === 0 || input.targets.length === 0) {
+    return { created: 0, skipped: 0 };
+  }
+
+  const { listEnrollments } = await import("../academics/repository.js");
+  let created = 0;
+  let skipped = 0;
+  const fallbackTeacherId = await findAnyActiveTeacherId(admin, instituteId);
+
+  for (const target of input.targets) {
+    for (const subjectId of input.subjectIds) {
+      const existing = await findMarkEntryByExamSectionSubject(admin, {
+        examId: input.examId,
+        sectionId: target.sectionId,
+        subjectId,
+      });
+      if (existing) {
+        // Keep editable sheets aligned with the exam total (fixes stale max_marks=100).
+        if (
+          existing.max_marks !== input.maxMarks &&
+          EDITABLE_STATUSES.includes(existing.status)
+        ) {
+          await updateMarkEntryFields(admin, existing.id, {
+            max_marks: input.maxMarks,
+          });
+        }
+        skipped += 1;
+        continue;
+      }
+
+      const assignment = await findTeacherAssignmentForSubject(admin, {
+        instituteId,
+        academicYearId: input.academicYearId,
+        classId: target.classId,
+        sectionId: target.sectionId,
+        subjectId,
+      });
+      const teacherId = assignment?.teacher_id ?? fallbackTeacherId;
+      if (!teacherId) {
+        skipped += 1;
+        continue;
+      }
+
+      const enrollments = await listEnrollments(admin, {
+        instituteId,
+        academicYearId: input.academicYearId,
+        classId: target.classId,
+        sectionId: target.sectionId,
+        status: "active",
+      });
+
+      const entry = await insertMarkEntry(admin, {
+        instituteId,
+        academicYearId: input.academicYearId,
+        classId: target.classId,
+        sectionId: target.sectionId,
+        examId: input.examId,
+        subjectId,
+        teacherId,
+        maxMarks: input.maxMarks,
+      });
+
+      if (enrollments.length > 0) {
+        await insertScores(
+          admin,
+          entry,
+          enrollments.map((enrollment) => ({
+            enrollmentId: enrollment.id,
+            studentId: enrollment.student_id,
+            marks: null,
+            internalMarks: null,
+            externalMarks: null,
+          })),
+        );
+      }
+      created += 1;
+    }
+  }
+
+  return { created, skipped };
 }

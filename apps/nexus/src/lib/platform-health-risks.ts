@@ -1,9 +1,9 @@
 /**
- * Nexus Health & Risks — demo aggregates only.
- * Two lanes: Institute Risk (ops health) and Nexus Business Risk (commercial retention).
- * No person-level records.
+ * Nexus Health & Risks — derived from institute directory inputs.
+ * Pass API-loaded institutes; never invent seed risks in API mode.
  */
 
+import { isNexusApiMode } from "@/lib/auth-mode";
 import {
   formatCount,
   listPlatformInstitutes,
@@ -429,8 +429,9 @@ function dedupePreferHigher(items: HealthRiskItem[]): HealthRiskItem[] {
   );
 }
 
-export function buildHealthRisksSnapshot() {
-  const institutes = listPlatformInstitutes();
+export function buildHealthRisksSnapshot(institutesOverride?: PlatformInstitute[]) {
+  const institutes =
+    institutesOverride ?? (isNexusApiMode() ? [] : listPlatformInstitutes());
   const licenses = loadLicenses();
   const instituteRisks = dedupePreferHigher(buildInstituteRisks(institutes));
   const businessRisks = dedupePreferHigher(buildBusinessRisks(institutes, licenses));

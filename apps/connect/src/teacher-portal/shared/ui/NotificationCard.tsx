@@ -11,6 +11,7 @@ import {
   Users,
 } from "lucide-react";
 import { cn, Dialog, DialogContent, DialogHeader, DialogTitle, Badge } from "@lumenx/ui";
+import { safeMeta } from "@/lib/safe-meta";
 import type { TeacherNotification } from "@/lib/teacher/types";
 import { STUDENT_MODULE_COLORS, studentModuleLightChip } from "@/lib/student/nav";
 
@@ -55,6 +56,12 @@ const CATEGORY_META: Record<
   },
 };
 
+const FALLBACK_CATEGORY_META = {
+  label: "Update",
+  icon: Bell,
+  color: STUDENT_MODULE_COLORS.crimson,
+};
+
 export function NotificationCard({
   notification,
   onMarkRead,
@@ -63,11 +70,7 @@ export function NotificationCard({
   onMarkRead?: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const meta = CATEGORY_META[notification.category] ?? {
-    label: "Update",
-    icon: Bell,
-    color: STUDENT_MODULE_COLORS.crimson,
-  };
+  const meta = safeMeta(CATEGORY_META, notification.category, FALLBACK_CATEGORY_META);
   const Icon = meta.icon;
   const isUrgent = notification.category === "urgent";
   const chipBg = studentModuleLightChip(meta.color);

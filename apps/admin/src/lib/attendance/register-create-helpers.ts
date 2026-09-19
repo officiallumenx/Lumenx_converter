@@ -1,7 +1,7 @@
 /**
  * Pick attendance config version for register create.
- * Prefer most recent effective_from on or before the attendance date,
- * matching scope to class/section codes when scoped.
+ * Flowchart scope precedence: section → class → institute.
+ * Prefer most recent effectiveFrom on or before the attendance date.
  */
 import type {
   AttendanceConfigDto,
@@ -27,20 +27,29 @@ export function pickAttendanceConfigForRegister(opts: {
   sectionCode: string;
 }): AttendanceConfigDto | null {
   const { configs, attendanceDate, classCode, sectionCode } = opts;
-  const eligible = configs
+  const dated = configs
     .filter((c) => c.effectiveFrom <= attendanceDate)
-    .filter((c) => {
-      if (c.scope === "institute") return true;
-      if (c.scope === "class") {
-        return c.classCodes.length === 0 || c.classCodes.includes(classCode);
-      }
-      if (c.scope === "section") {
-        return c.sectionCodes.length === 0 || c.sectionCodes.includes(sectionCode);
-      }
-      return false;
-    })
-    .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom));
-  return eligible[0] ?? null;
+    .sort((a, b) => {
+      const byDate = b.effectiveFrom.localeCompare(a.effectiveFrom);
+      if (byDate !== 0) return byDate;
+      return b.createdAt.localeCompare(a.createdAt);
+    });
+
+  const sectionHit = dated.find(
+    (c) =>
+      c.scope === "section" &&
+      c.sectionCodes.some((code) => code.trim() === sectionCode.trim()),
+  );
+  if (sectionHit) return sectionHit;
+
+  const classHit = dated.find(
+    (c) =>
+      c.scope === "class" &&
+      c.classCodes.some((code) => code.trim() === classCode.trim()),
+  );
+  if (classHit) return classHit;
+
+  return dated.find((c) => c.scope === "institute") ?? null;
 }
 
 export function slotFieldsFromPeriod(input: AttendanceRegisterSlotFields): AttendanceRegisterSlotFields {
@@ -92,4 +101,17 @@ export function afternoonSlotFields(): AttendanceRegisterSlotFields {
     slotLabel: "Afternoon",
     periodIndex: null,
   };
+}
+
+/** Empty-slot create UI copy — distinguishes missing timetable from fully marked. */
+export function emptyAttendanceSlotCreateMessage(
+  method: AttendanceMethod | null | undefined,
+  markSlotCount: number,
+): string {
+  if (markSlotCount === 0) {
+    return method === "period_wise"
+      ? "No timetable periods for this date. Publish a timetable for this section first."
+      : "No attendance slots available for this date.";
+  }
+  return "All slots are marked for this date.";
 }

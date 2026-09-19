@@ -92,7 +92,7 @@ describe("staff-attendance map", () => {
     expect(summary.marks[0]?.checkIn).toBe("08:15");
   });
 
-  it("fills unmarked teachers as draft absent placeholders", () => {
+  it("fills unmarked teachers as null-status placeholders", () => {
     const teachers = [
       teacherStub({ id: TEACHER_ID, name: "Jane Doe" }),
       teacherStub({ id: TEACHER_2, name: "Bob" }),
@@ -119,14 +119,13 @@ describe("staff-attendance map", () => {
     const summary = staffAttendanceDtosToDaySummary(rows, byId, "2026-06-01");
     const merged = mergeTeachersIntoDaySummary(summary, teachers);
     expect(merged.total).toBe(2);
+    expect(merged.unmarked).toBe(1);
     expect(merged.marks.find((m) => m.teacherId === TEACHER_ID)?.status).toBe(
       "present",
     );
     expect(merged.marks.find((m) => m.teacherId === TEACHER_2)?.id).toBe(
       `pending:${TEACHER_2}`,
     );
-    expect(merged.marks.find((m) => m.teacherId === TEACHER_2)?.status).toBe(
-      "absent",
-    );
+    expect(merged.marks.find((m) => m.teacherId === TEACHER_2)?.status).toBeNull();
   });
 });

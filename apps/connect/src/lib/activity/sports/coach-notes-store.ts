@@ -1,3 +1,4 @@
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { getPracticeSessionByIdFromStore } from "./practice-sessions-store";
 import { getAttendanceByIdFromStore, listAttendanceFromStore } from "./sports-attendance-store";
 import {
@@ -11,7 +12,7 @@ import type {
   CoachNoteListFilters,
 } from "./coach-notes-types";
 
-let coachNotesStore: CoachNoteRecord[] = coachNotesSeed.map(cloneCoachNote);
+let coachNotesStore = isApiAuthMode() ? [] : coachNotesSeed.map(cloneCoachNote);
 
 function resolveAttendanceRecord(attendanceId: string) {
   const attendance = getAttendanceByIdFromStore(attendanceId);
@@ -101,7 +102,7 @@ function applyCoachNoteFilters(
 }
 
 export function resetCoachNotesStore() {
-  coachNotesStore = coachNotesSeed.map(cloneCoachNote);
+  coachNotesStore = isApiAuthMode() ? [] : coachNotesSeed.map(cloneCoachNote);
 }
 
 export function listCoachNotesFromStore(filters?: CoachNoteListFilters): CoachNoteRecord[] {

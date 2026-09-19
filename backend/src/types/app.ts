@@ -1,5 +1,7 @@
 import type { Actor } from "../auth/types.js";
+import type { FirebaseIdentity } from "../auth/firebase-identity.js";
 import type { SupabaseClients } from "../integrations/supabase.js";
+import type { App as FirebaseApp } from "firebase-admin/app";
 
 /**
  * Hono bindings for the LumenX API.
@@ -10,7 +12,11 @@ export type AppBindings = {
     requestId: string;
     /** Process-scoped Supabase clients, or null when not configured. */
     supabase: SupabaseClients | null;
-    /** Set by requireAuth after JWT verification + actor load. */
+    /** Process-scoped Firebase Admin app, or null when not configured. */
+    firebaseApp: FirebaseApp | null;
+    /** Set by requireAuth after Supabase JWT verification + actor load. */
     actor?: Actor;
+    /** Set by requireFirebaseAuth after Firebase ID-token verification. */
+    firebaseIdentity?: FirebaseIdentity;
   };
 };

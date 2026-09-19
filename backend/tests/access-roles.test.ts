@@ -180,17 +180,29 @@ describe("access roles API", () => {
     });
     expect(assign.status).toBe(201);
 
-    const otpReq = await app.request("/api/v1/auth/staff/request-otp", {
+    const otpMobile = await app.request("/api/v1/auth/staff/request-otp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         institute_id: INST_A,
         identifier: "fees@demo.edu",
+        channel: "mobile",
       }),
     });
-    expect(otpReq.status).toBe(200);
-    const otpBody = (await otpReq.json()) as { data: { devOtp?: string } };
-    expect(otpBody.data.devOtp).toBe(STAFF_LOGIN_DEMO_OTP);
+    expect(otpMobile.status).toBe(200);
+    const otpMobileBody = (await otpMobile.json()) as { data: { devOtp?: string } };
+    expect(otpMobileBody.data.devOtp).toBe(STAFF_LOGIN_DEMO_OTP);
+
+    const otpEmail = await app.request("/api/v1/auth/staff/request-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        identifier: "fees@demo.edu",
+        channel: "email",
+      }),
+    });
+    expect(otpEmail.status).toBe(200);
 
     const bad = await app.request("/api/v1/auth/staff/verify-login", {
       method: "POST",
@@ -198,19 +210,31 @@ describe("access roles API", () => {
       body: JSON.stringify({
         institute_id: INST_A,
         identifier: "fees@demo.edu",
-        otp: STAFF_LOGIN_DEMO_OTP,
+        mobile_otp: STAFF_LOGIN_DEMO_OTP,
+        email_otp: STAFF_LOGIN_DEMO_OTP,
         password: "wrong",
+        pin: "123456",
       }),
     });
     expect(bad.status).toBe(400);
 
-    // Re-request OTP after failed verify consumed the challenge
+    // Re-request OTPs after failed verify consumed the challenges
     await app.request("/api/v1/auth/staff/request-otp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         institute_id: INST_A,
         identifier: "fees@demo.edu",
+        channel: "mobile",
+      }),
+    });
+    await app.request("/api/v1/auth/staff/request-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        identifier: "fees@demo.edu",
+        channel: "email",
       }),
     });
 
@@ -220,8 +244,128 @@ describe("access roles API", () => {
       body: JSON.stringify({
         institute_id: INST_A,
         identifier: "fees@demo.edu",
-        otp: STAFF_LOGIN_DEMO_OTP,
+        mobile_otp: STAFF_LOGIN_DEMO_OTP,
+        email_otp: STAFF_LOGIN_DEMO_OTP,
         password: "Staff@1234",
+        pin: "123456",
+      }),
+    });
+    expect(ok.status).toBe(200);
+    const session = (await ok.json()) as {
+      data: { access_token: string; institute_id: string };
+    };
+    expect(session.data.access_token).toMatch(/^access-/);
+    expect(session.data.institute_id).toBe(INST_A);
+  });
+
+  it("staff login verify-otp grants then verify-login (no OTP double-consume)", async () => {
+    const db = baseDb();
+    const app = appWithDb(db);
+
+    await app.request(`/api/v1/access-roles?institute_id=${INST_A}`, {
+      headers: { Authorization: `Bearer ${TOKEN_ADMIN}` },
+    });
+    const rolesRes = await app.request(
+      `/api/v1/access-roles?institute_id=${INST_A}`,
+      { headers: { Authorization: `Bearer ${TOKEN_ADMIN}` } },
+    );
+    const roles = ((await rolesRes.json()) as { data: Array<{ id: string; systemKey: string | null }> })
+      .data;
+    const financial = roles.find((r) => r.systemKey === "financial");
+    expect(financial).toBeTruthy();
+
+    const assign = await app.request("/api/v1/access-assignees", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${TOKEN_ADMIN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        access_role_id: financial!.id,
+        password: "Staff@1234",
+        display_name: "Grant Clerk",
+        email: "grants@demo.edu",
+        phone: "9876508888",
+        pin: "654321",
+      }),
+    });
+    expect(assign.status).toBe(201);
+
+    await app.request("/api/v1/auth/staff/request-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        identifier: "grants@demo.edu",
+        channel: "mobile",
+      }),
+    });
+    await app.request("/api/v1/auth/staff/request-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        identifier: "grants@demo.edu",
+        channel: "email",
+      }),
+    });
+
+    const mobileVerify = await app.request("/api/v1/auth/staff/verify-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        identifier: "grants@demo.edu",
+        channel: "mobile",
+        otp: STAFF_LOGIN_DEMO_OTP,
+      }),
+    });
+    expect(mobileVerify.status).toBe(200);
+    const mobileBody = (await mobileVerify.json()) as {
+      data: { grant: string };
+    };
+    expect(mobileBody.data.grant).toMatch(/^[a-f0-9]{64}$/i);
+
+    const emailVerify = await app.request("/api/v1/auth/staff/verify-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        identifier: "grants@demo.edu",
+        channel: "email",
+        otp: STAFF_LOGIN_DEMO_OTP,
+      }),
+    });
+    expect(emailVerify.status).toBe(200);
+    const emailBody = (await emailVerify.json()) as {
+      data: { grant: string };
+    };
+
+    const reusedOtp = await app.request("/api/v1/auth/staff/verify-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        identifier: "grants@demo.edu",
+        mobile_otp: STAFF_LOGIN_DEMO_OTP,
+        email_otp: STAFF_LOGIN_DEMO_OTP,
+        password: "Staff@1234",
+        pin: "654321",
+      }),
+    });
+    expect(reusedOtp.status).toBe(400);
+
+    const ok = await app.request("/api/v1/auth/staff/verify-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        identifier: "grants@demo.edu",
+        mobile_otp_grant: mobileBody.data.grant,
+        email_otp_grant: emailBody.data.grant,
+        password: "Staff@1234",
+        pin: "654321",
       }),
     });
     expect(ok.status).toBe(200);
@@ -331,6 +475,7 @@ describe("access roles API", () => {
         institute_id: INST_A,
         identifier: "admin@demo.edu",
         password: "wrong",
+        pin: "123456",
       }),
     });
     expect(bad.status).toBe(400);
@@ -342,6 +487,7 @@ describe("access roles API", () => {
         institute_id: INST_A,
         identifier: "admin@demo.edu",
         password: "Admin@1234",
+        pin: "123456",
       }),
     });
     expect(ok.status).toBe(200);
@@ -389,6 +535,7 @@ describe("access roles API", () => {
         institute_id: INST_A,
         identifier: "fees@demo.edu",
         password: "Staff@1234",
+        pin: "123456",
       }),
     });
     expect(blocked.status).toBe(400);
@@ -465,5 +612,137 @@ describe("access roles API", () => {
     expect(permBody.data.accessRoleSystemKey).toBe("financial");
     expect(permBody.data.instituteWide).toBe(false);
     expect(permBody.data.permissions["/fees"]).toBe("full");
+  });
+
+  it("preserves existing membership roles when assigning platform access", async () => {
+    const db = baseDb();
+    const app = appWithDb(db);
+    const rolesRes = await app.request(
+      `/api/v1/access-roles?institute_id=${INST_A}`,
+      { headers: { Authorization: `Bearer ${TOKEN_ADMIN}` } },
+    );
+    const roles = ((await rolesRes.json()) as {
+      data: Array<{ id: string; systemKey: string | null }>;
+    }).data;
+    const financial = roles.find((role) => role.systemKey === "financial");
+
+    const assigned = await app.request("/api/v1/access-assignees", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${TOKEN_ADMIN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        access_role_id: financial!.id,
+        password: "IgnoredForLinked@123",
+        display_name: "Admin User",
+        email: "admin@demo.edu",
+        phone: "9876500001",
+      }),
+    });
+
+    expect(assigned.status).toBe(201);
+    const roleCodes = db.membership_role
+      .filter((row) => row.membership_id === db.membership[0]!.id)
+      .map((row) => row.role_code);
+    expect(roleCodes).toEqual(expect.arrayContaining(["institute_admin", "staff"]));
+  });
+
+  it("blocks disabled users and disabled institutes at login-mode", async () => {
+    const disabledUserDb = baseDb();
+    disabledUserDb.user_profile[0]!.status = "disabled";
+    const disabledUser = await appWithDb(disabledUserDb).request(
+      "/api/v1/auth/staff/login-mode",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          institute_id: INST_A,
+          identifier: "admin@demo.edu",
+        }),
+      },
+    );
+    expect(disabledUser.status).toBe(404);
+
+    const disabledInstituteDb = baseDb();
+    disabledInstituteDb.institute[0]!.status = "disabled";
+    const disabledInstitute = await appWithDb(disabledInstituteDb).request(
+      "/api/v1/auth/staff/login-mode",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          institute_id: INST_A,
+          identifier: "admin@demo.edu",
+        }),
+      },
+    );
+    expect(disabledInstitute.status).toBe(404);
+  });
+
+  it("rejects ambiguous duplicate phones within one institute", async () => {
+    const db = baseDb();
+    const duplicateUser = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    const duplicateMembership = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    db.user_profile[0]!.phone_digits = "9876500001";
+    db.user_profile.push({
+      ...db.user_profile[0]!,
+      id: duplicateUser,
+      email: "other-admin@demo.edu",
+    });
+    db.membership.push({
+      ...db.membership[0]!,
+      id: duplicateMembership,
+      user_id: duplicateUser,
+    });
+    db.membership_role.push({
+      membership_id: duplicateMembership,
+      role_code: "institute_admin",
+      created_at: "2026-01-01T00:00:00Z",
+    });
+
+    const response = await appWithDb(db).request(
+      "/api/v1/auth/staff/login-mode",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          institute_id: INST_A,
+          identifier: "9876500001",
+        }),
+      },
+    );
+    expect(response.status).toBe(409);
+    expect(await response.text()).toMatch(/multiple admin accounts/i);
+  });
+
+  it("resolves quarantined duplicate phones through institute membership", async () => {
+    const db = baseDb();
+    db.user_profile[0]!.phone_digits = null;
+    db.user_profile.push({
+      ...db.user_profile[0]!,
+      id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      email: "unassigned-owner@demo.edu",
+    });
+
+    const response = await appWithDb(db).request(
+      "/api/v1/auth/staff/login-mode",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          institute_id: INST_A,
+          identifier: "9876500001",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      data: { displayName: string; isAssigned: boolean };
+    };
+    expect(body.data.displayName).toBe("Admin User");
+    expect(body.data.isAssigned).toBe(false);
   });
 });

@@ -70,6 +70,16 @@ export function careersUserFromMe(
   me: MeResponse,
   options: CareersUserFromMeOptions = {},
 ): CareersUser {
+  if (me.profile.status !== "active") {
+    throw new Error("This Careers account is not active.");
+  }
+  if (
+    options.forceAccountType === "recruiter" &&
+    options.preferredInstituteId &&
+    !pickRecruiterMembership(me.institutes, options.preferredInstituteId)
+  ) {
+    throw new Error("This account does not have Careers recruiter access.");
+  }
   const accountType = resolveCareersAccountType(me, options);
   const recruiterMembership =
     accountType === "recruiter"

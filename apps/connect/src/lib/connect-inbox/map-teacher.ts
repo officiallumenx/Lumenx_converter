@@ -1,26 +1,39 @@
 import type { AppNotification } from "@lumenx/types";
 import type { TeacherNotification } from "@/lib/teacher/types";
 
+const TEACHER_CATEGORIES = new Set<TeacherNotification["category"]>([
+  "announcements",
+  "events",
+  "exam_updates",
+  "staff_notices",
+  "messages",
+  "system",
+  "urgent",
+]);
+
+function toTeacherCategory(
+  category: AppNotification["category"] | string | null | undefined,
+): TeacherNotification["category"] {
+  if (category === "circulars") return "announcements";
+  if (category === "events") return "events";
+  if (category === "exams") return "exam_updates";
+  if (category === "emergency") return "urgent";
+  if (category === "academic" || category === "assignments") return "staff_notices";
+  if (category && TEACHER_CATEGORIES.has(category as TeacherNotification["category"])) {
+    return category as TeacherNotification["category"];
+  }
+  return "staff_notices";
+}
+
 export function appNotificationToTeacherNotification(
   notification: AppNotification,
 ): TeacherNotification {
-  const category =
-    notification.category === "circulars"
-      ? ("announcements" as const)
-      : notification.category === "events"
-        ? ("events" as const)
-        : notification.category === "exams"
-          ? ("exam_updates" as const)
-          : notification.category === "emergency"
-            ? ("urgent" as const)
-            : ("staff_notices" as const);
-
   return {
     id: notification.id,
-    title: notification.title,
-    body: notification.desc,
-    category,
-    time: notification.time,
+    title: notification.title || "Notification",
+    body: notification.desc || "",
+    category: toTeacherCategory(notification.category),
+    time: notification.time || "",
     unread: notification.unread !== false,
     portalScope: "subject",
     href: notification.href,

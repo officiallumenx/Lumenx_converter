@@ -64,3 +64,37 @@ export function normalizeApiError(
     details: parsed?.error?.details,
   });
 }
+
+function formatFieldErrors(details: unknown): string | null {
+  if (!details || typeof details !== "object" || Array.isArray(details)) {
+    return null;
+  }
+  const parts: string[] = [];
+  for (const [field, messages] of Object.entries(
+    details as Record<string, unknown>,
+  )) {
+    if (messages == null) continue;
+    const list = Array.isArray(messages) ? messages : [messages];
+    for (const message of list) {
+      if (typeof message === "string" && message.trim()) {
+        parts.push(`${field}: ${message}`);
+      }
+    }
+  }
+  return parts.length > 0 ? parts.join("; ") : null;
+}
+
+/** Prefer Zod field details over the generic "Request validation failed" wrapper. */
+export function formatApiClientError(err: unknown, fallback: string): string {
+  if (err instanceof ApiClientError) {
+    const fields = formatFieldErrors(err.details);
+    if (fields) {
+      return err.message && err.message !== "Request validation failed"
+        ? `${err.message} (${fields})`
+        : fields;
+    }
+    return err.message || fallback;
+  }
+  if (err instanceof Error && err.message.trim()) return err.message;
+  return fallback;
+}

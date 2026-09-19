@@ -66,6 +66,20 @@ export async function findOperatorByUserId(
   return (result.data as PlatformOperatorRow | null) ?? null;
 }
 
+export async function findOperatorByHandle(
+  admin: SupabaseClient,
+  handle: string,
+): Promise<PlatformOperatorRow | null> {
+  const result = await admin
+    .from("platform_operator")
+    .select(OPERATOR_COLS)
+    .ilike("handle", handle.trim())
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (result.data as PlatformOperatorRow | null) ?? null;
+}
+
 export async function insertOperator(
   admin: SupabaseClient,
   input: CreateOperatorInput,
@@ -309,7 +323,12 @@ export async function insertSubscription(
   admin: SupabaseClient,
   input: UpsertSubscriptionInput,
 ): Promise<SubscriptionRow> {
-  const result = await admin
+  // Partial unique index (institute_id) WHERE deleted_at IS NULL cannot be used as a
+  // PostgREST onConflict target. Prefer find → insert, with conflict recovery.
+  const existing = await findSubscriptionByInstituteId(admin, input.instituteId);
+  if (existing) return existing;
+
+  const inserted = await admin
     .from("subscription")
     .insert({
       institute_id: input.instituteId,
@@ -322,7 +341,17 @@ export async function insertSubscription(
     })
     .select(SUBSCRIPTION_COLS)
     .single();
-  return ensureDbOk(result) as SubscriptionRow;
+
+  if (!inserted.error) {
+    return inserted.data as SubscriptionRow;
+  }
+
+  if (inserted.error.code === "23505") {
+    const raced = await findSubscriptionByInstituteId(admin, input.instituteId);
+    if (raced) return raced;
+  }
+
+  return ensureDbOk(inserted) as SubscriptionRow;
 }
 
 export async function updateSubscriptionFields(

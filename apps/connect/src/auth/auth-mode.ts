@@ -1,21 +1,47 @@
-/** Connect auth mode — demo localStorage vs Supabase + /api/v1/me.
- * Default is api. Set VITE_CONNECT_AUTH_MODE=demo only for offline demos.
+/**
+ * Connect auth mode — API-only product mode.
+ * Demo Mode is no longer supported.
+ * VITE_AUTH_PROVIDER=firebase|supabase selects interactive identity provider.
  */
 
-export type ConnectAuthMode = "demo" | "api";
+import {
+  assertApiOnlyProductMode,
+  normalizeAuthProvider,
+  type LumenXAuthMode,
+  type LumenXAuthProvider,
+} from "@lumenx/auth";
+
+export type ConnectAuthMode = LumenXAuthMode;
+export type ConnectAuthProvider = LumenXAuthProvider;
+
+function readModeRaw(): string | undefined {
+  return typeof import.meta !== "undefined"
+    ? import.meta.env?.VITE_CONNECT_AUTH_MODE?.trim().toLowerCase()
+    : undefined;
+}
 
 export function getConnectAuthMode(): ConnectAuthMode {
+  return assertApiOnlyProductMode(readModeRaw(), "Connect");
+}
+
+export function getConnectAuthProvider(): ConnectAuthProvider {
   const raw =
     typeof import.meta !== "undefined"
-      ? import.meta.env?.VITE_CONNECT_AUTH_MODE?.trim().toLowerCase()
+      ? import.meta.env?.VITE_AUTH_PROVIDER?.trim().toLowerCase()
       : undefined;
-  return raw === "demo" ? "demo" : "api";
+  return normalizeAuthProvider(raw);
+}
+
+export function isFirebaseAuthProvider(): boolean {
+  return getConnectAuthProvider() === "firebase";
 }
 
 export function isApiAuthMode(): boolean {
-  return getConnectAuthMode() === "api";
+  // Product is API-only. Boot fails via getConnectAuthMode()/assert when mode=demo.
+  return true;
 }
 
+/** @deprecated Demo Mode removed — always false. */
 export function isDemoAuthMode(): boolean {
-  return getConnectAuthMode() === "demo";
+  return false;
 }

@@ -33,6 +33,8 @@ export type MarkScoreRow = {
   student_id: string;
   enrollment_id: string;
   marks: number | null;
+  internal_marks: number | null;
+  external_marks: number | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -43,6 +45,8 @@ export type MarkScoreDto = {
   enrollmentId: string;
   studentId: string;
   marks: number | null;
+  internalMarks: number | null;
+  externalMarks: number | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -69,6 +73,8 @@ export type MarkEntryDto = {
 export type ScoreInput = {
   enrollmentId: string;
   marks: number | null;
+  internalMarks?: number | null;
+  externalMarks?: number | null;
 };
 
 export type CreateMarkEntryInput = {
@@ -104,6 +110,41 @@ export type WorkflowNoteInput = {
   adminNote?: string | null;
 };
 
+export type MarkPublicationRow = {
+  id: string;
+  institute_id: string;
+  mark_entry_id: string;
+  academic_year_id: string;
+  class_id: string;
+  section_id: string;
+  exam_id: string;
+  subject_id: string;
+  published_at: string;
+  published_by_user_id: string;
+  score_count: number;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+};
+
+export type MarkPublicationDto = {
+  id: string;
+  instituteId: string;
+  markEntryId: string;
+  academicYearId: string;
+  classId: string;
+  sectionId: string;
+  examId: string;
+  subjectId: string;
+  publishedAt: string;
+  publishedByUserId: string;
+  scoreCount: number;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ReportCardSubjectDto = {
   subjectId: string;
   subject: string;
@@ -132,6 +173,8 @@ export type TeacherMarkSheetRowDto = {
   studentName: string;
   rollNo: string | null;
   marks: number | null;
+  internalMarks: number | null;
+  externalMarks: number | null;
 };
 
 export type TeacherMarkSheetDto = {
@@ -145,6 +188,9 @@ export type TeacherMarkSheetDto = {
   subjectId: string;
   subjectName: string;
   maxMarks: number;
+  /** Exam scheme ceilings when configured. */
+  internalMax: number | null;
+  externalMax: number | null;
   status: MarkEntryStatus | "none";
   rows: TeacherMarkSheetRowDto[];
 };

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useReloadKey } from "@/hooks/useReloadKey";
 import {
   Check,
   Copy,
@@ -27,6 +28,7 @@ import {
 } from "@lumenx/ui-admin";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { ClassSectionAudienceField } from "@/components/ClassSectionMultiPicker";
+import { AccessLevelToggle } from "@/components/permissions/AccessLevelToggle";
 import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import { listTeachers } from "@/lib/teachers/api";
@@ -87,7 +89,7 @@ export function RolesAccessApiPanel() {
   const [staffAccounts, setStaffAccounts] = useState<StaffOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const [reloadKey, setReloadKey] = useReloadKey();
 
   const [roleEditorOpen, setRoleEditorOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<AccessRoleDto | null>(null);
@@ -95,6 +97,14 @@ export function RolesAccessApiPanel() {
   const [editingAssignee, setEditingAssignee] = useState<AccessAssigneeDto | null>(null);
   const [assignmentRoleId, setAssignmentRoleId] = useState<string | null>(null);
   const [managingRole, setManagingRole] = useState<AccessRoleDto | null>(null);
+  const [createdCredentials, setCreatedCredentials] = useState<{
+    displayName: string;
+    email: string | null;
+    phone: string | null;
+    username: string | null;
+    password: string;
+    pin: string | null;
+  } | null>(null);
 
   const instituteId = instituteCtx.activeInstituteId;
 
@@ -105,13 +115,21 @@ export function RolesAccessApiPanel() {
       return;
     }
     let cancelled = false;
+    let teachersCatalogFailed = false;
+    let staffCatalogFailed = false;
     setLoading(true);
     setError(null);
     void Promise.all([
       listAccessRoles(instituteId),
       listAccessAssignees(instituteId),
-      listTeachers({ instituteId }).catch(() => []),
-      listStaffAccounts({ instituteId }).catch(() => []),
+      listTeachers({ instituteId }).catch(() => {
+        teachersCatalogFailed = true;
+        return [];
+      }),
+      listStaffAccounts({ instituteId }).catch(() => {
+        staffCatalogFailed = true;
+        return [];
+      }),
     ])
       .then(([nextRoles, nextAssignees, nextTeachers, nextStaff]) => {
         if (cancelled) return;
@@ -134,6 +152,9 @@ export function RolesAccessApiPanel() {
             department: s.department,
           })),
         );
+        if (teachersCatalogFailed || staffCatalogFailed) {
+          notify("Could not load all people for role assignment");
+        }
       })
       .catch((reason) => {
         if (cancelled) return;
@@ -290,9 +311,23 @@ export function RolesAccessApiPanel() {
                         title="Delete role"
                         disabled={!writesEnabled}
                         onClick={async () => {
+                          const assigneeCount = assignees.filter(
+                            (a) => a.accessRoleId === role.id,
+                          ).length;
+                          const message =
+                            assigneeCount > 0
+                              ? `Delete “${role.name}” and remove ${assigneeCount} assigned user(s)? This cannot be undone.`
+                              : `Delete role “${role.name}”?`;
+                          if (!window.confirm(message)) return;
                           try {
-                            await deleteAccessRole(role.id);
-                            notify("Role deleted");
+                            await deleteAccessRole(role.id, {
+                              removeAssignees: true,
+                            });
+                            notify(
+                              assigneeCount > 0
+                                ? `Role deleted (${assigneeCount} assignment(s) removed)`
+                                : "Role deleted",
+                            );
                             setReloadKey((k) => k + 1);
                           } catch (reason) {
                             notify(
@@ -332,7 +367,7 @@ export function RolesAccessApiPanel() {
       <Card>
         <CardHeader
           title="Assigned teachers & staff"
-          hint="Login every session: institute · email or mobile · OTP · password"
+          hint="Login: institute · identifier · (first OTP) · password · PIN"
           action={<Users className="size-4 text-muted-foreground" />}
         />
         <div className="overflow-x-auto">
@@ -341,7 +376,7 @@ export function RolesAccessApiPanel() {
               <tr className="border-b border-border bg-background/40 text-[10px] uppercase tracking-wider text-muted-foreground">
                 <th className="px-5 py-3">User</th>
                 <th className="px-4 py-3">Login identity</th>
-                <th className="px-4 py-3">Password</th>
+                <th className="px-4 py-3">Password / PIN</th>
                 <th className="px-4 py-3">Role</th>
                 <th className="px-4 py-3">Linked person</th>
                 <th className="px-4 py-3">Status</th>
@@ -357,6 +392,10 @@ export function RolesAccessApiPanel() {
                   linkedTeacher?.displayName ??
                   linkedStaff?.displayName ??
                   (assignee.linkedPersonType === "staff" ? "Staff directory" : "Not linked");
+                const loginEmail =
+                  assignee.email && !assignee.email.includes("@portal.lumenx.local")
+                    ? assignee.email
+                    : null;
                 return (
                   <tr key={assignee.id} className="hover:bg-surface-hover">
                     <td className="px-5 py-3">
@@ -366,19 +405,20 @@ export function RolesAccessApiPanel() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-xs">
-                      {assignee.email && <div>{assignee.email}</div>}
+                      {assignee.username && (
+                        <div className="font-medium">{assignee.username}</div>
+                      )}
+                      {loginEmail && <div>{loginEmail}</div>}
                       {assignee.phone && (
                         <div className="text-muted-foreground">{assignee.phone}</div>
                       )}
+                      {!assignee.username && !loginEmail && !assignee.phone && (
+                        <div className="text-muted-foreground">No login identity</div>
+                      )}
                     </td>
-                    <td className="px-4 py-3">
-                      <ApiPasswordManagedHint
-                        onEdit={() => {
-                          setEditingAssignee(assignee);
-                          setAssigneeEditorOpen(true);
-                        }}
-                        disabled={!writesEnabled}
-                      />
+                    <td className="px-4 py-3 text-xs text-muted-foreground">
+                      <div>Password: set (hidden)</div>
+                      <div>PIN: {assignee.hasPin ? "set (hidden)" : "not set"}</div>
                     </td>
                     <td className="px-4 py-3 text-xs">
                       <div>{assignee.accessRoleName}</div>
@@ -512,15 +552,13 @@ export function RolesAccessApiPanel() {
         onClose={() => setAssigneeEditorOpen(false)}
         onSave={async (draft) => {
           if (editingAssignee) {
+            // Login identity is global — edits only change role / section scope.
             await updateAccessAssignee(editingAssignee.id, {
               accessRoleId: draft.accessRoleId,
-              password: draft.password || undefined,
-              displayName: draft.displayName,
-              email: draft.email,
-              phone: draft.phone,
               assignedSectionKeys: draft.assignedSectionKeys,
             });
             notify("Assignment updated");
+            setAssigneeEditorOpen(false);
           } else {
             await createAccessAssignee({
               instituteId,
@@ -529,15 +567,29 @@ export function RolesAccessApiPanel() {
               displayName: draft.displayName,
               email: draft.email,
               phone: draft.phone,
+              username: draft.username,
+              pin: draft.pin,
               linkedTeacherId: draft.linkedTeacherId,
               linkedStaffId: draft.linkedStaffId,
               assignedSectionKeys: draft.assignedSectionKeys,
             });
-            notify("User assigned");
+            setAssigneeEditorOpen(false);
+            setCreatedCredentials({
+              displayName: draft.displayName,
+              email: draft.email,
+              phone: draft.phone,
+              username: draft.username,
+              password: draft.password,
+              pin: draft.pin,
+            });
+            notify("User assigned — copy login details now");
           }
-          setAssigneeEditorOpen(false);
           setReloadKey((k) => k + 1);
         }}
+      />
+      <ApiCreatedCredentialsSummary
+        credentials={createdCredentials}
+        onClose={() => setCreatedCredentials(null)}
       />
       <ApiRoleTeacherManager
         role={managingRole}
@@ -563,27 +615,105 @@ export function RolesAccessApiPanel() {
   );
 }
 
-function ApiPasswordManagedHint({
-  onEdit,
-  disabled,
+function ApiCreatedCredentialsSummary({
+  credentials,
+  onClose,
 }: {
-  onEdit: () => void;
-  disabled: boolean;
+  credentials: {
+    displayName: string;
+    email: string | null;
+    phone: string | null;
+    username: string | null;
+    password: string;
+    pin: string | null;
+  } | null;
+  onClose: () => void;
 }) {
+  const [revealed, setRevealed] = useState(false);
+  const notify = useAdminToast();
+
+  useEffect(() => {
+    if (!credentials) setRevealed(false);
+  }, [credentials]);
+
+  const copyText = async (label: string, value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      notify(`${label} copied`);
+    } catch {
+      notify(`Unable to copy ${label.toLowerCase()}`);
+    }
+  };
+
+  const rows = credentials
+    ? [
+        { label: "Name", value: credentials.displayName },
+        { label: "Username", value: credentials.username ?? "" },
+        { label: "Email", value: credentials.email ?? "" },
+        { label: "Mobile", value: credentials.phone ?? "" },
+        {
+          label: "Password",
+          value: credentials.password,
+          secret: true,
+        },
+        {
+          label: "PIN",
+          value: credentials.pin ?? "",
+          secret: true,
+        },
+      ].filter((row) => row.value)
+    : [];
+
   return (
-    <div className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-muted/20 px-2 py-1">
-      <span className="truncate font-mono text-[11px] text-muted-foreground">••••••••</span>
-      <button
-        type="button"
-        title="Change password"
-        disabled={disabled}
-        onClick={onEdit}
-        className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-surface-hover hover:text-foreground disabled:opacity-40"
-        aria-label="Change password"
-      >
-        <KeyRound className="size-3" />
-      </button>
-    </div>
+    <Modal
+      open={credentials !== null}
+      onClose={onClose}
+      title="Login details (shown once)"
+      subtitle="Copy these now. Password and PIN are not stored in plain text and cannot be shown again."
+      size="md"
+      footer={
+        <>
+          <Button
+            onClick={() => setRevealed((v) => !v)}
+            disabled={!credentials}
+          >
+            {revealed ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+            {revealed ? "Hide secrets" : "Show password & PIN"}
+          </Button>
+          <Button variant="primary" onClick={onClose}>
+            Done
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-2">
+        {rows.map((row) => {
+          const display =
+            row.secret && !revealed ? "••••••••" : row.value;
+          return (
+            <div
+              key={row.label}
+              className="flex items-center gap-3 rounded-lg border border-border bg-background/40 px-3 py-2"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  {row.label}
+                </div>
+                <div className="truncate font-mono text-xs">{display}</div>
+              </div>
+              <button
+                type="button"
+                title={`Copy ${row.label}`}
+                onClick={() => void copyText(row.label, row.value)}
+                className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-surface-hover"
+              >
+                <Copy className="size-3.5" />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </Modal>
   );
 }
 
@@ -730,20 +860,11 @@ function ApiRoleEditor({
                       <span className="text-xs font-medium">{module.label}</span>
                     </label>
                     {permission !== "none" && (
-                      <Select
+                      <AccessLevelToggle
                         value={permission === "read" ? "read" : "full"}
-                        onChange={(e) =>
-                          setPermission(
-                            module.route,
-                            e.target.value === "read" ? "read" : "full",
-                          )
-                        }
-                        fieldSize="compact"
-                        className="h-7 w-auto min-w-[4.5rem] text-[10px] font-medium uppercase tracking-wider"
-                      >
-                        <option value="full">Full</option>
-                        <option value="read">Read</option>
-                      </Select>
+                        onChange={(next) => setPermission(module.route, next)}
+                        ariaLabel={`${module.label} access level`}
+                      />
                     )}
                   </div>
                 );
@@ -785,6 +906,8 @@ function ApiAssigneeEditor({
     email: string | null;
     phone: string | null;
     password: string;
+    username: string | null;
+    pin: string | null;
     accessRoleId: string;
     linkedTeacherId: string | null;
     linkedStaffId: string | null;
@@ -795,6 +918,8 @@ function ApiAssigneeEditor({
   const [email, setEmail] = useState("");
   const [mobile, setMobile] = useState("");
   const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("");
+  const [pin, setPin] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [roleId, setRoleId] = useState("");
   const [linkedTeacherId, setLinkedTeacherId] = useState("");
@@ -817,6 +942,8 @@ function ApiAssigneeEditor({
     setEmail(assignee?.email ?? "");
     setMobile(assignee?.phone ?? "");
     setPassword("");
+    setUsername("");
+    setPin("");
     setShowPassword(false);
     setRoleId(assignee?.accessRoleId ?? defaultRoleId ?? roles[0]?.id ?? "");
     setLinkedTeacherId(assignee?.linkedTeacherId ?? "");
@@ -847,7 +974,11 @@ function ApiAssigneeEditor({
       open={open}
       onClose={onClose}
       title={assignee ? "Update assignment" : "Assign teacher to role"}
-      subtitle="Link an existing teacher or staff member, set email/mobile and Admin password"
+      subtitle={
+        assignee
+          ? "Change role or section access only — login email, phone, and password stay on the user account"
+          : "Set email, mobile, username, password, and PIN — then assign module access"
+      }
       size="lg"
       footer={
         <>
@@ -858,19 +989,64 @@ function ApiAssigneeEditor({
             onClick={async () => {
               const cleanEmail = email.trim().toLowerCase();
               const cleanMobile = mobile.trim();
+              const cleanUsername = username.trim().toLowerCase();
+              const cleanPin = pin.trim();
+              if (assignee) {
+                if (!roleId) {
+                  setError("Select a role.");
+                  return;
+                }
+                if (
+                  isAttendanceCoordinatorRoleSelected &&
+                  assignedSectionKeys.length === 0
+                ) {
+                  setError(
+                    "Assign at least one class · section for the Attendance Coordinator.",
+                  );
+                  return;
+                }
+                setSaving(true);
+                setError(null);
+                try {
+                  await onSave({
+                    displayName: name.trim(),
+                    email: cleanEmail || null,
+                    phone: cleanMobile || null,
+                    password: "",
+                    username: null,
+                    pin: null,
+                    accessRoleId: roleId,
+                    linkedTeacherId: linkedTeacherId || null,
+                    linkedStaffId: linkedStaffId || null,
+                    assignedSectionKeys: isAttendanceCoordinatorRoleSelected
+                      ? assignedSectionKeys
+                      : [],
+                  });
+                } catch (reason) {
+                  setError(
+                    reason instanceof Error ? reason.message : "Unable to save assignment",
+                  );
+                } finally {
+                  setSaving(false);
+                }
+                return;
+              }
               if (
                 !name.trim() ||
                 (!cleanEmail && !cleanMobile) ||
                 !roleId ||
-                (!assignee && password.length < 8) ||
+                password.length < 8 ||
+                !cleanUsername ||
+                cleanUsername.length < 3 ||
+                !/^\d{4,8}$/.test(cleanPin) ||
                 (!isAttendanceCoordinatorRoleSelected &&
                   !linkedTeacherId &&
                   !linkedStaffId)
               ) {
                 setError(
                   isAttendanceCoordinatorRoleSelected
-                    ? "Enter name, email and/or 10-digit mobile, role, and a password (min 8 characters for new users)."
-                    : "Select a teacher or staff member and enter email and/or mobile. Password min 8 characters for new users.",
+                    ? "Enter name, email and/or mobile, username, role, password (min 8), and PIN (4–8 digits)."
+                    : "Select teacher/staff, email and/or mobile, username, password (min 8), and PIN (4–8 digits).",
                 );
                 return;
               }
@@ -891,6 +1067,8 @@ function ApiAssigneeEditor({
                   email: cleanEmail || null,
                   phone: cleanMobile || null,
                   password,
+                  username: cleanUsername || null,
+                  pin: cleanPin || null,
                   accessRoleId: roleId,
                   linkedTeacherId: linkedTeacherId || null,
                   linkedStaffId: linkedStaffId || null,
@@ -989,44 +1167,69 @@ function ApiAssigneeEditor({
             ))}
           </Select>
         </Field>
-        <Field label="Email" hint="Optional if mobile is set">
+        <Field label="Email" hint={assignee ? "Locked on edit" : "Optional if mobile is set"}>
           <TextInput
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="teacher@institute.edu"
+            disabled={Boolean(assignee)}
           />
         </Field>
-        <Field label="10-digit mobile" hint="Optional if email is set">
+        <Field label="10-digit mobile" hint={assignee ? "Locked on edit" : "Optional if email is set"}>
           <TextInput
             value={mobile}
             onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
             placeholder="9876543210"
             inputMode="numeric"
             maxLength={10}
+            disabled={Boolean(assignee)}
           />
         </Field>
-        <Field
-          label={assignee ? "New password (optional)" : "Admin-set password"}
-          required={!assignee}
-        >
-          <div className="relative">
-            <TextInput
-              type={showPassword ? "text" : "password"}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Minimum 8 characters"
-              className="pr-10"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword((v) => !v)}
-              className="absolute right-2 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-surface-hover"
-            >
-              {showPassword ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-            </button>
-          </div>
-        </Field>
+        {!assignee && (
+          <Field label="Admin-set password" required>
+            <div className="relative">
+              <TextInput
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Minimum 8 characters"
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-2 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-surface-hover"
+              >
+                {showPassword ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+              </button>
+            </div>
+          </Field>
+        )}
+        {!assignee && (
+          <>
+            <Field label="Username" required hint="Used at Admin login">
+              <TextInput
+                value={username}
+                onChange={(e) =>
+                  setUsername(e.target.value.replace(/[^a-zA-Z0-9._-]/g, "").slice(0, 64))
+                }
+                placeholder="teacher.john"
+                autoComplete="off"
+              />
+            </Field>
+            <Field label="PIN" required hint="4–8 digits · first login still requires OTP">
+              <TextInput
+                type="password"
+                value={pin}
+                onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                placeholder="4–8 digit PIN"
+                inputMode="numeric"
+                autoComplete="off"
+              />
+            </Field>
+          </>
+        )}
       </div>
       {isAttendanceCoordinatorRoleSelected ? (
         <div className="mt-4">
@@ -1049,8 +1252,9 @@ function ApiAssigneeEditor({
         </div>
       )}
       <div className="mt-5 rounded-lg border border-border bg-muted/20 p-3 text-[11px] text-muted-foreground">
-        If both email and mobile exist, the user may enter either one at login. OTP follows the
-        identity used; passwords are stored securely in Auth (not shown after assignment).
+        {assignee
+          ? "Editing changes role or class access only. Login email, phone, and password cannot be changed from this assignment."
+          : "If both email and mobile exist, the user may enter either one at login. First login: OTP → password → PIN. Returning: password → PIN."}
       </div>
     </Modal>
   );
@@ -1109,7 +1313,9 @@ function ApiRoleTeacherManager({
               <div className="min-w-0 flex-1">
                 <div className="text-xs font-semibold">{assignee.displayName}</div>
                 <div className="text-[10px] text-muted-foreground">
-                  {assignee.email ?? assignee.phone ?? "No login identity"}
+                  {[assignee.username, assignee.email, assignee.phone]
+                    .filter(Boolean)
+                    .join(" · ") || "No login identity"}
                   {teacher ? ` · ${teacher.displayName}` : staff ? ` · ${staff.department}` : ""}
                 </div>
               </div>

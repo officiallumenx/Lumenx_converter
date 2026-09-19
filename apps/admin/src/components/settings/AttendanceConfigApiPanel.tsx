@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useReloadKey } from "@/hooks/useReloadKey";
 import {
   Button,
   Card,
@@ -66,7 +67,7 @@ export function AttendanceConfigApiPanel() {
   const [loadStatus, setLoadStatus] = useState<AttendanceConfigLoadStatus>("loading");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const [reloadKey, setReloadKey] = useReloadKey();
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [effectiveFrom, setEffectiveFrom] = useState(
@@ -184,7 +185,7 @@ export function AttendanceConfigApiPanel() {
       <Card>
         <CardHeader
           title="Attendance configuration"
-          hint="From GET /attendance/config · create via POST /attendance/config"
+          hint="Attendance rules for this institute"
           action={
             writesEnabled ? (
               <Button size="sm" variant="primary" onClick={() => setCreateOpen(true)}>

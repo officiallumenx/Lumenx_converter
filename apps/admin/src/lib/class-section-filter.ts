@@ -138,7 +138,7 @@ export function formatStudentGradeDisplay(grade: string): string {
   if (!parsed) return grade;
   const level = getAcademicConfig().levels.find((l) => l.shortLabel === parsed.classNum);
   if (level) return `${level.label} · Sec ${parsed.section}`;
-  return `Grade ${parsed.classNum}-${parsed.section}`;
+  return `Class ${parsed.classNum}-${parsed.section}`;
 }
 
 export function getDepartmentNameForBatch(grade: string): string | undefined {

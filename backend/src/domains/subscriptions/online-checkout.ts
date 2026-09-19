@@ -45,6 +45,17 @@ export type OnlineCheckoutDto = {
   statusMessage: string;
 };
 
+export type PendingOnlineCheckoutDto = {
+  paymentId: string;
+  renewalId: string;
+  provider: string;
+  providerSessionId: string;
+  amountInr: number;
+  currency: "INR";
+  status: "recorded";
+  createdAt: string;
+};
+
 function providerMode(): "none" | "demo" | "webhook" {
   const env = loadEnv();
   return env.ONLINE_PAYMENT_PROVIDER;
@@ -193,6 +204,42 @@ function assertWebhookSecret(provider: string, provided: string | undefined): vo
   if (a.length !== b.length || !timingSafeEqual(a, b)) {
     throw AppError.unauthenticated("Invalid webhook signature");
   }
+}
+
+/** Current awaiting online checkout for an institute (if any). */
+export async function getPendingOnlineCheckoutForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  instituteIdInput: string,
+): Promise<PendingOnlineCheckoutDto | null> {
+  const instituteId = requireInstituteId(actor, instituteIdInput);
+  assertSubscriptionBillingWriter(actor, instituteId);
+
+  const [renewals, payments] = await Promise.all([
+    listRenewalsByInstitute(admin, instituteId),
+    listPaymentsByInstitute(admin, instituteId),
+  ]);
+  const payment = payments.find(
+    (p) =>
+      p.method === "online" &&
+      p.status === "recorded" &&
+      renewals.some(
+        (r) => r.id === p.renewal_record_id && r.status === "pending",
+      ),
+  );
+  if (!payment || !payment.renewal_record_id || !payment.provider_ref) {
+    return null;
+  }
+  return {
+    paymentId: payment.id,
+    renewalId: payment.renewal_record_id,
+    provider: payment.provider ?? "demo",
+    providerSessionId: payment.provider_ref,
+    amountInr: Number(payment.amount_inr),
+    currency: "INR",
+    status: "recorded",
+    createdAt: payment.created_at,
+  };
 }
 
 /**

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useReloadKey } from "@/hooks/useReloadKey";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Button, TextSizeControl, LumenXFeedbackDialog } from "@lumenx/ui";
 import { getInitials } from "@lumenx/utils";
@@ -41,7 +42,7 @@ import type { FaqItem } from "@/lib/admissions/types";
 export function DocumentCenterPage() {
   const { user } = useAdmissionsAuth();
   const apiMode = isApiAuthMode();
-  const [tick, setTick] = useState(0);
+  const [tick, setTick] = useReloadKey();
   const apps = user ? getApplicationsForUser(user.id).filter((a) => a.status !== "draft") : [];
   const [selected, setSelected] = useState(apps[0]?.id ?? "");
   const [apiDocs, setApiDocs] = useState<ApplicationDocument[]>([]);
@@ -108,7 +109,7 @@ export function DocumentCenterPage() {
         </select>
       </div>
       {app && (
-        <div className="space-y-3" key={`${app.id}-${tick}`}>
+        <div className="space-y-3" key={app.id}>
           {docsLoading ? (
             <p className="text-sm text-muted-foreground">Loading documents…</p>
           ) : displayDocs.length === 0 ? (
@@ -194,7 +195,7 @@ export function AdmissionsNotificationsPage() {
   const apiMode = isApiAuthMode();
   const apiInbox = useAdmissionsApiInbox(user?.id ?? null);
   const [filter, setFilter] = useState<(typeof NOTIF_FILTERS)[number]["key"]>("all");
-  const [tick, setTick] = useState(0);
+  const [tick, setTick] = useReloadKey();
   const demoPersisted = user && !apiMode ? getNotifications(user.id) : [];
   const demoTransient = user && !apiMode ? getTransientParentConfirmationReminders(user.id) : [];
   const items = apiMode
@@ -274,7 +275,7 @@ export function AdmissionsNotificationsPage() {
           </Button>
         ))}
       </div>
-      <div className="space-y-2" key={tick}>
+      <div className="space-y-2">
         {filtered.length === 0 ? (
           <p className="text-sm text-muted-foreground py-8 text-center">
             No notifications in this category.

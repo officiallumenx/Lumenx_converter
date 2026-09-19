@@ -4,9 +4,11 @@ import {
   classAmountsForCategory,
   findCategoryByKind,
   resolveClassId,
+  resolveClassIds,
 } from "./sync-writes";
 
-const CLASS = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+const CLASS_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const CLASS_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const TUITION = "11111111-1111-4111-8111-111111111111";
 
 function snapshotWithTuition(): FeesSnapshot {
@@ -23,7 +25,7 @@ function snapshotWithTuition(): FeesSnapshot {
       },
     ],
     classDefaults: {
-      "Grade 10": { [TUITION]: 1000 },
+      "Class 10": { [TUITION]: 1000 },
     },
     publish: { status: "draft", scope: { type: "institute" }, publishedAt: null },
     overrides: [],
@@ -43,13 +45,31 @@ describe("fees sync-writes helpers", () => {
     const amounts = classAmountsForCategory(
       snapshotWithTuition(),
       TUITION,
-      { "Grade 10": CLASS },
+      { "Class 10": CLASS_A },
     );
-    expect(amounts).toEqual({ [CLASS]: 1000 });
+    expect(amounts).toEqual({ [CLASS_A]: 1000 });
+  });
+
+  it("expands amounts across sibling class ids", () => {
+    const amounts = classAmountsForCategory(
+      snapshotWithTuition(),
+      TUITION,
+      { "Class 10": CLASS_A },
+      { "Class 10": [CLASS_A, CLASS_B] },
+    );
+    expect(amounts).toEqual({ [CLASS_A]: 1000, [CLASS_B]: 1000 });
   });
 
   it("resolves class id or throws", () => {
-    expect(resolveClassId("Grade 10", { "Grade 10": CLASS })).toBe(CLASS);
+    expect(resolveClassId("Class 10", { "Class 10": CLASS_A })).toBe(CLASS_A);
     expect(() => resolveClassId("Missing", {})).toThrow(/No class id/);
+  });
+
+  it("resolves all sibling class ids", () => {
+    expect(
+      resolveClassIds("Class 10", { "Class 10": CLASS_A }, {
+        "Class 10": [CLASS_A, CLASS_B],
+      }),
+    ).toEqual([CLASS_A, CLASS_B]);
   });
 });

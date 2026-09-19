@@ -16,10 +16,9 @@ const env = loadEnv();
 assertProductionEnv(env, process.env as Record<string, string | undefined>);
 const logger = createLogger(env.LOG_LEVEL);
 const supabase = createSupabaseClients(env, logger);
-const app = createApp(env, logger, supabase);
-
 const firebaseApp = initFirebaseAdmin(env, logger);
 const messaging = getFirebaseMessaging(firebaseApp);
+const app = createApp(env, logger, supabase, firebaseApp);
 if (supabase?.admin && messaging) {
   startFcmWorkerLoop({ admin: supabase.admin, messaging, logger });
   logger.info({ msg: "fcm_worker_started" });
@@ -68,6 +67,7 @@ serve({ fetch: app.fetch, port: env.PORT, hostname: env.HOST }, (info) => {
     port: info.port,
     env: env.NODE_ENV,
     supabase: supabase ? "configured" : "not_configured",
+    firebase: firebaseApp ? "configured" : "not_configured",
     fcm: messaging ? "enabled" : "disabled",
     subscriptionLifecycleMs: env.SUBSCRIPTION_LIFECYCLE_SYNC_MS,
     backgroundJobsMs: env.BACKGROUND_JOBS_INTERVAL_MS,

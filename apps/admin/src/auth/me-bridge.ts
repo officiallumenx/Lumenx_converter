@@ -1,6 +1,7 @@
 import type { AdminRole, AuthUser } from "@/auth/types";
 import type { MeInstituteMembership, MeResponse } from "@/lib/api/me-types";
 import { getAdminApiClient } from "@/lib/admin-api";
+import { cachedAdminFetch, invalidateAdminCache } from "@/lib/admin-resource-cache";
 
 const ROLE_MAP: Record<string, AdminRole> = {
   institute_admin: "super_admin",
@@ -13,6 +14,25 @@ const ROLE_MAP: Record<string, AdminRole> = {
   admissions_officer: "admissions_officer",
   staff: "coordinator",
 };
+
+export function hasAdminAppAccess(me: MeResponse): boolean {
+  if (me.profile.status !== "active") return false;
+  if (me.platformOperator?.active) return true;
+  return me.institutes.some(
+    (membership) =>
+      ["active", "approved"].includes(membership.status) &&
+      membership.roles.some((role) => role in ROLE_MAP),
+  );
+}
+
+/** Pending institute applicants have an active profile but no Admin membership yet. */
+export function isPendingAdminApplicant(me: MeResponse): boolean {
+  return (
+    me.profile.status === "active" &&
+    !me.platformOperator?.active &&
+    me.institutes.length === 0
+  );
+}
 
 function initialsFromName(name: string): string {
   return name
@@ -59,10 +79,24 @@ export function authUserFromMe(
 }
 
 export async function fetchMe(accessToken?: string): Promise<MeResponse> {
-  const api = getAdminApiClient();
-  return api.get<MeResponse>("/api/v1/me", {
-    accessToken: accessToken ?? undefined,
-  });
+  const cacheKey = accessToken
+    ? `admin:me:token:${accessToken.slice(0, 24)}`
+    : "admin:me:session";
+  return cachedAdminFetch(
+    cacheKey,
+    async () => {
+      const api = getAdminApiClient();
+      return api.get<MeResponse>("/api/v1/me", {
+        accessToken: accessToken ?? undefined,
+      });
+    },
+    { ttlMs: 20_000, softTtlMs: 60_000 },
+  );
+}
+
+/** Call on sign-out so the next session does not reuse /me. */
+export function invalidateMeCache(): void {
+  invalidateAdminCache("admin:me:");
 }
 
 export async function fetchInstituteName(

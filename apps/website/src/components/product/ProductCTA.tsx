@@ -31,16 +31,14 @@ export function ProductCTA({
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             {primary ?? (
               <CTAButton asChild variant="invert">
-                <Link to="/contact" search={contactSearch("trial")}>
-                  Start 60-day trial
+                <Link to="/contact" search={contactSearch("demo")}>
+                  Book a Demo
                 </Link>
               </CTAButton>
             )}
             {secondary ?? (
               <CTAButton asChild variant="on-ink">
-                <Link to="/contact" search={contactSearch("quote")}>
-                  Talk to us
-                </Link>
+                <Link to="/get-started">Get Started</Link>
               </CTAButton>
             )}
           </div>

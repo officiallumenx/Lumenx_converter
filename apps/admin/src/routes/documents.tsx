@@ -1,4 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { useDocumentsTemplatesQuery, useDocumentsGeneratedQuery, adminQueryRoots } from "@/lib/admin-queries";
+import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
 import { AdminPageTransition } from "@/components/AdminPageTransition";
 import { DocHubNav } from "@/components/documents/DocHubNav";
@@ -26,12 +29,8 @@ import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
   activateDocumentTemplate,
-  loadDocumentsGeneratedList,
-  loadDocumentsTemplatesList,
   resolveDocumentsGeneratedListView,
   resolveDocumentsTemplatesListView,
-  shouldCommitDocumentsGeneratedLoad,
-  shouldCommitDocumentsTemplatesLoad,
   transitionGeneratedDocument,
   getGeneratedDocumentSignedUrl,
   type DocumentsGeneratedListStatus,
@@ -127,7 +126,27 @@ function DocumentsPage() {
   const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
-  const [reloadKey, setReloadKey] = useState(0);
+  const queryClient = useQueryClient();
+  const listEnabled =
+    apiMode &&
+    instituteCtx.status === "ready" &&
+    Boolean(instituteCtx.activeInstituteId);
+  const templatesQuery = useDocumentsTemplatesQuery(
+    instituteCtx.activeInstituteId,
+    listEnabled && view === "templates",
+  );
+  const generatedQuery = useDocumentsGeneratedQuery(
+    instituteCtx.activeInstituteId,
+    listEnabled && view === "generated",
+  );
+  const bumpDocumentsReload = () => {
+    invalidateAdminCache("admin:documents");
+    if (instituteCtx.activeInstituteId) {
+      void queryClient.invalidateQueries({
+        queryKey: [adminQueryRoots.documents, instituteCtx.activeInstituteId],
+      });
+    }
+  };
 
   const [apiTemplates, setApiTemplates] = useState<TemplateRecord[]>([]);
   const [templatesListStatus, setTemplatesListStatus] =
@@ -149,7 +168,10 @@ function DocumentsPage() {
     activeInstituteId: instituteCtx.activeInstituteId,
     resolvedForInstituteId: templatesResolvedForInstituteId,
     storedItems: apiTemplates,
-    storedStatus: templatesListStatus,
+    storedStatus:
+      templatesQuery.isLoading && !templatesQuery.data
+        ? "loading"
+        : templatesListStatus,
     storedErrorMessage: templatesListError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
@@ -160,7 +182,10 @@ function DocumentsPage() {
     activeInstituteId: instituteCtx.activeInstituteId,
     resolvedForInstituteId: generatedResolvedForInstituteId,
     storedItems: apiGenerated,
-    storedStatus: generatedListStatus,
+    storedStatus:
+      generatedQuery.isLoading && !generatedQuery.data
+        ? "loading"
+        : generatedListStatus,
     storedErrorMessage: generatedListError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
@@ -215,35 +240,26 @@ function DocumentsPage() {
       return;
     }
 
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setTemplatesListStatus("loading");
-    setTemplatesListError(null);
-    void loadDocumentsTemplatesList(requestInstituteId).then((next) => {
-      if (
-        !shouldCommitDocumentsTemplatesLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setApiTemplates(next.items);
-      setTemplatesListStatus(next.status);
-      setTemplatesListError(next.errorMessage);
-      setTemplatesResolvedForInstituteId(requestInstituteId);
-    });
-    return () => {
-      cancelled = true;
-    };
+    if (templatesQuery.isLoading && !templatesQuery.data) {
+      setTemplatesListStatus("loading");
+      setTemplatesListError(null);
+      return;
+    }
+    if (!templatesQuery.data) return;
+
+    const next = templatesQuery.data;
+    setApiTemplates(next.items);
+    setTemplatesListStatus(next.status);
+    setTemplatesListError(next.errorMessage);
+    setTemplatesResolvedForInstituteId(instituteCtx.activeInstituteId);
   }, [
     apiMode,
     view,
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
-    reloadKey,
+    templatesQuery.data,
+    templatesQuery.isLoading,
   ]);
 
   useEffect(() => {
@@ -282,35 +298,26 @@ function DocumentsPage() {
       return;
     }
 
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setGeneratedListStatus("loading");
-    setGeneratedListError(null);
-    void loadDocumentsGeneratedList(requestInstituteId).then((next) => {
-      if (
-        !shouldCommitDocumentsGeneratedLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setApiGenerated(next.items);
-      setGeneratedListStatus(next.status);
-      setGeneratedListError(next.errorMessage);
-      setGeneratedResolvedForInstituteId(requestInstituteId);
-    });
-    return () => {
-      cancelled = true;
-    };
+    if (generatedQuery.isLoading && !generatedQuery.data) {
+      setGeneratedListStatus("loading");
+      setGeneratedListError(null);
+      return;
+    }
+    if (!generatedQuery.data) return;
+
+    const next = generatedQuery.data;
+    setApiGenerated(next.items);
+    setGeneratedListStatus(next.status);
+    setGeneratedListError(next.errorMessage);
+    setGeneratedResolvedForInstituteId(instituteCtx.activeInstituteId);
   }, [
     apiMode,
     view,
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
-    reloadKey,
+    generatedQuery.data,
+    generatedQuery.isLoading,
   ]);
 
   const apiTemplatesForView = useMemo(() => {
@@ -334,13 +341,13 @@ function DocumentsPage() {
     if (!apiMode) return base;
     if (view === "templates") {
       return templatesListView.rowsValid
-        ? `API mode · ${templatesListView.items.length} templates`
-        : `API mode · ${templatesHint ?? "…"}`;
+        ? `${templatesListView.items.length} templates`
+        : `${templatesHint ?? "…"}`;
     }
     if (view === "generated") {
       return generatedListView.rowsValid
-        ? `API mode · ${generatedListView.items.length} documents`
-        : `API mode · ${generatedHint ?? "…"}`;
+        ? `${generatedListView.items.length} documents`
+        : `${generatedHint ?? "…"}`;
     }
     if (
       view === "requests" ||
@@ -348,19 +355,19 @@ function DocumentsPage() {
       view === "signatures" ||
       view === "settings"
     ) {
-      return "API mode · read unavailable · no institute schema/API";
+      return "Read unavailable";
     }
     if (view === "dashboard") {
-      return "API mode · KPIs from templates + generated";
+      return "KPIs from templates + generated";
     }
     if (view === "generate") {
-      return "API mode · create draft via documents API";
+      return "Create draft";
     }
     if (view === "published") {
-      return "API mode · published workflow filter";
+      return "Published workflow";
     }
     if (view === "categories") {
-      return "API mode · categories derived from templates";
+      return "Categories from templates";
     }
     return base;
   }, [
@@ -391,9 +398,9 @@ function DocumentsPage() {
         {view === "requests" ? (
           apiMode ? (
             <ApiReadUnavailablePanel
-              title="Document requests unavailable in API mode"
+              title="Document requests unavailable"
               domainLabel="Document requests"
-              hint="No document_request table or API. Student/staff request intake is a separate product workflow."
+              hint="Request intake is not set up for this institute yet."
             />
           ) : (
             <DocRequestsView />
@@ -402,9 +409,9 @@ function DocumentsPage() {
         {view === "packages" ? (
           apiMode ? (
             <ApiReadUnavailablePanel
-              title="Document packages unavailable in API mode"
+              title="Document packages unavailable"
               domainLabel="Document packages"
-              hint="No document_package schema. Bundle sets are not modeled in the documents foundation."
+              hint="Document packages are not set up for this institute yet."
             />
           ) : (
             <DocPackagesView />
@@ -417,7 +424,7 @@ function DocumentsPage() {
               writesEnabled={writesEnabled}
               listBlocked={!templatesListView.rowsValid}
               listHint={templatesHint}
-              onChanged={() => setReloadKey((k) => k + 1)}
+              onChanged={() => bumpDocumentsReload()}
             />
           ) : (
             <DocTemplatesView
@@ -429,7 +436,7 @@ function DocumentsPage() {
                 apiMode
                   ? async (id) => {
                       await activateDocumentTemplate(id);
-                      setReloadKey((k) => k + 1);
+                      bumpDocumentsReload();
                     }
                   : undefined
               }
@@ -460,7 +467,7 @@ function DocumentsPage() {
                       await transitionGeneratedDocument(doc.id, {
                         workflowState: next,
                       });
-                      setReloadKey((k) => k + 1);
+                      bumpDocumentsReload();
                       notify(`Advanced to ${next.replace(/_/g, " ")}`);
                     } catch (err) {
                       notify(
@@ -478,7 +485,7 @@ function DocumentsPage() {
                         workflowState: "rejected",
                         rejectionReason: reason,
                       });
-                      setReloadKey((k) => k + 1);
+                      bumpDocumentsReload();
                       notify("Document rejected");
                     } catch (err) {
                       notify(
@@ -516,9 +523,9 @@ function DocumentsPage() {
         {view === "signatures" ? (
           apiMode ? (
             <ApiReadUnavailablePanel
-              title="Signatures unavailable in API mode"
+              title="Signatures unavailable"
               domainLabel="Document signatures"
-              hint="Signature capture was deferred in the documents foundation migration (no signatory table)."
+              hint="Signature capture is not set up for this institute yet."
             />
           ) : (
             <DocSignaturesView />
@@ -534,9 +541,9 @@ function DocumentsPage() {
         {view === "settings" ? (
           apiMode ? (
             <ApiReadUnavailablePanel
-              title="Studio settings unavailable in API mode"
+              title="Studio settings unavailable"
               domainLabel="Document studio settings"
-              hint="No document studio settings table (numbering/watermark/Connect sync config)."
+              hint="Studio settings are not set up for this institute yet."
             />
           ) : (
             <DocSettingsView />

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useReloadKey } from "@/hooks/useReloadKey";
 import { Link } from "@tanstack/react-router";
 import {
   Button,
@@ -111,7 +112,7 @@ export function MyApplicationsPage() {
 
 export function ApplicationStatusPage({ applicationId }: { applicationId: string }) {
   const { user } = useAdmissionsAuth();
-  const [refreshTick, setRefreshTick] = useState(0);
+  const [refreshTick, setRefreshTick] = useReloadKey();
   const app = useMemo(() => {
     void refreshTick;
     return getApplicationById(applicationId);

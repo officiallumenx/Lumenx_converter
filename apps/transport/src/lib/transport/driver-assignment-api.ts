@@ -3,6 +3,7 @@ import { getDriverMe, getDriverRouteRoster } from "@/lib/transport-api";
 import type { DriverAssignment } from "./driver-assignment";
 import type { BusAssignment, DriverProfile, RouteAssignment, TripAssignment } from "./types";
 import { setApiAttendanceRoster } from "./attendance/store";
+import { clearApiDriverRoster, setApiDriverRoster } from "./api-roster";
 
 export type TransportRouteDto = {
   id: string;
@@ -92,6 +93,7 @@ export async function loadApiDriverAssignment(input: {
 
   if (!route) {
     setApiAttendanceRoster([]);
+    clearApiDriverRoster();
     return {
       status: "no_route",
       account,
@@ -144,6 +146,12 @@ export async function loadApiDriverAssignment(input: {
     (s) => s.approvalStatus === "approved",
   );
   const studentCount = approvedStudents.length;
+
+  if (roster) {
+    setApiDriverRoster(roster, { vehicleNumber: busNumber });
+  } else {
+    clearApiDriverRoster();
+  }
 
   setApiAttendanceRoster(
     approvedStudents.map((s) => ({

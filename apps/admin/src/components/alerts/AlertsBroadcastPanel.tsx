@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useReloadKey } from "@/hooks/useReloadKey";
 import {
   Button,
   Card,
@@ -178,7 +179,7 @@ export function AlertsBroadcastPanel() {
   const [sending, setSending] = useState(false);
   const [recent, setRecent] = useState<AdminSchoolAlertDto[]>([]);
   const [recentLoading, setRecentLoading] = useState(false);
-  const [reloadKey, setReloadKey] = useState(0);
+  const [reloadKey, setReloadKey] = useReloadKey();
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 

@@ -32,6 +32,9 @@ const ASSIGN_A = "ab111111-1111-4111-8111-111111111111";
 const ASSIGN_B = "ab222222-2222-4222-8222-222222222222";
 const SLOT_A = "ac111111-1111-4111-8111-111111111111";
 const SLOT_B = "ac222222-2222-4222-8222-222222222222";
+const SLOT_C = "ac333333-3333-4333-8333-333333333333";
+const SLOT_D = "ac444444-4444-4444-8444-444444444444";
+const SLOT_E = "ac555555-5555-4555-8555-555555555555";
 const USER_STUDENT = "44444444-4444-4444-8444-444444444444";
 const MEMBER_STUDENT = "aa444444-4444-4444-8444-444444444444";
 const STUDENT_A = "ad111111-1111-4111-8111-111111111111";
@@ -489,7 +492,7 @@ describe("timetable — write authorization", () => {
     expect(body.data.dayOfWeek).toBe(3);
     expect(body.data.periodIndex).toBe(2);
     expect(body.data.teacherAssignmentId).toBe(ASSIGN_A);
-    expect(body.data.status).toBe("active");
+    expect(body.data.status).toBe("inactive");
   });
 
   it("allows staff to patch and soft-delete", async () => {
@@ -639,6 +642,55 @@ describe("timetable — portal routes", () => {
     const body = await json(res);
     expect(body.data.periods.length).toBe(1);
   });
+
+  it("allows class teacher to view section timetable without subject assignment", async () => {
+    const db = baseDb();
+    // TEACHER_A keeps assignment; add a second teacher as class teacher only.
+    const CLASS_TEACHER = "bb999999-9999-4999-8999-999999999999";
+    const CLASS_TEACHER_USER = "22222222-9999-4222-8222-222222222222";
+    const CLASS_TEACHER_MEMBER = "aa999999-9999-4111-8111-111111111111";
+    db.user_profile.push({
+      id: CLASS_TEACHER_USER,
+      display_name: "Homeroom",
+      email: "hr@x.com",
+      status: "active",
+      deleted_at: null,
+    });
+    db.membership.push({
+      id: CLASS_TEACHER_MEMBER,
+      user_id: CLASS_TEACHER_USER,
+      institute_id: INST_A,
+      status: "active",
+      deleted_at: null,
+    });
+    db.membership_role.push({
+      membership_id: CLASS_TEACHER_MEMBER,
+      role_code: "teacher",
+    });
+    db.teacher.push({
+      id: CLASS_TEACHER,
+      institute_id: INST_A,
+      user_profile_id: CLASS_TEACHER_USER,
+      status: "active",
+      deleted_at: null,
+    });
+    const section = db.section.find((s) => s.id === SECTION_A);
+    if (section) section.class_teacher_id = CLASS_TEACHER;
+
+    const app = appWithDb(db, {
+      "token-admin": USER_ADMIN,
+      "token-teacher": USER_TEACHER,
+      "token-other": USER_OTHER,
+      "token-homeroom": CLASS_TEACHER_USER,
+    });
+    const res = await app.request(
+      `/api/v1/timetable/portal/teacher?institute_id=${INST_A}&section_id=${SECTION_A}`,
+      { headers: auth("token-homeroom") },
+    );
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(body.data.periods.length).toBe(1);
+  });
 });
 
 describe("timetable — publish section", () => {
@@ -668,6 +720,95 @@ describe("timetable — publish section", () => {
     expect(
       db.notification_recipient.some((r) => r.user_profile_id === USER_TEACHER),
     ).toBe(true);
+  });
+
+  it("resolves active+draft collisions on the same cell without 409", async () => {
+    const db = baseDb();
+    db.notification = [];
+    db.notification_recipient = [];
+    // Same section × day × period: one live + two drafts (newest should win).
+    db.timetable_slot.push(
+      {
+        id: SLOT_C,
+        institute_id: INST_A,
+        academic_year_id: YEAR_A,
+        class_id: CLASS_A,
+        section_id: SECTION_A,
+        teacher_assignment_id: ASSIGN_A,
+        day_of_week: 4,
+        period_index: 1,
+        starts_at: "08:00:00",
+        ends_at: "08:45:00",
+        room: "201",
+        status: "active",
+        created_at: "2026-01-01T00:00:00.000Z",
+        updated_at: "2026-01-01T00:00:00.000Z",
+        deleted_at: null,
+      },
+      {
+        id: SLOT_D,
+        institute_id: INST_A,
+        academic_year_id: YEAR_A,
+        class_id: CLASS_A,
+        section_id: SECTION_A,
+        teacher_assignment_id: ASSIGN_A,
+        day_of_week: 4,
+        period_index: 1,
+        starts_at: "08:00:00",
+        ends_at: "08:45:00",
+        room: "202",
+        status: "inactive",
+        created_at: "2026-01-02T00:00:00.000Z",
+        updated_at: "2026-01-02T00:00:00.000Z",
+        deleted_at: null,
+      },
+      {
+        id: SLOT_E,
+        institute_id: INST_A,
+        academic_year_id: YEAR_A,
+        class_id: CLASS_A,
+        section_id: SECTION_A,
+        teacher_assignment_id: ASSIGN_A,
+        day_of_week: 4,
+        period_index: 1,
+        starts_at: "08:05:00",
+        ends_at: "08:50:00",
+        room: "203",
+        status: "inactive",
+        created_at: "2026-01-03T00:00:00.000Z",
+        updated_at: "2026-01-03T00:00:00.000Z",
+        deleted_at: null,
+      },
+    );
+    const app = appWithDb(db);
+
+    const res = await app.request("/api/v1/timetable/publish-section", {
+      method: "POST",
+      headers: { ...auth("token-admin"), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        section_id: SECTION_A,
+      }),
+    });
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    // SLOT_B (Tue) + SLOT_E (Thu newest draft)
+    expect(body.data.activatedCount).toBe(2);
+
+    const live = db.timetable_slot.filter(
+      (s) =>
+        s.section_id === SECTION_A &&
+        s.deleted_at == null &&
+        s.status === "active",
+    );
+    const thuP1 = live.filter(
+      (s) => s.day_of_week === 4 && s.period_index === 1,
+    );
+    expect(thuP1).toHaveLength(1);
+    expect(thuP1[0]?.id).toBe(SLOT_E);
+    expect(db.timetable_slot.find((s) => s.id === SLOT_C)?.deleted_at).toBeTruthy();
+    expect(db.timetable_slot.find((s) => s.id === SLOT_D)?.deleted_at).toBeTruthy();
+    expect(db.timetable_slot.find((s) => s.id === SLOT_B)?.status).toBe("active");
   });
 });
 

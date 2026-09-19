@@ -12,6 +12,8 @@ export type MarkScoreDto = {
   enrollmentId: string;
   studentId: string;
   marks: number | null;
+  internalMarks?: number | null;
+  externalMarks?: number | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -42,6 +44,8 @@ export type MarkStudentScoreItem = {
   rollNo: string;
   name: string;
   marks: number | null;
+  internalMarks?: number | null;
+  externalMarks?: number | null;
 };
 
 /**

@@ -9,15 +9,16 @@ describe("loadTimetableReadBundle", () => {
     vi.clearAllMocks();
   });
 
-  it("returns demo status without calling API in demo mode", async () => {
+  it("ignores demo env and still requires API (product is API-only)", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const listTimetableSlots = vi.fn();
+    const listTimetableSlots = vi.fn().mockResolvedValue([]);
+    const listClassesCatalog = vi.fn().mockResolvedValue({ sections: [], classes: [] });
     vi.doMock("./api", () => ({ listTimetableSlots }));
-    vi.doMock("@/lib/classes/api", () => ({ listClassesCatalog: vi.fn() }));
+    vi.doMock("@/lib/classes/api", () => ({ listClassesCatalog }));
     const { loadTimetableReadBundle } = await import("./load");
     const result = await loadTimetableReadBundle(INST);
-    expect(result.status).toBe("demo");
-    expect(listTimetableSlots).not.toHaveBeenCalled();
+    expect(result.status).toBe("empty");
+    expect(listTimetableSlots).toHaveBeenCalled();
   });
 
   it("requires a valid institute UUID in API mode", async () => {

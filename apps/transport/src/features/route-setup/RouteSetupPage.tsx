@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Lock, MapPinned, Plus } from "lucide-react";
 import { toast } from "sonner";
 
@@ -8,20 +9,20 @@ import { Card, CardContent } from "@/components/ui/card";
 import { FeatureHero } from "@/components/ui/feature-hero";
 import { SectionHeader } from "@/components/ui/section-header";
 import { StatusChip } from "@/components/ui/status-chip";
-import { useDriverAssignment } from "@/hooks/use-driver-assignment";
 import { useRouteSetup } from "@/hooks/use-route-setup";
 import { useTransportRealtimeRefresh } from "@/hooks/use-transport-realtime";
-import { isApiAuthMode } from "@/lib/auth/auth-mode";
 import { useTransportAuth } from "@/lib/auth/transport-auth";
 import { captureCurrentGps } from "@/lib/transport/capture-gps";
 import { routeSetupRepository } from "@/lib/transport/route-setup";
-import { hydrateRouteSetupFromApi } from "@/lib/transport/route-setup/api-sync";
-import { getRouteSetupDriverScope } from "@/lib/transport/route-setup/store";
 import type { GpsFix, RouteSetupStop, SubmissionStatus } from "@/lib/transport/route-setup/types";
 import { canEditStop, canRequestChangeStop, SUBMISSION_STATUS_LABEL } from "@/lib/transport/route-setup/types";
+import {
+  useDriverAssignmentQuery,
+  useDriverRosterQuery,
+  transportQueryKeys,
+} from "@/lib/transport-queries";
 import { MODULE_COLORS } from "@/theme/colors";
 
-import { DemoAdminReviewPanel } from "./DemoAdminReviewPanel";
 import { MyAssignmentsPanel } from "./MyAssignmentsPanel";
 import { MyStopsPanel } from "./MyStopsPanel";
 import { RouteSetupStopList } from "./RouteSetupStopList";
@@ -35,16 +36,18 @@ const STATUS_TABS: StatusTab[] = ["pending", "approved", "rejected"];
 
 export function RouteSetupPage() {
   const record = useRouteSetup();
-  const assignment = useDriverAssignment();
+  const assignment = useDriverAssignmentQuery();
   const { user } = useTransportAuth();
-  const apiMode = isApiAuthMode();
+  const queryClient = useQueryClient();
+
+  useDriverRosterQuery(user?.instituteId, assignment.status === "ready");
 
   const refreshFromRealtime = useCallback(() => {
-    if (!apiMode) return;
-    const scope = getRouteSetupDriverScope();
-    if (!scope?.instituteId) return;
-    void hydrateRouteSetupFromApi(scope);
-  }, [apiMode]);
+    if (!user?.instituteId) return;
+    void queryClient.invalidateQueries({
+      queryKey: transportQueryKeys.roster(user.instituteId),
+    });
+  }, [queryClient, user?.instituteId]);
 
   useTransportRealtimeRefresh(user?.instituteId, refreshFromRealtime);
   const driverId = user?.id ?? assignment.account?.id ?? "";
@@ -309,8 +312,6 @@ export function RouteSetupPage() {
               </p>
             </CardContent>
           </Card>
-
-          {import.meta.env.DEV && !apiMode ? <DemoAdminReviewPanel locked={locked} /> : null}
 
           <section className="space-y-3">
             <SectionHeader

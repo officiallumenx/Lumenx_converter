@@ -34,7 +34,7 @@ function classDto(overrides: Partial<ClassDto> = {}): ClassDto {
     id: CLASS_ID,
     instituteId: INST,
     academicYearId: "yyyyyyyy-yyyy-4yyy-8yyy-yyyyyyyyyyyy",
-    name: "Grade 10",
+    name: "Class 10",
     code: "G10",
     sortOrder: 1,
     status: "active",
@@ -48,7 +48,7 @@ describe("classes DTO mapping", () => {
   it("joins section with class label for card title", () => {
     const classesById = new Map([[CLASS_ID, classDto()]]);
     const item = sectionDtoToListItem(sectionDto(), classesById);
-    expect(item.name).toBe("Grade 10 · Sec A");
+    expect(item.name).toBe("Class 10 · Sec A");
     expect(item.section).toBe("A");
     expect(item.room).toBe("Block A-101");
     expect(item.capacity).toBe(40);
@@ -138,11 +138,95 @@ describe("classes DTO mapping", () => {
     ).toThrow(/array/i);
   });
 
+  it("orders by class then section, not creation order", () => {
+    const grade10 = classDto({
+      id: "c10",
+      name: "Class 10",
+      code: "10",
+      sortOrder: 0,
+    });
+    const grade8 = classDto({
+      id: "c8",
+      name: "Class 8",
+      code: "8",
+      sortOrder: 0,
+    });
+    const grade9 = classDto({
+      id: "c9",
+      name: "Class 9",
+      code: "9",
+      sortOrder: 0,
+    });
+    const items = sectionsToListItems(
+      [
+        sectionDto({ id: "s10a", classId: grade10.id, code: "A", sortOrder: 0 }),
+        sectionDto({ id: "s9b", classId: grade9.id, code: "B", sortOrder: 0 }),
+        sectionDto({ id: "s8a", classId: grade8.id, code: "A", sortOrder: 0 }),
+        sectionDto({ id: "s9a", classId: grade9.id, code: "A", sortOrder: 0 }),
+      ],
+      [grade10, grade8, grade9],
+    );
+    expect(items.map((item) => item.name)).toEqual([
+      "Class 8 · Sec A",
+      "Class 9 · Sec A",
+      "Class 9 · Sec B",
+      "Class 10 · Sec A",
+    ]);
+  });
+
+  it("orders Class 2 before Class 10 when sortOrder is missing", () => {
+    const c10 = classDto({ id: "c10", name: "Class 10", code: "CLASS-10", sortOrder: 0 });
+    const c2 = classDto({ id: "c2", name: "Class 2", code: "CLASS-2", sortOrder: 0 });
+    const items = sectionsToListItems(
+      [
+        sectionDto({ id: "s10", classId: c10.id, code: "A" }),
+        sectionDto({ id: "s2", classId: c2.id, code: "A" }),
+      ],
+      [c10, c2],
+    );
+    expect(items.map((item) => item.name)).toEqual([
+      "Class 2 · Sec A",
+      "Class 10 · Sec A",
+    ]);
+  });
+
+  it("orders Sec A before Sec B even when B was created first", () => {
+    const cls = classDto({ id: "c8", name: "Class 8", code: "CLASS-8", sortOrder: 0 });
+    const items = sectionsToListItems(
+      [
+        sectionDto({ id: "s8b", classId: cls.id, code: "B", name: "B", sortOrder: 1 }),
+        sectionDto({ id: "s8a", classId: cls.id, code: "A", name: "A", sortOrder: 2 }),
+      ],
+      [cls],
+    );
+    expect(items.map((item) => item.name)).toEqual([
+      "Class 8 · Sec A",
+      "Class 8 · Sec B",
+    ]);
+  });
+
+  it("interleaves Sec A/B across duplicate Class 8 codes", () => {
+    const c8a = classDto({ id: "c8a", name: "Grade 8", code: "G8", sortOrder: 0 });
+    const c8b = classDto({ id: "c8b", name: "Class 8", code: "8", sortOrder: 0 });
+    const items = sectionsToListItems(
+      [
+        sectionDto({ id: "s-b", classId: c8a.id, code: "B", sortOrder: 0 }),
+        sectionDto({ id: "s-a", classId: c8b.id, code: "A", sortOrder: 0 }),
+      ],
+      [c8a, c8b],
+    );
+    expect(items.map((item) => item.name)).toEqual([
+      "Class 8 · Sec A",
+      "Class 8 · Sec B",
+    ]);
+  });
+
   it("detail mapping keeps instituteId and classId for tenant writes", () => {
     const detail = sectionDtoToDetailItem(sectionDto(), classDto());
     expect(detail.instituteId).toBe(INST);
     expect(detail.classId).toBe(CLASS_ID);
     expect(detail.classStatus).toBe("active");
     expect(detail.sectionStatus).toBe("active");
+    expect(detail.classTeacherId).toBe(sectionDto().classTeacherId ?? null);
   });
 });

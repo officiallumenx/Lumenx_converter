@@ -29,6 +29,7 @@ import {
 } from "@/lib/alerts-utils";
 import { alertStore } from "@/lib/alert-store";
 import { isApiAuthMode } from "@/auth/auth-mode";
+import { safeMeta } from "@/lib/safe-meta";
 
 const CATEGORY_ICONS: Record<AlertCategory, typeof HeartPulse> = {
   absence: UserX,
@@ -58,6 +59,24 @@ const SEVERITY_STYLES: Record<
   },
 };
 
+const FALLBACK_SEVERITY = SEVERITY_STYLES.mandatory;
+
+function alertSeverityMeta(severity: string | null | undefined) {
+  return safeMeta(SEVERITY_STYLES, severity, FALLBACK_SEVERITY);
+}
+
+function alertCategoryIcon(category: string | null | undefined) {
+  return safeMeta(CATEGORY_ICONS, category, BellRing);
+}
+
+function alertSeverityLabel(severity: string | null | undefined) {
+  return safeMeta(ALERT_SEVERITY_LABELS, severity, "Alert");
+}
+
+function alertCategoryLabel(category: string | null | undefined) {
+  return safeMeta(ALERT_CATEGORY_LABELS, category, "General");
+}
+
 const READ_ALERT_STYLES = {
   stripe: "bg-muted-foreground/25",
   ring: "border-border",
@@ -69,7 +88,7 @@ const READ_ALERT_STYLES = {
 } as const;
 
 function getAlertVisuals(alert: SchoolAlert) {
-  const sev = SEVERITY_STYLES[alert.severity];
+  const sev = alertSeverityMeta(alert.severity);
   if (alert.acknowledged) {
     return {
       isRead: true as const,
@@ -181,7 +200,7 @@ function SummaryCards({ alerts }: { alerts: SchoolAlert[] }) {
 
 function AlertCard({ alert, onOpen }: { alert: SchoolAlert; onOpen: (a: SchoolAlert) => void }) {
   const visuals = getAlertVisuals(alert);
-  const CatIcon = CATEGORY_ICONS[alert.category];
+  const CatIcon = alertCategoryIcon(alert.category);
 
   return (
     <button
@@ -197,7 +216,7 @@ function AlertCard({ alert, onOpen }: { alert: SchoolAlert; onOpen: (a: SchoolAl
       <div className="min-w-0 flex-1 p-4">
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <Badge variant="outline" className={cn("text-[10px] font-semibold", visuals.severityBadge)}>
-            {ALERT_SEVERITY_LABELS[alert.severity]}
+            {alertSeverityLabel(alert.severity)}
           </Badge>
           <Badge
             variant="outline"
@@ -209,7 +228,7 @@ function AlertCard({ alert, onOpen }: { alert: SchoolAlert; onOpen: (a: SchoolAl
             )}
           >
             <CatIcon className="size-3" />
-            {ALERT_CATEGORY_LABELS[alert.category]}
+            {alertCategoryLabel(alert.category)}
           </Badge>
           <Badge variant="outline" className={cn("text-[10px]", visuals.statusBadge)}>
             {visuals.isRead ? "Read" : "Unread"}
@@ -261,8 +280,8 @@ function AlertDetailDialog({
 }) {
   if (!alert) return null;
   const visuals = getAlertVisuals(alert);
-  const sev = SEVERITY_STYLES[alert.severity];
-  const CatIcon = CATEGORY_ICONS[alert.category];
+  const sev = alertSeverityMeta(alert.severity);
+  const CatIcon = alertCategoryIcon(alert.category);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -275,7 +294,7 @@ function AlertDetailDialog({
                 variant="outline"
                 className={cn("font-semibold", visuals.severityBadge)}
               >
-                {ALERT_SEVERITY_LABELS[alert.severity]}
+                {alertSeverityLabel(alert.severity)}
               </Badge>
               <Badge
                 variant="outline"
@@ -285,7 +304,7 @@ function AlertDetailDialog({
                 )}
               >
                 <CatIcon className="size-3" />
-                {ALERT_CATEGORY_LABELS[alert.category]}
+                {alertCategoryLabel(alert.category)}
               </Badge>
             </div>
             <DialogTitle
@@ -507,14 +526,16 @@ export function AlertsDashboardPanel({
         ) : (
           scoped.map((a) => {
             const visuals = getAlertVisuals(a);
-            const CatIcon = CATEGORY_ICONS[a.category];
+            const CatIcon = alertCategoryIcon(a.category);
             return (
               <Link
                 key={a.id}
                 to="/alerts"
                 className={cn(
                   "flex min-w-0 items-start gap-2.5 rounded-xl border p-3 transition-colors hover:bg-muted/30",
-                  visuals.isRead ? READ_ALERT_STYLES.card : cn("bg-card", SEVERITY_STYLES[a.severity].ring),
+                  visuals.isRead
+                    ? READ_ALERT_STYLES.card
+                    : cn("bg-card", alertSeverityMeta(a.severity).ring),
                 )}
               >
                 <div className={cn("mt-1.5 size-2 shrink-0 rounded-full", visuals.stripe)} />
@@ -530,7 +551,7 @@ export function AlertsDashboardPanel({
                     </span>
                     <span className="inline-flex items-center gap-0.5 rounded bg-muted px-1.5 py-px text-[9px] text-muted-foreground">
                       <CatIcon className="size-2.5" />
-                      {ALERT_CATEGORY_LABELS[a.category]}
+                      {alertCategoryLabel(a.category)}
                     </span>
                   </div>
                   <p

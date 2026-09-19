@@ -1,44 +1,20 @@
 import { ArrowLeft } from "lucide-react";
 import { cn } from "@lumenx/ui";
-import type { Role } from "@lumenx/types";
 
 export type LoginStep =
   | "institute"
   | "role"
   | "phone"
-  | "password"
-  | "otp"
-  | "setPassword"
-  | "confirmOtp"
-  | "confirmPassword"
-  | "forgotPassword"
-  | "forgotOtp"
-  // Portal (parent/student/teacher) OTP-only flow
   | "portalOtp"
   | "portalPinSetup"
-  | "portalPinVerify"
-  | "api-sign-in";
-
-export type LoginMode = "signIn" | "firstSetup" | "forgotPassword";
+  | "portalPinVerify";
 
 export function LoginStepper({
   step,
-  role,
-  loginMode,
 }: {
   step: LoginStep;
-  role: Role | null;
-  loginMode: LoginMode;
 }) {
-  const isPortalRole = role === "parent" || role === "teacher" || role === "student";
-
-  const order: LoginStep[] = isPortalRole
-    ? ["institute", "role", "phone", "portalOtp"]
-    : role === "student" && loginMode === "firstSetup"
-      ? ["institute", "role", "phone", "password", "otp", "setPassword", "confirmOtp", "confirmPassword"]
-      : role === "student" && loginMode === "forgotPassword"
-        ? ["institute", "role", "phone", "password", "forgotPassword", "forgotOtp"]
-        : ["institute", "role", "phone", "password", "otp"];
+  const order: LoginStep[] = ["institute", "role", "phone", "portalOtp"];
 
   // Map portalPinVerify to the otp slot for stepper display purposes
   const displayStep: LoginStep =

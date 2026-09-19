@@ -292,6 +292,7 @@ sections.post("/", async (c) => {
       room: z.string().max(120).nullable().optional(),
       sort_order: z.number().int().min(0).optional(),
       status: sectionStatusSchema.optional(),
+      class_teacher_id: uuid.nullable().optional(),
     }),
     await c.req.json(),
   );
@@ -305,6 +306,7 @@ sections.post("/", async (c) => {
     room: body.room,
     sortOrder: body.sort_order,
     status: body.status,
+    classTeacherId: body.class_teacher_id,
   });
   return c.json({ data }, 201);
 });
@@ -322,6 +324,7 @@ sections.patch("/:id", async (c) => {
         room: z.string().max(120).nullable().optional(),
         sort_order: z.number().int().min(0).optional(),
         status: sectionStatusSchema.optional(),
+        class_teacher_id: uuid.nullable().optional(),
       })
       .refine((b) => Object.keys(b).length > 0, {
         message: "At least one field is required",
@@ -335,6 +338,7 @@ sections.patch("/:id", async (c) => {
     room: body.room,
     sortOrder: body.sort_order,
     status: body.status,
+    classTeacherId: body.class_teacher_id,
   });
   return c.json({ data });
 });
@@ -388,6 +392,7 @@ subjects.post("/", async (c) => {
       periods_per_week: z.number().int().min(1).max(40),
       applicable_class_codes: z.array(z.string().min(1).max(50)).max(50),
       status: subjectStatusSchema.optional(),
+      teacher_ids: z.array(uuid).max(50).optional(),
     }),
     await c.req.json(),
   );
@@ -399,6 +404,7 @@ subjects.post("/", async (c) => {
     periodsPerWeek: body.periods_per_week,
     applicableClassCodes: body.applicable_class_codes,
     status: body.status,
+    teacherIds: body.teacher_ids,
   });
   return c.json({ data }, 201);
 });

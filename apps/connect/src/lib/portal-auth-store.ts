@@ -1,18 +1,10 @@
 /**
  * Portal auth store for Parent / Student / Teacher portals.
  *
- * Rules:
- * - No password, no email login.
- * - Mobile must already exist in the school + portal's user directory.
- * - OTP-only verification (demo: DEMO_CONNECT_OTP).
- * - Optional 4-digit Login PIN (separate from App Lock).
- * - Maximum 4 active sessions; 5th login drops oldest.
+ * Session / Login PIN helpers remain for local device state.
+ * Demo OTP verification has been removed — use Connect API login OTP.
  */
-import { DEMO_CONNECT_OTP } from "@lumenx/auth";
 import { normalizePhoneDigits } from "@lumenx/utils";
-import { readDemoProfileId } from "@lumenx/types";
-import type { Role } from "@lumenx/types";
-import { getConnectStudentProfile } from "@/lib/mock-data";
 
 // ─── Storage keys ────────────────────────────────────────────────────────────
 
@@ -43,157 +35,37 @@ export type OtpVerifyResult =
   | { ok: true; isFirstLogin: boolean }
   | { ok: false; error: string };
 
-// ─── Demo mobile directory ────────────────────────────────────────────────────
-
-function parentDirectoryKey(): string {
-  return `lumenx.admin.parents.v2.${readDemoProfileId()}`;
-}
-
-function studentAuthKey(): string {
-  return "lumenx.connect.studentAuth.v1";
-}
-
-interface ParentRecord {
-  id: string;
-  name: string;
-  phone: string;
-  accessStatus?: "active" | "hold" | "suspended";
-}
-
-interface StudentAuthAccount {
-  phoneKey: string;
-  instituteId: string;
-  studentId: string;
-  name: string;
-  passwordHash: string | null;
-  hasCompletedSetup: boolean;
-}
-
-function loadParents(): ParentRecord[] {
-  try {
-    const raw = localStorage.getItem(parentDirectoryKey());
-    return raw ? (JSON.parse(raw) as ParentRecord[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function loadStudentAccounts(): StudentAuthAccount[] {
-  try {
-    const raw = localStorage.getItem(studentAuthKey());
-    return raw ? (JSON.parse(raw) as StudentAuthAccount[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-const DEMO_TEACHER_PHONES = ["9876543210", "9999999999", "9988776655"];
-
 function normalize(phone: string): string {
   return normalizePhoneDigits(phone);
 }
 
-function studentPhoneKey(phone: string, instituteId: string): string {
-  return `${normalize(phone)}@${instituteId}`;
-}
-
-/**
- * Verify the mobile number exists in the school + portal's user directory.
- * Returns ok=false with a specific message when not found.
- */
+/** @deprecated Local directory auth removed — use apiConnectLoginMode. */
 export function checkMobileRegistered(
-  phone: string,
-  role: PortalRole,
-  instituteId: string,
+  _phone: string,
+  _role: PortalRole,
+  _instituteId: string,
 ): MobileCheckResult {
-  const digits = normalize(phone);
-  if (!/^\d{10}$/.test(digits)) {
-    return { ok: false, error: "Enter a valid 10-digit mobile number." };
-  }
-
-  if (role === "parent") {
-    const parents = loadParents();
-    if (parents.length > 0) {
-      const found = parents.find((p) => normalize(p.phone) === digits);
-      if (!found) {
-        return {
-          ok: false,
-          error:
-            "This mobile number is not registered with this school. Please contact your school administration.",
-        };
-      }
-      if (found.accessStatus === "suspended") {
-        return { ok: false, error: "This parent account is suspended. Contact the institute." };
-      }
-      if (found.accessStatus === "hold") {
-        return { ok: false, error: "This parent account is on hold. Contact the institute." };
-      }
-      return { ok: true, displayName: found.name };
-    }
-    // Demo fallback — any 10-digit number is accepted when no directory exists
-    return { ok: true };
-  }
-
-  if (role === "student") {
-    // Check Admin-provisioned student auth
-    const accounts = loadStudentAccounts();
-    const key = studentPhoneKey(digits, instituteId);
-    const found = accounts.find((a) => a.phoneKey === key);
-    if (found) return { ok: true, displayName: found.name };
-
-    // Demo: known phones always valid
-    const demoProfile = getConnectStudentProfile();
-    if (digits === normalize(demoProfile.id) || digits === "9876543210" || digits === "9123456789") {
-      return { ok: true, displayName: demoProfile.name };
-    }
-
-    return {
-      ok: false,
-      error:
-        "This mobile number is not registered with this school. Please contact your school administration.",
-    };
-  }
-
-  if (role === "teacher") {
-    // Demo: known teacher phones
-    if (DEMO_TEACHER_PHONES.includes(digits)) {
-      return { ok: true };
-    }
-    // Any 10-digit number is accepted in demo (no teacher directory yet)
-    return { ok: true };
-  }
-
-  return { ok: false, error: "Unknown portal." };
+  return { ok: false, error: DEMO_OTP_REMOVED };
 }
 
-/** Generate (demo) OTP — in production this would call an SMS API. */
+const DEMO_OTP_REMOVED =
+  "Demo OTP auth has been removed. Use Connect API login OTP (VITE_CONNECT_AUTH_MODE=api).";
+
+/** @deprecated Demo OTP send removed — callers must use apiRequestConnectLoginOtp. */
 export function sendOtp(_phone: string, _instituteId: string): void {
-  // Demo: OTP is always DEMO_CONNECT_OTP. Production: call SMS API here.
+  throw new Error(DEMO_OTP_REMOVED);
 }
 
 /**
- * Verify the OTP the user entered.
- * Returns isFirstLogin=true when a student has never completed setup.
+ * @deprecated Demo OTP verify removed — callers must use apiVerifyConnectLoginOtp.
  */
 export function verifyOtp(
-  otp: string,
-  phone: string,
-  role: PortalRole,
-  instituteId: string,
+  _otp: string,
+  _phone: string,
+  _role: PortalRole,
+  _instituteId: string,
 ): OtpVerifyResult {
-  if (otp !== DEMO_CONNECT_OTP) {
-    return { ok: false, error: "Incorrect code. Try again." };
-  }
-
-  if (role === "student") {
-    const key = studentPhoneKey(normalize(phone), instituteId);
-    const accounts = loadStudentAccounts();
-    const found = accounts.find((a) => a.phoneKey === key);
-    const isFirstLogin = !found || !found.hasCompletedSetup;
-    return { ok: true, isFirstLogin };
-  }
-
-  return { ok: true, isFirstLogin: false };
+  throw new Error(DEMO_OTP_REMOVED);
 }
 
 // ─── Session management (max 4 devices) ──────────────────────────────────────

@@ -1,4 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { useCareersListQuery, useCareerJobsQuery, adminQueryRoots } from "@/lib/admin-queries";
+import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
 import { Button, Pill, Card, CardHeader, Kpi, KpiGrid } from "@lumenx/ui-admin";
 import { CAREER_CANDIDATES } from "@/lib/admin-module-data";
@@ -39,12 +42,8 @@ import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
-  loadCareerJobsList,
-  loadCareersList,
   resolveCareerJobsListView,
   resolveCareersListView,
-  shouldCommitCareerJobsLoad,
-  shouldCommitCareersLoad,
   transitionCareerApplication,
   updateCareerJob,
   type CareerApplicationListItem,
@@ -133,7 +132,27 @@ function CareersPage() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const queryClient = useQueryClient();
+  const listEnabled =
+    apiMode &&
+    instituteCtx.status === "ready" &&
+    Boolean(instituteCtx.activeInstituteId);
+  const careersQuery = useCareersListQuery(
+    instituteCtx.activeInstituteId,
+    listEnabled,
+  );
+  const careerJobsQuery = useCareerJobsQuery(
+    instituteCtx.activeInstituteId,
+    listEnabled,
+  );
+  const bumpCareersReload = () => {
+    invalidateAdminCache("admin:careers");
+    if (instituteCtx.activeInstituteId) {
+      void queryClient.invalidateQueries({
+        queryKey: [adminQueryRoots.careers, instituteCtx.activeInstituteId],
+      });
+    }
+  };
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
@@ -143,7 +162,8 @@ function CareersPage() {
     activeInstituteId: instituteCtx.activeInstituteId,
     resolvedForInstituteId,
     storedItems: apiItems,
-    storedStatus: listStatus,
+    storedStatus:
+      careersQuery.isLoading && !careersQuery.data ? "loading" : listStatus,
     storedErrorMessage: listError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
@@ -153,7 +173,8 @@ function CareersPage() {
     activeInstituteId: instituteCtx.activeInstituteId,
     resolvedForInstituteId: jobsResolvedForInstituteId,
     storedItems: apiJobs,
-    storedStatus: jobsStatus,
+    storedStatus:
+      careerJobsQuery.isLoading && !careerJobsQuery.data ? "loading" : jobsStatus,
     storedErrorMessage: jobsError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
@@ -202,34 +223,25 @@ function CareersPage() {
       return;
     }
 
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setListStatus("loading");
-    setListError(null);
-    void loadCareersList(requestInstituteId).then((next) => {
-      if (
-        !shouldCommitCareersLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setApiItems(next.items);
-      setListStatus(next.status);
-      setListError(next.errorMessage);
-      setResolvedForInstituteId(requestInstituteId);
-    });
-    return () => {
-      cancelled = true;
-    };
+    if (careersQuery.isLoading && !careersQuery.data) {
+      setListStatus("loading");
+      setListError(null);
+      return;
+    }
+    if (!careersQuery.data) return;
+
+    const next = careersQuery.data;
+    setApiItems(next.items);
+    setListStatus(next.status);
+    setListError(next.errorMessage);
+    setResolvedForInstituteId(instituteCtx.activeInstituteId);
   }, [
     apiMode,
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
-    reloadKey,
+    careersQuery.data,
+    careersQuery.isLoading,
   ]);
 
   useEffect(() => {
@@ -268,34 +280,25 @@ function CareersPage() {
       return;
     }
 
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setJobsStatus("loading");
-    setJobsError(null);
-    void loadCareerJobsList(requestInstituteId).then((next) => {
-      if (
-        !shouldCommitCareerJobsLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setApiJobs(next.items);
-      setJobsStatus(next.status);
-      setJobsError(next.errorMessage);
-      setJobsResolvedForInstituteId(requestInstituteId);
-    });
-    return () => {
-      cancelled = true;
-    };
+    if (careerJobsQuery.isLoading && !careerJobsQuery.data) {
+      setJobsStatus("loading");
+      setJobsError(null);
+      return;
+    }
+    if (!careerJobsQuery.data) return;
+
+    const next = careerJobsQuery.data;
+    setApiJobs(next.items);
+    setJobsStatus(next.status);
+    setJobsError(next.errorMessage);
+    setJobsResolvedForInstituteId(instituteCtx.activeInstituteId);
   }, [
     apiMode,
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
-    reloadKey,
+    careerJobsQuery.data,
+    careerJobsQuery.isLoading,
   ]);
 
   useEffect(() => {
@@ -368,7 +371,7 @@ function CareersPage() {
     if (apiMode) {
       void convertCareerApplicationToTeacher(selected.id, draft)
         .then((result) => {
-          setReloadKey((k) => k + 1);
+          bumpCareersReload();
           setSelectedId(null);
           setConvertOpen(false);
           notify(
@@ -431,7 +434,7 @@ function CareersPage() {
       title="Careers"
       subtitle={
         apiMode
-          ? `API mode · ${countLabel(activeApps.length)} applications · ${jobsListView.rowsValid ? jobsListView.items.length : "…"} jobs`
+          ? `${countLabel(activeApps.length)} applications · ${jobsListView.rowsValid ? jobsListView.items.length : "…"} jobs`
           : "Review applicants in Connect · hire approved teachers here"
       }
       actions={
@@ -460,7 +463,7 @@ function CareersPage() {
               </div>
               <p className="max-w-xl text-[12px] leading-relaxed text-muted-foreground">
                 {apiMode
-                  ? "Job postings and application pipeline from the API. Job status and application transitions are writable; hire-as-teacher remains Teachers-side."
+                  ? "Job postings and applications. Update status here; hire successful applicants from Teachers."
                   : "Create vacancies, review documents, schedule interviews, waitlist or reject candidates in Connect. Come back to Admin only to hire an approved applicant as a teacher."}
               </p>
             </div>
@@ -478,7 +481,7 @@ function CareersPage() {
           <Card>
             <CardHeader
               title="Job postings"
-              hint="Vacancies from the API"
+              hint="Open vacancies"
               action={
                 <Pill tone="neutral">
                   {jobsListView.rowsValid
@@ -522,7 +525,7 @@ function CareersPage() {
                           onClick={() => {
                             void updateCareerJob(job.id, { status: "closed" })
                               .then(() => {
-                                setReloadKey((k) => k + 1);
+                                bumpCareersReload();
                                 notify(`Closed ${job.title}`);
                               })
                               .catch((err) => {
@@ -584,7 +587,7 @@ function CareersPage() {
             title="Hire approved applicants as teachers"
             hint={
               apiMode
-                ? "Approved applicants from API · hire remains Teachers-side"
+                ? "Approved applicants · hire from Teachers"
                 : "Creates the teacher record · optional Connect login"
             }
             action={
@@ -675,7 +678,7 @@ function CareersPage() {
                                 status: "selected",
                               })
                                 .then(() => {
-                                  setReloadKey((k) => k + 1);
+                                  bumpCareersReload();
                                   notify(`${app.name} marked selected`);
                                 })
                                 .catch((err) => {

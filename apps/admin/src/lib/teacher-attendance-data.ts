@@ -98,15 +98,15 @@ export function statusMeta(status: TeacherAttStatus) {
     present: { label: "Present", tone: "success" as const },
     late: { label: "Late", tone: "warning" as const },
     absent: { label: "Absent", tone: "danger" as const },
-    leave: { label: "On leave", tone: "info" as const },
+    leave: { label: "Leave", tone: "info" as const },
     "half-day": { label: "Half day", tone: "warning" as const },
   };
   return map[status];
 }
 
-/** Labels and help text for the admin mark-attendance controls. */
+/** Labels and help text for Admin mark-attendance (flowchart: present · absent · half day · leave). */
 export const ATTENDANCE_STATUS_GUIDE: {
-  value: TeacherAttStatus;
+  value: Exclude<TeacherAttStatus, "late">;
   label: string;
   shortLabel: string;
   description: string;
@@ -118,10 +118,10 @@ export const ATTENDANCE_STATUS_GUIDE: {
     description: "Teacher is on campus and teaching as scheduled (check-in recorded).",
   },
   {
-    value: "late",
-    label: "Late",
-    shortLabel: "Late",
-    description: "Teacher arrived after the institute cutoff (e.g. after 09:00).",
+    value: "absent",
+    label: "Absent",
+    shortLabel: "Absent",
+    description: "No check-in and no approved leave — follow up required.",
   },
   {
     value: "half-day",
@@ -131,29 +131,22 @@ export const ATTENDANCE_STATUS_GUIDE: {
   },
   {
     value: "leave",
-    label: "On leave",
+    label: "Leave",
     shortLabel: "Leave",
     description: "Approved leave from the Leave Center — do not mark absent.",
   },
-  {
-    value: "absent",
-    label: "Absent",
-    shortLabel: "Absent",
-    description: "No check-in and no approved leave — follow up required.",
-  },
 ];
 
-const MARK_OPTION_ACTIVE_CLASS: Record<TeacherAttStatus, string> = {
+const MARK_OPTION_ACTIVE_CLASS: Record<Exclude<TeacherAttStatus, "late">, string> = {
   present: "bg-success text-success-foreground border-success",
-  late: "bg-warning text-foreground border-warning",
   "half-day": "bg-warning/80 text-foreground border-warning",
   leave: "bg-primary text-primary-foreground border-primary",
   absent: "bg-destructive text-destructive-foreground border-destructive",
 };
 
-/** Mark-sheet button options — labels from ATTENDANCE_STATUS_GUIDE.shortLabel. */
+/** Mark-sheet button options — flowchart statuses only. */
 export const TEACHER_MARK_OPTIONS: {
-  value: TeacherAttStatus;
+  value: Exclude<TeacherAttStatus, "late">;
   label: string;
   activeClass: string;
 }[] = ATTENDANCE_STATUS_GUIDE.map((item) => ({

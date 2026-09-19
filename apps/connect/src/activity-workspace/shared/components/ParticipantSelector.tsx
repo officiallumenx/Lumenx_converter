@@ -79,7 +79,7 @@ export function ParticipantSelector({
     <div className={cn("space-y-3", className)}>
       <div className="flex flex-wrap gap-2">
         {allowedScopes.map((s) => {
-          const meta = SCOPE_META[s];
+          const meta = SCOPE_META[s] ?? SCOPE_META.classes;
           const Icon = meta.icon;
           const active = scope === s;
           return (
@@ -98,7 +98,9 @@ export function ParticipantSelector({
         })}
       </div>
 
-      <p className="text-[10px] text-muted-foreground">{SCOPE_META[scope].description}</p>
+      <p className="text-[10px] text-muted-foreground">
+        {(SCOPE_META[scope] ?? SCOPE_META.classes).description}
+      </p>
 
       {scope === "teams" ? (
         <TeamPicker

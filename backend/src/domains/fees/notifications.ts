@@ -70,18 +70,18 @@ export async function emitFeePlanPublishedNotifications(
   actorUserId: string,
   plan: FeePlanDto,
 ): Promise<void> {
-  const parentIds = await listActiveMemberUserIdsForAudience(
-    admin,
-    plan.instituteId,
-    "parents",
-  );
+  const [parentIds, studentIds] = await Promise.all([
+    listActiveMemberUserIdsForAudience(admin, plan.instituteId, "parents"),
+    listActiveMemberUserIdsForAudience(admin, plan.instituteId, "students"),
+  ]);
+  const recipients = [...new Set([...parentIds, ...studentIds])];
   const scopeLabel =
     plan.publishScope === "classes"
       ? `${plan.publishedClassIds.length} class(es)`
       : "institute-wide";
   await emitFeesNotification(admin, actorUserId, {
     instituteId: plan.instituteId,
-    recipientUserIds: parentIds,
+    recipientUserIds: recipients,
     title: "Fee schedule published",
     body: `Updated fee schedule (${scopeLabel}) is now visible in Connect.`,
     dedupeKey: `fee-publish:${plan.id}`,
@@ -106,6 +106,14 @@ export async function emitFeePaymentRecordedNotifications(
   const studentUserId = student?.user_profile_id;
   const recipients = new Set(parentIds);
   if (studentUserId) recipients.add(studentUserId);
+
+  // Flowchart fan-out: also notify teachers (admin already acts as recorder).
+  const teacherIds = await listActiveMemberUserIdsForAudience(
+    admin,
+    payment.instituteId,
+    "teachers",
+  );
+  for (const id of teacherIds) recipients.add(id);
 
   await emitFeesNotification(admin, actorUserId, {
     instituteId: payment.instituteId,

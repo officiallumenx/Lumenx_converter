@@ -53,7 +53,7 @@ export function ModulesCatalog({
                 <h2 className="text-xl font-semibold tracking-tight">{item.title} modules</h2>
                 <p className="mt-1 text-sm text-muted-foreground">{item.lede}</p>
               </div>
-              <Link to="/products/$slug" params={{ slug: item.product }} className="inline-flex">
+              <Link to="/platform/$slug" params={{ slug: item.product }} className="inline-flex">
                 <ProductBadge product={item.product} />
               </Link>
             </div>
@@ -79,7 +79,8 @@ export function ModulesCatalog({
             <p className="mt-4 text-sm text-muted-foreground">
               Surface: {PRODUCT_FAMILY[item.product].name}
               {item.id === "connect" ? " — Parent, Teacher, and Student portals" : null}
-              {item.id === "admissions" || item.id === "careers" ? " (via Connect portals)" : null}
+              {item.id === "admissions" ? " (via Connect)" : null}
+              {item.id === "careers" ? " (Careers web app)" : null}
             </p>
           </article>
         ))}

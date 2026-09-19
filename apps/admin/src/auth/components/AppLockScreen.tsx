@@ -5,13 +5,13 @@
  * ───────────────────────────────────────────────────────────── */
 
 import { IconChip } from "@/components/IconChip";
+import { LumenXAdminLogo } from "@/components/LumenXAdminLogo";
 import { useState, useCallback, useEffect } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   Building2,
   Delete,
   Lock,
-  Sparkles,
 } from "lucide-react";
 
 import { useAuth } from "@/auth/AuthContext";
@@ -223,10 +223,7 @@ export function AppLockScreen({ onUnlocked }: AppLockScreenProps) {
       </div>
 
       <header className="lx-auth-top-bar relative z-10 flex items-center justify-center border-b border-border/40">
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <IconChip icon={Sparkles} size="xs" />
-          <span className="text-xs font-semibold tracking-widest uppercase">LumenX Admin</span>
-        </div>
+        <LumenXAdminLogo size="sm" className="max-h-8" />
       </header>
 
       <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 py-8 sm:py-12">

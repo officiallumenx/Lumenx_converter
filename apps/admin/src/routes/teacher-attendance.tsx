@@ -68,7 +68,7 @@ function TeacherAttendancePage() {
     return (
       <AppShell
         title="Teacher Attendance"
-        subtitle="API mode · mark daily attendance · overview & submitted history"
+        subtitle="Mark daily attendance · overview & submitted history"
       >
         <TeacherAttendanceApiPage />
       </AppShell>
@@ -368,7 +368,7 @@ function TeacherAttendanceDemoPage() {
               }
             />
 
-            <div className="flex flex-wrap items-end gap-2 border-b border-border px-4 pb-3 sm:px-5">
+            <div className="lx-filter-bar flex flex-wrap items-center gap-2 border-b border-border px-3 py-2 sm:px-5 sm:py-2.5">
               <CascadingFiltersMenu
                 groups={
                   [
@@ -502,7 +502,7 @@ function OverviewPanel({
         title="Teacher overview"
         hint="One row per teacher — tap a row for leave, absent, late & half-day dates"
       />
-      <div className="flex flex-wrap items-end gap-2 border-b border-border px-4 pb-3 sm:px-5">
+      <div className="lx-filter-bar flex flex-wrap items-center gap-2 border-b border-border px-3 py-2 sm:px-5 sm:py-2.5">
         <CascadingFiltersMenu
           groups={[
             {

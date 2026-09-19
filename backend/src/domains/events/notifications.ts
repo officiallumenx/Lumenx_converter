@@ -14,7 +14,6 @@ const STAFF_NOTIFY_ROLES = [
   "coordinator",
   "teacher",
   "staff",
-  "driver",
 ] as const;
 
 function formatEventWhen(row: EventRow): string {

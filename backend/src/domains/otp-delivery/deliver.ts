@@ -38,7 +38,24 @@ export function isOtpDemoMode(env?: Env): boolean {
 }
 
 function purposeLabel(purpose: DeliverLoginOtpInput["purpose"]): string {
-  return purpose === "parent_login" ? "parent login" : "staff login";
+  switch (purpose) {
+    case "parent_login":
+      return "parent login";
+    case "staff_login":
+      return "staff login";
+    case "nexus_login":
+      return "Nexus login";
+    case "connect_login":
+      return "Connect login";
+    case "signup_verify":
+      return "signup verification";
+    case "password_reset":
+      return "password reset";
+    case "pin_reset":
+      return "PIN reset";
+    default:
+      return "login";
+  }
 }
 
 function buildSmsBody(otp: string, purpose: DeliverLoginOtpInput["purpose"]): string {
@@ -99,7 +116,8 @@ async function sendSmsTwilio(env: Env, to: string, body: string): Promise<string
   const from = env.TWILIO_FROM_NUMBER;
   if (!sid || !token || !from) {
     throw AppError.internal(
-      "OTP SMS is misconfigured (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM_NUMBER)",
+      "OTP SMS is misconfigured (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM_NUMBER). " +
+        "For Firebase phone OTP set OTP_SMS_PROVIDER=none and use delivery=firebase_client from the app.",
     );
   }
   const url = `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(sid)}/Messages.json`;

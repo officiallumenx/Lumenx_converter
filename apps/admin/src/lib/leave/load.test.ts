@@ -33,14 +33,14 @@ describe("loadLeaveRequestsList", () => {
     vi.clearAllMocks();
   });
 
-  it("returns demo status without calling API in demo mode", async () => {
+  it("ignores demo env and still requires API (product is API-only)", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const listLeaveRequests = vi.fn();
+    const listLeaveRequests = vi.fn().mockResolvedValue([]);
     vi.doMock("./api", () => ({ listLeaveRequests }));
     const { loadLeaveRequestsList } = await import("./load");
     const result = await loadLeaveRequestsList(INST);
-    expect(result).toEqual({ status: "demo", items: [], errorMessage: null });
-    expect(listLeaveRequests).not.toHaveBeenCalled();
+    expect(result.status).toBe("empty");
+    expect(listLeaveRequests).toHaveBeenCalled();
   });
 
   it("requires a valid active institute UUID in API mode", async () => {
@@ -85,6 +85,33 @@ describe("loadLeaveRequestsList", () => {
     expect(result.items).toHaveLength(1);
     expect(result.items[0]?.id).toBe("lv-1");
     expect(listLeaveRequests).toHaveBeenCalledWith({ instituteId: INST });
+  });
+
+  it("keeps leave rows when enrichment catalogs fail", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const listLeaveRequests = vi.fn().mockResolvedValue([dto()]);
+    const getLeaveDecision = vi.fn().mockRejectedValue(new Error("no decision"));
+    vi.doMock("./api", () => ({ listLeaveRequests, getLeaveDecision }));
+    vi.doMock("@/lib/students/api", () => ({
+      listStudents: vi.fn().mockRejectedValue(new Error("students down")),
+    }));
+    vi.doMock("@/lib/students/map", () => ({
+      studentDtosToListItems: vi.fn().mockReturnValue([]),
+    }));
+    vi.doMock("@/lib/teachers/api", () => ({
+      listTeachers: vi.fn().mockRejectedValue(new Error("teachers down")),
+    }));
+    vi.doMock("@/lib/teachers/map", () => ({
+      teacherDtosToListItems: vi.fn().mockReturnValue([]),
+    }));
+    vi.doMock("@/lib/classes/api", () => ({
+      listClassesCatalog: vi.fn().mockRejectedValue(new Error("classes down")),
+    }));
+    const { loadLeaveRequestsList } = await import("./load");
+    const result = await loadLeaveRequestsList(INST);
+    expect(result.status).toBe("ready");
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]?.id).toBe("lv-1");
   });
 
   it("returns empty status when API returns no rows", async () => {

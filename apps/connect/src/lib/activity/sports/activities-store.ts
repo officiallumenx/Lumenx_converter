@@ -1,3 +1,4 @@
+import { isApiAuthMode } from "@/auth/auth-mode";
 import type { CalendarActivityMark } from "@/activity-workspace/hub/calendar";
 import {
   cloneSportsActivity,
@@ -12,7 +13,9 @@ import type {
 import { SPORTS_ACTIVITY_STATUS_LABELS } from "./activities-types";
 import { SPORT_TYPE_LABELS } from "./types";
 
-let activitiesStore: SportsActivity[] = sportsActivitiesSeed.map(cloneSportsActivity);
+let activitiesStore: SportsActivity[] = isApiAuthMode()
+  ? []
+  : sportsActivitiesSeed.map(cloneSportsActivity);
 
 function applyActivityFilters(
   items: SportsActivity[],
@@ -77,7 +80,7 @@ export function getActivitiesStoreSnapshot(): SportsActivity[] {
 }
 
 export function resetActivitiesStore() {
-  activitiesStore = sportsActivitiesSeed.map(cloneSportsActivity);
+  activitiesStore = isApiAuthMode() ? [] : sportsActivitiesSeed.map(cloneSportsActivity);
 }
 
 export function listActivitiesFromStore(filters?: SportsActivityListFilters): SportsActivity[] {

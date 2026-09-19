@@ -25,6 +25,7 @@ import { Route as ParentsRouteImport } from './routes/parents'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as NotificationTemplatesRouteImport } from './routes/notification-templates'
 import { Route as ModulesRouteImport } from './routes/modules'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as InstitutesRouteImport } from './routes/institutes'
 import { Route as HealthRisksRouteImport } from './routes/health-risks'
 import { Route as GuardianLinksRouteImport } from './routes/guardian-links'
@@ -124,6 +125,11 @@ const NotificationTemplatesRoute = NotificationTemplatesRouteImport.update({
 const ModulesRoute = ModulesRouteImport.update({
   id: '/modules',
   path: '/modules',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InstitutesRoute = InstitutesRouteImport.update({
@@ -245,6 +251,7 @@ export interface FileRoutesByFullPath {
   '/guardian-links': typeof GuardianLinksRoute
   '/health-risks': typeof HealthRisksRoute
   '/institutes': typeof InstitutesRouteWithChildren
+  '/login': typeof LoginRoute
   '/modules': typeof ModulesRoute
   '/notification-templates': typeof NotificationTemplatesRoute
   '/notifications': typeof NotificationsRoute
@@ -282,6 +289,7 @@ export interface FileRoutesByTo {
   '/exams': typeof ExamsRoute
   '/guardian-links': typeof GuardianLinksRoute
   '/health-risks': typeof HealthRisksRoute
+  '/login': typeof LoginRoute
   '/modules': typeof ModulesRoute
   '/notification-templates': typeof NotificationTemplatesRoute
   '/notifications': typeof NotificationsRoute
@@ -321,6 +329,7 @@ export interface FileRoutesById {
   '/guardian-links': typeof GuardianLinksRoute
   '/health-risks': typeof HealthRisksRoute
   '/institutes': typeof InstitutesRouteWithChildren
+  '/login': typeof LoginRoute
   '/modules': typeof ModulesRoute
   '/notification-templates': typeof NotificationTemplatesRoute
   '/notifications': typeof NotificationsRoute
@@ -361,6 +370,7 @@ export interface FileRouteTypes {
     | '/guardian-links'
     | '/health-risks'
     | '/institutes'
+    | '/login'
     | '/modules'
     | '/notification-templates'
     | '/notifications'
@@ -398,6 +408,7 @@ export interface FileRouteTypes {
     | '/exams'
     | '/guardian-links'
     | '/health-risks'
+    | '/login'
     | '/modules'
     | '/notification-templates'
     | '/notifications'
@@ -436,6 +447,7 @@ export interface FileRouteTypes {
     | '/guardian-links'
     | '/health-risks'
     | '/institutes'
+    | '/login'
     | '/modules'
     | '/notification-templates'
     | '/notifications'
@@ -475,6 +487,7 @@ export interface RootRouteChildren {
   GuardianLinksRoute: typeof GuardianLinksRoute
   HealthRisksRoute: typeof HealthRisksRoute
   InstitutesRoute: typeof InstitutesRouteWithChildren
+  LoginRoute: typeof LoginRoute
   ModulesRoute: typeof ModulesRoute
   NotificationTemplatesRoute: typeof NotificationTemplatesRoute
   NotificationsRoute: typeof NotificationsRoute
@@ -605,6 +618,13 @@ declare module '@tanstack/react-router' {
       path: '/modules'
       fullPath: '/modules'
       preLoaderRoute: typeof ModulesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/institutes': {
@@ -794,6 +814,7 @@ const rootRouteChildren: RootRouteChildren = {
   GuardianLinksRoute: GuardianLinksRoute,
   HealthRisksRoute: HealthRisksRoute,
   InstitutesRoute: InstitutesRouteWithChildren,
+  LoginRoute: LoginRoute,
   ModulesRoute: ModulesRoute,
   NotificationTemplatesRoute: NotificationTemplatesRoute,
   NotificationsRoute: NotificationsRoute,

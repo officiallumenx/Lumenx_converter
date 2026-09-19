@@ -92,30 +92,33 @@ export function adminModuleLightSurface(color: AdminModuleColor) {
   return "var(--color-surface)";
 }
 
+const BRAND_BLUE = ADMIN_MODULE_COLORS.blue.primary;
+
 export function adminMobileNavIconStyle(color: AdminModuleColor, active: boolean) {
   if (active) {
-    return { color: "#FFFFFF", backgroundColor: color.primary };
+    return { color: "#FFFFFF", backgroundColor: BRAND_BLUE };
   }
-  return { color: color.primary, backgroundColor: adminModuleLightChip(color) };
+  return { color: color.primary, backgroundColor: color.iconBackground };
 }
 
 export function adminMoreTileStyle(color: AdminModuleColor, active: boolean) {
   if (active) {
     return {
-      borderColor: color.primary,
-      boxShadow: `0 0 0 1px ${color.primary}`,
+      borderColor: BRAND_BLUE,
+      boxShadow: `0 0 0 1px ${BRAND_BLUE}`,
       backgroundColor: adminModuleLightSurface(color),
     };
   }
   return {
-    borderColor: `${color.primary}28`,
+    borderColor: "var(--color-border)",
   };
 }
 
-export function adminSidebarAccentStyle(color: AdminModuleColor, active: boolean) {
+/** Active row uses brand blue rail; module hue stays on the icon chip only. */
+export function adminSidebarAccentStyle(_color: AdminModuleColor, active: boolean) {
   if (!active) return undefined;
   return {
-    boxShadow: `inset 3px 0 0 ${color.primary}`,
+    boxShadow: `inset 3px 0 0 ${BRAND_BLUE}`,
     background: "var(--color-sidebar-accent)",
   };
 }

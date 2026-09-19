@@ -42,19 +42,22 @@ describe("classes api repository", () => {
     vi.resetModules();
   });
 
-  it("refuses to call backend in demo mode", async () => {
+  it("still allows API calls when demo env is set (product is API-only)", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
     const { listSections } = await import("./api");
-    const fetchMock = vi.fn();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      text: async () => JSON.stringify({ data: [] }),
+    });
     const client = createApiClient({
       getBaseUrl: () => "http://api.test",
       getAccessToken: async () => "tok",
       fetchImpl: fetchMock as unknown as typeof fetch,
     });
-    await expect(listSections({ instituteId: INST }, client)).rejects.toThrow(
-      /API auth mode/i,
-    );
-    expect(fetchMock).not.toHaveBeenCalled();
+    await expect(listSections({ instituteId: INST }, client)).resolves.toEqual([]);
+    expect(fetchMock).toHaveBeenCalled();
   });
 
   it("rejects non-UUID institute ids without calling fetch", async () => {
@@ -91,6 +94,26 @@ describe("classes api repository", () => {
     const url = fetchMock.mock.calls[0][0] as string;
     expect(url).toContain(`institute_id=${INST}`);
     expect(url).toContain("/api/v1/sections?");
+  });
+
+  it("passes class_id when listing sections for one class", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const { listSections } = await import("./api");
+    const classId = "cc111111-1111-4111-8111-111111111111";
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ data: [] }),
+    });
+    const client = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => "tok",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    await listSections({ instituteId: INST, classId }, client);
+    const url = String(fetchMock.mock.calls[0]?.[0] ?? "");
+    expect(url).toContain(`institute_id=${INST}`);
+    expect(url).toContain(`class_id=${classId}`);
   });
 
   it("lists classes with institute_id only in API mode", async () => {

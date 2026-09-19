@@ -22,8 +22,6 @@ import { Route as AppMoreSupportRouteImport } from './routes/_app/more/support'
 import { Route as AppMoreSettingsRouteImport } from './routes/_app/more/settings'
 import { Route as AppMoreRouteSetupRouteImport } from './routes/_app/more/route-setup'
 import { Route as AppMoreProfileRouteImport } from './routes/_app/more/profile'
-import { Route as AppMoreExamScheduleRouteImport } from './routes/_app/more/exam-schedule'
-import { Route as AppMoreCalendarRouteImport } from './routes/_app/more/calendar'
 import { Route as AppMoreBusInformationRouteImport } from './routes/_app/more/bus-information'
 
 const LoginRoute = LoginRouteImport.update({
@@ -90,16 +88,6 @@ const AppMoreProfileRoute = AppMoreProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => AppMoreRoute,
 } as any)
-const AppMoreExamScheduleRoute = AppMoreExamScheduleRouteImport.update({
-  id: '/exam-schedule',
-  path: '/exam-schedule',
-  getParentRoute: () => AppMoreRoute,
-} as any)
-const AppMoreCalendarRoute = AppMoreCalendarRouteImport.update({
-  id: '/calendar',
-  path: '/calendar',
-  getParentRoute: () => AppMoreRoute,
-} as any)
 const AppMoreBusInformationRoute = AppMoreBusInformationRouteImport.update({
   id: '/bus-information',
   path: '/bus-information',
@@ -115,8 +103,6 @@ export interface FileRoutesByFullPath {
   '/more': typeof AppMoreRouteWithChildren
   '/notifications': typeof AppNotificationsRoute
   '/more/bus-information': typeof AppMoreBusInformationRoute
-  '/more/calendar': typeof AppMoreCalendarRoute
-  '/more/exam-schedule': typeof AppMoreExamScheduleRoute
   '/more/profile': typeof AppMoreProfileRoute
   '/more/route-setup': typeof AppMoreRouteSetupRoute
   '/more/settings': typeof AppMoreSettingsRoute
@@ -131,8 +117,6 @@ export interface FileRoutesByTo {
   '/notifications': typeof AppNotificationsRoute
   '/': typeof AppIndexRoute
   '/more/bus-information': typeof AppMoreBusInformationRoute
-  '/more/calendar': typeof AppMoreCalendarRoute
-  '/more/exam-schedule': typeof AppMoreExamScheduleRoute
   '/more/profile': typeof AppMoreProfileRoute
   '/more/route-setup': typeof AppMoreRouteSetupRoute
   '/more/settings': typeof AppMoreSettingsRoute
@@ -150,8 +134,6 @@ export interface FileRoutesById {
   '/_app/notifications': typeof AppNotificationsRoute
   '/_app/': typeof AppIndexRoute
   '/_app/more/bus-information': typeof AppMoreBusInformationRoute
-  '/_app/more/calendar': typeof AppMoreCalendarRoute
-  '/_app/more/exam-schedule': typeof AppMoreExamScheduleRoute
   '/_app/more/profile': typeof AppMoreProfileRoute
   '/_app/more/route-setup': typeof AppMoreRouteSetupRoute
   '/_app/more/settings': typeof AppMoreSettingsRoute
@@ -169,8 +151,6 @@ export interface FileRouteTypes {
     | '/more'
     | '/notifications'
     | '/more/bus-information'
-    | '/more/calendar'
-    | '/more/exam-schedule'
     | '/more/profile'
     | '/more/route-setup'
     | '/more/settings'
@@ -185,8 +165,6 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/'
     | '/more/bus-information'
-    | '/more/calendar'
-    | '/more/exam-schedule'
     | '/more/profile'
     | '/more/route-setup'
     | '/more/settings'
@@ -203,8 +181,6 @@ export interface FileRouteTypes {
     | '/_app/notifications'
     | '/_app/'
     | '/_app/more/bus-information'
-    | '/_app/more/calendar'
-    | '/_app/more/exam-schedule'
     | '/_app/more/profile'
     | '/_app/more/route-setup'
     | '/_app/more/settings'
@@ -310,20 +286,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMoreProfileRouteImport
       parentRoute: typeof AppMoreRoute
     }
-    '/_app/more/exam-schedule': {
-      id: '/_app/more/exam-schedule'
-      path: '/exam-schedule'
-      fullPath: '/more/exam-schedule'
-      preLoaderRoute: typeof AppMoreExamScheduleRouteImport
-      parentRoute: typeof AppMoreRoute
-    }
-    '/_app/more/calendar': {
-      id: '/_app/more/calendar'
-      path: '/calendar'
-      fullPath: '/more/calendar'
-      preLoaderRoute: typeof AppMoreCalendarRouteImport
-      parentRoute: typeof AppMoreRoute
-    }
     '/_app/more/bus-information': {
       id: '/_app/more/bus-information'
       path: '/bus-information'
@@ -336,8 +298,6 @@ declare module '@tanstack/react-router' {
 
 interface AppMoreRouteChildren {
   AppMoreBusInformationRoute: typeof AppMoreBusInformationRoute
-  AppMoreCalendarRoute: typeof AppMoreCalendarRoute
-  AppMoreExamScheduleRoute: typeof AppMoreExamScheduleRoute
   AppMoreProfileRoute: typeof AppMoreProfileRoute
   AppMoreRouteSetupRoute: typeof AppMoreRouteSetupRoute
   AppMoreSettingsRoute: typeof AppMoreSettingsRoute
@@ -347,8 +307,6 @@ interface AppMoreRouteChildren {
 
 const AppMoreRouteChildren: AppMoreRouteChildren = {
   AppMoreBusInformationRoute: AppMoreBusInformationRoute,
-  AppMoreCalendarRoute: AppMoreCalendarRoute,
-  AppMoreExamScheduleRoute: AppMoreExamScheduleRoute,
   AppMoreProfileRoute: AppMoreProfileRoute,
   AppMoreRouteSetupRoute: AppMoreRouteSetupRoute,
   AppMoreSettingsRoute: AppMoreSettingsRoute,

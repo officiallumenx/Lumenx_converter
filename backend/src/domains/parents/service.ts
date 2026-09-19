@@ -267,11 +267,8 @@ export async function createParentForActor(
     });
   }
 
-  if (input.password) {
-    row = await provisionParentAccess(admin, {
-      parentId: row.id,
-      password: input.password,
-    });
+  if (input.provisionAccess) {
+    row = await provisionParentAccess(admin, { parentId: row.id });
   }
 
   return toParentDto(row, links);
@@ -281,14 +278,13 @@ export async function provisionParentAccessForActor(
   admin: SupabaseClient,
   actor: Actor,
   parentId: string,
-  password: string,
 ): Promise<ParentDto> {
   const existing = await findParentById(admin, parentId);
   if (!existing) throw AppError.notFound("Parent not found");
 
   assertStaffWriter(actor, existing.institute_id);
 
-  const row = await provisionParentAccess(admin, { parentId, password });
+  const row = await provisionParentAccess(admin, { parentId });
   const links = await listLinksForParent(admin, row.id, row.institute_id);
   return toParentDto(row, links);
 }

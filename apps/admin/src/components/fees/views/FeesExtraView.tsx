@@ -24,7 +24,8 @@ import {
 import { notifyFeeAdded, pushFeesParentInbox } from "@lumenx/notifications";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { FeesClassChecklist } from "@/components/fees/FeesClassChecklist";
-import { createFeeComponent, deleteFeeComponent } from "@/lib/fees";
+import { createFeeComponent, deleteFeeComponent, publishFeePlan } from "@/lib/fees";
+import { idsForClassLabel, type ClassIdsByLabel } from "@/lib/fees/class-ids";
 import { Plus, Trash2 } from "lucide-react";
 
 export function FeesExtraView({
@@ -34,6 +35,7 @@ export function FeesExtraView({
   apiMode = false,
   feePlanId = null,
   classIdByLabel = {},
+  classIdsByLabel = {},
   onApiReload,
 }: {
   snapshot: FeesSnapshot;
@@ -42,6 +44,7 @@ export function FeesExtraView({
   apiMode?: boolean;
   feePlanId?: string | null;
   classIdByLabel?: Record<string, string>;
+  classIdsByLabel?: ClassIdsByLabel;
   onApiReload?: () => void;
 }) {
   const notify = useAdminToast();
@@ -53,6 +56,7 @@ export function FeesExtraView({
   const [flatAmount, setFlatAmount] = useState("");
   const [scopeAll, setScopeAll] = useState(true);
   const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
+  const [publishing, setPublishing] = useState(false);
 
   const openAdd = () => {
     setName("");
@@ -80,13 +84,17 @@ export function FeesExtraView({
         return;
       }
       const classAmounts: Record<string, number> = {};
+      const assignedClassIds: string[] = [];
       for (const ck of targets) {
-        const classId = classIdByLabel[ck];
-        if (!classId) {
+        const ids = idsForClassLabel(ck, classIdsByLabel, classIdByLabel);
+        if (ids.length === 0) {
           notify(`No class id mapped for "${ck}"`);
           return;
         }
-        classAmounts[classId] = amount;
+        for (const classId of ids) {
+          classAmounts[classId] = amount;
+          if (!scopeAll) assignedClassIds.push(classId);
+        }
       }
       void createFeeComponent({
         feePlanId,
@@ -94,9 +102,7 @@ export function FeesExtraView({
         name: name.trim(),
         active: true,
         assignedToAll: scopeAll,
-        assignedClassIds: scopeAll
-          ? []
-          : targets.map((ck) => classIdByLabel[ck]).filter(Boolean),
+        assignedClassIds: scopeAll ? [] : [...new Set(assignedClassIds)],
         classAmounts,
       })
         .then(() => {
@@ -149,6 +155,28 @@ export function FeesExtraView({
     notify(`Removed ${label}`);
   };
 
+  const saveAndPublish = () => {
+    if (!writesEnabled || publishing) return;
+    if (!apiMode) {
+      notify("Extra fees saved (demo) — publish from Publish fees");
+      return;
+    }
+    if (!feePlanId) {
+      notify("No fee plan available");
+      return;
+    }
+    setPublishing(true);
+    void publishFeePlan(feePlanId, { publishScope: "institute" })
+      .then(() => {
+        onApiReload?.();
+        notify("Extra fees saved & published");
+      })
+      .catch((err) => {
+        notify(err instanceof Error ? err.message : "Failed to save & publish");
+      })
+      .finally(() => setPublishing(false));
+  };
+
   return (
     <PageStack>
       <Card>
@@ -157,9 +185,19 @@ export function FeesExtraView({
           hint="Add custom categories · assign amount and classes"
           action={
             writesEnabled ? (
-            <Button size="sm" variant="primary" onClick={openAdd}>
-              <Plus className="size-3.5" /> Add field
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" onClick={openAdd}>
+                <Plus className="size-3.5" /> Add field
+              </Button>
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={saveAndPublish}
+                disabled={publishing}
+              >
+                Save & publish
+              </Button>
+            </div>
             ) : undefined
           }
         />

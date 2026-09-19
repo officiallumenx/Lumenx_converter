@@ -17,20 +17,25 @@ vi.stubGlobal("localStorage", {
   },
 });
 
-describe("trip lifecycle persistence", () => {
+vi.stubGlobal("window", {
+  addEventListener: () => {},
+  removeEventListener: () => {},
+  dispatchEvent: () => true,
+});
+
+describe("trip session (in-memory + API sync)", () => {
   beforeEach(() => {
     memory.clear();
     vi.resetModules();
   });
 
-  it("persists active trip across module reload (refresh)", async () => {
-    const { TRIP_STORAGE_KEY } = await import("./store");
+  it("starts ready and clears legacy trip cache key", async () => {
     localStorage.setItem(
-      TRIP_STORAGE_KEY,
+      "lumenx.transport.trip.v1",
       JSON.stringify({
         version: 1,
         phase: "running",
-        tripId: "trip-test-1",
+        tripId: "stale",
         startedAt: "2026-08-21T10:00:00.000Z",
         completedAt: null,
         vehicleId: "VH-01",
@@ -40,9 +45,29 @@ describe("trip lifecycle persistence", () => {
       }),
     );
 
-    vi.resetModules();
     const { getTripSessionSnapshot } = await import("./store");
     const { isTripActive } = await import("./lifecycle");
+    const session = getTripSessionSnapshot();
+    expect(session.phase).toBe("ready");
+    expect(session.tripId).toBeNull();
+    expect(isTripActive(session.phase)).toBe(false);
+    expect(localStorage.getItem("lumenx.transport.trip.v1")).toBeNull();
+  });
+
+  it("syncTripFromApiDto applies server state", async () => {
+    const { syncTripFromApiDto, getTripSessionSnapshot } = await import("./store");
+    const { isTripActive } = await import("./lifecycle");
+
+    syncTripFromApiDto({
+      id: "trip-test-1",
+      phase: "running",
+      startedAt: "2026-08-21T10:00:00.000Z",
+      completedAt: null,
+      vehicleId: "VH-01",
+      routeId: "RT-01",
+      currentStopIndex: 1,
+    });
+
     const session = getTripSessionSnapshot();
     expect(session.phase).toBe("running");
     expect(session.tripId).toBe("trip-test-1");
@@ -51,51 +76,18 @@ describe("trip lifecycle persistence", () => {
     expect(isTripActive(session.phase)).toBe(true);
   });
 
-  it("maps legacy in_progress to running", async () => {
-    const { TRIP_STORAGE_KEY } = await import("./store");
-    localStorage.setItem(
-      TRIP_STORAGE_KEY,
-      JSON.stringify({
-        version: 1,
-        phase: "in_progress",
-        tripId: "legacy",
-        startedAt: "2026-08-21T09:00:00.000Z",
-        completedAt: null,
-        vehicleId: "VH-01",
-        routeId: "RT-01",
-        currentStopIndex: 0,
-        lastSummary: null,
-      }),
-    );
-    vi.resetModules();
-    const { getTripSessionSnapshot } = await import("./store");
-    expect(getTripSessionSnapshot().phase).toBe("running");
-  });
-
   it("rejects ending an already completed trip", async () => {
-    const { TRIP_STORAGE_KEY } = await import("./store");
-    localStorage.setItem(
-      TRIP_STORAGE_KEY,
-      JSON.stringify({
-        version: 1,
-        phase: "completed",
-        tripId: "done",
-        startedAt: "2026-08-21T08:00:00.000Z",
-        completedAt: "2026-08-21T09:00:00.000Z",
-        vehicleId: "VH-01",
-        routeId: "RT-01",
-        currentStopIndex: 2,
-        lastSummary: {
-          studentsBoarded: 3,
-          studentsDropped: 3,
-          studentsRemaining: 0,
-          stopsCompleted: 3,
-          stopsTotal: 3,
-        },
-      }),
-    );
-    vi.resetModules();
-    const { endTripSession, getTripSessionSnapshot } = await import("./store");
+    const { syncTripFromApiDto, endTripSession, getTripSessionSnapshot } = await import("./store");
+    syncTripFromApiDto({
+      id: "done",
+      phase: "completed",
+      startedAt: "2026-08-21T08:00:00.000Z",
+      completedAt: "2026-08-21T09:00:00.000Z",
+      vehicleId: "VH-01",
+      routeId: "RT-01",
+      currentStopIndex: 2,
+    });
+
     const result = endTripSession();
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -105,13 +97,42 @@ describe("trip lifecycle persistence", () => {
   });
 
   it("rejects starting a second trip while running", async () => {
-    const { TRIP_STORAGE_KEY } = await import("./store");
+    const { syncTripFromApiDto, startTripSession } = await import("./store");
+    syncTripFromApiDto({
+      id: "active",
+      phase: "running",
+      startedAt: "2026-08-21T10:00:00.000Z",
+      completedAt: null,
+      vehicleId: "VH-01",
+      routeId: "RT-01",
+      currentStopIndex: 0,
+    });
+
+    const result = startTripSession();
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toMatch(/already running/i);
+    }
+  });
+
+  it("does not restore trip from localStorage after module reload", async () => {
+    const { syncTripFromApiDto } = await import("./store");
+    syncTripFromApiDto({
+      id: "trip-live",
+      phase: "boarding",
+      startedAt: "2026-08-21T10:00:00.000Z",
+      completedAt: null,
+      vehicleId: "VH-01",
+      routeId: "RT-01",
+      currentStopIndex: 0,
+    });
+    // Simulate old cache write that must not become SoT.
     localStorage.setItem(
-      TRIP_STORAGE_KEY,
+      "lumenx.transport.trip.v1",
       JSON.stringify({
         version: 1,
-        phase: "running",
-        tripId: "active",
+        phase: "boarding",
+        tripId: "trip-live",
         startedAt: "2026-08-21T10:00:00.000Z",
         completedAt: null,
         vehicleId: "VH-01",
@@ -120,38 +141,11 @@ describe("trip lifecycle persistence", () => {
         lastSummary: null,
       }),
     );
-    vi.resetModules();
-    const { startTripSession } = await import("./store");
-    const result = startTripSession();
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.reason).toMatch(/already running/i);
-    }
-  });
 
-  it("reverts incomplete STARTING to ready after refresh", async () => {
-    const { TRIP_STORAGE_KEY } = await import("./store");
-    localStorage.setItem(
-      TRIP_STORAGE_KEY,
-      JSON.stringify({
-        version: 1,
-        phase: "starting",
-        tripId: null,
-        startedAt: null,
-        completedAt: null,
-        vehicleId: "VH-01",
-        routeId: "RT-01",
-        currentStopIndex: 0,
-        lastSummary: null,
-      }),
-    );
     vi.resetModules();
     const { getTripSessionSnapshot } = await import("./store");
-    const { isTripActive } = await import("./lifecycle");
-    const session = getTripSessionSnapshot();
-    expect(session.phase).toBe("ready");
-    expect(session.tripId).toBeNull();
-    expect(isTripActive(session.phase)).toBe(false);
+    expect(getTripSessionSnapshot().phase).toBe("ready");
+    expect(localStorage.getItem("lumenx.transport.trip.v1")).toBeNull();
   });
 });
 

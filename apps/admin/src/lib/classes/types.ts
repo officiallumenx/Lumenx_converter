@@ -26,6 +26,7 @@ export type SectionDto = {
   room: string | null;
   sortOrder: number;
   status: SectionStatus;
+  classTeacherId?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -59,8 +60,13 @@ export type SectionDetailItem = ClassListItem & {
   sectionStatus: SectionStatus;
   academicYearId: string;
   updatedAt: string;
+  /** Homeroom / class teacher for Connect attendance & portal. */
+  classTeacherId: string | null;
 };
 
 export type ListClassesParams = {
   instituteId: string;
+  academicYearId?: string;
+  classId?: string;
+  status?: ClassStatus | SectionStatus;
 };

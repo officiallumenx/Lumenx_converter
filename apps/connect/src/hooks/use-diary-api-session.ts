@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { getConnectApiClient } from "@/lib/connect-api";
 import type { MeResponse } from "@/lib/api/me-types";
@@ -9,12 +9,14 @@ import { diaryRepository } from "@/lib/teacher/diary/repository";
 import type { DiaryScope } from "@/lib/teacher/diary/types";
 import { yesterdayIso } from "@/lib/teacher/diary/dates";
 import { useApp } from "@/lib/app-state";
+import { useTeacherPortal } from "@/context/TeacherPortalContext";
 
 export function useDiaryApiSession(scope: DiaryScope) {
   const { activeInstituteId } = useApp();
   const apiMode = isApiAuthMode();
+  const portal = useTeacherPortal();
   const [ready, setReady] = useState(!apiMode);
-  const [sectionOptions, setSectionOptions] = useState<DiarySectionOption[]>([]);
+  const [apiSectionOptions, setApiSectionOptions] = useState<DiarySectionOption[]>([]);
 
   useEffect(() => {
     if (!apiMode || !activeInstituteId) {
@@ -23,6 +25,7 @@ export function useDiaryApiSession(scope: DiaryScope) {
     }
 
     let cancelled = false;
+    setReady(false);
     void getConnectApiClient()
       .get<MeResponse>("/api/v1/me")
       .then(async (me) => {
@@ -41,7 +44,9 @@ export function useDiaryApiSession(scope: DiaryScope) {
             instituteId: activeInstituteId,
             teacherId: teacher.teacherId,
           });
-          if (!cancelled) setSectionOptions(options);
+          if (!cancelled) setApiSectionOptions(options);
+        } else if (!cancelled) {
+          setApiSectionOptions([]);
         }
         if (!cancelled) setReady(true);
       })
@@ -53,6 +58,24 @@ export function useDiaryApiSession(scope: DiaryScope) {
       cancelled = true;
     };
   }, [apiMode, activeInstituteId, scope]);
+
+  /** Prefer timetable assignments; fall back to teacher portal roster sections. */
+  const sectionOptions = useMemo(() => {
+    if (scope !== "subject") return [];
+    if (apiSectionOptions.length > 0) return apiSectionOptions;
+    const seen = new Set<string>();
+    const fromPortal: DiarySectionOption[] = [];
+    for (const cls of portal.classes) {
+      if (!cls.id || seen.has(cls.id)) continue;
+      seen.add(cls.id);
+      fromPortal.push({
+        sectionId: cls.id,
+        classId: cls.id,
+        label: `${cls.className}-${cls.section}`,
+      });
+    }
+    return fromPortal;
+  }, [scope, apiSectionOptions, portal.classes]);
 
   return { ready, apiMode, sectionOptions };
 }

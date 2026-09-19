@@ -27,6 +27,8 @@
     "typecheck:admin": "npm run typecheck --workspace=@lumenx/app-admin",
     "typecheck:website": "npm run typecheck --workspace=@lumenx/app-website",
     "test:connect": "npm run test --workspace=@lumenx/app-connect",
+    "test:e2e:safe": "node scripts/run-safe-e2e.mjs",
+    "verify:auth:live": "node backend/scripts/verify-live-auth.mjs",
     "sync:api-envs": "node scripts/sync-api-mode-envs.mjs",
     "dev:api": "npm run dev --workspace=@lumenx/api",
     "build:api": "npm run build --workspace=@lumenx/api",
@@ -39,6 +41,9 @@
     "packages/*",
     "backend"
   ],
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
+  },
   "overrides": {
     "react": "19.2.7",
     "react-dom": "19.2.7"

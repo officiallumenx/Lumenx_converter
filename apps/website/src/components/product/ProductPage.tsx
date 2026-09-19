@@ -35,7 +35,11 @@ function ProductDownload({ content }: { content: ProductPageContent }) {
 }
 
 export function ProductPage({ content }: { content: ProductPageContent }) {
-  const related = relatedProductPages(content.id);
+  const related = relatedProductPages(content.id).filter((page) => page.id !== "nexus");
+  const navProducts = PRODUCT_FAMILY_LIST.filter((p) => p.id !== "nexus").map((p) => ({
+    id: p.id,
+    label: p.shortName,
+  }));
 
   return (
     <SiteShell>
@@ -43,7 +47,7 @@ export function ProductPage({ content }: { content: ProductPageContent }) {
         <Breadcrumbs
           items={[
             { label: "Home", to: "/" },
-            { label: "Products", to: "/products" },
+            { label: "Platform", to: "/platform" },
             { label: content.shortName },
           ]}
         />
@@ -58,8 +62,8 @@ export function ProductPage({ content }: { content: ProductPageContent }) {
         actions={
           <>
             <CTAButton asChild>
-              <Link to="/contact" search={contactSearch("trial")}>
-                Start 60-day trial
+              <Link to="/contact" search={contactSearch("demo")}>
+                Book a Demo
               </Link>
             </CTAButton>
             {isDemoExploreId(content.id) ? (
@@ -186,7 +190,7 @@ export function ProductPage({ content }: { content: ProductPageContent }) {
           <ProductDownload content={content} />
           <p className="mt-6">
             <CTAButton asChild variant="ghost" className="px-0">
-              <Link to="/downloads" search={{ product: content.id }}>
+              <Link to="/resources/downloads" search={{ product: content.id }}>
                 All download details
               </Link>
             </CTAButton>
@@ -218,7 +222,7 @@ export function ProductPage({ content }: { content: ProductPageContent }) {
         tone="muted"
       >
         <ProductNavigation
-          products={PRODUCT_FAMILY_LIST.map((p) => ({ id: p.id, label: p.shortName }))}
+          products={navProducts}
           active={content.id}
         />
         <div className="mt-8">

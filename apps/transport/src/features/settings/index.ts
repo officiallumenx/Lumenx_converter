@@ -1,3 +1,2 @@
 export { SettingsPage } from "./SettingsPage";
-export { settingsMock } from "./mock";
-export type { NotificationPrefs } from "./mock";
+export type { NotificationPrefs } from "@/lib/transport/types";

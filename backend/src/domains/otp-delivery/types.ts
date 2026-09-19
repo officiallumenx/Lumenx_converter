@@ -2,7 +2,14 @@
 
 export type OtpDeliveryChannel = "sms" | "email";
 
-export type OtpDeliveryPurpose = "parent_login" | "staff_login";
+export type OtpDeliveryPurpose =
+  | "parent_login"
+  | "staff_login"
+  | "nexus_login"
+  | "connect_login"
+  | "signup_verify"
+  | "password_reset"
+  | "pin_reset";
 
 export type DeliverLoginOtpInput = {
   channel: OtpDeliveryChannel;

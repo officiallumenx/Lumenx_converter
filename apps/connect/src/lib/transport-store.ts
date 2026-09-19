@@ -1,4 +1,5 @@
 import type { AppNotification } from "@lumenx/types";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import {
   enrollmentsForRoute,
   findOpenEmergencyForVehicle,
@@ -712,6 +713,13 @@ function simulateTick() {
     return;
   }
 
+  // Never invent a demo bus journey in API product mode.
+  if (isApiAuthMode()) {
+    syncRouteOverview();
+    notify();
+    return;
+  }
+
   // Fallback demo journey when Driver has not published trip/attendance yet.
   if (tracking.learnerStatus === "picked_up") {
     const nextProgress = Math.min(100, tracking.progressPercent + 5);
@@ -811,6 +819,7 @@ function simulateTick() {
 }
 
 function startSimulation() {
+  if (isApiAuthMode()) return;
   if (tickTimer) return;
   tickTimer = setInterval(simulateTick, 6000);
 }
@@ -824,6 +833,12 @@ function stopSimulation() {
 
 export const transportStore = {
   init(learnerKey?: string, role?: "parent" | "student" | "teacher") {
+    // Product API mode uses LearnerTransportApiView / teacher API roster — no local ops bridge.
+    if (isApiAuthMode()) {
+      if (role) activeRole = role;
+      if (learnerKey) activeLearnerKey = learnerKey;
+      return;
+    }
     startOpsListener();
     startAttendanceListener();
     startBridgeSubscriptions();

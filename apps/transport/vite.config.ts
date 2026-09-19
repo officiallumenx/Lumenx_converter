@@ -18,9 +18,11 @@ export default defineConfig({
   vite: {
     cacheDir: "../../node_modules/.vite-transport",
     server: {
+      // Firebase Phone Auth rejects hostname `localhost`.
+      host: "127.0.0.1",
       port: 5175,
       strictPort: false,
-      open: "/",
+      open: "http://127.0.0.1:5175/",
       warmup: {
         clientFiles: [
           "./src/routes/__root.tsx",

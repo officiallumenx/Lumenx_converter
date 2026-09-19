@@ -27,7 +27,7 @@ import { LocationTrackingBanner } from "@/components/app/location-tracking-banne
 import { OfflineTripBanner } from "@/components/app/offline-trip-banner";
 import { ROUTES } from "@/constants";
 import { useAttendanceStudents } from "@/hooks/use-attendance-students";
-import { useDriverAssignment } from "@/hooks/use-driver-assignment";
+import { useDriverAssignmentQuery } from "@/lib/transport-queries";
 import { useLocationTrack } from "@/hooks/use-trip-location-guard";
 import { useTripSession } from "@/hooks/use-trip-session";
 import {
@@ -85,8 +85,14 @@ function matchesCurrentStop(
   stop: { id: string; name: string } | null,
 ): boolean {
   if (!stop) return false;
-  if (student.stopId && student.stopId === stop.id) return true;
-  return student.stopName.trim().toLowerCase() === stop.name.trim().toLowerCase();
+  const stopId = student.stopId?.trim();
+  // Unassigned students appear at every stop so the driver can still mark them.
+  if (!stopId) return true;
+  if (stopId === stop.id) return true;
+  const studentStop = student.stopName.trim().toLowerCase();
+  const current = stop.name.trim().toLowerCase();
+  if (!studentStop || studentStop === "stop assignment pending") return true;
+  return studentStop === current;
 }
 
 function StatPill({
@@ -183,7 +189,7 @@ function AttendanceGate({ completed }: { completed?: boolean }) {
 
 export function AttendancePage() {
   const navigate = useNavigate();
-  const assignment = useDriverAssignment();
+  const assignment = useDriverAssignmentQuery();
   const session = useTripSession();
   const locationTrack = useLocationTrack();
   const students = useAttendanceStudents();

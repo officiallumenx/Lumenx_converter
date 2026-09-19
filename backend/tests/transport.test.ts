@@ -315,12 +315,17 @@ describe("transport api", () => {
         display_name: "Ravi Driver",
         phone: "9999999999",
         license_number: "DL-123",
+        app_account_pin: "1234",
+        assigned_vehicle_id: vehicleId,
       }),
     });
     expect(driver.status).toBe(201);
-    const driverId = (await json(driver)).data.id;
+    const driverBody = await json(driver);
+    expect(driverBody.data.hasAppPin).toBe(true);
+    expect(driverBody.data.assignedVehicleId).toBe(vehicleId);
+    const driverId = driverBody.data.id;
 
-    const route = await app.request("/api/v1/transport/routes", {
+    const adminRouteBlocked = await app.request("/api/v1/transport/routes", {
       method: "POST",
       headers: {
         Authorization: "Bearer token-admin",
@@ -333,16 +338,44 @@ describe("transport api", () => {
         driver_id: driverId,
       }),
     });
-    expect(route.status).toBe(201);
-    const routeBody = await json(route);
-    expect(routeBody.data.vehicleId).toBe(vehicleId);
-    expect(routeBody.data.driverId).toBe(driverId);
-    const routeId = routeBody.data.id;
+    expect(adminRouteBlocked.status).toBe(403);
+
+    // Assignment auto-links an approved route for the vehicle.
+    const routesList = await app.request(
+      `/api/v1/transport/routes?institute_id=${INST_A}`,
+      { headers: { Authorization: "Bearer token-admin" } },
+    );
+    expect(routesList.status).toBe(200);
+    const linked = ((await json(routesList)).data as Array<{
+      id: string;
+      vehicleId: string;
+      driverId: string;
+    }>).find((r) => r.vehicleId === vehicleId && r.driverId === driverId);
+    expect(linked).toBeTruthy();
+    const routeId = linked!.id;
+
+    const adminStopBlocked = await app.request("/api/v1/transport/stops", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-admin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        route_id: routeId,
+        name: "Stop 1",
+        location_label: "Corner",
+        latitude: 12.9,
+        longitude: 77.5,
+        route_order: 0,
+      }),
+    });
+    expect(adminStopBlocked.status).toBe(403);
 
     const stop = await app.request("/api/v1/transport/stops", {
       method: "POST",
       headers: {
-        Authorization: "Bearer token-admin",
+        Authorization: "Bearer token-driver",
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -361,7 +394,7 @@ describe("transport api", () => {
     const stop2 = await app.request("/api/v1/transport/stops", {
       method: "POST",
       headers: {
-        Authorization: "Bearer token-admin",
+        Authorization: "Bearer token-driver",
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -491,12 +524,14 @@ describe("transport api", () => {
         display_name: "New Driver",
         phone: "8888888888",
         license_number: "DL-999",
+        app_account_pin: "5678",
         user_profile_id: USER_TEACHER,
       }),
     });
     expect(res.status).toBe(201);
     const body = await json(res);
     expect(body.data.userProfileId).toBeNull();
+    expect(body.data.hasAppPin).toBe(true);
   });
 
   it("parent can read learner transport portal summary", async () => {
@@ -647,6 +682,14 @@ describe("transport api", () => {
     const emergency = (await json(create)).data;
     expect(emergency.status).toBe("active");
 
+    const driverList = await app.request(
+      `/api/v1/transport/emergencies?institute_id=${INST_A}`,
+      { headers: { Authorization: "Bearer token-driver" } },
+    );
+    expect(driverList.status).toBe(200);
+    const driverIds = (await json(driverList)).data.map((e: { id: string }) => e.id);
+    expect(driverIds).toContain(emergency.id);
+
     const ack = await app.request(
       `/api/v1/transport/emergencies/${emergency.id}/acknowledge`,
       {
@@ -769,6 +812,20 @@ describe("transport api", () => {
       ),
     ).toBe(true);
     expect(
+      db.notification.some(
+        (n) =>
+          typeof n.dedupe_key === "string" &&
+          String(n.dedupe_key).startsWith(`transport:approach15:${trip.id}:`),
+      ),
+    ).toBe(true);
+    expect(
+      db.notification.some(
+        (n) =>
+          typeof n.dedupe_key === "string" &&
+          String(n.dedupe_key).startsWith(`transport:approach30:${trip.id}:`),
+      ),
+    ).toBe(true);
+    expect(
       db.notification_recipient.some((r) => r.user_profile_id === USER_PARENT),
     ).toBe(true);
 
@@ -782,8 +839,64 @@ describe("transport api", () => {
       stopId: STOP_PICKUP,
       stopName: "Gate A",
       withinRadius: true,
+      band: 5,
     });
     expect(liveBody.data.approach.distanceM).toBeLessThan(150);
     expect(liveBody.data.approach.etaMinutes).toBeGreaterThanOrEqual(0);
+  });
+
+  it("GPS ping ~20 min out fires approach30 + approach15 only (Phase 2 Step 10)", async () => {
+    const db = baseDb();
+    db.route[0] = { ...db.route[0], driver_id: DRIVER_A };
+    const app = appWithDb(db);
+    const today = new Date().toISOString().slice(0, 10);
+
+    const start = await app.request("/api/v1/transport/trips", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-driver",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        route_id: ROUTE_A,
+        vehicle_id: VEHICLE_A,
+        driver_id: DRIVER_A,
+        trip_date: today,
+      }),
+    });
+    expect(start.status).toBe(201);
+    const trip = (await json(start)).data;
+
+    await app.request(`/api/v1/transport/trips/${trip.id}/phase`, {
+      method: "PATCH",
+      headers: {
+        Authorization: "Bearer token-driver",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ phase: "running", current_stop_index: 0 }),
+    });
+
+    // ~7.5 km north ≈ 15 min at default 30 km/h → bands 30 + 15, not 5
+    const ping = await app.request(`/api/v1/transport/trips/${trip.id}/location`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-driver",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        latitude: 13.036,
+        longitude: 77.59,
+        accuracy_m: 10,
+      }),
+    });
+    expect(ping.status).toBe(201);
+
+    const keys = db.notification
+      .map((n) => String(n.dedupe_key ?? ""))
+      .filter((k) => k.includes(trip.id));
+    expect(keys.some((k) => k.startsWith(`transport:approach30:`))).toBe(true);
+    expect(keys.some((k) => k.startsWith(`transport:approach15:`))).toBe(true);
+    expect(keys.some((k) => k.startsWith(`transport:approach5:`))).toBe(false);
   });
 });

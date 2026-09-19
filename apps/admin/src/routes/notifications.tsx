@@ -1,4 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { useNotificationsListQuery, adminQueryRoots } from "@/lib/admin-queries";
+import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { NotificationBroadcastCompose } from "@/components/notifications/NotificationBroadcastCompose";
@@ -15,9 +18,7 @@ import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
-  loadNotificationInboxList,
   resolveNotificationInboxListView,
-  shouldCommitNotificationInboxLoad,
   type NotificationInboxListItem,
   type NotificationInboxListStatus,
 } from "@/lib/notification-inbox";
@@ -60,7 +61,23 @@ function NotificationsPage() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const queryClient = useQueryClient();
+  const listEnabled =
+    apiMode &&
+    instituteCtx.status === "ready" &&
+    Boolean(instituteCtx.activeInstituteId);
+  const notificationsQuery = useNotificationsListQuery(
+    instituteCtx.activeInstituteId,
+    listEnabled,
+  );
+  const bumpNotificationsReload = () => {
+    invalidateAdminCache("admin:notifications");
+    if (instituteCtx.activeInstituteId) {
+      void queryClient.invalidateQueries({
+        queryKey: [adminQueryRoots.notifications, instituteCtx.activeInstituteId],
+      });
+    }
+  };
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
@@ -70,7 +87,8 @@ function NotificationsPage() {
     activeInstituteId: instituteCtx.activeInstituteId,
     resolvedForInstituteId,
     storedItems: apiItems,
-    storedStatus: listStatus,
+    storedStatus:
+      notificationsQuery.isLoading && !notificationsQuery.data ? "loading" : listStatus,
     storedErrorMessage: listError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
@@ -133,34 +151,25 @@ function NotificationsPage() {
       return;
     }
 
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setListStatus("loading");
-    setListError(null);
-    void loadNotificationInboxList(requestInstituteId).then((next) => {
-      if (
-        !shouldCommitNotificationInboxLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setApiItems(next.items);
-      setListStatus(next.status);
-      setListError(next.errorMessage);
-      setResolvedForInstituteId(requestInstituteId);
-    });
-    return () => {
-      cancelled = true;
-    };
+    if (notificationsQuery.isLoading && !notificationsQuery.data) {
+      setListStatus("loading");
+      setListError(null);
+      return;
+    }
+    if (!notificationsQuery.data) return;
+
+    const next = notificationsQuery.data;
+    setApiItems(next.items);
+    setListStatus(next.status);
+    setListError(next.errorMessage);
+    setResolvedForInstituteId(instituteCtx.activeInstituteId);
   }, [
     apiMode,
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
-    reloadKey,
+    notificationsQuery.data,
+    notificationsQuery.isLoading,
   ]);
 
   const onTabChange = (next: Tab) => {
@@ -170,7 +179,7 @@ function NotificationsPage() {
 
   const refreshList = useCallback(() => {
     if (apiMode) {
-      setReloadKey((k) => k + 1);
+      bumpNotificationsReload();
       return;
     }
     refreshDemo();
@@ -202,8 +211,8 @@ function NotificationsPage() {
       subtitle={
         apiMode
           ? tab === "inbox"
-            ? "API mode · mark read / delete via notifications API"
-            : "API mode · emit via POST /api/v1/notifications"
+            ? "Mark read / delete notifications"
+            : "Send broadcasts"
           : tab === "inbox"
             ? `${unreadLabel} unread · Read, search, filter, and open linked pages`
             : "Targeted announcements & emergency alerts"

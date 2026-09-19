@@ -59,7 +59,7 @@ function notificationMeta(n: AppNotification) {
       barClass: "bg-destructive",
     };
   }
-  return TYPE_STYLES[n.type];
+  return TYPE_STYLES[n.type] ?? TYPE_STYLES.info;
 }
 
 export function NotificationList({

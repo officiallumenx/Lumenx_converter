@@ -1,4 +1,4 @@
-import { Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
+import { Link, Navigate, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { getInitials } from "@lumenx/utils";
 import {
   useEffect,
@@ -65,6 +65,8 @@ import {
 import { Avatar, AvatarFallback } from "@lumenx/ui";
 import { Sheet, SheetTrigger } from "@lumenx/ui";
 import { PendingSyncBadge } from "@lumenx/ui";
+import { DataRefreshHost } from "@/components/DataRefreshHost";
+import { PullToRefresh, DataRefreshStatusBar } from "@/components/PullToRefresh";
 import { MobileMoreSheetContent } from "@/components/app/MobileMoreSheetContent";
 import {
   AlertDialog,
@@ -118,6 +120,7 @@ import { useParentPortal } from "@/context/ParentPortalContext";
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
 import { formatUnreadBadgeCount, useConnectUnreadBadge } from "@/lib/use-connect-unread-badge";
 import { useConnectAlertBadge } from "@/lib/use-connect-alert-badge";
+import { getConnectProtectedRouteDecision } from "@/auth/protected-route";
 
 const NAV: { to: string; label: string; icon: typeof Home; roles: Role[] }[] = [
   { to: "/", label: "Home", icon: Home, roles: ["parent", "teacher", "student"] },
@@ -188,6 +191,23 @@ function isNavActive(pathname: string, to: string) {
 }
 
 export function AppShell({ children }: { children?: ReactNode }) {
+  const { hydrated, user, role } = useApp();
+  const authDecision = getConnectProtectedRouteDecision(hydrated, user, role);
+
+  if (authDecision === "loading") {
+    return (
+      <div className="flex h-screen-dvh items-center justify-center bg-background">
+        <div className="connect-hydrate-spinner" role="status" aria-label="Loading" />
+      </div>
+    );
+  }
+  if (authDecision === "redirect") {
+    return <Navigate to="/login" replace />;
+  }
+  return <AuthenticatedAppShell>{children}</AuthenticatedAppShell>;
+}
+
+function AuthenticatedAppShell({ children }: { children?: ReactNode }) {
   const { user, role, theme, toggleTheme, signOut, institute, studentIncludedMode, activeChildId, hydrated } =
     useApp();
   const nav = useNavigate();
@@ -237,13 +257,6 @@ export function AppShell({ children }: { children?: ReactNode }) {
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
   }, [loc.pathname]);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    if ((!user || !role) && loc.pathname !== "/login") {
-      void nav({ to: "/login" });
-    }
-  }, [user, role, nav, hydrated, loc.pathname]);
 
   const isTeacher = role === "teacher";
   const teacherPortal = useTeacherPortal();
@@ -435,15 +448,9 @@ export function AppShell({ children }: { children?: ReactNode }) {
   const isSettingsRoute = useIsConnectSettingsRoute();
   const showAppLock = appLockEnabled && !appLockUnlocked && !isSettingsRoute;
 
-  if (!hydrated) {
-    return (
-      <div className="flex h-screen-dvh items-center justify-center bg-background">
-        <div className="connect-hydrate-spinner" role="status" aria-label="Loading" />
-      </div>
-    );
+  if (!user || !role) {
+    return <Navigate to="/login" replace />;
   }
-
-  if (!user || !role) return null;
 
   const useModuleColors =
     role === "student" || role === "parent" || role === "teacher";
@@ -732,6 +739,10 @@ export function AppShell({ children }: { children?: ReactNode }) {
       {role === "parent" && <ParentContextBar />}
       {useActivityNav && <ActivityWorkspaceContextBar />}
 
+      <div className="shrink-0">
+        <DataRefreshStatusBar />
+      </div>
+
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Mid-width icon rail (tablets, unfolded foldables, landscape phones: 768-1023px) */}
         <aside className="hidden md:flex lg:hidden w-[4.5rem] shrink-0 flex-col border-r border-border bg-sidebar overflow-hidden">
@@ -758,36 +769,39 @@ export function AppShell({ children }: { children?: ReactNode }) {
         <main
           ref={mainRef}
           className={cn(
-            "flex-1 min-w-0 overflow-y-auto overscroll-contain safe-area-px lg:pb-8",
+            "flex-1 min-w-0 overflow-y-auto overscroll-y-contain safe-area-px lg:pb-8",
             keyboardOpen
               ? "pb-4"
               : "pb-[calc(5.25rem+var(--safe-area-bottom))]",
           )}
         >
-          <div className="lx-module-swipe-stage mx-auto w-full min-w-0 max-w-6xl px-4 py-4 md:px-8 md:py-5">
-            <ModuleTransitionRoot
-              pathname={loc.pathname}
-              primaryPaths={swipePrimaryPaths}
-              morePaths={swipeMorePaths}
-              settingsPath={settingsPath}
-              isActive={isNavActive}
-              enabled={isMobileSwipe}
-              className={cn("min-w-0", !isMobileSwipe && "lg:animate-in-up")}
-            >
-              <div
-                key={
-                  role === "parent" && loc.pathname !== "/profile" ? activeChildId : undefined
-                }
-                className="min-w-0"
+          <DataRefreshHost />
+          <PullToRefresh scrollRef={mainRef}>
+            <div className="lx-module-swipe-stage mx-auto w-full min-w-0 max-w-6xl px-4 py-4 md:px-8 md:py-5">
+              <ModuleTransitionRoot
+                pathname={loc.pathname}
+                primaryPaths={swipePrimaryPaths}
+                morePaths={swipeMorePaths}
+                settingsPath={settingsPath}
+                isActive={isNavActive}
+                enabled={isMobileSwipe}
+                className={cn("min-w-0", !isMobileSwipe && "lg:animate-in-up")}
               >
-                {children ?? (
-                  <RouteOutletErrorBoundary>
-                    <Outlet />
-                  </RouteOutletErrorBoundary>
-                )}
-              </div>
-            </ModuleTransitionRoot>
-          </div>
+                <div
+                  key={
+                    role === "parent" && loc.pathname !== "/profile" ? activeChildId : undefined
+                  }
+                  className="min-w-0"
+                >
+                  {children ?? (
+                    <RouteOutletErrorBoundary resetKey={loc.pathname}>
+                      <Outlet />
+                    </RouteOutletErrorBoundary>
+                  )}
+                </div>
+              </ModuleTransitionRoot>
+            </div>
+          </PullToRefresh>
         </main>
       </div>
 

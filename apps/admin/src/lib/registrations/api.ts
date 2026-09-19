@@ -23,6 +23,8 @@ function toRequestBody(input: SubmitRegistrationInput): Record<string, unknown> 
     email: input.email.trim().toLowerCase(),
     password: input.password,
     phone: input.phone?.trim() || null,
+    firebase_id_token: input.firebaseIdToken,
+    pin: input.pin?.trim() || undefined,
     payload: input.payload,
   };
 }

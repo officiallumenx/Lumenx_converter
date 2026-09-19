@@ -72,6 +72,15 @@ export type StudentDto = {
   updatedAt: string;
 };
 
+/** Optional guardian block — when set, create/find parent + guardian_link. */
+export type CreateStudentParentInput = {
+  name: string;
+  phone: string;
+  /** Defaults to guardian. */
+  relationship?: "mother" | "father" | "guardian";
+  address?: string | null;
+};
+
 export type CreateStudentInput = {
   instituteId: string;
   firstName: string;
@@ -97,6 +106,16 @@ export type CreateStudentInput = {
   sourceAdmissionApplicationId?: string | null;
   /** Ignored for authorization / linking — never trust client. */
   userProfileId?: string | null;
+  /**
+   * When provided, find-or-create parent by institute+phone and link as guardian.
+   * Same phone on a later create links siblings under one parent.
+   */
+  parent?: CreateStudentParentInput;
+};
+
+/** Create response — student plus optional linked parent id. */
+export type CreateStudentResult = StudentDto & {
+  parentId?: string;
 };
 
 export type UpdateStudentInput = {

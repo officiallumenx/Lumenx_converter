@@ -60,7 +60,8 @@ const createSchema = z.object({
   access_status: accessSchema.optional(),
   legacy_code: z.string().max(100).nullable().optional(),
   user_profile_id: uuid.nullable().optional(),
-  password: z.string().min(8).max(200).optional(),
+  /** Passwordless Connect identity — no app-level password. */
+  provision_access: z.boolean().optional(),
   initial_links: z
     .array(
       z.object({
@@ -71,10 +72,6 @@ const createSchema = z.object({
       }),
     )
     .optional(),
-});
-
-const provisionSchema = z.object({
-  password: z.string().min(8).max(200),
 });
 
 const updateSchema = z
@@ -145,7 +142,7 @@ parents.post("/", async (c) => {
     accessStatus: body.access_status,
     legacyCode: body.legacy_code,
     userProfileId: body.user_profile_id,
-    password: body.password,
+    provisionAccess: body.provision_access,
     initialLinks: body.initial_links?.map((link) => ({
       studentId: link.student_id,
       relationship: link.relationship,
@@ -222,8 +219,8 @@ parents.post("/:id/provision-access", async (c) => {
   const actor = assertAuthenticated(c);
   const admin = requireAdmin(c);
   const { id } = validateParams(idParamsSchema, c.req.param());
-  const body = validateBody(provisionSchema, await c.req.json());
-  const data = await provisionParentAccessForActor(admin, actor, id, body.password);
+  // Passwordless: body is optional / ignored — Connect uses OTP + PIN.
+  const data = await provisionParentAccessForActor(admin, actor, id);
   return c.json({ data });
 });
 

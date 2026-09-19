@@ -73,9 +73,16 @@ export async function loadLeaveRequestsList(
     }
 
     const [students, teachers, catalog, decisionNotes] = await Promise.all([
-      listStudents({ instituteId: activeInstituteId }).then(studentDtosToListItems),
-      listTeachers({ instituteId: activeInstituteId }).then(teacherDtosToListItems),
-      listClassesCatalog({ instituteId: activeInstituteId }),
+      listStudents({ instituteId: activeInstituteId })
+        .then(studentDtosToListItems)
+        .catch(() => []),
+      listTeachers({ instituteId: activeInstituteId })
+        .then(teacherDtosToListItems)
+        .catch(() => []),
+      listClassesCatalog({ instituteId: activeInstituteId }).catch(() => ({
+        classes: [],
+        sections: [],
+      })),
       loadDecisionNotes(dtos),
     ]);
 

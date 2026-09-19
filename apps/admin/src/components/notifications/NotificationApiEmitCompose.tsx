@@ -149,7 +149,7 @@ export function NotificationApiEmitCompose({
       <Card className="col-span-12 lg:col-span-8">
         <CardHeader
           title="Emit notification"
-          hint="POST /api/v1/notifications · audience or recipient_user_ids"
+          hint="Send to an audience or specific people"
         />
         <div className="space-y-4 px-5 pb-5">
           {!writesEnabled ? (
@@ -230,7 +230,7 @@ export function NotificationApiEmitCompose({
           {audienceMode === "manual" ? (
             <Field
               label="Recipient user IDs"
-              hint="Comma-separated user profile UUIDs"
+              hint="Comma-separated user IDs"
               required
             >
               <TextArea

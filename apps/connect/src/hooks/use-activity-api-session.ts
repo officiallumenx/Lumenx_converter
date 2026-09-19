@@ -7,6 +7,7 @@ import { activityHierarchyRepository } from "@/lib/activity/hierarchy/repository
 import { workspaceAchievementsRepository } from "@/lib/activity/workspace-achievements";
 import { workspaceCalendarRepository } from "@/lib/activity/workspace-calendar";
 import { workspaceCommunicationRepository } from "@/lib/activity/workspace-communication";
+import { sportsV2ApiStore } from "@/lib/activity/sports-v2-api-store";
 import { useApp } from "@/lib/app-state";
 
 export function useActivityApiSession() {
@@ -43,6 +44,7 @@ export function useActivityApiSession() {
           workspaceAchievementsRepository.preload(),
           workspaceCalendarRepository.preload(),
           workspaceCommunicationRepository.preload(),
+          sportsV2ApiStore.preload(),
         ]);
         if (!cancelled) {
           setReady(true);

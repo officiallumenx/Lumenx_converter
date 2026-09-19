@@ -31,7 +31,7 @@ const CLASS_COLS =
   "id, institute_id, academic_year_id, name, code, sort_order, status, created_at, updated_at, deleted_at";
 
 const SECTION_COLS =
-  "id, institute_id, academic_year_id, class_id, name, code, capacity, room, sort_order, status, created_at, updated_at, deleted_at";
+  "id, institute_id, academic_year_id, class_id, name, code, capacity, room, sort_order, status, class_teacher_id, created_at, updated_at, deleted_at";
 
 const SUBJECT_COLS =
   "id, institute_id, name, code, category, periods_per_week, applicable_class_codes, status, created_at, updated_at, deleted_at";
@@ -254,6 +254,20 @@ export async function listSections(
   return ensureDbOk(result) as SectionRow[];
 }
 
+/** Sections where this teacher is the durable homeroom / class teacher. */
+export async function listSectionsByClassTeacherId(
+  admin: SupabaseClient,
+  input: { instituteId: string; teacherId: string },
+): Promise<SectionRow[]> {
+  const result = await admin
+    .from("section")
+    .select(SECTION_COLS)
+    .eq("institute_id", input.instituteId)
+    .eq("class_teacher_id", input.teacherId)
+    .is("deleted_at", null);
+  return ensureDbOk(result) as SectionRow[];
+}
+
 export async function findSectionById(
   admin: SupabaseClient,
   id: string,
@@ -284,10 +298,58 @@ export async function insertSection(
       room: input.room ?? null,
       sort_order: input.sortOrder ?? 0,
       status: input.status ?? "active",
+      class_teacher_id: input.classTeacherId ?? null,
     })
     .select(SECTION_COLS)
     .single();
   return ensureDbOk(result) as SectionRow;
+}
+
+export async function findSectionByClassAndCode(
+  admin: SupabaseClient,
+  input: { classId: string; code: string },
+): Promise<SectionRow | null> {
+  const result = await admin
+    .from("section")
+    .select(SECTION_COLS)
+    .eq("class_id", input.classId)
+    .eq("code", input.code)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (result.data as SectionRow | null) ?? null;
+}
+
+export async function findClassByYearAndCode(
+  admin: SupabaseClient,
+  input: { instituteId: string; academicYearId: string; code: string },
+): Promise<ClassRow | null> {
+  const result = await admin
+    .from("class")
+    .select(CLASS_COLS)
+    .eq("institute_id", input.instituteId)
+    .eq("academic_year_id", input.academicYearId)
+    .eq("code", input.code)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (result.data as ClassRow | null) ?? null;
+}
+
+export async function findClassByYearAndName(
+  admin: SupabaseClient,
+  input: { instituteId: string; academicYearId: string; name: string },
+): Promise<ClassRow | null> {
+  const result = await admin
+    .from("class")
+    .select(CLASS_COLS)
+    .eq("institute_id", input.instituteId)
+    .eq("academic_year_id", input.academicYearId)
+    .ilike("name", input.name)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (result.data as ClassRow | null) ?? null;
 }
 
 export async function updateSectionFields(
@@ -331,6 +393,9 @@ export function toSectionUpdatePatch(
   if (input.room !== undefined) patch.room = input.room;
   if (input.sortOrder !== undefined) patch.sort_order = input.sortOrder;
   if (input.status !== undefined) patch.status = input.status;
+  if (input.classTeacherId !== undefined) {
+    patch.class_teacher_id = input.classTeacherId;
+  }
   return patch;
 }
 
@@ -384,6 +449,48 @@ export async function insertSubject(
     .select(SUBJECT_COLS)
     .single();
   return ensureDbOk(result) as SubjectRow;
+}
+
+export async function findSubjectByCodeInInstitute(
+  admin: SupabaseClient,
+  input: { instituteId: string; code: string },
+): Promise<SubjectRow | null> {
+  const result = await admin
+    .from("subject")
+    .select(SUBJECT_COLS)
+    .eq("institute_id", input.instituteId)
+    .ilike("code", input.code)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (result.data as SubjectRow | null) ?? null;
+}
+
+export async function findSubjectByNameInInstitute(
+  admin: SupabaseClient,
+  input: { instituteId: string; name: string },
+): Promise<SubjectRow | null> {
+  const result = await admin
+    .from("subject")
+    .select(SUBJECT_COLS)
+    .eq("institute_id", input.instituteId)
+    .ilike("name", input.name)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (result.data as SubjectRow | null) ?? null;
+}
+
+export async function insertSubjectTeacher(
+  admin: SupabaseClient,
+  input: { instituteId: string; subjectId: string; teacherId: string },
+): Promise<void> {
+  const result = await admin.from("subject_teacher").insert({
+    institute_id: input.instituteId,
+    subject_id: input.subjectId,
+    teacher_id: input.teacherId,
+  });
+  if (result.error) ensureDbOk(result);
 }
 
 export async function updateSubjectFields(

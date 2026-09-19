@@ -59,6 +59,11 @@ export type TeacherDto = {
   updatedAt: string;
 };
 
+export type CreateTeacherAssignmentLinkInput = {
+  sectionId: string;
+  subjectId: string;
+};
+
 export type CreateTeacherInput = {
   instituteId: string;
   displayName: string;
@@ -79,6 +84,18 @@ export type CreateTeacherInput = {
   userProfileId?: string | null;
   /** Server-only — set by careers convert-to-teacher. */
   sourceCareerApplicationId?: string | null;
+  /**
+   * Placement links created with the teacher (subject × section).
+   * Year/class resolved from section.
+   */
+  assignments?: CreateTeacherAssignmentLinkInput[];
+  /** Sections where this teacher is the class (homeroom) teacher. */
+  classTeacherSectionIds?: string[];
+};
+
+export type CreateTeacherResult = TeacherDto & {
+  assignmentIds?: string[];
+  classTeacherSectionIds?: string[];
 };
 
 export type UpdateTeacherInput = {
@@ -96,6 +113,12 @@ export type UpdateTeacherInput = {
   legacyCode?: string | null;
   subjects?: string[] | null;
   assignedSectionLabels?: string[] | null;
+  /**
+   * When provided, replaces this teacher's class-teacher section set.
+   * Pass [] to clear all class-teacher links for the teacher.
+   * Subject placements (teacher_assignment) are unchanged.
+   */
+  classTeacherSectionIds?: string[];
 };
 
 export type ListTeachersFilter = {

@@ -12,8 +12,10 @@ import {
   createAssignmentForActor,
   createSlotForActor,
   deleteSlotForActor,
+  getPublicationForActor,
   getSlotForActor,
   listAssignmentsForActor,
+  listPublicationsForActor,
   listSlotsForActor,
   publishSectionTimetableForActor,
   updateSlotForActor,
@@ -178,6 +180,39 @@ timetable.post("/assignments", async (c) => {
   });
 
   return c.json({ data }, 201);
+});
+
+/**
+ * GET /api/v1/timetable/publications
+ * List publish events for a section (optional section filter).
+ */
+timetable.get("/publications", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(
+    z.object({
+      institute_id: uuid,
+      section_id: uuid.optional(),
+    }),
+    c.req.query(),
+  );
+  const data = await listPublicationsForActor(admin, actor, {
+    instituteId: query.institute_id,
+    sectionId: query.section_id,
+  });
+  return c.json({ data });
+});
+
+/**
+ * GET /api/v1/timetable/publications/:id
+ * Single publication by id.
+ */
+timetable.get("/publications/:id", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const { id } = validateParams(idParamsSchema, c.req.param());
+  const data = await getPublicationForActor(admin, actor, id);
+  return c.json({ data });
 });
 
 const portalStudentParamsSchema = z.object({

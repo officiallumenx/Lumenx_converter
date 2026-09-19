@@ -50,4 +50,81 @@ describe("ops docs (Phase 1 Step 6)", () => {
       expect(readme).toContain(step);
     }
   });
+
+  it("documents Phase 2 Steps 7–10 as complete and storage hard-deny", () => {
+    const readme = read("README.md");
+    const ops = read("OPS.md");
+    expect(readme).toMatch(/Product-ready backend \(Steps 1–10\): 100%/);
+    expect(ops).toMatch(/Product-ready backend status — \*\*100%\*\*/);
+    expect(ops).toMatch(/hard-deny/);
+    expect(ops).toMatch(/convert-to-teacher/);
+    expect(ops).toMatch(/BACKGROUND_JOBS_INTERVAL_MS/);
+    expect(ops).toMatch(/Idempotency-Key/);
+    expect(ops).toMatch(/Sports V2 satellites/);
+  });
+
+  it("documents long-term blueprint (V1+V1.5+V2) as 100%", () => {
+    const readme = read("README.md");
+    const ops = read("OPS.md");
+
+    expect(readme).toMatch(/Long-term blueprint \(V1\+V1\.5\+V2\) — \*\*100%\*\*/);
+    expect(ops).toMatch(/Long-term blueprint \(V1\+V1\.5\+V2\) — 100%/);
+
+    expect(ops).toMatch(/mark_publication/);
+    expect(ops).toMatch(/diary_submission/);
+    expect(ops).toMatch(/role_permission/);
+    expect(ops).toMatch(/transport_trip/);
+    expect(ops).toMatch(/transport_boarding_event/);
+    expect(ops).toMatch(/transport_emergency/);
+
+    expect(ops).toMatch(/mv_attendance_monthly/);
+    expect(ops).toMatch(/mv_fee_collection_monthly/);
+    expect(ops).toMatch(/mv_platform_network_metrics/);
+    expect(ops).toMatch(/mv_institute_kpi_snapshot/);
+    expect(ops).toMatch(/refresh_blueprint_rollups/);
+
+    expect(ops).toMatch(/school-fee online payment gateway/i);
+    expect(ops).toMatch(/traffic-grade maps engine/i);
+    expect(ops).toMatch(/Hono domain services/);
+  });
+
+  it("documents Headline overall backend as 100%", () => {
+    const readme = read("README.md");
+    const ops = read("OPS.md");
+    expect(ops).toMatch(/Headline overall backend — \*\*100%\*\*/);
+    expect(readme).toMatch(/Headline overall backend — \*\*100%\*\*/);
+    expect(ops).toMatch(/\|\s*\*\*Headline overall\*\*\s*\|\s*.*\*\*100%\*\*/);
+    expect(readme).toMatch(/\|\s*\*\*Headline overall\*\*\s*\|\s*\*\*100%\*\*/);
+  });
+
+  it("blueprint migration files exist", () => {
+    const migrationsDir = join(backendRoot, "..", "supabase", "migrations");
+    const migrations = [
+      "20260905150000_mark_publication.sql",
+      "20260905151000_blueprint_compat_views.sql",
+      "20260905152000_blueprint_derived_views.sql",
+      "20260905153000_blueprint_materialized_rollups.sql",
+    ];
+    for (const m of migrations) {
+      expect(existsSync(join(migrationsDir, m))).toBe(true);
+    }
+
+    const compatViews = readFileSync(
+      join(migrationsDir, "20260905151000_blueprint_compat_views.sql"),
+      "utf8",
+    );
+    expect(compatViews).toMatch(/CREATE OR REPLACE VIEW/);
+    expect(compatViews).toMatch(/diary_submission/);
+    expect(compatViews).toMatch(/role_permission/);
+    expect(compatViews).toMatch(/trip/);
+    expect(compatViews).toMatch(/boarding_event/);
+    expect(compatViews).toMatch(/emergency/);
+
+    const rollups = readFileSync(
+      join(migrationsDir, "20260905153000_blueprint_materialized_rollups.sql"),
+      "utf8",
+    );
+    expect(rollups).toMatch(/CREATE MATERIALIZED VIEW/);
+    expect(rollups).toMatch(/refresh_blueprint_rollups/);
+  });
 });

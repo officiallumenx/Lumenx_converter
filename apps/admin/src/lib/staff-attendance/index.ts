@@ -44,5 +44,7 @@ export type {
   StaffAttendanceDayStatus,
   StaffAttendanceDto,
   StaffAttendanceMarkItem,
+  StaffAttendanceMarkStatus,
   StaffAttendanceStatus,
 } from "./types";
+export { STAFF_ATTENDANCE_MARK_STATUSES } from "./types";

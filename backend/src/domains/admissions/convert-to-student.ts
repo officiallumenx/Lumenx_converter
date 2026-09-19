@@ -6,7 +6,8 @@ import {
   assertInstituteRoles,
   requireInstituteId,
 } from "../../authorization/index.js";
-import { createParentForActor } from "../parents/service.js";
+import { createParentForActor, createGuardianLinkForActor } from "../parents/service.js";
+import { findParentByPhoneInInstitute } from "../parents/repository.js";
 import { createStudentForActor } from "../students/service.js";
 import type { GuardianRelationship } from "../parents/types.js";
 import type { StudentGender } from "../students/types.js";
@@ -90,22 +91,37 @@ export async function convertApplicationToStudentForActor(
       });
     }
 
-    const parent = await createParentForActor(admin, actor, {
-      instituteId,
-      name: input.parentName.trim(),
+    const existing = await findParentByPhoneInInstitute(
+      admin,
       phone,
-      email: input.parentEmail ?? null,
-      address: input.address.trim() || null,
-      initialLinks: [
-        {
-          studentId: student.id,
-          relationship: input.parentRelationship,
-          isPrimary: true,
-          isEmergencyContact: true,
-        },
-      ],
-    });
-    parentId = parent.id;
+      instituteId,
+    );
+    if (existing) {
+      await createGuardianLinkForActor(admin, actor, existing.id, {
+        studentId: student.id,
+        relationship: input.parentRelationship,
+        isPrimary: true,
+        isEmergencyContact: true,
+      });
+      parentId = existing.id;
+    } else {
+      const parent = await createParentForActor(admin, actor, {
+        instituteId,
+        name: input.parentName.trim(),
+        phone,
+        email: input.parentEmail ?? null,
+        address: input.address.trim() || null,
+        initialLinks: [
+          {
+            studentId: student.id,
+            relationship: input.parentRelationship,
+            isPrimary: true,
+            isEmergencyContact: true,
+          },
+        ],
+      });
+      parentId = parent.id;
+    }
   }
 
   const updatedApp = await updateApplicationFields(admin, applicationId, {

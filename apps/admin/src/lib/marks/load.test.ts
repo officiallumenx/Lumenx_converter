@@ -31,19 +31,21 @@ describe("loadMarksList", () => {
     vi.clearAllMocks();
   });
 
-  it("returns demo status without calling API in demo mode", async () => {
+  it("ignores demo env and still requires API (product is API-only)", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const listMarkEntries = vi.fn();
+    const listMarkEntries = vi.fn().mockResolvedValue([]);
     vi.doMock("./api", () => ({ listMarkEntries }));
-    vi.doMock("@/lib/exams/api", () => ({ listExams: vi.fn() }));
-    vi.doMock("@/lib/subjects/api", () => ({ listSubjects: vi.fn() }));
-    vi.doMock("@/lib/teachers/api", () => ({ listTeachers: vi.fn() }));
+    vi.doMock("@/lib/exams/api", () => ({ listExams: vi.fn().mockResolvedValue([]) }));
+    vi.doMock("@/lib/subjects/api", () => ({ listSubjects: vi.fn().mockResolvedValue([]) }));
+    vi.doMock("@/lib/teachers/api", () => ({ listTeachers: vi.fn().mockResolvedValue([]) }));
     vi.doMock("@/lib/teachers/map", () => ({ teacherDtosToListItems: () => [] }));
-    vi.doMock("@/lib/classes/api", () => ({ listClassesCatalog: vi.fn() }));
+    vi.doMock("@/lib/classes/api", () => ({
+      listClassesCatalog: vi.fn().mockResolvedValue({ classes: [], sections: [] }),
+    }));
     const { loadMarksList } = await import("./load");
     const result = await loadMarksList(INST);
-    expect(result.status).toBe("demo");
-    expect(listMarkEntries).not.toHaveBeenCalled();
+    expect(result.status).toBe("empty");
+    expect(listMarkEntries).toHaveBeenCalled();
   });
 
   it("maps successful API list with lookup labels and no demo fallback", async () => {
@@ -99,6 +101,30 @@ describe("loadMarksList", () => {
     expect(result.items[0]?.subject).toBe("Mathematics");
     expect(result.items[0]?.teacherName).toBe("Ada Teacher");
     expect(listMarkEntries).toHaveBeenCalledWith({ instituteId: INST });
+  });
+
+  it("keeps mark entries when lookup catalogs fail", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const listMarkEntries = vi.fn().mockResolvedValue([dto()]);
+    vi.doMock("./api", () => ({ listMarkEntries }));
+    vi.doMock("@/lib/exams/api", () => ({
+      listExams: vi.fn().mockRejectedValue(new Error("exams down")),
+    }));
+    vi.doMock("@/lib/subjects/api", () => ({
+      listSubjects: vi.fn().mockRejectedValue(new Error("subjects down")),
+    }));
+    vi.doMock("@/lib/teachers/api", () => ({
+      listTeachers: vi.fn().mockRejectedValue(new Error("teachers down")),
+    }));
+    vi.doMock("@/lib/teachers/map", () => ({ teacherDtosToListItems: () => [] }));
+    vi.doMock("@/lib/classes/api", () => ({
+      listClassesCatalog: vi.fn().mockRejectedValue(new Error("classes down")),
+    }));
+    const { loadMarksList } = await import("./load");
+    const result = await loadMarksList(INST);
+    expect(result.status).toBe("ready");
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]?.id).toBe(dto().id);
   });
 
   it("returns forbidden on 403 without demo fallback", async () => {

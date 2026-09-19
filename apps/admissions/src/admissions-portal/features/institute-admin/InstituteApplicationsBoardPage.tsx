@@ -42,7 +42,7 @@ import {
 import {
   getApplicationsForInstitute,
   updateApplicationByInstituteAdmin,
-} from "@/lib/institute-admin";
+} from "@/lib/admissions/institute-admin";
 import type { AdmissionApplication, CorrectionFieldPath } from "@/lib/admissions/types";
 import { cn } from "@lumenx/ui";
 

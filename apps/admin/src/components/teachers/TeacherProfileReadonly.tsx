@@ -27,7 +27,6 @@ export function TeacherProfileReadonly({
         <TeacherAvatar name={selected.name} size="lg" />
         <div className="flex-1 min-w-0">
           <div className="text-base font-semibold">{selected.name}</div>
-          <div className="text-sm text-muted-foreground">{selected.dept}</div>
           <div className="mt-2 flex flex-wrap gap-1.5">
             <TeacherRolePill role={selected.role} />
             <TeacherStatusPill status={selected.status} />
@@ -119,7 +118,7 @@ export function TeacherProfileReadonly({
           <div className="flex flex-wrap gap-1.5">
             {selected.assignedSections.map((s) => (
               <TeacherChip key={s} mono>
-                Grade {s}
+                Class {s}
               </TeacherChip>
             ))}
           </div>

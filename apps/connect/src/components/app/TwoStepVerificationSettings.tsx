@@ -16,7 +16,6 @@ import {
   InputOTPSlot,
   Switch,
 } from "@lumenx/ui";
-import { DEMO_CONNECT_OTP } from "@lumenx/auth";
 import { useApp } from "@/lib/app-state";
 import {
   disableLoginPin,
@@ -30,6 +29,8 @@ import {
   type PortalRole,
 } from "@/lib/portal-auth-store";
 import { toast } from "sonner";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { apiRequestConnectLoginOtp, apiVerifyConnectLoginOtp } from "@/auth/api-auth";
 
 function PinField({
   label,
@@ -78,7 +79,7 @@ type CreateStep = "pin" | "confirm";
 type ChangeStep = "current" | "otp" | "newPin" | "confirm";
 
 export function TwoStepVerificationSettings() {
-  const { user, role } = useApp();
+  const { user, role, activeInstituteId } = useApp();
   const phone = user?.phone ?? "";
   const portalRole = (role === "parent" || role === "student" || role === "teacher"
     ? role
@@ -173,19 +174,52 @@ export function TwoStepVerificationSettings() {
         toast.error("Incorrect current Login PIN.");
         return;
       }
-      setOtp("");
-      setChangeStep("otp");
-      toast.success(`OTP sent (demo: ${DEMO_CONNECT_OTP})`);
+      if (!isApiAuthMode() || !activeInstituteId) {
+        toast.error("Demo OTP is unavailable. PIN changes require API OTP verification.");
+        return;
+      }
+      setBusy(true);
+      void apiRequestConnectLoginOtp({
+        phone,
+        instituteId: activeInstituteId,
+        role: portalRole,
+      })
+        .then((result) => {
+          setOtp("");
+          setChangeStep("otp");
+          toast.success(
+            result.devOtp
+              ? `OTP sent (dev: ${result.devOtp})`
+              : `OTP sent to ${result.maskedDestination}`,
+          );
+        })
+        .catch((err) => {
+          toast.error(err instanceof Error ? err.message : "Unable to send OTP");
+        })
+        .finally(() => setBusy(false));
       return;
     }
     if (changeStep === "otp") {
-      if (otp !== DEMO_CONNECT_OTP) {
-        toast.error(`Incorrect OTP (demo: ${DEMO_CONNECT_OTP})`);
+      if (!isApiAuthMode() || !activeInstituteId) {
+        toast.error("Demo OTP is unavailable. Use API OTP verification.");
         return;
       }
-      setPinDraft("");
-      setPinConfirm("");
-      setChangeStep("newPin");
+      setBusy(true);
+      void apiVerifyConnectLoginOtp({
+        phone,
+        instituteId: activeInstituteId,
+        role: portalRole,
+        otp,
+      })
+        .then(() => {
+          setPinDraft("");
+          setPinConfirm("");
+          setChangeStep("newPin");
+        })
+        .catch((err) => {
+          toast.error(err instanceof Error ? err.message : "Incorrect OTP");
+        })
+        .finally(() => setBusy(false));
       return;
     }
     if (changeStep === "newPin") {
@@ -291,7 +325,7 @@ export function TwoStepVerificationSettings() {
                 </Button>
                 <Button
                   className="rounded-xl"
-                  disabled={currentPin.length !== LOGIN_PIN_LENGTH}
+                  disabled={currentPin.length !== LOGIN_PIN_LENGTH || busy}
                   onClick={advanceChange}
                 >
                   Continue
@@ -309,14 +343,11 @@ export function TwoStepVerificationSettings() {
                   ))}
                 </InputOTPGroup>
               </InputOTP>
-              <p className="text-xs text-center text-muted-foreground">
-                Demo OTP: <span className="font-mono">{DEMO_CONNECT_OTP}</span>
-              </p>
               <div className="flex justify-end gap-2">
                 <Button variant="ghost" className="rounded-xl" onClick={() => setChangeStep("current")}>
                   Back
                 </Button>
-                <Button className="rounded-xl" disabled={otp.length !== 6} onClick={advanceChange}>
+                <Button className="rounded-xl" disabled={otp.length !== 6 || busy} onClick={advanceChange}>
                   Verify OTP
                 </Button>
               </div>

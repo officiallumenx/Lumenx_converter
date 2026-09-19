@@ -5,6 +5,7 @@ import {
   useRouterState,
 } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Card,
   Button,
@@ -15,34 +16,34 @@ import {
   Select,
   SearchInput,
   PageToolbar,
-  ToolbarMeta,
   DataTable,
   EmptyState,
   Th,
 } from "@lumenx/ui-admin";
 import { BookOpen, MoreHorizontal, Plus, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
   gradesDisplayLabel,
-  loadSubjectsList,
   resolveSubjectsListView,
-  shouldCommitSubjectsLoad,
   createSubject as createSubjectApi,
   updateSubject as updateSubjectApi,
   deleteSubject as deleteSubjectApi,
   type SubjectListItem,
   type SubjectsListStatus,
 } from "@/lib/subjects";
+import { useSubjectsListQuery, adminQueryRoots } from "@/lib/admin-queries";
+import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import {
   assignTeacherSubjectSection,
   loadAssignPickers,
   loadSubjectTeacherAssignments,
 } from "@/lib/timetable";
 import type { ClassDto, SectionDto } from "@/lib/classes/types";
+import { listClasses } from "@/lib/classes/api";
 import type { AcademicYearDto } from "@/lib/academic-years/types";
 import type { TeacherAssignmentListItem } from "@/lib/timetable/types";
 import { useAuth } from "@/auth/AuthContext";
@@ -84,6 +85,7 @@ const emptyForm = (defaultGrade: string) => ({
 function SubjectsPage() {
   const notify = useAdminToast();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const apiMode = isApiAuthMode();
@@ -93,7 +95,21 @@ function SubjectsPage() {
   const { profileId, profile } = useDemoProfile();
   const { guardWriteAction, writesAllowed, reason } = useAdminWriteAccess();
   const college = isCollegeMode();
-  const grades = useMemo(() => [...adminDataFacade.subjects.listGradeLabels()], [profileId]);
+  const [apiClassOptions, setApiClassOptions] = useState<
+    Array<{ code: string; label: string }>
+  >([]);
+  const grades = useMemo(() => {
+    if (apiMode && apiClassOptions.length > 0) {
+      return apiClassOptions.map((c) => c.code);
+    }
+    return [...adminDataFacade.subjects.listGradeLabels()];
+  }, [apiMode, apiClassOptions, profileId]);
+  const gradeLabels = useMemo(() => {
+    if (apiMode && apiClassOptions.length > 0) {
+      return Object.fromEntries(apiClassOptions.map((c) => [c.code, c.label]));
+    }
+    return {} as Record<string, string>;
+  }, [apiMode, apiClassOptions]);
   const subjectOptions = useMemo(() => adminDataFacade.subjects.listSubjectOptions(), [profileId]);
   const defaultGrade = grades[0] ?? "Grade 10";
 
@@ -108,9 +124,24 @@ function SubjectsPage() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
-  const [reloadKey, setReloadKey] = useState(0);
-  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
-  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
+  const [auxReload, setAuxReload] = useState(0);
+  const listEnabled =
+    apiMode &&
+    instituteCtx.status === "ready" &&
+    Boolean(instituteCtx.activeInstituteId);
+  const subjectsQuery = useSubjectsListQuery(
+    instituteCtx.activeInstituteId,
+    listEnabled,
+  );
+  const bumpSubjectsReload = () => {
+    invalidateAdminCache("admin:subjects");
+    setAuxReload((k) => k + 1);
+    if (instituteCtx.activeInstituteId) {
+      void queryClient.invalidateQueries({
+        queryKey: [adminQueryRoots.subjects, instituteCtx.activeInstituteId],
+      });
+    }
+  };
 
   const listView = resolveSubjectsListView({
     apiMode,
@@ -118,7 +149,8 @@ function SubjectsPage() {
     activeInstituteId: instituteCtx.activeInstituteId,
     resolvedForInstituteId,
     storedItems: apiItems,
-    storedStatus: listStatus,
+    storedStatus:
+      subjectsQuery.isLoading && !subjectsQuery.data ? "loading" : listStatus,
     storedErrorMessage: listError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
@@ -127,6 +159,13 @@ function SubjectsPage() {
     () => (apiMode ? [] : adminDataFacade.subjects.listTeachers()),
     [apiMode, catalog],
   );
+  const [createTeacherOptions, setCreateTeacherOptions] = useState<
+    Array<{ id: string; label: string }>
+  >([]);
+  const createTeacherChoices = apiMode ? createTeacherOptions : teachers.map((t) => ({
+    id: t.id,
+    label: t.name,
+  }));
 
   const [q, setQ] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -183,6 +222,51 @@ function SubjectsPage() {
   }, [apiMode, profileId]);
 
   useEffect(() => {
+    if (!apiMode || !instituteCtx.activeInstituteId) {
+      setApiClassOptions([]);
+      return;
+    }
+    const instituteId = instituteCtx.activeInstituteId;
+    let cancelled = false;
+    void listClasses({ instituteId })
+      .then((rows) => {
+        if (cancelled) return;
+        const active = rows.filter((c) => c.status === "active");
+        const options = active
+          .map((c) => ({
+            code: c.code.trim(),
+            label: c.name.trim() || c.code.trim(),
+          }))
+          .filter((c) => c.code);
+        // Dedupe by code
+        const seen = new Set<string>();
+        const unique = options.filter((c) => {
+          const key = c.code.toLowerCase();
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        setApiClassOptions(unique);
+        setSelectedGrades((prev) => {
+          const valid = prev.filter((g) =>
+            unique.some((u) => u.code.toLowerCase() === g.toLowerCase()),
+          );
+          if (valid.length > 0) return valid;
+          return unique[0] ? [unique[0].code] : [];
+        });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setApiClassOptions([]);
+          notify("Could not load class options for subjects");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiMode, instituteCtx.activeInstituteId, auxReload, notify]);
+
+  useEffect(() => {
     if (!apiMode) return;
 
     if (instituteCtx.status === "loading") {
@@ -218,34 +302,25 @@ function SubjectsPage() {
       return;
     }
 
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setListStatus("loading");
-    setListError(null);
-    void loadSubjectsList(requestInstituteId).then((next) => {
-      if (
-        !shouldCommitSubjectsLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setApiItems(next.items);
-      setListStatus(next.status);
-      setListError(next.errorMessage);
-      setResolvedForInstituteId(requestInstituteId);
-    });
-    return () => {
-      cancelled = true;
-    };
+    if (subjectsQuery.isLoading && !subjectsQuery.data) {
+      setListStatus("loading");
+      setListError(null);
+      return;
+    }
+    if (!subjectsQuery.data) return;
+
+    const next = subjectsQuery.data;
+    setApiItems(next.items);
+    setListStatus(next.status);
+    setListError(next.errorMessage);
+    setResolvedForInstituteId(instituteCtx.activeInstituteId);
   }, [
     apiMode,
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
-    reloadKey,
+    subjectsQuery.data,
+    subjectsQuery.isLoading,
   ]);
 
   useEffect(() => {
@@ -287,6 +362,7 @@ function SubjectsPage() {
     setPeriods(e.periods);
     setStatus(e.status);
     setSelectedGrades(e.selectedGrades);
+    setAssignIds([]);
     setEditingId(null);
   };
 
@@ -305,6 +381,16 @@ function SubjectsPage() {
     }
     setFormMode("create");
     setFormOpen(true);
+    if (apiMode && instituteCtx.activeInstituteId) {
+      void loadAssignPickers(instituteCtx.activeInstituteId)
+        .then((pickers) => {
+          setCreateTeacherOptions(pickers.teachers);
+        })
+        .catch(() => {
+          setCreateTeacherOptions([]);
+          notify("Could not load teacher options");
+        });
+    }
   };
 
   const selectInstituteSubject = (subjectCode: string) => {
@@ -381,7 +467,7 @@ function SubjectsPage() {
     return () => {
       cancelled = true;
     };
-  }, [apiMode, instituteCtx.activeInstituteId, listView.rowsValid, displayItems, reloadKey]);
+  }, [apiMode, instituteCtx.activeInstituteId, listView.rowsValid, displayItems, auxReload]);
 
   const saveAssignments = () => {
     if (!activeSubject) return;
@@ -412,7 +498,7 @@ function SubjectsPage() {
           notify("Teacher assigned to subject section");
           setAssignOpen(false);
           setActiveSubject(null);
-          setReloadKey((k) => k + 1);
+          bumpSubjectsReload();
         })
         .catch((err) => {
           notify(err instanceof Error ? err.message : "Failed to assign teacher");
@@ -427,14 +513,19 @@ function SubjectsPage() {
   };
 
   const saveForm = () => {
-    if (!name.trim() || !code.trim() || selectedGrades.length === 0) return;
+    if (!name.trim() || !code.trim()) return;
+    if (!apiMode && selectedGrades.length === 0) return;
 
     const payload = {
       name: name.trim(),
       code: code.trim(),
-      category,
+      category: category || "Core",
       periodsPerWeek: Number(periods) || 5,
-      grades: selectedGrades,
+      grades: apiMode
+        ? selectedGrades.length > 0
+          ? selectedGrades
+          : grades.slice(0, 1)
+        : selectedGrades,
       status,
     };
 
@@ -458,20 +549,24 @@ function SubjectsPage() {
               instituteId,
               name: payload.name,
               code: payload.code,
-              category: payload.category,
+              category: "Core",
               periodsPerWeek: payload.periodsPerWeek,
-              applicableClassCodes: payload.grades,
+              applicableClassCodes: payload.grades.length > 0 ? payload.grades : [],
               status: payload.status,
             });
       void request
         .then(() => {
           setFormOpen(false);
           resetForm();
-          setReloadKey((k) => k + 1);
+          bumpSubjectsReload();
           notify(formMode === "edit" ? "Subject updated" : "Subject created");
         })
         .catch((err) => {
-          notify(err instanceof Error ? err.message : "Failed to save subject");
+          const message =
+            err instanceof Error ? err.message : "Failed to save subject";
+          notify(
+            /already exists/i.test(message) ? "subject is already exists" : message,
+          );
         });
       return;
     }
@@ -479,7 +574,20 @@ function SubjectsPage() {
     if (formMode === "edit" && editingId) {
       updateSubject(editingId, payload);
     } else {
-      addSubject(payload);
+      const nameKey = payload.name.toLowerCase();
+      const codeKey = payload.code.toLowerCase();
+      const duplicate = catalog.some(
+        (s) =>
+          s.name.toLowerCase() === nameKey || s.code.toLowerCase() === codeKey,
+      );
+      if (duplicate) {
+        notify("subject is already exists");
+        return;
+      }
+      const created = addSubject(payload);
+      if (assignIds.length > 0) {
+        assignTeachersToSubject(created.id, assignIds);
+      }
     }
 
     refresh();
@@ -495,7 +603,7 @@ function SubjectsPage() {
         .then(() => {
           setDeleteOpen(false);
           setActiveSubject(null);
-          setReloadKey((k) => k + 1);
+          bumpSubjectsReload();
           notify("Subject deleted");
         })
         .catch((err) => {
@@ -595,7 +703,6 @@ function SubjectsPage() {
               ))}
             </Select>
           </div>
-          <ToolbarMeta>{list.length} results</ToolbarMeta>
         </PageToolbar>
 
         {list.length === 0 ? (
@@ -769,7 +876,11 @@ function SubjectsPage() {
               variant="primary"
               data-admin-write
               onClick={() => guardWriteAction(saveForm)}
-              disabled={!name.trim() || !code.trim() || selectedGrades.length === 0}
+              disabled={
+                !name.trim() ||
+                !code.trim() ||
+                (!apiMode && selectedGrades.length === 0)
+              }
             >
               {formMode === "edit" ? "Save changes" : "Create subject"}
             </Button>
@@ -786,7 +897,7 @@ function SubjectsPage() {
               />
             </Field>
           ) : (
-            <Field label="Institute subject" required hint="Choose from approved subjects">
+            <Field label="Subject name" required hint="Choose from approved subjects">
               <Select value={code} onChange={(e) => selectInstituteSubject(e.target.value)}>
                 <option value="" disabled>
                   Select subject
@@ -807,15 +918,44 @@ function SubjectsPage() {
               onChange={(e) => setCode(e.target.value)}
             />
           </Field>
-          <Field label="Category">
-            <Select value={category} onChange={(e) => setCategory(e.target.value)}>
-              {SUBJECT_CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </Select>
-          </Field>
+          {apiMode && formMode === "create" ? (
+            <p className="sm:col-span-2 text-xs text-muted-foreground">
+              Only name and code are required. Assign teachers from Teachers or Timetable later.
+            </p>
+          ) : (
+            <>
+          {formMode === "create" ? (
+            <div className="sm:col-span-2">
+              <Field label="Assign teachers">
+                {createTeacherChoices.length === 0 ? (
+                  <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+                    No teachers in demo directory.
+                  </div>
+                ) : (
+                  <div className="mt-1 grid gap-2 sm:grid-cols-2">
+                    {createTeacherChoices.map((t) => {
+                      const checked = assignIds.includes(t.id);
+                      return (
+                        <label
+                          key={t.id}
+                          className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-xs ${
+                            checked ? "border-primary bg-primary/5" : "border-border"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleTeacher(t.id)}
+                          />
+                          <span className="font-medium">{t.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </Field>
+            </div>
+          ) : null}
           <Field label="Periods per week">
             <TextInput
               type="number"
@@ -825,17 +965,17 @@ function SubjectsPage() {
               onChange={(e) => setPeriods(e.target.value)}
             />
           </Field>
-          <Field label="Status">
-            <Select
-              value={status}
-              onChange={(e) => setStatus(e.target.value as SubjectCatalogItem["status"])}
-            >
-              <option value="active">Active</option>
-              <option value="draft">Draft</option>
+          <Field label="Category">
+            <Select value={category} onChange={(e) => setCategory(e.target.value)}>
+              {SUBJECT_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
             </Select>
           </Field>
           <div className="sm:col-span-2">
-            <Field label="Offered in grades" required>
+            <Field label="Select classes" required>
               <div className="flex flex-wrap gap-2 mt-1">
                 {grades.map((g) => (
                   <label
@@ -847,12 +987,32 @@ function SubjectsPage() {
                       checked={selectedGrades.includes(g)}
                       onChange={() => toggleGrade(g)}
                     />
-                    {g}
+                    {gradeLabels[g] && gradeLabels[g] !== g
+                      ? `${gradeLabels[g]} · ${g}`
+                      : g}
                   </label>
                 ))}
+                {grades.length === 0 ? (
+                  <span className="text-xs text-muted-foreground">
+                    {apiMode
+                      ? "Create classes first, then select them here."
+                      : "No grades configured."}
+                  </span>
+                ) : null}
               </div>
             </Field>
           </div>
+          <Field label="Status">
+            <Select
+              value={status}
+              onChange={(e) => setStatus(e.target.value as SubjectCatalogItem["status"])}
+            >
+              <option value="active">Active</option>
+              <option value="draft">Draft</option>
+            </Select>
+          </Field>
+            </>
+          )}
         </div>
       </Modal>
 

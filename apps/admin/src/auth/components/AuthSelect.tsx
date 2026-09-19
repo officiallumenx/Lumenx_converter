@@ -49,8 +49,8 @@ export function AuthSelect({
           aria-invalid={!!error}
           aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined}
           className={[
-            "h-10 rounded-lg text-sm",
-            Icon ? "pl-9" : "",
+            "h-10 rounded-lg text-sm !pr-9",
+            Icon ? "!pl-11" : "",
             error ? "border-destructive/60" : "",
           ]
             .filter(Boolean)

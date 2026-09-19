@@ -461,12 +461,12 @@ function AccountsPage() {
 
       <Card>
         <PageToolbar className="lx-people-toolbar">
-          <div className="w-full min-w-0">
+          <div className="min-w-0 flex-1 sm:w-full">
             <SearchInput
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search by name…"
-              className="w-full min-w-0"
+              className="min-w-0 w-full"
             />
           </div>
           <div className="lx-people-filters flex flex-wrap items-center gap-2">

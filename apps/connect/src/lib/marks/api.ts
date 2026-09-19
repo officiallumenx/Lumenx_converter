@@ -70,6 +70,8 @@ export async function createMarkEntry(
     scores: input.scores?.map((s) => ({
       enrollment_id: s.enrollmentId,
       marks: s.marks,
+      internal_marks: s.internalMarks ?? null,
+      external_marks: s.externalMarks ?? null,
     })),
   });
 }
@@ -85,6 +87,8 @@ export async function updateMarkEntry(
     scores: input.scores?.map((s) => ({
       enrollment_id: s.enrollmentId,
       marks: s.marks,
+      internal_marks: s.internalMarks ?? null,
+      external_marks: s.externalMarks ?? null,
     })),
   });
 }

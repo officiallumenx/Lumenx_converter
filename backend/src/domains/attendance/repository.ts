@@ -35,6 +35,7 @@ export type SectionRow = {
   institute_id: string;
   academic_year_id: string;
   class_id: string;
+  class_teacher_id: string | null;
   deleted_at: string | null;
 };
 
@@ -279,12 +280,38 @@ export async function findSectionById(
 ): Promise<SectionRow | null> {
   const result = await admin
     .from("section")
-    .select("id, institute_id, academic_year_id, class_id, deleted_at")
+    .select(
+      "id, institute_id, academic_year_id, class_id, class_teacher_id, deleted_at",
+    )
     .eq("id", sectionId)
     .is("deleted_at", null)
     .maybeSingle();
   if (result.error) ensureDbOk(result);
   return (result.data as SectionRow | null) ?? null;
+}
+
+/** Active enrollments for a section roster (mark-all validation). */
+export async function listActiveEnrollmentsForSection(
+  admin: SupabaseClient,
+  input: {
+    instituteId: string;
+    academicYearId: string;
+    classId: string;
+    sectionId: string;
+  },
+): Promise<EnrollmentRow[]> {
+  const result = await admin
+    .from("enrollment")
+    .select(
+      "id, institute_id, academic_year_id, student_id, class_id, section_id, status, deleted_at",
+    )
+    .eq("institute_id", input.instituteId)
+    .eq("academic_year_id", input.academicYearId)
+    .eq("class_id", input.classId)
+    .eq("section_id", input.sectionId)
+    .eq("status", "active")
+    .is("deleted_at", null);
+  return ensureDbOk(result) as EnrollmentRow[];
 }
 
 export async function findEnrollmentsByIds(

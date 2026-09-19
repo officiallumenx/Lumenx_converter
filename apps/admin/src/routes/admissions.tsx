@@ -1,4 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { useAdmissionsListQuery, useAdmissionsProgramsQuery, useAdmissionsOpeningsQuery, adminQueryRoots } from "@/lib/admin-queries";
+import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
 import {
   Button,
@@ -82,15 +85,9 @@ import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import { isInstituteUuid } from "@/lib/active-institute";
 import {
-  loadAdmissionsList,
-  loadAdmissionsOpeningsList,
-  loadAdmissionsProgramsList,
   resolveAdmissionsListView,
   resolveAdmissionsOpeningsListView,
   resolveAdmissionsProgramsListView,
-  shouldCommitAdmissionsLoad,
-  shouldCommitAdmissionsOpeningsLoad,
-  shouldCommitAdmissionsProgramsLoad,
   transitionAdmissionApplication,
   updateAdmissionOpening,
   updateAdmissionProgram,
@@ -195,7 +192,22 @@ function AdmissionsPage() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const queryClient = useQueryClient();
+  const listEnabled =
+    apiMode &&
+    instituteCtx.status === "ready" &&
+    Boolean(instituteCtx.activeInstituteId);
+  const admissionsQuery = useAdmissionsListQuery(instituteCtx.activeInstituteId, listEnabled);
+  const programsQuery = useAdmissionsProgramsQuery(instituteCtx.activeInstituteId, listEnabled);
+  const openingsQuery = useAdmissionsOpeningsQuery(instituteCtx.activeInstituteId, listEnabled);
+  const bumpAdmissionsReload = () => {
+    invalidateAdminCache("admin:admissions");
+    if (instituteCtx.activeInstituteId) {
+      void queryClient.invalidateQueries({
+        queryKey: [adminQueryRoots.admissions, instituteCtx.activeInstituteId],
+      });
+    }
+  };
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
@@ -205,7 +217,8 @@ function AdmissionsPage() {
     activeInstituteId: instituteCtx.activeInstituteId,
     resolvedForInstituteId,
     storedItems: apiItems,
-    storedStatus: listStatus,
+    storedStatus:
+      admissionsQuery.isLoading && !admissionsQuery.data ? "loading" : listStatus,
     storedErrorMessage: listError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
@@ -215,7 +228,8 @@ function AdmissionsPage() {
     activeInstituteId: instituteCtx.activeInstituteId,
     resolvedForInstituteId: programsResolvedForInstituteId,
     storedItems: apiPrograms,
-    storedStatus: programsStatus,
+    storedStatus:
+      programsQuery.isLoading && !programsQuery.data ? "loading" : programsStatus,
     storedErrorMessage: programsError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
@@ -225,7 +239,8 @@ function AdmissionsPage() {
     activeInstituteId: instituteCtx.activeInstituteId,
     resolvedForInstituteId: openingsResolvedForInstituteId,
     storedItems: apiOpenings,
-    storedStatus: openingsStatus,
+    storedStatus:
+      openingsQuery.isLoading && !openingsQuery.data ? "loading" : openingsStatus,
     storedErrorMessage: openingsError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
@@ -303,34 +318,25 @@ function AdmissionsPage() {
       return;
     }
 
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setListStatus("loading");
-    setListError(null);
-    void loadAdmissionsList(requestInstituteId).then((next) => {
-      if (
-        !shouldCommitAdmissionsLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setApiItems(next.items);
-      setListStatus(next.status);
-      setListError(next.errorMessage);
-      setResolvedForInstituteId(requestInstituteId);
-    });
-    return () => {
-      cancelled = true;
-    };
+    if (admissionsQuery.isLoading && !admissionsQuery.data) {
+      setListStatus("loading");
+      setListError(null);
+      return;
+    }
+    if (!admissionsQuery.data) return;
+
+    const next = admissionsQuery.data;
+    setApiItems(next.items);
+    setListStatus(next.status);
+    setListError(next.errorMessage);
+    setResolvedForInstituteId(instituteCtx.activeInstituteId);
   }, [
     apiMode,
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
-    reloadKey,
+    admissionsQuery.data,
+    admissionsQuery.isLoading,
   ]);
 
   useEffect(() => {
@@ -369,34 +375,25 @@ function AdmissionsPage() {
       return;
     }
 
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setProgramsStatus("loading");
-    setProgramsError(null);
-    void loadAdmissionsProgramsList(requestInstituteId).then((next) => {
-      if (
-        !shouldCommitAdmissionsProgramsLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setApiPrograms(next.items);
-      setProgramsStatus(next.status);
-      setProgramsError(next.errorMessage);
-      setProgramsResolvedForInstituteId(requestInstituteId);
-    });
-    return () => {
-      cancelled = true;
-    };
+    if (programsQuery.isLoading && !programsQuery.data) {
+      setProgramsStatus("loading");
+      setProgramsError(null);
+      return;
+    }
+    if (!programsQuery.data) return;
+
+    const next = programsQuery.data;
+    setApiPrograms(next.items);
+    setProgramsStatus(next.status);
+    setProgramsError(next.errorMessage);
+    setProgramsResolvedForInstituteId(instituteCtx.activeInstituteId);
   }, [
     apiMode,
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
-    reloadKey,
+    programsQuery.data,
+    programsQuery.isLoading,
   ]);
 
   useEffect(() => {
@@ -435,34 +432,25 @@ function AdmissionsPage() {
       return;
     }
 
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setOpeningsStatus("loading");
-    setOpeningsError(null);
-    void loadAdmissionsOpeningsList(requestInstituteId).then((next) => {
-      if (
-        !shouldCommitAdmissionsOpeningsLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setApiOpenings(next.items);
-      setOpeningsStatus(next.status);
-      setOpeningsError(next.errorMessage);
-      setOpeningsResolvedForInstituteId(requestInstituteId);
-    });
-    return () => {
-      cancelled = true;
-    };
+    if (openingsQuery.isLoading && !openingsQuery.data) {
+      setOpeningsStatus("loading");
+      setOpeningsError(null);
+      return;
+    }
+    if (!openingsQuery.data) return;
+
+    const next = openingsQuery.data;
+    setApiOpenings(next.items);
+    setOpeningsStatus(next.status);
+    setOpeningsError(next.errorMessage);
+    setOpeningsResolvedForInstituteId(instituteCtx.activeInstituteId);
   }, [
     apiMode,
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
-    reloadKey,
+    openingsQuery.data,
+    openingsQuery.isLoading,
   ]);
 
   useEffect(() => {
@@ -630,14 +618,14 @@ function AdmissionsPage() {
     }
     if (apiMode) {
       if (!isInstituteUuid(selected.id)) {
-        notify("Application id must be a valid UUID in API mode");
+        notify("Enter a valid application ID");
         return;
       }
       void convertAdmissionApplicationToStudent(selected.id, draft)
         .then((result) => {
           setSelectedId(null);
           setConvertOpen(false);
-          setReloadKey((k) => k + 1);
+          bumpAdmissionsReload();
           notify(
             `Student enrolled${result.parentId ? " · Parent Connect account ready" : ""}`,
           );
@@ -754,7 +742,7 @@ function AdmissionsPage() {
       title="Admissions"
       subtitle={
         apiMode
-          ? `API mode · ${countLabel(activeApps.length)} applications · ${programsListView.rowsValid ? programsListView.items.length : "…"} programs · ${openingsListView.rowsValid ? openingsListView.items.length : "…"} openings · verified/total doc counts`
+          ? `${countLabel(activeApps.length)} applications · ${programsListView.rowsValid ? programsListView.items.length : "…"} programs · ${openingsListView.rowsValid ? openingsListView.items.length : "…"} openings · verified/total doc counts`
           : "Review applications in Connect · add approved students here"
       }
       actions={
@@ -786,7 +774,7 @@ function AdmissionsPage() {
               </div>
               <p className="max-w-xl text-[12px] leading-relaxed text-muted-foreground">
                 {apiMode
-                  ? "Programs, openings, and application pipeline from the API. Catalog status updates are writable; convert-to-student remains portal/Students-side."
+                  ? "Programs, openings, and applications. Update catalog status here; convert applicants to students from Students."
                   : "Move applications through Submitted → Review → Verification → Parent Confirmation → Approved (or Rejected / Withdrawn) in Connect. Come back to Admin only to add an approved applicant as a student (and create a parent login if needed)."}
               </p>
             </div>
@@ -808,7 +796,7 @@ function AdmissionsPage() {
             <Card>
               <CardHeader
                 title="Admission programs"
-                hint="Program catalog from the API"
+                hint="Program catalog"
                 action={
                   <div className="flex flex-wrap items-center gap-2">
                     {writesEnabled ? (
@@ -871,7 +859,7 @@ function AdmissionsPage() {
                                 status: "archived",
                               })
                                 .then(() => {
-                                  setReloadKey((k) => k + 1);
+                                  bumpAdmissionsReload();
                                   notify(`Archived ${program.name}`);
                                 })
                                 .catch((err) => {
@@ -960,7 +948,7 @@ function AdmissionsPage() {
                                 status: "closed",
                               })
                                 .then(() => {
-                                  setReloadKey((k) => k + 1);
+                                  bumpAdmissionsReload();
                                   notify(`Closed ${opening.name}`);
                                 })
                                 .catch((err) => {
@@ -1097,21 +1085,19 @@ function AdmissionsPage() {
             title="Admissions reporting"
             hint={
               apiMode
-                ? "Read-only application list from API"
+                ? "View-only application list"
                 : "Search and filter across all applications"
             }
             action={<Pill tone="neutral">{reportRows.length} result(s)</Pill>}
           />
-          <div className="flex flex-wrap items-end gap-3 px-5 pb-4 sm:px-6">
-            <div className="min-w-[14rem] flex-1">
-              <label className="mb-1.5 flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-                <Search className="size-3" />
-                Search
-              </label>
+          <div className="lx-filter-bar flex flex-wrap items-center gap-2 px-4 py-2 sm:px-6 sm:gap-3">
+            <div className="min-w-0 flex-1">
               <TextInput
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="ID, student, class, docs, date, institute..."
+                placeholder="Search ID, student, class…"
+                fieldSize="compact"
+                leadingIcon={<Search className="size-3.5" />}
               />
             </div>
             <CascadingFiltersMenu
@@ -1208,7 +1194,7 @@ function AdmissionsPage() {
                           status: "approved",
                         })
                           .then(() => {
-                            setReloadKey((k) => k + 1);
+                            bumpAdmissionsReload();
                             notify(`${app.name} approved`);
                           })
                           .catch((err) => {
@@ -1234,7 +1220,7 @@ function AdmissionsPage() {
                           decisionNote: "Rejected from Admin",
                         })
                           .then(() => {
-                            setReloadKey((k) => k + 1);
+                            bumpAdmissionsReload();
                             notify(`${app.name} rejected`);
                           })
                           .catch((err) => {
@@ -1363,7 +1349,7 @@ function AdmissionsPage() {
           applicationName={docsReview.name}
           open
           onClose={() => setDocsReview(null)}
-          onChanged={() => setReloadKey((k) => k + 1)}
+          onChanged={() => bumpAdmissionsReload()}
         />
       ) : null}
 
@@ -1374,7 +1360,7 @@ function AdmissionsPage() {
             instituteId={instituteCtx.activeInstituteId}
             onClose={() => setCreateProgramOpen(false)}
             onCreated={() => {
-              setReloadKey((k) => k + 1);
+              bumpAdmissionsReload();
               notify("Admission program created");
             }}
             onError={(message) => notify(message)}
@@ -1385,7 +1371,7 @@ function AdmissionsPage() {
             programs={programsListView.items}
             onClose={() => setCreateOpeningOpen(false)}
             onCreated={() => {
-              setReloadKey((k) => k + 1);
+              bumpAdmissionsReload();
               notify("Admission opening created");
             }}
             onError={(message) => notify(message)}

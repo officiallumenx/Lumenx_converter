@@ -2,20 +2,7 @@ import { Link } from "@tanstack/react-router";
 
 export type Crumb = {
   label: string;
-  to?:
-    | "/"
-    | "/products"
-    | "/solutions"
-    | "/features"
-    | "/modules"
-    | "/how-it-works"
-    | "/demo"
-    | "/demos"
-    | "/pricing"
-    | "/download"
-    | "/downloads"
-    | "/contact"
-    | "/get-started";
+  to?: string;
 };
 
 export function Breadcrumbs({ items }: { items: readonly Crumb[] }) {

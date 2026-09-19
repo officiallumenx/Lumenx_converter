@@ -9,14 +9,20 @@ import {
 import {
   findAcademicYearById,
   findClassById,
+  findClassByYearAndCode,
+  findClassByYearAndName,
   findClassCodesByIds,
+  findSectionByClassAndCode,
   findSectionById,
+  findSubjectByCodeInInstitute,
   findSubjectById,
+  findSubjectByNameInInstitute,
   insertAcademicYear,
   insertClass,
   insertEnrollment,
   insertSection,
   insertSubject,
+  insertSubjectTeacher,
   listAcademicYears,
   listClasses,
   listEnrollments,
@@ -39,6 +45,7 @@ import {
   updateSectionFields,
   updateSubjectFields,
 } from "./repository.js";
+import { findTeacherById } from "../teachers/repository.js";
 import { findStudentById } from "../students/repository.js";
 import type {
   AcademicYearDto,
@@ -85,6 +92,7 @@ export const ACADEMICS_STAFF_READ_ROLES = [
   "vice_principal",
   "coordinator",
   "teacher",
+  "class_teacher",
   "accountant",
   "admissions_officer",
   "it_admin",
@@ -138,6 +146,7 @@ export function toSectionDto(row: SectionRow): SectionDto {
     room: row.room,
     sortOrder: row.sort_order,
     status: row.status,
+    classTeacherId: row.class_teacher_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -439,6 +448,20 @@ export async function createClassForActor(
     });
   }
 
+  const byCode = await findClassByYearAndCode(admin, {
+    instituteId,
+    academicYearId: input.academicYearId,
+    code,
+  });
+  const byName = await findClassByYearAndName(admin, {
+    instituteId,
+    academicYearId: input.academicYearId,
+    name,
+  });
+  if (byCode || byName) {
+    throw AppError.conflict("class is already exists");
+  }
+
   const row = await insertClass(admin, {
     ...input,
     instituteId,
@@ -543,11 +566,30 @@ export async function createSectionForActor(
     });
   }
 
+  const existingSection = await findSectionByClassAndCode(admin, {
+    classId: input.classId,
+    code,
+  });
+  if (existingSection) {
+    throw AppError.conflict("class is already exists");
+  }
+
+  let classTeacherId = input.classTeacherId ?? null;
+  if (classTeacherId) {
+    const teacher = await findTeacherById(admin, classTeacherId);
+    if (!teacher || teacher.institute_id !== instituteId || teacher.deleted_at) {
+      throw AppError.validation("Referenced resource is invalid", {
+        class_teacher_id: ["Teacher not found in this institute"],
+      });
+    }
+  }
+
   const row = await insertSection(admin, {
     ...input,
     instituteId,
     name,
     code,
+    classTeacherId,
   });
   return toSectionDto(row);
 }
@@ -562,6 +604,19 @@ export async function updateSectionForActor(
   if (!existing) throw AppError.notFound("Section not found");
 
   assertStaffWriter(actor, existing.institute_id);
+
+  if (patch.classTeacherId) {
+    const teacher = await findTeacherById(admin, patch.classTeacherId);
+    if (
+      !teacher ||
+      teacher.institute_id !== existing.institute_id ||
+      teacher.deleted_at
+    ) {
+      throw AppError.validation("Referenced resource is invalid", {
+        class_teacher_id: ["Teacher not found in this institute"],
+      });
+    }
+  }
 
   const fieldPatch = toSectionUpdatePatch(patch);
   if (typeof fieldPatch.name === "string") fieldPatch.name = fieldPatch.name.trim();
@@ -649,6 +704,30 @@ export async function createSubjectForActor(
     });
   }
 
+  const byCode = await findSubjectByCodeInInstitute(admin, {
+    instituteId,
+    code,
+  });
+  const byName = await findSubjectByNameInInstitute(admin, {
+    instituteId,
+    name,
+  });
+  if (byCode || byName) {
+    throw AppError.conflict("subject is already exists");
+  }
+
+  const teacherIds = [
+    ...new Set((input.teacherIds ?? []).map((id) => id.trim()).filter(Boolean)),
+  ];
+  for (const teacherId of teacherIds) {
+    const teacher = await findTeacherById(admin, teacherId);
+    if (!teacher || teacher.institute_id !== instituteId || teacher.deleted_at) {
+      throw AppError.validation("Referenced resource is invalid", {
+        teacher_ids: [`Teacher not found: ${teacherId}`],
+      });
+    }
+  }
+
   const row = await insertSubject(admin, {
     ...input,
     instituteId,
@@ -657,6 +736,15 @@ export async function createSubjectForActor(
     category,
     applicableClassCodes: input.applicableClassCodes.map((c) => c.trim()).filter(Boolean),
   });
+
+  for (const teacherId of teacherIds) {
+    await insertSubjectTeacher(admin, {
+      instituteId,
+      subjectId: row.id,
+      teacherId,
+    });
+  }
+
   return toSubjectDto(row);
 }
 

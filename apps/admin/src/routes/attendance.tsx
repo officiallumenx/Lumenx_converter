@@ -45,7 +45,7 @@ function AttendancePage() {
     return (
       <AppShell
         title={VIEW_TITLES[view]}
-        subtitle={`API mode · read-only · ${VIEW_SUBTITLES[view]}`}
+        subtitle={`Read-only · ${VIEW_SUBTITLES[view]}`}
       >
         <AttendanceHubNav active={view} />
         <AttendanceHubApiView view={view} />

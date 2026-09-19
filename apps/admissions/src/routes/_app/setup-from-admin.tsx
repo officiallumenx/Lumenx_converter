@@ -13,14 +13,17 @@ import { continueInstituteWithLumenxAdmin } from "@/lib/admissions/repositories"
 import type { LumenxAdminIdentity } from "@/lib/admissions/lumenx-admin-bridge";
 import { ensureSharedProfileFromAdmin } from "@/lib/admissions/shared-institute-profile";
 import { isApiAuthMode } from "@/auth/auth-mode";
-import { applyAdminHandoffSession } from "@/auth/api-auth";
+import { exchangeAdminHandoffCode } from "@/auth/api-auth";
 
 const searchSchema = z.object({
-  handoff: z.string().min(1),
+  handoff: z.string().optional().catch(""),
 });
 
 export const Route = createFileRoute("/_app/setup-from-admin")({
-  validateSearch: searchSchema,
+  validateSearch: (search) => {
+    const parsed = searchSchema.safeParse(search);
+    return { handoff: parsed.success ? (parsed.data.handoff ?? "") : "" };
+  },
   head: () => ({ meta: [{ title: "Setting up — Admissions" }] }),
   component: SetupFromAdminPage,
 });
@@ -28,8 +31,7 @@ export const Route = createFileRoute("/_app/setup-from-admin")({
 type HandoffPayload = LumenxAdminIdentity & {
   dest?: "institute" | "applications";
   exp?: number;
-  accessToken?: string;
-  refreshToken?: string;
+  code?: string;
 };
 
 function decodeHandoff(raw: string): HandoffPayload | null {
@@ -108,16 +110,10 @@ function SetupFromAdminPage() {
         }, 4000);
       });
 
+      let apiDestination: string | undefined;
       try {
-        if (isApiAuthMode() && payload.accessToken) {
-          await applyAdminHandoffSession({
-            accessToken: payload.accessToken,
-            refreshToken: payload.refreshToken,
-            instituteId: payload.instituteId,
-            instituteName: payload.instituteName || "Institute",
-            name: payload.name,
-            phone: payload.phone,
-          });
+        if (isApiAuthMode() && payload.code) {
+          apiDestination = (await exchangeAdminHandoffCode(payload.code)).destination;
         } else if (isApiAuthMode()) {
           setError(
             "Could not restore your Admin session. Sign in to Admissions with your Admin email and password.",
@@ -145,7 +141,8 @@ function SetupFromAdminPage() {
         await new Promise((resolve) => setTimeout(resolve, minMs - elapsed));
       }
 
-      const dest = payload.dest === "applications" ? "applications" : "institute";
+      const requestedDest = apiDestination ?? payload.dest;
+      const dest = requestedDest === "applications" ? "applications" : "institute";
       if (dest === "applications") {
         nav({ to: "/institute/applications", replace: true });
       } else {

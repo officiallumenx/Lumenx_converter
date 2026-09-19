@@ -1,4 +1,3 @@
-import { isApiAuthMode } from "@/lib/auth/auth-mode";
 import {
   getDriverRouteRoster,
   listTransportStops,
@@ -7,6 +6,7 @@ import {
   type DriverRouteRoster,
   type StopDto,
 } from "@/lib/transport-api";
+import { setApiDriverRoster, listApprovedAttendanceRosterStudents } from "../api-roster";
 import {
   applyApiApprovedHydration,
   type RouteSetupDriverScope,
@@ -27,17 +27,20 @@ async function resolveDropStopId(routeId: string, pickupStopId: string): Promise
   return sorted[0]?.id ?? pickupStopId;
 }
 
-/** Pull approved stops + enrollments from the API into the local route-setup store. */
+/** Pull stops + enrollments from the API into the in-memory route-setup store (API is SoT). */
 export async function hydrateRouteSetupFromApi(
   scope: RouteSetupDriverScope,
   roster?: DriverRouteRoster | null,
 ): Promise<void> {
-  if (!isApiAuthMode() || !scope.instituteId || !isUuid(scope.routeId)) return;
+  if (!scope.instituteId || !isUuid(scope.routeId)) return;
   const data =
     roster && roster.routeId === scope.routeId
       ? roster
       : await getDriverRouteRoster(scope.instituteId);
   if (!data.routeId || data.routeId !== scope.routeId) return;
+  setApiDriverRoster(data, { vehicleNumber: scope.vehicleNumber });
+  const { setApiAttendanceRoster } = await import("../attendance/store");
+  setApiAttendanceRoster(listApprovedAttendanceRosterStudents());
   applyApiApprovedHydration({
     lockedByAdmin: data.locked,
     stops: data.stops,
@@ -51,7 +54,7 @@ export async function syncStopAndEnrollmentsToApi(
   stop: RouteSetupStop,
   assignments: StudentStopAssignment[],
 ): Promise<{ apiStopId: string | null; syncedEnrollmentIds: string[] }> {
-  if (!isApiAuthMode() || !scope.instituteId) {
+  if (!scope.instituteId) {
     return { apiStopId: null, syncedEnrollmentIds: [] };
   }
   if (stop.status !== "pending") {

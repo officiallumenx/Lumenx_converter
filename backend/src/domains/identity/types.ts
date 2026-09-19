@@ -38,6 +38,9 @@ export type UserProfileRow = {
   phone: string | null;
   avatar_url: string | null;
   status: ProfileStatus;
+  /** Firebase Auth UID when linked (Phase 2). Never used as PK. */
+  firebase_uid?: string | null;
+  firebase_linked_at?: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;

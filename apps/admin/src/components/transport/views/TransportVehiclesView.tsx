@@ -225,7 +225,7 @@ export function TransportVehiclesView({
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search vehicles…"
-          className="w-full max-w-xs"
+          className="min-w-0 flex-1 sm:max-w-xs"
         />
         <ToolbarSpacer />
         {writesEnabled ? (

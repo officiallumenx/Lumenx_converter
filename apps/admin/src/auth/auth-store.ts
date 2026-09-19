@@ -12,12 +12,7 @@ import {
   REMEMBER_TTL_MS,
 } from "./constants";
 import type { AuthSession, AuthUser, AdminRole } from "./types";
-import { getPasswordOverride } from "./recovery-service";
-import {
-  findAccessAssignee,
-  getAccessRole,
-  normalizePhone,
-} from "@/lib/roles-access";
+import { normalizePhone } from "@/lib/roles-access";
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -90,7 +85,7 @@ export function saveSession(
   options?: { authSource?: "demo" | "api"; token?: string },
 ): AuthSession {
   const ttl     = remember ? REMEMBER_TTL_MS : SESSION_TTL_MS;
-  const authSource = options?.authSource ?? "demo";
+  const authSource = options?.authSource ?? "api";
   const session: AuthSession = {
     userId:        user.id,
     email:         user.email,
@@ -197,168 +192,39 @@ export function applyApprovedRegistrationToUser(
   return next;
 }
 
-// ── Mock credential lookup ────────────────────────────────────
+// ── Mock credential lookup (disabled — API-only) ─────────────
 
-/**
- * Mock authentication — replace this function body with a real API call.
- * Contract: resolves with AuthUser on success, rejects with Error on failure.
- */
-function authUserFromAssignee(identifier: string): AuthUser | null {
-  const assignee = findAccessAssignee(identifier);
-  if (!assignee) return null;
-  if (assignee.status !== "active") {
-    throw new Error("This account has been suspended. Contact your administrator.");
-  }
-  const role = getAccessRole(assignee.roleId);
-  if (!role) throw new Error("The assigned role no longer exists. Contact your administrator.");
-  const initials = assignee.name
-    .split(/\s+/)
-    .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("")
-    .slice(0, 2);
-  return {
-    id: assignee.id,
-    email: assignee.email ?? "",
-    phone: assignee.phone,
-    name: assignee.name,
-    initials,
-    role: "coordinator",
-    title: role.name,
-    accessRoleId: role.id,
-    instituteId: "ins-test1school",
-    instituteName: "Test1School",
-    isVerified: true,
-    mfaEnabled: true,
-    createdAt: assignee.createdAt,
-    lastLoginAt: new Date().toISOString(),
-  };
-}
-
-function findRegisteredUserByIdentifier(identifier: string): AuthUser | null {
-  const email = identifier.trim().toLowerCase();
-  const phone = normalizePhone(identifier);
-  const match = loadDemoRegistered().find(
-    (entry) =>
-      entry.email === email ||
-      Boolean(phone && normalizePhone(entry.phone ?? entry.user.phone ?? "") === phone),
-  );
-  return match?.user ?? null;
-}
-
-export async function mockLookupUserByIdentifier(identifier: string): Promise<AuthUser> {
-  const { DEMO_USERS, MOCK_API_DELAY_MS } = await import("./constants");
-  await new Promise((resolve) => setTimeout(resolve, MOCK_API_DELAY_MS / 2));
-
-  const customUser = authUserFromAssignee(identifier);
-  if (customUser) return customUser;
-
-  const email = identifier.trim().toLowerCase();
-  const phone = normalizePhone(identifier);
-  const demo = DEMO_USERS.find(
-    (entry) =>
-      entry.email.toLowerCase() === email ||
-      Boolean(phone && normalizePhone(entry.user.phone ?? "") === phone),
-  );
-  if (demo) return demo.user;
-
-  const registered = findRegisteredUserByIdentifier(identifier);
-  if (registered) return registered;
-
-  throw new Error("No Admin account exists for that email or mobile number.");
+export async function mockLookupUserByIdentifier(_identifier: string): Promise<AuthUser> {
+  throw new Error("Admin demo account lookup has been removed. Use API authentication.");
 }
 
 export async function mockSignIn(
-  identifier: string,
-  password: string,
+  _identifier: string,
+  _password: string,
 ): Promise<AuthUser> {
-  const { DEMO_USERS, MOCK_API_DELAY_MS } = await import("./constants");
-  await new Promise((r) => setTimeout(r, MOCK_API_DELAY_MS));
-
-  const normalizedEmail = identifier.trim().toLowerCase();
-  const normalizedPhone = normalizePhone(identifier);
-
-  const assignee = findAccessAssignee(identifier);
-  if (assignee) {
-    const user = authUserFromAssignee(identifier);
-    if (assignee.password !== password) {
-      throw new Error("Incorrect password. Please try again.");
-    }
-    if (user) return user;
-  }
-
-  const match = DEMO_USERS.find((u) => {
-    const effectivePassword = getPasswordOverride(u.email) ?? u.password;
-    if (effectivePassword !== password) return false;
-    if (u.email.toLowerCase() === normalizedEmail) return true;
-    const userPhone = normalizePhone(u.user.phone ?? "");
-    return Boolean(userPhone && normalizedPhone && userPhone === normalizedPhone);
-  });
-
-  if (!match) {
-    const registered = findDemoRegisteredUser(identifier, password);
-    if (registered) return registered;
-    throw new Error("Invalid credentials. Please check your email/mobile and password.");
-  }
-  return { ...match.user, lastLoginAt: new Date().toISOString() };
+  throw new Error("Admin demo sign-in has been removed. Use API authentication.");
 }
 
-/**
- * Mock sign-up — replace with POST /auth/register API call.
- */
+/** Mock sign-up — disabled (API-only product mode). */
 export async function mockSignUp(
-  email: string,
-  name: string,
-  role: AdminRole,
-  title: string,
-  options?: { phone?: string; instituteName?: string; password?: string },
+  _email: string,
+  _name: string,
+  _role: AdminRole,
+  _title: string,
+  _options?: { phone?: string; instituteName?: string; password?: string },
 ): Promise<AuthUser> {
-  const { MOCK_API_DELAY_MS } = await import("./constants");
-  await new Promise((r) => setTimeout(r, MOCK_API_DELAY_MS));
-
-  const initials = name
-    .split(" ")
-    .map((n) => n[0]?.toUpperCase() ?? "")
-    .join("")
-    .slice(0, 2);
-
-  const user: AuthUser = {
-    id:            `LX-ADM-${Date.now().toString(36).toUpperCase()}`,
-    email:         email.toLowerCase(),
-    name,
-    initials,
-    role,
-    title,
-    phone:         options?.phone,
-    instituteId:   `LX-INST-${Date.now().toString(36).toUpperCase()}`,
-    instituteName: options?.instituteName?.trim() || "Demo Institute",
-    isVerified:    false, // must complete OTP + Nexus approval before dashboard
-    mfaEnabled:    false,
-    createdAt:     new Date().toISOString(),
-  };
-
-  if (options?.password) {
-    registerDemoUser(user.email, options.password, user, options.phone);
-  }
-
-  return user;
+  throw new Error("Admin demo sign-up has been removed. Use API authentication.");
 }
 
-/**
- * Mock forgot-password — replace with POST /auth/forgot-password API call.
- */
 export async function mockForgotPassword(_email: string): Promise<void> {
-  const { MOCK_API_DELAY_MS } = await import("./constants");
-  await new Promise((r) => setTimeout(r, MOCK_API_DELAY_MS));
-  // In production: sends a reset link to the email
+  const { assertNotDemoFallback } = await import("@lumenx/auth");
+  assertNotDemoFallback("api", "Admin mockForgotPassword");
 }
 
-/**
- * Mock forgot-pin — replace with POST /auth/forgot-pin API call.
- */
 export async function mockForgotPin(
   _email: string,
   _employeeId: string,
 ): Promise<void> {
-  const { MOCK_API_DELAY_MS } = await import("./constants");
-  await new Promise((r) => setTimeout(r, MOCK_API_DELAY_MS));
+  const { assertNotDemoFallback } = await import("@lumenx/auth");
+  assertNotDemoFallback("api", "Admin mockForgotPin");
 }

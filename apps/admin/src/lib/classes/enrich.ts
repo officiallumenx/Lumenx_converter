@@ -1,7 +1,9 @@
 import type { EnrollmentDto } from "@/lib/enrollments/types";
 import type { SubjectDto } from "@/lib/subjects/types";
 import type { TeacherListItem } from "@/lib/teachers/types";
+import type { TeacherDto } from "@/lib/teachers/types";
 import type { TeacherAssignmentDto } from "@/lib/timetable/types";
+import type { ClassDto, SectionDto } from "./types";
 
 export type SectionEnrichment = {
   enrollmentCountBySection: Map<string, number>;
@@ -56,4 +58,38 @@ export function buildSectionEnrichment(
   }
 
   return { enrollmentCountBySection, teachersBySection, subjectTeacherBySection };
+}
+
+export function applyClassTeacherEnrichment(
+  enrichment: SectionEnrichment,
+  sections: SectionDto[],
+  classes: ClassDto[],
+  teachers: TeacherDto[],
+): SectionEnrichment {
+  const classesById = new Map(classes.map((item) => [item.id, item]));
+  const teachersById = new Map(teachers.map((item) => [item.id, item]));
+  for (const section of sections) {
+    if (section.classTeacherId) {
+      const named = teachersById.get(section.classTeacherId)?.displayName?.trim();
+      if (named) {
+        enrichment.teachersBySection.set(section.id, named);
+        continue;
+      }
+    }
+    const cls = classesById.get(section.classId);
+    if (!cls) continue;
+    const labels = new Set([
+      `${cls.code}-${section.code}`.toLowerCase(),
+      `${cls.name}-${section.code}`.toLowerCase(),
+    ]);
+    const classTeacher = teachers.find((teacher) =>
+      (teacher.assignedSectionLabels ?? []).some((label) =>
+        labels.has(label.trim().toLowerCase()),
+      ),
+    );
+    if (classTeacher) {
+      enrichment.teachersBySection.set(section.id, classTeacher.displayName);
+    }
+  }
+  return enrichment;
 }

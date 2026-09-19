@@ -3,6 +3,7 @@ import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
   pickAttendanceConfigForRegister,
   slotFieldsFromMethod,
+  emptyAttendanceSlotCreateMessage,
 } from "./register-create-helpers";
 import type { AttendanceConfigDto } from "./types";
 
@@ -40,6 +41,38 @@ describe("register-create-helpers", () => {
     expect(picked?.id).toBe("newer");
   });
 
+  it("prefers section scope over class and institute", () => {
+    const picked = pickAttendanceConfigForRegister({
+      configs: [
+        config({
+          id: "institute",
+          scope: "institute",
+          effectiveFrom: "2025-06-01",
+          owner: "attendance_incharge",
+        }),
+        config({
+          id: "class",
+          scope: "class",
+          classCodes: ["G10"],
+          effectiveFrom: "2025-07-01",
+          owner: "current_period_teacher",
+        }),
+        config({
+          id: "section",
+          scope: "section",
+          sectionCodes: ["A"],
+          effectiveFrom: "2025-05-01",
+          owner: "class_teacher",
+        }),
+      ],
+      attendanceDate: "2025-08-01",
+      classCode: "G10",
+      sectionCode: "A",
+    });
+    expect(picked?.id).toBe("section");
+    expect(picked?.owner).toBe("class_teacher");
+  });
+
   it("maps daily method to day slot fields", () => {
     expect(slotFieldsFromMethod("daily")).toEqual({
       slotKind: "day",
@@ -70,5 +103,17 @@ describe("student attendance write gate", () => {
         activeInstituteId: INST,
       }),
     ).toBe(true);
+  });
+
+  it("empty slot message distinguishes missing timetable from fully marked", () => {
+    expect(emptyAttendanceSlotCreateMessage("period_wise", 0)).toContain(
+      "Publish a timetable",
+    );
+    expect(emptyAttendanceSlotCreateMessage("daily", 0)).toContain(
+      "No attendance slots",
+    );
+    expect(emptyAttendanceSlotCreateMessage("period_wise", 3)).toBe(
+      "All slots are marked for this date.",
+    );
   });
 });

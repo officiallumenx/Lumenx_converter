@@ -93,7 +93,11 @@ function baseDb(): MockDb {
   return db;
 }
 
-function appFor(db: MockDb, authUsersByEmail: MockAuthUsersByEmail = {}) {
+function appFor(
+  db: MockDb,
+  authUsersByEmail: MockAuthUsersByEmail = {},
+  authPasswords: Record<string, string> = {},
+) {
   const env = loadEnv();
   const supabase = createMockSupabaseClients({
     tokens: {
@@ -102,6 +106,7 @@ function appFor(db: MockDb, authUsersByEmail: MockAuthUsersByEmail = {}) {
     },
     db,
     authUsersByEmail,
+    authPasswords,
   });
   return createApp(env, silentLogger, supabase);
 }
@@ -146,6 +151,26 @@ describe("POST /api/v1/registrations", () => {
     expect(JSON.stringify(storedPayload)).not.toContain("SecurePass1!");
   });
 
+  it("accepts a logo uploaded within the advertised 2 MiB limit", async () => {
+    const db = emptyMockDb();
+    const app = appFor(db, {});
+    const logoPreview = `data:image/png;base64,${"A".repeat(2_800_000)}`;
+
+    const res = await app.request("/api/v1/registrations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        applicant_name: "Logo Applicant",
+        email: "logo.applicant@example.com",
+        password: "SecurePass1!",
+        payload: { ...validPayload, logoPreview },
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    expect(db.institute_registration[0]?.payload).toMatchObject({ logoPreview });
+  });
+
   it("rejects duplicate email registration", async () => {
     const db = emptyMockDb();
     const authUsersByEmail: MockAuthUsersByEmail = {
@@ -167,6 +192,91 @@ describe("POST /api/v1/registrations", () => {
     expect(res.status).toBe(409);
     expect(db.institute_registration).toHaveLength(0);
   });
+
+  it("resumes the same pending registration after a post-create login failure", async () => {
+    const db = baseDb();
+    const authUsersByEmail: MockAuthUsersByEmail = {
+      "applicant-a@example.com": { id: USER_A },
+    };
+    const app = appFor(db, authUsersByEmail, {
+      "applicant-a@example.com": "SecurePass1!",
+    });
+
+    const res = await app.request("/api/v1/registrations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        applicant_name: "Applicant A",
+        email: "applicant-a@example.com",
+        password: "SecurePass1!",
+        payload: validPayload,
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    const body = await json(res);
+    expect(body.data.id).toBe(REG_A);
+    expect(db.institute_registration).toHaveLength(1);
+  });
+
+  it("backfills profile and registration for an orphan Auth user on retry", async () => {
+    const db = emptyMockDb();
+    const authUsersByEmail: MockAuthUsersByEmail = {
+      "orphan@example.com": { id: USER_A },
+    };
+    const app = appFor(db, authUsersByEmail, {
+      "orphan@example.com": "SecurePass1!",
+    });
+
+    const res = await app.request("/api/v1/registrations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        applicant_name: "Recovered Applicant",
+        email: "orphan@example.com",
+        password: "SecurePass1!",
+        phone: "9876543210",
+        payload: validPayload,
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    expect(db.user_profile).toHaveLength(1);
+    expect(db.user_profile[0]?.id).toBe(USER_A);
+    expect(db.institute_registration).toHaveLength(1);
+    expect(db.institute_registration[0]?.applicant_user_id).toBe(USER_A);
+  });
+
+  it.each([
+    ["approved", "already has an approved institute registration"],
+    ["rejected", "Sign in to review and resubmit"],
+  ] as const)(
+    "does not create a second registration when the existing one is %s",
+    async (status, expectedMessage) => {
+      const db = baseDb();
+      db.institute_registration[0]!.status = status;
+      const app = appFor(
+        db,
+        { "applicant-a@example.com": { id: USER_A } },
+        { "applicant-a@example.com": "SecurePass1!" },
+      );
+
+      const res = await app.request("/api/v1/registrations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          applicant_name: "Applicant A",
+          email: "applicant-a@example.com",
+          password: "SecurePass1!",
+          payload: validPayload,
+        }),
+      });
+
+      expect(res.status).toBe(409);
+      expect((await json(res)).error.message).toContain(expectedMessage);
+      expect(db.institute_registration).toHaveLength(1);
+    },
+  );
 });
 
 describe("GET /api/v1/registrations/me", () => {

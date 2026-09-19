@@ -1,3 +1,4 @@
+import { isApiAuthMode } from "@/auth/auth-mode";
 import {
   cloneEquipmentItem,
   createEquipmentFromInput,
@@ -17,8 +18,10 @@ import type {
   EquipmentTransaction,
 } from "./types";
 
-let equipmentStore: EquipmentItem[] = equipmentSeed.map(cloneEquipmentItem);
-let suppliersStore: EquipmentSupplier[] = equipmentSuppliersSeed.map((s) => ({ ...s }));
+let equipmentStore: EquipmentItem[] = isApiAuthMode() ? [] : equipmentSeed.map(cloneEquipmentItem);
+let suppliersStore: EquipmentSupplier[] = isApiAuthMode()
+  ? []
+  : equipmentSuppliersSeed.map((s) => ({ ...s }));
 
 const transactionsSeed: EquipmentTransaction[] = [
   {
@@ -80,7 +83,7 @@ const transactionsSeed: EquipmentTransaction[] = [
   },
 ];
 
-let transactionsStore: EquipmentTransaction[] = [...transactionsSeed];
+let transactionsStore: EquipmentTransaction[] = isApiAuthMode() ? [] : [...transactionsSeed];
 
 function findEquipment(id: string): EquipmentItem {
   const item = equipmentStore.find((e) => e.id === id);
@@ -103,7 +106,10 @@ function syncCondition(item: EquipmentItem): EquipmentCondition {
   return "good";
 }
 
-function applyEquipmentFilters(items: EquipmentItem[], filters?: EquipmentListFilters): EquipmentItem[] {
+function applyEquipmentFilters(
+  items: EquipmentItem[],
+  filters?: EquipmentListFilters,
+): EquipmentItem[] {
   let result = [...items];
   const f = filters ?? {};
 
@@ -144,9 +150,9 @@ function applyEquipmentFilters(items: EquipmentItem[], filters?: EquipmentListFi
 }
 
 export function resetSportsEquipmentStore() {
-  equipmentStore = equipmentSeed.map(cloneEquipmentItem);
-  suppliersStore = equipmentSuppliersSeed.map((s) => ({ ...s }));
-  transactionsStore = [...transactionsSeed];
+  equipmentStore = isApiAuthMode() ? [] : equipmentSeed.map(cloneEquipmentItem);
+  suppliersStore = isApiAuthMode() ? [] : equipmentSuppliersSeed.map((s) => ({ ...s }));
+  transactionsStore = isApiAuthMode() ? [] : [...transactionsSeed];
 }
 
 export function listEquipmentFromStore(filters?: EquipmentListFilters): EquipmentItem[] {
@@ -203,7 +209,10 @@ export function createEquipmentInStore(input: EquipmentItemInput): EquipmentItem
   return cloneEquipmentItem(record);
 }
 
-export function updateEquipmentInStore(id: string, patch: Partial<EquipmentItemInput>): EquipmentItem {
+export function updateEquipmentInStore(
+  id: string,
+  patch: Partial<EquipmentItemInput>,
+): EquipmentItem {
   const idx = equipmentStore.findIndex((e) => e.id === id);
   if (idx < 0) throw new Error("Equipment not found");
   const prev = equipmentStore[idx];
@@ -249,7 +258,11 @@ export function issueEquipmentInStore(id: string, input: EquipmentIssueInput): E
     available: item.available - input.quantity,
     issued: item.issued + input.quantity,
     updatedAt: new Date().toISOString().slice(0, 10),
-    condition: syncCondition({ ...item, available: item.available - input.quantity, issued: item.issued + input.quantity }),
+    condition: syncCondition({
+      ...item,
+      available: item.available - input.quantity,
+      issued: item.issued + input.quantity,
+    }),
   });
   equipmentStore = equipmentStore.map((e) => (e.id === id ? updated : e));
   pushTransaction({
@@ -265,7 +278,10 @@ export function issueEquipmentInStore(id: string, input: EquipmentIssueInput): E
   return cloneEquipmentItem(updated);
 }
 
-export function returnEquipmentInStore(id: string, input: EquipmentQuantityActionInput): EquipmentItem {
+export function returnEquipmentInStore(
+  id: string,
+  input: EquipmentQuantityActionInput,
+): EquipmentItem {
   const item = findEquipment(id);
   if (input.quantity > item.issued) throw new Error("Return quantity exceeds issued count.");
   const updated = cloneEquipmentItem({
@@ -273,7 +289,11 @@ export function returnEquipmentInStore(id: string, input: EquipmentQuantityActio
     available: item.available + input.quantity,
     issued: item.issued - input.quantity,
     updatedAt: new Date().toISOString().slice(0, 10),
-    condition: syncCondition({ ...item, available: item.available + input.quantity, issued: item.issued - input.quantity }),
+    condition: syncCondition({
+      ...item,
+      available: item.available + input.quantity,
+      issued: item.issued - input.quantity,
+    }),
   });
   equipmentStore = equipmentStore.map((e) => (e.id === id ? updated : e));
   pushTransaction({
@@ -340,9 +360,13 @@ export function markLostInStore(id: string, input: EquipmentQuantityActionInput)
   return cloneEquipmentItem(updated);
 }
 
-export function sendToMaintenanceInStore(id: string, input: EquipmentQuantityActionInput): EquipmentItem {
+export function sendToMaintenanceInStore(
+  id: string,
+  input: EquipmentQuantityActionInput,
+): EquipmentItem {
   const item = findEquipment(id);
-  if (input.quantity > item.available) throw new Error("Insufficient available stock for maintenance.");
+  if (input.quantity > item.available)
+    throw new Error("Insufficient available stock for maintenance.");
   const updated = cloneEquipmentItem({
     ...item,
     available: item.available - input.quantity,
@@ -362,9 +386,13 @@ export function sendToMaintenanceInStore(id: string, input: EquipmentQuantityAct
   return cloneEquipmentItem(updated);
 }
 
-export function completeMaintenanceInStore(id: string, input: EquipmentQuantityActionInput): EquipmentItem {
+export function completeMaintenanceInStore(
+  id: string,
+  input: EquipmentQuantityActionInput,
+): EquipmentItem {
   const item = findEquipment(id);
-  if (input.quantity > item.inMaintenance) throw new Error("Quantity exceeds items in maintenance.");
+  if (input.quantity > item.inMaintenance)
+    throw new Error("Quantity exceeds items in maintenance.");
   const updated = cloneEquipmentItem({
     ...item,
     available: item.available + input.quantity,

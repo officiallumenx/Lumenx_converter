@@ -8,7 +8,7 @@ import {
 import { clearDiaryApiContext, requireDiaryApiContext } from "./context";
 import { diaryDtoToDay, diaryRowsToApiInput, emptyDiaryDay } from "./map";
 import type { DiaryDay, DiaryRow, DiaryScope } from "@/lib/teacher/diary/types";
-import { diaryDayKey, isDiaryDaySubmitted } from "@/lib/teacher/diary/types";
+import { diaryDayKey, isDiaryDayReady, isDiaryDaySubmitted } from "@/lib/teacher/diary/types";
 import { yesterdayIso } from "@/lib/teacher/diary/dates";
 import { newDiaryRow } from "@/lib/teacher/diary/store";
 
@@ -136,11 +136,7 @@ export async function submitDiaryApiDay(
 }
 
 export function isDiaryApiReady(scope: DiaryScope, date: string): boolean {
-  const day = getDiaryApiDay(scope, date);
-  if (!day?.rows?.length) return false;
-  return day.rows.some(
-    (r) => r.className.trim().length > 0 && r.description.trim().length > 0,
-  );
+  return isDiaryDayReady(getDiaryApiDay(scope, date));
 }
 
 export function isDiaryApiSubmitted(scope: DiaryScope, date: string): boolean {

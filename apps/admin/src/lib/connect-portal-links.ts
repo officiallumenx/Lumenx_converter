@@ -97,8 +97,7 @@ export type AdmissionsAdminHandoff = {
   instituteName: string;
   dest: AdmissionsHandoffDest;
   exp: number;
-  accessToken?: string;
-  refreshToken?: string;
+  code?: string;
 };
 
 export function encodeAdmissionsAdminHandoff(payload: AdmissionsAdminHandoff): string {
@@ -115,9 +114,7 @@ export type CareersAdminHandoff = {
   instituteName: string;
   dest: CareersHandoffDest;
   exp: number;
-  /** API mode — short-lived Supabase tokens for cross-app session (Careers origin). */
-  accessToken?: string;
-  refreshToken?: string;
+  code?: string;
 };
 
 export function encodeCareersAdminHandoff(payload: CareersAdminHandoff): string {
@@ -162,14 +159,9 @@ export function openAdmissionsFromAdmin(dest: AdmissionsHandoffDest = "institute
   if (isApiAuthMode()) {
     void (async () => {
       try {
-        const supabase = getSupabaseBrowserClient();
-        const { data } = await supabase.auth.getSession();
-        if (data.session?.access_token) {
-          handoff.accessToken = data.session.access_token;
-          handoff.refreshToken = data.session.refresh_token ?? undefined;
-        }
+        handoff.code = await issuePortalHandoff("admissions", handoff);
       } catch {
-        /* demo handoff still works */
+        /* setup page will require sign-in */
       }
       openAdmissionsHandoffWindow(handoff);
     })();
@@ -249,14 +241,9 @@ export async function openCareersFromAdmin(dest: CareersHandoffDest = "recruiter
 
   if (isApiAuthMode()) {
     try {
-      const supabase = getSupabaseBrowserClient();
-      const { data } = await supabase.auth.getSession();
-      if (data.session?.access_token) {
-        handoff.accessToken = data.session.access_token;
-        handoff.refreshToken = data.session.refresh_token ?? undefined;
-      }
+      handoff.code = await issuePortalHandoff("careers", handoff);
     } catch {
-      // handoff proceeds without tokens — Careers setup will prompt sign-in
+      // Careers setup will prompt sign-in.
     }
   }
 
@@ -264,4 +251,41 @@ export async function openCareersFromAdmin(dest: CareersHandoffDest = "recruiter
   const url = careersPortalUrl(path);
   const child = window.open(url, "lumenx-careers");
   setCareersPortalWindow(child);
+}
+
+async function issuePortalHandoff(
+  app: "admissions" | "careers",
+  handoff: AdmissionsAdminHandoff | CareersAdminHandoff,
+): Promise<string> {
+  const { data } = await getSupabaseBrowserClient().auth.getSession();
+  const session = data.session;
+  if (!session?.access_token || !session.refresh_token) {
+    throw new Error("No active API session");
+  }
+  const base = (import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8787").replace(/\/+$/, "");
+  const response = await fetch(`${base}/api/v1/auth/handoff/issue`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({
+      app,
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+      institute_id: handoff.instituteId,
+      institute_name: handoff.instituteName,
+      destination: handoff.dest,
+      name: handoff.name,
+      phone: handoff.phone,
+    }),
+  });
+  const json = (await response.json().catch(() => ({}))) as {
+    data?: { code?: string };
+    error?: { message?: string };
+  };
+  if (!response.ok || !json.data?.code) {
+    throw new Error(json.error?.message ?? "Unable to create portal handoff");
+  }
+  return json.data.code;
 }

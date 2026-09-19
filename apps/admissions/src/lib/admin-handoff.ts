@@ -1,6 +1,7 @@
 /**
- * Bridge: Admissions institute auth ↔ LumenX Admin accounts (same-origin localStorage demo).
+ * Bridge: Admissions institute auth ↔ LumenX Admin accounts (same-origin localStorage).
  * Keys come from @lumenx/config ADMIN_STORAGE_KEYS (shared with Admin).
+ * Hardcoded DEMO_USERS mirror removed (Wave 1 API-only auth).
  */
 
 import { ADMIN_STORAGE_KEYS } from "@lumenx/config";
@@ -8,42 +9,6 @@ import { admissionsInstituteIdForAdminInstitute, normalizeEmail, normalizePhoneL
 
 const ADMIN_SESSION_KEY = ADMIN_STORAGE_KEYS.session;
 const ADMIN_REGISTERED_KEY = ADMIN_STORAGE_KEYS.demoRegistered;
-
-/** Mirrors Admin DEMO_USERS for same-origin demo login. */
-const ADMIN_DEMO_ACCOUNTS = [
-  {
-    email: "principal@lumenx.edu",
-    password: "Admin@1234",
-    name: "Dr. Ananya Verma",
-    phone: "+91 98765 43210",
-    instituteId: "ins-test1school",
-    instituteName: "Test1School",
-  },
-  {
-    email: "vp@lumenx.edu",
-    password: "Admin@1234",
-    name: "Mr. Rohan Kapoor",
-    phone: "+91 98765 43211",
-    instituteId: "ins-test1school",
-    instituteName: "Test1School",
-  },
-  {
-    email: "admissions@lumenx.edu",
-    password: "Admin@1234",
-    name: "Ms. Priya Nair",
-    phone: "+91 98765 43212",
-    instituteId: "ins-test1school",
-    instituteName: "Test1School",
-  },
-  {
-    email: "coordinator@lumenx.edu",
-    password: "Admin@1234",
-    name: "Mr. Aditya Sharma",
-    phone: "+91 98765 43213",
-    instituteId: "ins-test1school",
-    instituteName: "Test1School",
-  },
-] as const;
 
 export type LumenxAdminIdentity = {
   email: string;
@@ -102,6 +67,7 @@ export function getActiveLumenxAdminSession(): LumenxAdminIdentity | null {
   }
 }
 
+/** Verify against registered Admin accounts only (no hardcoded DEMO_USERS). */
 export function verifyLumenxAdminCredentials(
   identifier: string,
   password: string,
@@ -110,21 +76,6 @@ export function verifyLumenxAdminCredentials(
   const phone = normalizePhone(identifier);
   const pwd = password.trim();
   if (!pwd) return null;
-
-  const demo = ADMIN_DEMO_ACCOUNTS.find((entry) => {
-    if (entry.password !== pwd) return false;
-    if (entry.email === email) return true;
-    return Boolean(phone && normalizePhone(entry.phone) === phone);
-  });
-  if (demo) {
-    return {
-      email: demo.email,
-      name: demo.name,
-      phone: demo.phone,
-      instituteId: demo.instituteId,
-      instituteName: demo.instituteName,
-    };
-  }
 
   try {
     const raw = localStorage.getItem(ADMIN_REGISTERED_KEY);

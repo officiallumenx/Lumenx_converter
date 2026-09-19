@@ -165,12 +165,15 @@ export async function insertInstituteSettings(
 ): Promise<InstituteSettingsRow> {
   const result = await admin
     .from("institute_settings")
-    .insert({
-      institute_id: input.instituteId,
-      timezone: input.timezone ?? "Asia/Kolkata",
-      locale: input.locale ?? "en-IN",
-      settings: input.settings ?? {},
-    })
+    .upsert(
+      {
+        institute_id: input.instituteId,
+        timezone: input.timezone ?? "Asia/Kolkata",
+        locale: input.locale ?? "en-IN",
+        settings: input.settings ?? {},
+      },
+      { onConflict: "institute_id" },
+    )
     .select(SETTINGS_COLS)
     .single();
   return ensureDbOk(result) as InstituteSettingsRow;

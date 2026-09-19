@@ -221,6 +221,36 @@ export async function insertTeacherAssignment(
   return ensureDbOk(result) as AssignmentGraphRow;
 }
 
+export async function findActiveAssignmentBySectionSubject(
+  admin: SupabaseClient,
+  input: { sectionId: string; subjectId: string },
+): Promise<AssignmentGraphRow | null> {
+  const result = await admin
+    .from("teacher_assignment")
+    .select(
+      "id, institute_id, academic_year_id, class_id, section_id, subject_id, teacher_id, status, deleted_at",
+    )
+    .eq("section_id", input.sectionId)
+    .eq("subject_id", input.subjectId)
+    .eq("status", "active")
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (result.data as AssignmentGraphRow | null) ?? null;
+}
+
+export async function softDeleteTeacherAssignmentsForTeacher(
+  admin: SupabaseClient,
+  teacherId: string,
+): Promise<void> {
+  const result = await admin
+    .from("teacher_assignment")
+    .update({ deleted_at: new Date().toISOString(), status: "inactive" })
+    .eq("teacher_id", teacherId)
+    .is("deleted_at", null);
+  if (result.error) ensureDbOk(result);
+}
+
 export async function findTeacherInInstitute(
   admin: SupabaseClient,
   input: { teacherId: string; instituteId: string },
@@ -296,6 +326,20 @@ export async function updateTimetableSlot(
   return ensureDbOk(result) as TimetableSlotRow;
 }
 
+function slotRecency(row: TimetableSlotRow): string {
+  return row.updated_at || row.created_at || "";
+}
+
+function cellKey(row: TimetableSlotRow): string {
+  return `${row.day_of_week}:${row.period_index}`;
+}
+
+/**
+ * Activate drafts for a section without violating
+ * timetable_slot_section_day_period_active_uidx.
+ * Per cell: newest inactive wins; soft-delete other drafts and any prior active;
+ * then activate the chosen draft. Cells with only active are left alone.
+ */
 export async function activateInactiveSlotsForSection(
   admin: SupabaseClient,
   input: { instituteId: string; sectionId: string },
@@ -304,10 +348,30 @@ export async function activateInactiveSlotsForSection(
     instituteId: input.instituteId,
     sectionId: input.sectionId,
   });
-  const activated: TimetableSlotRow[] = [];
+
+  const byCell = new Map<string, TimetableSlotRow[]>();
   for (const row of rows) {
-    if (row.status !== "inactive") continue;
-    activated.push(await updateTimetableSlot(admin, row.id, { status: "active" }));
+    const key = cellKey(row);
+    const bucket = byCell.get(key) ?? [];
+    bucket.push(row);
+    byCell.set(key, bucket);
+  }
+
+  const activated: TimetableSlotRow[] = [];
+  for (const group of byCell.values()) {
+    const drafts = group
+      .filter((r) => r.status === "inactive")
+      .sort((a, b) => slotRecency(b).localeCompare(slotRecency(a)));
+    if (drafts.length === 0) continue;
+
+    const chosen = drafts[0]!;
+    const toRemove = group.filter((r) => r.id !== chosen.id);
+    for (const row of toRemove) {
+      await softDeleteTimetableSlot(admin, row.id);
+    }
+    activated.push(
+      await updateTimetableSlot(admin, chosen.id, { status: "active" }),
+    );
   }
   return activated;
 }

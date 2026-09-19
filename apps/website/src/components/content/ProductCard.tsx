@@ -39,14 +39,21 @@ export function ProductCard({
           </ul>
         ) : null}
         {action ?? (
-          <Link
-            to="/products/$slug"
-            params={{ slug: product }}
-            className="site-btn site-btn--ghost mt-4 h-auto justify-start px-0 text-foreground"
-          >
-            Explore {name}
-            <ArrowRight className="size-4" />
-          </Link>
+          product === "nexus" ? (
+            <Link to="/about" className="site-btn site-btn--ghost mt-4 h-auto justify-start px-0 text-foreground">
+              About LumenX
+              <ArrowRight className="size-4" />
+            </Link>
+          ) : (
+            <Link
+              to="/platform/$slug"
+              params={{ slug: product }}
+              className="site-btn site-btn--ghost mt-4 h-auto justify-start px-0 text-foreground"
+            >
+              Explore {name}
+              <ArrowRight className="size-4" />
+            </Link>
+          )
         )}
       </SiteCard>
     </TiltSurface>

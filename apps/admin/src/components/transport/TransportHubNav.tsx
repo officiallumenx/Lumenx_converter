@@ -28,7 +28,7 @@ const NAV: {
   { view: "stops", label: "Stops", short: "Stops", icon: MapPin },
   { view: "routes", label: "Routes", short: "Routes", icon: Route },
   { view: "students", label: "Students", short: "Students", icon: Users },
-  { view: "reviews", label: "Pending", short: "Review", icon: ClipboardCheck },
+  { view: "reviews", label: "Publish", short: "Publish", icon: ClipboardCheck },
   { view: "trips", label: "Trips", short: "Trips", icon: Navigation },
   { view: "attendance", label: "Attendance", short: "Board", icon: UserCheck },
   { view: "emergencies", label: "Emergencies", short: "SOS", icon: Siren },

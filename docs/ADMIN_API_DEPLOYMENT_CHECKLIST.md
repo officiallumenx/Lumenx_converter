@@ -25,7 +25,8 @@ Set at **Vite build time** (see `apps/admin/.env.example`):
 
 | Variable | Notes |
 |----------|--------|
-| `VITE_ADMIN_AUTH_MODE` | Must be `api` for production API mode |
+| `VITE_ADMIN_AUTH_MODE` | Must be `api` (or omit). Demo Mode is rejected at boot. |
+| `VITE_AUTH_PROVIDER` | `firebase` (default) or `supabase` rollback |
 | `VITE_API_BASE_URL` | Public backend origin Admin will call |
 | `VITE_SUPABASE_URL` | Same project URL as backend |
 | `VITE_SUPABASE_ANON_KEY` | Browser-safe anon key only |

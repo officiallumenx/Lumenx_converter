@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AppError } from "../../errors/app-error.js";
 import type { Actor } from "../../auth/types.js";
+import { signInPasswordForUserId } from "../../auth/create-server-session.js";
 import { findProfileById } from "../identity/repository.js";
 import {
   findPendingRegistrationByApplicantUserId,
@@ -17,6 +18,7 @@ import type {
   InstituteRegistrationRow,
   ResubmitRegistrationInput,
 } from "./types.js";
+import { MAX_REGISTRATION_LOGO_DATA_URL_CHARS } from "./types.js";
 
 export function toRegistrationDto(
   row: InstituteRegistrationRow,
@@ -28,7 +30,9 @@ export function toRegistrationDto(
     email: row.email,
     phone: row.phone,
     payload: row.payload,
-    status: row.status,
+    // "approving" is an internal resumable state; clients continue to see the
+    // request as pending until all provisioning has completed.
+    status: row.status === "approving" ? "pending" : row.status,
     reviewedBy: row.reviewed_by,
     reviewedAt: row.reviewed_at,
     rejectionReason: row.rejection_reason,
@@ -86,7 +90,7 @@ function validatePayloadInstitute(input: {
     }
   }
   const logo = input.payload.logoPreview;
-  if (logo && logo.length > 200_000) {
+  if (logo && logo.length > MAX_REGISTRATION_LOGO_DATA_URL_CHARS) {
     throw AppError.validation("payload.logoPreview is too large", {
       "payload.logoPreview": ["Too large"],
     });
@@ -129,6 +133,11 @@ async function provisionAuthUser(
       message.includes("registered") ||
       message.includes("exists")
     ) {
+      // A previous registration request may have created Auth successfully before
+      // a downstream provider/session step failed. Verify the submitted password
+      // so retrying the same form can safely resume instead of becoming a duplicate.
+      const existingUserId = await signInPasswordForUserId(admin, normalized, password);
+      if (existingUserId) return existingUserId;
       throw AppError.conflict(
         "An account with this email already exists. Sign in or use a different email.",
       );
@@ -189,7 +198,18 @@ export async function createRegistration(
 
   const pending = await findPendingRegistrationByApplicantUserId(admin, userId);
   if (pending) {
-    throw AppError.conflict("A pending registration already exists for this account");
+    return toRegistrationDto(pending);
+  }
+  const existing = await findRegistrationByApplicantUserId(admin, userId);
+  if (existing?.status === "approved") {
+    throw AppError.conflict(
+      "This account already has an approved institute registration. Sign in instead.",
+    );
+  }
+  if (existing?.status === "rejected") {
+    throw AppError.conflict(
+      "This registration was returned for changes. Sign in to review and resubmit it.",
+    );
   }
 
   await ensureApplicantProfile(admin, {

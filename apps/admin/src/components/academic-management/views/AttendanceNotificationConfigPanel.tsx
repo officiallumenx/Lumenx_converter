@@ -61,15 +61,14 @@ export function AttendanceNotificationConfigPanel() {
       <Card>
         <CardHeader
           title="Attendance Notifications"
-          hint="Backend outbox · no local demo queue"
+          hint="Delivery is handled automatically"
         />
         <CardBody className="space-y-2">
           <p className="text-sm text-foreground">
-            Notification delivery is handled by the backend outbox.
+            Attendance notifications are sent automatically when registers are submitted.
           </p>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Timing, triggers, and recipients are applied server-side when attendance is
-            submitted. There is no localStorage demo queue or emit simulation in API mode.
+            Timing, triggers, and recipients follow your institute configuration.
           </p>
         </CardBody>
       </Card>

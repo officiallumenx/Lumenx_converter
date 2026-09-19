@@ -9,4 +9,8 @@ export function clearApiModeLocalIdentity(): void {
   clearSession();
   clearStoredActiveInstituteId();
   clearApiRegistrationSnapshot();
+  void import("./me-bridge").then((m) => m.invalidateMeCache()).catch(() => undefined);
+  void import("@/lib/admin-resource-cache").then((m) => {
+    m.invalidateAdminCache("admin:");
+  }).catch(() => undefined);
 }

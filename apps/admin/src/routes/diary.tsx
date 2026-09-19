@@ -1,4 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { useDiaryDaysQuery, adminQueryRoots } from "@/lib/admin-queries";
+import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
 import { useAdminToast } from "@/components/AdminActionToast";
 import {
@@ -31,9 +34,7 @@ import { listTeachers, teacherDtosToListItems, type TeacherListItem } from "@/li
 import {
   createDiaryDay,
   deleteDiaryDay,
-  loadDiaryDaysList,
   resolveDiaryListView,
-  shouldCommitDiaryLoad,
   submitDiaryDay,
   updateDiaryDay,
   type DiaryListItem,
@@ -99,7 +100,23 @@ function DiaryViewPage() {
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const queryClient = useQueryClient();
+  const listEnabled =
+    apiMode &&
+    instituteCtx.status === "ready" &&
+    Boolean(instituteCtx.activeInstituteId);
+  const diaryQuery = useDiaryDaysQuery(
+    instituteCtx.activeInstituteId,
+    listEnabled,
+  );
+  const bumpDiaryReload = () => {
+    invalidateAdminCache("admin:diary");
+    if (instituteCtx.activeInstituteId) {
+      void queryClient.invalidateQueries({
+        queryKey: [adminQueryRoots.diary, instituteCtx.activeInstituteId],
+      });
+    }
+  };
   const [mutating, setMutating] = useState(false);
 
   const [teachers, setTeachers] = useState<TeacherListItem[]>([]);
@@ -117,7 +134,8 @@ function DiaryViewPage() {
     activeInstituteId: instituteCtx.activeInstituteId,
     resolvedForInstituteId,
     storedItems: apiItems,
-    storedStatus: listStatus,
+    storedStatus:
+      diaryQuery.isLoading && !diaryQuery.data ? "loading" : listStatus,
     storedErrorMessage: listError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
@@ -163,62 +181,47 @@ function DiaryViewPage() {
       return;
     }
 
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setListStatus("loading");
-    setListError(null);
-    setDetailId(null);
-    setFormOpen(false);
+    if (diaryQuery.isLoading && !diaryQuery.data) {
+      setListStatus("loading");
+      setListError(null);
+      return;
+    }
+    if (!diaryQuery.data) return;
 
-    void Promise.all([
-      loadDiaryDaysList(requestInstituteId),
-      listTeachers({ instituteId: requestInstituteId }).then(teacherDtosToListItems),
-      listClassesCatalog({ instituteId: requestInstituteId }),
-    ]).then(
-      ([next, teacherRows, catalog]) => {
-        if (
-          !shouldCommitDiaryLoad({
-            cancelled,
-            requestInstituteId,
-            activeInstituteId: activeInstituteIdRef.current,
-          })
-        ) {
-          return;
-        }
-        setApiItems(next.items);
-        setListStatus(next.status);
-        setListError(next.errorMessage);
-        setResolvedForInstituteId(requestInstituteId);
-        setTeachers(teacherRows);
-        setSections(catalog.sections);
-      },
-      (err) => {
-        if (
-          !shouldCommitDiaryLoad({
-            cancelled,
-            requestInstituteId,
-            activeInstituteId: activeInstituteIdRef.current,
-          })
-        ) {
-          return;
-        }
-        setApiItems([]);
-        setListStatus("error");
-        setListError(err instanceof Error ? err.message : "Failed to load diary");
-        setResolvedForInstituteId(requestInstituteId);
-      },
-    );
-
-    return () => {
-      cancelled = true;
-    };
+    const next = diaryQuery.data;
+    setApiItems(next.items);
+    setListStatus(next.status);
+    setListError(next.errorMessage);
+    setResolvedForInstituteId(instituteCtx.activeInstituteId);
   }, [
     apiMode,
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
-    reloadKey,
+    diaryQuery.data,
+    diaryQuery.isLoading,
   ]);
+
+  useEffect(() => {
+    if (!listEnabled || !instituteCtx.activeInstituteId) {
+      setTeachers([]);
+      setSections([]);
+      return;
+    }
+    const requestInstituteId = instituteCtx.activeInstituteId;
+    let cancelled = false;
+    void Promise.all([
+      listTeachers({ instituteId: requestInstituteId }).then(teacherDtosToListItems),
+      listClassesCatalog({ instituteId: requestInstituteId }),
+    ]).then(([teacherRows, catalog]) => {
+      if (cancelled || activeInstituteIdRef.current !== requestInstituteId) return;
+      setTeachers(teacherRows);
+      setSections(catalog.sections);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [listEnabled, instituteCtx.activeInstituteId]);
 
   const displayItems: DiaryRow[] = apiMode ? listView.items : demoLogs;
   const sorted = useMemo(
@@ -308,7 +311,7 @@ function DiaryViewPage() {
       if (activeInstituteIdRef.current !== instituteId) return;
       setFormOpen(false);
       resetForm();
-      setReloadKey((k) => k + 1);
+      bumpDiaryReload();
       notify(message);
     };
 
@@ -366,7 +369,7 @@ function DiaryViewPage() {
         if (activeInstituteIdRef.current !== requestInstituteId) return;
         setDetailId(null);
         setFormOpen(false);
-        setReloadKey((k) => k + 1);
+        bumpDiaryReload();
         notify("Diary day deleted");
       })
       .catch((err) => {
@@ -394,8 +397,8 @@ function DiaryViewPage() {
       subtitle={
         apiMode
           ? writesEnabled
-            ? "API mode · create / edit / submit / delete diary days"
-            : "API mode · read-only list"
+            ? "Create / edit / submit / delete diary days"
+            : "Read-only list"
           : "Teacher submits · Admin view only (no edit)"
       }
       actions={

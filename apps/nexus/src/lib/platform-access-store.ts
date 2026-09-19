@@ -1,9 +1,10 @@
 /**
- * Nexus Platform Access — demo IAM for Nexus operators only.
- * Roles are platform-level (Root, Operations, Billing, Support, Analyst).
- * Institute roles (Principal, Front Office, etc.) belong in Admin — not here.
- * Frontend/demo permissions only. No real backend auth.
+ * Nexus Platform Access — operator roles & permissions.
+ * Role matrix is policy-defined (DEFAULT_NEXUS_ROLES).
+ * Operators in API mode come from /api/nexus/operators — never seed DEMO operators into localStorage.
  */
+
+import { isNexusApiMode } from "@/lib/auth-mode";
 
 export type NexusAccessArea =
   | "institutes"
@@ -32,12 +33,15 @@ export type NexusRoleDef = {
   perms: Record<NexusAccessArea, NexusPermLevel>;
 };
 
+export type NexusOperatorStatus = "active" | "invited" | "disabled";
+
 export type NexusOperator = {
   id: string;
+  userId?: string;
   handle: string;
   displayName: string;
   roleId: NexusRoleId;
-  status: "active" | "invited" | "disabled";
+  status: NexusOperatorStatus;
   lastActiveAt: string;
 };
 
@@ -212,12 +216,22 @@ function notify(): void {
 }
 
 function readJson<T>(key: string, fallback: () => T): T {
-  if (typeof localStorage === "undefined") return fallback();
+  if (typeof localStorage === "undefined") {
+    if (isNexusApiMode() && key === STORAGE_OPS) return [] as T;
+    return fallback();
+  }
   try {
     const raw = localStorage.getItem(key);
     if (!raw) {
+      // API mode: never seed fake operators into product storage.
+      if (isNexusApiMode() && key === STORAGE_OPS) return [] as T;
+      if (isNexusApiMode() && key === STORAGE_ROLES) {
+        return fallback(); // policy defaults only, do not persist seed
+      }
       const seeded = fallback();
-      localStorage.setItem(key, JSON.stringify(seeded));
+      if (!isNexusApiMode()) {
+        localStorage.setItem(key, JSON.stringify(seeded));
+      }
       return seeded;
     }
     return JSON.parse(raw) as T;
@@ -261,6 +275,7 @@ export function listNexusRoles(): NexusRoleDef[] {
 }
 
 export function listNexusOperators(): NexusOperator[] {
+  if (isNexusApiMode()) return [];
   return readJson<NexusOperator[]>(STORAGE_OPS, () => DEFAULT_NEXUS_OPERATORS).sort((a, b) =>
     a.handle.localeCompare(b.handle),
   );

@@ -86,7 +86,7 @@ export function TransportSettingsView({
           hint={
             writesEnabled
               ? "Defaults for stops and trip planning"
-              : "Read-only defaults from API"
+              : "View-only defaults"
           }
         />
         <div className="px-5 pb-5 space-y-4">
@@ -117,6 +117,61 @@ export function TransportSettingsView({
                 })
               }
             />
+          </Field>
+          <Field label="Default pickup time" hint="HH:MM used for trip planning">
+            <TextInput
+              type="time"
+              disabled={!writesEnabled}
+              value={draft.defaultPickupTime ?? "07:30"}
+              onChange={(e) =>
+                setDraft({
+                  ...draft,
+                  defaultPickupTime: e.target.value || "07:30",
+                })
+              }
+            />
+          </Field>
+          <Field label="Notifications">
+            <label
+              className={`flex items-center gap-2 text-xs text-muted-foreground ${
+                writesEnabled ? "cursor-pointer" : "opacity-70"
+              }`}
+            >
+              <input
+                type="checkbox"
+                className="size-3.5"
+                disabled={!writesEnabled}
+                checked={draft.notificationsEnabled !== false}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    notificationsEnabled: e.target.checked,
+                  })
+                }
+              />
+              <span>Enable transport approach notifications</span>
+            </label>
+          </Field>
+          <Field label="Remember device">
+            <label
+              className={`flex items-center gap-2 text-xs text-muted-foreground ${
+                writesEnabled ? "cursor-pointer" : "opacity-70"
+              }`}
+            >
+              <input
+                type="checkbox"
+                className="size-3.5"
+                disabled={!writesEnabled}
+                checked={draft.rememberEnabled !== false}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    rememberEnabled: e.target.checked,
+                  })
+                }
+              />
+              <span>Allow Transport app to remember signed-in drivers</span>
+            </label>
           </Field>
           <Field label="Working days">
             <div className="flex flex-wrap gap-1.5">

@@ -5,7 +5,7 @@ import {
   CardHeader,
   EmptyState,
   Pill,
-  Textarea,
+  TextArea,
 } from "@lumenx/ui-admin";
 import { Check, ClipboardList, X } from "lucide-react";
 import { subscribeTransportRealtime } from "@lumenx/utils";
@@ -97,7 +97,7 @@ export function TransportApprovalApiPanel({
       if (item.kind === "route") await approveTransportRoute(id);
       else if (item.kind === "stop") await approveTransportStop(id);
       else await approveTransportEnrollment(id);
-      onNotify?.("Approved");
+      onNotify?.(item.kind === "stop" ? "Stop published" : "Approved");
       await reload();
     } catch (err) {
       onNotify?.(err instanceof Error ? err.message : "Approve failed");
@@ -131,7 +131,7 @@ export function TransportApprovalApiPanel({
   if (loading) {
     return (
       <Card>
-        <CardHeader title="Pending requests" />
+        <CardHeader title="Publish queue" />
         <p className="px-4 pb-4 text-sm text-muted-foreground">Loading…</p>
       </Card>
     );
@@ -140,7 +140,7 @@ export function TransportApprovalApiPanel({
   if (error) {
     return (
       <Card>
-        <CardHeader title="Pending requests" />
+        <CardHeader title="Publish queue" />
         <p className="px-4 pb-4 text-sm text-destructive">{error}</p>
       </Card>
     );
@@ -150,8 +150,8 @@ export function TransportApprovalApiPanel({
     return (
       <EmptyState
         icon={ClipboardList}
-        title="No pending requests"
-        description="Driver-submitted routes, stops, and enrollments awaiting approval will appear here."
+        title="Nothing to publish"
+        hint="Driver-submitted routes, stops, and enrollments awaiting approval will appear here."
       />
     );
   }
@@ -172,7 +172,7 @@ export function TransportApprovalApiPanel({
               }
             />
             <div className="space-y-3 px-4 pb-4">
-              <Textarea
+              <TextArea
                 rows={2}
                 placeholder="Rejection reason (required to decline)"
                 value={rejectReasonById[id] ?? ""}
@@ -192,7 +192,7 @@ export function TransportApprovalApiPanel({
                   onClick={() => void handleApprove(item)}
                 >
                   <Check className="size-4" />
-                  Approve
+                  {item.kind === "stop" ? "Publish" : "Approve"}
                 </Button>
                 <Button
                   size="sm"

@@ -14,7 +14,7 @@ describe("attendance mutations", () => {
     vi.clearAllMocks();
   });
 
-  it("refuses create config in demo mode", async () => {
+  it("refuses create config without authenticated API client", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
     const { createAttendanceConfig } = await import("./mutations");
     await expect(
@@ -25,7 +25,7 @@ describe("attendance mutations", () => {
         owner: "class_teacher",
         scope: "institute",
       }),
-    ).rejects.toThrow(/API auth mode/);
+    ).rejects.toThrow(/API auth mode|Authentication required|Demo Mode is no longer supported/);
   });
 
   it("does not call network for invalid register UUID on submit", async () => {

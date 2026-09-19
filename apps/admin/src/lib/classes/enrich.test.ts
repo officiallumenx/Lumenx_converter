@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildSectionEnrichment } from "./enrich";
+import type { TeacherDto } from "@/lib/teachers";
+import {
+  applyClassTeacherEnrichment,
+  buildSectionEnrichment,
+} from "./enrich";
 
 describe("buildSectionEnrichment", () => {
   const SECTION = "ss111111-1111-4111-8111-111111111111";
@@ -67,5 +71,49 @@ describe("buildSectionEnrichment", () => {
     );
     expect(enrich.teachersBySection.get(SECTION)).toBe("Ms Rao");
     expect(enrich.subjectTeacherBySection.get(SECTION)?.[SUBJECT]).toBe("Ms Rao");
+  });
+
+  it("uses assigned section labels for the class teacher", () => {
+    const enrich = applyClassTeacherEnrichment(
+      buildSectionEnrichment([], [], new Map(), new Map()),
+      [
+        {
+          id: SECTION,
+          instituteId: "i",
+          academicYearId: "y",
+          classId: "c",
+          name: "A",
+          code: "A",
+          capacity: 40,
+          room: null,
+          sortOrder: 0,
+          status: "active",
+          createdAt: "",
+          updatedAt: "",
+        },
+      ],
+      [
+        {
+          id: "c",
+          instituteId: "i",
+          academicYearId: "y",
+          name: "Grade 10",
+          code: "10",
+          sortOrder: 0,
+          status: "active",
+          createdAt: "",
+          updatedAt: "",
+        },
+      ],
+      [
+        {
+          id: TEACHER,
+          displayName: "Ms Rao",
+          assignedSectionLabels: ["10-A"],
+        } as TeacherDto,
+      ],
+    );
+
+    expect(enrich.teachersBySection.get(SECTION)).toBe("Ms Rao");
   });
 });

@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
 import {
   Card,
@@ -68,19 +69,19 @@ import {
   createMarkEntry,
   getMarkEntry,
   isMarksEntryEditable,
-  loadMarksList,
   markEntryDtoToListItem,
   publishMarkEntry as publishMarkEntryApi,
   rejectMarkEntry as rejectMarkEntryApi,
   resolveMarksListView,
   returnMarkEntry as returnMarkEntryApi,
-  shouldCommitMarksLoad,
   submitMarkEntry,
   updateMarkEntry,
   type MarkEntryListItem,
   type MarkStudentScoreItem,
   type MarksListStatus,
 } from "@/lib/marks";
+import { useMarksListQuery, adminQueryRoots } from "@/lib/admin-queries";
+import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { adminDataFacade } from "@/lib/admin-data-facade";
 
 export const Route = createFileRoute("/marks")({
@@ -104,6 +105,7 @@ type MarkRow = MarkEntry | MarkEntryListItem;
 
 function MarksPage() {
   const notify = useAdminToast();
+  const queryClient = useQueryClient();
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
   const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
@@ -120,9 +122,24 @@ function MarksPage() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
-  const [reloadKey, setReloadKey] = useState(0);
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
+  const listEnabled =
+    apiMode &&
+    instituteCtx.status === "ready" &&
+    Boolean(instituteCtx.activeInstituteId);
+  const marksQuery = useMarksListQuery(
+    instituteCtx.activeInstituteId,
+    listEnabled,
+  );
+  const bumpMarksReload = () => {
+    invalidateAdminCache("admin:marks");
+    if (instituteCtx.activeInstituteId) {
+      void queryClient.invalidateQueries({
+        queryKey: [adminQueryRoots.marks, instituteCtx.activeInstituteId],
+      });
+    }
+  };
 
   const listView = resolveMarksListView({
     apiMode,
@@ -130,7 +147,8 @@ function MarksPage() {
     activeInstituteId: instituteCtx.activeInstituteId,
     resolvedForInstituteId,
     storedItems: apiItems,
-    storedStatus: listStatus,
+    storedStatus:
+      marksQuery.isLoading && !marksQuery.data ? "loading" : listStatus,
     storedErrorMessage: listError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
@@ -200,53 +218,49 @@ function MarksPage() {
       return;
     }
 
+    if (marksQuery.isLoading && !marksQuery.data) {
+      setListStatus("loading");
+      setListError(null);
+      return;
+    }
+    if (!marksQuery.data) return;
+
+    const next = marksQuery.data;
+    setApiItems(next.items);
+    setListStatus(next.status);
+    setListError(next.errorMessage);
+    setResolvedForInstituteId(instituteCtx.activeInstituteId);
+  }, [
+    apiMode,
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    instituteCtx.errorMessage,
+    marksQuery.data,
+    marksQuery.isLoading,
+  ]);
+
+  useEffect(() => {
+    if (!apiMode || !listEnabled || !instituteCtx.activeInstituteId) {
+      return;
+    }
     const requestInstituteId = instituteCtx.activeInstituteId;
     let cancelled = false;
-    setListStatus("loading");
-    setListError(null);
-    setFormOpen(false);
-    setReviewEntry(null);
     void Promise.all([
-      loadMarksList(requestInstituteId),
       listClassesCatalog({ instituteId: requestInstituteId }),
       listExams({ instituteId: requestInstituteId }),
       listSubjects({ instituteId: requestInstituteId }),
       listTeachers({ instituteId: requestInstituteId }).then(teacherDtosToListItems),
     ]).then(
-      ([next, catalog, examRows, subjectRows, teacherRows]) => {
-        if (
-          !shouldCommitMarksLoad({
-            cancelled,
-            requestInstituteId,
-            activeInstituteId: activeInstituteIdRef.current,
-          })
-        ) {
-          return;
-        }
-        setApiItems(next.items);
-        setListStatus(next.status);
-        setListError(next.errorMessage);
-        setResolvedForInstituteId(requestInstituteId);
+      ([catalog, examRows, subjectRows, teacherRows]) => {
+        if (cancelled || activeInstituteIdRef.current !== requestInstituteId) return;
         setCatalogSections(catalog.sections);
         setCatalogClasses(catalog.classes);
         setExams(examRows);
         setSubjects(subjectRows);
         setTeachersCatalog(teacherRows);
       },
-      (err) => {
-        if (
-          !shouldCommitMarksLoad({
-            cancelled,
-            requestInstituteId,
-            activeInstituteId: activeInstituteIdRef.current,
-          })
-        ) {
-          return;
-        }
-        setApiItems([]);
-        setListStatus("error");
-        setListError(err instanceof Error ? err.message : "Failed to load marks");
-        setResolvedForInstituteId(requestInstituteId);
+      () => {
+        /* catalog is best-effort for form pickers */
       },
     );
     return () => {
@@ -254,10 +268,8 @@ function MarksPage() {
     };
   }, [
     apiMode,
-    instituteCtx.status,
+    listEnabled,
     instituteCtx.activeInstituteId,
-    instituteCtx.errorMessage,
-    reloadKey,
   ]);
 
   useEffect(() => {
@@ -330,6 +342,8 @@ function MarksPage() {
               rollNo: row.rollNo || "—",
               name: row.studentName || "Student",
               marks: null,
+              internalMarks: null,
+              externalMarks: null,
             })),
         );
       })
@@ -527,6 +541,8 @@ function MarksPage() {
       .map((row) => ({
         enrollmentId: row.enrollmentId!,
         marks: row.marks,
+        internalMarks: row.internalMarks ?? null,
+        externalMarks: row.externalMarks ?? null,
       }));
 
     if (editingEntryId) {
@@ -552,7 +568,7 @@ function MarksPage() {
           if (activeInstituteIdRef.current !== instituteId) return;
           setFormOpen(false);
           resetForm();
-          setReloadKey((k) => k + 1);
+          bumpMarksReload();
           notify(submitAfter ? "Marks updated and submitted" : "Marks updated");
         })
         .catch((err) => {
@@ -597,7 +613,7 @@ function MarksPage() {
         if (activeInstituteIdRef.current !== instituteId) return;
         setFormOpen(false);
         resetForm();
-        setReloadKey((k) => k + 1);
+        bumpMarksReload();
         setStage(submitAfter ? "ready" : "waiting");
         notify(submitAfter ? "Mark entry created and submitted" : "Mark entry created");
       })
@@ -617,7 +633,7 @@ function MarksPage() {
       .then(() => {
         if (activeInstituteIdRef.current !== requestInstituteId) return;
         setReviewEntry(null);
-        setReloadKey((k) => k + 1);
+        bumpMarksReload();
         setStage("ready");
         notify("Marks submitted for review");
       })
@@ -633,7 +649,7 @@ function MarksPage() {
       void publishMarkEntryApi(reviewEntry.id)
         .then(() => {
           setReviewEntry(null);
-          setReloadKey((k) => k + 1);
+          bumpMarksReload();
           notify("Marks approved and published to students & parents");
         })
         .catch((err) => {
@@ -653,7 +669,7 @@ function MarksPage() {
       void returnMarkEntryApi(reviewEntry.id)
         .then(() => {
           setReviewEntry(null);
-          setReloadKey((k) => k + 1);
+          bumpMarksReload();
           notify("Marks returned to teacher for correction");
         })
         .catch((err) => {
@@ -673,7 +689,7 @@ function MarksPage() {
       void rejectMarkEntryApi(reviewEntry.id)
         .then(() => {
           setReviewEntry(null);
-          setReloadKey((k) => k + 1);
+          bumpMarksReload();
           notify("Marks rejected — teacher must resubmit");
         })
         .catch((err) => {
@@ -694,7 +710,7 @@ function MarksPage() {
     if (apiMode) {
       void Promise.all(ids.map((id) => publishMarkEntryApi(id)))
         .then(() => {
-          setReloadKey((k) => k + 1);
+          bumpMarksReload();
           notify(`Approved ${ids.length} mark sheet${ids.length === 1 ? "" : "s"}`);
         })
         .catch((err) => {
@@ -751,8 +767,8 @@ function MarksPage() {
       subtitle={
         apiMode
           ? writesEnabled
-            ? `API mode · create / edit / submit / approve · ${countLabel(activeEntries.length)} entries`
-            : `API mode · read-only · ${countLabel(activeEntries.length)} entries`
+            ? `Create / edit / submit / approve · ${countLabel(activeEntries.length)} entries`
+            : `Read-only · ${countLabel(activeEntries.length)} entries`
           : "Teacher enter → edit → submit → Admin approve / reject / return → publish to students & parents (Admin cannot edit scores)"
       }
       actions={
@@ -845,7 +861,7 @@ function MarksPage() {
             {stage === "ready" && (writesEnabled ? "Ready for review — Approve, Reject, or Return" : "Ready for review — read-only")}
             {stage === "published" && "Published marks (locked)"}
           </div>
-          <div className="flex flex-wrap items-end gap-2 lx-filter-bar">
+          <div className="flex flex-wrap items-center gap-2 lx-filter-bar">
             <CascadingFiltersMenu
               groups={[
                 {
@@ -1097,13 +1113,15 @@ function MarksPage() {
             )}
 
             <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full min-w-[360px] border-collapse text-sm">
+              <table className="w-full min-w-[420px] border-collapse text-sm">
                 <thead>
                   <tr className="bg-muted/40 text-[10px] uppercase tracking-wider text-muted-foreground">
                     <th className="px-3 py-2 text-left font-semibold">Roll</th>
                     <th className="px-3 py-2 text-left font-semibold">Student</th>
+                    <th className="px-3 py-2 text-right font-semibold">Internal</th>
+                    <th className="px-3 py-2 text-right font-semibold">External</th>
                     <th className="px-3 py-2 text-right font-semibold">
-                      Marks / {reviewEntry.maxMarks}
+                      Total / {reviewEntry.maxMarks}
                     </th>
                     <th className="px-3 py-2 text-right font-semibold">%</th>
                   </tr>
@@ -1115,10 +1133,20 @@ function MarksPage() {
                       num != null && Number.isFinite(num) && reviewEntry.maxMarks
                         ? Math.round((num / reviewEntry.maxMarks) * 100)
                         : null;
+                    const internal =
+                      "internalMarks" in s ? s.internalMarks : null;
+                    const external =
+                      "externalMarks" in s ? s.externalMarks : null;
                     return (
                       <tr key={"enrollmentId" in s && s.enrollmentId ? s.enrollmentId : s.studentId}>
                         <td className="px-3 py-2 font-mono text-xs">{s.rollNo}</td>
                         <td className="px-3 py-2 text-xs font-medium">{s.name}</td>
+                        <td className="px-3 py-2 text-right font-mono text-xs">
+                          {internal == null ? "—" : internal}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono text-xs">
+                          {external == null ? "—" : external}
+                        </td>
                         <td className="px-3 py-2 text-right">
                           <span className="font-mono text-xs">
                             {s.marks == null ? "—" : s.marks}
@@ -1281,7 +1309,9 @@ function MarksPage() {
                     <tr className="bg-muted/40 text-[10px] uppercase tracking-wider text-muted-foreground">
                       <th className="px-3 py-2 text-left">Roll</th>
                       <th className="px-3 py-2 text-left">Student</th>
-                      <th className="px-3 py-2 text-right">Marks</th>
+                      <th className="px-3 py-2 text-right">Internal</th>
+                      <th className="px-3 py-2 text-right">External</th>
+                      <th className="px-3 py-2 text-right">Total</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -1294,22 +1324,69 @@ function MarksPage() {
                             type="number"
                             min={0}
                             max={formMaxMarks}
-                            className="ml-auto w-24 text-right"
-                            value={row.marks == null ? "" : String(row.marks)}
+                            className="ml-auto w-20 text-right"
+                            value={row.internalMarks == null ? "" : String(row.internalMarks)}
                             disabled={mutating}
                             onChange={(e) => {
                               const raw = e.target.value;
-                              const nextMarks =
+                              const nextInternal =
                                 raw.trim() === ""
                                   ? null
                                   : Math.max(0, Math.min(formMaxMarks, Number(raw) || 0));
                               setFormScores((prev) =>
-                                prev.map((score, i) =>
-                                  i === index ? { ...score, marks: nextMarks } : score,
-                                ),
+                                prev.map((score, i) => {
+                                  if (i !== index) return score;
+                                  const external = score.externalMarks ?? null;
+                                  const marks =
+                                    nextInternal != null && external != null
+                                      ? nextInternal + external
+                                      : null;
+                                  return {
+                                    ...score,
+                                    internalMarks: nextInternal,
+                                    externalMarks: external,
+                                    marks,
+                                  };
+                                }),
                               );
                             }}
                           />
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <TextInput
+                            type="number"
+                            min={0}
+                            max={formMaxMarks}
+                            className="ml-auto w-20 text-right"
+                            value={row.externalMarks == null ? "" : String(row.externalMarks)}
+                            disabled={mutating}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              const nextExternal =
+                                raw.trim() === ""
+                                  ? null
+                                  : Math.max(0, Math.min(formMaxMarks, Number(raw) || 0));
+                              setFormScores((prev) =>
+                                prev.map((score, i) => {
+                                  if (i !== index) return score;
+                                  const internal = score.internalMarks ?? null;
+                                  const marks =
+                                    internal != null && nextExternal != null
+                                      ? internal + nextExternal
+                                      : null;
+                                  return {
+                                    ...score,
+                                    internalMarks: internal,
+                                    externalMarks: nextExternal,
+                                    marks,
+                                  };
+                                }),
+                              );
+                            }}
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono text-xs">
+                          {row.marks == null ? "—" : row.marks}
                         </td>
                       </tr>
                     ))}

@@ -64,11 +64,15 @@ export function createApiClient(config: ApiClientConfig) {
         body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
         signal: options.signal,
       });
-    } catch {
+    } catch (cause) {
+      const detail =
+        cause instanceof Error && cause.message
+          ? cause.message
+          : "browser blocked or server unreachable";
       throw new ApiClientError({
         status: 0,
         code: "NETWORK_ERROR",
-        message: "Network request failed",
+        message: `Network request failed (${detail}). Is the API running at ${base}?`,
       });
     }
 

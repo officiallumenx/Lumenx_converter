@@ -28,6 +28,7 @@ import {
 import { AppShell } from "@/components/AppShell";
 import { ClassSectionAudienceField } from "@/components/ClassSectionMultiPicker";
 import { isApiAuthMode } from "@/auth/auth-mode";
+import { AccessLevelToggle } from "@/components/permissions/AccessLevelToggle";
 import { RolesAccessApiPanel } from "@/components/permissions/RolesAccessApiPanel";
 import { getAttendanceClassSectionOptions } from "@/lib/attendance-coordinator-access";
 import { SEARCH_TEACHERS } from "@/lib/admin-search-data";
@@ -603,21 +604,11 @@ function AccessRoleEditor({
                       <span className="text-xs font-medium">{module.label}</span>
                     </label>
                     {permission !== "none" && (
-                      <Select
+                      <AccessLevelToggle
                         value={permission === "read" ? "read" : "full"}
-                        onChange={(event) =>
-                          setPermission(
-                            module.route,
-                            event.target.value === "read" ? "read" : "full",
-                          )
-                        }
-                        fieldSize="compact"
-                        className="h-7 w-auto min-w-[4.5rem] text-[10px] font-medium uppercase tracking-wider"
-                        aria-label={`${module.label} access level`}
-                      >
-                        <option value="full">Full</option>
-                        <option value="read">Read</option>
-                      </Select>
+                        onChange={(next) => setPermission(module.route, next)}
+                        ariaLabel={`${module.label} access level`}
+                      />
                     )}
                   </div>
                 );

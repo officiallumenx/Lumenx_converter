@@ -8,6 +8,7 @@ import {
   validateParams,
   validateQuery,
 } from "../../validation/validate.js";
+import sportsV2 from "./activity-sports-v2.js";
 import {
   createAchievementForActor,
   createMembershipForActor,
@@ -480,5 +481,7 @@ activity.delete("/practice-sessions/:id", async (c) => {
   await deletePracticeSessionForActor(admin, actor, id);
   return c.json({ data: { ok: true } });
 });
+
+activity.route("/", sportsV2);
 
 export default activity;

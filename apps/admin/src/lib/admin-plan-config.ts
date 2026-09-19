@@ -6,6 +6,7 @@ import {
   readNexusModuleEntitlements,
   subscribeNexusLicenseChanges,
 } from "@lumenx/config";
+import { isApiAuthMode } from "@/auth/auth-mode";
 
 export type PlanTier = "core" | "plus" | "max" | "custom";
 
@@ -465,6 +466,31 @@ export function loadEnabledModules(): Record<string, boolean> {
     return enabledModulesCache;
   }
   const base = defaultEnabledModules();
+  // API mode: do not apply demo Nexus localStorage entitlement ceilings
+  // (defaults to ins-test1school). Module visibility comes from defaults /
+  // Admin toggles only until subscription entitlements are API-backed.
+  if (isApiAuthMode()) {
+    for (const mod of MODULE_CATALOG) {
+      if (!isModuleToggleable(mod)) base[mod.id] = true;
+    }
+    try {
+      const raw = localStorage.getItem(ENABLED_MODULES_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Record<string, boolean>;
+        for (const mod of MODULE_CATALOG) {
+          if (!isModuleToggleable(mod)) {
+            base[mod.id] = true;
+          } else if (typeof parsed[mod.id] === "boolean") {
+            base[mod.id] = parsed[mod.id]!;
+          }
+        }
+      }
+    } catch {
+      // keep defaults
+    }
+    enabledModulesCache = base;
+    return enabledModulesCache;
+  }
   try {
     const raw = localStorage.getItem(ENABLED_MODULES_KEY);
     if (raw) {

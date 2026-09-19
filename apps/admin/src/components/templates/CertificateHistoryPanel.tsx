@@ -123,7 +123,7 @@ export function CertificateHistoryPanel({
     <Card>
       <CardHeader
         title="Issued history"
-        hint="Permanent records · original template version is kept · not regenerated when Nexus publishes a newer version"
+        hint="Permanent records · original template version is kept when a newer version is published"
         action={
           <SearchInput
             value={query}

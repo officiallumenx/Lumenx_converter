@@ -112,52 +112,25 @@ describe("loadRegistrationsQueue", () => {
     });
   });
 
-  it("keeps demo mode isolated on the local registration store", async () => {
+  it("never uses local demo registration store when env claims demo", async () => {
     vi.stubEnv("VITE_NEXUS_AUTH_MODE", "demo");
-    const listRegistrations = vi.fn();
-    const demoApps = [
-      {
-        id: "demo-1",
-        referenceId: "LX-DEMO-1",
-        status: "pending" as const,
-        payload: {
-          instituteName: "Demo School",
-          logoPreview: "",
-          instituteType: "School (K-12)",
-          educationBoard: "CBSE",
-          country: "India",
-          state: "Karnataka",
-          district: "",
-          city: "Bengaluru",
-          address: "",
-          pincode: "",
-          website: "",
-          principalName: "Principal",
-          principalEmail: "demo@school.edu",
-          principalMobile: "",
-          principalDesignation: "Principal",
-          employeeId: "",
-        },
-        emailVerified: true,
-        mobileVerified: true,
-        submittedAt: "2024-06-01T08:00:00Z",
-        updatedAt: "2024-06-01T08:00:00Z",
-      },
-    ];
+    const listRegistrations = vi.fn().mockResolvedValue([]);
     vi.doMock("./api", () => ({ listRegistrations }));
     vi.doMock("@lumenx/utils", () => ({
       ensureDemoPendingRegistration: vi.fn(),
-      listInstituteRegistrations: () => demoApps,
+      listInstituteRegistrations: () => [
+        { id: "demo-1", payload: { instituteName: "Demo School" } },
+      ],
     }));
 
     const { loadRegistrationsQueue } = await import("./load-queue");
     const result = await loadRegistrationsQueue();
 
-    expect(listRegistrations).not.toHaveBeenCalled();
-    expect(result.status).toBe("ready");
+    expect(listRegistrations).toHaveBeenCalled();
+    expect(result.status).not.toBe("demo");
     if (result.status === "ready") {
-      expect(result.source).toBe("demo");
-      expect(result.applications).toEqual(demoApps);
+      expect(result.source).toBe("api");
+      expect(result.applications).toEqual([]);
     }
   });
 });

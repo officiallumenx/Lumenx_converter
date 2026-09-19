@@ -65,4 +65,13 @@ describe("admissionsUserFromMe", () => {
     expect(user.accountType).toBe("parent");
     expect(user.instituteId).toBeUndefined();
   });
+
+  it("rejects restoring institute access for the wrong role", () => {
+    expect(() =>
+      admissionsUserFromMe(parentMe, {
+        forceAccountType: "institute_admin",
+        preferredInstituteId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      }),
+    ).toThrow("does not have Admissions institute access");
+  });
 });

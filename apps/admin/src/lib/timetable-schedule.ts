@@ -10,6 +10,18 @@ export const ALL_WEEKDAY_NAMES = [
   "Sunday",
 ] as const;
 
+/** ISO-style: Monday=1 … Sunday=7 (matches timetable_slot.day_of_week). */
+export function weekdayNameToDayOfWeek(name: string): number {
+  const idx = ALL_WEEKDAY_NAMES.findIndex(
+    (day) => day.toLowerCase() === name.trim().toLowerCase(),
+  );
+  return idx >= 0 ? idx + 1 : 1;
+}
+
+export function dayOfWeekToWeekdayName(dayOfWeek: number): string {
+  return ALL_WEEKDAY_NAMES[Math.min(6, Math.max(0, dayOfWeek - 1))] ?? "Monday";
+}
+
 export type TimetablePeriodDef = {
   id: string;
   label: string;

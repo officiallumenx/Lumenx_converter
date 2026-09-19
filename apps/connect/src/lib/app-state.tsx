@@ -21,10 +21,23 @@ import { isRole, isThemeMode, parsePersistedUser } from "./session-validation";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { apiSignOut, tryHydrateApiSession } from "@/auth/api-auth";
 import { setConnectApiUnauthorizedHandler } from "@/lib/connect-api";
+import { ApiClientError } from "@/lib/api";
+import { isInstituteUuid } from "@/lib/institute-id";
+import { useDataRefreshGeneration } from "@/hooks/useReloadKey";
 
 function resolveInstitute(id: string | null): Institute | null {
   if (!id) return null;
   return registeredInstitutes.find((i) => i.id === id) ?? null;
+}
+
+/** Persist / restore child id — keep API UUIDs; never coerce them to demo C1/C2. */
+function readPersistedChildId(): string {
+  const raw = localStorage.getItem(CONNECT_STORAGE_KEYS.child)?.trim() ?? "";
+  if (!raw) return "";
+  if (isApiAuthMode()) {
+    return isInstituteUuid(raw) ? raw : "";
+  }
+  return resolveLinkedChildId(raw);
 }
 
 interface AppState {
@@ -38,6 +51,10 @@ interface AppState {
   activeChildId: string;
   /** Parent-linked learners — demo mock or API-loaded in auth mode. */
   linkedChildren: Child[];
+  /** Parent API: children list load in flight. */
+  linkedChildrenLoading: boolean;
+  /** Parent API: last children load error (if any). */
+  linkedChildrenError: string | null;
   /** Parent: show student-facing nav (growth, ID card) for a child without their own device. */
   studentIncludedMode: boolean;
   setActiveChildId: (id: string) => void;
@@ -53,12 +70,6 @@ interface AppState {
 
 const Ctx = createContext<AppState | null>(null);
 
-const DEMO_USER: Omit<User, "phone"> = {
-  id: "u_demo",
-  name: "Aarav Sharma",
-  roles: ["parent", "teacher", "student"],
-};
-
 function clearAuthStorage() {
   localStorage.removeItem(CONNECT_STORAGE_KEYS.user);
   localStorage.removeItem(CONNECT_STORAGE_KEYS.role);
@@ -66,14 +77,19 @@ function clearAuthStorage() {
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  const refreshGeneration = useDataRefreshGeneration();
   const [user, setUser] = useState<User | null>(null);
   const [role, setRoleState] = useState<Role | null>(null);
   const [activeInstituteId, setActiveInstituteIdState] = useState<string | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">("light");
-  const [activeChildId, setActiveChildIdState] = useState<string>(demoLinkedChildren[0]?.id ?? "C1");
+  const [activeChildId, setActiveChildIdState] = useState<string>(
+    isApiAuthMode() ? "" : (demoLinkedChildren[0]?.id ?? "C1"),
+  );
   const [linkedChildren, setLinkedChildren] = useState<Child[]>(
     isApiAuthMode() ? [] : demoLinkedChildren,
   );
+  const [linkedChildrenLoading, setLinkedChildrenLoading] = useState(false);
+  const [linkedChildrenError, setLinkedChildrenError] = useState<string | null>(null);
   const [studentIncludedMode, setStudentIncludedModeState] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
@@ -93,13 +109,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const persistedUser = parsePersistedUser(localStorage.getItem(CONNECT_STORAGE_KEYS.user));
         const persistedRole = localStorage.getItem(CONNECT_STORAGE_KEYS.role);
         const persistedTheme = localStorage.getItem(CONNECT_STORAGE_KEYS.theme);
-        const c = localStorage.getItem(CONNECT_STORAGE_KEYS.child);
         const ins = localStorage.getItem(CONNECT_STORAGE_KEYS.institute);
         const sim = localStorage.getItem(CONNECT_STORAGE_KEYS.studentIncluded);
 
         const roleOk = isRole(persistedRole);
 
-        if (isApiAuthMode() && roleOk) {
+        if (roleOk) {
           const session = await tryHydrateApiSession(persistedRole, ins);
           if (session) {
             setUser(session.user);
@@ -109,20 +124,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
           } else if (persistedUser && roleOk) {
             clearAuthStorage();
           }
-        } else if (persistedUser && roleOk) {
-          setUser(persistedUser);
-          setRoleState(persistedRole);
-          if (ins) setActiveInstituteIdState(ins);
-          else if (registeredInstitutes[0]) setActiveInstituteIdState(registeredInstitutes[0].id);
         } else if (persistedUser || persistedRole) {
           clearAuthStorage();
         }
 
         if (isThemeMode(persistedTheme)) setTheme(persistedTheme);
-        if (c) setActiveChildIdState(resolveLinkedChildId(c));
+        const childId = readPersistedChildId();
+        if (childId) setActiveChildIdState(childId);
         if (sim === "1") setStudentIncludedModeState(true);
-      } catch {
-        clearAuthStorage();
+      } catch (err) {
+        const transient =
+          err instanceof ApiClientError && (err.status === 0 || err.status >= 500);
+        if (!transient) clearAuthStorage();
       }
       setHydrated(true);
     };
@@ -134,19 +147,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!hydrated) return;
     if (!isApiAuthMode()) {
       setLinkedChildren(demoLinkedChildren);
+      setLinkedChildrenLoading(false);
+      setLinkedChildrenError(null);
       return;
     }
     if (role !== "parent" || !activeInstituteId) {
       setLinkedChildren([]);
+      setLinkedChildrenLoading(false);
+      setLinkedChildrenError(null);
       return;
     }
 
     let cancelled = false;
+    setLinkedChildrenLoading(true);
+    setLinkedChildrenError(null);
     void loadLinkedChildrenFromApi({ instituteId: activeInstituteId }).then((result) => {
       if (cancelled) return;
-      if (result.status !== "ready" && result.status !== "empty") return;
+      setLinkedChildrenLoading(false);
+      if (result.status === "error") {
+        setLinkedChildren([]);
+        setLinkedChildrenError(result.errorMessage);
+        return;
+      }
+      if (result.status !== "ready" && result.status !== "empty") {
+        setLinkedChildren([]);
+        return;
+      }
       setLinkedChildren(result.children);
-      if (result.children.length === 0) return;
+      setLinkedChildrenError(result.errorMessage);
+      if (result.children.length === 0) {
+        setActiveChildIdState("");
+        localStorage.removeItem(CONNECT_STORAGE_KEYS.child);
+        return;
+      }
       setActiveChildIdState((current) => {
         const valid = result.children.some((child) => child.id === current);
         const next = valid ? current : result.children[0]!.id;
@@ -157,7 +190,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [hydrated, role, activeInstituteId]);
+  }, [hydrated, role, activeInstituteId, refreshGeneration]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -183,19 +216,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const institute = useMemo(() => resolveInstitute(activeInstituteId), [activeInstituteId]);
 
-  const signIn = useCallback((phone: string, r: Role, instituteId: string, opts?: { displayName?: string }) => {
-    const apply = () => {
-      const u: User = { ...DEMO_USER, phone, name: opts?.displayName ?? DEMO_USER.name };
-      setUser(u);
-      setRoleState(r);
-      setActiveInstituteIdState(instituteId);
-      localStorage.setItem(CONNECT_STORAGE_KEYS.user, JSON.stringify(u));
-      localStorage.setItem(CONNECT_STORAGE_KEYS.role, r);
-      localStorage.setItem(CONNECT_STORAGE_KEYS.institute, instituteId);
-    };
-    // If sign-out store teardown is still running, wait so the new session
-    // never gets wiped by a late satellite reset.
-    void awaitConnectStoreReset().then(apply);
+  const signIn = useCallback((_phone: string, _r: Role, _instituteId: string) => {
+    throw new Error("Demo sign-in has been removed. Use signInApi with an API session.");
   }, []);
 
   const signInApi = useCallback((u: User, r: Role, instituteId: string) => {
@@ -212,14 +234,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(() => {
     appLockStore.lockSession();
-    if (isApiAuthMode()) {
-      void apiSignOut();
-    }
+    void apiSignOut();
     setUser(null);
     setRoleState(null);
     setActiveInstituteIdState(null);
-    setActiveChildIdState(demoLinkedChildren[0]?.id ?? "C1");
+    setActiveChildIdState(isApiAuthMode() ? "" : (demoLinkedChildren[0]?.id ?? "C1"));
     setLinkedChildren(isApiAuthMode() ? [] : demoLinkedChildren);
+    setLinkedChildrenLoading(false);
+    setLinkedChildrenError(null);
     setStudentIncludedModeState(false);
     clearAuthStorage();
     localStorage.removeItem(CONNECT_STORAGE_KEYS.child);
@@ -279,6 +301,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       theme,
       activeChildId,
       linkedChildren,
+      linkedChildrenLoading,
+      linkedChildrenError,
       studentIncludedMode,
       setActiveChildId,
       setStudentIncludedMode,
@@ -297,6 +321,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       theme,
       activeChildId,
       linkedChildren,
+      linkedChildrenLoading,
+      linkedChildrenError,
       studentIncludedMode,
       setActiveChildId,
       setStudentIncludedMode,

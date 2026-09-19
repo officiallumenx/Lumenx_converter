@@ -156,7 +156,7 @@ export function TeacherPerformanceApiPanel() {
           <CardHeader
             title="Monthly rankings"
             hint="Operational Performance Index (OPI) from attendance, marks, homework, diary & class attendance"
-            action={<Pill tone="neutral">API mode</Pill>}
+            action={<Pill tone="neutral">Live data</Pill>}
           />
           {hint ? (
             <p className="px-4 pb-4 text-sm text-muted-foreground">{hint}</p>

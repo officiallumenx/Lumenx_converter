@@ -125,6 +125,15 @@ describe("online subscription checkout (Phase 2 Step 10)", () => {
     expect(db.payment[0]?.method).toBe("online");
     expect(db.payment[0]?.status).toBe("recorded");
 
+    const pending = await app.request(
+      `/api/v1/subscriptions/online-checkout/pending?institute_id=${INST_A}`,
+      { headers: { Authorization: "Bearer token-admin" } },
+    );
+    expect(pending.status).toBe(200);
+    const pendingBody = await json(pending);
+    expect(pendingBody.data.paymentId).toBe(session.paymentId);
+    expect(pendingBody.data.providerSessionId).toBe(session.providerSessionId);
+
     const webhook = await app.request("/api/v1/webhooks/payments/demo", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -137,6 +146,12 @@ describe("online subscription checkout (Phase 2 Step 10)", () => {
     expect(db.renewal_record[0]?.status).toBe("paid");
     expect(db.subscription[0]?.lifecycle_status).toBe("active");
     expect(db.subscription_period).toHaveLength(1);
+
+    const pendingAfter = await app.request(
+      `/api/v1/subscriptions/online-checkout/pending?institute_id=${INST_A}`,
+      { headers: { Authorization: "Bearer token-admin" } },
+    );
+    expect((await json(pendingAfter)).data).toBeNull();
   });
 
   it("rejects online checkout when provider is none", async () => {

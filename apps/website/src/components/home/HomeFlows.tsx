@@ -72,7 +72,7 @@ export function HomeFlows() {
         </div>
         <div className="mt-8">
           <CTAButton asChild variant="secondary">
-            <Link to="/how-it-works" search={{}}>
+            <Link to="/platform">
               How the ecosystem is layered
             </Link>
           </CTAButton>

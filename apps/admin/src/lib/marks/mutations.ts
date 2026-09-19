@@ -16,6 +16,8 @@ function assertApiMode(): void {
 export type MarkScoreInput = {
   enrollmentId: string;
   marks: number | null;
+  internalMarks?: number | null;
+  externalMarks?: number | null;
 };
 
 export type CreateMarkEntryInput = {
@@ -71,6 +73,8 @@ export async function createMarkEntry(
     scores: input.scores?.map((s) => ({
       enrollment_id: s.enrollmentId.trim(),
       marks: s.marks,
+      internal_marks: s.internalMarks ?? null,
+      external_marks: s.externalMarks ?? null,
     })),
   });
 }
@@ -91,6 +95,8 @@ export async function updateMarkEntry(
     body.scores = input.scores.map((s) => ({
       enrollment_id: s.enrollmentId.trim(),
       marks: s.marks,
+      internal_marks: s.internalMarks ?? null,
+      external_marks: s.externalMarks ?? null,
     }));
   }
   if (Object.keys(body).length === 0) {

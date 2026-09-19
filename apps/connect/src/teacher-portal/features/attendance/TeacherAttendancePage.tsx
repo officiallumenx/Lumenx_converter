@@ -641,6 +641,14 @@ function TeacherAttendanceDemoPage() {
 }
 
 function TeacherSelfAttendanceView({ records }: { records: TeacherSelfAttendanceRecord[] }) {
+  const days = records.length;
+  const presentish = records.filter(
+    (r) => r.status === "present" || r.status === "late",
+  ).length;
+  const absent = records.filter((r) => r.status === "absent").length;
+  const leave = records.filter((r) => r.status === "leave").length;
+  const attendancePct = days === 0 ? 0 : Math.round((presentish / days) * 100);
+
   if (!records.length) {
     return (
       <EmptyState
@@ -652,30 +660,50 @@ function TeacherSelfAttendanceView({ records }: { records: TeacherSelfAttendance
   }
 
   return (
-    <ul className="space-y-2">
-      {records.map((record) => (
-        <li key={record.id} className="rounded-xl border border-border bg-card p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="font-medium">{record.date}</p>
-            <Badge
-              className={cn(
-                "border-0",
-                record.status === "present" && "bg-success text-success-foreground",
-                record.status === "late" && "bg-warning text-warning-foreground",
-                record.status === "absent" && "bg-destructive text-destructive-foreground",
-                record.status === "leave" && "bg-muted text-foreground",
-              )}
-            >
-              {record.status}
-            </Badge>
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            In: {record.inTime} · Out: {record.outTime} · Marked by {record.markedBy}
-          </p>
-          {record.note ? <p className="mt-2 text-sm">{record.note}</p> : null}
-        </li>
-      ))}
-    </ul>
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="rounded-2xl border border-border bg-card p-3 text-center">
+          <div className="text-2xl font-semibold tabular-nums text-primary">{attendancePct}%</div>
+          <div className="text-[11px] text-muted-foreground">Attendance</div>
+        </div>
+        <div className="rounded-2xl border border-border bg-card p-3 text-center">
+          <div className="text-2xl font-semibold tabular-nums text-success">{presentish}</div>
+          <div className="text-[11px] text-muted-foreground">Present days</div>
+        </div>
+        <div className="rounded-2xl border border-border bg-card p-3 text-center">
+          <div className="text-2xl font-semibold tabular-nums text-destructive">{absent}</div>
+          <div className="text-[11px] text-muted-foreground">Absent</div>
+        </div>
+        <div className="rounded-2xl border border-border bg-card p-3 text-center">
+          <div className="text-2xl font-semibold tabular-nums">{leave}</div>
+          <div className="text-[11px] text-muted-foreground">Leave</div>
+        </div>
+      </div>
+      <ul className="space-y-2">
+        {records.map((record) => (
+          <li key={record.id} className="rounded-xl border border-border bg-card p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="font-medium">{record.date}</p>
+              <Badge
+                className={cn(
+                  "border-0",
+                  record.status === "present" && "bg-success text-success-foreground",
+                  record.status === "late" && "bg-warning text-warning-foreground",
+                  record.status === "absent" && "bg-destructive text-destructive-foreground",
+                  record.status === "leave" && "bg-muted text-foreground",
+                )}
+              >
+                {record.status}
+              </Badge>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              In: {record.inTime} · Out: {record.outTime} · Marked by {record.markedBy}
+            </p>
+            {record.note ? <p className="mt-2 text-sm">{record.note}</p> : null}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

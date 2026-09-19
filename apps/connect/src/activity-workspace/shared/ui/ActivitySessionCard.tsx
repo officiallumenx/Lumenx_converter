@@ -38,7 +38,7 @@ const STATUS_VARIANT: Record<ActivityDisplayStatus, string> = {
 };
 
 export function ActivitySessionCard({ activity }: { activity: TodayActivity }) {
-  const meta = CATEGORY_META[activity.category];
+  const meta = CATEGORY_META[activity.category] ?? CATEGORY_META.events;
   const Icon = meta.icon;
 
   return (
@@ -54,8 +54,8 @@ export function ActivitySessionCard({ activity }: { activity: TodayActivity }) {
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium text-sm">{activity.title}</span>
-          <Badge variant="outline" className={cn("text-[10px] capitalize", STATUS_VARIANT[activity.status])}>
-            {STATUS_LABEL[activity.status]}
+          <Badge variant="outline" className={cn("text-[10px] capitalize", STATUS_VARIANT[activity.status] ?? STATUS_VARIANT.upcoming)}>
+            {STATUS_LABEL[activity.status] ?? activity.status}
           </Badge>
         </div>
         <p className="mt-1 text-xs text-muted-foreground">

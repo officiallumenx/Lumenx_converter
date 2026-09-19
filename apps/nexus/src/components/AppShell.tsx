@@ -3,16 +3,23 @@ import {
   Search, ChevronRight, Hexagon,
   Building2, Sun, Moon, Menu, Bell,
 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useTheme } from "@/components/theme-provider";
 import { nexusNav, NEXUS_SEARCH_PLACEHOLDER } from "@/lib/nexus-nav";
 import { useNexusPoliciesNavBadge } from "@/lib/use-nexus-policies-nav-badge";
 import { NexusGlobalSearch } from "@/components/NexusGlobalSearch";
+import { NexusAppLockScreen } from "@/components/NexusAppLockScreen";
+import { appLockStore } from "@/lib/app-lock-store";
 import {
   getActiveNexusOperator,
   subscribePlatformAccess,
+  type NexusOperator,
 } from "@/lib/platform-access-store";
+import { isNexusApiMode } from "@/lib/auth-mode";
+import { getCurrentOperatorApi } from "@/lib/operators-api";
 import { loadLicenses, ensureLicensesCoverDirectory } from "@/lib/institute-licensing-store";
+import { listPlatformInstitutes } from "@/lib/institute-directory-store";
+import { loadInstitutesDirectory } from "@/lib/institutes/load-directory";
 
 export function AppShell({ children, title, subtitle, actions }: {
   children: ReactNode;
@@ -24,11 +31,52 @@ export function AppShell({ children, title, subtitle, actions }: {
   const [openSearch, setOpenSearch] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [operatorTick, setOperatorTick] = useState(0);
+  const [apiOperator, setApiOperator] = useState<NexusOperator | null>(null);
+  const [instituteCount, setInstituteCount] = useState<number | null>(null);
   const { theme, toggle } = useTheme();
 
   useEffect(() => {
+    if (isNexusApiMode()) {
+      void getCurrentOperatorApi()
+        .then((current) =>
+          setApiOperator({
+            id: current.userId,
+            userId: current.userId,
+            handle: current.roleCode,
+            displayName: current.displayName,
+            roleId: current.roleCode,
+            status: "active",
+            lastActiveAt: new Date().toISOString(),
+          }),
+        )
+        .catch(() => setApiOperator(null));
+      return;
+    }
     return subscribePlatformAccess(() => setOperatorTick((n) => n + 1));
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (isNexusApiMode()) {
+      void loadInstitutesDirectory().then((dir) => {
+        if (cancelled) return;
+        if (dir.status === "ready") {
+          setInstituteCount(dir.institutes.filter((i) => i.status !== "archived").length);
+          return;
+        }
+        setInstituteCount(0);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
+    setInstituteCount(
+      listPlatformInstitutes().filter((i) => i.status !== "archived").length,
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [path]);
 
   // One-time hydrate: licensing SoT + directory projection (no live subscriptions here).
   useEffect(() => {
@@ -48,7 +96,7 @@ export function AppShell({ children, title, subtitle, actions }: {
   }, []);
 
   void operatorTick;
-  const operator = getActiveNexusOperator();
+  const operator = isNexusApiMode() ? apiOperator : getActiveNexusOperator();
   const policiesNavBadge = useNexusPoliciesNavBadge();
   const operatorInitials = (operator?.displayName ?? "PO")
     .split(/\s+/)
@@ -56,6 +104,24 @@ export function AppShell({ children, title, subtitle, actions }: {
     .slice(0, 2)
     .map((w) => w[0]?.toUpperCase() ?? "")
     .join("") || "PO";
+
+  const appLockEnabled = useSyncExternalStore(
+    appLockStore.subscribe,
+    appLockStore.isEnabled,
+    () => false,
+  );
+  const appLockUnlocked = useSyncExternalStore(
+    appLockStore.subscribe,
+    appLockStore.isUnlocked,
+    () => true,
+  );
+  const isSettingsRoute = path.startsWith("/settings");
+  const showAppLock = appLockEnabled && !appLockUnlocked && !isSettingsRoute;
+
+  const instituteLabel =
+    instituteCount === null
+      ? "…"
+      : `${instituteCount} institute${instituteCount === 1 ? "" : "s"}`;
 
   const SidebarContent = (
     <>
@@ -165,10 +231,13 @@ export function AppShell({ children, title, subtitle, actions }: {
               <span className="size-1.5 rounded-full bg-primary pulse-cyan" />
               <span className="text-[10px] font-mono tracking-wide uppercase">Platform live</span>
             </div>
-            <button className="hidden md:flex items-center gap-2 px-3 h-9 rounded-md border border-border bg-surface hover:bg-surface-hover text-xs font-mono">
+            <Link
+              to="/institutes"
+              className="hidden md:flex items-center gap-2 px-3 h-9 rounded-md border border-border bg-surface hover:bg-surface-hover text-xs font-mono"
+            >
               <Building2 className="size-3.5 text-primary" />
-              <span className="font-medium">42 institutes</span>
-            </button>
+              <span className="font-medium">{instituteLabel}</span>
+            </Link>
             <button onClick={toggle} aria-label="Toggle theme" className="size-9 rounded-md border border-border bg-surface hover:bg-surface-hover flex items-center justify-center">
               {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
             </button>
@@ -195,6 +264,10 @@ export function AppShell({ children, title, subtitle, actions }: {
       </div>
 
       <NexusGlobalSearch open={openSearch} onOpenChange={setOpenSearch} />
+
+      {showAppLock ? (
+        <NexusAppLockScreen onUnlocked={() => appLockStore.setUnlocked(true)} />
+      ) : null}
     </div>
   );
 }

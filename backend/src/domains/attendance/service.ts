@@ -18,6 +18,7 @@ import {
   insertConfigVersion,
   insertMarks,
   insertRegister,
+  listActiveEnrollmentsForSection,
   listConfigVersions,
   listGuardianStudentIds,
   listMarksForRegister,
@@ -31,6 +32,7 @@ import type {
   AttendanceConfigVersionRow,
   AttendanceMarkDto,
   AttendanceMarkRow,
+  AttendanceOwner,
   AttendanceRegisterDto,
   AttendanceRegisterRow,
   CreateConfigInput,
@@ -139,8 +141,10 @@ function isStaffReader(actor: Actor, instituteId: string): boolean {
 }
 
 /**
- * Teacher may mark when they have an active assignment on the section graph.
- * Staff override roles skip assignment. Never trust client teacher ids.
+ * Taken By (flowchart):
+ * - attendance_incharge → Admin staff writers only
+ * - class_teacher → Connect class teacher for the section
+ * - current_period_teacher → Connect teacher assigned to the section
  */
 export async function assertCanWriteAttendance(
   admin: SupabaseClient,
@@ -150,15 +154,38 @@ export async function assertCanWriteAttendance(
     sectionId: string;
     academicYearId: string;
     classId: string;
+    /** Frozen owner from register or config version. */
+    owner: AttendanceOwner;
   },
 ): Promise<{ markedByTeacherId: string | null }> {
   requireInstituteId(actor, input.instituteId);
 
-  if (actor.isPlatformOperator || isStaffWriter(actor, input.instituteId)) {
+  if (actor.isPlatformOperator) {
     const teacher = actor.teachers.find(
       (t) => t.instituteId === input.instituteId && t.status === "active",
     );
     return { markedByTeacherId: teacher?.teacherId ?? null };
+  }
+
+  if (input.owner === "attendance_incharge") {
+    if (!isStaffWriter(actor, input.instituteId)) {
+      throw AppError.forbidden(
+        "Attendance is taken by the Attendance Coordinator in Admin",
+      );
+    }
+    const teacher = actor.teachers.find(
+      (t) => t.instituteId === input.instituteId && t.status === "active",
+    );
+    return { markedByTeacherId: teacher?.teacherId ?? null };
+  }
+
+  // Connect path — class teacher / current period teacher
+  if (isStaffWriter(actor, input.instituteId) && !actorHasInstituteRole(actor, input.instituteId, "teacher")) {
+    throw AppError.forbidden(
+      input.owner === "class_teacher"
+        ? "Attendance is taken by the Class Teacher in Connect"
+        : "Attendance is taken by the Current Period Teacher in Connect",
+    );
   }
 
   if (!actorHasInstituteRole(actor, input.instituteId, "teacher")) {
@@ -166,6 +193,73 @@ export async function assertCanWriteAttendance(
   }
 
   const identity = requireTeacherIdentity(actor, input.instituteId);
+  const section = await findSectionById(admin, input.sectionId);
+  if (
+    !section ||
+    section.institute_id !== input.instituteId ||
+    section.class_id !== input.classId ||
+    section.academic_year_id !== input.academicYearId
+  ) {
+    throw AppError.notFound("Section not found");
+  }
+
+  if (input.owner === "class_teacher") {
+    if (section.class_teacher_id !== identity.teacherId) {
+      throw AppError.forbidden(
+        "Only the Class Teacher can mark attendance for this section",
+      );
+    }
+    return { markedByTeacherId: identity.teacherId };
+  }
+
+  // current_period_teacher
+  const assignment = await findTeacherSectionAssignment(admin, {
+    teacherId: identity.teacherId,
+    instituteId: input.instituteId,
+    sectionId: input.sectionId,
+    academicYearId: input.academicYearId,
+    classId: input.classId,
+  });
+  if (!assignment && section.class_teacher_id !== identity.teacherId) {
+    throw AppError.forbidden("Teacher is not assigned to this section");
+  }
+  return { markedByTeacherId: identity.teacherId };
+}
+
+/** View Connect teacher portal without Taken By write enforcement. */
+export async function assertCanViewTeacherAttendance(
+  admin: SupabaseClient,
+  actor: Actor,
+  input: {
+    instituteId: string;
+    sectionId: string;
+    academicYearId: string;
+    classId: string;
+  },
+): Promise<void> {
+  requireInstituteId(actor, input.instituteId);
+  assertInstituteAccess(actor, input.instituteId);
+
+  if (actor.isPlatformOperator || isStaffWriter(actor, input.instituteId)) {
+    return;
+  }
+
+  if (!actorHasInstituteRole(actor, input.instituteId, "teacher")) {
+    throw AppError.forbidden("Insufficient institute role");
+  }
+
+  const identity = requireTeacherIdentity(actor, input.instituteId);
+  const section = await findSectionById(admin, input.sectionId);
+  if (
+    !section ||
+    section.institute_id !== input.instituteId ||
+    section.class_id !== input.classId
+  ) {
+    throw AppError.notFound("Section not found");
+  }
+
+  if (section.class_teacher_id === identity.teacherId) return;
+
   const assignment = await findTeacherSectionAssignment(admin, {
     teacherId: identity.teacherId,
     instituteId: input.instituteId,
@@ -176,7 +270,6 @@ export async function assertCanWriteAttendance(
   if (!assignment) {
     throw AppError.forbidden("Teacher is not assigned to this section");
   }
-  return { markedByTeacherId: identity.teacherId };
 }
 
 async function resolveAccessibleStudentIds(
@@ -459,6 +552,7 @@ export async function createRegisterForActor(
     sectionId: input.sectionId,
     academicYearId: input.academicYearId,
     classId: input.classId,
+    owner: config.owner,
   });
 
   const resolvedMarks = await validateMarksAgainstSection(admin, {
@@ -508,6 +602,7 @@ export async function updateRegisterForActor(
     sectionId: existing.section_id,
     academicYearId: existing.academic_year_id,
     classId: existing.class_id,
+    owner: existing.owner,
   });
 
   const nextSlotId =
@@ -578,13 +673,30 @@ export async function submitRegisterForActor(
     sectionId: existing.section_id,
     academicYearId: existing.academic_year_id,
     classId: existing.class_id,
+    owner: existing.owner,
   });
 
   const marks = await listMarksForRegister(admin, registerId);
-  if (marks.length === 0) {
-    throw AppError.validation("Cannot submit a register without marks", {
-      marks: ["Required"],
+  const roster = await listActiveEnrollmentsForSection(admin, {
+    instituteId: existing.institute_id,
+    academicYearId: existing.academic_year_id,
+    classId: existing.class_id,
+    sectionId: existing.section_id,
+  });
+  const markedIds = new Set(marks.map((m) => m.enrollment_id));
+  const unmarked = roster.filter((row) => !markedIds.has(row.id));
+  if (roster.length === 0) {
+    throw AppError.validation("Cannot submit attendance with no enrolled students", {
+      marks: ["No active enrollments"],
     });
+  }
+  if (unmarked.length > 0) {
+    throw AppError.validation(
+      `Mark all students before submitting (${unmarked.length} unmarked)`,
+      {
+        marks: [`${unmarked.length} student(s) unmarked`],
+      },
+    );
   }
 
   const submitted = await submitRegister(

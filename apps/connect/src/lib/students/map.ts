@@ -1,4 +1,4 @@
-import type { StudentDetail } from "@/lib/teacher/types";
+import type { StudentDetail, StudentRemark } from "@/lib/teacher/types";
 import type { StudentProfile, StudentSnapshot } from "@/lib/student/types";
 import type { StudentDto, StudentGuardianDto } from "./types";
 
@@ -24,6 +24,7 @@ export function studentInitials(name: string): string {
 export function studentDtoToTeacherDetail(
   dto: StudentDto,
   guardians: StudentGuardianDto[] = [],
+  remarks: StudentRemark[] = [],
 ): StudentDetail {
   const name = studentDisplayName(dto);
   const primary = guardians.find((g) => g.isPrimary) ?? guardians[0];
@@ -46,7 +47,7 @@ export function studentDtoToTeacherDetail(
     achievements: [],
     awards: [],
     certificates: [],
-    remarks: [],
+    remarks,
     pendingWork: [],
     attendanceSummary: {
       rate: 0,

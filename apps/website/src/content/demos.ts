@@ -1,5 +1,10 @@
 import type { ProductId } from "@/theme/products";
 
+/**
+ * Website marketing / product-preview flows.
+ * These are NOT LumenX product Demo Mode and do not authenticate users
+ * or load live institute business data.
+ */
 export const DEMO_FLOW_IDS = [
   "attendance",
   "transport",
@@ -89,7 +94,7 @@ export const DEMO_EXPLORE: {
   },
   {
     id: "careers",
-    lede: "Jobs and applications in a Connect portal. Admin converts an approved hire.",
+    lede: "Jobs and applications in the Careers web app. Admin converts an approved hire.",
   },
 ];
 

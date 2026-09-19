@@ -248,7 +248,7 @@ export function TransportRoutesView({
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search routes, stops, students…"
-          className="w-full max-w-xs"
+          className="min-w-0 flex-1 sm:max-w-xs"
         />
         <ToolbarSpacer />
       </PageToolbar>

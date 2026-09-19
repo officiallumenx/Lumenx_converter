@@ -26,12 +26,14 @@ export function diaryDayKey(scope: DiaryScope, date: string) {
   return `${scope}:${date}`;
 }
 
-/** Ready to submit: at least one row has both fields filled. */
+/** Ready to submit: at least one row has class + description (and section for subject). */
 export function isDiaryDayReady(day: DiaryDay | undefined | null): boolean {
   if (!day?.rows?.length) return false;
-  return day.rows.some(
-    (r) => r.className.trim().length > 0 && r.description.trim().length > 0,
-  );
+  return day.rows.some((r) => {
+    if (!r.className.trim() || !r.description.trim()) return false;
+    if (day.scope === "subject" && !r.sectionId) return false;
+    return true;
+  });
 }
 
 /** Submitted to principal admin for that date. */

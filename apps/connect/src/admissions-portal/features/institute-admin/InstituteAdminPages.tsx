@@ -1,5 +1,6 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { useReloadKey } from "@/hooks/useReloadKey";
 import {
   Button,
   Input,
@@ -115,7 +116,7 @@ function useInstituteContext() {
 
 export function InstituteAdminDashboardPage() {
   const { user, instituteId, profile } = useInstituteContext();
-  const [refreshTick, setRefreshTick] = useState(0);
+  const [refreshTick, setRefreshTick] = useReloadKey();
   const apps = getAllApplications();
   const stats = useMemo(() => getInstituteApplicationStats(instituteId, apps), [instituteId, apps]);
   const recent = useMemo(
@@ -405,7 +406,7 @@ export function InstituteApplicationsPage() {
 export function InstituteApplicationReviewPage({ applicationId }: { applicationId: string }) {
   const { instituteId } = useInstituteContext();
   const apiMode = isApiAuthMode();
-  const [refreshTick, setRefreshTick] = useState(0);
+  const [refreshTick, setRefreshTick] = useReloadKey();
   const [apiDocs, setApiDocs] = useState<ApplicationDocument[]>([]);
   const apps = useMemo(() => {
     void refreshTick;

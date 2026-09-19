@@ -120,6 +120,7 @@ export function FeesStudentsView({
   const [payMethod, setPayMethod] = useState<FeePaymentMethod>("cash");
   const [payNote, setPayNote] = useState("");
   const [payDate, setPayDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [payCategoryId, setPayCategoryId] = useState("");
   const [voidingId, setVoidingId] = useState<string | null>(null);
   const [voidReason, setVoidReason] = useState("");
 
@@ -209,20 +210,65 @@ export function FeesStudentsView({
           name: line.name,
           defaultAmount: line.defaultAmount,
           amount: line.amount,
+          paidAmount: line.paidAmount ?? 0,
+          balanceAmount: line.balanceAmount ?? 0,
           overridden: line.overridden,
           note: line.note,
         })),
         payments: snapshot.payments.filter((p) => p.studentId === student.id),
       };
     }
-    return getDemoStudentFeeAccount(
+    const demo = getDemoStudentFeeAccount(
       snapshot,
       { studentId: student.id, classKey: student.classKey },
       { requirePublished: false },
     );
+    return {
+      ...demo,
+      lines: demo.lines.map((line) => ({
+        ...line,
+        paidAmount: 0,
+        balanceAmount: line.amount,
+      })),
+    };
   }, [snapshot, student, useApiFeeAccount, apiAccount, apiAccountStatus]);
 
   const lines = account?.lines ?? [];
+
+  const sectionDuesRows = useMemo(() => {
+    if (!classKey || !section) return [];
+    return studentsInSection.map((s) => {
+      const acc = getDemoStudentFeeAccount(
+        snapshot,
+        { studentId: s.id, classKey: s.classKey },
+        { requirePublished: false },
+      );
+      return {
+        student: s,
+        billed: acc.billed,
+        paid: acc.paid,
+        due: acc.due,
+        status: acc.status,
+      };
+    });
+  }, [classKey, section, studentsInSection, snapshot]);
+
+  const lineCategoryKey = lines.map((l) => l.categoryId).join("|");
+
+  useEffect(() => {
+    if (!lineCategoryKey) {
+      setPayCategoryId("");
+      return;
+    }
+    const categoryIds = lineCategoryKey.split("|");
+    setPayCategoryId((prev) =>
+      prev && categoryIds.includes(prev) ? prev : categoryIds[0] ?? "",
+    );
+    if (useApiFeeAccount && apiAccount) {
+      const due = apiAccount.dueAmount;
+      setPayAmount(due > 0 ? String(due) : "");
+    }
+  }, [studentId, lineCategoryKey, useApiFeeAccount, apiAccount]);
 
   const selectStudent = (s: FeesStudentOption) => {
     setStudentId(s.id);
@@ -234,6 +280,7 @@ export function FeesStudentsView({
       setPayAmount("");
       setPayNote("");
       setPayMethod("cash");
+      setPayCategoryId("");
       setPayDate(new Date().toISOString().slice(0, 10));
       return;
     }
@@ -410,9 +457,13 @@ export function FeesStudentsView({
       notify("Enter a payment amount greater than zero");
       return;
     }
+    if (!payCategoryId) {
+      notify("Select a fee category");
+      return;
+    }
     const note = payNote.trim();
-    if (!note) {
-      notify("Payment note is required");
+    if (payMethod !== "cash" && !note) {
+      notify("Transaction ID / note is required");
       return;
     }
     if (apiMode) {
@@ -429,16 +480,19 @@ export function FeesStudentsView({
         feePlanId,
         studentId: student.id,
         classId,
+        feeComponentId: payCategoryId,
         amount,
         method: payMethod,
         paidOn: payDate,
-        note,
+        note: note || null,
       })
         .then((payment) => {
           setAccountReloadKey((k) => k + 1);
           onApiReload?.();
           setPayNote("");
-          notify(`Recorded ${formatInr(payment.amount)} · ${payment.receiptNo}`);
+          notify(
+            `Payment recorded · ${formatInr(payment.amount)} · parents & student updated`,
+          );
         })
         .catch((err) => {
           notify(err instanceof Error ? err.message : "Could not record payment");
@@ -452,7 +506,7 @@ export function FeesStudentsView({
         classKey: student.classKey,
         amount,
         method: payMethod,
-        note,
+        note: note || "Cash (offline)",
         paidAt: payDate,
       });
       onChange(next);
@@ -481,7 +535,9 @@ export function FeesStudentsView({
       }
       setPayAmount(updated.due > 0 ? String(updated.due) : "");
       setPayNote("");
-      notify(`Recorded ${formatInr(payment.amount)} · ${payment.receiptNo}`);
+      notify(
+        `Payment recorded · ${formatInr(payment.amount)} · parents & student updated`,
+      );
     } catch (err) {
       notify(err instanceof Error ? err.message : "Could not record payment");
     }
@@ -586,11 +642,58 @@ export function FeesStudentsView({
         </CardBody>
       </Card>
 
+      {classKey && section && studentsInSection.length > 0 ? (
+        <Card>
+          <CardHeader
+            title="Section dues summary"
+            hint={`${classKey} · Sec ${section} · billed / paid / due per student`}
+          />
+          <CardBody className="p-0">
+            <DataTable>
+              <thead>
+                <tr>
+                  <Th>Student</Th>
+                  <Th>Roll</Th>
+                  <Th>Billed</Th>
+                  <Th>Paid</Th>
+                  <Th>Due</Th>
+                  <Th>Status</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {sectionDuesRows.map((row) => (
+                  <Tr key={row.student.id}>
+                    <Td>
+                      <button
+                        type="button"
+                        className="font-medium text-left hover:underline"
+                        onClick={() => selectStudent(row.student)}
+                      >
+                        {row.student.name}
+                      </button>
+                    </Td>
+                    <Td mono>{row.student.rollNo}</Td>
+                    <Td mono>{formatInr(row.billed)}</Td>
+                    <Td mono>{formatInr(row.paid)}</Td>
+                    <Td mono>{formatInr(row.due)}</Td>
+                    <Td>
+                      <Pill tone={STATUS_PILL[row.status].tone}>
+                        {STATUS_PILL[row.status].label}
+                      </Pill>
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </DataTable>
+          </CardBody>
+        </Card>
+      ) : null}
+
       {student && useApiFeeAccount && apiAccountStatus === "loading" ? (
         <Card>
           <CardBody>
             <p className="text-sm text-muted-foreground text-center py-6">
-              Loading fee account from API…
+              Loading fee account…
             </p>
           </CardBody>
         </Card>
@@ -654,7 +757,32 @@ export function FeesStudentsView({
                     is downloadable
                   </p>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <Field label="Select category" required>
+                    <Select
+                      fieldSize="md"
+                      className="w-full text-xs"
+                      value={payCategoryId}
+                      onChange={(e) => {
+                        setPayCategoryId(e.target.value);
+                        const line = lines.find((l) => l.categoryId === e.target.value);
+                        if (line && "balanceAmount" in line) {
+                          const bal = Number(line.balanceAmount) || 0;
+                          setPayAmount(bal > 0 ? String(bal) : "");
+                        }
+                      }}
+                    >
+                      <option value="">Select category…</option>
+                      {lines.map((line) => (
+                        <option key={line.categoryId} value={line.categoryId}>
+                          {line.name}
+                          {"balanceAmount" in line
+                            ? ` · bal ${formatInr(Number(line.balanceAmount) || 0)}`
+                            : ""}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
                   <Field label="Amount (₹)">
                     <TextInput
                       className="font-mono text-xs"
@@ -685,12 +813,21 @@ export function FeesStudentsView({
                       onChange={(e) => setPayDate(e.target.value)}
                     />
                   </Field>
-                  <Field label="Note (required)">
+                  <Field
+                    label="Txn ID / reference"
+                    required={payMethod !== "cash"}
+                    hint="Required except Cash (offline)"
+                    className="sm:col-span-2"
+                  >
                     <TextInput
                       className="text-xs"
                       value={payNote}
                       onChange={(e) => setPayNote(e.target.value)}
-                      placeholder="e.g. Term 1 cash at reception"
+                      placeholder={
+                        payMethod === "cash"
+                          ? "Optional for cash"
+                          : "Transaction ID / reference"
+                      }
                     />
                   </Field>
                 </div>
@@ -816,7 +953,9 @@ export function FeesStudentsView({
                     <tr>
                       <Th>Category</Th>
                       <Th>Class default</Th>
-                      <Th>Amount</Th>
+                      <Th>Total</Th>
+                      <Th>Paid</Th>
+                      <Th>Balance</Th>
                       <Th>Note</Th>
                       <Th align="right">Actions</Th>
                     </tr>
@@ -841,6 +980,18 @@ export function FeesStudentsView({
                               }))
                             }
                           />
+                        </Td>
+                        <Td mono>
+                          {formatInr(
+                            "paidAmount" in line ? Number(line.paidAmount) || 0 : 0,
+                          )}
+                        </Td>
+                        <Td mono>
+                          {formatInr(
+                            "balanceAmount" in line
+                              ? Number(line.balanceAmount) || 0
+                              : 0,
+                          )}
                         </Td>
                         <Td>
                           <TextInput
@@ -876,7 +1027,9 @@ export function FeesStudentsView({
                             ) : null}
                           </div>
                         </Td>
-                        ) : null}
+                        ) : (
+                          <Td align="right">{""}</Td>
+                        )}
                       </Tr>
                     ))}
                   </tbody>

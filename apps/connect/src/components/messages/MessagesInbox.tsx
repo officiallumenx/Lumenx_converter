@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import {
   Button,
   Input,
@@ -17,15 +17,15 @@ import {
   createGroupThread,
   listMessageRecipients,
   listThreadMessages,
-  loadMessagesThreadList,
   markMessageRead,
   sendThreadMessage,
   updateMessageThread,
   type MessageDto,
   type MessageRecipientDto,
   type MessageThreadListItem,
-  type MessagesListStatus,
 } from "@/lib/messages";
+import { useApp } from "@/lib/app-state";
+import { useMessagesThreadsQuery } from "@/lib/connect-queries/hooks";
 
 export type MessagesInboxProps = {
   instituteId: string;
@@ -46,18 +46,36 @@ function statusLabel(status: MessageThreadListItem["status"]): string {
 
 export function MessagesInbox({
   instituteId,
-  currentUserId,
+  currentUserId: currentUserIdProp,
   studentId,
   canComposeGroup = false,
   classSectionOptions = [],
   writesEnabled = true,
 }: MessagesInboxProps) {
-  const [items, setItems] = useState<MessageThreadListItem[]>([]);
-  const [listStatus, setListStatus] = useState<MessagesListStatus>("loading");
-  const [listError, setListError] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
-  const instituteIdRef = useRef(instituteId);
-  instituteIdRef.current = instituteId;
+  const { user } = useApp();
+  const currentUserId = user?.id ?? currentUserIdProp;
+
+  const threadsQuery = useMessagesThreadsQuery(
+    instituteId,
+    currentUserId,
+    Boolean(instituteId) && Boolean(currentUserId),
+    studentId,
+  );
+
+  const items = threadsQuery.data?.items ?? [];
+  const listStatus =
+    threadsQuery.data?.status ??
+    (threadsQuery.isLoading && !threadsQuery.data
+      ? "loading"
+      : threadsQuery.isError
+        ? "error"
+        : "loading");
+  const listError =
+    threadsQuery.data?.errorMessage ??
+    (threadsQuery.isError ? "Unable to load messages" : null);
+  const reloadList = threadsQuery.refresh;
+
+  const [messagesReloadKey, setMessagesReloadKey] = useState(0);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [threadMessages, setThreadMessages] = useState<MessageDto[]>([]);
@@ -77,26 +95,6 @@ export function MessagesInbox({
   const [composing, setComposing] = useState(false);
 
   const selected = items.find((t) => t.id === selectedId) ?? null;
-
-  const reloadList = useCallback(() => setReloadKey((k) => k + 1), []);
-
-  useEffect(() => {
-    let cancelled = false;
-    setListStatus("loading");
-    void loadMessagesThreadList({
-      instituteId,
-      currentUserId,
-      studentId,
-    }).then((next) => {
-      if (cancelled || instituteIdRef.current !== instituteId) return;
-      setItems(next.items);
-      setListStatus(next.status);
-      setListError(next.errorMessage);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [instituteId, currentUserId, studentId, reloadKey]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -124,7 +122,7 @@ export function MessagesInbox({
     return () => {
       cancelled = true;
     };
-  }, [selectedId, currentUserId, reloadKey]);
+  }, [selectedId, currentUserId, messagesReloadKey]);
 
   useEffect(() => {
     if (!composeOpen) return;
@@ -162,7 +160,7 @@ export function MessagesInbox({
       setReplyBody("");
       reloadList();
       setSelectedId(selectedId);
-      setReloadKey((k) => k + 1);
+      setMessagesReloadKey((k) => k + 1);
       toast.success("Message sent");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to send message");
@@ -238,7 +236,7 @@ export function MessagesInbox({
     }
   }
 
-  if (listStatus === "loading") {
+  if (listStatus === "loading" || (threadsQuery.isLoading && !threadsQuery.data)) {
     return (
       <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin" /> Loading messages…
@@ -564,4 +562,3 @@ export function MessagesInbox({
     </div>
   );
 }
-

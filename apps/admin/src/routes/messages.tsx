@@ -1,4 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { useMessagesThreadsQuery, adminQueryRoots } from "@/lib/admin-queries";
+import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import {
@@ -22,7 +25,6 @@ import {
   createGroupThread,
   listMessageRecipients,
   listThreadMessages,
-  loadMessagesThreadList,
   markMessageRead,
   sendThreadMessage,
   updateMessageThread,
@@ -59,7 +61,6 @@ function MessagesPage() {
     apiMode ? "loading" : "demo",
   );
   const [listError, setListError] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
@@ -82,6 +83,25 @@ function MessagesPage() {
 
   const selected = items.find((t) => t.id === selectedId) ?? null;
   const currentUserId = user?.id ?? null;
+  const queryClient = useQueryClient();
+  const listEnabled =
+    apiMode &&
+    instituteCtx.status === "ready" &&
+    Boolean(instituteCtx.activeInstituteId);
+  const messagesQuery = useMessagesThreadsQuery(
+    instituteCtx.activeInstituteId,
+    currentUserId,
+    listEnabled,
+  );
+  const bumpMessagesReload = () => {
+    invalidateAdminCache("admin:messages");
+    if (instituteCtx.activeInstituteId) {
+      void queryClient.invalidateQueries({
+        queryKey: [adminQueryRoots.messages, instituteCtx.activeInstituteId],
+      });
+    }
+  };
+  const [threadReloadKey, setThreadReloadKey] = useState(0);
 
   useEffect(() => {
     if (!apiMode) {
@@ -112,25 +132,24 @@ function MessagesPage() {
       return;
     }
 
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setListStatus("loading");
-    void loadMessagesThreadList(requestInstituteId, currentUserId).then((next) => {
-      if (cancelled || activeInstituteIdRef.current !== requestInstituteId) return;
-      setItems(next.items);
-      setListStatus(next.status);
-      setListError(next.errorMessage);
-    });
-    return () => {
-      cancelled = true;
-    };
+    if (messagesQuery.isLoading && !messagesQuery.data) {
+      setListStatus("loading");
+      setListError(null);
+      return;
+    }
+    if (!messagesQuery.data) return;
+
+    const next = messagesQuery.data;
+    setItems(next.items);
+    setListStatus(next.status);
+    setListError(next.errorMessage);
   }, [
     apiMode,
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
-    currentUserId,
-    reloadKey,
+    messagesQuery.data,
+    messagesQuery.isLoading,
   ]);
 
   useEffect(() => {
@@ -159,7 +178,7 @@ function MessagesPage() {
     return () => {
       cancelled = true;
     };
-  }, [apiMode, selectedId, currentUserId, reloadKey]);
+  }, [apiMode, selectedId, currentUserId, threadReloadKey]);
 
   useEffect(() => {
     if (!composeOpen || !instituteCtx.activeInstituteId) return;
@@ -188,7 +207,8 @@ function MessagesPage() {
     try {
       await sendThreadMessage(selectedId, replyBody.trim());
       setReplyBody("");
-      setReloadKey((k) => k + 1);
+      bumpMessagesReload();
+      setThreadReloadKey((k) => k + 1);
       notify("Message sent");
     } catch (err) {
       notify(err instanceof Error ? err.message : "Failed to send message");
@@ -217,7 +237,8 @@ function MessagesPage() {
         setComposeSubject("");
         setComposeBody("");
         setSelectedId(thread.id);
-        setReloadKey((k) => k + 1);
+        bumpMessagesReload();
+      setThreadReloadKey((k) => k + 1);
         notify("Conversation started");
       } catch (err) {
         notify(err instanceof Error ? err.message : "Failed to start conversation");
@@ -244,7 +265,8 @@ function MessagesPage() {
       setComposeSubject("");
       setComposeBody("");
       setSelectedId(thread.id);
-      setReloadKey((k) => k + 1);
+      bumpMessagesReload();
+      setThreadReloadKey((k) => k + 1);
       notify("Group thread created");
     } catch (err) {
       notify(err instanceof Error ? err.message : "Failed to create group thread");
@@ -257,7 +279,8 @@ function MessagesPage() {
     if (!selectedId || !writesEnabled) return;
     try {
       await updateMessageThread(selectedId, { status });
-      setReloadKey((k) => k + 1);
+      bumpMessagesReload();
+      setThreadReloadKey((k) => k + 1);
       notify(status === "open" ? "Thread reopened" : `Thread ${status}`);
     } catch (err) {
       notify(err instanceof Error ? err.message : "Failed to update thread");
@@ -289,7 +312,7 @@ function MessagesPage() {
         {listStatus === "demo" && (
           <Card>
             <p className="p-5 text-sm text-muted-foreground">
-              Message threads from Connect (teachers and parents) appear here in API mode.
+              Message threads from Connect (teachers and parents) appear here.
               Switch to API auth and select an institute to load the live inbox.
             </p>
           </Card>

@@ -391,7 +391,7 @@ describe("assets api", () => {
     ).toBe(403);
   });
 
-  it("allows upload when institute storage usage exceeds configured quota (monitoring-only)", async () => {
+  it("rejects upload when institute storage quota would be exceeded", async () => {
     const db = baseDb();
     db.storage_quota = [
       {
@@ -405,7 +405,7 @@ describe("assets api", () => {
         deleted_at: null,
       },
     ];
-    // Already at 1 GB — upload must still succeed (quota is not hard-denied).
+    // Already at 1 GB — tiny logo upload must hard-deny with 409
     db.stored_asset[0].byte_size = 1024 * 1024 * 1024;
     const app = appWithDb(db);
 
@@ -421,6 +421,8 @@ describe("assets api", () => {
       headers: { Authorization: "Bearer token-admin" },
       body: form,
     });
-    expect(uploaded.status).toBe(201);
+    expect(uploaded.status).toBe(409);
+    const body = await json(uploaded);
+    expect(body.error?.code ?? body.code).toBeDefined();
   });
 });

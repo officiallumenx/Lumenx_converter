@@ -58,6 +58,8 @@ export type AccessAssigneeDto = {
   displayName: string;
   email: string | null;
   phone: string | null;
+  username: string | null;
+  hasPin: boolean;
   membershipStatus: string;
   linkedTeacherId: string | null;
   linkedStaffId: string | null;
@@ -90,6 +92,8 @@ export type CreateAccessAssigneeInput = {
   displayName: string;
   email?: string | null;
   phone?: string | null;
+  username?: string | null;
+  pin?: string | null;
   linkedTeacherId?: string | null;
   linkedStaffId?: string | null;
   assignedSectionKeys?: string[];

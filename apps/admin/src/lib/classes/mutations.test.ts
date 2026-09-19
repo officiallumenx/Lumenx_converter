@@ -21,7 +21,7 @@ describe("classes mutations", () => {
         name: "Grade 10",
         code: "G10",
       }),
-    ).rejects.toThrow(/API auth mode/);
+    ).rejects.toThrow(/Demo Mode is no longer supported|API auth mode|Authentication required/);
   });
 
   it("does not call network for invalid section UUID on delete", async () => {
@@ -37,6 +37,7 @@ describe("classes mutations", () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const post = vi.fn().mockResolvedValue({ id: SECTION });
     const client = { post } as never;
+    const classTeacherId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
     const { createSection } = await import("./mutations");
     await createSection(
       {
@@ -47,6 +48,7 @@ describe("classes mutations", () => {
         code: "A",
         capacity: 40,
         room: "B-101",
+        classTeacherId,
       },
       client,
     );
@@ -57,6 +59,7 @@ describe("classes mutations", () => {
         class_id: CLASS,
         name: "A",
         capacity: 40,
+        class_teacher_id: classTeacherId,
       }),
     );
   });

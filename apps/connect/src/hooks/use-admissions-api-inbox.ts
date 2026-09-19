@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useReloadKey } from "@/hooks/useReloadKey";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import type { AdmissionsNotification } from "@/lib/admissions/types";
 import {
@@ -45,7 +46,7 @@ export function useAdmissionsApiInbox(applicantId: string | null) {
   const [items, setItems] = useState<AdmissionsNotification[]>([]);
   const [loading, setLoading] = useState(isApiAuthMode());
   const [error, setError] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const [reloadKey, setReloadKey] = useReloadKey();
 
   const reload = useCallback(() => {
     setReloadKey((k) => k + 1);

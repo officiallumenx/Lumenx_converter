@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useReloadKey } from "@/hooks/useReloadKey";
 import { Link } from "@tanstack/react-router";
 import {
   Badge,
@@ -102,7 +103,7 @@ function countAppsForOpening(
 export function InstituteApplicationsBoardPage() {
   const { user } = useAdmissionsAuth();
   const instituteId = user?.instituteId ?? "";
-  const [tick, setTick] = useState(0);
+  const [tick, setTick] = useReloadKey();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showCorrectionPanel, setShowCorrectionPanel] = useState(false);
   const [correctionReason, setCorrectionReason] = useState("");

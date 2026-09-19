@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Bus, Clock, MapPin } from "lucide-react";
 import { subscribeTransportRealtime } from "@lumenx/utils";
 import { PageHeader } from "@/components/app/PageHeader";
@@ -10,8 +10,7 @@ import {
   TransportTrackingPanel,
 } from "@/components/app/transport/TransportRouteTimeline";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
-import { loadLearnerTransport } from "@/lib/transport";
-import type { LearnerTransportSummary } from "@/lib/transport";
+import { useLearnerTransportQuery } from "@/lib/connect-queries/hooks";
 import {
   buildLiveTracking,
   loadLearnerTransportLive,
@@ -36,55 +35,48 @@ export function LearnerTransportApiView({
   headerExtra,
   viewer = "parent",
 }: Props) {
-  const [summary, setSummary] = useState<LearnerTransportSummary | null>(null);
+  const {
+    data: transportState,
+    isLoading,
+    refresh,
+  } = useLearnerTransportQuery(instituteId, studentId, true);
+
   const [live, setLive] = useState<Awaited<ReturnType<typeof loadLearnerTransportLive>>>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [empty, setEmpty] = useState<string | null>(null);
   const [liveTick, setLiveTick] = useState(0);
 
-  const reload = useCallback(() => {
-    setLoading(true);
-    setError(null);
-    setEmpty(null);
-    void loadLearnerTransport({ instituteId, studentId }).then(async (state) => {
-      if (state.status === "ready") {
-        setSummary(state.summary);
-        const liveData = await loadLearnerTransportLive({ instituteId, studentId });
-        setLive(liveData);
-        setLoading(false);
-        return;
-      }
-      if (state.status === "empty") {
-        setSummary(null);
-        setEmpty(state.message);
-        setLoading(false);
-        return;
-      }
-      if (state.status === "error") {
-        setError(state.message);
-        setLoading(false);
-        return;
-      }
-      setLoading(false);
-    });
-  }, [instituteId, studentId]);
+  const summary =
+    transportState?.status === "ready" ? transportState.summary : null;
+  const error =
+    transportState?.status === "error" ? transportState.message : null;
+  const empty =
+    transportState?.status === "empty" ? transportState.message : null;
+  const loading = isLoading && !transportState;
 
   useEffect(() => {
-    reload();
-  }, [reload]);
+    if (!summary) {
+      setLive(null);
+      return;
+    }
+    let cancelled = false;
+    void loadLearnerTransportLive({ instituteId, studentId }).then((liveData) => {
+      if (!cancelled) setLive(liveData);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [summary, instituteId, studentId]);
 
   useEffect(() => {
     try {
       const supabase = getSupabaseBrowserClient();
       return subscribeTransportRealtime(supabase, {
         instituteId,
-        onChange: reload,
+        onChange: refresh,
       });
     } catch {
       return undefined;
     }
-  }, [instituteId, reload]);
+  }, [instituteId, refresh]);
 
   useEffect(() => subscribeLearnerLiveTrip(() => setLiveTick((t) => t + 1)), []);
 
@@ -173,7 +165,7 @@ export function LearnerTransportApiView({
               ? tracking.nextStopName
               : summary.driverName ?? "Contact school transport office"
           }
-          tone={tracking.sharedTripActive ? "primary" : "neutral"}
+          tone={tracking.sharedTripActive ? "primary" : "default"}
         />
         <StatCard
           icon={MapPin}

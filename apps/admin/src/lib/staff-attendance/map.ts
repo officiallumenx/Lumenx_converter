@@ -55,12 +55,14 @@ export function staffAttendanceDtosToDaySummary(
     absent: marks.filter((m) => m.status === "absent").length,
     leave: marks.filter((m) => m.status === "leave").length,
     halfDay: marks.filter((m) => m.status === "half-day").length,
+    unmarked: marks.filter((m) => m.status == null).length,
     marks,
   };
 }
 
 /**
- * Fills missing teachers as draft "absent" placeholders so Admin can mark a full day.
+ * Adds active teachers missing from the day as unmarked placeholders.
+ * Flowchart requires an explicit status before submit — never invent absent.
  */
 export function mergeTeachersIntoDaySummary(
   summary: StaffAttendanceDaySummary,
@@ -74,7 +76,7 @@ export function mergeTeachersIntoDaySummary(
       id: `pending:${teacher.id}`,
       teacherId: teacher.id,
       teacherName: teacher.name,
-      status: "absent",
+      status: null,
       checkIn: null,
       checkOut: null,
       note: null,
@@ -94,6 +96,7 @@ export function mergeTeachersIntoDaySummary(
     absent: marks.filter((m) => m.status === "absent").length,
     leave: marks.filter((m) => m.status === "leave").length,
     halfDay: marks.filter((m) => m.status === "half-day").length,
+    unmarked: marks.filter((m) => m.status == null).length,
     marks,
   };
 }

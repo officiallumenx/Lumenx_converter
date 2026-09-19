@@ -1,5 +1,4 @@
-import { enrollmentsForVehicle } from "@lumenx/utils";
-
+import { getApiApprovedStudentCount } from "../api-roster";
 import { getRouteSetupDriverScope, getRouteSetupSnapshot } from "../route-setup/store";
 import { getTripAssignmentSnapshot } from "./store";
 
@@ -56,9 +55,7 @@ export function getAssignmentReadiness(): AssignmentReadinessResult {
   );
   const approvedStops = setup.stops.filter((s) => s.status === "approved");
   const hasApprovedStops = approvedStops.length > 0;
-  const studentCount = scope?.vehicleId
-    ? enrollmentsForVehicle(scope.vehicleId).length
-    : assignment.totalStudents;
+  const studentCount = getApiApprovedStudentCount(scope?.vehicleId);
   const hasStudents = studentCount > 0;
 
   const pendingStops = setup.stops.some((s) => s.status === "pending");

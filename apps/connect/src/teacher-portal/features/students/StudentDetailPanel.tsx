@@ -168,16 +168,21 @@ export function StudentDetailPanel({
         </div>
       ) : null}
 
-      {onAddRemark && !apiMode ? (
+      {onAddRemark ? (
         <div className="space-y-3 rounded-xl border border-border/80 bg-background/40 p-3">
           <h3 className="text-sm font-semibold">Remarks & feedback</h3>
           <RemarkForm onSubmit={onAddRemark} />
           <RemarkList remarks={detail.remarks} />
         </div>
-      ) : !apiMode && detail.remarks.length > 0 ? (
+      ) : detail.remarks.length > 0 ? (
         <div className="rounded-xl border border-border/80 bg-background/40 p-3">
           <h3 className="mb-2 text-sm font-semibold">Remarks</h3>
           <RemarkList remarks={detail.remarks} />
+        </div>
+      ) : apiMode ? (
+        <div className="rounded-xl border border-border/80 bg-background/40 p-3">
+          <h3 className="mb-2 text-sm font-semibold">Remarks</h3>
+          <p className="text-sm text-muted-foreground">No remarks yet.</p>
         </div>
       ) : null}
     </div>

@@ -4,6 +4,7 @@ import {
   notifyParentLeavePending,
   notifyTeacherOfStudentLeave,
 } from "@lumenx/module-notifications";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { alertStore } from "@/lib/alert-store";
 import { parentNotificationStore } from "@/lib/parent/notification-store";
 import { formatLeaveRequestDates, leaveDayCount } from "@/lib/leave-utils";
@@ -40,7 +41,7 @@ const seedLeaveRequests: LeaveRequest[] = [
   },
 ];
 
-let requests: LeaveRequest[] = seedLeaveRequests.map((r) => ({ ...r }));
+let requests: LeaveRequest[] = [];
 let initialized = false;
 const listeners = new Set<Listener>();
 
@@ -101,6 +102,13 @@ function teacherNewLeaveAlert(req: LeaveRequest, classTeacherName = "Class teach
 
 export const leaveStore = {
   init(seed: LeaveRequest[] = seedLeaveRequests) {
+    // Product is API-only — never seed Aarav Sharma / demo leave into the UI.
+    if (isApiAuthMode()) {
+      requests = [];
+      initialized = true;
+      notify();
+      return;
+    }
     if (initialized) return;
     requests = seed.map((r) => ({ ...r }));
     initialized = true;
@@ -117,6 +125,12 @@ export const leaveStore = {
     }
   },
   reset() {
+    if (isApiAuthMode()) {
+      requests = [];
+      initialized = false;
+      notify();
+      return;
+    }
     requests = seedLeaveRequests.map((r) => ({ ...r }));
     initialized = false;
     notify();

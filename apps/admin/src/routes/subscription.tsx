@@ -144,7 +144,7 @@ function PendingSubmissionCard({
     <Card className="mb-4 border-amber-500/35 bg-amber-500/5">
       <CardHeader
         title="Payment submitted. Waiting for verification."
-        hint="Subscription is not active yet · Nexus must verify this payment"
+        hint="Subscription is not active yet · payment verification is pending"
         action={
           <Pill tone="warning">{labelOfflinePaymentStatus(submission.status)}</Pill>
         }
@@ -577,7 +577,7 @@ function SubscriptionDemoPage() {
         <Card className="mb-4">
           <CardHeader
             title="Pay seat adjustment (offline)"
-            hint="Pay externally · submit reference · Nexus verifies"
+            hint="Pay externally · submit reference · await verification"
             action={
               <Button size="sm" data-admin-allow-readonly onClick={() => setStep("quote")}>
                 <ArrowLeft className="size-3.5" /> Back
@@ -724,7 +724,7 @@ function SubscriptionDemoPage() {
         <Card className="mb-4">
           <CardHeader
             title="Subscription quote"
-            hint="Review amount · then Pay Offline · Nexus verifies"
+            hint="Review amount · then pay offline · await verification"
           />
           <div className="px-5 pb-5 space-y-5">
             <MonthlyBreakdown quote={selectedQuote} />

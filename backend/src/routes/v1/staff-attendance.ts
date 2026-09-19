@@ -40,13 +40,7 @@ const timeOnly = z
   .regex(/^\d{2}:\d{2}(:\d{2})?$/, "Must be HH:MM or HH:MM:SS")
   .nullable()
   .optional();
-const statusSchema = z.enum([
-  "present",
-  "late",
-  "absent",
-  "leave",
-  "half-day",
-]);
+const statusSchema = z.enum(["present", "absent", "leave", "half-day"]);
 const dayStatusSchema = z.enum(["draft", "submitted"]);
 
 staffAttendance.get("/", async (c) => {

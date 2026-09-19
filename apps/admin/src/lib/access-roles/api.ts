@@ -59,10 +59,12 @@ export async function updateAccessRole(
 
 export async function deleteAccessRole(
   roleId: string,
+  opts?: { removeAssignees?: boolean },
   client: AdminApiClient = getAdminApiClient(),
 ): Promise<void> {
   assertApiMode();
-  await client.delete(`/api/v1/access-roles/${roleId}`);
+  const qs = opts?.removeAssignees ? "?remove_assignees=true" : "";
+  await client.delete(`/api/v1/access-roles/${roleId}${qs}`);
 }
 
 export async function listAccessAssignees(
@@ -88,6 +90,8 @@ export async function createAccessAssignee(
     display_name: input.displayName,
     email: input.email,
     phone: input.phone,
+    username: input.username,
+    pin: input.pin,
     linked_teacher_id: input.linkedTeacherId,
     linked_staff_id: input.linkedStaffId,
     assigned_section_keys: input.assignedSectionKeys,
@@ -134,24 +138,39 @@ export async function fetchMyAccessPermissions(
 export async function requestStaffLoginOtp(input: {
   instituteId: string;
   identifier: string;
+  channel?: "email" | "mobile";
+  delivery?: "server" | "firebase_client";
 }): Promise<{
   maskedDestination: string;
   channel: "email" | "mobile";
   displayName: string;
   devOtp?: string;
+  phoneE164?: string;
 }> {
   assertApiMode();
-  return getAdminApiClient().post("/api/v1/auth/staff/request-otp", {
-    institute_id: input.instituteId,
-    identifier: input.identifier,
-  });
+  return getAdminApiClient().post(
+    "/api/v1/auth/staff/request-otp",
+    {
+      institute_id: input.instituteId,
+      identifier: input.identifier,
+      channel: input.channel,
+      delivery: input.delivery,
+    },
+    { skipAuth: true },
+  );
 }
 
 export async function verifyStaffLogin(input: {
   instituteId: string;
   identifier: string;
-  otp: string;
+  otp?: string;
+  mobileOtp?: string;
+  emailOtp?: string;
+  mobileOtpGrant?: string;
+  emailOtpGrant?: string;
+  firebaseIdToken?: string;
   password: string;
+  pin: string;
 }): Promise<{
   accessToken: string;
   refreshToken: string;
@@ -159,17 +178,37 @@ export async function verifyStaffLogin(input: {
   displayName: string;
 }> {
   assertApiMode();
+  const mobileGrant =
+    input.mobileOtpGrant && /^[a-f0-9]{64}$/i.test(input.mobileOtpGrant)
+      ? input.mobileOtpGrant
+      : undefined;
+  const emailGrant =
+    input.emailOtpGrant &&
+    input.emailOtpGrant !== "firebase-email-skipped" &&
+    /^[a-f0-9]{64}$/i.test(input.emailOtpGrant)
+      ? input.emailOtpGrant
+      : undefined;
   const data = await getAdminApiClient().post<{
     access_token: string;
     refresh_token: string;
     institute_id: string;
     display_name: string;
-  }>("/api/v1/auth/staff/verify-login", {
-    institute_id: input.instituteId,
-    identifier: input.identifier,
-    otp: input.otp,
-    password: input.password,
-  });
+  }>(
+    "/api/v1/auth/staff/verify-login",
+    {
+      institute_id: input.instituteId,
+      identifier: input.identifier,
+      otp: input.otp,
+      mobile_otp: input.mobileOtp,
+      email_otp: input.emailOtp,
+      ...(mobileGrant ? { mobile_otp_grant: mobileGrant } : {}),
+      ...(emailGrant ? { email_otp_grant: emailGrant } : {}),
+      firebase_id_token: input.firebaseIdToken,
+      password: input.password,
+      pin: input.pin,
+    },
+    { skipAuth: true },
+  );
   return {
     accessToken: data.access_token,
     refreshToken: data.refresh_token,
@@ -187,24 +226,273 @@ export type StaffLoginInstituteDto = {
 
 export async function listStaffLoginInstitutes(): Promise<StaffLoginInstituteDto[]> {
   assertApiMode();
-  return getAdminApiClient().get<StaffLoginInstituteDto[]>("/api/v1/auth/staff/institutes");
+  return getAdminApiClient().get<StaffLoginInstituteDto[]>(
+    "/api/v1/auth/staff/institutes",
+    { skipAuth: true },
+  );
 }
 
 export async function resolveStaffLoginMode(input: {
   instituteId: string;
   identifier: string;
-}): Promise<{ requiresOtp: boolean; displayName: string }> {
+}): Promise<{
+  requiresOtp: boolean;
+  requiresDualOtp: boolean;
+  requiresPin: boolean;
+  firstLogin: boolean;
+  displayName: string;
+  isAssigned?: boolean;
+  isInstituteRoot?: boolean;
+}> {
   assertApiMode();
-  return getAdminApiClient().post("/api/v1/auth/staff/login-mode", {
-    institute_id: input.instituteId,
-    identifier: input.identifier,
-  });
+  return getAdminApiClient().post(
+    "/api/v1/auth/staff/login-mode",
+    {
+      institute_id: input.instituteId,
+      identifier: input.identifier,
+    },
+    { skipAuth: true },
+  );
+}
+
+export async function verifyStaffChannelOtp(input: {
+  instituteId: string;
+  identifier: string;
+  channel: "email" | "mobile";
+  otp: string;
+}): Promise<{ ok: true; channel: "email" | "mobile"; grant: string; expiresAt: string }> {
+  assertApiMode();
+  return getAdminApiClient().post(
+    "/api/v1/auth/staff/verify-otp",
+    {
+      institute_id: input.instituteId,
+      identifier: input.identifier,
+      channel: input.channel,
+      otp: input.otp,
+    },
+    { skipAuth: true },
+  );
+}
+
+export async function verifyStaffLoginFirebasePhone(input: {
+  instituteId: string;
+  identifier: string;
+  firebaseIdToken: string;
+}): Promise<{ ok: true; channel: "mobile"; grant: string; expiresAt: string }> {
+  assertApiMode();
+  return getAdminApiClient().post(
+    "/api/v1/auth/staff/verify-firebase-phone",
+    {
+      institute_id: input.instituteId,
+      identifier: input.identifier,
+      firebase_id_token: input.firebaseIdToken,
+    },
+    { skipAuth: true },
+  );
+}
+
+export async function requestStaffPasswordResetOtp(input: {
+  instituteId: string;
+  identifier: string;
+  channel: "email" | "mobile";
+  delivery?: "server" | "firebase_client";
+}) {
+  assertApiMode();
+  return getAdminApiClient().post<{
+    maskedDestination: string;
+    channel: "email" | "mobile";
+    displayName: string;
+    devOtp?: string;
+    phoneE164?: string;
+  }>(
+    "/api/v1/auth/staff/forgot-password/request-otp",
+    {
+      institute_id: input.instituteId,
+      identifier: input.identifier,
+      channel: input.channel,
+      delivery: input.delivery,
+    },
+    { skipAuth: true },
+  );
+}
+
+export async function verifyStaffPasswordResetOtp(input: {
+  instituteId: string;
+  identifier: string;
+  channel: "email" | "mobile";
+  otp: string;
+}) {
+  assertApiMode();
+  return getAdminApiClient().post<{
+    ok: true;
+    channel: "email" | "mobile";
+    grant: string;
+    expiresAt: string;
+  }>(
+    "/api/v1/auth/staff/forgot-password/verify-otp",
+    {
+      institute_id: input.instituteId,
+      identifier: input.identifier,
+      channel: input.channel,
+      otp: input.otp,
+    },
+    { skipAuth: true },
+  );
+}
+
+export async function completeStaffPasswordReset(input: {
+  instituteId: string;
+  identifier: string;
+  mobileOtpGrant: string;
+  emailOtpGrant?: string;
+  newPassword: string;
+}) {
+  assertApiMode();
+  const emailGrant =
+    input.emailOtpGrant &&
+    input.emailOtpGrant !== "firebase-email-skipped" &&
+    /^[a-f0-9]{64}$/i.test(input.emailOtpGrant)
+      ? input.emailOtpGrant
+      : undefined;
+  return getAdminApiClient().post<{ ok: true }>(
+    "/api/v1/auth/staff/forgot-password/complete",
+    {
+      institute_id: input.instituteId,
+      identifier: input.identifier,
+      mobile_otp_grant: input.mobileOtpGrant,
+      ...(emailGrant ? { email_otp_grant: emailGrant } : {}),
+      new_password: input.newPassword,
+    },
+    { skipAuth: true },
+  );
+}
+
+export async function requestStaffPinResetOtp(input: {
+  instituteId: string;
+  identifier: string;
+  channel: "email" | "mobile";
+  delivery?: "server" | "firebase_client";
+}) {
+  assertApiMode();
+  return getAdminApiClient().post<{
+    maskedDestination: string;
+    channel: "email" | "mobile";
+    displayName: string;
+    devOtp?: string;
+    phoneE164?: string;
+  }>(
+    "/api/v1/auth/staff/forgot-pin/request-otp",
+    {
+      institute_id: input.instituteId,
+      identifier: input.identifier,
+      channel: input.channel,
+      delivery: input.delivery,
+    },
+    { skipAuth: true },
+  );
+}
+
+export async function verifyStaffPasswordResetFirebasePhone(input: {
+  instituteId: string;
+  identifier: string;
+  firebaseIdToken: string;
+}) {
+  assertApiMode();
+  return getAdminApiClient().post<{
+    ok: true;
+    channel: "mobile";
+    grant: string;
+    expiresAt: string;
+  }>(
+    "/api/v1/auth/staff/forgot-password/verify-firebase-phone",
+    {
+      institute_id: input.instituteId,
+      identifier: input.identifier,
+      firebase_id_token: input.firebaseIdToken,
+    },
+    { skipAuth: true },
+  );
+}
+
+export async function verifyStaffPinResetFirebasePhone(input: {
+  instituteId: string;
+  identifier: string;
+  firebaseIdToken: string;
+}) {
+  assertApiMode();
+  return getAdminApiClient().post<{
+    ok: true;
+    channel: "mobile";
+    grant: string;
+    expiresAt: string;
+  }>(
+    "/api/v1/auth/staff/forgot-pin/verify-firebase-phone",
+    {
+      institute_id: input.instituteId,
+      identifier: input.identifier,
+      firebase_id_token: input.firebaseIdToken,
+    },
+    { skipAuth: true },
+  );
+}
+
+export async function verifyStaffPinResetOtp(input: {
+  instituteId: string;
+  identifier: string;
+  channel: "email" | "mobile";
+  otp: string;
+}) {
+  assertApiMode();
+  return getAdminApiClient().post<{
+    ok: true;
+    channel: "email" | "mobile";
+    grant: string;
+    expiresAt: string;
+  }>(
+    "/api/v1/auth/staff/forgot-pin/verify-otp",
+    {
+      institute_id: input.instituteId,
+      identifier: input.identifier,
+      channel: input.channel,
+      otp: input.otp,
+    },
+    { skipAuth: true },
+  );
+}
+
+export async function completeStaffPinReset(input: {
+  instituteId: string;
+  identifier: string;
+  mobileOtpGrant: string;
+  emailOtpGrant?: string;
+  newPin: string;
+}) {
+  assertApiMode();
+  const emailGrant =
+    input.emailOtpGrant &&
+    input.emailOtpGrant !== "firebase-email-skipped" &&
+    /^[a-f0-9]{64}$/i.test(input.emailOtpGrant)
+      ? input.emailOtpGrant
+      : undefined;
+  return getAdminApiClient().post<{ ok: true }>(
+    "/api/v1/auth/staff/forgot-pin/complete",
+    {
+      institute_id: input.instituteId,
+      identifier: input.identifier,
+      mobile_otp_grant: input.mobileOtpGrant,
+      ...(emailGrant ? { email_otp_grant: emailGrant } : {}),
+      new_pin: input.newPin,
+    },
+    { skipAuth: true },
+  );
 }
 
 export async function verifyStaffPasswordLogin(input: {
   instituteId: string;
   identifier: string;
-  password: string;
+  password?: string;
+  firebaseIdToken?: string;
+  pin: string;
 }): Promise<{
   accessToken: string;
   refreshToken: string;
@@ -217,11 +505,17 @@ export async function verifyStaffPasswordLogin(input: {
     refresh_token: string;
     institute_id: string;
     display_name: string;
-  }>("/api/v1/auth/staff/password-login", {
-    institute_id: input.instituteId,
-    identifier: input.identifier,
-    password: input.password,
-  });
+  }>(
+    "/api/v1/auth/staff/password-login",
+    {
+      institute_id: input.instituteId,
+      identifier: input.identifier,
+      password: input.password,
+      firebase_id_token: input.firebaseIdToken,
+      pin: input.pin,
+    },
+    { skipAuth: true },
+  );
   return {
     accessToken: data.access_token,
     refreshToken: data.refresh_token,

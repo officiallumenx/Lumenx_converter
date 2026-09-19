@@ -15,6 +15,7 @@ export const SUBMITTED_REGISTRATION_KEY  = "lx_submitted_registration_v1";
 
 export const INSTITUTE_TYPES = [
   "School (K-12)",
+  "High School (up to Grade 10)",
   "Junior College",
   "Degree College",
   "University",

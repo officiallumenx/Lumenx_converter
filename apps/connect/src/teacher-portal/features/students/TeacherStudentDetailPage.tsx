@@ -4,7 +4,7 @@ import { teacherRepository } from "@/lib/teacher/repositories";
 import { isTeacherAccessDenied } from "@/lib/teacher/portal-access-guard";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useApp } from "@/lib/app-state";
-import { loadTeacherStudentDetail } from "@/lib/students";
+import { useTeacherStudentDetailQuery } from "@/lib/connect-queries/hooks";
 import { useAsyncLoad } from "@/lib/hooks/useAsyncLoad";
 import { StudentDetailPanel } from "./StudentDetailPanel";
 import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
@@ -36,15 +36,30 @@ function ApiTeacherStudentDetailPage({
   returnTo?: StudentReturnContext;
 }) {
   const { activeInstituteId } = useApp();
-  const { data: detail, loading } = useAsyncLoad(
-    () =>
-      loadTeacherStudentDetail({
-        instituteId: activeInstituteId,
-        studentId,
-      }).then((result) => (result.status === "ready" ? result.detail : null)),
-    [activeInstituteId, studentId],
-    { initial: null as StudentDetail | null },
+  const { data, isLoading, refresh } = useTeacherStudentDetailQuery(
+    activeInstituteId,
+    studentId,
+    Boolean(activeInstituteId) && Boolean(studentId),
   );
+
+  const detail = data?.status === "ready" ? data.detail : null;
+  const loading = isLoading && !data;
+
+  const addRemark = async (type: RemarkType, text: string) => {
+    try {
+      await teacherRepository.addRemark(
+        studentId,
+        { type, text },
+        { instituteId: activeInstituteId },
+      );
+    } catch (error) {
+      if (isTeacherAccessDenied(error)) return;
+      toast.error(error instanceof Error ? error.message : "Could not add remark");
+      return;
+    }
+    toast.success("Remark added");
+    refresh();
+  };
 
   const backTo =
     returnTo?.from === "classes" && returnTo.classId
@@ -93,7 +108,7 @@ function ApiTeacherStudentDetailPage({
         </div>
       </div>
 
-      <StudentDetailPanel detail={detail} apiMode />
+      <StudentDetailPanel detail={detail} apiMode onAddRemark={addRemark} />
     </div>
   );
 }

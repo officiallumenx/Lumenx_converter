@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Sparkles } from "lucide-react";
 import { useAuth } from "@/auth/AuthContext";
+import { LumenXAdminLogo } from "@/components/LumenXAdminLogo";
 
 export const Route = createFileRoute("/splash")({
   head: () => ({ meta: [{ title: "LumenX Admin" }] }),
@@ -78,15 +78,13 @@ function SplashScreen() {
       >
         {/* Animated logo */}
         <div className="relative mb-6">
-          {/* Outer ring pulse */}
           <div className="absolute inset-0 rounded-2xl bg-primary/20 animate-ping" />
-          <div className="relative size-20 rounded-2xl bg-primary flex items-center justify-center shadow-glow">
-            <Sparkles className="size-9 text-primary-foreground" />
+          <div className="relative rounded-2xl bg-white p-3 shadow-glow">
+            <LumenXAdminLogo size="hero" className="max-h-16" />
           </div>
         </div>
 
         <div className="text-center">
-          <div className="text-2xl font-bold tracking-tight">LUMENX ADMIN</div>
           <div className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground mt-1.5">
             Institute Intelligence Platform
           </div>

@@ -12,6 +12,8 @@ export type VehicleDto = {
   capacity: number;
   status: TransportAssetStatus;
   notes: string | null;
+  /** Derived from driver.assigned_vehicle_id when linked. */
+  assignedDriverId: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -30,6 +32,9 @@ export type DriverDto = {
   licenseExpiry: string | null;
   status: TransportAssetStatus;
   notes: string | null;
+  assignedVehicleId: string | null;
+  /** True when an app account PIN is set (plaintext never returned). */
+  hasAppPin: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -92,6 +97,10 @@ export type TransportSettingsDto = {
   defaultNotificationRadiusM: number;
   defaultPickupBufferMins: number;
   workingDays: number[];
+  notificationsEnabled: boolean;
+  rememberEnabled: boolean;
+  /** HH:MM or null when unset. */
+  defaultPickupTime: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -107,8 +116,9 @@ export type TransportEnrollmentDto = {
   instituteId: string;
   studentId: string;
   routeId: string;
-  pickupStopId: string;
-  dropStopId: string;
+  /** Nullable — bus/route assign without stops is allowed. */
+  pickupStopId: string | null;
+  dropStopId: string | null;
   status: EnrollmentStatus;
   approvalStatus: TransportApprovalStatus;
   submittedByUserId: string | null;
@@ -125,8 +135,12 @@ export type ListTransportEnrollmentsParams = {
 
 export type TransportEnrollmentListItem = {
   id: string;
+  studentId: string;
   studentName: string;
+  /** Combined display label (e.g. Class 10-A). */
   studentClass: string;
+  classLabel: string | null;
+  sectionLabel: string | null;
   routeName: string;
   pickupStopName: string;
   dropStopName: string;

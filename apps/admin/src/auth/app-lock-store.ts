@@ -4,14 +4,13 @@
  *  Replace with secure enclave / API in production.
  * ───────────────────────────────────────────────────────────── */
 
-import { DEMO_USERS } from "./constants";
 import { notifyAccountSecurityChange, notifySecurityEvent } from "@lumenx/module-notifications";
 import { isAppLockRequired, isLocalPinStorageAllowed } from "./app-lock-policy";
 
 export const APP_UNLOCK_SESSION_KEY = "lx_app_unlocked_session_v1";
 export const USER_PINS_STORAGE_KEY  = "lx_user_security_pins_v1";
 
-/** Default demo PIN for all demo accounts */
+/** @deprecated Demo PIN seeding removed — unused. */
 export const DEMO_SECURITY_PIN = "123456";
 
 export const PIN_LENGTH = 6;
@@ -36,18 +35,9 @@ function writePins(pins: UserPinMap): void {
   }
 }
 
-/** Seed demo user PINs on first run (demo mode only). */
+/** Demo PIN seeding removed — no-op (API-only product mode). */
 export function ensureDemoPinsSeeded(): void {
-  if (!isLocalPinStorageAllowed()) return;
-  const pins = loadPins();
-  let changed = false;
-  for (const demo of DEMO_USERS) {
-    if (!pins[demo.user.id]) {
-      pins[demo.user.id] = DEMO_SECURITY_PIN;
-      changed = true;
-    }
-  }
-  if (changed) writePins(pins);
+  // Intentionally empty: DEMO_USERS must not seed local PINs.
 }
 
 export function saveUserPin(userId: string, pin: string, email?: string): void {

@@ -1,4 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { useCalendarListQuery, adminQueryRoots } from "@/lib/admin-queries";
+import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
 import {
   Card,
@@ -32,9 +35,7 @@ import {
   createEvent,
   cancelEvent,
   deleteEvent,
-  loadCalendarList,
   resolveCalendarListView,
-  shouldCommitCalendarLoad,
   updateEvent,
   type CalendarListItem,
   type CalendarListStatus,
@@ -99,7 +100,23 @@ function CalendarPage() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const queryClient = useQueryClient();
+  const listEnabled =
+    apiMode &&
+    instituteCtx.status === "ready" &&
+    Boolean(instituteCtx.activeInstituteId);
+  const calendarQuery = useCalendarListQuery(
+    instituteCtx.activeInstituteId,
+    listEnabled,
+  );
+  const bumpCalendarReload = () => {
+    invalidateAdminCache("admin:calendar");
+    if (instituteCtx.activeInstituteId) {
+      void queryClient.invalidateQueries({
+        queryKey: [adminQueryRoots.calendar, instituteCtx.activeInstituteId],
+      });
+    }
+  };
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
@@ -109,7 +126,8 @@ function CalendarPage() {
     activeInstituteId: instituteCtx.activeInstituteId,
     resolvedForInstituteId,
     storedItems: apiItems,
-    storedStatus: listStatus,
+    storedStatus:
+      calendarQuery.isLoading && !calendarQuery.data ? "loading" : listStatus,
     storedErrorMessage: listError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
@@ -163,34 +181,25 @@ function CalendarPage() {
       return;
     }
 
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setListStatus("loading");
-    setListError(null);
-    void loadCalendarList(requestInstituteId).then((next) => {
-      if (
-        !shouldCommitCalendarLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setApiItems(next.items);
-      setListStatus(next.status);
-      setListError(next.errorMessage);
-      setResolvedForInstituteId(requestInstituteId);
-    });
-    return () => {
-      cancelled = true;
-    };
+    if (calendarQuery.isLoading && !calendarQuery.data) {
+      setListStatus("loading");
+      setListError(null);
+      return;
+    }
+    if (!calendarQuery.data) return;
+
+    const next = calendarQuery.data;
+    setApiItems(next.items);
+    setListStatus(next.status);
+    setListError(next.errorMessage);
+    setResolvedForInstituteId(instituteCtx.activeInstituteId);
   }, [
     apiMode,
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
-    reloadKey,
+    calendarQuery.data,
+    calendarQuery.isLoading,
   ]);
 
   useEffect(() => {
@@ -227,7 +236,7 @@ function CalendarPage() {
         .then(() => deleteEvent(id))
         .then(() => {
           if (editingId === id) resetForm();
-          setReloadKey((k) => k + 1);
+          bumpCalendarReload();
           notify("Calendar date removed");
         })
         .catch((err) => {
@@ -271,7 +280,7 @@ function CalendarPage() {
       const done = () => {
         resetForm();
         setOpen(false);
-        setReloadKey((k) => k + 1);
+        bumpCalendarReload();
       };
       if (editingId) {
         void updateEvent(editingId, {
@@ -353,7 +362,7 @@ function CalendarPage() {
       title={M.calendar}
       subtitle={
         apiMode
-          ? "API mode · create / update / delete via events API"
+          ? "Create / update / delete events"
           : `Session ${ACADEMIC_YEAR.label} · drives attendance holidays & exam windows`
       }
       actions={

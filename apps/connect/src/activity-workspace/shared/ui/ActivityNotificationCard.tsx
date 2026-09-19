@@ -49,7 +49,7 @@ function resolveIcon(notification: ActivityNotification): LucideIcon {
   if (hay.includes("achievement") || hay.includes("result")) return Trophy;
   if (hay.includes("sports") || hay.includes("team")) return Trophy;
   if (hay.includes("eca") || hay.includes("group")) return Sparkles;
-  return CATEGORY_ICONS[notification.category];
+  return CATEGORY_ICONS[notification.category] ?? Bell;
 }
 
 export function ActivityNotificationCard({
@@ -62,6 +62,8 @@ export function ActivityNotificationCard({
   const [open, setOpen] = useState(false);
   const isUrgent = notification.category === "urgent";
   const Icon = resolveIcon(notification);
+  const categoryLabel =
+    CATEGORY_LABELS[notification.category] ?? "Update";
   const accent = isUrgent
     ? { primary: "#DC2626", chip: "color-mix(in srgb, #DC2626 20%, var(--card))" }
     : {
@@ -114,7 +116,7 @@ export function ActivityNotificationCard({
                   : undefined
               }
             >
-              {CATEGORY_LABELS[notification.category]}
+              {categoryLabel}
             </span>
             {notification.unread ? (
               <span
@@ -156,7 +158,7 @@ export function ActivityNotificationCard({
                 )}
                 style={!isUrgent ? { color: accent.primary } : undefined}
               >
-                {CATEGORY_LABELS[notification.category]}
+                {categoryLabel}
               </span>
               {notification.unread ? (
                 <Badge className="border-0 bg-primary/15 text-primary">Unread</Badge>

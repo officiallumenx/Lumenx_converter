@@ -58,6 +58,7 @@ export type FeePaymentRow = {
   fee_plan_id: string;
   student_fee_id: string;
   student_id: string;
+  fee_component_id: string | null;
   amount: number | string;
   method: FeePaymentMethod;
   receipt_no: string;
@@ -129,6 +130,7 @@ export type FeePaymentDto = {
   instituteId: string;
   studentFeeId: string;
   studentId: string;
+  feeComponentId: string | null;
   amount: number;
   method: FeePaymentMethod;
   receiptNo: string;
@@ -145,6 +147,8 @@ export type FeeLineDto = {
   name: string;
   defaultAmount: number;
   amount: number;
+  paidAmount: number;
+  balanceAmount: number;
   overridden: boolean;
   note?: string;
 };
@@ -205,8 +209,10 @@ export type RecordFeePaymentInput = {
   amount: number;
   method: FeePaymentMethod;
   paidOn: string;
-  /** Required office note (how/why payment was taken at reception). */
-  note: string;
+  /** Required txn/reference for non-cash modes; optional for cash (offline). */
+  note?: string | null;
+  /** Flowchart: select category — payment applies to this fee component. */
+  feeComponentId: string;
 };
 
 export type VoidFeePaymentInput = {

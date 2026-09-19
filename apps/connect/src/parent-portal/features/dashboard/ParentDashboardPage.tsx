@@ -36,7 +36,7 @@ import {
   getParentNavItem,
   isParentRouteActive,
 } from "@/lib/parent/nav";
-import { Badge, cn, DashboardCustomizeBar, DashboardLayoutProvider, DashboardWidgets, type DashboardWidgetDef } from "@lumenx/ui";
+import { Badge, cn } from "@lumenx/ui";
 import { Avatar, AvatarFallback } from "@lumenx/ui";
 import { Button } from "@lumenx/ui";
 import { Skeleton } from "@lumenx/ui";
@@ -76,17 +76,17 @@ const QUICK_LINK_DEFS = [
   { to: "/attendance", icon: ClipboardCheck },
   { to: "/timetable", icon: Calendar },
   { to: "/assignments", icon: BookOpen },
-  { to: "/sports", icon: Trophy },
+  { to: "/activities", icon: Trophy },
   { to: "/marks", icon: GraduationCap },
   { to: "/messages", icon: MessageSquare },
 ] as const;
 
-const QUICK_LINKS = QUICK_LINK_DEFS.map(({ to, icon }) => {
-  const nav = getParentNavItem(to)!;
-  return { to, label: nav.label, icon, moduleColor: nav.moduleColor };
+const QUICK_LINKS = QUICK_LINK_DEFS.flatMap(({ to, icon }) => {
+  const nav = getParentNavItem(to);
+  return nav ? [{ to, label: nav.label, icon, moduleColor: nav.moduleColor }] : [];
 });
 
-const PARENT_HOME_WIDGETS: DashboardWidgetDef[] = [
+const PARENT_HOME_WIDGETS: { id: string; label: string }[] = [
   { id: "stats", label: "Snapshot" },
   { id: "attendance", label: "Attendance" },
   { id: "quick-actions", label: "Quick Actions" },
@@ -96,7 +96,13 @@ const PARENT_HOME_WIDGETS: DashboardWidgetDef[] = [
 ];
 
 export const ParentDashboardPage = memo(function ParentDashboardPage() {
-  const { activeChildId, activeInstituteId, linkedChildren } = useApp();
+  const {
+    activeChildId,
+    activeInstituteId,
+    linkedChildren,
+    linkedChildrenLoading,
+    linkedChildrenError,
+  } = useApp();
   const { pathname } = useLocation();
 
   useEffect(() => {
@@ -128,7 +134,6 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
   );
 
   const snap = portal.isParent ? portal.snapshot : null;
-  const loading = portal.isParent && portal.isLoading;
 
   const performance = snap?.performance;
   const trend = snap?.trend;
@@ -150,11 +155,12 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
   }, [performance]);
 
   const today = days[Math.max(0, Math.min(5, new Date().getDay() - 1))];
-  const firstName = child.name.split(" ")[0];
+  const firstName = child?.name.split(" ")[0] ?? "";
   const unreadNotifications = (snap?.notifications ?? []).filter((n) => n.unread).length;
   const todayWorkCount = todayAssignments.length + todayHomework.length;
 
   const attendanceToday = useMemo(() => {
+    if (!child) return null;
     const now = new Date();
     const iso = isoFromParts(now.getFullYear(), now.getMonth(), now.getDate());
     const sectionKey = attendanceSectionKey(child.className, child.section);
@@ -176,9 +182,10 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
       displayDate: formatDisplayDate(iso),
       fromRegister: fromRegister.fromRegister,
     };
-  }, [child.className, child.section, child.id, child.rollNo]);
+  }, [child]);
 
   const attendanceHistory = useMemo(() => {
+    if (!child) return null;
     const now = new Date();
     const sectionKey = attendanceSectionKey(child.className, child.section);
     const attendanceStudentId = toAttendanceStudentId({
@@ -205,31 +212,57 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
         iso: isoFromParts(now.getFullYear(), now.getMonth(), d.day),
       }));
     return { summary, recent };
-  }, [child.className, child.section, child.id, child.rollNo]);
+  }, [child]);
 
   const attendanceNotifs = useMemo(
     () =>
-      buildLearnerAttendanceNotifications({
-        recipient: "parent",
-        studentId: resolveParentChildAttendanceStudentId(child),
-        limit: 5,
-      }),
+      child
+        ? buildLearnerAttendanceNotifications({
+            recipient: "parent",
+            studentId: resolveParentChildAttendanceStudentId(child),
+            limit: 5,
+          })
+        : [],
     [child],
   );
 
-  if (loading && !snap) {
+  if (isApiAuthMode() && linkedChildrenLoading && linkedChildren.length === 0) {
     return (
       <div className="min-w-0 max-w-full space-y-4 md:space-y-6">
         <ChildSwitcher />
         <div className="rounded-3xl border border-border bg-card p-6 space-y-4">
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-32 w-full rounded-2xl" />
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Skeleton className="h-24 rounded-2xl" />
-            <Skeleton className="h-24 rounded-2xl" />
-            <Skeleton className="h-24 rounded-2xl" />
-            <Skeleton className="h-24 rounded-2xl" />
-          </div>
+          <Skeleton className="h-24 w-full rounded-2xl" />
+        </div>
+      </div>
+    );
+  }
+
+  if (isApiAuthMode() && !linkedChildrenLoading && linkedChildren.length === 0) {
+    return (
+      <div className="min-w-0 max-w-full space-y-4 md:space-y-6">
+        <ChildSwitcher />
+        <div className="rounded-3xl border border-border bg-card p-6 space-y-2">
+          <h2 className="text-base font-semibold">No children linked yet</h2>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            {linkedChildrenError
+              ? linkedChildrenError
+              : "Ask your school office to create the student with your mobile number as the parent contact. Then pull to refresh or sign in again."}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!child || !snap || !attendanceToday || !attendanceHistory) {
+    return (
+      <div className="min-w-0 max-w-full space-y-4 md:space-y-6">
+        <ChildSwitcher />
+        <div className="rounded-3xl border border-border bg-card p-6 space-y-4">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-32 w-full rounded-2xl" />
+          <Skeleton className="h-24 w-full rounded-2xl" />
         </div>
       </div>
     );
@@ -297,14 +330,9 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
         </div>
       </div>
 
-      <DashboardLayoutProvider
-        storageKey={`connect.parent.${activeInstituteId ?? "default"}`}
-        widgets={PARENT_HOME_WIDGETS}
-      >
-        <div className="min-w-0 space-y-4 md:space-y-6">
-        <DashboardCustomizeBar />
-        <DashboardWidgets
-          render={(id) => {
+      <div className="min-w-0 space-y-4 md:space-y-6">
+        {PARENT_HOME_WIDGETS.map(({ id }) => {
+          const node = (() => {
             if (id === "stats") {
               return (
       <div className="grid min-w-0 auto-rows-fr grid-cols-2 items-stretch gap-2.5 sm:gap-3 md:grid-cols-4 md:gap-4">
@@ -668,10 +696,10 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
               );
             }
             return null;
-          }}
-        />
+          })();
+          return node ? <div key={id}>{node}</div> : null;
+        })}
         </div>
-      </DashboardLayoutProvider>
     </div>
   );
 });

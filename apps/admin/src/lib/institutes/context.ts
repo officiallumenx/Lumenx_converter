@@ -132,7 +132,7 @@ export async function loadInstituteContext(): Promise<InstituteContextState> {
     }
 
     const institutes = isPlatformOperator
-      ? listed.filter((inst) => inst.status === "active")
+      ? listed.filter((inst) => inst.status !== "archived")
       : filterSelectableInstitutes(listed, memberships);
     const allowInstituteIds = isPlatformOperator
       ? institutes.map((inst) => inst.id)
@@ -150,7 +150,7 @@ export async function loadInstituteContext(): Promise<InstituteContextState> {
       if (!activeInstitute) {
         try {
           const detail = await getInstitute(resolved.instituteId);
-          if (detail.status === "active") {
+          if (detail.status !== "archived") {
             activeInstitute = detail;
           } else {
             clearStoredActiveInstituteId();
@@ -250,7 +250,10 @@ export function chooseActiveInstitute(
   if (!chosen) {
     throw new Error("Selected institute is not available for this account");
   }
-  if (chosen.status !== "active") {
+  if (chosen.status === "archived") {
+    throw new Error("Selected institute is not available for this account");
+  }
+  if (chosen.status !== "active" && !opts?.isPlatformOperator) {
     throw new Error("Selected institute is not available for this account");
   }
   // Membership authorization + UUID persist (throws if not accessible).

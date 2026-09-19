@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../config/env.js";
 import type { Logger } from "../logger/logger.js";
+import { attachAdminClientCredentials } from "../auth/create-server-session.js";
 
 export interface SupabaseClients {
   /** Service-role client — full server-side access (Auth Admin, Postgres, Storage). */
@@ -67,6 +68,14 @@ export function createSupabaseClients(
       persistSession: false,
     },
   });
+  attachAdminClientCredentials(
+    admin,
+    config.url,
+    config.serviceRoleKey,
+    config.anonKey,
+  );
+  // Ensure no leftover user JWT from prior process state (tests / hot reload).
+  void admin.auth.signOut({ scope: "local" }).catch(() => undefined);
 
   const anon = createClient(config.url, config.anonKey, {
     auth: {

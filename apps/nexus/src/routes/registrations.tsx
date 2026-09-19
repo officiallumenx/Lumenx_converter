@@ -153,9 +153,7 @@ function RegistrationsPage() {
           setActionError(
             result.unauthorized
               ? "Authentication required — sign in as an authorized Nexus reviewer."
-              : result.forbidden
-                ? "You are not authorized to approve registrations."
-                : result.message,
+              : result.message,
           );
           return;
         }
@@ -230,9 +228,7 @@ function RegistrationsPage() {
           setActionError(
             result.unauthorized
               ? "Authentication required — sign in as an authorized Nexus reviewer."
-              : result.forbidden
-                ? "You are not authorized to reject registrations."
-                : result.message,
+              : result.message,
           );
           return;
         }

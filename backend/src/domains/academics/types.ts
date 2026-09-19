@@ -47,6 +47,7 @@ export type SectionRow = {
   room: string | null;
   sort_order: number;
   status: SectionStatus;
+  class_teacher_id: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -215,6 +216,7 @@ export type SectionDto = {
   room: string | null;
   sortOrder: number;
   status: SectionStatus;
+  classTeacherId: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -298,6 +300,7 @@ export type CreateSectionInput = {
   room?: string | null;
   sortOrder?: number;
   status?: SectionStatus;
+  classTeacherId?: string | null;
 };
 
 export type UpdateSectionInput = {
@@ -307,6 +310,7 @@ export type UpdateSectionInput = {
   room?: string | null;
   sortOrder?: number;
   status?: SectionStatus;
+  classTeacherId?: string | null;
 };
 
 export type CreateSubjectInput = {
@@ -317,6 +321,8 @@ export type CreateSubjectInput = {
   periodsPerWeek: number;
   applicableClassCodes: string[];
   status?: SubjectStatus;
+  /** Teachers qualified for this subject at create time (subject_teacher). */
+  teacherIds?: string[];
 };
 
 export type UpdateSubjectInput = {

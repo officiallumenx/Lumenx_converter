@@ -10,73 +10,64 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VerifyCertificateRouteImport } from './routes/verify-certificate'
-import { Route as TransportRouteImport } from './routes/transport'
-import { Route as TimetableRouteImport } from './routes/timetable'
 import { Route as TermsRouteImport } from './routes/terms'
-import { Route as TeachersRouteImport } from './routes/teachers'
-import { Route as StudentsRouteImport } from './routes/students'
 import { Route as SportsRouteImport } from './routes/sports'
-import { Route as RemarksRouteImport } from './routes/remarks'
-import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PrivacyRouteImport } from './routes/privacy'
-import { Route as NotificationsRouteImport } from './routes/notifications'
-import { Route as MessagesRouteImport } from './routes/messages'
-import { Route as MarksRouteImport } from './routes/marks'
 import { Route as LoginRouteImport } from './routes/login'
-import { Route as LeaveRouteImport } from './routes/leave'
-import { Route as IdCardRouteImport } from './routes/id-card'
-import { Route as GrowthRouteImport } from './routes/growth'
-import { Route as FeesRouteImport } from './routes/fees'
-import { Route as ExamsRouteImport } from './routes/exams'
-import { Route as EventsRouteImport } from './routes/events'
-import { Route as DiaryRouteImport } from './routes/diary'
 import { Route as CookiesRouteImport } from './routes/cookies'
-import { Route as ComplaintsRouteImport } from './routes/complaints'
-import { Route as ClassesRouteImport } from './routes/classes'
-import { Route as CertificatesRouteImport } from './routes/certificates'
 import { Route as CareersRouteImport } from './routes/careers'
-import { Route as AttendanceRouteImport } from './routes/attendance'
-import { Route as AssignmentsRouteImport } from './routes/assignments'
-import { Route as AnnouncementsRouteImport } from './routes/announcements'
-import { Route as AlertsRouteImport } from './routes/alerts'
 import { Route as AdmissionsRouteImport } from './routes/admissions'
-import { Route as ActivityRouteImport } from './routes/activity'
-import { Route as ActivitiesRouteImport } from './routes/activities'
-import { Route as AchievementsRouteImport } from './routes/achievements'
-import { Route as AcademicHistoryRouteImport } from './routes/academic-history'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as ActivityIndexRouteImport } from './routes/activity/index'
+import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
+import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as VerifyStudentIdRouteImport } from './routes/verify.$studentId'
-import { Route as StudentsStudentIdRouteImport } from './routes/students.$studentId'
 import { Route as CareersSplatRouteImport } from './routes/careers/$'
-import { Route as AnnouncementsIdRouteImport } from './routes/announcements.$id'
 import { Route as AdmissionsSplatRouteImport } from './routes/admissions/$'
-import { Route as ActivitySportsRouteImport } from './routes/activity/sports'
-import { Route as ActivityProfileRouteImport } from './routes/activity/profile'
-import { Route as ActivityPracticeRouteImport } from './routes/activity/practice'
-import { Route as ActivityNotificationsRouteImport } from './routes/activity/notifications'
-import { Route as ActivityMessagesRouteImport } from './routes/activity/messages'
-import { Route as ActivityExtraCurricularRouteImport } from './routes/activity/extra-curricular'
-import { Route as ActivityDiaryRouteImport } from './routes/activity/diary'
-import { Route as ActivityCertificatesRouteImport } from './routes/activity/certificates'
-import { Route as ActivityCalendarRouteImport } from './routes/activity/calendar'
-import { Route as ActivityAttendanceRouteImport } from './routes/activity/attendance'
-import { Route as ActivityAnnouncementsRouteImport } from './routes/activity/announcements'
-import { Route as ActivityAchievementsRouteImport } from './routes/activity/achievements'
+import { Route as AuthenticatedTransportRouteImport } from './routes/_authenticated/transport'
+import { Route as AuthenticatedTimetableRouteImport } from './routes/_authenticated/timetable'
+import { Route as AuthenticatedTeachersRouteImport } from './routes/_authenticated/teachers'
+import { Route as AuthenticatedStudentsRouteImport } from './routes/_authenticated/students'
+import { Route as AuthenticatedRemarksRouteImport } from './routes/_authenticated/remarks'
+import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
+import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
+import { Route as AuthenticatedMessagesRouteImport } from './routes/_authenticated/messages'
+import { Route as AuthenticatedMarksRouteImport } from './routes/_authenticated/marks'
+import { Route as AuthenticatedLeaveRouteImport } from './routes/_authenticated/leave'
+import { Route as AuthenticatedIdCardRouteImport } from './routes/_authenticated/id-card'
+import { Route as AuthenticatedGrowthRouteImport } from './routes/_authenticated/growth'
+import { Route as AuthenticatedFeesRouteImport } from './routes/_authenticated/fees'
+import { Route as AuthenticatedExamsRouteImport } from './routes/_authenticated/exams'
+import { Route as AuthenticatedEventsRouteImport } from './routes/_authenticated/events'
+import { Route as AuthenticatedDiaryRouteImport } from './routes/_authenticated/diary'
+import { Route as AuthenticatedComplaintsRouteImport } from './routes/_authenticated/complaints'
+import { Route as AuthenticatedClassesRouteImport } from './routes/_authenticated/classes'
+import { Route as AuthenticatedCertificatesRouteImport } from './routes/_authenticated/certificates'
+import { Route as AuthenticatedAttendanceRouteImport } from './routes/_authenticated/attendance'
+import { Route as AuthenticatedAssignmentsRouteImport } from './routes/_authenticated/assignments'
+import { Route as AuthenticatedAnnouncementsRouteImport } from './routes/_authenticated/announcements'
+import { Route as AuthenticatedAlertsRouteImport } from './routes/_authenticated/alerts'
+import { Route as AuthenticatedActivityRouteImport } from './routes/_authenticated/activity'
+import { Route as AuthenticatedActivitiesRouteImport } from './routes/_authenticated/activities'
+import { Route as AuthenticatedAchievementsRouteImport } from './routes/_authenticated/achievements'
+import { Route as AuthenticatedAcademicHistoryRouteImport } from './routes/_authenticated/academic-history'
+import { Route as AuthenticatedActivityIndexRouteImport } from './routes/_authenticated/activity/index'
+import { Route as AuthenticatedStudentsStudentIdRouteImport } from './routes/_authenticated/students.$studentId'
+import { Route as AuthenticatedAnnouncementsIdRouteImport } from './routes/_authenticated/announcements.$id'
+import { Route as AuthenticatedActivitySportsRouteImport } from './routes/_authenticated/activity/sports'
+import { Route as AuthenticatedActivityProfileRouteImport } from './routes/_authenticated/activity/profile'
+import { Route as AuthenticatedActivityPracticeRouteImport } from './routes/_authenticated/activity/practice'
+import { Route as AuthenticatedActivityNotificationsRouteImport } from './routes/_authenticated/activity/notifications'
+import { Route as AuthenticatedActivityMessagesRouteImport } from './routes/_authenticated/activity/messages'
+import { Route as AuthenticatedActivityExtraCurricularRouteImport } from './routes/_authenticated/activity/extra-curricular'
+import { Route as AuthenticatedActivityDiaryRouteImport } from './routes/_authenticated/activity/diary'
+import { Route as AuthenticatedActivityCertificatesRouteImport } from './routes/_authenticated/activity/certificates'
+import { Route as AuthenticatedActivityCalendarRouteImport } from './routes/_authenticated/activity/calendar'
+import { Route as AuthenticatedActivityAttendanceRouteImport } from './routes/_authenticated/activity/attendance'
+import { Route as AuthenticatedActivityAnnouncementsRouteImport } from './routes/_authenticated/activity/announcements'
+import { Route as AuthenticatedActivityAchievementsRouteImport } from './routes/_authenticated/activity/achievements'
 
 const VerifyCertificateRoute = VerifyCertificateRouteImport.update({
   id: '/verify-certificate',
   path: '/verify-certificate',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TransportRoute = TransportRouteImport.update({
-  id: '/transport',
-  path: '/transport',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TimetableRoute = TimetableRouteImport.update({
-  id: '/timetable',
-  path: '/timetable',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TermsRoute = TermsRouteImport.update({
@@ -84,29 +75,9 @@ const TermsRoute = TermsRouteImport.update({
   path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TeachersRoute = TeachersRouteImport.update({
-  id: '/teachers',
-  path: '/teachers',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const StudentsRoute = StudentsRouteImport.update({
-  id: '/students',
-  path: '/students',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const SportsRoute = SportsRouteImport.update({
   id: '/sports',
   path: '/sports',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RemarksRoute = RemarksRouteImport.update({
-  id: '/remarks',
-  path: '/remarks',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProfileRoute = ProfileRouteImport.update({
-  id: '/profile',
-  path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyRoute = PrivacyRouteImport.update({
@@ -114,59 +85,9 @@ const PrivacyRoute = PrivacyRouteImport.update({
   path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
-const NotificationsRoute = NotificationsRouteImport.update({
-  id: '/notifications',
-  path: '/notifications',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MessagesRoute = MessagesRouteImport.update({
-  id: '/messages',
-  path: '/messages',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MarksRoute = MarksRouteImport.update({
-  id: '/marks',
-  path: '/marks',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LeaveRoute = LeaveRouteImport.update({
-  id: '/leave',
-  path: '/leave',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const IdCardRoute = IdCardRouteImport.update({
-  id: '/id-card',
-  path: '/id-card',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const GrowthRoute = GrowthRouteImport.update({
-  id: '/growth',
-  path: '/growth',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FeesRoute = FeesRouteImport.update({
-  id: '/fees',
-  path: '/fees',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ExamsRoute = ExamsRouteImport.update({
-  id: '/exams',
-  path: '/exams',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EventsRoute = EventsRouteImport.update({
-  id: '/events',
-  path: '/events',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DiaryRoute = DiaryRouteImport.update({
-  id: '/diary',
-  path: '/diary',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CookiesRoute = CookiesRouteImport.update({
@@ -174,44 +95,9 @@ const CookiesRoute = CookiesRouteImport.update({
   path: '/cookies',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ComplaintsRoute = ComplaintsRouteImport.update({
-  id: '/complaints',
-  path: '/complaints',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ClassesRoute = ClassesRouteImport.update({
-  id: '/classes',
-  path: '/classes',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CertificatesRoute = CertificatesRouteImport.update({
-  id: '/certificates',
-  path: '/certificates',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const CareersRoute = CareersRouteImport.update({
   id: '/careers',
   path: '/careers',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AttendanceRoute = AttendanceRouteImport.update({
-  id: '/attendance',
-  path: '/attendance',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AssignmentsRoute = AssignmentsRouteImport.update({
-  id: '/assignments',
-  path: '/assignments',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AnnouncementsRoute = AnnouncementsRouteImport.update({
-  id: '/announcements',
-  path: '/announcements',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AlertsRoute = AlertsRouteImport.update({
-  id: '/alerts',
-  path: '/alerts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdmissionsRoute = AdmissionsRouteImport.update({
@@ -219,308 +105,454 @@ const AdmissionsRoute = AdmissionsRouteImport.update({
   path: '/admissions',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ActivityRoute = ActivityRouteImport.update({
-  id: '/activity',
-  path: '/activity',
+const AuthenticatedRoute = AuthenticatedRouteImport.update({
+  id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ActivitiesRoute = ActivitiesRouteImport.update({
-  id: '/activities',
-  path: '/activities',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AchievementsRoute = AchievementsRouteImport.update({
-  id: '/achievements',
-  path: '/achievements',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AcademicHistoryRoute = AcademicHistoryRouteImport.update({
-  id: '/academic-history',
-  path: '/academic-history',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const IndexRoute = IndexRouteImport.update({
+const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ActivityIndexRoute = ActivityIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => ActivityRoute,
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
 const VerifyStudentIdRoute = VerifyStudentIdRouteImport.update({
   id: '/verify/$studentId',
   path: '/verify/$studentId',
   getParentRoute: () => rootRouteImport,
 } as any)
-const StudentsStudentIdRoute = StudentsStudentIdRouteImport.update({
-  id: '/$studentId',
-  path: '/$studentId',
-  getParentRoute: () => StudentsRoute,
-} as any)
 const CareersSplatRoute = CareersSplatRouteImport.update({
   id: '/$',
   path: '/$',
   getParentRoute: () => CareersRoute,
-} as any)
-const AnnouncementsIdRoute = AnnouncementsIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => AnnouncementsRoute,
 } as any)
 const AdmissionsSplatRoute = AdmissionsSplatRouteImport.update({
   id: '/$',
   path: '/$',
   getParentRoute: () => AdmissionsRoute,
 } as any)
-const ActivitySportsRoute = ActivitySportsRouteImport.update({
-  id: '/sports',
-  path: '/sports',
-  getParentRoute: () => ActivityRoute,
+const AuthenticatedTransportRoute = AuthenticatedTransportRouteImport.update({
+  id: '/transport',
+  path: '/transport',
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
-const ActivityProfileRoute = ActivityProfileRouteImport.update({
+const AuthenticatedTimetableRoute = AuthenticatedTimetableRouteImport.update({
+  id: '/timetable',
+  path: '/timetable',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedTeachersRoute = AuthenticatedTeachersRouteImport.update({
+  id: '/teachers',
+  path: '/teachers',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedStudentsRoute = AuthenticatedStudentsRouteImport.update({
+  id: '/students',
+  path: '/students',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedRemarksRoute = AuthenticatedRemarksRouteImport.update({
+  id: '/remarks',
+  path: '/remarks',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedProfileRoute = AuthenticatedProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
-  getParentRoute: () => ActivityRoute,
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
-const ActivityPracticeRoute = ActivityPracticeRouteImport.update({
-  id: '/practice',
-  path: '/practice',
-  getParentRoute: () => ActivityRoute,
-} as any)
-const ActivityNotificationsRoute = ActivityNotificationsRouteImport.update({
-  id: '/notifications',
-  path: '/notifications',
-  getParentRoute: () => ActivityRoute,
-} as any)
-const ActivityMessagesRoute = ActivityMessagesRouteImport.update({
+const AuthenticatedNotificationsRoute =
+  AuthenticatedNotificationsRouteImport.update({
+    id: '/notifications',
+    path: '/notifications',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedMessagesRoute = AuthenticatedMessagesRouteImport.update({
   id: '/messages',
   path: '/messages',
-  getParentRoute: () => ActivityRoute,
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
-const ActivityExtraCurricularRoute = ActivityExtraCurricularRouteImport.update({
-  id: '/extra-curricular',
-  path: '/extra-curricular',
-  getParentRoute: () => ActivityRoute,
+const AuthenticatedMarksRoute = AuthenticatedMarksRouteImport.update({
+  id: '/marks',
+  path: '/marks',
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
-const ActivityDiaryRoute = ActivityDiaryRouteImport.update({
+const AuthenticatedLeaveRoute = AuthenticatedLeaveRouteImport.update({
+  id: '/leave',
+  path: '/leave',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedIdCardRoute = AuthenticatedIdCardRouteImport.update({
+  id: '/id-card',
+  path: '/id-card',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedGrowthRoute = AuthenticatedGrowthRouteImport.update({
+  id: '/growth',
+  path: '/growth',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedFeesRoute = AuthenticatedFeesRouteImport.update({
+  id: '/fees',
+  path: '/fees',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedExamsRoute = AuthenticatedExamsRouteImport.update({
+  id: '/exams',
+  path: '/exams',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedEventsRoute = AuthenticatedEventsRouteImport.update({
+  id: '/events',
+  path: '/events',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedDiaryRoute = AuthenticatedDiaryRouteImport.update({
   id: '/diary',
   path: '/diary',
-  getParentRoute: () => ActivityRoute,
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
-const ActivityCertificatesRoute = ActivityCertificatesRouteImport.update({
-  id: '/certificates',
-  path: '/certificates',
-  getParentRoute: () => ActivityRoute,
+const AuthenticatedComplaintsRoute = AuthenticatedComplaintsRouteImport.update({
+  id: '/complaints',
+  path: '/complaints',
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
-const ActivityCalendarRoute = ActivityCalendarRouteImport.update({
-  id: '/calendar',
-  path: '/calendar',
-  getParentRoute: () => ActivityRoute,
+const AuthenticatedClassesRoute = AuthenticatedClassesRouteImport.update({
+  id: '/classes',
+  path: '/classes',
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
-const ActivityAttendanceRoute = ActivityAttendanceRouteImport.update({
+const AuthenticatedCertificatesRoute =
+  AuthenticatedCertificatesRouteImport.update({
+    id: '/certificates',
+    path: '/certificates',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAttendanceRoute = AuthenticatedAttendanceRouteImport.update({
   id: '/attendance',
   path: '/attendance',
-  getParentRoute: () => ActivityRoute,
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
-const ActivityAnnouncementsRoute = ActivityAnnouncementsRouteImport.update({
-  id: '/announcements',
-  path: '/announcements',
-  getParentRoute: () => ActivityRoute,
+const AuthenticatedAssignmentsRoute =
+  AuthenticatedAssignmentsRouteImport.update({
+    id: '/assignments',
+    path: '/assignments',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAnnouncementsRoute =
+  AuthenticatedAnnouncementsRouteImport.update({
+    id: '/announcements',
+    path: '/announcements',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAlertsRoute = AuthenticatedAlertsRouteImport.update({
+  id: '/alerts',
+  path: '/alerts',
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
-const ActivityAchievementsRoute = ActivityAchievementsRouteImport.update({
-  id: '/achievements',
-  path: '/achievements',
-  getParentRoute: () => ActivityRoute,
+const AuthenticatedActivityRoute = AuthenticatedActivityRouteImport.update({
+  id: '/activity',
+  path: '/activity',
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedActivitiesRoute = AuthenticatedActivitiesRouteImport.update({
+  id: '/activities',
+  path: '/activities',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedAchievementsRoute =
+  AuthenticatedAchievementsRouteImport.update({
+    id: '/achievements',
+    path: '/achievements',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAcademicHistoryRoute =
+  AuthenticatedAcademicHistoryRouteImport.update({
+    id: '/academic-history',
+    path: '/academic-history',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedActivityIndexRoute =
+  AuthenticatedActivityIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedActivityRoute,
+  } as any)
+const AuthenticatedStudentsStudentIdRoute =
+  AuthenticatedStudentsStudentIdRouteImport.update({
+    id: '/$studentId',
+    path: '/$studentId',
+    getParentRoute: () => AuthenticatedStudentsRoute,
+  } as any)
+const AuthenticatedAnnouncementsIdRoute =
+  AuthenticatedAnnouncementsIdRouteImport.update({
+    id: '/$id',
+    path: '/$id',
+    getParentRoute: () => AuthenticatedAnnouncementsRoute,
+  } as any)
+const AuthenticatedActivitySportsRoute =
+  AuthenticatedActivitySportsRouteImport.update({
+    id: '/sports',
+    path: '/sports',
+    getParentRoute: () => AuthenticatedActivityRoute,
+  } as any)
+const AuthenticatedActivityProfileRoute =
+  AuthenticatedActivityProfileRouteImport.update({
+    id: '/profile',
+    path: '/profile',
+    getParentRoute: () => AuthenticatedActivityRoute,
+  } as any)
+const AuthenticatedActivityPracticeRoute =
+  AuthenticatedActivityPracticeRouteImport.update({
+    id: '/practice',
+    path: '/practice',
+    getParentRoute: () => AuthenticatedActivityRoute,
+  } as any)
+const AuthenticatedActivityNotificationsRoute =
+  AuthenticatedActivityNotificationsRouteImport.update({
+    id: '/notifications',
+    path: '/notifications',
+    getParentRoute: () => AuthenticatedActivityRoute,
+  } as any)
+const AuthenticatedActivityMessagesRoute =
+  AuthenticatedActivityMessagesRouteImport.update({
+    id: '/messages',
+    path: '/messages',
+    getParentRoute: () => AuthenticatedActivityRoute,
+  } as any)
+const AuthenticatedActivityExtraCurricularRoute =
+  AuthenticatedActivityExtraCurricularRouteImport.update({
+    id: '/extra-curricular',
+    path: '/extra-curricular',
+    getParentRoute: () => AuthenticatedActivityRoute,
+  } as any)
+const AuthenticatedActivityDiaryRoute =
+  AuthenticatedActivityDiaryRouteImport.update({
+    id: '/diary',
+    path: '/diary',
+    getParentRoute: () => AuthenticatedActivityRoute,
+  } as any)
+const AuthenticatedActivityCertificatesRoute =
+  AuthenticatedActivityCertificatesRouteImport.update({
+    id: '/certificates',
+    path: '/certificates',
+    getParentRoute: () => AuthenticatedActivityRoute,
+  } as any)
+const AuthenticatedActivityCalendarRoute =
+  AuthenticatedActivityCalendarRouteImport.update({
+    id: '/calendar',
+    path: '/calendar',
+    getParentRoute: () => AuthenticatedActivityRoute,
+  } as any)
+const AuthenticatedActivityAttendanceRoute =
+  AuthenticatedActivityAttendanceRouteImport.update({
+    id: '/attendance',
+    path: '/attendance',
+    getParentRoute: () => AuthenticatedActivityRoute,
+  } as any)
+const AuthenticatedActivityAnnouncementsRoute =
+  AuthenticatedActivityAnnouncementsRouteImport.update({
+    id: '/announcements',
+    path: '/announcements',
+    getParentRoute: () => AuthenticatedActivityRoute,
+  } as any)
+const AuthenticatedActivityAchievementsRoute =
+  AuthenticatedActivityAchievementsRouteImport.update({
+    id: '/achievements',
+    path: '/achievements',
+    getParentRoute: () => AuthenticatedActivityRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/academic-history': typeof AcademicHistoryRoute
-  '/achievements': typeof AchievementsRoute
-  '/activities': typeof ActivitiesRoute
-  '/activity': typeof ActivityRouteWithChildren
+  '/': typeof AuthenticatedIndexRoute
   '/admissions': typeof AdmissionsRouteWithChildren
-  '/alerts': typeof AlertsRoute
-  '/announcements': typeof AnnouncementsRouteWithChildren
-  '/assignments': typeof AssignmentsRoute
-  '/attendance': typeof AttendanceRoute
   '/careers': typeof CareersRouteWithChildren
-  '/certificates': typeof CertificatesRoute
-  '/classes': typeof ClassesRoute
-  '/complaints': typeof ComplaintsRoute
   '/cookies': typeof CookiesRoute
-  '/diary': typeof DiaryRoute
-  '/events': typeof EventsRoute
-  '/exams': typeof ExamsRoute
-  '/fees': typeof FeesRoute
-  '/growth': typeof GrowthRoute
-  '/id-card': typeof IdCardRoute
-  '/leave': typeof LeaveRoute
   '/login': typeof LoginRoute
-  '/marks': typeof MarksRoute
-  '/messages': typeof MessagesRoute
-  '/notifications': typeof NotificationsRoute
   '/privacy': typeof PrivacyRoute
-  '/profile': typeof ProfileRoute
-  '/remarks': typeof RemarksRoute
   '/sports': typeof SportsRoute
-  '/students': typeof StudentsRouteWithChildren
-  '/teachers': typeof TeachersRoute
   '/terms': typeof TermsRoute
-  '/timetable': typeof TimetableRoute
-  '/transport': typeof TransportRoute
   '/verify-certificate': typeof VerifyCertificateRoute
-  '/activity/achievements': typeof ActivityAchievementsRoute
-  '/activity/announcements': typeof ActivityAnnouncementsRoute
-  '/activity/attendance': typeof ActivityAttendanceRoute
-  '/activity/calendar': typeof ActivityCalendarRoute
-  '/activity/certificates': typeof ActivityCertificatesRoute
-  '/activity/diary': typeof ActivityDiaryRoute
-  '/activity/extra-curricular': typeof ActivityExtraCurricularRoute
-  '/activity/messages': typeof ActivityMessagesRoute
-  '/activity/notifications': typeof ActivityNotificationsRoute
-  '/activity/practice': typeof ActivityPracticeRoute
-  '/activity/profile': typeof ActivityProfileRoute
-  '/activity/sports': typeof ActivitySportsRoute
+  '/academic-history': typeof AuthenticatedAcademicHistoryRoute
+  '/achievements': typeof AuthenticatedAchievementsRoute
+  '/activities': typeof AuthenticatedActivitiesRoute
+  '/activity': typeof AuthenticatedActivityRouteWithChildren
+  '/alerts': typeof AuthenticatedAlertsRoute
+  '/announcements': typeof AuthenticatedAnnouncementsRouteWithChildren
+  '/assignments': typeof AuthenticatedAssignmentsRoute
+  '/attendance': typeof AuthenticatedAttendanceRoute
+  '/certificates': typeof AuthenticatedCertificatesRoute
+  '/classes': typeof AuthenticatedClassesRoute
+  '/complaints': typeof AuthenticatedComplaintsRoute
+  '/diary': typeof AuthenticatedDiaryRoute
+  '/events': typeof AuthenticatedEventsRoute
+  '/exams': typeof AuthenticatedExamsRoute
+  '/fees': typeof AuthenticatedFeesRoute
+  '/growth': typeof AuthenticatedGrowthRoute
+  '/id-card': typeof AuthenticatedIdCardRoute
+  '/leave': typeof AuthenticatedLeaveRoute
+  '/marks': typeof AuthenticatedMarksRoute
+  '/messages': typeof AuthenticatedMessagesRoute
+  '/notifications': typeof AuthenticatedNotificationsRoute
+  '/profile': typeof AuthenticatedProfileRoute
+  '/remarks': typeof AuthenticatedRemarksRoute
+  '/students': typeof AuthenticatedStudentsRouteWithChildren
+  '/teachers': typeof AuthenticatedTeachersRoute
+  '/timetable': typeof AuthenticatedTimetableRoute
+  '/transport': typeof AuthenticatedTransportRoute
   '/admissions/$': typeof AdmissionsSplatRoute
-  '/announcements/$id': typeof AnnouncementsIdRoute
   '/careers/$': typeof CareersSplatRoute
-  '/students/$studentId': typeof StudentsStudentIdRoute
   '/verify/$studentId': typeof VerifyStudentIdRoute
-  '/activity/': typeof ActivityIndexRoute
+  '/activity/achievements': typeof AuthenticatedActivityAchievementsRoute
+  '/activity/announcements': typeof AuthenticatedActivityAnnouncementsRoute
+  '/activity/attendance': typeof AuthenticatedActivityAttendanceRoute
+  '/activity/calendar': typeof AuthenticatedActivityCalendarRoute
+  '/activity/certificates': typeof AuthenticatedActivityCertificatesRoute
+  '/activity/diary': typeof AuthenticatedActivityDiaryRoute
+  '/activity/extra-curricular': typeof AuthenticatedActivityExtraCurricularRoute
+  '/activity/messages': typeof AuthenticatedActivityMessagesRoute
+  '/activity/notifications': typeof AuthenticatedActivityNotificationsRoute
+  '/activity/practice': typeof AuthenticatedActivityPracticeRoute
+  '/activity/profile': typeof AuthenticatedActivityProfileRoute
+  '/activity/sports': typeof AuthenticatedActivitySportsRoute
+  '/announcements/$id': typeof AuthenticatedAnnouncementsIdRoute
+  '/students/$studentId': typeof AuthenticatedStudentsStudentIdRoute
+  '/activity/': typeof AuthenticatedActivityIndexRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/academic-history': typeof AcademicHistoryRoute
-  '/achievements': typeof AchievementsRoute
-  '/activities': typeof ActivitiesRoute
   '/admissions': typeof AdmissionsRouteWithChildren
-  '/alerts': typeof AlertsRoute
-  '/announcements': typeof AnnouncementsRouteWithChildren
-  '/assignments': typeof AssignmentsRoute
-  '/attendance': typeof AttendanceRoute
   '/careers': typeof CareersRouteWithChildren
-  '/certificates': typeof CertificatesRoute
-  '/classes': typeof ClassesRoute
-  '/complaints': typeof ComplaintsRoute
   '/cookies': typeof CookiesRoute
-  '/diary': typeof DiaryRoute
-  '/events': typeof EventsRoute
-  '/exams': typeof ExamsRoute
-  '/fees': typeof FeesRoute
-  '/growth': typeof GrowthRoute
-  '/id-card': typeof IdCardRoute
-  '/leave': typeof LeaveRoute
   '/login': typeof LoginRoute
-  '/marks': typeof MarksRoute
-  '/messages': typeof MessagesRoute
-  '/notifications': typeof NotificationsRoute
   '/privacy': typeof PrivacyRoute
-  '/profile': typeof ProfileRoute
-  '/remarks': typeof RemarksRoute
   '/sports': typeof SportsRoute
-  '/students': typeof StudentsRouteWithChildren
-  '/teachers': typeof TeachersRoute
   '/terms': typeof TermsRoute
-  '/timetable': typeof TimetableRoute
-  '/transport': typeof TransportRoute
   '/verify-certificate': typeof VerifyCertificateRoute
-  '/activity/achievements': typeof ActivityAchievementsRoute
-  '/activity/announcements': typeof ActivityAnnouncementsRoute
-  '/activity/attendance': typeof ActivityAttendanceRoute
-  '/activity/calendar': typeof ActivityCalendarRoute
-  '/activity/certificates': typeof ActivityCertificatesRoute
-  '/activity/diary': typeof ActivityDiaryRoute
-  '/activity/extra-curricular': typeof ActivityExtraCurricularRoute
-  '/activity/messages': typeof ActivityMessagesRoute
-  '/activity/notifications': typeof ActivityNotificationsRoute
-  '/activity/practice': typeof ActivityPracticeRoute
-  '/activity/profile': typeof ActivityProfileRoute
-  '/activity/sports': typeof ActivitySportsRoute
+  '/academic-history': typeof AuthenticatedAcademicHistoryRoute
+  '/achievements': typeof AuthenticatedAchievementsRoute
+  '/activities': typeof AuthenticatedActivitiesRoute
+  '/alerts': typeof AuthenticatedAlertsRoute
+  '/announcements': typeof AuthenticatedAnnouncementsRouteWithChildren
+  '/assignments': typeof AuthenticatedAssignmentsRoute
+  '/attendance': typeof AuthenticatedAttendanceRoute
+  '/certificates': typeof AuthenticatedCertificatesRoute
+  '/classes': typeof AuthenticatedClassesRoute
+  '/complaints': typeof AuthenticatedComplaintsRoute
+  '/diary': typeof AuthenticatedDiaryRoute
+  '/events': typeof AuthenticatedEventsRoute
+  '/exams': typeof AuthenticatedExamsRoute
+  '/fees': typeof AuthenticatedFeesRoute
+  '/growth': typeof AuthenticatedGrowthRoute
+  '/id-card': typeof AuthenticatedIdCardRoute
+  '/leave': typeof AuthenticatedLeaveRoute
+  '/marks': typeof AuthenticatedMarksRoute
+  '/messages': typeof AuthenticatedMessagesRoute
+  '/notifications': typeof AuthenticatedNotificationsRoute
+  '/profile': typeof AuthenticatedProfileRoute
+  '/remarks': typeof AuthenticatedRemarksRoute
+  '/students': typeof AuthenticatedStudentsRouteWithChildren
+  '/teachers': typeof AuthenticatedTeachersRoute
+  '/timetable': typeof AuthenticatedTimetableRoute
+  '/transport': typeof AuthenticatedTransportRoute
   '/admissions/$': typeof AdmissionsSplatRoute
-  '/announcements/$id': typeof AnnouncementsIdRoute
   '/careers/$': typeof CareersSplatRoute
-  '/students/$studentId': typeof StudentsStudentIdRoute
   '/verify/$studentId': typeof VerifyStudentIdRoute
-  '/activity': typeof ActivityIndexRoute
+  '/': typeof AuthenticatedIndexRoute
+  '/activity/achievements': typeof AuthenticatedActivityAchievementsRoute
+  '/activity/announcements': typeof AuthenticatedActivityAnnouncementsRoute
+  '/activity/attendance': typeof AuthenticatedActivityAttendanceRoute
+  '/activity/calendar': typeof AuthenticatedActivityCalendarRoute
+  '/activity/certificates': typeof AuthenticatedActivityCertificatesRoute
+  '/activity/diary': typeof AuthenticatedActivityDiaryRoute
+  '/activity/extra-curricular': typeof AuthenticatedActivityExtraCurricularRoute
+  '/activity/messages': typeof AuthenticatedActivityMessagesRoute
+  '/activity/notifications': typeof AuthenticatedActivityNotificationsRoute
+  '/activity/practice': typeof AuthenticatedActivityPracticeRoute
+  '/activity/profile': typeof AuthenticatedActivityProfileRoute
+  '/activity/sports': typeof AuthenticatedActivitySportsRoute
+  '/announcements/$id': typeof AuthenticatedAnnouncementsIdRoute
+  '/students/$studentId': typeof AuthenticatedStudentsStudentIdRoute
+  '/activity': typeof AuthenticatedActivityIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/academic-history': typeof AcademicHistoryRoute
-  '/achievements': typeof AchievementsRoute
-  '/activities': typeof ActivitiesRoute
-  '/activity': typeof ActivityRouteWithChildren
+  '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/admissions': typeof AdmissionsRouteWithChildren
-  '/alerts': typeof AlertsRoute
-  '/announcements': typeof AnnouncementsRouteWithChildren
-  '/assignments': typeof AssignmentsRoute
-  '/attendance': typeof AttendanceRoute
   '/careers': typeof CareersRouteWithChildren
-  '/certificates': typeof CertificatesRoute
-  '/classes': typeof ClassesRoute
-  '/complaints': typeof ComplaintsRoute
   '/cookies': typeof CookiesRoute
-  '/diary': typeof DiaryRoute
-  '/events': typeof EventsRoute
-  '/exams': typeof ExamsRoute
-  '/fees': typeof FeesRoute
-  '/growth': typeof GrowthRoute
-  '/id-card': typeof IdCardRoute
-  '/leave': typeof LeaveRoute
   '/login': typeof LoginRoute
-  '/marks': typeof MarksRoute
-  '/messages': typeof MessagesRoute
-  '/notifications': typeof NotificationsRoute
   '/privacy': typeof PrivacyRoute
-  '/profile': typeof ProfileRoute
-  '/remarks': typeof RemarksRoute
   '/sports': typeof SportsRoute
-  '/students': typeof StudentsRouteWithChildren
-  '/teachers': typeof TeachersRoute
   '/terms': typeof TermsRoute
-  '/timetable': typeof TimetableRoute
-  '/transport': typeof TransportRoute
   '/verify-certificate': typeof VerifyCertificateRoute
-  '/activity/achievements': typeof ActivityAchievementsRoute
-  '/activity/announcements': typeof ActivityAnnouncementsRoute
-  '/activity/attendance': typeof ActivityAttendanceRoute
-  '/activity/calendar': typeof ActivityCalendarRoute
-  '/activity/certificates': typeof ActivityCertificatesRoute
-  '/activity/diary': typeof ActivityDiaryRoute
-  '/activity/extra-curricular': typeof ActivityExtraCurricularRoute
-  '/activity/messages': typeof ActivityMessagesRoute
-  '/activity/notifications': typeof ActivityNotificationsRoute
-  '/activity/practice': typeof ActivityPracticeRoute
-  '/activity/profile': typeof ActivityProfileRoute
-  '/activity/sports': typeof ActivitySportsRoute
+  '/_authenticated/academic-history': typeof AuthenticatedAcademicHistoryRoute
+  '/_authenticated/achievements': typeof AuthenticatedAchievementsRoute
+  '/_authenticated/activities': typeof AuthenticatedActivitiesRoute
+  '/_authenticated/activity': typeof AuthenticatedActivityRouteWithChildren
+  '/_authenticated/alerts': typeof AuthenticatedAlertsRoute
+  '/_authenticated/announcements': typeof AuthenticatedAnnouncementsRouteWithChildren
+  '/_authenticated/assignments': typeof AuthenticatedAssignmentsRoute
+  '/_authenticated/attendance': typeof AuthenticatedAttendanceRoute
+  '/_authenticated/certificates': typeof AuthenticatedCertificatesRoute
+  '/_authenticated/classes': typeof AuthenticatedClassesRoute
+  '/_authenticated/complaints': typeof AuthenticatedComplaintsRoute
+  '/_authenticated/diary': typeof AuthenticatedDiaryRoute
+  '/_authenticated/events': typeof AuthenticatedEventsRoute
+  '/_authenticated/exams': typeof AuthenticatedExamsRoute
+  '/_authenticated/fees': typeof AuthenticatedFeesRoute
+  '/_authenticated/growth': typeof AuthenticatedGrowthRoute
+  '/_authenticated/id-card': typeof AuthenticatedIdCardRoute
+  '/_authenticated/leave': typeof AuthenticatedLeaveRoute
+  '/_authenticated/marks': typeof AuthenticatedMarksRoute
+  '/_authenticated/messages': typeof AuthenticatedMessagesRoute
+  '/_authenticated/notifications': typeof AuthenticatedNotificationsRoute
+  '/_authenticated/profile': typeof AuthenticatedProfileRoute
+  '/_authenticated/remarks': typeof AuthenticatedRemarksRoute
+  '/_authenticated/students': typeof AuthenticatedStudentsRouteWithChildren
+  '/_authenticated/teachers': typeof AuthenticatedTeachersRoute
+  '/_authenticated/timetable': typeof AuthenticatedTimetableRoute
+  '/_authenticated/transport': typeof AuthenticatedTransportRoute
   '/admissions/$': typeof AdmissionsSplatRoute
-  '/announcements/$id': typeof AnnouncementsIdRoute
   '/careers/$': typeof CareersSplatRoute
-  '/students/$studentId': typeof StudentsStudentIdRoute
   '/verify/$studentId': typeof VerifyStudentIdRoute
-  '/activity/': typeof ActivityIndexRoute
+  '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/activity/achievements': typeof AuthenticatedActivityAchievementsRoute
+  '/_authenticated/activity/announcements': typeof AuthenticatedActivityAnnouncementsRoute
+  '/_authenticated/activity/attendance': typeof AuthenticatedActivityAttendanceRoute
+  '/_authenticated/activity/calendar': typeof AuthenticatedActivityCalendarRoute
+  '/_authenticated/activity/certificates': typeof AuthenticatedActivityCertificatesRoute
+  '/_authenticated/activity/diary': typeof AuthenticatedActivityDiaryRoute
+  '/_authenticated/activity/extra-curricular': typeof AuthenticatedActivityExtraCurricularRoute
+  '/_authenticated/activity/messages': typeof AuthenticatedActivityMessagesRoute
+  '/_authenticated/activity/notifications': typeof AuthenticatedActivityNotificationsRoute
+  '/_authenticated/activity/practice': typeof AuthenticatedActivityPracticeRoute
+  '/_authenticated/activity/profile': typeof AuthenticatedActivityProfileRoute
+  '/_authenticated/activity/sports': typeof AuthenticatedActivitySportsRoute
+  '/_authenticated/announcements/$id': typeof AuthenticatedAnnouncementsIdRoute
+  '/_authenticated/students/$studentId': typeof AuthenticatedStudentsStudentIdRoute
+  '/_authenticated/activity/': typeof AuthenticatedActivityIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admissions'
+    | '/careers'
+    | '/cookies'
+    | '/login'
+    | '/privacy'
+    | '/sports'
+    | '/terms'
+    | '/verify-certificate'
     | '/academic-history'
     | '/achievements'
     | '/activities'
     | '/activity'
-    | '/admissions'
     | '/alerts'
     | '/announcements'
     | '/assignments'
     | '/attendance'
-    | '/careers'
     | '/certificates'
     | '/classes'
     | '/complaints'
-    | '/cookies'
     | '/diary'
     | '/events'
     | '/exams'
@@ -528,20 +560,18 @@ export interface FileRouteTypes {
     | '/growth'
     | '/id-card'
     | '/leave'
-    | '/login'
     | '/marks'
     | '/messages'
     | '/notifications'
-    | '/privacy'
     | '/profile'
     | '/remarks'
-    | '/sports'
     | '/students'
     | '/teachers'
-    | '/terms'
     | '/timetable'
     | '/transport'
-    | '/verify-certificate'
+    | '/admissions/$'
+    | '/careers/$'
+    | '/verify/$studentId'
     | '/activity/achievements'
     | '/activity/announcements'
     | '/activity/attendance'
@@ -554,28 +584,29 @@ export interface FileRouteTypes {
     | '/activity/practice'
     | '/activity/profile'
     | '/activity/sports'
-    | '/admissions/$'
     | '/announcements/$id'
-    | '/careers/$'
     | '/students/$studentId'
-    | '/verify/$studentId'
     | '/activity/'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/'
+    | '/admissions'
+    | '/careers'
+    | '/cookies'
+    | '/login'
+    | '/privacy'
+    | '/sports'
+    | '/terms'
+    | '/verify-certificate'
     | '/academic-history'
     | '/achievements'
     | '/activities'
-    | '/admissions'
     | '/alerts'
     | '/announcements'
     | '/assignments'
     | '/attendance'
-    | '/careers'
     | '/certificates'
     | '/classes'
     | '/complaints'
-    | '/cookies'
     | '/diary'
     | '/events'
     | '/exams'
@@ -583,20 +614,19 @@ export interface FileRouteTypes {
     | '/growth'
     | '/id-card'
     | '/leave'
-    | '/login'
     | '/marks'
     | '/messages'
     | '/notifications'
-    | '/privacy'
     | '/profile'
     | '/remarks'
-    | '/sports'
     | '/students'
     | '/teachers'
-    | '/terms'
     | '/timetable'
     | '/transport'
-    | '/verify-certificate'
+    | '/admissions/$'
+    | '/careers/$'
+    | '/verify/$studentId'
+    | '/'
     | '/activity/achievements'
     | '/activity/announcements'
     | '/activity/attendance'
@@ -609,106 +639,77 @@ export interface FileRouteTypes {
     | '/activity/practice'
     | '/activity/profile'
     | '/activity/sports'
-    | '/admissions/$'
     | '/announcements/$id'
-    | '/careers/$'
     | '/students/$studentId'
-    | '/verify/$studentId'
     | '/activity'
   id:
     | '__root__'
-    | '/'
-    | '/academic-history'
-    | '/achievements'
-    | '/activities'
-    | '/activity'
+    | '/_authenticated'
     | '/admissions'
-    | '/alerts'
-    | '/announcements'
-    | '/assignments'
-    | '/attendance'
     | '/careers'
-    | '/certificates'
-    | '/classes'
-    | '/complaints'
     | '/cookies'
-    | '/diary'
-    | '/events'
-    | '/exams'
-    | '/fees'
-    | '/growth'
-    | '/id-card'
-    | '/leave'
     | '/login'
-    | '/marks'
-    | '/messages'
-    | '/notifications'
     | '/privacy'
-    | '/profile'
-    | '/remarks'
     | '/sports'
-    | '/students'
-    | '/teachers'
     | '/terms'
-    | '/timetable'
-    | '/transport'
     | '/verify-certificate'
-    | '/activity/achievements'
-    | '/activity/announcements'
-    | '/activity/attendance'
-    | '/activity/calendar'
-    | '/activity/certificates'
-    | '/activity/diary'
-    | '/activity/extra-curricular'
-    | '/activity/messages'
-    | '/activity/notifications'
-    | '/activity/practice'
-    | '/activity/profile'
-    | '/activity/sports'
+    | '/_authenticated/academic-history'
+    | '/_authenticated/achievements'
+    | '/_authenticated/activities'
+    | '/_authenticated/activity'
+    | '/_authenticated/alerts'
+    | '/_authenticated/announcements'
+    | '/_authenticated/assignments'
+    | '/_authenticated/attendance'
+    | '/_authenticated/certificates'
+    | '/_authenticated/classes'
+    | '/_authenticated/complaints'
+    | '/_authenticated/diary'
+    | '/_authenticated/events'
+    | '/_authenticated/exams'
+    | '/_authenticated/fees'
+    | '/_authenticated/growth'
+    | '/_authenticated/id-card'
+    | '/_authenticated/leave'
+    | '/_authenticated/marks'
+    | '/_authenticated/messages'
+    | '/_authenticated/notifications'
+    | '/_authenticated/profile'
+    | '/_authenticated/remarks'
+    | '/_authenticated/students'
+    | '/_authenticated/teachers'
+    | '/_authenticated/timetable'
+    | '/_authenticated/transport'
     | '/admissions/$'
-    | '/announcements/$id'
     | '/careers/$'
-    | '/students/$studentId'
     | '/verify/$studentId'
-    | '/activity/'
+    | '/_authenticated/'
+    | '/_authenticated/activity/achievements'
+    | '/_authenticated/activity/announcements'
+    | '/_authenticated/activity/attendance'
+    | '/_authenticated/activity/calendar'
+    | '/_authenticated/activity/certificates'
+    | '/_authenticated/activity/diary'
+    | '/_authenticated/activity/extra-curricular'
+    | '/_authenticated/activity/messages'
+    | '/_authenticated/activity/notifications'
+    | '/_authenticated/activity/practice'
+    | '/_authenticated/activity/profile'
+    | '/_authenticated/activity/sports'
+    | '/_authenticated/announcements/$id'
+    | '/_authenticated/students/$studentId'
+    | '/_authenticated/activity/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  AcademicHistoryRoute: typeof AcademicHistoryRoute
-  AchievementsRoute: typeof AchievementsRoute
-  ActivitiesRoute: typeof ActivitiesRoute
-  ActivityRoute: typeof ActivityRouteWithChildren
+  AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   AdmissionsRoute: typeof AdmissionsRouteWithChildren
-  AlertsRoute: typeof AlertsRoute
-  AnnouncementsRoute: typeof AnnouncementsRouteWithChildren
-  AssignmentsRoute: typeof AssignmentsRoute
-  AttendanceRoute: typeof AttendanceRoute
   CareersRoute: typeof CareersRouteWithChildren
-  CertificatesRoute: typeof CertificatesRoute
-  ClassesRoute: typeof ClassesRoute
-  ComplaintsRoute: typeof ComplaintsRoute
   CookiesRoute: typeof CookiesRoute
-  DiaryRoute: typeof DiaryRoute
-  EventsRoute: typeof EventsRoute
-  ExamsRoute: typeof ExamsRoute
-  FeesRoute: typeof FeesRoute
-  GrowthRoute: typeof GrowthRoute
-  IdCardRoute: typeof IdCardRoute
-  LeaveRoute: typeof LeaveRoute
   LoginRoute: typeof LoginRoute
-  MarksRoute: typeof MarksRoute
-  MessagesRoute: typeof MessagesRoute
-  NotificationsRoute: typeof NotificationsRoute
   PrivacyRoute: typeof PrivacyRoute
-  ProfileRoute: typeof ProfileRoute
-  RemarksRoute: typeof RemarksRoute
   SportsRoute: typeof SportsRoute
-  StudentsRoute: typeof StudentsRouteWithChildren
-  TeachersRoute: typeof TeachersRoute
   TermsRoute: typeof TermsRoute
-  TimetableRoute: typeof TimetableRoute
-  TransportRoute: typeof TransportRoute
   VerifyCertificateRoute: typeof VerifyCertificateRoute
   VerifyStudentIdRoute: typeof VerifyStudentIdRoute
 }
@@ -722,39 +723,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VerifyCertificateRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/transport': {
-      id: '/transport'
-      path: '/transport'
-      fullPath: '/transport'
-      preLoaderRoute: typeof TransportRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/timetable': {
-      id: '/timetable'
-      path: '/timetable'
-      fullPath: '/timetable'
-      preLoaderRoute: typeof TimetableRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/terms': {
       id: '/terms'
       path: '/terms'
       fullPath: '/terms'
       preLoaderRoute: typeof TermsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/teachers': {
-      id: '/teachers'
-      path: '/teachers'
-      fullPath: '/teachers'
-      preLoaderRoute: typeof TeachersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/students': {
-      id: '/students'
-      path: '/students'
-      fullPath: '/students'
-      preLoaderRoute: typeof StudentsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sports': {
@@ -764,46 +737,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SportsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/remarks': {
-      id: '/remarks'
-      path: '/remarks'
-      fullPath: '/remarks'
-      preLoaderRoute: typeof RemarksRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/profile': {
-      id: '/profile'
-      path: '/profile'
-      fullPath: '/profile'
-      preLoaderRoute: typeof ProfileRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/privacy': {
       id: '/privacy'
       path: '/privacy'
       fullPath: '/privacy'
       preLoaderRoute: typeof PrivacyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/notifications': {
-      id: '/notifications'
-      path: '/notifications'
-      fullPath: '/notifications'
-      preLoaderRoute: typeof NotificationsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/messages': {
-      id: '/messages'
-      path: '/messages'
-      fullPath: '/messages'
-      preLoaderRoute: typeof MessagesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/marks': {
-      id: '/marks'
-      path: '/marks'
-      fullPath: '/marks'
-      preLoaderRoute: typeof MarksRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -813,81 +751,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/leave': {
-      id: '/leave'
-      path: '/leave'
-      fullPath: '/leave'
-      preLoaderRoute: typeof LeaveRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/id-card': {
-      id: '/id-card'
-      path: '/id-card'
-      fullPath: '/id-card'
-      preLoaderRoute: typeof IdCardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/growth': {
-      id: '/growth'
-      path: '/growth'
-      fullPath: '/growth'
-      preLoaderRoute: typeof GrowthRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/fees': {
-      id: '/fees'
-      path: '/fees'
-      fullPath: '/fees'
-      preLoaderRoute: typeof FeesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/exams': {
-      id: '/exams'
-      path: '/exams'
-      fullPath: '/exams'
-      preLoaderRoute: typeof ExamsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/events': {
-      id: '/events'
-      path: '/events'
-      fullPath: '/events'
-      preLoaderRoute: typeof EventsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/diary': {
-      id: '/diary'
-      path: '/diary'
-      fullPath: '/diary'
-      preLoaderRoute: typeof DiaryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/cookies': {
       id: '/cookies'
       path: '/cookies'
       fullPath: '/cookies'
       preLoaderRoute: typeof CookiesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/complaints': {
-      id: '/complaints'
-      path: '/complaints'
-      fullPath: '/complaints'
-      preLoaderRoute: typeof ComplaintsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/classes': {
-      id: '/classes'
-      path: '/classes'
-      fullPath: '/classes'
-      preLoaderRoute: typeof ClassesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/certificates': {
-      id: '/certificates'
-      path: '/certificates'
-      fullPath: '/certificates'
-      preLoaderRoute: typeof CertificatesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/careers': {
@@ -897,34 +765,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CareersRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/attendance': {
-      id: '/attendance'
-      path: '/attendance'
-      fullPath: '/attendance'
-      preLoaderRoute: typeof AttendanceRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/assignments': {
-      id: '/assignments'
-      path: '/assignments'
-      fullPath: '/assignments'
-      preLoaderRoute: typeof AssignmentsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/announcements': {
-      id: '/announcements'
-      path: '/announcements'
-      fullPath: '/announcements'
-      preLoaderRoute: typeof AnnouncementsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/alerts': {
-      id: '/alerts'
-      path: '/alerts'
-      fullPath: '/alerts'
-      preLoaderRoute: typeof AlertsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/admissions': {
       id: '/admissions'
       path: '/admissions'
@@ -932,47 +772,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdmissionsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/activity': {
-      id: '/activity'
-      path: '/activity'
-      fullPath: '/activity'
-      preLoaderRoute: typeof ActivityRouteImport
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/activities': {
-      id: '/activities'
-      path: '/activities'
-      fullPath: '/activities'
-      preLoaderRoute: typeof ActivitiesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/achievements': {
-      id: '/achievements'
-      path: '/achievements'
-      fullPath: '/achievements'
-      preLoaderRoute: typeof AchievementsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/academic-history': {
-      id: '/academic-history'
-      path: '/academic-history'
-      fullPath: '/academic-history'
-      preLoaderRoute: typeof AcademicHistoryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/': {
-      id: '/'
+    '/_authenticated/': {
+      id: '/_authenticated/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/activity/': {
-      id: '/activity/'
-      path: '/'
-      fullPath: '/activity/'
-      preLoaderRoute: typeof ActivityIndexRouteImport
-      parentRoute: typeof ActivityRoute
+      preLoaderRoute: typeof AuthenticatedIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
     '/verify/$studentId': {
       id: '/verify/$studentId'
@@ -981,26 +793,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VerifyStudentIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/students/$studentId': {
-      id: '/students/$studentId'
-      path: '/$studentId'
-      fullPath: '/students/$studentId'
-      preLoaderRoute: typeof StudentsStudentIdRouteImport
-      parentRoute: typeof StudentsRoute
-    }
     '/careers/$': {
       id: '/careers/$'
       path: '/$'
       fullPath: '/careers/$'
       preLoaderRoute: typeof CareersSplatRouteImport
       parentRoute: typeof CareersRoute
-    }
-    '/announcements/$id': {
-      id: '/announcements/$id'
-      path: '/$id'
-      fullPath: '/announcements/$id'
-      preLoaderRoute: typeof AnnouncementsIdRouteImport
-      parentRoute: typeof AnnouncementsRoute
     }
     '/admissions/$': {
       id: '/admissions/$'
@@ -1009,127 +807,436 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdmissionsSplatRouteImport
       parentRoute: typeof AdmissionsRoute
     }
-    '/activity/sports': {
-      id: '/activity/sports'
+    '/_authenticated/transport': {
+      id: '/_authenticated/transport'
+      path: '/transport'
+      fullPath: '/transport'
+      preLoaderRoute: typeof AuthenticatedTransportRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/timetable': {
+      id: '/_authenticated/timetable'
+      path: '/timetable'
+      fullPath: '/timetable'
+      preLoaderRoute: typeof AuthenticatedTimetableRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/teachers': {
+      id: '/_authenticated/teachers'
+      path: '/teachers'
+      fullPath: '/teachers'
+      preLoaderRoute: typeof AuthenticatedTeachersRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/students': {
+      id: '/_authenticated/students'
+      path: '/students'
+      fullPath: '/students'
+      preLoaderRoute: typeof AuthenticatedStudentsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/remarks': {
+      id: '/_authenticated/remarks'
+      path: '/remarks'
+      fullPath: '/remarks'
+      preLoaderRoute: typeof AuthenticatedRemarksRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/profile': {
+      id: '/_authenticated/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof AuthenticatedProfileRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/notifications': {
+      id: '/_authenticated/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof AuthenticatedNotificationsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/messages': {
+      id: '/_authenticated/messages'
+      path: '/messages'
+      fullPath: '/messages'
+      preLoaderRoute: typeof AuthenticatedMessagesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/marks': {
+      id: '/_authenticated/marks'
+      path: '/marks'
+      fullPath: '/marks'
+      preLoaderRoute: typeof AuthenticatedMarksRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/leave': {
+      id: '/_authenticated/leave'
+      path: '/leave'
+      fullPath: '/leave'
+      preLoaderRoute: typeof AuthenticatedLeaveRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/id-card': {
+      id: '/_authenticated/id-card'
+      path: '/id-card'
+      fullPath: '/id-card'
+      preLoaderRoute: typeof AuthenticatedIdCardRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/growth': {
+      id: '/_authenticated/growth'
+      path: '/growth'
+      fullPath: '/growth'
+      preLoaderRoute: typeof AuthenticatedGrowthRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/fees': {
+      id: '/_authenticated/fees'
+      path: '/fees'
+      fullPath: '/fees'
+      preLoaderRoute: typeof AuthenticatedFeesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/exams': {
+      id: '/_authenticated/exams'
+      path: '/exams'
+      fullPath: '/exams'
+      preLoaderRoute: typeof AuthenticatedExamsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/events': {
+      id: '/_authenticated/events'
+      path: '/events'
+      fullPath: '/events'
+      preLoaderRoute: typeof AuthenticatedEventsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/diary': {
+      id: '/_authenticated/diary'
+      path: '/diary'
+      fullPath: '/diary'
+      preLoaderRoute: typeof AuthenticatedDiaryRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/complaints': {
+      id: '/_authenticated/complaints'
+      path: '/complaints'
+      fullPath: '/complaints'
+      preLoaderRoute: typeof AuthenticatedComplaintsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/classes': {
+      id: '/_authenticated/classes'
+      path: '/classes'
+      fullPath: '/classes'
+      preLoaderRoute: typeof AuthenticatedClassesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/certificates': {
+      id: '/_authenticated/certificates'
+      path: '/certificates'
+      fullPath: '/certificates'
+      preLoaderRoute: typeof AuthenticatedCertificatesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/attendance': {
+      id: '/_authenticated/attendance'
+      path: '/attendance'
+      fullPath: '/attendance'
+      preLoaderRoute: typeof AuthenticatedAttendanceRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/assignments': {
+      id: '/_authenticated/assignments'
+      path: '/assignments'
+      fullPath: '/assignments'
+      preLoaderRoute: typeof AuthenticatedAssignmentsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/announcements': {
+      id: '/_authenticated/announcements'
+      path: '/announcements'
+      fullPath: '/announcements'
+      preLoaderRoute: typeof AuthenticatedAnnouncementsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/alerts': {
+      id: '/_authenticated/alerts'
+      path: '/alerts'
+      fullPath: '/alerts'
+      preLoaderRoute: typeof AuthenticatedAlertsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/activity': {
+      id: '/_authenticated/activity'
+      path: '/activity'
+      fullPath: '/activity'
+      preLoaderRoute: typeof AuthenticatedActivityRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/activities': {
+      id: '/_authenticated/activities'
+      path: '/activities'
+      fullPath: '/activities'
+      preLoaderRoute: typeof AuthenticatedActivitiesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/achievements': {
+      id: '/_authenticated/achievements'
+      path: '/achievements'
+      fullPath: '/achievements'
+      preLoaderRoute: typeof AuthenticatedAchievementsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/academic-history': {
+      id: '/_authenticated/academic-history'
+      path: '/academic-history'
+      fullPath: '/academic-history'
+      preLoaderRoute: typeof AuthenticatedAcademicHistoryRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/activity/': {
+      id: '/_authenticated/activity/'
+      path: '/'
+      fullPath: '/activity/'
+      preLoaderRoute: typeof AuthenticatedActivityIndexRouteImport
+      parentRoute: typeof AuthenticatedActivityRoute
+    }
+    '/_authenticated/students/$studentId': {
+      id: '/_authenticated/students/$studentId'
+      path: '/$studentId'
+      fullPath: '/students/$studentId'
+      preLoaderRoute: typeof AuthenticatedStudentsStudentIdRouteImport
+      parentRoute: typeof AuthenticatedStudentsRoute
+    }
+    '/_authenticated/announcements/$id': {
+      id: '/_authenticated/announcements/$id'
+      path: '/$id'
+      fullPath: '/announcements/$id'
+      preLoaderRoute: typeof AuthenticatedAnnouncementsIdRouteImport
+      parentRoute: typeof AuthenticatedAnnouncementsRoute
+    }
+    '/_authenticated/activity/sports': {
+      id: '/_authenticated/activity/sports'
       path: '/sports'
       fullPath: '/activity/sports'
-      preLoaderRoute: typeof ActivitySportsRouteImport
-      parentRoute: typeof ActivityRoute
+      preLoaderRoute: typeof AuthenticatedActivitySportsRouteImport
+      parentRoute: typeof AuthenticatedActivityRoute
     }
-    '/activity/profile': {
-      id: '/activity/profile'
+    '/_authenticated/activity/profile': {
+      id: '/_authenticated/activity/profile'
       path: '/profile'
       fullPath: '/activity/profile'
-      preLoaderRoute: typeof ActivityProfileRouteImport
-      parentRoute: typeof ActivityRoute
+      preLoaderRoute: typeof AuthenticatedActivityProfileRouteImport
+      parentRoute: typeof AuthenticatedActivityRoute
     }
-    '/activity/practice': {
-      id: '/activity/practice'
+    '/_authenticated/activity/practice': {
+      id: '/_authenticated/activity/practice'
       path: '/practice'
       fullPath: '/activity/practice'
-      preLoaderRoute: typeof ActivityPracticeRouteImport
-      parentRoute: typeof ActivityRoute
+      preLoaderRoute: typeof AuthenticatedActivityPracticeRouteImport
+      parentRoute: typeof AuthenticatedActivityRoute
     }
-    '/activity/notifications': {
-      id: '/activity/notifications'
+    '/_authenticated/activity/notifications': {
+      id: '/_authenticated/activity/notifications'
       path: '/notifications'
       fullPath: '/activity/notifications'
-      preLoaderRoute: typeof ActivityNotificationsRouteImport
-      parentRoute: typeof ActivityRoute
+      preLoaderRoute: typeof AuthenticatedActivityNotificationsRouteImport
+      parentRoute: typeof AuthenticatedActivityRoute
     }
-    '/activity/messages': {
-      id: '/activity/messages'
+    '/_authenticated/activity/messages': {
+      id: '/_authenticated/activity/messages'
       path: '/messages'
       fullPath: '/activity/messages'
-      preLoaderRoute: typeof ActivityMessagesRouteImport
-      parentRoute: typeof ActivityRoute
+      preLoaderRoute: typeof AuthenticatedActivityMessagesRouteImport
+      parentRoute: typeof AuthenticatedActivityRoute
     }
-    '/activity/extra-curricular': {
-      id: '/activity/extra-curricular'
+    '/_authenticated/activity/extra-curricular': {
+      id: '/_authenticated/activity/extra-curricular'
       path: '/extra-curricular'
       fullPath: '/activity/extra-curricular'
-      preLoaderRoute: typeof ActivityExtraCurricularRouteImport
-      parentRoute: typeof ActivityRoute
+      preLoaderRoute: typeof AuthenticatedActivityExtraCurricularRouteImport
+      parentRoute: typeof AuthenticatedActivityRoute
     }
-    '/activity/diary': {
-      id: '/activity/diary'
+    '/_authenticated/activity/diary': {
+      id: '/_authenticated/activity/diary'
       path: '/diary'
       fullPath: '/activity/diary'
-      preLoaderRoute: typeof ActivityDiaryRouteImport
-      parentRoute: typeof ActivityRoute
+      preLoaderRoute: typeof AuthenticatedActivityDiaryRouteImport
+      parentRoute: typeof AuthenticatedActivityRoute
     }
-    '/activity/certificates': {
-      id: '/activity/certificates'
+    '/_authenticated/activity/certificates': {
+      id: '/_authenticated/activity/certificates'
       path: '/certificates'
       fullPath: '/activity/certificates'
-      preLoaderRoute: typeof ActivityCertificatesRouteImport
-      parentRoute: typeof ActivityRoute
+      preLoaderRoute: typeof AuthenticatedActivityCertificatesRouteImport
+      parentRoute: typeof AuthenticatedActivityRoute
     }
-    '/activity/calendar': {
-      id: '/activity/calendar'
+    '/_authenticated/activity/calendar': {
+      id: '/_authenticated/activity/calendar'
       path: '/calendar'
       fullPath: '/activity/calendar'
-      preLoaderRoute: typeof ActivityCalendarRouteImport
-      parentRoute: typeof ActivityRoute
+      preLoaderRoute: typeof AuthenticatedActivityCalendarRouteImport
+      parentRoute: typeof AuthenticatedActivityRoute
     }
-    '/activity/attendance': {
-      id: '/activity/attendance'
+    '/_authenticated/activity/attendance': {
+      id: '/_authenticated/activity/attendance'
       path: '/attendance'
       fullPath: '/activity/attendance'
-      preLoaderRoute: typeof ActivityAttendanceRouteImport
-      parentRoute: typeof ActivityRoute
+      preLoaderRoute: typeof AuthenticatedActivityAttendanceRouteImport
+      parentRoute: typeof AuthenticatedActivityRoute
     }
-    '/activity/announcements': {
-      id: '/activity/announcements'
+    '/_authenticated/activity/announcements': {
+      id: '/_authenticated/activity/announcements'
       path: '/announcements'
       fullPath: '/activity/announcements'
-      preLoaderRoute: typeof ActivityAnnouncementsRouteImport
-      parentRoute: typeof ActivityRoute
+      preLoaderRoute: typeof AuthenticatedActivityAnnouncementsRouteImport
+      parentRoute: typeof AuthenticatedActivityRoute
     }
-    '/activity/achievements': {
-      id: '/activity/achievements'
+    '/_authenticated/activity/achievements': {
+      id: '/_authenticated/activity/achievements'
       path: '/achievements'
       fullPath: '/activity/achievements'
-      preLoaderRoute: typeof ActivityAchievementsRouteImport
-      parentRoute: typeof ActivityRoute
+      preLoaderRoute: typeof AuthenticatedActivityAchievementsRouteImport
+      parentRoute: typeof AuthenticatedActivityRoute
     }
   }
 }
 
-interface ActivityRouteChildren {
-  ActivityAchievementsRoute: typeof ActivityAchievementsRoute
-  ActivityAnnouncementsRoute: typeof ActivityAnnouncementsRoute
-  ActivityAttendanceRoute: typeof ActivityAttendanceRoute
-  ActivityCalendarRoute: typeof ActivityCalendarRoute
-  ActivityCertificatesRoute: typeof ActivityCertificatesRoute
-  ActivityDiaryRoute: typeof ActivityDiaryRoute
-  ActivityExtraCurricularRoute: typeof ActivityExtraCurricularRoute
-  ActivityMessagesRoute: typeof ActivityMessagesRoute
-  ActivityNotificationsRoute: typeof ActivityNotificationsRoute
-  ActivityPracticeRoute: typeof ActivityPracticeRoute
-  ActivityProfileRoute: typeof ActivityProfileRoute
-  ActivitySportsRoute: typeof ActivitySportsRoute
-  ActivityIndexRoute: typeof ActivityIndexRoute
+interface AuthenticatedActivityRouteChildren {
+  AuthenticatedActivityAchievementsRoute: typeof AuthenticatedActivityAchievementsRoute
+  AuthenticatedActivityAnnouncementsRoute: typeof AuthenticatedActivityAnnouncementsRoute
+  AuthenticatedActivityAttendanceRoute: typeof AuthenticatedActivityAttendanceRoute
+  AuthenticatedActivityCalendarRoute: typeof AuthenticatedActivityCalendarRoute
+  AuthenticatedActivityCertificatesRoute: typeof AuthenticatedActivityCertificatesRoute
+  AuthenticatedActivityDiaryRoute: typeof AuthenticatedActivityDiaryRoute
+  AuthenticatedActivityExtraCurricularRoute: typeof AuthenticatedActivityExtraCurricularRoute
+  AuthenticatedActivityMessagesRoute: typeof AuthenticatedActivityMessagesRoute
+  AuthenticatedActivityNotificationsRoute: typeof AuthenticatedActivityNotificationsRoute
+  AuthenticatedActivityPracticeRoute: typeof AuthenticatedActivityPracticeRoute
+  AuthenticatedActivityProfileRoute: typeof AuthenticatedActivityProfileRoute
+  AuthenticatedActivitySportsRoute: typeof AuthenticatedActivitySportsRoute
+  AuthenticatedActivityIndexRoute: typeof AuthenticatedActivityIndexRoute
 }
 
-const ActivityRouteChildren: ActivityRouteChildren = {
-  ActivityAchievementsRoute: ActivityAchievementsRoute,
-  ActivityAnnouncementsRoute: ActivityAnnouncementsRoute,
-  ActivityAttendanceRoute: ActivityAttendanceRoute,
-  ActivityCalendarRoute: ActivityCalendarRoute,
-  ActivityCertificatesRoute: ActivityCertificatesRoute,
-  ActivityDiaryRoute: ActivityDiaryRoute,
-  ActivityExtraCurricularRoute: ActivityExtraCurricularRoute,
-  ActivityMessagesRoute: ActivityMessagesRoute,
-  ActivityNotificationsRoute: ActivityNotificationsRoute,
-  ActivityPracticeRoute: ActivityPracticeRoute,
-  ActivityProfileRoute: ActivityProfileRoute,
-  ActivitySportsRoute: ActivitySportsRoute,
-  ActivityIndexRoute: ActivityIndexRoute,
+const AuthenticatedActivityRouteChildren: AuthenticatedActivityRouteChildren = {
+  AuthenticatedActivityAchievementsRoute:
+    AuthenticatedActivityAchievementsRoute,
+  AuthenticatedActivityAnnouncementsRoute:
+    AuthenticatedActivityAnnouncementsRoute,
+  AuthenticatedActivityAttendanceRoute: AuthenticatedActivityAttendanceRoute,
+  AuthenticatedActivityCalendarRoute: AuthenticatedActivityCalendarRoute,
+  AuthenticatedActivityCertificatesRoute:
+    AuthenticatedActivityCertificatesRoute,
+  AuthenticatedActivityDiaryRoute: AuthenticatedActivityDiaryRoute,
+  AuthenticatedActivityExtraCurricularRoute:
+    AuthenticatedActivityExtraCurricularRoute,
+  AuthenticatedActivityMessagesRoute: AuthenticatedActivityMessagesRoute,
+  AuthenticatedActivityNotificationsRoute:
+    AuthenticatedActivityNotificationsRoute,
+  AuthenticatedActivityPracticeRoute: AuthenticatedActivityPracticeRoute,
+  AuthenticatedActivityProfileRoute: AuthenticatedActivityProfileRoute,
+  AuthenticatedActivitySportsRoute: AuthenticatedActivitySportsRoute,
+  AuthenticatedActivityIndexRoute: AuthenticatedActivityIndexRoute,
 }
 
-const ActivityRouteWithChildren = ActivityRoute._addFileChildren(
-  ActivityRouteChildren,
+const AuthenticatedActivityRouteWithChildren =
+  AuthenticatedActivityRoute._addFileChildren(
+    AuthenticatedActivityRouteChildren,
+  )
+
+interface AuthenticatedAnnouncementsRouteChildren {
+  AuthenticatedAnnouncementsIdRoute: typeof AuthenticatedAnnouncementsIdRoute
+}
+
+const AuthenticatedAnnouncementsRouteChildren: AuthenticatedAnnouncementsRouteChildren =
+  {
+    AuthenticatedAnnouncementsIdRoute: AuthenticatedAnnouncementsIdRoute,
+  }
+
+const AuthenticatedAnnouncementsRouteWithChildren =
+  AuthenticatedAnnouncementsRoute._addFileChildren(
+    AuthenticatedAnnouncementsRouteChildren,
+  )
+
+interface AuthenticatedStudentsRouteChildren {
+  AuthenticatedStudentsStudentIdRoute: typeof AuthenticatedStudentsStudentIdRoute
+}
+
+const AuthenticatedStudentsRouteChildren: AuthenticatedStudentsRouteChildren = {
+  AuthenticatedStudentsStudentIdRoute: AuthenticatedStudentsStudentIdRoute,
+}
+
+const AuthenticatedStudentsRouteWithChildren =
+  AuthenticatedStudentsRoute._addFileChildren(
+    AuthenticatedStudentsRouteChildren,
+  )
+
+interface AuthenticatedRouteChildren {
+  AuthenticatedAcademicHistoryRoute: typeof AuthenticatedAcademicHistoryRoute
+  AuthenticatedAchievementsRoute: typeof AuthenticatedAchievementsRoute
+  AuthenticatedActivitiesRoute: typeof AuthenticatedActivitiesRoute
+  AuthenticatedActivityRoute: typeof AuthenticatedActivityRouteWithChildren
+  AuthenticatedAlertsRoute: typeof AuthenticatedAlertsRoute
+  AuthenticatedAnnouncementsRoute: typeof AuthenticatedAnnouncementsRouteWithChildren
+  AuthenticatedAssignmentsRoute: typeof AuthenticatedAssignmentsRoute
+  AuthenticatedAttendanceRoute: typeof AuthenticatedAttendanceRoute
+  AuthenticatedCertificatesRoute: typeof AuthenticatedCertificatesRoute
+  AuthenticatedClassesRoute: typeof AuthenticatedClassesRoute
+  AuthenticatedComplaintsRoute: typeof AuthenticatedComplaintsRoute
+  AuthenticatedDiaryRoute: typeof AuthenticatedDiaryRoute
+  AuthenticatedEventsRoute: typeof AuthenticatedEventsRoute
+  AuthenticatedExamsRoute: typeof AuthenticatedExamsRoute
+  AuthenticatedFeesRoute: typeof AuthenticatedFeesRoute
+  AuthenticatedGrowthRoute: typeof AuthenticatedGrowthRoute
+  AuthenticatedIdCardRoute: typeof AuthenticatedIdCardRoute
+  AuthenticatedLeaveRoute: typeof AuthenticatedLeaveRoute
+  AuthenticatedMarksRoute: typeof AuthenticatedMarksRoute
+  AuthenticatedMessagesRoute: typeof AuthenticatedMessagesRoute
+  AuthenticatedNotificationsRoute: typeof AuthenticatedNotificationsRoute
+  AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
+  AuthenticatedRemarksRoute: typeof AuthenticatedRemarksRoute
+  AuthenticatedStudentsRoute: typeof AuthenticatedStudentsRouteWithChildren
+  AuthenticatedTeachersRoute: typeof AuthenticatedTeachersRoute
+  AuthenticatedTimetableRoute: typeof AuthenticatedTimetableRoute
+  AuthenticatedTransportRoute: typeof AuthenticatedTransportRoute
+  AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+}
+
+const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedAcademicHistoryRoute: AuthenticatedAcademicHistoryRoute,
+  AuthenticatedAchievementsRoute: AuthenticatedAchievementsRoute,
+  AuthenticatedActivitiesRoute: AuthenticatedActivitiesRoute,
+  AuthenticatedActivityRoute: AuthenticatedActivityRouteWithChildren,
+  AuthenticatedAlertsRoute: AuthenticatedAlertsRoute,
+  AuthenticatedAnnouncementsRoute: AuthenticatedAnnouncementsRouteWithChildren,
+  AuthenticatedAssignmentsRoute: AuthenticatedAssignmentsRoute,
+  AuthenticatedAttendanceRoute: AuthenticatedAttendanceRoute,
+  AuthenticatedCertificatesRoute: AuthenticatedCertificatesRoute,
+  AuthenticatedClassesRoute: AuthenticatedClassesRoute,
+  AuthenticatedComplaintsRoute: AuthenticatedComplaintsRoute,
+  AuthenticatedDiaryRoute: AuthenticatedDiaryRoute,
+  AuthenticatedEventsRoute: AuthenticatedEventsRoute,
+  AuthenticatedExamsRoute: AuthenticatedExamsRoute,
+  AuthenticatedFeesRoute: AuthenticatedFeesRoute,
+  AuthenticatedGrowthRoute: AuthenticatedGrowthRoute,
+  AuthenticatedIdCardRoute: AuthenticatedIdCardRoute,
+  AuthenticatedLeaveRoute: AuthenticatedLeaveRoute,
+  AuthenticatedMarksRoute: AuthenticatedMarksRoute,
+  AuthenticatedMessagesRoute: AuthenticatedMessagesRoute,
+  AuthenticatedNotificationsRoute: AuthenticatedNotificationsRoute,
+  AuthenticatedProfileRoute: AuthenticatedProfileRoute,
+  AuthenticatedRemarksRoute: AuthenticatedRemarksRoute,
+  AuthenticatedStudentsRoute: AuthenticatedStudentsRouteWithChildren,
+  AuthenticatedTeachersRoute: AuthenticatedTeachersRoute,
+  AuthenticatedTimetableRoute: AuthenticatedTimetableRoute,
+  AuthenticatedTransportRoute: AuthenticatedTransportRoute,
+  AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+}
+
+const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
+  AuthenticatedRouteChildren,
 )
 
 interface AdmissionsRouteChildren {
@@ -1144,18 +1251,6 @@ const AdmissionsRouteWithChildren = AdmissionsRoute._addFileChildren(
   AdmissionsRouteChildren,
 )
 
-interface AnnouncementsRouteChildren {
-  AnnouncementsIdRoute: typeof AnnouncementsIdRoute
-}
-
-const AnnouncementsRouteChildren: AnnouncementsRouteChildren = {
-  AnnouncementsIdRoute: AnnouncementsIdRoute,
-}
-
-const AnnouncementsRouteWithChildren = AnnouncementsRoute._addFileChildren(
-  AnnouncementsRouteChildren,
-)
-
 interface CareersRouteChildren {
   CareersSplatRoute: typeof CareersSplatRoute
 }
@@ -1167,54 +1262,15 @@ const CareersRouteChildren: CareersRouteChildren = {
 const CareersRouteWithChildren =
   CareersRoute._addFileChildren(CareersRouteChildren)
 
-interface StudentsRouteChildren {
-  StudentsStudentIdRoute: typeof StudentsStudentIdRoute
-}
-
-const StudentsRouteChildren: StudentsRouteChildren = {
-  StudentsStudentIdRoute: StudentsStudentIdRoute,
-}
-
-const StudentsRouteWithChildren = StudentsRoute._addFileChildren(
-  StudentsRouteChildren,
-)
-
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  AcademicHistoryRoute: AcademicHistoryRoute,
-  AchievementsRoute: AchievementsRoute,
-  ActivitiesRoute: ActivitiesRoute,
-  ActivityRoute: ActivityRouteWithChildren,
+  AuthenticatedRoute: AuthenticatedRouteWithChildren,
   AdmissionsRoute: AdmissionsRouteWithChildren,
-  AlertsRoute: AlertsRoute,
-  AnnouncementsRoute: AnnouncementsRouteWithChildren,
-  AssignmentsRoute: AssignmentsRoute,
-  AttendanceRoute: AttendanceRoute,
   CareersRoute: CareersRouteWithChildren,
-  CertificatesRoute: CertificatesRoute,
-  ClassesRoute: ClassesRoute,
-  ComplaintsRoute: ComplaintsRoute,
   CookiesRoute: CookiesRoute,
-  DiaryRoute: DiaryRoute,
-  EventsRoute: EventsRoute,
-  ExamsRoute: ExamsRoute,
-  FeesRoute: FeesRoute,
-  GrowthRoute: GrowthRoute,
-  IdCardRoute: IdCardRoute,
-  LeaveRoute: LeaveRoute,
   LoginRoute: LoginRoute,
-  MarksRoute: MarksRoute,
-  MessagesRoute: MessagesRoute,
-  NotificationsRoute: NotificationsRoute,
   PrivacyRoute: PrivacyRoute,
-  ProfileRoute: ProfileRoute,
-  RemarksRoute: RemarksRoute,
   SportsRoute: SportsRoute,
-  StudentsRoute: StudentsRouteWithChildren,
-  TeachersRoute: TeachersRoute,
   TermsRoute: TermsRoute,
-  TimetableRoute: TimetableRoute,
-  TransportRoute: TransportRoute,
   VerifyCertificateRoute: VerifyCertificateRoute,
   VerifyStudentIdRoute: VerifyStudentIdRoute,
 }

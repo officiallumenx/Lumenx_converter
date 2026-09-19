@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { PageHeader } from "@/components/app/PageHeader";
 import { TimetableDayPicker } from "@/components/app/timetable/TimetableDayPicker";
 import { PeriodTimeline, type PeriodRow } from "@/components/app/timetable/PeriodTimeline";
 import { useApp } from "@/lib/app-state";
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
-import { loadTeacherTimetable } from "@/lib/timetable";
+import { useTeacherTimetableQuery } from "@/lib/connect-queries/hooks";
+import { connectQueryKeys } from "@/lib/connect-queries/keys";
 import {
   getCurrentAndNextPeriod,
   getDefaultTimetableDay,
@@ -29,13 +31,9 @@ type TimetablePeriod = WeeklyTimetable[string][number];
 export function TeacherTimetableApiPanel() {
   const { activeInstituteId } = useApp();
   const portal = useTeacherPortal();
+  const queryClient = useQueryClient();
   const [mode, setMode] = useState<"my" | "class">("my");
-  const [status, setStatus] = useState<string>("loading");
-  const [error, setError] = useState<string | null>(null);
-  const [schedule, setSchedule] = useState<WeeklyTimetable>({});
-  const [weekdays, setWeekdays] = useState<string[]>([]);
   const [view, setView] = useState<"daily" | "weekly">("daily");
-  const [reloadKey, setReloadKey] = useState(0);
 
   const initialClass = portal.classes[0];
   const [classNameFilter, setClassNameFilter] = useState(initialClass?.className ?? "");
@@ -56,6 +54,26 @@ export function TeacherTimetableApiPanel() {
     return match?.id ?? "";
   }, [portal.classes, classNameFilter, sectionFilter]);
 
+  const scope = mode === "class" && sectionId ? sectionId : "mine";
+  const timetableQuery = useTeacherTimetableQuery(
+    activeInstituteId,
+    scope,
+    Boolean(activeInstituteId),
+  );
+
+  const schedule = timetableQuery.data?.schedule ?? {};
+  const weekdays = timetableQuery.data?.weekdays ?? [];
+  const status =
+    timetableQuery.data?.status ??
+    (timetableQuery.isLoading && !timetableQuery.data
+      ? "loading"
+      : timetableQuery.isError
+        ? "error"
+        : "loading");
+  const error =
+    timetableQuery.data?.errorMessage ??
+    (timetableQuery.isError ? "Failed to load timetable." : null);
+
   useEffect(() => {
     if (portal.classes[0] && !classNameFilter) {
       setClassNameFilter(portal.classes[0].className);
@@ -68,24 +86,6 @@ export function TeacherTimetableApiPanel() {
       setSectionFilter(sections[0]);
     }
   }, [sections, sectionFilter]);
-
-  useEffect(() => {
-    let cancelled = false;
-    setStatus("loading");
-    void loadTeacherTimetable({
-      instituteId: activeInstituteId,
-      sectionId: mode === "class" ? sectionId || null : null,
-    }).then((result) => {
-      if (cancelled) return;
-      setSchedule(result.schedule);
-      setWeekdays(result.weekdays);
-      setStatus(result.status);
-      setError(result.errorMessage);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeInstituteId, reloadKey, mode, sectionId]);
 
   const days = weekdays.length > 0 ? weekdays : Object.keys(schedule);
   const today = getTodayDayName();
@@ -133,7 +133,14 @@ export function TeacherTimetableApiPanel() {
     [dayPeriods, current, next, mode],
   );
 
-  if (status === "loading") {
+  const retry = () => {
+    if (!activeInstituteId) return;
+    void queryClient.invalidateQueries({
+      queryKey: connectQueryKeys.timetableTeacher(activeInstituteId, scope),
+    });
+  };
+
+  if (status === "loading" || (timetableQuery.isLoading && !timetableQuery.data)) {
     return (
       <div className="min-w-0 space-y-5">
         <PageHeader title="Timetable" subtitle="Your teaching periods across assigned classes" />
@@ -158,11 +165,7 @@ export function TeacherTimetableApiPanel() {
           title="Timetable"
           subtitle="Your teaching periods across assigned classes"
           action={
-            <button
-              type="button"
-              className="text-sm text-primary underline"
-              onClick={() => setReloadKey((k) => k + 1)}
-            >
+            <button type="button" className="text-sm text-primary underline" onClick={retry}>
               Retry
             </button>
           }
@@ -299,7 +302,9 @@ export function TeacherTimetableApiPanel() {
               periods={dayPeriodRows}
               emptyMessage={
                 status === "empty"
-                  ? "No timetable published yet."
+                  ? mode === "class" && !sectionId
+                    ? "Select a class to view its timetable."
+                    : "No timetable published yet. Classes are linked — ask admin to publish the timetable for your sections."
                   : `No classes on ${day}.`
               }
               showPastMuted={isToday}

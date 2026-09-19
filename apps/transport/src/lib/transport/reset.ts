@@ -1,24 +1,18 @@
 import { resetAlertsStore } from "./alerts";
 import { resetAttendanceStore, setAttendanceVehicleScope } from "./attendance/store";
+import { clearApiDriverRoster } from "./api-roster";
 import { stopLocationTracking } from "./location-tracking";
 import { resetRouteSetupStore } from "./route-setup/store";
 import { resetSettingsStore } from "./settings";
 import { resetTripSession } from "./trip";
-import {
-  resetTransportAttendance,
-  resetTransportEmergencies,
-  resetTransportNotifications,
-} from "@lumenx/utils";
 
 export function resetTransportStores() {
   setAttendanceVehicleScope(null);
+  clearApiDriverRoster();
   resetAttendanceStore();
   resetAlertsStore();
   resetSettingsStore();
   resetTripSession();
   resetRouteSetupStore();
-  resetTransportEmergencies();
-  resetTransportAttendance();
-  resetTransportNotifications();
   void stopLocationTracking();
 }

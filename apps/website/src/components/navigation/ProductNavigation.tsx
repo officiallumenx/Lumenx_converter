@@ -45,10 +45,22 @@ export function ProductNavigation({
             </button>
           );
         }
+        if (item.id === "nexus") {
+          return (
+            <Link
+              key={item.id}
+              to="/about"
+              aria-current={selected ? "page" : undefined}
+              className={classNameItem}
+            >
+              {label}
+            </Link>
+          );
+        }
         return (
           <Link
             key={item.id}
-            to="/products/$slug"
+            to="/platform/$slug"
             params={{ slug: item.id }}
             aria-current={selected ? "page" : undefined}
             className={classNameItem}

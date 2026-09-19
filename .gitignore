@@ -59,7 +59,10 @@ Desktop.ini
 # ─── Test / coverage ────────────────────────────────────────────────────────
 coverage/
 .nyc_output/
+playwright-report/
+test-results/
 
 # ─── Temp ───────────────────────────────────────────────────────────────────
 tmp/
 .temp/
+.tmp-apk-inspect/

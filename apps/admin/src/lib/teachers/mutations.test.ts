@@ -9,18 +9,24 @@ describe("teachers mutations", () => {
     vi.clearAllMocks();
   });
 
-  it("refuses create in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
+  it("refuses create without a valid phone", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const post = vi.fn();
+    const client = { post } as never;
     const { createTeacher } = await import("./mutations");
     await expect(
-      createTeacher({
-        instituteId: INST,
-        displayName: "Sarah",
-        department: "Mathematics",
-        teachingScope: "subject_teacher",
-        portalAccessLevel: "faculty_grading",
-      }),
-    ).rejects.toThrow(/API auth mode/);
+      createTeacher(
+        {
+          instituteId: INST,
+          displayName: "Sarah",
+          department: "Mathematics",
+          teachingScope: "subject_teacher",
+          portalAccessLevel: "faculty_grading",
+        },
+        client,
+      ),
+    ).rejects.toThrow(/10-digit/);
+    expect(post).not.toHaveBeenCalled();
   });
 
   it("does not call network for invalid teacher UUID on delete", async () => {
@@ -44,6 +50,7 @@ describe("teachers mutations", () => {
         department: "Mathematics",
         teachingScope: "subject_teacher",
         portalAccessLevel: "faculty_grading",
+        phone: "9876501234",
         email: "s.jenkins@institute.edu",
       },
       client,
@@ -56,8 +63,12 @@ describe("teachers mutations", () => {
         department: "Mathematics",
         teaching_scope: "subject_teacher",
         portal_access_level: "faculty_grading",
+        phone: "9876501234",
       }),
     );
+    const body = post.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(body).not.toHaveProperty("date_of_birth");
+    expect(body).not.toHaveProperty("email", null);
   });
 
   it("patches update payload in API mode", async () => {

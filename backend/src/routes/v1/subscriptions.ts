@@ -17,7 +17,10 @@ import {
 } from "../../domains/subscriptions/service.js";
 import { getInstituteRenewalInvoicePdfForActor } from "../../domains/billing/service.js";
 import { withIdempotency } from "../../domains/idempotency/with-idempotency.js";
-import { beginOnlineCheckoutForActor } from "../../domains/subscriptions/online-checkout.js";
+import {
+  beginOnlineCheckoutForActor,
+  getPendingOnlineCheckoutForActor,
+} from "../../domains/subscriptions/online-checkout.js";
 
 const subscriptions = new Hono<AppBindings>();
 subscriptions.use("*", requireAuth);
@@ -125,6 +128,21 @@ subscriptions.post("/offline-payments", async (c) => {
       return { status: 201, body: { data } };
     },
   );
+});
+
+subscriptions.get("/online-checkout/pending", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(
+    z.object({ institute_id: uuid }),
+    c.req.query(),
+  );
+  const data = await getPendingOnlineCheckoutForActor(
+    admin,
+    actor,
+    query.institute_id,
+  );
+  return c.json({ data });
 });
 
 subscriptions.post("/online-checkout", async (c) => {

@@ -166,7 +166,7 @@ export function DocGenerateApiPanel() {
       <Card className="max-w-2xl">
         <CardHeader
           title="Generate document"
-          hint="POST /api/v1/documents/generated · creates a draft for workflow review"
+          hint="Creates a draft document for review"
         />
         <div className="space-y-4 px-5 pb-5">
           {loadHint ? (

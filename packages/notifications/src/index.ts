@@ -164,9 +164,12 @@ export {
   subscribeInAppAlerts,
   IN_APP_ALERT_EVENT,
   bootstrapPushDeviceToken,
+  invalidatePushDeviceTokens,
+  invalidatePushDeviceTokensBeforeSignOut,
   type DeviceApp,
   type DevicePlatform,
   type RegisterDeviceTokenFn,
+  type InvalidateDeviceTokensFn,
   type InAppAlertEventDetail,
 } from "./shared/consumption";
 export { NOTIFICATION_CATEGORY as SYSTEM_NOTIFICATION_CATEGORY } from "./system";

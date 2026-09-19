@@ -55,7 +55,7 @@ export function FeaturesCatalog({
               </div>
               <div className="flex flex-wrap gap-2">
                 {item.related.map((id) => (
-                  <Link key={id} to="/products/$slug" params={{ slug: id }} className="inline-flex">
+                  <Link key={id} to="/platform/$slug" params={{ slug: id }} className="inline-flex">
                     <ProductBadge product={id} />
                   </Link>
                 ))}

@@ -478,6 +478,30 @@ export async function softDeleteDeviceToken(
   return (result.data as DeviceTokenRow | null) ?? null;
 }
 
+/** Soft-delete all valid tokens for a user (optional app filter) — used on logout. */
+export async function softDeleteDeviceTokensForUser(
+  admin: SupabaseClient,
+  userProfileId: string,
+  app?: RegisterDeviceTokenInput["app"],
+): Promise<number> {
+  let query = admin
+    .from("device_token")
+    .update({
+      deleted_at: new Date().toISOString(),
+      valid: false,
+    })
+    .eq("user_profile_id", userProfileId)
+    .is("deleted_at", null);
+
+  if (app) {
+    query = query.eq("app", app);
+  }
+
+  const result = await query.select("id");
+  const rows = ensureDbOk(result) as Array<{ id: string }>;
+  return rows.length;
+}
+
 export async function findProfilesByIds(
   admin: SupabaseClient,
   ids: string[],

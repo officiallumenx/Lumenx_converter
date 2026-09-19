@@ -26,6 +26,7 @@ import { Route as StudentAttendanceRouteImport } from './routes/student-attendan
 import { Route as StorageRouteImport } from './routes/storage'
 import { Route as SplashRouteImport } from './routes/splash'
 import { Route as SignupRouteImport } from './routes/signup'
+import { Route as SetupRouteImport } from './routes/setup'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as PrivacyRouteImport } from './routes/privacy'
@@ -153,6 +154,11 @@ const SplashRoute = SplashRouteImport.update({
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SetupRoute = SetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -408,6 +414,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
+  '/setup': typeof SetupRoute
   '/signup': typeof SignupRoute
   '/splash': typeof SplashRoute
   '/storage': typeof StorageRoute
@@ -468,6 +475,7 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
+  '/setup': typeof SetupRoute
   '/signup': typeof SignupRoute
   '/splash': typeof SplashRoute
   '/storage': typeof StorageRoute
@@ -530,6 +538,7 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
+  '/setup': typeof SetupRoute
   '/signup': typeof SignupRoute
   '/splash': typeof SplashRoute
   '/storage': typeof StorageRoute
@@ -594,6 +603,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/reports'
     | '/settings'
+    | '/setup'
     | '/signup'
     | '/splash'
     | '/storage'
@@ -654,6 +664,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/reports'
     | '/settings'
+    | '/setup'
     | '/signup'
     | '/splash'
     | '/storage'
@@ -715,6 +726,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/reports'
     | '/settings'
+    | '/setup'
     | '/signup'
     | '/splash'
     | '/storage'
@@ -778,6 +790,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   ReportsRoute: typeof ReportsRoute
   SettingsRoute: typeof SettingsRoute
+  SetupRoute: typeof SetupRoute
   SignupRoute: typeof SignupRoute
   SplashRoute: typeof SplashRoute
   StorageRoute: typeof StorageRoute
@@ -916,6 +929,13 @@ declare module '@tanstack/react-router' {
       path: '/signup'
       fullPath: '/signup'
       preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/setup': {
+      id: '/setup'
+      path: '/setup'
+      fullPath: '/setup'
+      preLoaderRoute: typeof SetupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -1311,6 +1331,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   ReportsRoute: ReportsRoute,
   SettingsRoute: SettingsRoute,
+  SetupRoute: SetupRoute,
   SignupRoute: SignupRoute,
   SplashRoute: SplashRoute,
   StorageRoute: StorageRoute,

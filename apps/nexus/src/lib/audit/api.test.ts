@@ -28,17 +28,11 @@ describe("nexus audit api repository", () => {
     vi.resetModules();
   });
 
-  it("refuses to call backend in demo mode", async () => {
+  it("rejects VITE_NEXUS_AUTH_MODE=demo at auth boot (API-only product)", async () => {
     vi.stubEnv("VITE_NEXUS_AUTH_MODE", "demo");
-    const { listPlatformAuditEvents } = await import("./api");
-    const fetchMock = vi.fn();
-    const client = createApiClient({
-      getBaseUrl: () => "http://api.test",
-      getAccessToken: async () => "tok",
-      fetchImpl: fetchMock as unknown as typeof fetch,
-    });
-    await expect(listPlatformAuditEvents({}, client)).rejects.toThrow(/API auth mode/i);
-    expect(fetchMock).not.toHaveBeenCalled();
+    const { getNexusAuthMode, isNexusApiMode } = await import("@/lib/auth-mode");
+    expect(() => getNexusAuthMode()).toThrow(/Demo Mode is no longer supported/);
+    expect(isNexusApiMode()).toBe(true);
   });
 
   it("loads audit events from GET /api/nexus/audit in API mode", async () => {

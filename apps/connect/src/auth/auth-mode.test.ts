@@ -10,16 +10,16 @@ describe("getConnectAuthMode", () => {
     expect(isDemoAuthMode()).toBe(false);
   });
 
-  it("reads demo when VITE_CONNECT_AUTH_MODE=demo", async () => {
+  it("rejects demo when VITE_CONNECT_AUTH_MODE=demo", async () => {
     vi.resetModules();
     vi.stubEnv("VITE_CONNECT_AUTH_MODE", "demo");
     const { getConnectAuthMode, isDemoAuthMode, isApiAuthMode } = await import("./auth-mode");
-    expect(getConnectAuthMode()).toBe("demo");
-    expect(isDemoAuthMode()).toBe(true);
-    expect(isApiAuthMode()).toBe(false);
+    expect(() => getConnectAuthMode()).toThrow(/Demo Mode is no longer supported/);
+    expect(isApiAuthMode()).toBe(true);
+    expect(isDemoAuthMode()).toBe(false);
   });
 
-  it("reads api when VITE_CONNECT_AUTH_MODE=api", async () => {
+  it("accepts api explicitly", async () => {
     vi.resetModules();
     vi.stubEnv("VITE_CONNECT_AUTH_MODE", "api");
     const { getConnectAuthMode, isApiAuthMode } = await import("./auth-mode");

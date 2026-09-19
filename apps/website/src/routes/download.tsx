@@ -5,7 +5,7 @@ export const Route = createFileRoute("/download")({
   validateSearch: parseDownloadsSearch,
   beforeLoad: ({ search }) => {
     throw redirect({
-      to: "/downloads",
+      to: "/resources/downloads",
       search,
     });
   },

@@ -10,7 +10,8 @@ import {
 } from "@/lib/connect-calendar-theme";
 
 type AttendanceDatePickerProps = {
-  label: string;
+  /** Visible field label. Defaults to "Date" when omitted. */
+  label?: string;
   value: string;
   onChange: (iso: string) => void;
   min?: string;
@@ -30,7 +31,7 @@ function startOfDay(d: Date) {
 }
 
 export function AttendanceDatePicker({
-  label,
+  label = "Date",
   value,
   onChange,
   min,

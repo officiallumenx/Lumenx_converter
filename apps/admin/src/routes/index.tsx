@@ -18,34 +18,19 @@ import { HomeApiSummaryPanel } from "@/components/home/HomeApiSummaryPanel";
 import { buildAdminAttendanceDashboard } from "@lumenx/module-attendance";
 import { listAttendanceReportSections } from "@/lib/attendance-report-demo";
 import {
-  Users,
-  ClipboardCheck,
-  CalendarRange,
-  CalendarDays,
-  MessageSquareWarning,
-  BookOpen,
-  UserCheck,
-  Briefcase,
   BookMarked,
   Siren,
   ArrowUpRight,
   ClipboardList,
-  LayoutTemplate,
   Bus,
-  Settings,
-  Bell,
   Clock,
   BarChart3,
+  type LucideIcon,
 } from "lucide-react";
 import { useMemo, useSyncExternalStore, useEffect } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
+import { useAuth } from "@/auth/AuthContext";
 import { useInstituteContext } from "@/lib/institutes";
-import {
-  DashboardCustomizeActions,
-  DashboardLayoutProvider,
-  DashboardWidgets,
-  type DashboardWidgetDef,
-} from "@lumenx/ui";
 import {
   getActiveTransportEmergencyCount,
   subscribeTransportEmergencies,
@@ -67,37 +52,58 @@ type AttentionItem = {
   icon: LucideIcon;
 };
 
-const SHORTCUTS = [
-  { label: "Attendance", to: "/attendance", icon: ClipboardCheck },
-  { label: M.homework, to: "/homework", icon: BookOpen },
-  { label: M.diary, to: "/diary", icon: BookMarked },
-  { label: "Timetable", to: "/timetable", icon: CalendarRange },
-  { label: "Certificates", to: "/templates", icon: LayoutTemplate },
-  { label: "Admissions", to: "/admissions", icon: UserCheck },
-  { label: "Careers", to: "/careers", icon: Briefcase },
-  { label: "Transport", to: "/transport", icon: Bus },
-  { label: "Events", to: "/events", icon: CalendarDays },
-  { label: "Alerts", to: "/alerts", icon: Bell },
-  { label: "Accounts", to: "/accounts", icon: Users },
-  { label: "Settings", to: "/settings", icon: Settings },
-] as const;
-
-const ADMIN_HOME_WIDGETS: DashboardWidgetDef[] = [
-  { id: "birthdays", label: "Today's Birthdays" },
-  { id: "diary", label: M.diary },
-  { id: "attention", label: "Needs Attention" },
-  { id: "attendance", label: M.attendanceReports },
-  { id: "quick-actions", label: "Quick Actions" },
-  { id: "pending-reviews", label: "Reviews" },
-  { id: "shortcuts", label: "Shortcuts" },
-];
-
 function todayLabel(): string {
   return new Date().toLocaleDateString(undefined, {
     weekday: "long",
     day: "numeric",
     month: "long",
   });
+}
+
+function ReviewsCard({
+  pendingReviews,
+}: {
+  pendingReviews: ReturnType<typeof loadPendingReviews>;
+}) {
+  return (
+    <Card>
+      <CardHeader
+        title="Pending reviews"
+        hint="Admissions, careers, marks, leave, transport approvals"
+        action={
+          pendingReviews.length > 0 ? (
+            <Pill tone="warning">{pendingReviews.length} queues</Pill>
+          ) : null
+        }
+      />
+      <div className="px-3 pb-3">
+        {pendingReviews.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nothing awaiting review.</p>
+        ) : (
+          <ul className="space-y-1.5">
+            {pendingReviews.map((item) => (
+              <li key={item.id}>
+                <Link
+                  to={item.to}
+                  search={item.search}
+                  className="flex items-center gap-2.5 rounded-lg border border-border bg-background/40 px-2.5 py-2 transition-colors hover:border-border-strong hover:bg-surface-hover"
+                >
+                  <IconChip icon={ClipboardList} size="sm" variant="soft" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-foreground">
+                      {item.label}
+                    </span>
+                    <span className="block text-[11px] text-muted-foreground">{item.detail}</span>
+                  </span>
+                  <Pill tone="warning">{item.count}</Pill>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </Card>
+  );
 }
 
 function HomeApiPage() {
@@ -119,99 +125,16 @@ function HomeApiPage() {
       ? instituteCtx.activeInstitute.name
       : "Institute";
 
-  const apiWidgetBody = (id: string) => {
-    if (id === "overview") {
-      return <HomeApiSummaryPanel />;
-    }
-    if (id === "pending-reviews") {
-      return (
-        <Card>
-          <CardHeader
-            title="Pending reviews"
-            hint="Admissions, careers, marks, leave, transport approvals"
-            action={
-              pendingReviews.length > 0 ? (
-                <Pill tone="warning">{pendingReviews.length} queues</Pill>
-              ) : null
-            }
-          />
-          <div className="px-3 pb-3">
-            {pendingReviews.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nothing awaiting review.</p>
-            ) : (
-              <ul className="space-y-1.5">
-                {pendingReviews.map((item) => (
-                  <li key={item.id}>
-                    <Link
-                      to={item.to}
-                      search={item.search}
-                      className="flex items-center gap-2.5 rounded-lg border border-border bg-background/40 px-2.5 py-2 transition-colors hover:border-border-strong hover:bg-surface-hover"
-                    >
-                      <IconChip icon={ClipboardList} size="sm" variant="soft" />
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-semibold text-foreground">
-                          {item.label}
-                        </span>
-                        <span className="block text-[11px] text-muted-foreground">{item.detail}</span>
-                      </span>
-                      <Pill tone="warning">{item.count}</Pill>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </Card>
-      );
-    }
-    if (id === "quick-actions") {
-      return <HomeQuickActionsCard />;
-    }
-    if (id === "shortcuts") {
-      return (
-        <Card>
-          <CardHeader title="Shortcuts" hint="Jump to modules" />
-          <div className="px-3 pb-3">
-            <div className="flex flex-wrap gap-1.5">
-              {SHORTCUTS.map((s) => {
-                const Icon = s.icon;
-                return (
-                  <Link key={s.label} to={s.to}>
-                    <Button size="sm" variant="outline" className="gap-1.5">
-                      <Icon className="size-3.5" />
-                      {s.label}
-                    </Button>
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        </Card>
-      );
-    }
-    return null;
-  };
-
   return (
-    <DashboardLayoutProvider
-      storageKey="admin.home.api"
-      widgets={[
-        { id: "overview", label: "Overview" },
-        { id: "pending-reviews", label: "Reviews" },
-        { id: "quick-actions", label: "Quick Actions" },
-        { id: "shortcuts", label: "Shortcuts" },
-      ]}
+    <AppShell
+      title="Home"
+      subtitle={`What should I do today? · ${instituteLabel} · ${todayLabel()}`}
     >
-      <AppShell
-        title="Home"
-        subtitle={`What should I do today? · ${instituteLabel} · ${todayLabel()}`}
-        titleActions={<DashboardCustomizeActions />}
-      >
-        <PageStack>
-          <DashboardWidgets render={apiWidgetBody} />
-        </PageStack>
-      </AppShell>
-    </DashboardLayoutProvider>
+      <PageStack>
+        <HomeApiSummaryPanel />
+        <ReviewsCard pendingReviews={pendingReviews} />
+      </PageStack>
+    </AppShell>
   );
 }
 
@@ -313,24 +236,25 @@ function HomeDemoPage() {
 
   const attentionTotal = attentionItems.reduce((a, i) => a + i.count, 0);
 
-  const widgetBody = (id: string) => {
-    switch (id) {
-      case "birthdays":
-        return <HomeBirthdaysCard />;
-      case "diary":
-        return <HomeDiaryCard />;
-      case "attention":
-        return (
-          <Card className="border-amber-500/25">
-            <CardHeader
-              title="Needs Attention"
-              hint="Act on these first"
-              action={<Pill tone="warning">{attentionTotal} open</Pill>}
-            />
-            <div className="px-3 pb-3">
-              {attentionItems.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nothing needs attention right now.</p>
-              ) : (
+  return (
+    <AppShell
+      title="Home"
+      subtitle={`What should I do today? · ${instituteSummary.name} · ${todayLabel()}`}
+    >
+      <PageStack>
+        <HomeBirthdaysCard />
+        <HomeQuickActionsCard />
+        <HomeDiaryCard />
+        <Card className="border-amber-500/25">
+          <CardHeader
+            title="Needs Attention"
+            hint="Act on these first"
+            action={<Pill tone="warning">{attentionTotal} open</Pill>}
+          />
+          <div className="px-3 pb-3">
+            {attentionItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nothing needs attention right now.</p>
+            ) : (
               <ul className="space-y-1.5">
                 {attentionItems.map((item) => {
                   const Icon = item.icon;
@@ -359,92 +283,80 @@ function HomeDemoPage() {
                   );
                 })}
               </ul>
-              )}
+            )}
+          </div>
+        </Card>
+        <Card>
+          <CardHeader
+            title={M.attendanceReports}
+            hint="Pending · late · coordinator summary"
+            action={
+              <Link to="/attendance">
+                <Button size="sm" variant="outline" className="gap-1.5">
+                  Open
+                  <ArrowUpRight className="size-3.5" />
+                </Button>
+              </Link>
+            }
+          />
+          <div className="px-3 pb-3">
+            <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+              <Link
+                to="/attendance"
+                className="rounded-lg border border-border bg-background/40 px-2.5 py-2 transition-colors hover:border-border-strong hover:bg-surface-hover"
+              >
+                <div className="flex items-center gap-2 lx-stat-tile__label">
+                  <Siren className="size-3.5 shrink-0" />
+                  Attendance Pending
+                </div>
+                <div className="lx-stat-tile__value">{attendanceDash.notSubmittedCount}</div>
+                <p className="lx-stat-tile__hint">Classes waiting today</p>
+              </Link>
+              <Link
+                to="/attendance"
+                className="rounded-lg border border-border bg-background/40 px-2.5 py-2 transition-colors hover:border-border-strong hover:bg-surface-hover"
+              >
+                <div className="flex items-center gap-2 lx-stat-tile__label">
+                  <Clock className="size-3.5 shrink-0" />
+                  Late Submission
+                </div>
+                <div className="lx-stat-tile__value">{attendanceDash.lateSubmissionCount}</div>
+                <p className="lx-stat-tile__hint">After 10:00 cutoff</p>
+              </Link>
+              <Link
+                to="/student-attendance"
+                className="rounded-lg border border-border bg-background/40 px-2.5 py-2 transition-colors hover:border-border-strong hover:bg-surface-hover"
+              >
+                <div className="flex items-center gap-2 lx-stat-tile__label">
+                  <BarChart3 className="size-3.5 shrink-0" />
+                  Coordinator Summary
+                </div>
+                <div className="lx-stat-tile__value">
+                  {attendanceDash.coordinatorSummary.monthAttendancePct}%
+                </div>
+                <p className="lx-stat-tile__hint">
+                  {attendanceDash.coordinatorSummary.completedToday} submitted today ·{" "}
+                  {attendanceDash.coordinatorSummary.pendingToday} pending ·{" "}
+                  {attendanceDash.coordinatorSummary.alertsQueued} alerts queued
+                </p>
+              </Link>
             </div>
-          </Card>
-        );
-      case "attendance":
-        return (
-          <Card>
-            <CardHeader
-              title={M.attendanceReports}
-              hint="Pending · late · coordinator summary"
-              action={
-                <Link to="/attendance">
-                  <Button size="sm" variant="outline" className="gap-1.5">
-                    Open
-                    <ArrowUpRight className="size-3.5" />
-                  </Button>
-                </Link>
-              }
-            />
-            <div className="px-3 pb-3">
-              <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
-                <Link
-                  to="/attendance"
-                  className="rounded-lg border border-border bg-background/40 px-2.5 py-2 transition-colors hover:border-border-strong hover:bg-surface-hover"
-                >
-                  <div className="flex items-center gap-2 lx-stat-tile__label">
-                    <Siren className="size-3.5 shrink-0" />
-                    Attendance Pending
-                  </div>
-                  <div className="lx-stat-tile__value">
-                    {attendanceDash.notSubmittedCount}
-                  </div>
-                  <p className="lx-stat-tile__hint">Classes waiting today</p>
-                </Link>
-                <Link
-                  to="/attendance"
-                  className="rounded-lg border border-border bg-background/40 px-2.5 py-2 transition-colors hover:border-border-strong hover:bg-surface-hover"
-                >
-                  <div className="flex items-center gap-2 lx-stat-tile__label">
-                    <Clock className="size-3.5 shrink-0" />
-                    Late Submission
-                  </div>
-                  <div className="lx-stat-tile__value">
-                    {attendanceDash.lateSubmissionCount}
-                  </div>
-                  <p className="lx-stat-tile__hint">After 10:00 cutoff</p>
-                </Link>
-                <Link
-                  to="/student-attendance"
-                  className="rounded-lg border border-border bg-background/40 px-2.5 py-2 transition-colors hover:border-border-strong hover:bg-surface-hover"
-                >
-                  <div className="flex items-center gap-2 lx-stat-tile__label">
-                    <BarChart3 className="size-3.5 shrink-0" />
-                    Coordinator Summary
-                  </div>
-                  <div className="lx-stat-tile__value">
-                    {attendanceDash.coordinatorSummary.monthAttendancePct}%
-                  </div>
-                  <p className="lx-stat-tile__hint">
-                    {attendanceDash.coordinatorSummary.completedToday} submitted today ·{" "}
-                    {attendanceDash.coordinatorSummary.pendingToday} pending ·{" "}
-                    {attendanceDash.coordinatorSummary.alertsQueued} alerts queued
-                  </p>
-                </Link>
-              </div>
-            </div>
-          </Card>
-        );
-      case "quick-actions":
-        return <HomeQuickActionsCard />;
-      case "pending-reviews":
-        return (
-          <Card>
-            <CardHeader
-              title="Reviews"
-              hint="Decisions waiting on Admin"
-              action={
-                <Pill tone="info">
-                  {pendingReviews.reduce((a, r) => a + r.count, 0)} items
-                </Pill>
-              }
-            />
-            <div className="px-3 pb-3">
-              {pendingReviews.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No pending reviews.</p>
-              ) : (
+          </div>
+        </Card>
+        <Card>
+          <CardHeader
+            title="Reviews"
+            hint="Decisions waiting on Admin"
+            action={
+              <Pill tone="info">
+                {pendingReviews.reduce((a, r) => a + r.count, 0)} items
+              </Pill>
+            }
+          />
+          <div className="px-3 pb-3">
+            {pendingReviews.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No pending reviews.</p>
+            ) : (
               <ul className="space-y-1.5">
                 {pendingReviews.map((row) => (
                   <li key={row.id}>
@@ -463,52 +375,19 @@ function HomeDemoPage() {
                   </li>
                 ))}
               </ul>
-              )}
-            </div>
-          </Card>
-        );
-      case "shortcuts":
-        return (
-          <Card>
-            <CardHeader title="Shortcuts" hint="Jump to modules" />
-            <div className="px-3 pb-3">
-              <div className="flex flex-wrap gap-1.5">
-                {SHORTCUTS.map((s) => {
-                  const Icon = s.icon;
-                  return (
-                    <Link key={s.label} to={s.to}>
-                      <Button size="sm" variant="outline" className="gap-1.5">
-                        <Icon className="size-3.5" />
-                        {s.label}
-                      </Button>
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          </Card>
-        );
-      default:
-        return null;
-    }
-  };
-
-  return (
-    <DashboardLayoutProvider storageKey="admin.home" widgets={ADMIN_HOME_WIDGETS}>
-      <AppShell
-        title="Home"
-        subtitle={`What should I do today? · ${instituteSummary.name} · ${todayLabel()}`}
-        titleActions={<DashboardCustomizeActions />}
-      >
-        <PageStack>
-          <DashboardWidgets render={widgetBody} />
-        </PageStack>
-      </AppShell>
-    </DashboardLayoutProvider>
+            )}
+          </div>
+        </Card>
+      </PageStack>
+    </AppShell>
   );
 }
 
 function HomePage() {
-  if (isApiAuthMode()) return <HomeApiPage />;
+  const { isAuthenticated, isLoading } = useAuth();
+  if (isApiAuthMode()) {
+    if (isLoading || !isAuthenticated) return null;
+    return <HomeApiPage />;
+  }
   return <HomeDemoPage />;
 }

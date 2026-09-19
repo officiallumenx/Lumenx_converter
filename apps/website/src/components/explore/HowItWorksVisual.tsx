@@ -241,7 +241,7 @@ export function HowItWorksVisual({
         </div>
         {active.product ? (
           <CTAButton asChild className="mt-6">
-            <Link to="/products/$slug" params={{ slug: active.product }}>
+            <Link to="/platform/$slug" params={{ slug: active.product }}>
               Explore {PRODUCT_FAMILY[active.product].shortName}
             </Link>
           </CTAButton>

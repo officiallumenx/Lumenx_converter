@@ -18,8 +18,8 @@ export function TimetableDayPicker({
   const colCount = Math.max(days.length, 1);
 
   return (
-    <section className="min-w-0 rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-5">
-      <div className="mb-4 flex items-center justify-between gap-3">
+    <section className="min-w-0 rounded-2xl border border-border bg-card p-3 shadow-soft sm:p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
           <CalendarDays className="size-3.5 shrink-0 text-primary" />
           Select day
@@ -37,7 +37,7 @@ export function TimetableDayPicker({
       </div>
 
       <div
-        className="grid w-full gap-2.5 sm:gap-3"
+        className="grid w-full gap-1.5 sm:gap-2"
         style={{ gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))` }}
         role="group"
         aria-label="Week days"
@@ -55,17 +55,17 @@ export function TimetableDayPicker({
               onClick={() => onSelect(d)}
               aria-pressed={isSelected}
               aria-label={isToday ? `${d}, today` : d}
-              className="group flex min-w-0 flex-col items-center gap-1.5 touch-manipulation"
+              className="group flex min-w-0 flex-col items-center gap-1 touch-manipulation"
             >
               <span
                 className={cn(
-                  "grid aspect-square w-full place-items-center rounded-full text-[11px] font-semibold tracking-wide motion-fast transition-[background-color,color,box-shadow,border-color,transform] sm:text-xs",
+                  "grid size-9 place-items-center rounded-full text-[10px] font-semibold tracking-wide motion-fast transition-[background-color,color,box-shadow,border-color,transform] sm:size-10 sm:text-[11px]",
                   isSelected
-                    ? "bg-primary text-white shadow-[0_8px_20px_-6px_color-mix(in_srgb,var(--primary)_50%,transparent)]"
+                    ? "bg-primary text-white shadow-[0_6px_14px_-6px_color-mix(in_srgb,var(--primary)_50%,transparent)]"
                     : "border border-border/80 bg-muted/35 text-foreground hover:border-primary/40 hover:bg-primary/[0.07]",
                   isToday &&
                     !isSelected &&
-                    "border-primary/50 bg-primary/[0.1] text-primary shadow-[0_0_0_3px_color-mix(in_srgb,var(--primary)_18%,transparent)]",
+                    "border-primary/50 bg-primary/[0.1] text-primary shadow-[0_0_0_2px_color-mix(in_srgb,var(--primary)_18%,transparent)]",
                 )}
               >
                 {short}

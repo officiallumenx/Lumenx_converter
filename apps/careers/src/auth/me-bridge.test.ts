@@ -90,4 +90,13 @@ describe("careersUserFromMe", () => {
     expect(user.accountType).toBe("job_seeker");
     expect(user.organizationId).toBeUndefined();
   });
+
+  it("rejects restoring recruiter access for the wrong role", () => {
+    expect(() =>
+      careersUserFromMe(jobSeekerMe, {
+        forceAccountType: "recruiter",
+        preferredInstituteId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      }),
+    ).toThrow("does not have Careers recruiter access");
+  });
 });

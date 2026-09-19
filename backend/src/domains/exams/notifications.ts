@@ -1,6 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ensureDbOk } from "../../db/errors.js";
-import { actorHasInstituteRole } from "../../authorization/index.js";
 import { emitNotificationForInstituteSystem } from "../notifications/service.js";
 import { listLinksForStudent } from "../parents/repository.js";
 import { findParentById } from "../parents/repository.js";
@@ -13,7 +12,6 @@ const STAFF_NOTIFY_ROLES = [
   "coordinator",
   "teacher",
   "staff",
-  "driver",
 ] as const;
 
 async function listInstituteUserIdsByRoles(
@@ -161,8 +159,4 @@ export async function emitExamSchedulePublishedNotifications(
   } catch {
     /* notification delivery must not block exam writes */
   }
-}
-
-export function isInstituteDriver(actor: { memberships: Array<{ instituteId: string; roles: string[] }> }, instituteId: string): boolean {
-  return actorHasInstituteRole(actor as Parameters<typeof actorHasInstituteRole>[0], instituteId, "driver");
 }

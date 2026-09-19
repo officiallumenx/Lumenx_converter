@@ -1,4 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { useFeesSnapshotQuery, useStudentsListQuery, useAcademicYearsListQuery, adminQueryRoots } from "@/lib/admin-queries";
+import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
 import { AdminPageTransition } from "@/components/AdminPageTransition";
 import { FeesHubNav } from "@/components/fees/FeesHubNav";
@@ -17,19 +20,18 @@ import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import { useRolePermission } from "@/lib/roles-access";
 import { useAuth } from "@/auth/AuthContext";
 import {
-  loadFeesSnapshot,
   resolveFeesLoadView,
-  shouldCommitFeesLoad,
   createFeePlan,
+  type ClassIdsByLabel,
   type FeesLoadStatus,
 } from "@/lib/fees";
-import { loadAcademicYearsList } from "@/lib/academic-years";
-import { useAdminToast } from "@/components/AdminActionToast";
-import { Button } from "@lumenx/ui-admin";
 import {
-  loadStudentsList,
+  type AcademicYearListItem,
+} from "@/lib/academic-years";
+import { useAdminToast } from "@/components/AdminActionToast";
+import { Button, Field, Select } from "@lumenx/ui-admin";
+import {
   resolveStudentsListView,
-  shouldCommitStudentsLoad,
   type StudentListItem,
   type StudentsListStatus,
 } from "@/lib/students";
@@ -137,6 +139,7 @@ function FeesPage() {
   const [apiSnapshot, setApiSnapshot] = useState<FeesSnapshot | null>(null);
   const [apiPlanId, setApiPlanId] = useState<string | null>(null);
   const [apiClassIdByLabel, setApiClassIdByLabel] = useState<Record<string, string>>({});
+  const [apiClassIdsByLabel, setApiClassIdsByLabel] = useState<ClassIdsByLabel>({});
   const [feesLoadStatus, setFeesLoadStatus] = useState<FeesLoadStatus>(() =>
     apiMode ? "loading" : "demo",
   );
@@ -144,8 +147,12 @@ function FeesPage() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(
     null,
   );
-  const [feesReloadKey, setFeesReloadKey] = useState(0);
   const [creatingPlan, setCreatingPlan] = useState(false);
+  const [academicYears, setAcademicYears] = useState<AcademicYearListItem[]>([]);
+  const [academicYearsStatus, setAcademicYearsStatus] = useState<
+    "idle" | "loading" | "ready" | "empty" | "error"
+  >("idle");
+  const [selectedAcademicYearId, setSelectedAcademicYearId] = useState("");
   const [apiStudents, setApiStudents] = useState<StudentListItem[]>([]);
   const [studentsListStatus, setStudentsListStatus] = useState<StudentsListStatus>(() =>
     apiMode ? "loading" : "demo",
@@ -155,13 +162,48 @@ function FeesPage() {
     string | null
   >(null);
 
+  const queryClient = useQueryClient();
+  const listEnabled =
+    apiMode &&
+    instituteCtx.status === "ready" &&
+    Boolean(instituteCtx.activeInstituteId);
+  const yearsQuery = useAcademicYearsListQuery(
+    instituteCtx.activeInstituteId,
+    listEnabled,
+  );
+  const feesQuery = useFeesSnapshotQuery(
+    instituteCtx.activeInstituteId,
+    selectedAcademicYearId || null,
+    listEnabled && Boolean(selectedAcademicYearId),
+  );
+  const studentsQuery = useStudentsListQuery(
+    instituteCtx.activeInstituteId,
+    {},
+    listEnabled,
+  );
+  const bumpFeesReload = () => {
+    invalidateAdminCache("admin:fees");
+    if (instituteCtx.activeInstituteId) {
+      void queryClient.invalidateQueries({
+        queryKey: [adminQueryRoots.fees, instituteCtx.activeInstituteId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: [adminQueryRoots.students, instituteCtx.activeInstituteId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: [adminQueryRoots.catalog, instituteCtx.activeInstituteId],
+      });
+    }
+  };
+
   const feesLoadView = resolveFeesLoadView({
     apiMode,
     instituteStatus: instituteCtx.status,
     activeInstituteId: instituteCtx.activeInstituteId,
     resolvedForInstituteId,
     storedSnapshot: apiSnapshot,
-    storedStatus: feesLoadStatus,
+    storedStatus:
+      feesQuery.isLoading && !feesQuery.data ? "loading" : feesLoadStatus,
     storedErrorMessage: feesLoadError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
@@ -174,7 +216,10 @@ function FeesPage() {
     activeInstituteId: instituteCtx.activeInstituteId,
     resolvedForInstituteId: studentsResolvedForInstituteId,
     storedItems: apiStudents,
-    storedStatus: studentsListStatus,
+    storedStatus:
+      studentsQuery.isLoading && !studentsQuery.data
+        ? "loading"
+        : studentsListStatus,
     storedErrorMessage: studentsListError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
@@ -198,9 +243,65 @@ function FeesPage() {
     if (!apiMode) return;
 
     if (instituteCtx.status === "loading") {
+      setAcademicYears([]);
+      setAcademicYearsStatus("loading");
+      setSelectedAcademicYearId("");
+      return;
+    }
+
+    if (
+      instituteCtx.status === "error" ||
+      instituteCtx.status === "forbidden" ||
+      instituteCtx.status === "needs_selection" ||
+      instituteCtx.status === "empty" ||
+      !instituteCtx.activeInstituteId
+    ) {
+      setAcademicYears([]);
+      setAcademicYearsStatus("idle");
+      setSelectedAcademicYearId("");
+      return;
+    }
+
+    if (yearsQuery.isLoading && !yearsQuery.data) {
+      setAcademicYearsStatus("loading");
+      return;
+    }
+    if (!yearsQuery.data) return;
+
+    const next = yearsQuery.data;
+    setAcademicYears(next.items);
+    setAcademicYearsStatus(
+      next.status === "ready"
+        ? "ready"
+        : next.status === "empty"
+          ? "empty"
+          : next.status === "loading"
+            ? "loading"
+            : "error",
+    );
+    setSelectedAcademicYearId((prev) => {
+      if (prev && next.items.some((y) => y.id === prev)) return prev;
+      const preferred =
+        next.items.find((y) => y.status === "active") ?? next.items[0];
+      return preferred?.id ?? "";
+    });
+  }, [
+    apiMode,
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    instituteCtx.errorMessage,
+    yearsQuery.data,
+    yearsQuery.isLoading,
+  ]);
+
+  useEffect(() => {
+    if (!apiMode) return;
+
+    if (instituteCtx.status === "loading") {
       setApiSnapshot(null);
       setApiPlanId(null);
       setApiClassIdByLabel({});
+      setApiClassIdsByLabel({});
       setFeesLoadStatus("loading");
       setFeesLoadError(null);
       setResolvedForInstituteId(null);
@@ -214,6 +315,7 @@ function FeesPage() {
       setApiSnapshot(null);
       setApiPlanId(null);
       setApiClassIdByLabel({});
+      setApiClassIdsByLabel({});
       setFeesLoadStatus(
         instituteCtx.status === "forbidden" ? "forbidden" : "error",
       );
@@ -230,42 +332,47 @@ function FeesPage() {
       setApiSnapshot(null);
       setApiPlanId(null);
       setApiClassIdByLabel({});
+      setApiClassIdsByLabel({});
       setFeesLoadStatus("needs_institute");
       setFeesLoadError(null);
       setResolvedForInstituteId(null);
       return;
     }
 
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setFeesLoadStatus("loading");
-    setFeesLoadError(null);
-    void loadFeesSnapshot(requestInstituteId).then((next) => {
-      if (
-        !shouldCommitFeesLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setApiSnapshot(next.snapshot);
-      setApiPlanId(next.planId);
-      setApiClassIdByLabel(next.classIdByLabel);
-      setFeesLoadStatus(next.status);
-      setFeesLoadError(next.errorMessage);
-      setResolvedForInstituteId(requestInstituteId);
-    });
-    return () => {
-      cancelled = true;
-    };
+    if (!selectedAcademicYearId) {
+      setApiSnapshot(null);
+      setApiPlanId(null);
+      setApiClassIdByLabel({});
+      setApiClassIdsByLabel({});
+      setFeesLoadStatus("loading");
+      setFeesLoadError(null);
+      setResolvedForInstituteId(null);
+      return;
+    }
+
+    if (feesQuery.isLoading && !feesQuery.data) {
+      setFeesLoadStatus("loading");
+      setFeesLoadError(null);
+      return;
+    }
+    if (!feesQuery.data) return;
+
+    const next = feesQuery.data;
+    setApiSnapshot(next.snapshot);
+    setApiPlanId(next.planId);
+    setApiClassIdByLabel(next.classIdByLabel);
+    setApiClassIdsByLabel(next.classIdsByLabel);
+    setFeesLoadStatus(next.status);
+    setFeesLoadError(next.errorMessage);
+    setResolvedForInstituteId(instituteCtx.activeInstituteId);
   }, [
     apiMode,
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
-    feesReloadKey,
+    selectedAcademicYearId,
+    feesQuery.data,
+    feesQuery.isLoading,
   ]);
 
   useEffect(() => {
@@ -304,33 +411,25 @@ function FeesPage() {
       return;
     }
 
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setStudentsListStatus("loading");
-    setStudentsListError(null);
-    void loadStudentsList(requestInstituteId).then((next) => {
-      if (
-        !shouldCommitStudentsLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setApiStudents(next.items);
-      setStudentsListStatus(next.status);
-      setStudentsListError(next.errorMessage);
-      setStudentsResolvedForInstituteId(requestInstituteId);
-    });
-    return () => {
-      cancelled = true;
-    };
+    if (studentsQuery.isLoading && !studentsQuery.data) {
+      setStudentsListStatus("loading");
+      setStudentsListError(null);
+      return;
+    }
+    if (!studentsQuery.data) return;
+
+    const next = studentsQuery.data;
+    setApiStudents(next.items);
+    setStudentsListStatus(next.status);
+    setStudentsListError(next.errorMessage);
+    setStudentsResolvedForInstituteId(instituteCtx.activeInstituteId);
   }, [
     apiMode,
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
+    studentsQuery.data,
+    studentsQuery.isLoading,
   ]);
 
   const displaySnapshot = useMemo(() => {
@@ -340,7 +439,7 @@ function FeesPage() {
     return feesLoadView.snapshot;
   }, [apiMode, snapshot, feesLoadView.rowsValid, feesLoadView.snapshot]);
 
-  const reloadFees = () => setFeesReloadKey((k) => k + 1);
+  const reloadFees = () => bumpFeesReload();
 
   const createPlanForInstitute = () => {
     if (!writesEnabled || !apiMode || creatingPlan) return;
@@ -349,19 +448,15 @@ function FeesPage() {
       notify("Select an institute before creating a fee plan");
       return;
     }
+    if (!selectedAcademicYearId) {
+      notify("Select an academic year before creating a fee plan");
+      return;
+    }
     setCreatingPlan(true);
-    void loadAcademicYearsList(instituteId)
-      .then((years) => {
-        const year =
-          years.items.find((y) => y.status === "active") ?? years.items[0];
-        if (!year) {
-          throw new Error("Create an academic year before creating a fee plan");
-        }
-        return createFeePlan({
-          instituteId,
-          academicYearId: year.id,
-        });
-      })
+    void createFeePlan({
+      instituteId,
+      academicYearId: selectedAcademicYearId,
+    })
       .then(() => {
         notify("Fee plan created");
         reloadFees();
@@ -372,6 +467,14 @@ function FeesPage() {
       .finally(() => setCreatingPlan(false));
   };
 
+  const academicYearGateBlocked =
+    apiMode &&
+    Boolean(instituteCtx.activeInstituteId) &&
+    instituteCtx.status !== "loading" &&
+    instituteCtx.status !== "error" &&
+    instituteCtx.status !== "forbidden" &&
+    !selectedAcademicYearId;
+
   const goToView = (v: FeesHubView) => navigate({ to: "/fees", search: { view: v } });
   const demoOnChange = apiMode ? () => undefined : setSnapshot;
 
@@ -380,7 +483,7 @@ function FeesPage() {
       title={VIEW_TITLES[view]}
       subtitle={
         apiMode
-          ? `API mode · ${writesEnabled ? "writes enabled" : "read-only"} · ${
+          ? `${writesEnabled ? "Editable" : "Read-only"} · ${
               feesLoadView.rowsValid
                 ? feesLoadView.snapshot?.publish.status ?? "…"
                 : feesLoadView.status
@@ -389,16 +492,50 @@ function FeesPage() {
       }
     >
       <FeesHubNav active={view} />
+      {apiMode && instituteCtx.activeInstituteId ? (
+        <div className="mb-4 max-w-sm">
+          <Field label="Select academic year" required>
+            <Select
+              fieldSize="md"
+              className="w-full text-xs"
+              value={selectedAcademicYearId}
+              disabled={academicYearsStatus === "loading"}
+              onChange={(e) => setSelectedAcademicYearId(e.target.value)}
+            >
+              <option value="">
+                {academicYearsStatus === "loading"
+                  ? "Loading academic years…"
+                  : academicYearsStatus === "empty"
+                    ? "No academic years — create one first"
+                    : "Select academic year…"}
+              </option>
+              {academicYears.map((y) => (
+                <option key={y.id} value={y.id}>
+                  {y.label} ({y.status})
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
+      ) : null}
       <AdminPageTransition pageKey={view}>
-        {apiMode && feesLoadView.status === "empty" ? (
+        {academicYearGateBlocked ? (
+          <div className="py-12 text-center text-sm text-muted-foreground">
+            {academicYearsStatus === "empty"
+              ? "Create an academic year before managing fees. Academic year must be selected first."
+              : academicYearsStatus === "loading"
+                ? "Loading academic years…"
+                : "Academic year must be selected first."}
+          </div>
+        ) : apiMode && feesLoadView.status === "empty" ? (
           <div className="flex flex-col items-center gap-3 py-12 text-center">
             <p className="text-sm text-muted-foreground">
-              No fee plans found for this institute.
+              No fee plans found for this academic year.
             </p>
             {writesEnabled ? (
               <Button
                 variant="primary"
-                disabled={creatingPlan}
+                disabled={creatingPlan || !selectedAcademicYearId}
                 onClick={createPlanForInstitute}
               >
                 Create fee plan
@@ -427,6 +564,7 @@ function FeesPage() {
                 apiMode={apiMode}
                 feePlanId={apiPlanId}
                 classIdByLabel={apiClassIdByLabel}
+                classIdsByLabel={apiClassIdsByLabel}
                 onApiReload={reloadFees}
               />
             )}
@@ -441,6 +579,7 @@ function FeesPage() {
                 apiMode={apiMode}
                 feePlanId={apiPlanId}
                 classIdByLabel={apiClassIdByLabel}
+                classIdsByLabel={apiClassIdsByLabel}
                 onApiReload={reloadFees}
               />
             )}
@@ -452,6 +591,7 @@ function FeesPage() {
                 apiMode={apiMode}
                 feePlanId={apiPlanId}
                 classIdByLabel={apiClassIdByLabel}
+                classIdsByLabel={apiClassIdsByLabel}
                 onApiReload={reloadFees}
               />
             )}
@@ -463,6 +603,7 @@ function FeesPage() {
                 apiMode={apiMode}
                 feePlanId={apiPlanId}
                 classIdByLabel={apiClassIdByLabel}
+                classIdsByLabel={apiClassIdsByLabel}
                 onApiReload={reloadFees}
               />
             )}

@@ -60,7 +60,14 @@ export {
   findCategoryByKind,
   classAmountsForCategory,
   resolveClassId,
+  resolveClassIds,
   upsertCoreClassAmount,
   syncTuitionBooksRow,
   replaceCoreClassAmounts,
 } from "./sync-writes";
+export {
+  expandAmountAcrossClassIds,
+  idsForClassLabel,
+  firstClassIdByLabel,
+  type ClassIdsByLabel,
+} from "./class-ids";

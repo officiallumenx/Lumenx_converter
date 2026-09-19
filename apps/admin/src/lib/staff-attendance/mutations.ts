@@ -6,7 +6,10 @@ import { getAdminApiClient } from "@/lib/admin-api";
 import type { AdminApiClient } from "@/lib/api";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { isInstituteUuid } from "@/lib/active-institute";
-import type { StaffAttendanceDto, StaffAttendanceStatus } from "./types";
+import type {
+  StaffAttendanceDto,
+  StaffAttendanceMarkStatus,
+} from "./types";
 
 function assertApiMode(): void {
   if (!isApiAuthMode()) {
@@ -16,7 +19,7 @@ function assertApiMode(): void {
 
 export type StaffAttendanceDayMarkInput = {
   teacherId: string;
-  status: StaffAttendanceStatus;
+  status: StaffAttendanceMarkStatus;
   checkIn?: string | null;
   checkOut?: string | null;
   note?: string | null;

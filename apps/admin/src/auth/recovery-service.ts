@@ -1,103 +1,43 @@
 /** ─────────────────────────────────────────────────────────────
- *  LumenX Admin — Recovery Service (mock)
- *  User lookup, password overrides, PIN reset helpers.
+ *  LumenX Admin — Recovery Service
+ *  Demo credential lookup / password overrides removed (Wave 1).
+ *  Staff PIN/password reset uses AdminLoginFlow API OTP paths.
  * ───────────────────────────────────────────────────────────── */
 
-import { DEMO_USERS, type DemoCredential } from "./constants";
-import { saveUserPin } from "./app-lock-store";
-import { isValidEmail, normalizeLoginIdentifier, isValidLoginIdentifier } from "./validation";
-import { normalizePhoneDigits } from "@lumenx/utils";
+const DEMO_RECOVERY_REMOVED =
+  "Demo account recovery has been removed. Use Login → Forgot password / Forgot PIN with your institute staff credentials.";
 
-const PASSWORD_OVERRIDES_KEY = "lx_password_overrides_v1";
-
-type PasswordOverrides = Record<string, string>;
-
-function loadPasswordOverrides(): PasswordOverrides {
-  try {
-    const raw = localStorage.getItem(PASSWORD_OVERRIDES_KEY);
-    return raw ? (JSON.parse(raw) as PasswordOverrides) : {};
-  } catch {
-    return {};
-  }
+export function getPasswordOverride(_email: string): string | null {
+  return null;
 }
 
-function writePasswordOverrides(overrides: PasswordOverrides): void {
-  try {
-    localStorage.setItem(PASSWORD_OVERRIDES_KEY, JSON.stringify(overrides));
-  } catch {
-    // ignore
-  }
+export function resolveDemoPassword(_credential: unknown): string {
+  throw new Error(DEMO_RECOVERY_REMOVED);
 }
 
-export function getPasswordOverride(email: string): string | null {
-  return loadPasswordOverrides()[email.toLowerCase()] ?? null;
+export function findDemoUserByEmail(_email: string): null {
+  return null;
 }
 
-export function resolveDemoPassword(credential: DemoCredential): string {
-  return getPasswordOverride(credential.email) ?? credential.password;
-}
-
-export function findDemoUserByEmail(email: string): DemoCredential | null {
-  const normalized = email.trim().toLowerCase();
-  return DEMO_USERS.find((u) => u.email.toLowerCase() === normalized) ?? null;
-}
-
-export function findDemoUserByIdentifier(identifier: string): DemoCredential | null {
-  const trimmed = normalizeLoginIdentifier(identifier);
-  if (isValidEmail(trimmed)) {
-    return findDemoUserByEmail(trimmed);
-  }
-  const phone = normalizePhoneDigits(trimmed);
-  return (
-    DEMO_USERS.find((u) => {
-      const userPhone = normalizePhoneDigits(u.user.phone ?? "");
-      return Boolean(userPhone && phone && userPhone === phone);
-    }) ?? null
-  );
+export function findDemoUserByIdentifier(_identifier: string): null {
+  return null;
 }
 
 export async function mockVerifyRecoveryLogin(
-  identifier: string,
-  password: string,
-): Promise<DemoCredential> {
-  await new Promise((r) => setTimeout(r, 700));
-  if (!isValidLoginIdentifier(identifier)) {
-    throw new Error("Enter a valid email address or mobile number.");
-  }
-  const match = findDemoUserByIdentifier(identifier);
-  if (!match) {
-    throw new Error("No account found with these credentials.");
-  }
-  const effective = resolveDemoPassword(match);
-  if (effective !== password) {
-    throw new Error("Invalid credentials. Please check your email/mobile and password.");
-  }
-  return match;
+  _identifier: string,
+  _password: string,
+): Promise<never> {
+  throw new Error(DEMO_RECOVERY_REMOVED);
 }
 
-export async function mockLookupAccountByEmail(email: string): Promise<DemoCredential> {
-  await new Promise((r) => setTimeout(r, 600));
-  if (!isValidEmail(email)) {
-    throw new Error("Enter a valid email address.");
-  }
-  const match = findDemoUserByEmail(email);
-  if (!match) {
-    throw new Error("No account found for this email address.");
-  }
-  return match;
+export async function mockLookupAccountByEmail(_email: string): Promise<never> {
+  throw new Error(DEMO_RECOVERY_REMOVED);
 }
 
-export async function mockResetPassword(email: string, newPassword: string): Promise<void> {
-  await new Promise((r) => setTimeout(r, 800));
-  const overrides = loadPasswordOverrides();
-  overrides[email.toLowerCase()] = newPassword;
-  writePasswordOverrides(overrides);
+export async function mockResetPassword(_email: string, _newPassword: string): Promise<never> {
+  throw new Error(DEMO_RECOVERY_REMOVED);
 }
 
-export async function mockResetPin(userId: string, newPin: string): Promise<void> {
-  await new Promise((r) => setTimeout(r, 600));
-  if (!/^\d{6}$/.test(newPin)) {
-    throw new Error("PIN must be exactly 6 digits.");
-  }
-  saveUserPin(userId, newPin);
+export async function mockResetPin(_userId: string, _newPin: string): Promise<never> {
+  throw new Error(DEMO_RECOVERY_REMOVED);
 }

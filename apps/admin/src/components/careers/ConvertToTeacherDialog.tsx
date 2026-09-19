@@ -13,18 +13,6 @@ import {
   type TeacherRole,
 } from "@/lib/career-to-teacher";
 
-const DEPTS = [
-  "Mathematics",
-  "Physics",
-  "Chemistry",
-  "Biology",
-  "English",
-  "Science",
-  "Sports",
-  "Administration",
-  "General",
-] as const;
-
 export function ConvertToTeacherDialog({
   open,
   row,
@@ -106,18 +94,6 @@ export function ConvertToTeacherDialog({
             value={draft.name}
             onChange={(event) => setDraft({ ...draft, name: event.target.value })}
           />
-        </Field>
-        <Field label="Department" required>
-          <Select
-            value={draft.dept}
-            onChange={(event) => setDraft({ ...draft, dept: event.target.value })}
-          >
-            {DEPTS.map((dept) => (
-              <option key={dept} value={dept}>
-                {dept}
-              </option>
-            ))}
-          </Select>
         </Field>
         <Field label="Teacher role" required>
           <Select

@@ -142,7 +142,7 @@ export function DocTemplatesView({
               </>
             )
           ) : (
-            <Pill tone="neutral">Read-only · API mode</Pill>
+            <Pill tone="neutral">View only</Pill>
           )}
         </div>
       </Card>

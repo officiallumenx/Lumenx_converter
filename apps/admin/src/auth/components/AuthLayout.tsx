@@ -5,9 +5,10 @@
  * ───────────────────────────────────────────────────────────── */
 
 import { Link } from "@tanstack/react-router";
-import { Sparkles, ArrowLeft, ShieldCheck, BarChart3, Users, GraduationCap } from "lucide-react";
+import { ArrowLeft, ShieldCheck, BarChart3, Users, GraduationCap } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { IconChip } from "@/components/IconChip";
+import { LumenXAdminLogo } from "@/components/LumenXAdminLogo";
 import { AUTH_PAGE_ENTER } from "../auth-ui";
 import type { ReactNode } from "react";
 
@@ -77,15 +78,7 @@ export function AuthLayout({
         {/* Brand header */}
         <div className="relative z-10">
           <Link to="/" className="flex items-center gap-3 mb-10 group w-fit">
-            <div className="size-11 rounded-xl lx-icon-chip lx-icon-chip--md shadow-glow group-hover:shadow-glow-lg transition-shadow">
-              <Sparkles strokeWidth={2} />
-            </div>
-            <div>
-              <div className="font-bold text-[15px] tracking-tight">LUMENX ADMIN</div>
-              <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-                Institute Intelligence
-              </div>
-            </div>
+            <LumenXAdminLogo size="lg" className="max-h-12" />
           </Link>
 
           <h1 className="text-4xl xl:text-[2.6rem] font-bold tracking-tight leading-tight">
@@ -123,10 +116,7 @@ export function AuthLayout({
         {/* Mobile logo bar */}
         <div className="lx-auth-top-bar flex items-center justify-between lg:hidden border-b border-border shrink-0">
           <Link to="/" className="flex items-center gap-2.5">
-            <div className="size-8 rounded-lg lx-icon-chip lx-icon-chip--sm shadow-glow">
-              <Sparkles strokeWidth={2} />
-            </div>
-            <span className="font-bold text-sm tracking-tight">LUMENX ADMIN</span>
+            <LumenXAdminLogo size="sm" className="max-h-8" />
           </Link>
           {showBack && (
             <Link

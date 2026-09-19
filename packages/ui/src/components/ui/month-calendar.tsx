@@ -70,7 +70,8 @@ export function MonthCalendar({
   const todayIso = toIsoDateLocal(new Date());
   const { startYear, endYear } = useMemo(() => resolveCalendarYearRange(min, max), [min, max]);
   const years = useMemo(
-    () => Array.from({ length: endYear - startYear + 1 }, (_, i) => startYear + i),
+    () =>
+      Array.from({ length: endYear - startYear + 1 }, (_, i) => endYear - i),
     [startYear, endYear],
   );
 
@@ -110,6 +111,7 @@ export function MonthCalendar({
             aria-label="Month"
             value={monthIndex}
             onChange={(e) => onMonthChange(new Date(year, Number(e.target.value), 1))}
+            onPointerDown={(e) => e.stopPropagation()}
             className={selectClass}
           >
             {MONTH_LABELS.map((label, i) => (
@@ -122,6 +124,7 @@ export function MonthCalendar({
             aria-label="Year"
             value={year}
             onChange={(e) => onMonthChange(new Date(Number(e.target.value), monthIndex, 1))}
+            onPointerDown={(e) => e.stopPropagation()}
             className={cn(selectClass, "max-w-[5.75rem] flex-none tabular-nums")}
           >
             {years.map((y) => (

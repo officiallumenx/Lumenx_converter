@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -7,11 +7,10 @@ import { useApp } from "@/lib/app-state";
 import { useParentPortal } from "@/context/ParentPortalContext";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { getConnectApiClient } from "@/lib/connect-api";
+import { useLearnerComplaintsQuery } from "@/lib/connect-queries/hooks";
 import {
   DEFAULT_DESTINATION,
-  loadLearnerComplaints,
   submitLearnerComplaint,
-  type ConnectComplaintItem,
 } from "@/lib/complaints";
 import {
   Button,
@@ -63,11 +62,7 @@ type MeResponse = {
 export function LearnerComplaintsApiPanel() {
   const { role, activeInstituteId, activeChildId } = useApp();
   const portal = useParentPortal();
-  const [items, setItems] = useState<ConnectComplaintItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [studentId, setStudentId] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
 
   const childLabel =
     role === "parent" && portal.isParent && portal.snapshot
@@ -96,34 +91,29 @@ export function LearnerComplaintsApiPanel() {
     };
   }, [role, activeInstituteId, activeChildId, portal.snapshot?.child.id]);
 
-  const load = useCallback(async () => {
-    if (!activeInstituteId) {
-      setLoading(false);
-      setError("Select an institute to view complaints.");
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    const result = await loadLearnerComplaints({
-      instituteId: activeInstituteId,
-      studentId: role === "parent" ? studentId : studentId,
-    });
-    if (result.status === "ready") {
-      setItems(result.items);
-    } else if (result.status === "empty") {
-      setItems([]);
-    } else if (result.status === "error") {
-      setError(result.message);
-      setItems([]);
-    }
-    setLoading(false);
-  }, [activeInstituteId, role, studentId]);
+  const enabled =
+    isApiAuthMode() &&
+    Boolean(activeInstituteId) &&
+    (role !== "student" || Boolean(studentId));
 
-  useEffect(() => {
-    if (!isApiAuthMode()) return;
-    if (role === "student" && !studentId) return;
-    void load();
-  }, [load, reloadKey, role, studentId]);
+  const {
+    data,
+    isLoading,
+    isError,
+    refresh,
+  } = useLearnerComplaintsQuery(activeInstituteId, studentId, enabled);
+
+  const items =
+    data?.status === "ready" ? data.items : [];
+  const error =
+    data?.status === "error"
+      ? data.message
+      : !activeInstituteId
+        ? "Select an institute to view complaints."
+        : isError
+          ? "Failed to load complaints"
+          : null;
+  const loading = enabled && isLoading && !data;
 
   return (
     <div className="min-w-0 max-w-full">
@@ -137,9 +127,9 @@ export function LearnerComplaintsApiPanel() {
         action={
           <LearnerNewComplaint
             instituteId={activeInstituteId}
-            studentId={role === "parent" ? studentId : studentId}
+            studentId={studentId}
             childLabel={childLabel}
-            onCreated={() => setReloadKey((k) => k + 1)}
+            onCreated={refresh}
           />
         }
       />

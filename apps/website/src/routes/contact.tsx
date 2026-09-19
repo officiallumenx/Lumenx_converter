@@ -5,7 +5,7 @@ import { SiteShell } from "@/components/SiteShell";
 import { Section } from "@/components/layout/Section";
 import { CTAButton } from "@/components/conversion/CTAButton";
 import { LeaveMessageForm } from "@/components/conversion/LeaveMessageForm";
-import { saveWebsiteLead, type WebsiteLeadIntent } from "@/lib/leads";
+import { submitWebsiteLead, type WebsiteLeadIntent } from "@/lib/leads";
 import { contactSearch, parseContactSearch } from "@/lib/search";
 import { PAGE_SEO, pageHead } from "@/lib/seo";
 import { cn } from "@lumenx/ui";
@@ -13,7 +13,11 @@ import { cn } from "@lumenx/ui";
 const INTENT_COPY: Record<WebsiteLeadIntent, { title: string; lede: string }> = {
   question: {
     title: "Leave a message",
-    lede: "Ask anything about the LumenX platform. Share your name, email, phone, and message — we’ll reply.",
+    lede: "Ask anything about the LumenX platform. Share your name, email, phone, and message — we’ll reply when delivery is configured.",
+  },
+  demo: {
+    title: "Book a demo",
+    lede: "Tell us about the institute and what you want to see. We’ll follow up to schedule a walkthrough — this page does not open a live tenant.",
   },
   trial: {
     title: "Start a 60-day trial",
@@ -31,6 +35,7 @@ const INTENT_COPY: Record<WebsiteLeadIntent, { title: string; lede: string }> = 
 
 const INTENT_TABS: { intent: WebsiteLeadIntent; label: string }[] = [
   { intent: "question", label: "Leave a message" },
+  { intent: "demo", label: "Book a demo" },
   { intent: "trial", label: "Start trial" },
   { intent: "quote", label: "Request quote" },
   { intent: "partner", label: "Partnership" },
@@ -46,25 +51,31 @@ function ContactPage() {
   const search = Route.useSearch();
   const intent = search.intent;
   const copy = INTENT_COPY[intent];
-  const [sent, setSent] = useState(false);
+  const [status, setStatus] = useState<"idle" | "sending" | "ok" | "error">("idle");
+  const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const defaultMessage = useMemo(() => {
     if (intent === "quote" && search.students) {
       return `Please quote for about ${search.students} students.`;
     }
+    if (intent === "demo") {
+      return "We would like a product demo for our institute.";
+    }
     return "";
   }, [intent, search.students]);
 
-  function onSubmit(e: FormEvent<HTMLFormElement>) {
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    setFeedback(null);
     const form = new FormData(e.currentTarget);
     const email = String(form.get("email") ?? "").trim();
     if (!email.includes("@")) {
       setError("Enter a valid email so we can reach you.");
       return;
     }
-    saveWebsiteLead({
+    setStatus("sending");
+    const result = await submitWebsiteLead({
       name: String(form.get("name") ?? "").trim(),
       institute: String(form.get("institute") ?? "").trim(),
       role: String(form.get("role") ?? "").trim(),
@@ -74,7 +85,13 @@ function ContactPage() {
       message: String(form.get("message") ?? "").trim(),
       intent,
     });
-    setSent(true);
+    if (result.ok) {
+      setStatus("ok");
+      setFeedback("Thank you. We’ll reach you at the email you provided.");
+    } else {
+      setStatus("error");
+      setFeedback(result.message);
+    }
   }
 
   return (
@@ -88,7 +105,11 @@ function ContactPage() {
               search={contactSearch(tab.intent, search.students)}
               className={cn("site-product-nav__item")}
               aria-current={intent === tab.intent ? "page" : undefined}
-              onClick={() => setSent(false)}
+              onClick={() => {
+                setStatus("idle");
+                setFeedback(null);
+                setError(null);
+              }}
             >
               {tab.label}
             </Link>
@@ -97,9 +118,9 @@ function ContactPage() {
 
         {intent === "question" ? (
           <LeaveMessageForm />
-        ) : sent ? (
+        ) : status === "ok" ? (
           <p className="rounded-2xl border bg-card p-6 text-sm leading-relaxed" role="status">
-            Thank you. We’ll reach you at the email you provided.
+            {feedback}
           </p>
         ) : (
           <form className="space-y-4" onSubmit={onSubmit} noValidate autoComplete="on">
@@ -132,7 +153,14 @@ function ContactPage() {
                 {error}
               </p>
             ) : null}
-            <CTAButton type="submit">Send</CTAButton>
+            {feedback && status === "error" ? (
+              <p className="text-sm text-destructive" role="alert">
+                {feedback}
+              </p>
+            ) : null}
+            <CTAButton type="submit" disabled={status === "sending"}>
+              {status === "sending" ? "Sending…" : "Send"}
+            </CTAButton>
           </form>
         )}
       </Section>

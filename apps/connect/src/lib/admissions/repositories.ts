@@ -1,4 +1,5 @@
 ﻿import { ADMISSIONS_STORAGE_KEYS, createBrowserAuthStorage } from "@lumenx/auth";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import type {
   AdmissionType,
   AdmissionApplication,
@@ -279,6 +280,13 @@ function applyAdmissionsLifecycle(
 }
 
 function syncDemoUsers(stored: AdmissionsUser[]): AdmissionsUser[] {
+  if (isApiAuthMode()) {
+    return stored.filter(
+      (u) =>
+        !DEMO_ACCOUNT_IDS.has(u.id) &&
+        !DEMO_ACCOUNTS.some((d) => d.email?.toLowerCase() === u.email?.toLowerCase()),
+    );
+  }
   const custom = stored.filter(
     (u) =>
       !DEMO_ACCOUNT_IDS.has(u.id) &&
@@ -312,6 +320,7 @@ function getUsers(): AdmissionsUser[] {
 
 function passwordMatches(user: AdmissionsUser, password: string): boolean {
   if (user.passwordHash === password) return true;
+  if (isApiAuthMode()) return false;
   const isDemo = DEMO_ACCOUNT_IDS.has(user.id);
   if (!isDemo) return false;
   if (password === DEMO_PASSWORD || password === LEGACY_DEMO_PASSWORD) return true;
@@ -329,7 +338,11 @@ function getApplicationsStore(): AdmissionApplication[] {
       ADMISSIONS_STORAGE_KEYS.applications,
       null,
     );
-    appsCache = stored ?? [...DEMO_APPLICATIONS];
+    if (isApiAuthMode()) {
+      appsCache = stored ?? [];
+    } else {
+      appsCache = stored ?? [...DEMO_APPLICATIONS];
+    }
   }
   const lifecycle = applyAdmissionsLifecycle(appsCache);
   const changed = lifecycle.apps.some((app, idx) => app !== appsCache![idx]);
@@ -359,9 +372,10 @@ function saveApplications(apps: AdmissionApplication[]) {
 
 function getNotificationsStore(): AdmissionsNotification[] {
   if (!notifCache) {
-    notifCache = readJson<AdmissionsNotification[]>(ADMISSIONS_STORAGE_KEYS.notifications, [
-      ...DEMO_NOTIFICATIONS,
-    ]);
+    notifCache = readJson<AdmissionsNotification[]>(
+      ADMISSIONS_STORAGE_KEYS.notifications,
+      isApiAuthMode() ? [] : [...DEMO_NOTIFICATIONS],
+    );
   }
   return notifCache;
 }

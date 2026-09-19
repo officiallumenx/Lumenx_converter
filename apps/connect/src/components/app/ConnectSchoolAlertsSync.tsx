@@ -2,7 +2,6 @@ import { useEffect, useRef } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useApp } from "@/lib/app-state";
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
-import { getTeacherPortalApiCache } from "@/lib/teacher-classes";
 import { loadPortalSchoolAlerts } from "@/lib/school-alerts";
 import { alertStore } from "@/lib/alert-store";
 import { loadTeacherLeavePortal } from "@/lib/leave";
@@ -60,8 +59,7 @@ export function ConnectSchoolAlertsSync(): null {
 
     const pollTeacherLeave = async () => {
       if (!portal.isTeacher) return;
-      const teacherId =
-        getTeacherPortalApiCache()?.teacherId ?? portal.profile?.id ?? null;
+      const teacherId = portal.teacherId ?? portal.profile?.id ?? null;
       const result = await loadTeacherLeavePortal({
         instituteId: activeInstituteId,
         teacherId,

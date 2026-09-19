@@ -10,16 +10,16 @@ describe("getAdmissionsAuthMode", () => {
     expect(isDemoAuthMode()).toBe(false);
   });
 
-  it("reads demo when VITE_ADMISSIONS_AUTH_MODE=demo", async () => {
+  it("rejects demo when VITE_ADMISSIONS_AUTH_MODE=demo", async () => {
     vi.resetModules();
     vi.stubEnv("VITE_ADMISSIONS_AUTH_MODE", "demo");
     const { getAdmissionsAuthMode, isDemoAuthMode, isApiAuthMode } = await import("./auth-mode");
-    expect(getAdmissionsAuthMode()).toBe("demo");
-    expect(isDemoAuthMode()).toBe(true);
-    expect(isApiAuthMode()).toBe(false);
+    expect(() => getAdmissionsAuthMode()).toThrow(/Demo Mode is no longer supported/);
+    expect(isApiAuthMode()).toBe(true);
+    expect(isDemoAuthMode()).toBe(false);
   });
 
-  it("reads api when VITE_ADMISSIONS_AUTH_MODE=api", async () => {
+  it("accepts api explicitly", async () => {
     vi.resetModules();
     vi.stubEnv("VITE_ADMISSIONS_AUTH_MODE", "api");
     const { getAdmissionsAuthMode, isApiAuthMode } = await import("./auth-mode");

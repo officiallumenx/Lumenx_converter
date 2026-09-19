@@ -5,10 +5,11 @@ import { AppError } from "../../errors/app-error.js";
 import type { Actor } from "../../auth/types.js";
 import { findProfileById } from "../identity/repository.js";
 import {
+  findInstituteByCode,
+  findInstituteSettings,
   insertInstitute,
   insertInstituteSettings,
-  insertMembership,
-  replaceMembershipRoles,
+  updateInstituteSettingsFields,
 } from "../identity/repository.js";
 import type { InstituteKind } from "../identity/types.js";
 import { recordPlatformAuditForActor } from "../audit/service.js";
@@ -18,11 +19,13 @@ import {
   insertSubscription,
 } from "../nexus/repository.js";
 import {
+  beginRegistrationApproval,
   findActiveMembershipForUserInstitute,
   findRegistrationById,
+  finishRegistrationApproval,
   insertUserProfile,
   listRegistrations,
-  updateRegistrationFields,
+  updateRegistrationFieldsIfStatus,
 } from "./repository.js";
 import {
   INSTITUTE_PUBLIC_PROFILE_KEY,
@@ -54,7 +57,10 @@ function assertNotSelfReview(
   actor: Actor,
   registration: InstituteRegistrationRow,
 ): void {
-  if (registration.applicant_user_id === actor.userId) {
+  if (
+    registration.applicant_user_id === actor.userId &&
+    actor.platformRoleCode !== "nexus_root"
+  ) {
     throw AppError.forbidden("Applicants cannot review their own registration");
   }
 }
@@ -143,49 +149,89 @@ async function ensureInstituteAdminMembership(
   );
 
   if (!membership) {
-    const row = await insertMembership(admin, {
-      userId: input.userId,
-      instituteId: input.instituteId,
-      status: "active",
-      roles: ["institute_admin"],
-    });
-    await replaceMembershipRoles(admin, row.id, ["institute_admin"]);
-    return;
+    // Partial unique index (user_id, institute_id) WHERE deleted_at IS NULL cannot be
+    // targeted by PostgREST onConflict upsert — insert + conflict recovery instead.
+    const existingAny = await admin
+      .from("membership")
+      .select("id, user_id, institute_id, status, deleted_at")
+      .eq("user_id", input.userId)
+      .eq("institute_id", input.instituteId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (existingAny.error) ensureDbOk(existingAny);
+
+    const row = existingAny.data as {
+      id: string;
+      user_id: string;
+      institute_id: string;
+      status: string;
+      deleted_at: string | null;
+    } | null;
+
+    if (row?.deleted_at) {
+      const revived = await admin
+        .from("membership")
+        .update({ deleted_at: null, status: "active" })
+        .eq("id", row.id)
+        .select("id, user_id, institute_id, status")
+        .single();
+      membership = ensureDbOk(revived) as {
+        id: string;
+        user_id: string;
+        institute_id: string;
+        status: string;
+      };
+    } else if (row) {
+      membership = {
+        id: row.id,
+        user_id: row.user_id,
+        institute_id: row.institute_id,
+        status: row.status,
+      };
+    } else {
+      const inserted = await admin
+        .from("membership")
+        .insert({
+          user_id: input.userId,
+          institute_id: input.instituteId,
+          status: "active",
+          deleted_at: null,
+        })
+        .select("id, user_id, institute_id, status")
+        .single();
+      if (inserted.error?.code === "23505") {
+        membership = await findActiveMembershipForUserInstitute(
+          admin,
+          input.userId,
+          input.instituteId,
+        );
+        if (!membership) ensureDbOk(inserted);
+      } else {
+        membership = ensureDbOk(inserted) as {
+          id: string;
+          user_id: string;
+          institute_id: string;
+          status: string;
+        };
+      }
+    }
   }
 
-  const rolesResult = await admin
+  if (!membership) {
+    throw AppError.internal("Unable to create institute admin membership");
+  }
+
+  const roleResult = await admin
     .from("membership_role")
-    .select("role_code")
-    .eq("membership_id", membership.id);
-
-  const existingRoles = ensureDbOk(rolesResult) as Array<{ role_code: string }>;
-  const roleCodes = new Set(existingRoles.map((r) => r.role_code));
-  if (!roleCodes.has("institute_admin")) {
-    roleCodes.add("institute_admin");
-    await replaceMembershipRoles(admin, membership.id, [...roleCodes]);
-  }
-}
-
-async function markRegistrationApproved(
-  admin: SupabaseClient,
-  input: {
-    registrationId: string;
-    instituteId: string;
-    reviewerUserId: string;
-  },
-): Promise<InstituteRegistrationRow> {
-  const reviewedAt = new Date().toISOString();
-  const updated = await updateRegistrationFields(admin, input.registrationId, {
-    status: "approved",
-    institute_id: input.instituteId,
-    reviewed_by: input.reviewerUserId,
-    reviewed_at: reviewedAt,
-    rejection_reason: null,
-  });
-  if (!updated) {
-    throw AppError.notFound("Registration not found");
-  }
-  return updated;
+    .upsert(
+      {
+        membership_id: membership.id,
+        role_code: "institute_admin",
+      },
+      { onConflict: "membership_id,role_code" },
+    );
+  ensureDbOk(roleResult);
 }
 
 export async function listRegistrationsForReviewer(
@@ -215,6 +261,15 @@ export async function approveRegistrationForReviewer(
   assertRegistrationReviewer(actor);
 
   if (registration.status === "approved" && registration.institute_id) {
+    // Approval may have been interrupted after the registration state changed,
+    // or imported from an older workflow. Re-running approval must repair the
+    // owner's identity and institute-wide access, not merely return success.
+    await ensureApplicantProfile(admin, registration);
+    await ensureDefaultAccessRoles(admin, registration.institute_id);
+    await ensureInstituteAdminMembership(admin, {
+      userId: registration.applicant_user_id,
+      instituteId: registration.institute_id,
+    });
     await ensureTrialSubscriptionOnApproval(admin, registration.institute_id);
     return toRegistrationDto(registration);
   }
@@ -223,52 +278,77 @@ export async function approveRegistrationForReviewer(
     throw AppError.conflict("Registration was already rejected");
   }
 
-  if (registration.status !== "pending") {
+  if (registration.status !== "pending" && registration.status !== "approving") {
     throw AppError.conflict("Registration is not pending approval");
   }
 
-  await ensureApplicantProfile(admin, registration);
+  const claimed = await beginRegistrationApproval(admin, registration.id, actor.userId);
+  if (!claimed) throw AppError.conflict("Registration is no longer pending approval");
+  if (claimed.status === "rejected") {
+    throw AppError.conflict("Registration was already rejected");
+  }
+  if (claimed.status === "approved" && claimed.institute_id) {
+    await ensureTrialSubscriptionOnApproval(admin, claimed.institute_id);
+    return toRegistrationDto(claimed);
+  }
 
-  const instituteName = registration.payload.instituteName.trim();
+  await ensureApplicantProfile(admin, claimed);
+
+  const instituteName = claimed.payload.instituteName.trim();
   if (!instituteName) {
     throw AppError.validation("Registration payload is missing instituteName");
   }
 
-  const institute = await insertInstitute(admin, {
-    code: deriveInstituteCode(instituteName, registration.id),
-    name: instituteName,
-    kind: mapInstituteKind(registration.payload.instituteType),
-    status: "active",
-    timezone: "Asia/Kolkata",
-    locale: "en-IN",
-  });
+  const publicProfile = publicProfileFromRegistrationPayload(
+    instituteName,
+    claimed.payload,
+  );
+  const instituteCode = deriveInstituteCode(instituteName, claimed.id);
+  const institute =
+    (await findInstituteByCode(admin, instituteCode)) ??
+    (await insertInstitute(admin, {
+      code: instituteCode,
+      name: instituteName,
+      kind: mapInstituteKind(claimed.payload.instituteType),
+      status: "active",
+      timezone: "Asia/Kolkata",
+      locale: "en-IN",
+    }));
 
-  await insertInstituteSettings(admin, {
-    instituteId: institute.id,
-    timezone: "Asia/Kolkata",
-    locale: "en-IN",
-    settings: mergeInstituteSettingsJson({}, {
-      [INSTITUTE_PUBLIC_PROFILE_KEY]: publicProfileFromRegistrationPayload(
-        instituteName,
-        registration.payload,
-      ),
-    }),
-  });
+  const existingSettings = await findInstituteSettings(admin, institute.id);
+  if (!existingSettings) {
+    await insertInstituteSettings(admin, {
+      instituteId: institute.id,
+      timezone: "Asia/Kolkata",
+      locale: "en-IN",
+      settings: mergeInstituteSettingsJson({}, {
+        [INSTITUTE_PUBLIC_PROFILE_KEY]: publicProfile,
+      }),
+    });
+  } else if (!existingSettings.settings[INSTITUTE_PUBLIC_PROFILE_KEY]) {
+    await updateInstituteSettingsFields(admin, institute.id, {
+      settings: mergeInstituteSettingsJson(existingSettings.settings, {
+        [INSTITUTE_PUBLIC_PROFILE_KEY]: publicProfile,
+      }),
+    });
+  }
 
   await ensureDefaultAccessRoles(admin, institute.id);
 
   await ensureInstituteAdminMembership(admin, {
-    userId: registration.applicant_user_id,
+    userId: claimed.applicant_user_id,
     instituteId: institute.id,
   });
 
   await ensureTrialSubscriptionOnApproval(admin, institute.id);
 
-  const approved = await markRegistrationApproved(admin, {
-    registrationId: registration.id,
-    instituteId: institute.id,
-    reviewerUserId: actor.userId,
-  });
+  const approved = await finishRegistrationApproval(
+    admin,
+    claimed.id,
+    institute.id,
+    actor.userId,
+  );
+  if (!approved) throw AppError.conflict("Registration approval state changed");
 
   await recordPlatformAuditForActor(admin, actor, {
     action: "registration_approved",
@@ -278,7 +358,7 @@ export async function approveRegistrationForReviewer(
       operator: operatorAuditLabel(actor),
       targetLabel: instituteName,
       instituteId: institute.id,
-      registrationId: registration.id,
+      registrationId: claimed.id,
       before: "Pending",
       after: "Approved",
       summary: "Registration approved · institute onboarded",
@@ -322,7 +402,7 @@ export async function rejectRegistrationForReviewer(
   }
 
   const reviewedAt = new Date().toISOString();
-  const updated = await updateRegistrationFields(admin, registrationId, {
+  const updated = await updateRegistrationFieldsIfStatus(admin, registrationId, "pending", {
     status: "rejected",
     rejection_reason: trimmedReason,
     reviewed_by: actor.userId,
@@ -330,9 +410,7 @@ export async function rejectRegistrationForReviewer(
     institute_id: null,
   });
 
-  if (!updated) {
-    throw AppError.notFound("Registration not found");
-  }
+  if (!updated) throw AppError.conflict("Registration review state changed");
 
   const instituteName =
     registration.payload.instituteName?.trim() || "Registration application";

@@ -97,7 +97,6 @@ export function fillTeacherConnectFromCareer(
 export function validateCareerConvertDraft(draft: CareerConvertDraft): string[] {
   const errors: string[] = [];
   if (!draft.name.trim()) errors.push("Full name is required.");
-  if (!draft.dept.trim()) errors.push("Department is required.");
   if (draft.createConnectAccount) {
     if (!/^\d{10}$/.test(draft.phone)) {
       errors.push("Mobile (10 digits) is required — teachers log in with phone.");
@@ -174,7 +173,7 @@ export function teacherFromCareerDraft(draft: CareerConvertDraft): StoredTeacher
     id: ids.id,
     name: draft.name.trim(),
     role: draft.role,
-    dept: draft.dept.trim(),
+    dept: draft.dept.trim() || "General",
     email:
       draft.email.trim().toLowerCase() ||
       `${draft.name.trim().split(/\s+/)[0]?.toLowerCase() ?? "teacher"}@institute.edu`,

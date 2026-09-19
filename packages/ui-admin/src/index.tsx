@@ -235,6 +235,9 @@ export function TextArea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   );
 }
 
+/** Alias for legacy imports that used `Textarea`. */
+export { TextArea as Textarea };
+
 export function Select({
   children,
   fieldSize = "compact",
@@ -302,7 +305,9 @@ export function SegmentedControl<T extends string>({
 
 export function PageToolbar({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`lx-page-toolbar px-3 sm:px-4 py-2.5 sm:py-3 border-b border-border flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end bg-background/30 ${className}`}>
+    <div
+      className={`lx-page-toolbar px-3 sm:px-4 py-2 sm:py-2.5 border-b border-border flex flex-row flex-wrap items-center gap-1.5 sm:gap-2 bg-background/30 ${className}`.trim()}
+    >
       {children}
     </div>
   );
@@ -313,7 +318,7 @@ export function ToolbarGroup({ children, className = "" }: { children: ReactNode
 }
 
 export function ToolbarSpacer() {
-  return <div className="flex-1 min-w-[1rem]" />;
+  return <div className="lx-toolbar-spacer flex-1 min-w-[1rem]" />;
 }
 
 export function ToolbarMeta({ children }: { children: ReactNode }) {
@@ -365,11 +370,17 @@ export function Modal({ open, onClose, title, subtitle, children, footer, size =
   const bodyRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  /** Ignore the overlay click that dismisses a portaled ThemedSelect/Date menu. */
+  const suppressOverlayCloseRef = useRef(false);
 
   useEffect(() => {
     if (!open) return;
     const h = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCloseRef.current();
+      if (e.key === "Escape") {
+        // Let open floating menus consume Escape first.
+        if (document.querySelector(".lx-themed-menu")) return;
+        onCloseRef.current();
+      }
     };
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -394,6 +405,23 @@ export function Modal({ open, onClose, title, subtitle, children, footer, size =
     return () => body.removeEventListener("wheel", onWheel);
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDownCapture = (e: PointerEvent) => {
+      const menu = document.querySelector(".lx-themed-menu");
+      if (!menu) return;
+      const target = e.target as Node;
+      if (menu.contains(target)) return;
+      // Outside-click on the backdrop dismisses the menu — don't also close the dialog.
+      const overlay = document.querySelector(".lx-modal-overlay");
+      if (overlay && target === overlay) {
+        suppressOverlayCloseRef.current = true;
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDownCapture, true);
+    return () => document.removeEventListener("pointerdown", onPointerDownCapture, true);
+  }, [open]);
+
   if (!open || typeof document === "undefined") return null;
 
   const sizeClass = { sm: "lx-modal-dialog--sm", md: "lx-modal-dialog--md", lg: "lx-modal-dialog--lg", xl: "lx-modal-dialog--xl" }[size];
@@ -401,7 +429,14 @@ export function Modal({ open, onClose, title, subtitle, children, footer, size =
   return createPortal(
     <div
       className="lx-modal-overlay lx-modal-backdrop sm:p-6"
-      onClick={onClose}
+      onClick={(e) => {
+        if (e.target !== e.currentTarget) return;
+        if (suppressOverlayCloseRef.current) {
+          suppressOverlayCloseRef.current = false;
+          return;
+        }
+        onClose();
+      }}
       role="presentation"
     >
       <div
@@ -521,7 +556,11 @@ export function Tr({ children, className = "" }: { children: ReactNode; classNam
 }
 
 export { ThemedSelect } from "./themed-select";
-export { ThemedDateInput } from "./themed-date-input";
+export {
+  ThemedDateInput,
+  maskIsoDateTyping,
+  parseFlexibleDateInput,
+} from "./themed-date-input";
 export {
   CascadingFiltersMenu,
   type CascadingFilterGroup,

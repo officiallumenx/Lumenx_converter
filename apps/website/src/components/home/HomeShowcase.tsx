@@ -58,15 +58,16 @@ function Preview({ kind }: { kind: (typeof HOME_SHOWCASE)[number]["preview"] }) 
 }
 
 export function HomeShowcase() {
+  const items = HOME_SHOWCASE.filter((item) => item.id !== "nexus");
   return (
     <Section
       id="products"
-      eyebrow="Products"
-      title="Each product has a job. None of them pretend to be the others."
-      lede="Admin writes the source of truth. Connect is how people use it. Transport runs the trip. Admissions and Careers are Connect portals. Nexus is the service platform for licensing, support, and feedback."
+      eyebrow="Platform"
+      title="Each surface has a job. Together they are one platform."
+      lede="Admin writes the source of truth. Connect is how people use it. Transport runs the trip. Admissions and Careers complete intake and hiring into the same institute record."
     >
       <div className="grid gap-4 lg:grid-cols-2">
-        {HOME_SHOWCASE.map((item, i) => {
+        {items.map((item, i) => {
           const meta = PRODUCT_FAMILY[item.id];
           return (
             <div
@@ -93,7 +94,7 @@ export function HomeShowcase() {
                   <Preview kind={item.preview} />
                 </div>
                 <Link
-                  to="/products/$slug"
+                  to="/platform/$slug"
                   params={{ slug: item.id }}
                   className="site-btn site-btn--ghost mt-2 h-auto justify-start px-0 text-foreground"
                 >

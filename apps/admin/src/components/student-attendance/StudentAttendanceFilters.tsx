@@ -29,7 +29,7 @@ export function StudentAttendanceFilters({
 }: StudentAttendanceFiltersProps) {
   return (
     <Card>
-      <div className="lx-filter-bar flex flex-wrap items-end gap-2 px-3 py-2.5 sm:px-4">
+      <div className="lx-filter-bar flex flex-wrap items-center gap-2 px-3 py-2 sm:px-4">
         <CascadingFiltersMenu
           disabled={disabled}
           groups={[

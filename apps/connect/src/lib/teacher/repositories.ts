@@ -1,9 +1,17 @@
 import { isApiAuthMode } from "@/auth/auth-mode";
 import {
+  createStudentRemark,
+  listStudentRemarks,
+  mapRemarkDtoToStudentRemark,
+  updateStudentRemark,
+} from "@/lib/remarks";
+import {
   getAllTeacherStudentsFromCache,
   getTeacherClassesFromCache,
   getTeacherStudentsForSection,
+  ensureTeacherPortalRoster,
 } from "@/lib/teacher-classes";
+import { isInstituteUuid } from "@/lib/institute-id";
 import { notifyDirectMessage } from "@lumenx/module-notifications";
 import {
   notifyHomeworkAssigned,
@@ -58,6 +66,7 @@ import {
   principalMarkAlertsForTeacher,
   pushHomeworkActivityLog,
   removeTeacherFromPrincipalAttendanceAlerts,
+  listenDemoSync,
 } from "@lumenx/utils";
 import {
   attachmentFromSimpleUpload,
@@ -132,7 +141,6 @@ let preferencesStore: TeacherPreferences = {
   messageAlerts: true,
   eventAlerts: true,
 };
-let remarksStore: StudentRemark[] = [];
 let notificationsStore = [...teacherNotifications];
 const notificationListeners = new Set<Listener>();
 /** Cached filter result — useSyncExternalStore requires a stable reference between mutations. */
@@ -547,6 +555,10 @@ export const teacherRepository = {
   },
 
   async getClass(id: string): Promise<TeacherClass | null> {
+    if (isApiAuthMode()) {
+      const cached = getTeacherClassesFromCache();
+      return cached.find((c) => c.id === id) ?? null;
+    }
     await delay();
     const found = teacherClasses.find((c) => c.id === id);
     if (!found) return null;
@@ -622,11 +634,21 @@ export const teacherRepository = {
     return getInstituteSections(className);
   },
 
-  async getStudent(id: string): Promise<StudentDetail | null> {
+  async getStudent(
+    id: string,
+    opts?: { instituteId?: string | null },
+  ): Promise<StudentDetail | null> {
+    if (isApiAuthMode()) {
+      const instituteId = opts?.instituteId?.trim() ?? "";
+      if (!isInstituteUuid(instituteId) || !isInstituteUuid(id)) return null;
+      const { loadTeacherStudentDetail } = await import("@/lib/students/load");
+      const result = await loadTeacherStudentDetail({ instituteId, studentId: id });
+      if (result.status !== "ready") return null;
+      return result.detail;
+    }
     await delay();
     const detail = getStudentDetail(id);
     if (!detail) return null;
-    const extra = remarksStore.filter((r) => r.studentId === id);
     const attendancePct = studentAttendancePctFromRegisters(detail.classId, id);
     return {
       ...detail,
@@ -635,7 +657,8 @@ export const teacherRepository = {
         ...detail.attendanceSummary,
         rate: attendancePct,
       },
-      remarks: [...detail.remarks, ...extra],
+      // Demo-only path: remarks come from mock student detail only — no in-memory store.
+      remarks: [...detail.remarks],
     };
   },
 
@@ -1641,61 +1664,53 @@ export const teacherRepository = {
     return getHomeworkClassSummaries();
   },
 
-  async getAllRemarks(): Promise<StudentRemark[]> {
-    await delay();
-    const seeded = teacherStudents.slice(0, 3).flatMap((s, i) =>
-      i === 0
-        ? [
-            {
-              id: "rm-seed-1",
-              studentId: s.id,
-              studentName: s.name,
-              type: "academic" as RemarkType,
-              text: "Strong problem-solving skills in algebra.",
-              authorId: teacherProfile.id,
-              authorName: teacherProfile.name,
-              createdAt: "28 May 2026",
-              visibleTo: ["teacher", "parent", "admin"] as StudentRemark["visibleTo"],
-            },
-          ]
-        : [],
-    );
-    return [...seeded, ...remarksStore];
+  async getAllRemarks(opts?: { instituteId?: string | null }): Promise<StudentRemark[]> {
+    if (!isApiAuthMode()) {
+      throw new Error("Student remarks require API authentication.");
+    }
+    const instituteId = opts?.instituteId?.trim() ?? "";
+    if (!isInstituteUuid(instituteId)) return [];
+    const rows = await listStudentRemarks({ instituteId });
+    return rows.map(mapRemarkDtoToStudentRemark);
   },
 
   async addRemark(
     studentId: string,
     remark: { type: RemarkType; text: string },
+    opts?: { instituteId?: string | null },
   ): Promise<StudentRemark> {
     assertTeacherCanWrite();
-    await delay(300);
-    const student = instituteStudents.find((s) => s.id === studentId);
-    const newRemark: StudentRemark = {
-      id: `rm-${Date.now()}`,
+    if (!isApiAuthMode()) {
+      throw new Error("Student remarks require API authentication.");
+    }
+    const instituteId = opts?.instituteId?.trim() ?? "";
+    if (!isInstituteUuid(instituteId)) {
+      throw new Error("Select an institute before adding remarks.");
+    }
+    const dto = await createStudentRemark({
+      instituteId,
       studentId,
-      studentName: student?.name ?? "Student",
       type: remark.type,
       text: remark.text,
-      authorId: teacherProfile.id,
-      authorName: teacherProfile.name,
-      createdAt: formatDate(new Date().toISOString()),
-      visibleTo: ["teacher", "parent", "admin"],
-    };
-    remarksStore = [...remarksStore, newRemark];
-    return newRemark;
+    });
+    return mapRemarkDtoToStudentRemark(dto);
   },
 
-  async updateRemark(id: string, text: string): Promise<StudentRemark | null> {
+  async updateRemark(
+    id: string,
+    text: string,
+    opts?: { instituteId?: string | null },
+  ): Promise<StudentRemark | null> {
     assertTeacherCanWrite();
-    await delay(300);
-    const idx = remarksStore.findIndex((r) => r.id === id);
-    if (idx < 0) return null;
-    remarksStore[idx] = {
-      ...remarksStore[idx],
-      text,
-      updatedAt: formatDate(new Date().toISOString()),
-    };
-    return { ...remarksStore[idx] };
+    if (!isApiAuthMode()) {
+      throw new Error("Student remarks require API authentication.");
+    }
+    const instituteId = opts?.instituteId?.trim() ?? "";
+    if (!isInstituteUuid(instituteId)) {
+      throw new Error("Select an institute before editing remarks.");
+    }
+    const dto = await updateStudentRemark(id, text);
+    return mapRemarkDtoToStudentRemark(dto);
   },
 
   async getClassFees(): Promise<TeacherFeeRecord[]> {
@@ -1704,30 +1719,42 @@ export const teacherRepository = {
   },
 
   async search(query: string, opts?: { instituteId?: string | null }) {
-    await delay(120);
-    // Portal search is institute-bound; refuse results without a current institute.
-    if (!opts?.instituteId) {
+    const empty = {
+      students: [] as typeof teacherStudents,
+      classes: [] as typeof teacherClasses,
+      assignments: [] as typeof assignmentsStore,
+      exams: [] as typeof examsStore,
+      events: [] as typeof eventsStore,
+      messages: [] as TeacherMessage[],
+    };
+    if (!opts?.instituteId) return empty;
+    const q = query.trim().toLowerCase();
+    if (!q) return empty;
+
+    if (isApiAuthMode()) {
+      await ensureTeacherPortalRoster(opts.instituteId);
+      const students = getAllTeacherStudentsFromCache();
+      const classes = getTeacherClassesFromCache();
       return {
-        students: [],
-        classes: [],
+        students: students
+          .filter((s) => s.name.toLowerCase().includes(q) || s.roll.includes(q))
+          .slice(0, 6),
+        classes: classes
+          .filter(
+            (c) =>
+              `${c.className}-${c.section}`.toLowerCase().includes(q) ||
+              c.subject.toLowerCase().includes(q),
+          )
+          .slice(0, 4),
         assignments: [],
         exams: [],
         events: [],
         messages: [] as TeacherMessage[],
       };
     }
-    const q = query.trim().toLowerCase();
-    if (!q)
-      return {
-        students: [],
-        classes: [],
-        assignments: [],
-        exams: [],
-        events: [],
-        messages: [] as TeacherMessage[],
-      };
+
+    await delay(120);
     return {
-      // Teacher portal: only students in this teacher's classes (not whole institute).
       students: teacherStudents
         .filter((s) => s.name.toLowerCase().includes(q) || s.roll.includes(q))
         .slice(0, 6),
@@ -1759,7 +1786,6 @@ export const teacherRepository = {
       messageAlerts: true,
       eventAlerts: true,
     };
-    remarksStore = [];
     notificationsStore = [...teacherNotifications];
     notifyNotifications();
     complaintsStore = [...teacherComplaints];

@@ -23,6 +23,7 @@ import {
   listRecipientsForUserAll,
   listTemplates,
   softDeleteDeviceToken,
+  softDeleteDeviceTokensForUser,
   softDeleteRecipient,
   updateRecipientFields,
   upsertDeviceToken,
@@ -485,4 +486,18 @@ export async function deleteDeviceTokenForActor(
 
   const deleted = await softDeleteDeviceToken(admin, tokenId);
   if (!deleted) throw AppError.conflict("Device token was already deleted");
+}
+
+/** Invalidate all device tokens for the actor (optionally scoped to one app). */
+export async function invalidateDeviceTokensForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  opts?: { app?: RegisterDeviceTokenInput["app"] },
+): Promise<{ invalidated: number }> {
+  const invalidated = await softDeleteDeviceTokensForUser(
+    admin,
+    actor.userId,
+    opts?.app,
+  );
+  return { invalidated };
 }

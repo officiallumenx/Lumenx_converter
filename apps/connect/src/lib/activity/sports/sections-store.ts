@@ -1,13 +1,19 @@
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { sportsSectionsSeed } from "./sections-mock";
 import type { SportsProgramSection, SportsProgramSectionInput } from "./sections-types";
 
-let sectionsStore: SportsProgramSection[] = sportsSectionsSeed.map((s) => ({ ...s }));
+let sectionsStore: SportsProgramSection[] = isApiAuthMode()
+  ? []
+  : sportsSectionsSeed.map((s) => ({ ...s }));
 
 export function listSectionsFromStore(): SportsProgramSection[] {
   return sectionsStore.map((s) => ({ ...s }));
 }
 
 export function createSectionInStore(input: SportsProgramSectionInput): SportsProgramSection {
+  if (isApiAuthMode()) {
+    throw new Error("Sports sections use the Activity API. Local seed store is disabled.");
+  }
   const section: SportsProgramSection = {
     id: `sec-${Date.now()}`,
     name: input.name.trim(),
@@ -19,5 +25,5 @@ export function createSectionInStore(input: SportsProgramSectionInput): SportsPr
 }
 
 export function resetSectionsStore() {
-  sectionsStore = sportsSectionsSeed.map((s) => ({ ...s }));
+  sectionsStore = isApiAuthMode() ? [] : sportsSectionsSeed.map((s) => ({ ...s }));
 }

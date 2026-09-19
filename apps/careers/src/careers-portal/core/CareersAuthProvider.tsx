@@ -11,21 +11,19 @@ import {
 import type { CareersAccountType, CareersUser, OrganizationType } from "@/lib/careers/types";
 import {
   getCurrentUser,
-  initCareersStores,
-  registerUser,
-  signInUser,
   signOutUser,
-  updatePassword,
 } from "@/lib/careers/repositories";
-import { assertProductionApiAuthMode, isApiAuthMode, isDemoAuthMode } from "@/auth/auth-mode";
+import { assertProductionApiAuthMode, isApiAuthMode } from "@/auth/auth-mode";
 import {
   apiSignInWithPassword,
   apiSignOut,
   apiSignUpWithPassword,
+  apiRequestPasswordReset,
   tryHydrateApiSession,
 } from "@/auth/api-auth";
 import { setCareersApiUnauthorizedHandler } from "@/lib/careers-api";
 import { getCareersApiClient } from "@/lib/careers-api";
+import { ApiClientError } from "@/lib/api";
 import { setLumenXFeedbackTransport } from "@lumenx/utils";
 
 const UUID_RE =
@@ -42,6 +40,7 @@ export type CareersSignUpInput = {
   organizationId?: string;
   organizationName?: string;
   organizationType?: OrganizationType;
+  verificationGrants?: string[];
 };
 
 interface CareersAuthContextValue {
@@ -49,7 +48,7 @@ interface CareersAuthContextValue {
   hydrated: boolean;
   signUp: (input: CareersSignUpInput) => Promise<CareersUser>;
   signIn: (identifier: string, password: string) => Promise<CareersUser | null>;
-  resetPassword: (identifier: string, password: string) => boolean;
+  resetPassword: (identifier: string, password?: string) => Promise<void>;
   signOut: () => Promise<void>;
   refresh: () => void;
 }
@@ -107,19 +106,14 @@ export function CareersAuthProvider({ children }: { children: ReactNode }) {
     if (bootstrapped.current) return;
     bootstrapped.current = true;
 
-    if (isDemoAuthMode()) {
-      initCareersStores();
-      setUser(getCurrentUser());
-      setHydrated(true);
-      return;
-    }
-
     void tryHydrateApiSession()
       .then((result) => {
         setUser(result?.user ?? null);
       })
-      .catch(() => {
-        clearLocal();
+      .catch((err) => {
+        const transient =
+          err instanceof ApiClientError && (err.status === 0 || err.status >= 500);
+        if (!transient) clearLocal();
       })
       .finally(() => {
         setHydrated(true);
@@ -127,56 +121,48 @@ export function CareersAuthProvider({ children }: { children: ReactNode }) {
   }, [clearLocal]);
 
   const signUp = useCallback(async (input: CareersSignUpInput) => {
-    if (isApiAuthMode()) {
-      const result = await apiSignUpWithPassword({
-        email: input.email,
-        password: input.password,
-        name: input.name,
-        phone: input.phone,
-        accountType: input.accountType,
-        organizationName: input.organizationName,
-        organizationType: input.organizationType,
-      });
-      setUser(result.user);
-      return result.user;
+    if (!isApiAuthMode()) {
+      throw new Error("Careers authentication requires API mode.");
     }
-
-    const u = registerUser(input);
-    setUser(u);
-    return u;
+    const result = await apiSignUpWithPassword({
+      email: input.email,
+      password: input.password,
+      name: input.name,
+      phone: input.phone,
+      accountType: input.accountType,
+      organizationName: input.organizationName,
+      organizationType: input.organizationType,
+      verificationGrants: input.verificationGrants ?? [],
+    });
+    setUser(result.user);
+    return result.user;
   }, []);
 
   const signIn = useCallback(async (identifier: string, password: string) => {
-    if (isApiAuthMode()) {
-      const email = identifier.trim().toLowerCase();
-      if (!email.includes("@")) {
-        throw new Error("Sign in with your email address in API mode.");
-      }
-      const result = await apiSignInWithPassword(email, password);
-      setUser(result.user);
-      return result.user;
+    if (!isApiAuthMode()) {
+      throw new Error("Careers authentication requires API mode.");
     }
-
-    const u = signInUser(identifier, password);
-    if (u) setUser(u);
-    return u;
+    const email = identifier.trim().toLowerCase();
+    if (!email.includes("@")) {
+      throw new Error("Sign in with your email address.");
+    }
+    const result = await apiSignInWithPassword(email, password);
+    setUser(result.user);
+    return result.user;
   }, []);
 
-  const resetPassword = useCallback((identifier: string, password: string) => {
-    if (isApiAuthMode()) {
-      return false;
+  const resetPassword = useCallback(async (identifier: string, password?: string) => {
+    if (!isApiAuthMode()) {
+      throw new Error("Careers authentication requires API mode.");
     }
-    return updatePassword(identifier, password);
+    void password;
+    await apiRequestPasswordReset(identifier);
   }, []);
 
   const signOut = useCallback(async () => {
-    if (isApiAuthMode()) {
-      await apiSignOut();
-    } else {
-      signOutUser();
-    }
-    setUser(null);
-  }, []);
+    clearLocal();
+    await apiSignOut().catch(() => undefined);
+  }, [clearLocal]);
 
   const value = useMemo(
     () => ({ user, hydrated, signUp, signIn, resetPassword, signOut, refresh }),

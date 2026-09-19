@@ -13,7 +13,12 @@ import {
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
-import { DEMO_CONNECT_OTP } from "@lumenx/auth";
+import { requestSignupOtp, verifySignupOtp } from "@lumenx/auth";
+import { isApiAuthMode } from "@/auth/auth-mode";
+
+function admissionsApiBase(): string {
+  return (import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8787").trim();
+}
 import { INSTITUTE_KIND_LABEL, type InstituteKind } from "@lumenx/types";
 import type { DemoInstituteProfile } from "@lumenx/types";
 import { PhoneInput, COUNTRIES, validatePhone, type Country } from "@/components/app/PhoneInput";
@@ -90,7 +95,6 @@ function MobileLoginForm({
   accountType,
   title,
   subtitle,
-  demoHint,
   signupSearch,
   signupLabel,
   redirect,
@@ -101,7 +105,6 @@ function MobileLoginForm({
   accountType: AdmissionsAccountType;
   title: string;
   subtitle: string;
-  demoHint: string;
   signupSearch: { type: "parent" | "institute" };
   signupLabel: string;
   redirect?: string;
@@ -111,23 +114,21 @@ function MobileLoginForm({
 }) {
   const { signIn } = useAdmissionsAuth();
   const nav = useNavigate();
-  const safeTimeout = useSafeTimeout();
   const [phone, setPhone] = useState("");
   const [country, setCountry] = useState<Country>(COUNTRIES[0]);
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const submit = () => {
+  const submit = async () => {
     const digits = phone.replace(/\D/g, "");
     if (!validatePhone(digits, country)) return toast.error("Enter a valid mobile number");
     if (!password.trim()) return toast.error("Enter your password");
 
     const identifier = `${country.code} ${phone}`;
     setLoading(true);
-    safeTimeout(() => {
-      const loggedIn = signIn(identifier, password, accountType);
-      setLoading(false);
+    try {
+      const loggedIn = await signIn(identifier, password, accountType);
       if (!loggedIn) {
         toast.error(
           accountType === "parent"
@@ -150,7 +151,11 @@ function MobileLoginForm({
               : "/applications",
         });
       }
-    }, 400);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Sign-in failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -164,10 +169,6 @@ function MobileLoginForm({
       </button>
       <h1 className="font-display text-2xl font-bold">{title}</h1>
       <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
-
-      <div className="mt-4 rounded-xl bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
-        {demoHint}
-      </div>
 
       <div className="mt-6 space-y-4">
         <PhoneInput
@@ -323,7 +324,6 @@ export function SignInFlow({
         accountType="parent"
         title="Parent login"
         subtitle="Sign in with your mobile number and password."
-        demoHint="Demo: 9876543210 / demo123"
         signupSearch={{ type: "parent" }}
         signupLabel="Create a parent account with mobile OTP verification."
         redirect={redirect}
@@ -340,7 +340,6 @@ export function SignInFlow({
         accountType="institute_admin"
         title="Institute login"
         subtitle="Sign in with your institute mobile number and password."
-        demoHint="Demo: 4044558801 / demo123 (or use LumenX Admin)"
         signupSearch={{ type: "institute" }}
         signupLabel="Register a standalone institute on LumenX Admissions."
         redirect={redirect}
@@ -380,23 +379,59 @@ export function ParentSignupFlow() {
   const [showConfirmPwd, setShowConfirmPwd] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [mobileGrant, setMobileGrant] = useState("");
 
   const phoneDisplay = `${country.code} ${phone}`;
 
-  const sendOtp = () => {
+  const sendOtp = async () => {
     const digits = phone.replace(/\D/g, "");
     if (!validatePhone(digits, country)) return toast.error("Enter a valid mobile number");
+    if (isApiAuthMode() && !email.trim().includes("@"))
+      return toast.error("Email is required for an online account");
     if (email.trim() && !email.includes("@")) return toast.error("Enter a valid email or leave blank");
-    toast.message(`OTP sent to mobile (demo: ${DEMO_CONNECT_OTP})`);
-    setStep("otp");
+    if (isApiAuthMode()) {
+      try {
+        const result = await requestSignupOtp({
+          subjectKey: email.trim() || digits,
+          channel: "mobile",
+          destination: digits,
+          apiBaseUrl: admissionsApiBase(),
+        });
+        toast.message(
+          result.devOtp
+            ? `OTP sent to mobile (demo: ${result.devOtp})`
+            : `OTP sent to ${result.maskedDestination}`,
+        );
+        setStep("otp");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Unable to send OTP");
+      }
+      return;
+    }
+    toast.error("Demo OTP auth has been removed. Use API signup OTP.");
   };
 
-  const verifyOtp = () => {
-    if (otp !== DEMO_CONNECT_OTP) return toast.error("Invalid OTP");
-    setStep("password");
+  const verifyOtp = async () => {
+    if (isApiAuthMode()) {
+      try {
+        const digits = phone.replace(/\D/g, "");
+        const verified = await verifySignupOtp({
+          subjectKey: email.trim() || digits,
+          channel: "mobile",
+          otp,
+          apiBaseUrl: admissionsApiBase(),
+        });
+        setMobileGrant(verified.grant);
+        setStep("password");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Invalid OTP");
+      }
+      return;
+    }
+    toast.error("Demo OTP auth has been removed. Use API signup OTP.");
   };
 
-  const finish = () => {
+  const finish = async () => {
     const validated = signupWithTermsSchema.safeParse({
       password,
       confirmPassword,
@@ -406,6 +441,25 @@ export function ParentSignupFlow() {
       return toast.error(validated.error.errors[0]?.message ?? "Check password and terms");
     }
     setLoading(true);
+    if (isApiAuthMode()) {
+      try {
+        await signUp({
+          name: name.trim() || `Parent ${phone.replace(/\D/g, "").slice(-4)}`,
+          email: email.trim(),
+          phone: phoneDisplay,
+          password,
+          accountType: "parent",
+          verificationGrants: [mobileGrant],
+        });
+        toast.success("Parent account created!");
+        nav({ to: "/applications" });
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Could not create account");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
     safeTimeout(() => {
       signUp({
         name: name.trim() || `Parent ${phone.replace(/\D/g, "").slice(-4)}`,
@@ -571,26 +625,84 @@ export function InstituteSignupFlow() {
   const [showConfirmPwd, setShowConfirmPwd] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [phoneGrant, setPhoneGrant] = useState("");
+  const [emailGrant, setEmailGrant] = useState("");
 
   const phoneDisplay = `${country.code} ${phone}`;
 
-  const sendPhoneOtp = () => {
+  const sendPhoneOtp = async () => {
     const digits = phone.replace(/\D/g, "");
     if (!validatePhone(digits, country)) return toast.error("Enter a valid mobile number");
     if (!email.trim() || !email.includes("@")) return toast.error("Email is required for institute signup");
-    toast.message(`Mobile OTP (demo: ${DEMO_CONNECT_OTP})`);
-    setStep("verifyPhone");
+    if (isApiAuthMode()) {
+      try {
+        const result = await requestSignupOtp({
+          subjectKey: email.trim().toLowerCase(),
+          channel: "mobile",
+          destination: digits,
+          apiBaseUrl: admissionsApiBase(),
+        });
+        toast.message(
+          result.devOtp
+            ? `Mobile OTP (demo: ${result.devOtp})`
+            : `Mobile OTP sent to ${result.maskedDestination}`,
+        );
+        setStep("verifyPhone");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Unable to send mobile OTP");
+      }
+      return;
+    }
+    toast.error("Demo OTP auth has been removed. Use API signup OTP.");
   };
 
-  const verifyPhone = () => {
-    if (phoneOtp !== DEMO_CONNECT_OTP) return toast.error("Invalid mobile OTP");
-    toast.message(`Email OTP sent to ${email} (demo: ${DEMO_CONNECT_OTP})`);
-    setStep("verifyEmail");
+  const verifyPhone = async () => {
+    if (isApiAuthMode()) {
+      try {
+        const verified = await verifySignupOtp({
+          subjectKey: email.trim().toLowerCase(),
+          channel: "mobile",
+          otp: phoneOtp,
+          apiBaseUrl: admissionsApiBase(),
+        });
+        setPhoneGrant(verified.grant);
+        const result = await requestSignupOtp({
+          subjectKey: email.trim().toLowerCase(),
+          channel: "email",
+          destination: email.trim().toLowerCase(),
+          apiBaseUrl: admissionsApiBase(),
+        });
+        toast.message(
+          result.devOtp
+            ? `Email OTP sent to ${email} (demo: ${result.devOtp})`
+            : `Email OTP sent to ${result.maskedDestination}`,
+        );
+        setStep("verifyEmail");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Invalid mobile OTP");
+      }
+      return;
+    }
+    toast.error("Demo OTP auth has been removed. Use API signup OTP.");
   };
 
-  const verifyEmail = () => {
-    if (emailOtp !== DEMO_CONNECT_OTP) return toast.error("Invalid email OTP");
-    setStep("details");
+  const verifyEmail = async () => {
+    if (isApiAuthMode()) {
+      try {
+        const verified = await verifySignupOtp({
+          subjectKey: email.trim().toLowerCase(),
+          channel: "email",
+          otp: emailOtp,
+          apiBaseUrl: admissionsApiBase(),
+        });
+        setEmailGrant(verified.grant);
+        setStep("details");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Invalid email OTP");
+      }
+      return;
+    }
+    toast.error("Demo OTP auth has been removed. Use API signup OTP.");
   };
 
   const continueDetails = () => {
@@ -604,7 +716,7 @@ export function InstituteSignupFlow() {
     setStep("password");
   };
 
-  const finish = () => {
+  const finish = async () => {
     const validated = signupWithTermsSchema.safeParse({
       password,
       confirmPassword,
@@ -615,6 +727,26 @@ export function InstituteSignupFlow() {
     }
 
     setLoading(true);
+    if (isApiAuthMode()) {
+      try {
+        await signUp({
+          name: adminName.trim(),
+          email: email.trim(),
+          phone: phoneDisplay,
+          password,
+          accountType: "institute_admin",
+          instituteName: instituteName.trim(),
+          verificationGrants: [phoneGrant, emailGrant],
+        });
+        toast.success("Institute account created");
+        nav({ to: "/institute/openings" });
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Could not create account");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
     safeTimeout(() => {
       const newId = `ins-custom-${Date.now()}`;
       const newName = instituteName.trim();
@@ -907,6 +1039,8 @@ export function ForgotPasswordFlow() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
   const [showConfirmPwd, setShowConfirmPwd] = useState(false);
+  const [apiEmail, setApiEmail] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const identifier = `${country.code} ${phone}`;
 
@@ -919,26 +1053,53 @@ export function ForgotPasswordFlow() {
         <ArrowLeft className="size-4" /> Back
       </Link>
       <h1 className="font-display text-2xl font-bold">Reset password</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Verify mobile with OTP, then set a strong password.</p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {isApiAuthMode()
+          ? "Enter your account email and we will send a secure reset link."
+          : "Verify mobile with OTP, then set a strong password."}
+      </p>
 
       {step === "identifier" && (
         <div className="mt-8 space-y-4">
-          <PhoneInput
-            value={phone}
-            onChange={setPhone}
-            country={country}
-            onCountryChange={setCountry}
-          />
+          {isApiAuthMode() ? (
+            <Input
+              type="email"
+              value={apiEmail}
+              onChange={(event) => setApiEmail(event.target.value)}
+              placeholder="you@example.com"
+              autoComplete="email"
+            />
+          ) : (
+            <PhoneInput
+              value={phone}
+              onChange={setPhone}
+              country={country}
+              onCountryChange={setCountry}
+            />
+          )}
           <Button
             className="w-full"
-            onClick={() => {
+            disabled={loading}
+            onClick={async () => {
+              if (isApiAuthMode()) {
+                setLoading(true);
+                try {
+                  await resetPassword(apiEmail);
+                  toast.success("Password reset email sent");
+                  setStep("success");
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : "Unable to send reset email");
+                } finally {
+                  setLoading(false);
+                }
+                return;
+              }
               const digits = phone.replace(/\D/g, "");
               if (!validatePhone(digits, country)) return toast.error("Enter a valid mobile number");
-              toast.message(`OTP: ${DEMO_CONNECT_OTP}`);
-              setStep("otp");
+              toast.error("Demo OTP auth has been removed. Use the API password reset email flow.");
             }}
           >
-            Send OTP
+            {loading ? "Sending…" : isApiAuthMode() ? "Send reset link" : "Send OTP"}
           </Button>
         </div>
       )}
@@ -955,7 +1116,7 @@ export function ForgotPasswordFlow() {
           <Button
             className="w-full"
             onClick={() =>
-              otp === DEMO_CONNECT_OTP ? setStep("password") : toast.error("Invalid OTP")
+              toast.error("Demo OTP auth has been removed. Use the API password reset email flow.")
             }
           >
             Verify
@@ -979,14 +1140,17 @@ export function ForgotPasswordFlow() {
           <Button
             className="w-full"
             disabled={password !== confirmPassword}
-            onClick={() => {
+            onClick={async () => {
               const validated = signupPasswordSchema.safeParse({ password, confirmPassword });
               if (!validated.success)
                 return toast.error(validated.error.errors[0]?.message ?? "Invalid password");
-              if (resetPassword(identifier, password)) {
+              try {
+                await resetPassword(identifier, password);
                 toast.success("Password updated");
                 setStep("success");
-              } else toast.error("Account not found for this mobile");
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : "Could not update password");
+              }
             }}
           >
             Update password
@@ -996,7 +1160,11 @@ export function ForgotPasswordFlow() {
 
       {step === "success" && (
         <div className="mt-8 text-center">
-          <p className="text-sm text-muted-foreground">Your password has been updated.</p>
+          <p className="text-sm text-muted-foreground">
+            {isApiAuthMode()
+              ? "Check your email and open the secure link to choose a new password."
+              : "Your password has been updated."}
+          </p>
           <Button className="mt-6 w-full" asChild>
             <Link to="/login">Sign in</Link>
           </Button>

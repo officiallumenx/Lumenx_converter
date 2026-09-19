@@ -41,6 +41,8 @@ import {
   getModuleNavDirection,
 } from "@lumenx/ui";
 import { MobileMoreSheetContent } from "@/components/app/MobileMoreSheetContent";
+import { DataRefreshHost } from "@/components/DataRefreshHost";
+import { PullToRefresh, DataRefreshStatusBar } from "@/components/PullToRefresh";
 import { cn } from "@lumenx/ui";
 import { useAdmissionsAuth } from "@/admissions-portal/core/AdmissionsAuthProvider";
 import { LumenXLogo } from "@/components/app/LumenXLogo";
@@ -298,8 +300,8 @@ export function AdmissionsShell({ children }: { children: React.ReactNode }) {
 
   if (minimal) {
     return (
-      <div className="min-h-screen bg-background">
-        <header className="sticky top-0 z-20 border-b border-border bg-background/90 backdrop-blur-md">
+      <div className="flex h-screen-svh max-h-screen-svh flex-col overflow-hidden bg-background">
+        <header className="sticky top-0 z-20 shrink-0 border-b border-border bg-background/90 backdrop-blur-md">
           <div className="mx-auto flex h-14 max-w-lg items-center justify-between gap-2 px-4">
             <Link to="/admissions" className="flex items-center gap-2 min-w-0">
               <LumenXLogo size="sm" />
@@ -314,16 +316,21 @@ export function AdmissionsShell({ children }: { children: React.ReactNode }) {
             <HeaderSettingsMenu />
           </div>
         </header>
-        <main ref={mainRef} className="mx-auto max-w-lg px-4 py-6">
-          {children}
+        <DataRefreshStatusBar />
+        <main
+          ref={mainRef}
+          className="mx-auto min-h-0 w-full max-w-lg flex-1 overflow-y-auto overscroll-y-contain px-4 py-6"
+        >
+          <DataRefreshHost />
+          <PullToRefresh scrollRef={mainRef}>{children}</PullToRefresh>
         </main>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <aside className="hidden lg:flex w-60 shrink-0 flex-col border-r border-border bg-sidebar h-screen sticky top-0">
+    <div className="flex h-screen-svh max-h-screen-svh overflow-hidden bg-background">
+      <aside className="hidden lg:flex w-60 shrink-0 flex-col border-r border-border bg-sidebar h-full sticky top-0">
         <div className="flex h-16 shrink-0 items-center justify-between gap-2 border-b border-border px-4">
           <Link to="/admissions" className="flex items-center gap-2 min-w-0">
             <LumenXLogo size="sm" />
@@ -402,7 +409,7 @@ export function AdmissionsShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between border-b border-border bg-background/90 px-4 backdrop-blur-md lg:hidden">
           <Link to="/admissions" className="flex items-center gap-2 min-w-0">
             <LumenXLogo size="sm" className="h-8" />
@@ -428,23 +435,28 @@ export function AdmissionsShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
+        <DataRefreshStatusBar />
+
         <main
           ref={mainRef}
-          className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 pb-24 lg:pb-8 lg:px-8 min-w-0"
+          className="mx-auto min-h-0 w-full max-w-5xl flex-1 overflow-y-auto overscroll-y-contain px-4 py-6 pb-24 lg:pb-8 lg:px-8 min-w-0"
         >
-          <div className="lx-module-swipe-stage min-w-0 w-full">
-            <ModuleTransitionRoot
-              pathname={loc.pathname}
-              primaryPaths={swipePrimaryPaths}
-              morePaths={swipeMorePaths}
-              settingsPath={MORE_NAV.find((item) => item.label === "Settings")?.to}
-              isActive={isActive}
-              enabled={isMobile && !minimal}
-              className="min-w-0"
-            >
-              {children}
-            </ModuleTransitionRoot>
-          </div>
+          <DataRefreshHost />
+          <PullToRefresh scrollRef={mainRef}>
+            <div className="lx-module-swipe-stage min-w-0 w-full">
+              <ModuleTransitionRoot
+                pathname={loc.pathname}
+                primaryPaths={swipePrimaryPaths}
+                morePaths={swipeMorePaths}
+                settingsPath={MORE_NAV.find((item) => item.label === "Settings")?.to}
+                isActive={isActive}
+                enabled={isMobile && !minimal}
+                className="min-w-0"
+              >
+                {children}
+              </ModuleTransitionRoot>
+            </div>
+          </PullToRefresh>
         </main>
 
         <nav className="fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-background/95 backdrop-blur-md lg:hidden safe-area-pb">

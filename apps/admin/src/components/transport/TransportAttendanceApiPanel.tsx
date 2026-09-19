@@ -109,7 +109,7 @@ export function TransportAttendanceApiPanel({ instituteId }: Props) {
         <EmptyState
           icon={ClipboardList}
           title="No attendance marks"
-          description="Marks appear when drivers record boarding during active trips."
+          hint="Marks appear when drivers record boarding during active trips."
         />
       ) : (
         <div className="space-y-2">

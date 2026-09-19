@@ -21,11 +21,13 @@ import {
   listOperatorsForActor,
   listPeriodsForActor,
   listSubscriptionsForActor,
+  provisionOperatorForActor,
   syncSubscriptionLifecyclesForActor,
   updateOperatorForActor,
   upsertLicenseForActor,
   upsertSubscriptionForActor,
 } from "../../domains/nexus/service.js";
+import { getFirebaseAuth } from "../../integrations/firebase.js";
 import platformAudit from "./audit.js";
 import billing from "./billing.js";
 import support from "./support.js";
@@ -98,6 +100,43 @@ operators.get("/", async (c) => {
   const admin = requireAdmin(c);
   const data = await listOperatorsForActor(admin, actor);
   return c.json({ data });
+});
+
+operators.get("/me", async (c) => {
+  const actor = assertAuthenticated(c);
+  if (!actor.isPlatformOperator || !actor.platformRoleCode) {
+    throw AppError.forbidden("Platform operator access required");
+  }
+  return c.json({
+    data: {
+      userId: actor.userId,
+      displayName: actor.displayName,
+      roleCode: actor.platformRoleCode,
+      isRoot: actor.platformRoleCode === "nexus_root",
+    },
+  });
+});
+
+operators.post("/provision", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const firebaseAuth = getFirebaseAuth(c.get("firebaseApp"));
+  if (!firebaseAuth) throw AppError.internal("Firebase Auth is not configured");
+  const body = validateBody(
+    z.object({
+      email: z.string().email().max(200),
+      phone: z.string().min(10).max(40),
+      temporaryPassword: z.string().min(8).max(200),
+      roleCode: platformRoleSchema,
+      handle: z.string().min(1).max(64),
+      displayName: z.string().min(1).max(200),
+      username: z.string().min(3).max(64).optional(),
+      pin: z.string().min(4).max(8).optional(),
+    }),
+    await c.req.json(),
+  );
+  const data = await provisionOperatorForActor(admin, firebaseAuth, actor, body);
+  return c.json({ data }, 201);
 });
 
 operators.get("/:id", async (c) => {

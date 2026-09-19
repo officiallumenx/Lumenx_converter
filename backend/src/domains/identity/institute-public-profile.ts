@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { InstituteRegistrationPayload } from "../registrations/types.js";
 
 export const INSTITUTE_PUBLIC_PROFILE_KEY = "profile";
+export const MAX_INSTITUTE_PROFILE_IMAGE_CHARS = 3_000_000;
 
 const sectionFieldSchema = z.object({
   id: z.string().max(120),
@@ -42,8 +43,8 @@ export const institutePublicProfileSchema = z.object({
   vision: z.string().max(8000),
   mission: z.string().max(8000),
   ranking: z.string().max(200),
-  logo: z.string().max(200_000),
-  profilePhoto: z.string().max(200_000),
+  logo: z.string().max(MAX_INSTITUTE_PROFILE_IMAGE_CHARS),
+  profilePhoto: z.string().max(MAX_INSTITUTE_PROFILE_IMAGE_CHARS),
   phone: z.string().max(80),
   email: z.string().max(200),
   address: z.string().max(1000),

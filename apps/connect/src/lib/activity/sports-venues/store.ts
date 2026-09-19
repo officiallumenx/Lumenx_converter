@@ -1,4 +1,5 @@
 import type { CalendarActivityMark } from "@/activity-workspace/hub/calendar";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { cloneVenue, createVenueFromInput, venuesSeed } from "./mock";
 import type {
   SportsVenue,
@@ -10,7 +11,7 @@ import type {
   VenueListFilters,
 } from "./types";
 
-let venuesStore: SportsVenue[] = venuesSeed.map(cloneVenue);
+let venuesStore: SportsVenue[] = isApiAuthMode() ? [] : venuesSeed.map(cloneVenue);
 
 const bookingsSeed: VenueBooking[] = [
   {
@@ -90,7 +91,7 @@ const bookingsSeed: VenueBooking[] = [
   },
 ];
 
-let bookingsStore: VenueBooking[] = [...bookingsSeed];
+let bookingsStore: VenueBooking[] = isApiAuthMode() ? [] : [...bookingsSeed];
 
 function timeToMinutes(t: string): number {
   const [h, m] = t.split(":").map(Number);
@@ -141,8 +142,8 @@ function applyVenueFilters(items: SportsVenue[], filters?: VenueListFilters): Sp
 }
 
 export function resetSportsVenuesStore() {
-  venuesStore = venuesSeed.map(cloneVenue);
-  bookingsStore = [...bookingsSeed];
+  venuesStore = isApiAuthMode() ? [] : venuesSeed.map(cloneVenue);
+  bookingsStore = isApiAuthMode() ? [] : [...bookingsSeed];
 }
 
 export function listVenuesFromStore(filters?: VenueListFilters): SportsVenue[] {
@@ -154,11 +155,16 @@ export function getVenueByIdFromStore(id: string): SportsVenue | null {
   return found ? cloneVenue(found) : null;
 }
 
-export function listBookingsFromStore(venueId?: string, status?: VenueBookingStatus): VenueBooking[] {
+export function listBookingsFromStore(
+  venueId?: string,
+  status?: VenueBookingStatus,
+): VenueBooking[] {
   let result = [...bookingsStore];
   if (venueId) result = result.filter((b) => b.venueId === venueId);
   if (status) result = result.filter((b) => b.status === status);
-  return result.sort((a, b) => b.date.localeCompare(a.date) || a.startTime.localeCompare(b.startTime));
+  return result.sort(
+    (a, b) => b.date.localeCompare(a.date) || a.startTime.localeCompare(b.startTime),
+  );
 }
 
 export function createVenueInStore(input: SportsVenueInput): SportsVenue {
@@ -280,7 +286,10 @@ export function cancelBookingInStore(id: string): VenueBooking {
   return { ...cancelled };
 }
 
-export function getVenueAvailabilityFromStore(venueId: string, date: string): VenueAvailabilitySlot[] {
+export function getVenueAvailabilityFromStore(
+  venueId: string,
+  date: string,
+): VenueAvailabilitySlot[] {
   return bookingsStore
     .filter((b) => b.venueId === venueId && b.date === date && b.status === "reserved")
     .map((b) => ({

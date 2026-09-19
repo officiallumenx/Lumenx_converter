@@ -39,6 +39,8 @@ export function teacherSheetToConnectRows(sheet: TeacherMarkSheetDto): ConnectMa
     studentName: row.studentName,
     roll: row.rollNo?.trim() || "—",
     marks: row.marks,
+    internalMarks: row.internalMarks,
+    externalMarks: row.externalMarks,
     maxMarks: sheet.maxMarks,
   }));
 }

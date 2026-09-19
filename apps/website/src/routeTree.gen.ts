@@ -9,10 +9,15 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SolutionsRouteImport } from './routes/solutions'
+import { Route as ResourcesRouteImport } from './routes/resources'
 import { Route as ProductsRouteImport } from './routes/products'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as PlatformRouteImport } from './routes/platform'
 import { Route as ModulesRouteImport } from './routes/modules'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as HowItWorksRouteImport } from './routes/how-it-works'
 import { Route as GetStartedRouteImport } from './routes/get-started'
 import { Route as FeaturesRouteImport } from './routes/features'
@@ -20,14 +25,39 @@ import { Route as DownloadsRouteImport } from './routes/downloads'
 import { Route as DownloadRouteImport } from './routes/download'
 import { Route as DemosRouteImport } from './routes/demos'
 import { Route as DemoRouteImport } from './routes/demo'
+import { Route as DataRequestRouteImport } from './routes/data-request'
+import { Route as CookiesRouteImport } from './routes/cookies'
 import { Route as ContactRouteImport } from './routes/contact'
+import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SolutionsIndexRouteImport } from './routes/solutions.index'
+import { Route as ResourcesIndexRouteImport } from './routes/resources.index'
 import { Route as ProductsIndexRouteImport } from './routes/products.index'
+import { Route as PlatformIndexRouteImport } from './routes/platform.index'
+import { Route as ModulesIndexRouteImport } from './routes/modules.index'
+import { Route as SolutionsSlugRouteImport } from './routes/solutions.$slug'
+import { Route as ResourcesHelpRouteImport } from './routes/resources.help'
+import { Route as ResourcesFaqRouteImport } from './routes/resources.faq'
+import { Route as ResourcesDownloadsRouteImport } from './routes/resources.downloads'
+import { Route as ResourcesDemoRouteImport } from './routes/resources.demo'
+import { Route as ResourcesBlogRouteImport } from './routes/resources.blog'
 import { Route as ProductsSlugRouteImport } from './routes/products.$slug'
+import { Route as PlatformSlugRouteImport } from './routes/platform.$slug'
+import { Route as ModulesCategoryRouteImport } from './routes/modules.$category'
 
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SolutionsRoute = SolutionsRouteImport.update({
   id: '/solutions',
   path: '/solutions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResourcesRoute = ResourcesRouteImport.update({
+  id: '/resources',
+  path: '/resources',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProductsRoute = ProductsRouteImport.update({
@@ -35,14 +65,29 @@ const ProductsRoute = ProductsRouteImport.update({
   path: '/products',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PricingRoute = PricingRouteImport.update({
   id: '/pricing',
   path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PlatformRoute = PlatformRouteImport.update({
+  id: '/platform',
+  path: '/platform',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ModulesRoute = ModulesRouteImport.update({
   id: '/modules',
   path: '/modules',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HowItWorksRoute = HowItWorksRouteImport.update({
@@ -80,9 +125,24 @@ const DemoRoute = DemoRouteImport.update({
   path: '/demo',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DataRequestRoute = DataRequestRouteImport.update({
+  id: '/data-request',
+  path: '/data-request',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CookiesRoute = CookiesRouteImport.update({
+  id: '/cookies',
+  path: '/cookies',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ContactRoute = ContactRouteImport.update({
   id: '/contact',
   path: '/contact',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AboutRoute = AboutRouteImport.update({
+  id: '/about',
+  path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -90,20 +150,83 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SolutionsIndexRoute = SolutionsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SolutionsRoute,
+} as any)
+const ResourcesIndexRoute = ResourcesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ResourcesRoute,
+} as any)
 const ProductsIndexRoute = ProductsIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => ProductsRoute,
+} as any)
+const PlatformIndexRoute = PlatformIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => PlatformRoute,
+} as any)
+const ModulesIndexRoute = ModulesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ModulesRoute,
+} as any)
+const SolutionsSlugRoute = SolutionsSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => SolutionsRoute,
+} as any)
+const ResourcesHelpRoute = ResourcesHelpRouteImport.update({
+  id: '/help',
+  path: '/help',
+  getParentRoute: () => ResourcesRoute,
+} as any)
+const ResourcesFaqRoute = ResourcesFaqRouteImport.update({
+  id: '/faq',
+  path: '/faq',
+  getParentRoute: () => ResourcesRoute,
+} as any)
+const ResourcesDownloadsRoute = ResourcesDownloadsRouteImport.update({
+  id: '/downloads',
+  path: '/downloads',
+  getParentRoute: () => ResourcesRoute,
+} as any)
+const ResourcesDemoRoute = ResourcesDemoRouteImport.update({
+  id: '/demo',
+  path: '/demo',
+  getParentRoute: () => ResourcesRoute,
+} as any)
+const ResourcesBlogRoute = ResourcesBlogRouteImport.update({
+  id: '/blog',
+  path: '/blog',
+  getParentRoute: () => ResourcesRoute,
 } as any)
 const ProductsSlugRoute = ProductsSlugRouteImport.update({
   id: '/$slug',
   path: '/$slug',
   getParentRoute: () => ProductsRoute,
 } as any)
+const PlatformSlugRoute = PlatformSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => PlatformRoute,
+} as any)
+const ModulesCategoryRoute = ModulesCategoryRouteImport.update({
+  id: '/$category',
+  path: '/$category',
+  getParentRoute: () => ModulesRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/contact': typeof ContactRoute
+  '/cookies': typeof CookiesRoute
+  '/data-request': typeof DataRequestRoute
   '/demo': typeof DemoRoute
   '/demos': typeof DemosRoute
   '/download': typeof DownloadRoute
@@ -111,16 +234,36 @@ export interface FileRoutesByFullPath {
   '/features': typeof FeaturesRoute
   '/get-started': typeof GetStartedRoute
   '/how-it-works': typeof HowItWorksRoute
-  '/modules': typeof ModulesRoute
+  '/login': typeof LoginRoute
+  '/modules': typeof ModulesRouteWithChildren
+  '/platform': typeof PlatformRouteWithChildren
   '/pricing': typeof PricingRoute
+  '/privacy': typeof PrivacyRoute
   '/products': typeof ProductsRouteWithChildren
-  '/solutions': typeof SolutionsRoute
+  '/resources': typeof ResourcesRouteWithChildren
+  '/solutions': typeof SolutionsRouteWithChildren
+  '/terms': typeof TermsRoute
+  '/modules/$category': typeof ModulesCategoryRoute
+  '/platform/$slug': typeof PlatformSlugRoute
   '/products/$slug': typeof ProductsSlugRoute
+  '/resources/blog': typeof ResourcesBlogRoute
+  '/resources/demo': typeof ResourcesDemoRoute
+  '/resources/downloads': typeof ResourcesDownloadsRoute
+  '/resources/faq': typeof ResourcesFaqRoute
+  '/resources/help': typeof ResourcesHelpRoute
+  '/solutions/$slug': typeof SolutionsSlugRoute
+  '/modules/': typeof ModulesIndexRoute
+  '/platform/': typeof PlatformIndexRoute
   '/products/': typeof ProductsIndexRoute
+  '/resources/': typeof ResourcesIndexRoute
+  '/solutions/': typeof SolutionsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/contact': typeof ContactRoute
+  '/cookies': typeof CookiesRoute
+  '/data-request': typeof DataRequestRoute
   '/demo': typeof DemoRoute
   '/demos': typeof DemosRoute
   '/download': typeof DownloadRoute
@@ -128,16 +271,32 @@ export interface FileRoutesByTo {
   '/features': typeof FeaturesRoute
   '/get-started': typeof GetStartedRoute
   '/how-it-works': typeof HowItWorksRoute
-  '/modules': typeof ModulesRoute
+  '/login': typeof LoginRoute
   '/pricing': typeof PricingRoute
-  '/solutions': typeof SolutionsRoute
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
+  '/modules/$category': typeof ModulesCategoryRoute
+  '/platform/$slug': typeof PlatformSlugRoute
   '/products/$slug': typeof ProductsSlugRoute
+  '/resources/blog': typeof ResourcesBlogRoute
+  '/resources/demo': typeof ResourcesDemoRoute
+  '/resources/downloads': typeof ResourcesDownloadsRoute
+  '/resources/faq': typeof ResourcesFaqRoute
+  '/resources/help': typeof ResourcesHelpRoute
+  '/solutions/$slug': typeof SolutionsSlugRoute
+  '/modules': typeof ModulesIndexRoute
+  '/platform': typeof PlatformIndexRoute
   '/products': typeof ProductsIndexRoute
+  '/resources': typeof ResourcesIndexRoute
+  '/solutions': typeof SolutionsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/contact': typeof ContactRoute
+  '/cookies': typeof CookiesRoute
+  '/data-request': typeof DataRequestRoute
   '/demo': typeof DemoRoute
   '/demos': typeof DemosRoute
   '/download': typeof DownloadRoute
@@ -145,18 +304,38 @@ export interface FileRoutesById {
   '/features': typeof FeaturesRoute
   '/get-started': typeof GetStartedRoute
   '/how-it-works': typeof HowItWorksRoute
-  '/modules': typeof ModulesRoute
+  '/login': typeof LoginRoute
+  '/modules': typeof ModulesRouteWithChildren
+  '/platform': typeof PlatformRouteWithChildren
   '/pricing': typeof PricingRoute
+  '/privacy': typeof PrivacyRoute
   '/products': typeof ProductsRouteWithChildren
-  '/solutions': typeof SolutionsRoute
+  '/resources': typeof ResourcesRouteWithChildren
+  '/solutions': typeof SolutionsRouteWithChildren
+  '/terms': typeof TermsRoute
+  '/modules/$category': typeof ModulesCategoryRoute
+  '/platform/$slug': typeof PlatformSlugRoute
   '/products/$slug': typeof ProductsSlugRoute
+  '/resources/blog': typeof ResourcesBlogRoute
+  '/resources/demo': typeof ResourcesDemoRoute
+  '/resources/downloads': typeof ResourcesDownloadsRoute
+  '/resources/faq': typeof ResourcesFaqRoute
+  '/resources/help': typeof ResourcesHelpRoute
+  '/solutions/$slug': typeof SolutionsSlugRoute
+  '/modules/': typeof ModulesIndexRoute
+  '/platform/': typeof PlatformIndexRoute
   '/products/': typeof ProductsIndexRoute
+  '/resources/': typeof ResourcesIndexRoute
+  '/solutions/': typeof SolutionsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/about'
     | '/contact'
+    | '/cookies'
+    | '/data-request'
     | '/demo'
     | '/demos'
     | '/download'
@@ -164,16 +343,36 @@ export interface FileRouteTypes {
     | '/features'
     | '/get-started'
     | '/how-it-works'
+    | '/login'
     | '/modules'
+    | '/platform'
     | '/pricing'
+    | '/privacy'
     | '/products'
+    | '/resources'
     | '/solutions'
+    | '/terms'
+    | '/modules/$category'
+    | '/platform/$slug'
     | '/products/$slug'
+    | '/resources/blog'
+    | '/resources/demo'
+    | '/resources/downloads'
+    | '/resources/faq'
+    | '/resources/help'
+    | '/solutions/$slug'
+    | '/modules/'
+    | '/platform/'
     | '/products/'
+    | '/resources/'
+    | '/solutions/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/about'
     | '/contact'
+    | '/cookies'
+    | '/data-request'
     | '/demo'
     | '/demos'
     | '/download'
@@ -181,15 +380,31 @@ export interface FileRouteTypes {
     | '/features'
     | '/get-started'
     | '/how-it-works'
-    | '/modules'
+    | '/login'
     | '/pricing'
-    | '/solutions'
+    | '/privacy'
+    | '/terms'
+    | '/modules/$category'
+    | '/platform/$slug'
     | '/products/$slug'
+    | '/resources/blog'
+    | '/resources/demo'
+    | '/resources/downloads'
+    | '/resources/faq'
+    | '/resources/help'
+    | '/solutions/$slug'
+    | '/modules'
+    | '/platform'
     | '/products'
+    | '/resources'
+    | '/solutions'
   id:
     | '__root__'
     | '/'
+    | '/about'
     | '/contact'
+    | '/cookies'
+    | '/data-request'
     | '/demo'
     | '/demos'
     | '/download'
@@ -197,17 +412,37 @@ export interface FileRouteTypes {
     | '/features'
     | '/get-started'
     | '/how-it-works'
+    | '/login'
     | '/modules'
+    | '/platform'
     | '/pricing'
+    | '/privacy'
     | '/products'
+    | '/resources'
     | '/solutions'
+    | '/terms'
+    | '/modules/$category'
+    | '/platform/$slug'
     | '/products/$slug'
+    | '/resources/blog'
+    | '/resources/demo'
+    | '/resources/downloads'
+    | '/resources/faq'
+    | '/resources/help'
+    | '/solutions/$slug'
+    | '/modules/'
+    | '/platform/'
     | '/products/'
+    | '/resources/'
+    | '/solutions/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AboutRoute: typeof AboutRoute
   ContactRoute: typeof ContactRoute
+  CookiesRoute: typeof CookiesRoute
+  DataRequestRoute: typeof DataRequestRoute
   DemoRoute: typeof DemoRoute
   DemosRoute: typeof DemosRoute
   DownloadRoute: typeof DownloadRoute
@@ -215,19 +450,38 @@ export interface RootRouteChildren {
   FeaturesRoute: typeof FeaturesRoute
   GetStartedRoute: typeof GetStartedRoute
   HowItWorksRoute: typeof HowItWorksRoute
-  ModulesRoute: typeof ModulesRoute
+  LoginRoute: typeof LoginRoute
+  ModulesRoute: typeof ModulesRouteWithChildren
+  PlatformRoute: typeof PlatformRouteWithChildren
   PricingRoute: typeof PricingRoute
+  PrivacyRoute: typeof PrivacyRoute
   ProductsRoute: typeof ProductsRouteWithChildren
-  SolutionsRoute: typeof SolutionsRoute
+  ResourcesRoute: typeof ResourcesRouteWithChildren
+  SolutionsRoute: typeof SolutionsRouteWithChildren
+  TermsRoute: typeof TermsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/solutions': {
       id: '/solutions'
       path: '/solutions'
       fullPath: '/solutions'
       preLoaderRoute: typeof SolutionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/resources': {
+      id: '/resources'
+      path: '/resources'
+      fullPath: '/resources'
+      preLoaderRoute: typeof ResourcesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/products': {
@@ -237,6 +491,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProductsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/pricing': {
       id: '/pricing'
       path: '/pricing'
@@ -244,11 +505,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PricingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/platform': {
+      id: '/platform'
+      path: '/platform'
+      fullPath: '/platform'
+      preLoaderRoute: typeof PlatformRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/modules': {
       id: '/modules'
       path: '/modules'
       fullPath: '/modules'
       preLoaderRoute: typeof ModulesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/how-it-works': {
@@ -300,11 +575,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DemoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/data-request': {
+      id: '/data-request'
+      path: '/data-request'
+      fullPath: '/data-request'
+      preLoaderRoute: typeof DataRequestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cookies': {
+      id: '/cookies'
+      path: '/cookies'
+      fullPath: '/cookies'
+      preLoaderRoute: typeof CookiesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/contact': {
       id: '/contact'
       path: '/contact'
       fullPath: '/contact'
       preLoaderRoute: typeof ContactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/about': {
+      id: '/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -314,12 +610,82 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/solutions/': {
+      id: '/solutions/'
+      path: '/'
+      fullPath: '/solutions/'
+      preLoaderRoute: typeof SolutionsIndexRouteImport
+      parentRoute: typeof SolutionsRoute
+    }
+    '/resources/': {
+      id: '/resources/'
+      path: '/'
+      fullPath: '/resources/'
+      preLoaderRoute: typeof ResourcesIndexRouteImport
+      parentRoute: typeof ResourcesRoute
+    }
     '/products/': {
       id: '/products/'
       path: '/'
       fullPath: '/products/'
       preLoaderRoute: typeof ProductsIndexRouteImport
       parentRoute: typeof ProductsRoute
+    }
+    '/platform/': {
+      id: '/platform/'
+      path: '/'
+      fullPath: '/platform/'
+      preLoaderRoute: typeof PlatformIndexRouteImport
+      parentRoute: typeof PlatformRoute
+    }
+    '/modules/': {
+      id: '/modules/'
+      path: '/'
+      fullPath: '/modules/'
+      preLoaderRoute: typeof ModulesIndexRouteImport
+      parentRoute: typeof ModulesRoute
+    }
+    '/solutions/$slug': {
+      id: '/solutions/$slug'
+      path: '/$slug'
+      fullPath: '/solutions/$slug'
+      preLoaderRoute: typeof SolutionsSlugRouteImport
+      parentRoute: typeof SolutionsRoute
+    }
+    '/resources/help': {
+      id: '/resources/help'
+      path: '/help'
+      fullPath: '/resources/help'
+      preLoaderRoute: typeof ResourcesHelpRouteImport
+      parentRoute: typeof ResourcesRoute
+    }
+    '/resources/faq': {
+      id: '/resources/faq'
+      path: '/faq'
+      fullPath: '/resources/faq'
+      preLoaderRoute: typeof ResourcesFaqRouteImport
+      parentRoute: typeof ResourcesRoute
+    }
+    '/resources/downloads': {
+      id: '/resources/downloads'
+      path: '/downloads'
+      fullPath: '/resources/downloads'
+      preLoaderRoute: typeof ResourcesDownloadsRouteImport
+      parentRoute: typeof ResourcesRoute
+    }
+    '/resources/demo': {
+      id: '/resources/demo'
+      path: '/demo'
+      fullPath: '/resources/demo'
+      preLoaderRoute: typeof ResourcesDemoRouteImport
+      parentRoute: typeof ResourcesRoute
+    }
+    '/resources/blog': {
+      id: '/resources/blog'
+      path: '/blog'
+      fullPath: '/resources/blog'
+      preLoaderRoute: typeof ResourcesBlogRouteImport
+      parentRoute: typeof ResourcesRoute
     }
     '/products/$slug': {
       id: '/products/$slug'
@@ -328,8 +694,49 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProductsSlugRouteImport
       parentRoute: typeof ProductsRoute
     }
+    '/platform/$slug': {
+      id: '/platform/$slug'
+      path: '/$slug'
+      fullPath: '/platform/$slug'
+      preLoaderRoute: typeof PlatformSlugRouteImport
+      parentRoute: typeof PlatformRoute
+    }
+    '/modules/$category': {
+      id: '/modules/$category'
+      path: '/$category'
+      fullPath: '/modules/$category'
+      preLoaderRoute: typeof ModulesCategoryRouteImport
+      parentRoute: typeof ModulesRoute
+    }
   }
 }
+
+interface ModulesRouteChildren {
+  ModulesCategoryRoute: typeof ModulesCategoryRoute
+  ModulesIndexRoute: typeof ModulesIndexRoute
+}
+
+const ModulesRouteChildren: ModulesRouteChildren = {
+  ModulesCategoryRoute: ModulesCategoryRoute,
+  ModulesIndexRoute: ModulesIndexRoute,
+}
+
+const ModulesRouteWithChildren =
+  ModulesRoute._addFileChildren(ModulesRouteChildren)
+
+interface PlatformRouteChildren {
+  PlatformSlugRoute: typeof PlatformSlugRoute
+  PlatformIndexRoute: typeof PlatformIndexRoute
+}
+
+const PlatformRouteChildren: PlatformRouteChildren = {
+  PlatformSlugRoute: PlatformSlugRoute,
+  PlatformIndexRoute: PlatformIndexRoute,
+}
+
+const PlatformRouteWithChildren = PlatformRoute._addFileChildren(
+  PlatformRouteChildren,
+)
 
 interface ProductsRouteChildren {
   ProductsSlugRoute: typeof ProductsSlugRoute
@@ -345,9 +752,48 @@ const ProductsRouteWithChildren = ProductsRoute._addFileChildren(
   ProductsRouteChildren,
 )
 
+interface ResourcesRouteChildren {
+  ResourcesBlogRoute: typeof ResourcesBlogRoute
+  ResourcesDemoRoute: typeof ResourcesDemoRoute
+  ResourcesDownloadsRoute: typeof ResourcesDownloadsRoute
+  ResourcesFaqRoute: typeof ResourcesFaqRoute
+  ResourcesHelpRoute: typeof ResourcesHelpRoute
+  ResourcesIndexRoute: typeof ResourcesIndexRoute
+}
+
+const ResourcesRouteChildren: ResourcesRouteChildren = {
+  ResourcesBlogRoute: ResourcesBlogRoute,
+  ResourcesDemoRoute: ResourcesDemoRoute,
+  ResourcesDownloadsRoute: ResourcesDownloadsRoute,
+  ResourcesFaqRoute: ResourcesFaqRoute,
+  ResourcesHelpRoute: ResourcesHelpRoute,
+  ResourcesIndexRoute: ResourcesIndexRoute,
+}
+
+const ResourcesRouteWithChildren = ResourcesRoute._addFileChildren(
+  ResourcesRouteChildren,
+)
+
+interface SolutionsRouteChildren {
+  SolutionsSlugRoute: typeof SolutionsSlugRoute
+  SolutionsIndexRoute: typeof SolutionsIndexRoute
+}
+
+const SolutionsRouteChildren: SolutionsRouteChildren = {
+  SolutionsSlugRoute: SolutionsSlugRoute,
+  SolutionsIndexRoute: SolutionsIndexRoute,
+}
+
+const SolutionsRouteWithChildren = SolutionsRoute._addFileChildren(
+  SolutionsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AboutRoute: AboutRoute,
   ContactRoute: ContactRoute,
+  CookiesRoute: CookiesRoute,
+  DataRequestRoute: DataRequestRoute,
   DemoRoute: DemoRoute,
   DemosRoute: DemosRoute,
   DownloadRoute: DownloadRoute,
@@ -355,10 +801,15 @@ const rootRouteChildren: RootRouteChildren = {
   FeaturesRoute: FeaturesRoute,
   GetStartedRoute: GetStartedRoute,
   HowItWorksRoute: HowItWorksRoute,
-  ModulesRoute: ModulesRoute,
+  LoginRoute: LoginRoute,
+  ModulesRoute: ModulesRouteWithChildren,
+  PlatformRoute: PlatformRouteWithChildren,
   PricingRoute: PricingRoute,
+  PrivacyRoute: PrivacyRoute,
   ProductsRoute: ProductsRouteWithChildren,
-  SolutionsRoute: SolutionsRoute,
+  ResourcesRoute: ResourcesRouteWithChildren,
+  SolutionsRoute: SolutionsRouteWithChildren,
+  TermsRoute: TermsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -27,13 +27,13 @@ describe("app-lock policy", () => {
     store.clear();
   });
 
-  it("requires app lock only in demo mode", async () => {
+  it("never requires local app lock (demo mode removed)", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
     const { isAppLockRequired, isLocalPinStorageAllowed } = await import(
       "./app-lock-policy"
     );
-    expect(isAppLockRequired()).toBe(true);
-    expect(isLocalPinStorageAllowed()).toBe(true);
+    expect(isAppLockRequired()).toBe(false);
+    expect(isLocalPinStorageAllowed()).toBe(false);
   });
 
   it("disables app lock in API mode", async () => {
@@ -45,10 +45,10 @@ describe("app-lock policy", () => {
     expect(isLocalPinStorageAllowed()).toBe(false);
   });
 
-  it("redirects forgot-pin to password reset in API mode", async () => {
+  it("does not block forgot-pin in API mode (login embeds PIN recovery)", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const { resolveAppLockDemoRouteBlock } = await import("./app-lock-policy");
-    expect(resolveAppLockDemoRouteBlock("/forgot-pin")).toBe("/forgot-password");
+    expect(resolveAppLockDemoRouteBlock("/forgot-pin")).toBeNull();
     expect(resolveAppLockDemoRouteBlock("/login")).toBeNull();
   });
 });
@@ -75,11 +75,11 @@ describe("verifyUserPin API mode isolation", () => {
     expect(store.get(USER_PINS_STORAGE_KEY)).toBeUndefined();
   });
 
-  it("accepts demo PIN for demo users without stored PIN", async () => {
+  it("rejects demo PIN even when env incorrectly sets demo", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
     const { verifyUserPin } = await import("./app-lock-store");
     expect(verifyUserPin(USER_ID, DEMO_SECURITY_PIN, "user@school.edu")).toBe(
-      true,
+      false,
     );
   });
 
@@ -92,19 +92,18 @@ describe("verifyUserPin API mode isolation", () => {
   });
 });
 
-describe("demo PIN storage", () => {
+describe("PIN storage (API-only)", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.unstubAllEnvs();
     store.clear();
   });
 
-  it("stores plaintext PIN only in demo mode (local convenience)", async () => {
+  it("does not store plaintext PIN when demo mode is requested", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
     const { saveUserPin, verifyUserPin } = await import("./app-lock-store");
     saveUserPin(USER_ID, "987654", "user@school.edu");
-    expect(verifyUserPin(USER_ID, "987654", "user@school.edu")).toBe(true);
-    const raw = store.get(USER_PINS_STORAGE_KEY);
-    expect(raw).toContain("987654");
+    expect(verifyUserPin(USER_ID, "987654", "user@school.edu")).toBe(false);
+    expect(store.get(USER_PINS_STORAGE_KEY)).toBeUndefined();
   });
 });

@@ -24,7 +24,7 @@ const VEHICLE_COLS =
   "id, institute_id, vehicle_number, registration_number, capacity, status, notes, created_at, updated_at, deleted_at";
 
 const DRIVER_COLS =
-  "id, institute_id, user_profile_id, display_name, phone, license_number, license_expiry, status, notes, created_at, updated_at, deleted_at";
+  "id, institute_id, user_profile_id, display_name, phone, license_number, license_expiry, status, notes, assigned_vehicle_id, app_pin_hash, app_pin_salt, created_at, updated_at, deleted_at";
 
 const ROUTE_COLS =
   "id, institute_id, name, vehicle_id, driver_id, status, config_status, locked_at, locked_by_user_id, setup_finished_at, approval_status, submitted_by_user_id, reviewed_by_user_id, reviewed_at, rejection_reason, created_at, updated_at, deleted_at";
@@ -36,7 +36,7 @@ const ENROLLMENT_COLS =
   "id, institute_id, student_id, route_id, pickup_stop_id, drop_stop_id, status, approval_status, submitted_by_user_id, reviewed_by_user_id, reviewed_at, rejection_reason, created_at, updated_at, deleted_at";
 
 const SETTINGS_COLS =
-  "institute_id, default_notification_radius_m, default_pickup_buffer_mins, working_days, created_at, updated_at";
+  "institute_id, default_notification_radius_m, default_pickup_buffer_mins, working_days, notifications_enabled, remember_enabled, default_pickup_time, created_at, updated_at";
 
 // ── Vehicles ─────────────────────────────────────────────────────
 
@@ -174,9 +174,33 @@ export async function findDriverByUserProfileId(
   return (result.data as DriverRow | null) ?? null;
 }
 
+/** Match drivers by last-10 phone digits (optional institute scope). */
+export async function listDriversByPhoneDigits(
+  admin: SupabaseClient,
+  phoneDigits: string,
+  instituteId?: string,
+): Promise<DriverRow[]> {
+  let query = admin.from("driver").select(DRIVER_COLS).is("deleted_at", null);
+  if (instituteId) {
+    query = query.eq("institute_id", instituteId);
+  }
+  const result = await query;
+  const rows = ensureDbOk(result) as DriverRow[];
+  const needle = phoneDigits.replace(/\D/g, "").slice(-10);
+  return rows.filter((row) => {
+    const digits = String(row.phone ?? "")
+      .replace(/\D/g, "")
+      .slice(-10);
+    return digits.length === 10 && digits === needle;
+  });
+}
+
 export async function insertDriver(
   admin: SupabaseClient,
-  input: CreateDriverInput,
+  input: CreateDriverInput & {
+    appPinHash?: string | null;
+    appPinSalt?: string | null;
+  },
 ): Promise<DriverRow> {
   const result = await admin
     .from("driver")
@@ -189,6 +213,9 @@ export async function insertDriver(
       license_expiry: input.licenseExpiry ?? null,
       status: input.status ?? "active",
       notes: input.notes ?? null,
+      assigned_vehicle_id: input.assignedVehicleId ?? null,
+      app_pin_hash: input.appPinHash ?? null,
+      app_pin_salt: input.appPinSalt ?? null,
     })
     .select(DRIVER_COLS)
     .single();
@@ -236,6 +263,9 @@ export function toDriverUpdatePatch(
   if (input.licenseExpiry !== undefined) patch.license_expiry = input.licenseExpiry;
   if (input.status !== undefined) patch.status = input.status;
   if (input.notes !== undefined) patch.notes = input.notes;
+  if (input.assignedVehicleId !== undefined) {
+    patch.assigned_vehicle_id = input.assignedVehicleId;
+  }
   return patch;
 }
 
@@ -472,8 +502,8 @@ export async function insertEnrollment(
       institute_id: input.instituteId,
       student_id: input.studentId,
       route_id: input.routeId,
-      pickup_stop_id: input.pickupStopId,
-      drop_stop_id: input.dropStopId,
+      pickup_stop_id: input.pickupStopId ?? null,
+      drop_stop_id: input.dropStopId ?? null,
       status: input.status ?? "active",
       approval_status: input.approvalStatus ?? "approved",
       submitted_by_user_id: input.submittedByUserId ?? null,
@@ -542,6 +572,9 @@ export async function findTransportSettings(
   return {
     ...row,
     working_days: row.working_days ?? [1, 2, 3, 4, 5],
+    notifications_enabled: row.notifications_enabled ?? true,
+    remember_enabled: row.remember_enabled ?? true,
+    default_pickup_time: row.default_pickup_time ?? null,
   };
 }
 
@@ -561,6 +594,15 @@ export async function upsertTransportSettings(
     if (input.workingDays !== undefined) {
       patch.working_days = input.workingDays;
     }
+    if (input.notificationsEnabled !== undefined) {
+      patch.notifications_enabled = input.notificationsEnabled;
+    }
+    if (input.rememberEnabled !== undefined) {
+      patch.remember_enabled = input.rememberEnabled;
+    }
+    if (input.defaultPickupTime !== undefined) {
+      patch.default_pickup_time = input.defaultPickupTime;
+    }
     if (Object.keys(patch).length === 0) return existing;
     const result = await admin
       .from("transport_settings")
@@ -572,6 +614,9 @@ export async function upsertTransportSettings(
     return {
       ...row,
       working_days: row.working_days ?? [1, 2, 3, 4, 5],
+      notifications_enabled: row.notifications_enabled ?? true,
+      remember_enabled: row.remember_enabled ?? true,
+      default_pickup_time: row.default_pickup_time ?? null,
     };
   }
 
@@ -582,6 +627,9 @@ export async function upsertTransportSettings(
       default_notification_radius_m: input.defaultNotificationRadiusM ?? 150,
       default_pickup_buffer_mins: input.defaultPickupBufferMins ?? 5,
       working_days: input.workingDays ?? [1, 2, 3, 4, 5],
+      notifications_enabled: input.notificationsEnabled ?? true,
+      remember_enabled: input.rememberEnabled ?? true,
+      default_pickup_time: input.defaultPickupTime ?? null,
     })
     .select(SETTINGS_COLS)
     .single();
@@ -589,5 +637,45 @@ export async function upsertTransportSettings(
   return {
     ...row,
     working_days: row.working_days ?? [1, 2, 3, 4, 5],
+    notifications_enabled: row.notifications_enabled ?? true,
+    remember_enabled: row.remember_enabled ?? true,
+    default_pickup_time: row.default_pickup_time ?? null,
   };
+}
+
+export async function findRouteByVehicleId(
+  admin: SupabaseClient,
+  instituteId: string,
+  vehicleId: string,
+): Promise<RouteRow | null> {
+  const result = await admin
+    .from("route")
+    .select(ROUTE_COLS)
+    .eq("institute_id", instituteId)
+    .eq("vehicle_id", vehicleId)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  return (result.data as RouteRow | null) ?? null;
+}
+
+export async function clearDriverVehicleAssignment(
+  admin: SupabaseClient,
+  instituteId: string,
+  vehicleId: string,
+  exceptDriverId?: string,
+): Promise<void> {
+  let query = admin
+    .from("driver")
+    .update({ assigned_vehicle_id: null })
+    .eq("institute_id", instituteId)
+    .eq("assigned_vehicle_id", vehicleId)
+    .is("deleted_at", null);
+  if (exceptDriverId) {
+    query = query.neq("id", exceptDriverId);
+  }
+  const result = await query;
+  ensureDbOk(result);
 }

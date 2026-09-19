@@ -19,7 +19,7 @@ function StudentAttendancePage() {
       title={M.attendance}
       subtitle={
         apiMode
-          ? "API mode · enrollments roster · create / mark / submit registers by class · section · date"
+          ? "Enrollments roster · create / mark / submit registers by class · section · date"
           : "Select class · section · date · mark via Attendance Engine"
       }
     >

@@ -30,7 +30,7 @@ export const ACTIVITY_CATEGORIES: readonly ActivityCategoryMeta[] = [
 
 export function getActivityCategory(id: ActivityCategoryId): ActivityCategoryMeta {
   const found = ACTIVITY_CATEGORIES.find((c) => c.id === id);
-  if (!found) throw new Error(`Unknown activity category: ${id}`);
+  if (!found) return ACTIVITY_CATEGORIES[0]!;
   return found;
 }
 

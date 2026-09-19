@@ -1,10 +1,8 @@
 import {
   Bell,
   Bus,
-  CalendarDays,
   CircleHelp,
   ClipboardCheck,
-  ClipboardList,
   Grid2X2,
   Home,
   MapPinned,
@@ -29,8 +27,6 @@ export const ROUTES = {
   profile: "/more/profile",
   settings: "/more/settings",
   support: "/more/support",
-  schoolCalendar: "/more/calendar",
-  examSchedule: "/more/exam-schedule",
 } as const;
 
 export type AppRoutePath = (typeof ROUTES)[keyof typeof ROUTES];
@@ -100,22 +96,6 @@ export const MORE_NAV: MoreNavItem[] = [
     path: ROUTES.routeSetup,
     icon: MapPinned,
     moduleColor: MODULE_COLORS.transport,
-  },
-  {
-    id: "school-calendar",
-    label: "School Calendar",
-    description: "Institute events, holidays, and notices",
-    path: ROUTES.schoolCalendar,
-    icon: CalendarDays,
-    moduleColor: MODULE_COLORS.primary,
-  },
-  {
-    id: "exam-schedule",
-    label: "Exam Schedule",
-    description: "Published exam timetables for your institute",
-    path: ROUTES.examSchedule,
-    icon: ClipboardList,
-    moduleColor: MODULE_COLORS.warning,
   },
   {
     id: "profile",

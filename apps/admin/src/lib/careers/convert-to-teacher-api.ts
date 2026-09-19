@@ -27,7 +27,7 @@ export async function convertCareerApplicationToTeacher(
 
   const body = {
     display_name: draft.name.trim(),
-    department: draft.dept.trim(),
+    department: draft.dept.trim() || "General",
     teaching_scope: roleToTeachingScope(draft.role),
     portal_access_level: "faculty_grading" as const,
     status: draft.createConnectAccount ? ("pending" as const) : ("active" as const),

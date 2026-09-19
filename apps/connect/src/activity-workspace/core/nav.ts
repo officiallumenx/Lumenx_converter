@@ -15,7 +15,6 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { STUDENT_MODULE_COLORS, type StudentModuleColor } from "@/lib/student/nav";
 import { ACTIVITY_WORKSPACE_BASE } from "./routes";
-import { ACTIVITY_WORKSPACE_MODULES } from "../workspace/modules";
 import type { ActivityModuleId } from "./types";
 
 export const ACTIVITY_MODULE_ICONS: Record<ActivityModuleId, LucideIcon> = {
@@ -49,22 +48,85 @@ export const ACTIVITY_MODULE_COLORS: Record<ActivityModuleId, StudentModuleColor
   profile: STUDENT_MODULE_COLORS.slate,
 };
 
-function modulePath(id: ActivityModuleId): string {
-  if (id === "dashboard") return ACTIVITY_WORKSPACE_BASE;
-  if (id === "profile") return `${ACTIVITY_WORKSPACE_BASE}/profile`;
-  return `${ACTIVITY_WORKSPACE_BASE}/${id}`;
-}
-
 /**
  * Activity Coordinator workspace — primary navigation (finalized V1 modules).
  * Uses shortLabel where available for mobile / drawer clarity.
+ * Built without Array.map so SSR/import-protection mocks cannot throw on `.label`.
  */
-export const ACTIVITY_NAV = ACTIVITY_WORKSPACE_MODULES.map((mod) => ({
-  to: modulePath(mod.id),
-  label: mod.shortLabel ?? mod.label,
-  icon: ACTIVITY_MODULE_ICONS[mod.id],
-  moduleColor: ACTIVITY_MODULE_COLORS[mod.id],
-})) as readonly {
+export const ACTIVITY_NAV = [
+  {
+    to: ACTIVITY_WORKSPACE_BASE,
+    label: "Home",
+    icon: Home,
+    moduleColor: STUDENT_MODULE_COLORS.blue,
+  },
+  {
+    to: `${ACTIVITY_WORKSPACE_BASE}/sports`,
+    label: "Sports",
+    icon: Trophy,
+    moduleColor: STUDENT_MODULE_COLORS.amber,
+  },
+  {
+    to: `${ACTIVITY_WORKSPACE_BASE}/extra-curricular`,
+    label: "ECA",
+    icon: Sparkles,
+    moduleColor: STUDENT_MODULE_COLORS.teal,
+  },
+  {
+    to: `${ACTIVITY_WORKSPACE_BASE}/attendance`,
+    label: "Attendance",
+    icon: ClipboardCheck,
+    moduleColor: STUDENT_MODULE_COLORS.green,
+  },
+  {
+    to: `${ACTIVITY_WORKSPACE_BASE}/diary`,
+    label: "Diary",
+    icon: NotebookPen,
+    moduleColor: STUDENT_MODULE_COLORS.violet,
+  },
+  {
+    to: `${ACTIVITY_WORKSPACE_BASE}/achievements`,
+    label: "Achievements",
+    icon: Award,
+    moduleColor: STUDENT_MODULE_COLORS.gold,
+  },
+  {
+    to: `${ACTIVITY_WORKSPACE_BASE}/messages`,
+    label: "Messages",
+    icon: MessageSquare,
+    moduleColor: STUDENT_MODULE_COLORS.cyan,
+  },
+  {
+    to: `${ACTIVITY_WORKSPACE_BASE}/notifications`,
+    label: "Notifications",
+    icon: Bell,
+    moduleColor: STUDENT_MODULE_COLORS.crimson,
+  },
+  {
+    to: `${ACTIVITY_WORKSPACE_BASE}/announcements`,
+    label: "Announcements",
+    icon: Megaphone,
+    moduleColor: STUDENT_MODULE_COLORS.rose,
+  },
+  {
+    to: `${ACTIVITY_WORKSPACE_BASE}/practice`,
+    label: "Practice",
+    icon: Dumbbell,
+    moduleColor: STUDENT_MODULE_COLORS.orange,
+  },
+  {
+    to: `${ACTIVITY_WORKSPACE_BASE}/calendar`,
+    label: "Calendar",
+    icon: CalendarDays,
+    moduleColor: STUDENT_MODULE_COLORS.sky,
+  },
+  {
+    to: `${ACTIVITY_WORKSPACE_BASE}/profile`,
+    label: "Settings",
+    icon: UserIcon,
+    moduleColor: STUDENT_MODULE_COLORS.slate,
+  },
+] as const satisfies readonly {
   to: string;
   label: string;
   icon: LucideIcon;

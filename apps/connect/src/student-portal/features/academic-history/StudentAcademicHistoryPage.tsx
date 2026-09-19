@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { SectionCard } from "@/components/app/SectionCard";
 import { StatCard } from "@/components/app/StatCard";
@@ -10,10 +10,7 @@ import { useApp } from "@/lib/app-state";
 import type { ExamHistoryEntry } from "@/lib/student/mock-data";
 import { buildLearnerMonthAttendanceSummary } from "@/lib/attendance/calendar";
 import { attendanceSectionKey, toAttendanceStudentId } from "@/lib/attendance/section-key";
-import {
-  loadStudentEnrollmentHistory,
-  type EnrollmentHistoryRow,
-} from "@/lib/academic-history/load-enrollments";
+import { useEnrollmentHistoryQuery } from "@/lib/connect-queries/hooks";
 import {
   reportCardsToAcademicTerms,
   reportCardsToExamHistory,
@@ -60,8 +57,6 @@ export function StudentAcademicHistoryPage({ readOnlyParent = false }: { readOnl
   const parentPortal = useParentPortal();
   const parentSnap = readOnlyParent && parentPortal.isParent ? parentPortal.snapshot : null;
   const [activeTerm, setActiveTerm] = useState("");
-  const [enrollmentRows, setEnrollmentRows] = useState<EnrollmentHistoryRow[]>([]);
-  const [enrollmentNote, setEnrollmentNote] = useState<string | null>(null);
 
   const snap = readOnlyParent ? parentSnap : portal.isStudent ? portal.snapshot : null;
   const studentSnap = !readOnlyParent && portal.isStudent ? portal.snapshot : null;
@@ -117,30 +112,18 @@ export function StudentAcademicHistoryPage({ readOnlyParent = false }: { readOnl
       ? parentSnap.child.id
       : studentSnap?.profile.id ?? null;
 
-  useEffect(() => {
-    let cancelled = false;
-    if (!isApiAuthMode()) {
-      setEnrollmentRows([]);
-      setEnrollmentNote(null);
-      return;
-    }
-    void loadStudentEnrollmentHistory({ instituteId, studentId }).then((result) => {
-      if (cancelled) return;
-      if (result.status === "ready") {
-        setEnrollmentRows(result.rows);
-        setEnrollmentNote(null);
-      } else if (result.status === "empty" || result.status === "demo" || result.status === "needs_institute") {
-        setEnrollmentRows([]);
-        setEnrollmentNote(null);
-      } else {
-        setEnrollmentRows([]);
-        setEnrollmentNote(result.message);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [instituteId, studentId]);
+  const enrollmentQuery = useEnrollmentHistoryQuery(
+    instituteId,
+    studentId,
+    isApiAuthMode() && Boolean(instituteId) && Boolean(studentId),
+  );
+
+  const enrollmentRows =
+    enrollmentQuery.data?.status === "ready" ? enrollmentQuery.data.rows : [];
+  const enrollmentNote =
+    enrollmentQuery.data?.status === "forbidden" || enrollmentQuery.data?.status === "error"
+      ? enrollmentQuery.data.message
+      : null;
 
   const published = useMemo(
     () => reportCards.filter((r) => r.status === "published"),

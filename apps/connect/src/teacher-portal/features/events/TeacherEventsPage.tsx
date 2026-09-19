@@ -1,15 +1,19 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { PageHeader } from "@/components/app/PageHeader";
 import {
   CountdownBanner,
   EventRow,
+  eventKindMeta,
   KIND_META,
   startOfDay,
 } from "@/components/app/events/events-shared";
 import { useApp } from "@/lib/app-state";
 import { isApiAuthMode } from "@/auth/auth-mode";
-import { loadConnectEvents, type ConnectEventItem } from "@/lib/events";
+import type { ConnectEventItem } from "@/lib/events";
+import { useConnectEventsQuery } from "@/lib/connect-queries/hooks";
+import { connectQueryKeys } from "@/lib/connect-queries/keys";
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
 import { teacherRepository } from "@/lib/teacher/repositories";
 import { useAsyncLoad } from "@/lib/hooks/useAsyncLoad";
@@ -40,31 +44,29 @@ export function TeacherEventsPage() {
 
 function TeacherEventsApiPanel() {
   const { activeInstituteId } = useApp();
+  const queryClient = useQueryClient();
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
-  const [items, setItems] = useState<ConnectEventItem[]>([]);
-  const [status, setStatus] = useState<string>("loading");
-  const [error, setError] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
 
-  useEffect(() => {
-    let cancelled = false;
-    setStatus("loading");
-    void loadConnectEvents({ instituteId: activeInstituteId }).then((result) => {
-      if (cancelled) return;
-      if (result.status === "ready" || result.status === "empty") {
-        setItems(result.items);
-        setStatus(result.status);
-        setError(null);
-      } else {
-        setItems([]);
-        setStatus(result.status);
-        setError("message" in result ? result.message : null);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeInstituteId, reloadKey]);
+  const eventsQuery = useConnectEventsQuery(activeInstituteId, Boolean(activeInstituteId));
+  const items =
+    eventsQuery.data &&
+    (eventsQuery.data.status === "ready" || eventsQuery.data.status === "empty")
+      ? eventsQuery.data.items
+      : [];
+  const status =
+    eventsQuery.data?.status ??
+    (eventsQuery.isLoading && !eventsQuery.data
+      ? "loading"
+      : eventsQuery.isError
+        ? "error"
+        : "loading");
+  const error =
+    eventsQuery.data &&
+    (eventsQuery.data.status === "forbidden" || eventsQuery.data.status === "error")
+      ? eventsQuery.data.message
+      : eventsQuery.isError
+        ? "Failed to load events."
+        : null;
 
   const list = useMemo(
     () =>
@@ -80,6 +82,13 @@ function TeacherEventsApiPanel() {
   const upcoming = list.filter((e) => new Date(e.date) >= startOfDay(today));
   const next = upcoming[0];
 
+  const retry = () => {
+    if (!activeInstituteId) return;
+    void queryClient.invalidateQueries({
+      queryKey: connectQueryKeys.events(activeInstituteId),
+    });
+  };
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -87,18 +96,14 @@ function TeacherEventsApiPanel() {
         subtitle="Published institute calendar — managed by administration"
         action={
           status === "error" ? (
-            <button
-              type="button"
-              className="text-sm text-primary underline"
-              onClick={() => setReloadKey((k) => k + 1)}
-            >
+            <button type="button" className="text-sm text-primary underline" onClick={retry}>
               Retry
             </button>
           ) : undefined
         }
       />
 
-      {status === "loading" ? (
+      {status === "loading" || (eventsQuery.isLoading && !eventsQuery.data) ? (
         <PageSkeleton rows={4} />
       ) : error ? (
         <p className="text-sm text-destructive">{error}</p>
@@ -123,7 +128,7 @@ function TeacherEventsApiPanel() {
                     : "bg-muted text-muted-foreground",
                 )}
               >
-                {f === "all" ? "All" : KIND_META[f as ConnectEventItem["kind"]].label}
+                {f === "all" ? "All" : eventKindMeta(f).label}
               </button>
             ))}
           </div>

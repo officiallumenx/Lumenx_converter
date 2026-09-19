@@ -6,12 +6,18 @@
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/active-institute";
+import {
+  adminCacheKey,
+  cachedAdminFetch,
+  invalidateAdminCache,
+  peekAdminCacheSoft,
+} from "@/lib/admin-resource-cache";
 import { listEnrollments } from "@/lib/enrollments/api";
 import { listSubjects } from "@/lib/subjects/api";
 import { listTeachers } from "@/lib/teachers/api";
 import { listTeacherAssignments } from "@/lib/timetable/api";
 import { listClassesCatalog, getClass, getSection } from "./api";
-import { buildSectionEnrichment } from "./enrich";
+import { applyClassTeacherEnrichment, buildSectionEnrichment } from "./enrich";
 import { sectionsToListItems, sectionDtoToDetailItem } from "./map";
 import type { ClassListItem, SectionDetailItem } from "./types";
 
@@ -84,11 +90,24 @@ export async function loadSectionDetail(
       listTeachers({ instituteId: section.instituteId }).catch(() => []),
       listSubjects({ instituteId: section.instituteId }).catch(() => []),
     ]);
-    const enrich = buildSectionEnrichment(
-      enrollments,
-      assignments,
-      new Map(teachers.map((t) => [t.id, t])),
-      new Map(subjects.map((s) => [s.id, s])),
+    const teacherRows = Array.isArray(teachers) ? teachers : [];
+    const enrich = applyClassTeacherEnrichment(
+      buildSectionEnrichment(
+        Array.isArray(enrollments) ? enrollments : [],
+        Array.isArray(assignments) ? assignments : [],
+        new Map(
+          teacherRows.map((t) => [
+            t.id,
+            {
+              name: t.displayName?.trim() || t.employeeId?.trim() || "Teacher",
+            },
+          ]),
+        ),
+        new Map((Array.isArray(subjects) ? subjects : []).map((s) => [s.id, s])),
+      ),
+      [section],
+      [cls],
+      teacherRows,
     );
     return {
       status: "ready",
@@ -117,8 +136,31 @@ export async function loadSectionDetail(
   }
 }
 
+function classesListErrorState(err: unknown): ClassesListState {
+  const status =
+    err instanceof ApiClientError
+      ? err.status
+      : err &&
+          typeof err === "object" &&
+          "status" in err &&
+          typeof (err as { status: unknown }).status === "number"
+        ? (err as { status: number }).status
+        : null;
+  const message = err instanceof Error ? err.message : "Failed to load classes";
+  if (status === 403) {
+    return { status: "forbidden", items: [], errorMessage: message };
+  }
+  return { status: "error", items: [], errorMessage: message };
+}
+
+function isCacheableClassesListState(state: ClassesListState): boolean {
+  // Never cache empty — a just-created class must not be hidden by a prior empty fetch.
+  return state.status === "ready" && state.items.length > 0;
+}
+
 export async function loadClassesList(
   activeInstituteId: string | null,
+  opts?: { force?: boolean },
 ): Promise<ClassesListState> {
   if (!isApiAuthMode()) {
     return { status: "demo", items: [], errorMessage: null };
@@ -132,51 +174,90 @@ export async function loadClassesList(
     };
   }
 
-  try {
-    const instituteId = activeInstituteId;
-    const [catalog, enrollments, assignments, teachers, subjects] = await Promise.all([
-      listClassesCatalog({ instituteId }),
-      listEnrollments({ instituteId, status: "active" }).catch(() => []),
-      listTeacherAssignments({ instituteId, status: "active" }).catch(() => []),
-      listTeachers({ instituteId }).catch(() => []),
-      listSubjects({ instituteId }).catch(() => []),
-    ]);
-    const enrich = buildSectionEnrichment(
-      enrollments,
-      assignments,
-      new Map(teachers.map((t) => [t.id, t])),
-      new Map(subjects.map((s) => [s.id, s])),
-    );
-    const items = sectionsToListItems(catalog.sections, catalog.classes, enrich);
-    return {
-      status: items.length === 0 ? "empty" : "ready",
-      items,
-      errorMessage: null,
-    };
-  } catch (err) {
-    const status =
-      err instanceof ApiClientError
-        ? err.status
-        : err &&
-            typeof err === "object" &&
-            "status" in err &&
-            typeof (err as { status: unknown }).status === "number"
-          ? (err as { status: number }).status
-          : null;
-    const message =
-      err instanceof Error ? err.message : "Failed to load classes";
+  const cacheKey = adminCacheKey("classes-list", activeInstituteId);
 
-    if (status === 403) {
-      return {
-        status: "forbidden",
-        items: [],
-        errorMessage: message,
-      };
+  // Prior failures must not stick in the TTL cache (soft-stale would keep
+  // returning error while a background refresh succeeds unnoticed).
+  const poisoned = peekAdminCacheSoft<ClassesListState>(cacheKey);
+  if (poisoned && !isCacheableClassesListState(poisoned)) {
+    invalidateAdminCache(cacheKey);
+  }
+
+  try {
+    const result = await cachedAdminFetch(
+      cacheKey,
+      async () => {
+        const instituteId = activeInstituteId;
+        const [catalog, enrollments, assignments, teachers, subjects] =
+          await Promise.all([
+            listClassesCatalog({ instituteId }),
+            listEnrollments({ instituteId, status: "active" }).catch(() => []),
+            listTeacherAssignments({ instituteId, status: "active" }).catch(
+              () => [],
+            ),
+            listTeachers({ instituteId }).catch(() => []),
+            listSubjects({ instituteId }).catch(() => []),
+          ]);
+
+        const sections = Array.isArray(catalog?.sections) ? catalog.sections : [];
+        const classes = Array.isArray(catalog?.classes) ? catalog.classes : [];
+        const teacherRows = Array.isArray(teachers) ? teachers : [];
+        const subjectRows = Array.isArray(subjects) ? subjects : [];
+        const enrollmentRows = Array.isArray(enrollments) ? enrollments : [];
+        const assignmentRows = Array.isArray(assignments) ? assignments : [];
+
+        const enrich = applyClassTeacherEnrichment(
+          buildSectionEnrichment(
+            enrollmentRows,
+            assignmentRows,
+            new Map(
+              teacherRows.map((t) => [
+                t.id,
+                {
+                  name:
+                    t.displayName?.trim() || t.employeeId?.trim() || "Teacher",
+                },
+              ]),
+            ),
+            new Map(subjectRows.map((s) => [s.id, s])),
+          ),
+          sections,
+          classes,
+          teacherRows,
+        );
+        const items = sectionsToListItems(sections, classes, enrich);
+        return {
+          status: items.length === 0 ? "empty" : "ready",
+          items,
+          errorMessage: null,
+        } satisfies ClassesListState;
+      },
+      { force: opts?.force },
+    );
+    if (!isCacheableClassesListState(result)) {
+      invalidateAdminCache(cacheKey);
     }
-    return {
-      status: "error",
-      items: [],
-      errorMessage: message,
-    };
+    return result;
+  } catch (err) {
+    invalidateAdminCache(cacheKey);
+    return classesListErrorState(err);
+  }
+}
+
+export function peekClassesListCache(
+  activeInstituteId: string,
+): ClassesListState | null {
+  const cached = peekAdminCacheSoft<ClassesListState>(
+    adminCacheKey("classes-list", activeInstituteId),
+  );
+  if (!cached || !isCacheableClassesListState(cached)) return null;
+  return cached;
+}
+
+export function invalidateClassesListCache(instituteId?: string): void {
+  if (instituteId) {
+    invalidateAdminCache(adminCacheKey("classes-list", instituteId));
+  } else {
+    invalidateAdminCache("admin:classes-list:");
   }
 }

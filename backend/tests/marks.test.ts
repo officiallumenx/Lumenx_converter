@@ -50,6 +50,8 @@ const ENTRY_OTHER = "af222222-2222-4222-8222-222222222222";
 const ENTRY_PUBLISHED = "af333333-3333-4333-8333-333333333333";
 const SCORE_A = "b0111111-1111-4111-8111-111111111111";
 const SCORE_B = "b0222222-2222-4222-8222-222222222222";
+const SCORE_PENDING_A = "b0333333-3333-4333-8333-333333333333";
+const SCORE_PENDING_B = "b0444444-4444-4444-8444-444444444444";
 
 beforeEach(() => {
   resetEnvCache();
@@ -287,12 +289,40 @@ function baseDb(): MockDb {
   ];
   db.mark_score = [
     {
+      id: SCORE_PENDING_A,
+      institute_id: INST_A,
+      mark_entry_id: ENTRY_PENDING,
+      student_id: STUDENT_A,
+      enrollment_id: ENROLL_A,
+      marks: 40,
+      internal_marks: 18,
+      external_marks: 22,
+      created_at: "2026-08-01T00:00:00.000Z",
+      updated_at: "2026-08-01T00:00:00.000Z",
+      deleted_at: null,
+    },
+    {
+      id: SCORE_PENDING_B,
+      institute_id: INST_A,
+      mark_entry_id: ENTRY_PENDING,
+      student_id: STUDENT_B,
+      enrollment_id: ENROLL_B,
+      marks: 35,
+      internal_marks: 15,
+      external_marks: 20,
+      created_at: "2026-08-01T00:00:00.000Z",
+      updated_at: "2026-08-01T00:00:00.000Z",
+      deleted_at: null,
+    },
+    {
       id: SCORE_A,
       institute_id: INST_A,
       mark_entry_id: ENTRY_PUBLISHED,
       student_id: STUDENT_A,
       enrollment_id: ENROLL_A,
       marks: 40,
+      internal_marks: 18,
+      external_marks: 22,
       created_at: "2026-08-01T00:00:00.000Z",
       updated_at: "2026-08-01T00:00:00.000Z",
       deleted_at: null,
@@ -304,6 +334,8 @@ function baseDb(): MockDb {
       student_id: STUDENT_B,
       enrollment_id: ENROLL_B,
       marks: 35,
+      internal_marks: 15,
+      external_marks: 20,
       created_at: "2026-08-01T00:00:00.000Z",
       updated_at: "2026-08-01T00:00:00.000Z",
       deleted_at: null,
@@ -483,8 +515,18 @@ describe("marks — RBAC", () => {
       headers: jsonHeaders("token-teacher"),
       body: JSON.stringify({
         scores: [
-          { enrollment_id: ENROLL_A, marks: 41 },
-          { enrollment_id: ENROLL_B, marks: 30 },
+          {
+            enrollment_id: ENROLL_A,
+            marks: 41,
+            internal_marks: 16,
+            external_marks: 25,
+          },
+          {
+            enrollment_id: ENROLL_B,
+            marks: 30,
+            internal_marks: 10,
+            external_marks: 20,
+          },
         ],
       }),
     });
@@ -652,7 +694,20 @@ describe("marks — workflow", () => {
       method: "PATCH",
       headers: jsonHeaders("token-teacher"),
       body: JSON.stringify({
-        scores: [{ enrollment_id: ENROLL_A, marks: 45 }],
+        scores: [
+          {
+            enrollment_id: ENROLL_A,
+            marks: 45,
+            internal_marks: 20,
+            external_marks: 25,
+          },
+          {
+            enrollment_id: ENROLL_B,
+            marks: 35,
+            internal_marks: 10,
+            external_marks: 25,
+          },
+        ],
       }),
     });
     expect(patch.status).toBe(200);

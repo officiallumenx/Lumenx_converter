@@ -1,4 +1,4 @@
-﻿import type { InstituteCareerProfile } from "./types";
+import type { InstituteCareerProfile } from "./types";
 import { JOB_POSTINGS } from "./jobs-data";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { isInstituteUuid } from "@/lib/institute-id";
@@ -6,6 +6,8 @@ import { loadInstitutePublicProfile } from "@/lib/institute-profile";
 import type { DemoInstituteProfile } from "@lumenx/types";
 
 function getJobsByInstitute(instituteId: string) {
+  // Seed JOB_POSTINGS must never inflate open-role counts in API mode.
+  if (isApiAuthMode()) return [];
   return JOB_POSTINGS.filter((j) => j.instituteId === instituteId);
 }
 
@@ -52,6 +54,7 @@ export const INSTITUTE_CAREER_PROFILES: InstituteCareerProfile[] = [
 ];
 
 export function getInstituteProfile(instituteId: string): InstituteCareerProfile | undefined {
+  if (isApiAuthMode()) return undefined;
   const profile = INSTITUTE_CAREER_PROFILES.find((p) => p.instituteId === instituteId);
   if (!profile) return undefined;
   return { ...profile, openRolesCount: getJobsByInstitute(instituteId).length };
@@ -106,13 +109,15 @@ export async function getInstituteProfileWithApiFallback(
   instituteId: string,
 ): Promise<InstituteCareerProfile | undefined> {
   const demo = getInstituteProfile(instituteId);
-  if (!isApiAuthMode() || !isInstituteUuid(instituteId)) return demo;
+  if (!isApiAuthMode()) return demo;
+  if (!isInstituteUuid(instituteId)) return undefined;
   const apiProfile = await loadInstitutePublicProfile(instituteId);
-  if (!apiProfile) return demo;
+  if (!apiProfile) return undefined;
   return careerProfileFromApi(instituteId, apiProfile, demo);
 }
 
 export function getAllInstituteProfiles(): InstituteCareerProfile[] {
+  if (isApiAuthMode()) return [];
   return INSTITUTE_CAREER_PROFILES.map((p) => ({
     ...p,
     openRolesCount: getJobsByInstitute(p.instituteId).length,

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useReloadKey } from "@/hooks/useReloadKey";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
@@ -98,7 +99,7 @@ export function AcademicYearsView() {
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
     string | null
   >(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const [reloadKey, setReloadKey] = useReloadKey();
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
@@ -439,6 +440,9 @@ export function AcademicYearsView() {
         ("code" in (editing ?? {}) && editing && "code" in editing && editing.code
           ? editing.code
           : label.replace(/\s+/g, "-").slice(0, 50)) || "AY";
+      const isCreate = !(modal === "edit" && editing);
+      const shouldActivateOnCreate =
+        isCreate && !displayItems.some((y) => y.status === "active");
       const request =
         modal === "edit" && editing
           ? updateAcademicYear(editing.id, {
@@ -452,7 +456,8 @@ export function AcademicYearsView() {
               code,
               startsOn: form.startDate,
               endsOn: form.endDate,
-              status: "upcoming",
+              // First year for an empty institute must be active so classes/students can be added.
+              status: shouldActivateOnCreate ? "active" : "upcoming",
             });
       void request
         .then(() => {
@@ -460,7 +465,13 @@ export function AcademicYearsView() {
           setEditing(null);
           setForm(EMPTY_FORM);
           setReloadKey((k) => k + 1);
-          notify(modal === "edit" ? "Academic year updated" : "Academic year created");
+          notify(
+            modal === "edit"
+              ? "Academic year updated"
+              : shouldActivateOnCreate
+                ? "Academic year created and activated — next: add classes"
+                : "Academic year created",
+          );
         })
         .catch((err) => {
           notify(err instanceof Error ? err.message : "Failed to save academic year");
@@ -654,7 +665,7 @@ export function AcademicYearsView() {
           title="Academic years"
           hint={
             apiMode
-              ? "API mode · create, activate, archive, and delete academic years"
+              ? "Create, activate, archive, and delete academic years"
               : "Create future years · Activate only after start date · type confirm · View opens records below"
           }
           action={

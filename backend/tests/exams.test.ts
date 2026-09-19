@@ -538,7 +538,7 @@ describe("exams — authorization", () => {
     expect(ids).not.toContain(EXAM_SECTION);
   });
 
-  it("lets institute driver read published exams only", async () => {
+  it("forbids institute driver from reading exams", async () => {
     const db = baseDb();
     const USER_DRIVER = "66666666-6666-4666-8666-666666666666";
     const MEMBER_DRIVER = "aa666666-6666-4666-8666-666666666666";
@@ -578,16 +578,12 @@ describe("exams — authorization", () => {
     const list = await app.request(`/api/v1/exams?institute_id=${INST_A}`, {
       headers: auth("token-driver"),
     });
-    expect(list.status).toBe(200);
-    const ids = (await json(list)).data.map((e: { id: string }) => e.id);
-    expect(ids).toContain(EXAM_PUBLISHED);
-    expect(ids).toContain(EXAM_SECTION);
-    expect(ids).not.toContain(EXAM_DRAFT);
+    expect(list.status).toBe(403);
 
-    const draft = await app.request(`/api/v1/exams/${EXAM_DRAFT}`, {
+    const published = await app.request(`/api/v1/exams/${EXAM_PUBLISHED}`, {
       headers: auth("token-driver"),
     });
-    expect(draft.status).toBe(403);
+    expect(published.status).toBe(403);
   });
 });
 

@@ -1,3 +1,4 @@
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { listTournamentsFromStore } from "./tournaments-store";
 import {
   cloneMatchResult,
@@ -12,7 +13,7 @@ import type {
 import { SPORT_TYPE_LABELS } from "./types";
 import type { TournamentMatch } from "./tournaments-types";
 
-let resultsStore: MatchResult[] = matchResultsSeed.map(cloneMatchResult);
+let resultsStore = isApiAuthMode() ? [] : matchResultsSeed.map(cloneMatchResult);
 
 function resolveTournamentMatch(matchId: string): {
   tournamentId: string;
@@ -92,7 +93,7 @@ function applyResultFilters(
 }
 
 export function resetMatchResultsStore() {
-  resultsStore = matchResultsSeed.map(cloneMatchResult);
+  resultsStore = isApiAuthMode() ? [] : matchResultsSeed.map(cloneMatchResult);
 }
 
 export function listMatchResultsFromStore(filters?: MatchResultListFilters): MatchResult[] {

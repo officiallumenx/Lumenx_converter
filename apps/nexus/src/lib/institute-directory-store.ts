@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Nexus platform institute directory — demo/localStorage only.
  * Aggregates and institute-level fields only. No person-level PII.
  * Lifecycle: create · activate · suspend · archive · restore.
@@ -19,7 +19,14 @@ import {
 } from "@/lib/institute-licensing-store";
 import { appendAuditEvent } from "@/lib/audit-log-store";
 import { loadPlatformSettings } from "@/lib/platform-settings-store";
-import { buildInstituteMonogramLogoUrl, startInstituteTrial } from "@lumenx/utils";
+import {
+  buildInstituteMonogramLogoUrl,
+  getInstituteSubscription,
+  startInstituteTrial,
+  SUBSCRIPTION_CHANGED_EVENT,
+  SUBSCRIPTION_STORAGE_KEY,
+  subscribeSubscriptions,
+} from "@lumenx/utils";
 
 export type InstituteStatus = "trial" | "active" | "suspended" | "archived";
 export type PlanTier = LicensePlanTier;
@@ -234,24 +241,41 @@ export function loadPlatformInstitutes(): PlatformInstitute[] {
   }
 }
 
+/**
+ * Overlay live student headcount from the shared subscription SoT (Admin ↔ Nexus cookie).
+ * Directory seed counts stay as fallback when no subscription row exists.
+ */
+function withLiveHeadcount(inst: PlatformInstitute): PlatformInstitute {
+  const sub = getInstituteSubscription(inst.id);
+  if (!sub) return inst;
+  const live = Math.max(0, Math.round(sub.activeStudentCount ?? 0));
+  if (live === inst.studentCount) return inst;
+  return { ...inst, studentCount: live };
+}
+
 export function listPlatformInstitutes(): PlatformInstitute[] {
-  return loadPlatformInstitutes();
+  return loadPlatformInstitutes().map(withLiveHeadcount);
 }
 
 export function getPlatformInstitute(id: string): PlatformInstitute | undefined {
-  return loadPlatformInstitutes().find((i) => i.id === id);
+  const inst = loadPlatformInstitutes().find((i) => i.id === id);
+  return inst ? withLiveHeadcount(inst) : undefined;
 }
 
 export function subscribeInstituteDirectory(listener: () => void): () => void {
   if (typeof window === "undefined") return () => {};
   const onStorage = (e: StorageEvent) => {
-    if (e.key === STORAGE_KEY) listener();
+    if (e.key === STORAGE_KEY || e.key === SUBSCRIPTION_STORAGE_KEY) listener();
   };
   window.addEventListener(CHANGE_EVENT, listener);
+  window.addEventListener(SUBSCRIPTION_CHANGED_EVENT, listener);
   window.addEventListener("storage", onStorage);
+  const unsubSubs = subscribeSubscriptions(listener);
   return () => {
     window.removeEventListener(CHANGE_EVENT, listener);
+    window.removeEventListener(SUBSCRIPTION_CHANGED_EVENT, listener);
     window.removeEventListener("storage", onStorage);
+    unsubSubs();
   };
 }
 
