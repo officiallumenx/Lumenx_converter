@@ -257,10 +257,17 @@ async function resolveStaffLoginUser(
     }
   }
 
-  if (!profile || profile.status === "disabled") {
+  if (!profile) {
     throw AppError.notFound(
-      "No active Admin access was found for this institute. Check the institute and identifier.",
+      looksLikePhone
+        ? "No Admin user matched this mobile number. Use email, or set user_profile.phone and phone_digits to your 10-digit number."
+        : isEmail
+          ? "No Admin user matched this email for the selected institute."
+          : "No Admin user matched this username. Check the institute and identifier.",
     );
+  }
+  if (profile.status === "disabled") {
+    throw AppError.forbidden("This Admin account is disabled. Contact support.");
   }
 
   const memberships = await listMemberships(admin, {
@@ -273,7 +280,7 @@ async function resolveStaffLoginUser(
     null;
   if (!membership) {
     throw AppError.notFound(
-      "No active Admin access was found for this institute. Check the institute and identifier.",
+      "This user exists but has no active membership in the selected institute.",
     );
   }
   if (membership.status === "suspended") {
