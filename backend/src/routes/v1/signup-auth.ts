@@ -10,7 +10,6 @@ import {
   verifySignupChannelOtp,
 } from "../../domains/auth-credentials/signup-verify.js";
 import { completeAppSignup } from "../../domains/auth-credentials/app-signup.js";
-import { getFirebaseAuth } from "../../integrations/firebase.js";
 
 function requireAdmin(c: {
   get: (k: "supabase") => AppBindings["Variables"]["supabase"];
@@ -62,10 +61,6 @@ signupAuth.post("/verify-otp", async (c) => {
 
 signupAuth.post("/complete", async (c) => {
   const admin = requireAdmin(c);
-  const firebaseAuth = getFirebaseAuth(c.get("firebaseApp"));
-  if (!firebaseAuth) {
-    throw AppError.internal("Firebase Auth is not configured");
-  }
   const body = validateBody(
     z.object({
       app: z.enum(["admissions", "careers"]),
@@ -79,7 +74,7 @@ signupAuth.post("/complete", async (c) => {
     }),
     await c.req.json(),
   );
-  const data = await completeAppSignup(admin, firebaseAuth, {
+  const data = await completeAppSignup(admin, {
     app: body.app,
     accountType: body.account_type,
     email: body.email,
@@ -92,7 +87,6 @@ signupAuth.post("/complete", async (c) => {
   return c.json({
     data: {
       user_id: data.userId,
-      firebase_uid: data.firebaseUid,
       access_token: data.accessToken,
       refresh_token: data.refreshToken,
       token_type: "bearer",

@@ -116,8 +116,7 @@ async function sendSmsTwilio(env: Env, to: string, body: string): Promise<string
   const from = env.TWILIO_FROM_NUMBER;
   if (!sid || !token || !from) {
     throw AppError.internal(
-      "OTP SMS is misconfigured (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM_NUMBER). " +
-        "For Firebase phone OTP set OTP_SMS_PROVIDER=none and use delivery=firebase_client from the app.",
+      "OTP SMS is misconfigured (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM_NUMBER).",
     );
   }
   const url = `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(sid)}/Messages.json`;
@@ -157,6 +156,55 @@ async function sendSmsWebhook(env: Env, to: string, otp: string, message: string
   }
   await postJson(url, { channel: "sms", to, otp, message, purpose }, headers);
   return "webhook";
+}
+
+/**
+ * Deliver LumenX-generated OTP via StartMessaging SMS API.
+ * Auth verify stays in LumenX (`login_otp_challenge`) — do not use StartMessaging /otp/verify.
+ */
+async function sendSmsStartMessaging(
+  env: Env,
+  to: string,
+  otp: string,
+  purpose: string,
+): Promise<string> {
+  const apiKey = env.STARTMESSAGING_API_KEY?.trim();
+  const templateId = env.STARTMESSAGING_TEMPLATE_ID?.trim();
+  if (!apiKey || !templateId) {
+    throw AppError.internal(
+      "OTP SMS is misconfigured (STARTMESSAGING_API_KEY / STARTMESSAGING_TEMPLATE_ID)",
+    );
+  }
+  const base = (env.STARTMESSAGING_BASE_URL?.trim() || "https://api.startmessaging.com").replace(
+    /\/+$/,
+    "",
+  );
+  const url = `${base}/otp/send`;
+  let response: Response;
+  try {
+    response = await fetchImpl(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-Key": apiKey,
+      },
+      body: JSON.stringify({
+        phoneNumber: to,
+        templateId,
+        variables: {
+          otp,
+          appName: "LumenX",
+          purpose,
+        },
+      }),
+    });
+  } catch {
+    throw AppError.internal("OTP SMS network failed");
+  }
+  if (!response.ok) {
+    throw AppError.internal(`OTP SMS failed (${response.status})`);
+  }
+  return "startmessaging";
 }
 
 async function sendEmailResend(env: Env, to: string, subject: string, text: string): Promise<string> {
@@ -206,15 +254,19 @@ async function deliverLive(
   if (input.channel === "sms") {
     if (env.OTP_SMS_PROVIDER === "none") {
       throw AppError.internal(
-        "Live OTP SMS requires OTP_SMS_PROVIDER=twilio or webhook",
+        "Live OTP SMS requires OTP_SMS_PROVIDER=twilio, webhook, or startmessaging",
       );
     }
     const to = toE164(input.destination, env.OTP_SMS_DEFAULT_COUNTRY_CODE);
     const message = buildSmsBody(input.otp, input.purpose);
-    const provider =
-      env.OTP_SMS_PROVIDER === "twilio"
-        ? await sendSmsTwilio(env, to, message)
-        : await sendSmsWebhook(env, to, input.otp, message, input.purpose);
+    let provider: string;
+    if (env.OTP_SMS_PROVIDER === "twilio") {
+      provider = await sendSmsTwilio(env, to, message);
+    } else if (env.OTP_SMS_PROVIDER === "startmessaging") {
+      provider = await sendSmsStartMessaging(env, to, input.otp, input.purpose);
+    } else {
+      provider = await sendSmsWebhook(env, to, input.otp, message, input.purpose);
+    }
     return { mode: "live", provider, channel: "sms" };
   }
 

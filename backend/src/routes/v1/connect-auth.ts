@@ -4,18 +4,12 @@ import type { AppBindings } from "../../types/app.js";
 import { AppError } from "../../errors/app-error.js";
 import { validateBody } from "../../validation/validate.js";
 import {
-  completeConnectFirebaseLogin,
-  completeConnectForgotPin,
   completeConnectLogin,
   completeConnectPinWithOtpGrant,
   requestConnectMobileOtp,
   resolveConnectLoginMode,
   verifyConnectMobileOtp,
 } from "../../domains/auth-credentials/connect-login.js";
-import {
-  assertFirebaseAuthenticated,
-  requireFirebaseAuth,
-} from "../../auth/require-firebase-auth.js";
 
 function requireAdmin(c: {
   get: (k: "supabase") => AppBindings["Variables"]["supabase"];
@@ -142,67 +136,5 @@ connectAuth.post("/complete-pin", async (c) => {
     },
   });
 });
-
-connectAuth.post(
-  "/firebase-login",
-  requireFirebaseAuth({ checkRevoked: true }),
-  async (c) => {
-    const admin = requireAdmin(c);
-    const identity = assertFirebaseAuthenticated(c);
-    const body = validateBody(
-      z.object({
-        institute_id: z.string().uuid(),
-        role: roleSchema,
-        pin: z.string().min(4).max(8),
-      }),
-      await c.req.json(),
-    );
-    const data = await completeConnectFirebaseLogin(admin, identity, {
-      instituteId: body.institute_id,
-      role: body.role,
-      pin: body.pin,
-    });
-    return c.json({
-      data: {
-        access_token: data.accessToken,
-        refresh_token: data.refreshToken,
-        institute_id: data.instituteId,
-        display_name: data.displayName,
-        role: data.role,
-      },
-    });
-  },
-);
-
-connectAuth.post(
-  "/reset-pin",
-  requireFirebaseAuth({ checkRevoked: true }),
-  async (c) => {
-    const admin = requireAdmin(c);
-    const identity = assertFirebaseAuthenticated(c);
-    const body = validateBody(
-      z.object({
-        institute_id: z.string().uuid(),
-        role: roleSchema,
-        pin: z.string().min(4).max(8),
-      }),
-      await c.req.json(),
-    );
-    const data = await completeConnectForgotPin(admin, identity, {
-      instituteId: body.institute_id,
-      role: body.role,
-      pin: body.pin,
-    });
-    return c.json({
-      data: {
-        access_token: data.accessToken,
-        refresh_token: data.refreshToken,
-        institute_id: data.instituteId,
-        display_name: data.displayName,
-        role: data.role,
-      },
-    });
-  },
-);
 
 export default connectAuth;

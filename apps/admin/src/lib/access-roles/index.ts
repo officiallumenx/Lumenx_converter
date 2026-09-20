@@ -28,11 +28,8 @@ export {
   updateAccessRole,
   verifyStaffChannelOtp,
   verifyStaffLogin,
-  verifyStaffLoginFirebasePhone,
   verifyStaffPasswordLogin,
-  verifyStaffPasswordResetFirebasePhone,
   verifyStaffPasswordResetOtp,
-  verifyStaffPinResetFirebasePhone,
   verifyStaffPinResetOtp,
 } from "./api";
 

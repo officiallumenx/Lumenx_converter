@@ -9,12 +9,10 @@ import {
 } from "react";
 import {
   completeVerifiedAppSignup,
-  firebaseEmailLoginToLumenXSession,
-  requestFirebasePasswordReset,
 } from "@lumenx/auth";
 
 import { apiSignOut } from "@/auth/api-auth";
-import { isApiAuthMode, isFirebaseAuthProvider } from "@/auth/auth-mode";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { getConnectApiClient } from "@/lib/connect-api";
 import type { MeResponse } from "@/lib/api/me-types";
 import type { AdmissionsUser } from "@/lib/admissions/types";
@@ -104,16 +102,6 @@ async function apiSignIn(
 ): Promise<AdmissionsUser> {
   const normalized = email.trim().toLowerCase();
   if (!normalized.includes("@")) throw new Error("Sign in with your email address.");
-  if (isFirebaseAuthProvider()) {
-    const session = await firebaseEmailLoginToLumenXSession({
-      email: normalized,
-      password,
-      autoLink: true,
-      setSupabaseSession: ({ accessToken, refreshToken }) =>
-        setSupabaseSession(accessToken, refreshToken),
-    });
-    return hydrateAdmissionsUser(session.accessToken, accountType);
-  }
   const { data, error } = await getSupabaseBrowserClient().auth.signInWithPassword({
     email: normalized,
     password,
@@ -149,10 +137,6 @@ async function apiSignUp(input: SignUpInput): Promise<AdmissionsUser> {
 async function apiRequestPasswordReset(email: string): Promise<void> {
   const normalized = email.trim().toLowerCase();
   if (!normalized.includes("@")) throw new Error("Enter your email address.");
-  if (isFirebaseAuthProvider()) {
-    await requestFirebasePasswordReset(normalized);
-    return;
-  }
   const { error } = await getSupabaseBrowserClient().auth.resetPasswordForEmail(normalized);
   if (error) throw new Error(error.message);
 }

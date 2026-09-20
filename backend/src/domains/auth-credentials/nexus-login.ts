@@ -1,15 +1,14 @@
 /**
- * Nexus platform operator login (exact notebook workflow):
- *   identifier (mobile|email) → mobile OTP → email OTP → password → PIN → home
+ * Nexus platform operator login:
+ *   identifier (mobile|email|username) → mobile OTP → password → PIN → home
  * Recovery:
- *   forgot password → mobile+email → both OTPs → set password → PIN
- *   forgot PIN → mobile+email → both OTPs → set PIN → enter PIN → home
- * Dual OTP is required on every login (root and operators).
+ *   forgot password → mobile OTP → set password → PIN
+ *   forgot PIN → mobile OTP → set PIN → enter PIN → home
+ * Email OTP is not required (SMS OTP only).
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AppError } from "../../errors/app-error.js";
-import type { FirebaseIdentity } from "../../auth/firebase-identity.js";
 import { deliverLoginOtp } from "../otp-delivery/index.js";
 import {
   assertPinMatches,
@@ -30,10 +29,6 @@ import {
 } from "./verification-grant.js";
 import { createServerAuthSessionForEmail, verifyPasswordWithoutPoisoning } from "../../auth/create-server-session.js";
 import { loadEnv } from "../../config/env.js";
-import {
-  linkFirebaseIdentityToExistingUser,
-  resolveLumenXUserFromFirebaseIdentity,
-} from "../firebase-identity/service.js";
 
 type OperatorProfile = {
   id: string;
@@ -124,48 +119,76 @@ async function resolveOperatorByIdentifier(
   identifier: string,
 ): Promise<{ profile: OperatorProfile; operator: PlatformOperatorRow }> {
   const trimmed = identifier.trim();
+  if (!trimmed) {
+    throw AppError.notFound("No Nexus operator found for this identifier.");
+  }
+
   let profile: OperatorProfile | null = null;
 
+  const selectProfile =
+    "id, display_name, email, phone, status" as const;
+
+  // 1) Email
   if (trimmed.includes("@")) {
     const { data, error } = await admin
       .from("user_profile")
-      .select("id, display_name, email, phone, status")
+      .select(selectProfile)
       .ilike("email", trimmed.toLowerCase())
       .is("deleted_at", null)
       .maybeSingle();
     if (error) throw error;
     profile = (data as OperatorProfile | null) ?? null;
-  } else if (/^\d{10}$/.test(normalizePhoneDigits(trimmed)) && !trimmed.includes(".")) {
+  }
+
+  // 2) Phone (any input that yields 10 digits)
+  if (!profile) {
     const phone = normalizePhoneDigits(trimmed);
+    if (/^\d{10}$/.test(phone)) {
+      const { data, error } = await admin
+        .from("user_profile")
+        .select(selectProfile)
+        .eq("phone_digits", phone)
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (error) throw error;
+      profile = (data as OperatorProfile | null) ?? null;
+      if (!profile) {
+        // Fallback: phone stored with +91 / spaces
+        const { data: byPhone, error: phoneError } = await admin
+          .from("user_profile")
+          .select(selectProfile)
+          .is("deleted_at", null)
+          .or(`phone.eq.${phone},phone.eq.+91${phone},phone.ilike.%${phone}%`);
+        if (phoneError) throw phoneError;
+        profile = (byPhone?.[0] as OperatorProfile | null) ?? null;
+      }
+    }
+  }
+
+  // 3) Username
+  if (!profile) {
     const { data, error } = await admin
       .from("user_profile")
-      .select("id, display_name, email, phone, status")
-      .eq("phone_digits", phone)
+      .select(selectProfile)
+      .ilike("username", trimmed.toLowerCase())
       .is("deleted_at", null)
       .maybeSingle();
     if (error) throw error;
     profile = (data as OperatorProfile | null) ?? null;
-  } else {
-    const { data: byUsername, error: usernameError } = await admin
-      .from("user_profile")
-      .select("id, display_name, email, phone, status")
-      .ilike("username", trimmed.toLowerCase())
-      .is("deleted_at", null)
+  }
+
+  // 4) Operator handle
+  if (!profile) {
+    const { data: op, error } = await admin
+      .from("platform_operator")
+      .select("user_id, handle, display_name, status, role_code")
+      .ilike("handle", trimmed.toLowerCase())
       .maybeSingle();
-    if (usernameError) throw usernameError;
-    profile = (byUsername as OperatorProfile | null) ?? null;
-    if (!profile) {
-      const { data: op, error } = await admin
-        .from("platform_operator")
-        .select("user_id, handle, display_name, status, role_code")
-        .ilike("handle", trimmed.toLowerCase())
-        .maybeSingle();
-      if (error) throw error;
-      const operator = op as PlatformOperatorRow | null;
-      if (operator) {
-        profile = await loadProfile(admin, operator.user_id);
-        return { profile, operator };
-      }
+    if (error) throw error;
+    const operator = op as PlatformOperatorRow | null;
+    if (operator) {
+      profile = await loadProfile(admin, operator.user_id);
+      return { profile, operator };
     }
   }
 
@@ -180,7 +203,7 @@ function nexusWorkflowFlags(
   cred: Awaited<ReturnType<typeof findCredentialByUserId>>,
 ) {
   return workflowFlagsFromCredential(cred, {
-    dualOtpAlways: true,
+    dualOtpAlways: false,
     pinAlways: true,
   });
 }
@@ -284,35 +307,8 @@ export async function requestNexusLoginOtp(
   input: {
     identifier: string;
     channel: "email" | "mobile";
-    /** `firebase_client` = return phone for Firebase SMS; do not send Twilio OTP. */
-    delivery?: "server" | "firebase_client";
   },
 ) {
-  if (input.delivery === "firebase_client") {
-    if (input.channel !== "mobile") {
-      throw AppError.validation(
-        "Firebase client delivery is only supported for the mobile channel.",
-      );
-    }
-    const { profile, operator } = await resolveOperatorByIdentifier(
-      admin,
-      input.identifier,
-    );
-    const destination = profile.phone?.trim() ?? "";
-    if (!destination) {
-      throw AppError.validation("Operator mobile number is missing for Firebase OTP.");
-    }
-    const digits = normalizePhoneDigits(destination);
-    const phoneE164 = destination.startsWith("+")
-      ? destination.replace(/\s+/g, "")
-      : `+91${digits}`;
-    return {
-      maskedDestination: maskWorkflowDestination(destination, "mobile"),
-      channel: "mobile" as const,
-      displayName: operator.display_name || profile.display_name,
-      phoneE164,
-    };
-  }
   return requestChannelOtp(admin, { ...input, purpose: "nexus_login" });
 }
 
@@ -328,7 +324,8 @@ export type CompleteNexusLoginInput = {
   pin: string;
   password: string;
   mobileOtpGrant: string;
-  emailOtpGrant: string;
+  /** @deprecated Email OTP skipped — accepted if present for older clients. */
+  emailOtpGrant?: string;
 };
 
 export async function completeNexusLogin(
@@ -343,9 +340,6 @@ export async function completeNexusLogin(
 
   if (!input.mobileOtpGrant) {
     throw AppError.validation("Verify mobile OTP before completing login.");
-  }
-  if (!input.emailOtpGrant) {
-    throw AppError.validation("Verify email OTP before completing login.");
   }
 
   const profileEmail = profile.email?.trim().toLowerCase();
@@ -367,12 +361,14 @@ export async function completeNexusLogin(
     subjectId: profile.id,
     metadata: { channel: "mobile" },
   });
-  await consumeAuthVerificationGrant(admin, {
-    purpose: "nexus_login",
-    grant: input.emailOtpGrant,
-    subjectId: profile.id,
-    metadata: { channel: "email" },
-  });
+  if (input.emailOtpGrant) {
+    await consumeAuthVerificationGrant(admin, {
+      purpose: "nexus_login",
+      grant: input.emailOtpGrant,
+      subjectId: profile.id,
+      metadata: { channel: "email" },
+    });
+  }
 
   if (cred?.pin_hash) {
     assertPinMatches(cred, input.pin, { required: true });
@@ -415,136 +411,6 @@ export async function completeNexusLogin(
   };
 }
 
-function firebaseSignInProvider(identity: FirebaseIdentity): string {
-  const firebase = identity.claims.firebase;
-  return firebase && typeof firebase.sign_in_provider === "string"
-    ? firebase.sign_in_provider
-    : "";
-}
-
-/**
- * Firebase bridge for Nexus.
- * Phone SMS OTP is verified by Firebase (id token). Numeric email OTP is not a
- * Firebase Auth feature — email factor is Firebase email/password + PIN.
- */
-export async function completeNexusFirebaseLogin(
-  admin: SupabaseClient,
-  identity: FirebaseIdentity,
-  input: {
-    provider: "password" | "phone";
-    pin: string;
-    /** Required after Firebase phone OTP — password is always a login factor. */
-    password?: string;
-    mobileOtpGrant?: string;
-    emailOtpGrant?: string;
-  },
-) {
-  const actualProvider = firebaseSignInProvider(identity);
-  if (actualProvider !== input.provider) {
-    throw AppError.validation("Firebase sign-in provider does not match the declared factor.");
-  }
-  if (input.provider === "password" && !identity.email) {
-    throw AppError.validation("Firebase email/password identity is required.");
-  }
-  if (input.provider === "phone" && !identity.phoneNumber) {
-    throw AppError.validation("Firebase phone verification is required.");
-  }
-
-  const mapping = await resolveLumenXUserFromFirebaseIdentity(admin, identity, {
-    allowCandidateLookup: true,
-  });
-  const profile = await loadProfile(admin, mapping.userProfileId);
-  const operator = await loadActiveOperator(admin, profile.id);
-  const { data: authUser } = await admin.auth.admin.getUserById(profile.id);
-  const authEmail =
-    authUser.user?.email?.trim().toLowerCase() ||
-    profile.email?.trim().toLowerCase() ||
-    null;
-  if (!authEmail) throw AppError.validation("Operator account is missing an email.");
-
-  if (
-    input.provider === "password" &&
-    identity.email &&
-    identity.email.trim().toLowerCase() !== authEmail
-  ) {
-    throw AppError.validation("Firebase email does not match this Nexus operator.");
-  }
-  if (
-    input.provider === "phone" &&
-    normalizePhoneDigits(profile.phone ?? "") !==
-      normalizePhoneDigits(identity.phoneNumber ?? "")
-  ) {
-    throw AppError.validation("Firebase phone does not match this Nexus operator.");
-  }
-
-  // Notebook: password is always required (including after Firebase phone OTP).
-  if (input.provider === "phone") {
-    if (!input.password || input.password.length < 1) {
-      throw AppError.validation("Password is required after mobile OTP.", {
-        password: ["Required"],
-      });
-    }
-    const ok = await verifyPasswordWithoutPoisoning(admin, authEmail, input.password);
-    if (!ok) {
-      throw AppError.validation("Incorrect password.", { password: ["Invalid"] });
-    }
-  }
-
-  // Optional legacy grants (Twilio/Resend dual-OTP). Firebase token already proves the channel.
-  if (input.mobileOtpGrant) {
-    await consumeAuthVerificationGrant(admin, {
-      purpose: "nexus_login",
-      grant: input.mobileOtpGrant,
-      subjectId: profile.id,
-      metadata: { channel: "mobile" },
-    });
-  }
-  if (input.emailOtpGrant) {
-    await consumeAuthVerificationGrant(admin, {
-      purpose: "nexus_login",
-      grant: input.emailOtpGrant,
-      subjectId: profile.id,
-      metadata: { channel: "email" },
-    });
-  }
-
-  const cred = await findCredentialByUserId(admin, profile.id);
-  if (cred?.pin_hash) {
-    assertPinMatches(cred, input.pin, { required: true });
-  } else {
-    assertValidPin(input.pin);
-    await upsertUserAuthCredential(admin, {
-      userId: profile.id,
-      username: cred?.username || operator.handle || profile.email?.split("@")[0],
-      pin: input.pin,
-      markFirstLoginCompleted: true,
-      markEmailVerified: true,
-      markPhoneVerified: true,
-    });
-  }
-
-  await linkFirebaseIdentityToExistingUser(admin, {
-    userProfileId: profile.id,
-    firebaseUid: identity.uid,
-  });
-
-  if (operator.status === "invited") {
-    const activated = await admin
-      .from("platform_operator")
-      .update({ status: "active", updated_at: new Date().toISOString() })
-      .eq("user_id", profile.id);
-    if (activated.error) throw activated.error;
-  }
-
-  const session = await createAuthSessionForEmail(admin, authEmail);
-  return {
-    ...session,
-    displayName: operator.display_name || profile.display_name,
-    firstLoginCompleted: true,
-    isRoot: operator.role_code === "nexus_root",
-  };
-}
-
 export async function requestNexusPasswordResetOtp(
   admin: SupabaseClient,
   input: { identifier: string; channel: "email" | "mobile" },
@@ -564,7 +430,8 @@ export async function completeNexusPasswordReset(
   input: {
     identifier: string;
     mobileOtpGrant: string;
-    emailOtpGrant: string;
+    /** @deprecated Email OTP skipped — accepted if present for older clients. */
+    emailOtpGrant?: string;
     newPassword: string;
   },
 ) {
@@ -573,6 +440,9 @@ export async function completeNexusPasswordReset(
       new_password: ["Too short"],
     });
   }
+  if (!input.mobileOtpGrant) {
+    throw AppError.validation("Verify mobile OTP before resetting password.");
+  }
   const { profile } = await resolveOperatorByIdentifier(admin, input.identifier);
   await consumeAuthVerificationGrant(admin, {
     purpose: "password_reset",
@@ -580,12 +450,14 @@ export async function completeNexusPasswordReset(
     subjectId: profile.id,
     metadata: { channel: "mobile" },
   });
-  await consumeAuthVerificationGrant(admin, {
-    purpose: "password_reset",
-    grant: input.emailOtpGrant,
-    subjectId: profile.id,
-    metadata: { channel: "email" },
-  });
+  if (input.emailOtpGrant) {
+    await consumeAuthVerificationGrant(admin, {
+      purpose: "password_reset",
+      grant: input.emailOtpGrant,
+      subjectId: profile.id,
+      metadata: { channel: "email" },
+    });
+  }
   const { error } = await admin.auth.admin.updateUserById(profile.id, {
     password: input.newPassword,
   });
@@ -612,11 +484,15 @@ export async function completeNexusPinReset(
   input: {
     identifier: string;
     mobileOtpGrant: string;
-    emailOtpGrant: string;
+    /** @deprecated Email OTP skipped — accepted if present for older clients. */
+    emailOtpGrant?: string;
     newPin: string;
   },
 ) {
   const pin = assertValidPin(input.newPin);
+  if (!input.mobileOtpGrant) {
+    throw AppError.validation("Verify mobile OTP before resetting PIN.");
+  }
   const { profile, operator } = await resolveOperatorByIdentifier(
     admin,
     input.identifier,
@@ -627,12 +503,14 @@ export async function completeNexusPinReset(
     subjectId: profile.id,
     metadata: { channel: "mobile" },
   });
-  await consumeAuthVerificationGrant(admin, {
-    purpose: "pin_reset",
-    grant: input.emailOtpGrant,
-    subjectId: profile.id,
-    metadata: { channel: "email" },
-  });
+  if (input.emailOtpGrant) {
+    await consumeAuthVerificationGrant(admin, {
+      purpose: "pin_reset",
+      grant: input.emailOtpGrant,
+      subjectId: profile.id,
+      metadata: { channel: "email" },
+    });
+  }
   const cred = await findCredentialByUserId(admin, profile.id);
   await upsertUserAuthCredential(admin, {
     userId: profile.id,

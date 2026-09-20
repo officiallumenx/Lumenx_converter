@@ -17,7 +17,8 @@ assertProductionEnv(env, process.env as Record<string, string | undefined>);
 const logger = createLogger(env.LOG_LEVEL);
 const supabase = createSupabaseClients(env, logger);
 const firebaseApp = initFirebaseAdmin(env, logger);
-const messaging = getFirebaseMessaging(firebaseApp);
+const messaging =
+  env.FCM_WORKER_ENABLED === false ? null : getFirebaseMessaging(firebaseApp);
 const app = createApp(env, logger, supabase, firebaseApp);
 if (supabase?.admin && messaging) {
   startFcmWorkerLoop({ admin: supabase.admin, messaging, logger });
@@ -25,7 +26,7 @@ if (supabase?.admin && messaging) {
 } else {
   logger.warn({
     msg: "fcm_worker_disabled",
-    hint: "Configure Firebase credentials and Supabase to enable FCM delivery.",
+    hint: "Configure Firebase credentials and Supabase to enable FCM delivery (or set FCM_WORKER_ENABLED=true).",
   });
 }
 

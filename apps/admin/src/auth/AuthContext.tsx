@@ -150,7 +150,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       emailOtp?: string;
       mobileOtpGrant?: string;
       emailOtpGrant?: string;
-      firebaseIdToken?: string;
       password?: string;
       pin: string;
       remember?: boolean;
@@ -169,7 +168,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           emailOtp: input.emailOtp,
           mobileOtpGrant: input.mobileOtpGrant,
           emailOtpGrant: input.emailOtpGrant,
-          firebaseIdToken: input.firebaseIdToken,
           password: input.password,
           pin: input.pin,
         });

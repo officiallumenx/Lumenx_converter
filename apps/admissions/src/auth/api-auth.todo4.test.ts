@@ -1,16 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  firebaseLogin: vi.fn(),
-  firebaseReset: vi.fn(),
+  signInWithPassword: vi.fn(),
+  resetPasswordForEmail: vi.fn(),
   signOut: vi.fn(),
 }));
 
 vi.mock("@lumenx/auth", () => ({
   completeVerifiedAppSignup: vi.fn(),
-  firebaseEmailLoginToLumenXSession: mocks.firebaseLogin,
-  firebaseLogout: vi.fn(),
-  requestFirebasePasswordReset: mocks.firebaseReset,
+  clearAppAuthSession: vi.fn(),
 }));
 vi.mock("@lumenx/notifications", () => ({
   invalidatePushDeviceTokensBeforeSignOut: vi.fn(),
@@ -18,8 +16,8 @@ vi.mock("@lumenx/notifications", () => ({
 vi.mock("@/lib/supabase-browser", () => ({
   getSupabaseBrowserClient: () => ({
     auth: {
-      resetPasswordForEmail: vi.fn(),
-      signInWithPassword: vi.fn(),
+      resetPasswordForEmail: mocks.resetPasswordForEmail,
+      signInWithPassword: mocks.signInWithPassword,
       signOut: mocks.signOut,
     },
   }),
@@ -33,13 +31,14 @@ vi.mock("./me-bridge", () => ({
   fetchInstituteName: vi.fn(),
   fetchMe: vi.fn(),
 }));
-vi.mock("./auth-mode", () => ({ isFirebaseAuthProvider: () => true }));
 
 describe("Admissions API auth failures", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("awaits and propagates password-reset failure", async () => {
-    mocks.firebaseReset.mockRejectedValueOnce(new Error("reset unavailable"));
+    mocks.resetPasswordForEmail.mockResolvedValueOnce({
+      error: new Error("reset unavailable"),
+    });
     const { apiRequestPasswordReset } = await import("./api-auth");
     await expect(apiRequestPasswordReset("parent@example.com")).rejects.toThrow(
       "reset unavailable",
@@ -47,7 +46,10 @@ describe("Admissions API auth failures", () => {
   });
 
   it("does not report success when async sign-in fails", async () => {
-    mocks.firebaseLogin.mockRejectedValueOnce(new Error("invalid credentials"));
+    mocks.signInWithPassword.mockResolvedValueOnce({
+      data: { session: null },
+      error: new Error("invalid credentials"),
+    });
     const { apiSignInWithPassword } = await import("./api-auth");
     await expect(
       apiSignInWithPassword("parent@example.com", "wrong-password"),

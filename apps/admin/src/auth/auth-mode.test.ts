@@ -19,21 +19,21 @@ describe("getAdminAuthMode", () => {
     expect(isDemoAuthMode()).toBe(false);
   });
 
-  it("reads firebase provider when VITE_AUTH_PROVIDER=firebase", async () => {
+  it("always returns supabase even when VITE_AUTH_PROVIDER=firebase", async () => {
     vi.resetModules();
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     vi.stubEnv("VITE_AUTH_PROVIDER", "firebase");
     const { getAdminAuthProvider, isFirebaseAuthProvider } = await import("./auth-mode");
-    expect(getAdminAuthProvider()).toBe("firebase");
-    expect(isFirebaseAuthProvider()).toBe(true);
+    expect(getAdminAuthProvider()).toBe("supabase");
+    expect(isFirebaseAuthProvider()).toBe(false);
   });
 
-  it("defaults to firebase provider when VITE_AUTH_PROVIDER is unset", async () => {
+  it("defaults to supabase provider when VITE_AUTH_PROVIDER is unset", async () => {
     vi.resetModules();
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     vi.stubEnv("VITE_AUTH_PROVIDER", "");
     const { getAdminAuthProvider, isFirebaseAuthProvider } = await import("./auth-mode");
-    expect(getAdminAuthProvider()).toBe("firebase");
-    expect(isFirebaseAuthProvider()).toBe(true);
+    expect(getAdminAuthProvider()).toBe("supabase");
+    expect(isFirebaseAuthProvider()).toBe(false);
   });
 });

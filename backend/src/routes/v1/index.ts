@@ -103,7 +103,7 @@ v1.route("/auth/nexus", nexusAuth);
 v1.route("/auth/connect", connectAuth);
 v1.route("/auth/transport", transportAuth);
 v1.route("/auth/signup", signupAuth);
-v1.route("/auth/firebase", firebaseAuth);
+v1.route("/firebase", firebaseAuth);
 v1.route("/auth/handoff", authHandoff);
 v1.route("/teachers", teachers);
 v1.route("/staff", staff);

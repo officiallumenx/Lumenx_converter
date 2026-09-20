@@ -1,10 +1,9 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   completeNexusLogin,
   completeNexusPasswordReset,
   completeNexusPinReset,
-  isNexusFirebaseProvider,
   requestNexusOtp,
   requestNexusPasswordResetOtp,
   requestNexusPinResetOtp,
@@ -19,29 +18,20 @@ export const Route = createFileRoute("/login")({
   component: NexusLoginPage,
 });
 
-/**
- * Firebase (default): mobile SMS OTP (Firebase) → password → PIN → home
- * Legacy server OTP: mobile OTP → email OTP → password → PIN → home
- */
+/** Server OTP: mobile OTP → password → PIN → home */
 type Step =
   | "identifier"
   | "mobile_otp"
-  | "email_otp"
   | "password"
   | "pin"
   | "forgot_password_ids"
   | "forgot_password_mobile_otp"
-  | "forgot_password_email_otp"
   | "forgot_password_set"
-  | "forgot_password_firebase"
   | "forgot_pin_ids"
   | "forgot_pin_mobile_otp"
-  | "forgot_pin_email_otp"
   | "forgot_pin_set";
 
 function NexusLoginPage() {
-  const navigate = useNavigate();
-  const firebase = isNexusFirebaseProvider();
   const [step, setStep] = useState<Step>("identifier");
   const [identifier, setIdentifier] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -49,19 +39,11 @@ function NexusLoginPage() {
   const [password, setPassword] = useState("");
   const [pin, setPin] = useState("");
   const [mobileOtp, setMobileOtp] = useState("");
-  const [emailOtp, setEmailOtp] = useState("");
   const [maskedMobile, setMaskedMobile] = useState("");
-  const [maskedEmail, setMaskedEmail] = useState("");
   const [devMobile, setDevMobile] = useState<string | undefined>();
-  const [devEmail, setDevEmail] = useState<string | undefined>();
-  const [phoneE164, setPhoneE164] = useState<string | undefined>();
-  const [firebasePhoneIdToken, setFirebasePhoneIdToken] = useState<string | undefined>();
   const [mobileOtpGrant, setMobileOtpGrant] = useState("");
-  const [emailOtpGrant, setEmailOtpGrant] = useState("");
   const [resetMobile, setResetMobile] = useState("");
-  const [resetEmail, setResetEmail] = useState("");
   const [resetMobileGrant, setResetMobileGrant] = useState("");
-  const [resetEmailGrant, setResetEmailGrant] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [newPin, setNewPin] = useState("");
@@ -92,11 +74,9 @@ function NexusLoginPage() {
       const mode = await resolveNexusLoginMode(identifier.trim());
       setDisplayName(mode.displayName);
       setIsRoot(Boolean(mode.isRoot));
-      setFirebasePhoneIdToken(undefined);
       const mobile = await requestNexusOtp(identifier.trim(), "mobile");
       setMaskedMobile(mobile.maskedDestination);
-      setDevMobile("devOtp" in mobile ? mobile.devOtp : undefined);
-      setPhoneE164("phoneE164" in mobile ? mobile.phoneE164 : undefined);
+      setDevMobile(mobile.devOtp);
       setMobileOtp("");
       setStep("mobile_otp");
     } catch (err) {
@@ -115,42 +95,12 @@ function NexusLoginPage() {
         identifier.trim(),
         "mobile",
         mobileOtp.trim(),
-        phoneE164,
       );
-      if ("firebaseIdToken" in verified && verified.firebaseIdToken) {
-        setFirebasePhoneIdToken(verified.firebaseIdToken);
-        setPassword("");
-        setStep("password");
-        return;
-      }
-      if ("grant" in verified) setMobileOtpGrant(verified.grant);
-      const email = await requestNexusOtp(identifier.trim(), "email");
-      setMaskedEmail(email.maskedDestination);
-      setDevEmail("devOtp" in email ? email.devOtp : undefined);
-      setEmailOtp("");
-      setStep("email_otp");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Mobile OTP failed.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const onEmailOtp = async (event: React.FormEvent) => {
-    event.preventDefault();
-    clearError();
-    setLoading(true);
-    try {
-      const verified = await verifyNexusOtp(
-        identifier.trim(),
-        "email",
-        emailOtp.trim(),
-      );
-      if ("grant" in verified) setEmailOtpGrant(verified.grant);
+      setMobileOtpGrant(verified.grant);
       setPassword("");
       setStep("password");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Email OTP failed.");
+      setError(err instanceof Error ? err.message : "Mobile OTP failed.");
     } finally {
       setLoading(false);
     }
@@ -177,10 +127,9 @@ function NexusLoginPage() {
         password,
         pin: pin.trim(),
         mobileOtpGrant: mobileOtpGrant || undefined,
-        emailOtpGrant: emailOtpGrant || undefined,
-        firebasePhoneIdToken,
       });
-      navigate({ to: "/", replace: true });
+      // Full reload so the session root picks up the operator-login marker.
+      window.location.assign("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed.");
     } finally {
@@ -188,24 +137,10 @@ function NexusLoginPage() {
     }
   };
 
-  const startForgotPassword = async () => {
+  const startForgotPassword = () => {
     clearError();
-    if (firebase && identifier.includes("@")) {
-      setLoading(true);
-      try {
-        await requestNexusPasswordResetOtp(identifier.trim(), "email");
-        setStep("forgot_password_firebase");
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Unable to send reset email.");
-      } finally {
-        setLoading(false);
-      }
-      return;
-    }
     setResetMobile("");
-    setResetEmail("");
     setResetMobileGrant("");
-    setResetEmailGrant("");
     setNewPassword("");
     setConfirmPassword("");
     setStep("forgot_password_ids");
@@ -214,9 +149,7 @@ function NexusLoginPage() {
   const startForgotPin = () => {
     clearError();
     setResetMobile("");
-    setResetEmail("");
     setResetMobileGrant("");
-    setResetEmailGrant("");
     setNewPin("");
     setConfirmPin("");
     setStep("forgot_pin_ids");
@@ -227,12 +160,12 @@ function NexusLoginPage() {
     clearError();
     setLoading(true);
     try {
-      if (!resetMobile.trim() || !resetEmail.trim()) {
-        throw new Error("Enter both mobile number and email.");
+      if (!resetMobile.trim()) {
+        throw new Error("Enter your mobile number.");
       }
       const mobile = await requestNexusPasswordResetOtp(identifier.trim(), "mobile");
       setMaskedMobile(mobile.maskedDestination);
-      setDevMobile("devOtp" in mobile ? mobile.devOtp : undefined);
+      setDevMobile(mobile.devOtp);
       setMobileOtp("");
       setStep("forgot_password_mobile_otp");
     } catch (err) {
@@ -253,32 +186,9 @@ function NexusLoginPage() {
         mobileOtp.trim(),
       );
       setResetMobileGrant(verified.grant);
-      const email = await requestNexusPasswordResetOtp(identifier.trim(), "email");
-      setMaskedEmail(email.maskedDestination);
-      setDevEmail("devOtp" in email ? email.devOtp : undefined);
-      setEmailOtp("");
-      setStep("forgot_password_email_otp");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Mobile OTP failed.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const onForgotPasswordEmailOtp = async (event: React.FormEvent) => {
-    event.preventDefault();
-    clearError();
-    setLoading(true);
-    try {
-      const verified = await verifyNexusPasswordResetOtp(
-        identifier.trim(),
-        "email",
-        emailOtp.trim(),
-      );
-      setResetEmailGrant(verified.grant);
       setStep("forgot_password_set");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Email OTP failed.");
+      setError(err instanceof Error ? err.message : "Mobile OTP failed.");
     } finally {
       setLoading(false);
     }
@@ -294,7 +204,6 @@ function NexusLoginPage() {
       await completeNexusPasswordReset({
         identifier: identifier.trim(),
         mobileOtpGrant: resetMobileGrant,
-        emailOtpGrant: resetEmailGrant,
         newPassword,
       });
       setPassword(newPassword);
@@ -312,8 +221,8 @@ function NexusLoginPage() {
     clearError();
     setLoading(true);
     try {
-      if (!resetMobile.trim() || !resetEmail.trim()) {
-        throw new Error("Enter both mobile number and email.");
+      if (!resetMobile.trim()) {
+        throw new Error("Enter your mobile number.");
       }
       const mobile = await requestNexusPinResetOtp(identifier.trim(), "mobile");
       setMaskedMobile(mobile.maskedDestination);
@@ -338,32 +247,9 @@ function NexusLoginPage() {
         mobileOtp.trim(),
       );
       setResetMobileGrant(verified.grant);
-      const email = await requestNexusPinResetOtp(identifier.trim(), "email");
-      setMaskedEmail(email.maskedDestination);
-      setDevEmail(email.devOtp);
-      setEmailOtp("");
-      setStep("forgot_pin_email_otp");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Mobile OTP failed.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const onForgotPinEmailOtp = async (event: React.FormEvent) => {
-    event.preventDefault();
-    clearError();
-    setLoading(true);
-    try {
-      const verified = await verifyNexusPinResetOtp(
-        identifier.trim(),
-        "email",
-        emailOtp.trim(),
-      );
-      setResetEmailGrant(verified.grant);
       setStep("forgot_pin_set");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Email OTP failed.");
+      setError(err instanceof Error ? err.message : "Mobile OTP failed.");
     } finally {
       setLoading(false);
     }
@@ -379,7 +265,6 @@ function NexusLoginPage() {
       await completeNexusPinReset({
         identifier: identifier.trim(),
         mobileOtpGrant: resetMobileGrant,
-        emailOtpGrant: resetEmailGrant,
         newPin,
       });
       setPin(newPin);
@@ -388,10 +273,8 @@ function NexusLoginPage() {
         password,
         pin: newPin,
         mobileOtpGrant: mobileOtpGrant || undefined,
-        emailOtpGrant: emailOtpGrant || undefined,
-        firebasePhoneIdToken,
       });
-      navigate({ to: "/", replace: true });
+      window.location.assign("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to set PIN.");
     } finally {
@@ -404,9 +287,7 @@ function NexusLoginPage() {
       <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-sm">
         <h1 className="text-2xl font-semibold tracking-tight">LumenX Nexus</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          {firebase
-            ? `${isRoot ? "Root" : "Operator"} · Firebase SMS OTP → password → PIN`
-            : `${isRoot ? "Root" : "Operator"} · mobile OTP → email OTP → password → PIN`}
+          {`${isRoot ? "Root" : "Operator"} · mobile OTP → password → PIN`}
         </p>
         {displayName ? (
           <p className="mt-2 text-xs text-muted-foreground">Signed identity: {displayName}</p>
@@ -419,7 +300,7 @@ function NexusLoginPage() {
               className="h-11 w-full rounded-md border border-border bg-background px-3 text-sm"
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
-              placeholder="username, email, or mobile"
+              placeholder="email, mobile, lokesh, or nexus-root"
               required
             />
             {error && <p className="text-sm text-destructive">{error}</p>}
@@ -436,8 +317,7 @@ function NexusLoginPage() {
         {step === "mobile_otp" && (
           <form onSubmit={onMobileOtp} className="mt-6 space-y-3">
             <p className="text-sm text-muted-foreground">
-              {firebase ? "Firebase SMS OTP sent to " : "Enter OTP (mobile) sent to "}
-              {maskedMobile || "mobile"}
+              Enter OTP (mobile) sent to {maskedMobile || "mobile"}
               {devMobile ? ` · demo ${devMobile}` : ""}
             </p>
             <input
@@ -454,30 +334,6 @@ function NexusLoginPage() {
               className="h-11 w-full rounded-md bg-primary text-sm font-medium text-primary-foreground"
             >
               Verify mobile OTP
-            </button>
-          </form>
-        )}
-
-        {step === "email_otp" && (
-          <form onSubmit={onEmailOtp} className="mt-6 space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Enter OTP (email) sent to {maskedEmail || "email"}
-              {devEmail ? ` · demo ${devEmail}` : ""}
-            </p>
-            <input
-              className="h-11 w-full rounded-md border border-border bg-background px-3 text-sm"
-              value={emailOtp}
-              onChange={(e) => setEmailOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              placeholder="Email OTP"
-              required
-            />
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <button
-              type="submit"
-              disabled={loading || emailOtp.length !== 6}
-              className="h-11 w-full rounded-md bg-primary text-sm font-medium text-primary-foreground"
-            >
-              Verify email OTP
             </button>
           </form>
         )}
@@ -503,7 +359,7 @@ function NexusLoginPage() {
             </button>
             <button
               type="button"
-              onClick={() => void startForgotPassword()}
+              onClick={startForgotPassword}
               className="h-10 w-full text-sm text-muted-foreground underline"
             >
               Forgotten password?
@@ -539,26 +395,10 @@ function NexusLoginPage() {
           </form>
         )}
 
-        {step === "forgot_password_firebase" && (
-          <div className="mt-6 space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Firebase password reset email was sent to <strong>{identifier}</strong>.
-              Open the link, set a new password, then return here and continue with PIN.
-            </p>
-            <button
-              type="button"
-              onClick={() => setStep("password")}
-              className="h-11 w-full rounded-md bg-primary text-sm font-medium text-primary-foreground"
-            >
-              Back to password
-            </button>
-          </div>
-        )}
-
         {step === "forgot_password_ids" && (
           <form onSubmit={onForgotPasswordIds} className="mt-6 space-y-3">
             <p className="text-sm text-muted-foreground">
-              Enter mobile number and email to reset password.
+              Enter mobile number to reset password.
             </p>
             <input
               className="h-11 w-full rounded-md border border-border bg-background px-3 text-sm"
@@ -567,20 +407,13 @@ function NexusLoginPage() {
               placeholder="Mobile number"
               required
             />
-            <input
-              className="h-11 w-full rounded-md border border-border bg-background px-3 text-sm"
-              value={resetEmail}
-              onChange={(e) => setResetEmail(e.target.value)}
-              placeholder="Email"
-              required
-            />
             {error && <p className="text-sm text-destructive">{error}</p>}
             <button
               type="submit"
               disabled={loading}
               className="h-11 w-full rounded-md bg-primary text-sm font-medium text-primary-foreground"
             >
-              Send OTPs
+              Send OTP
             </button>
             <button
               type="button"
@@ -611,29 +444,6 @@ function NexusLoginPage() {
               className="h-11 w-full rounded-md bg-primary text-sm font-medium text-primary-foreground"
             >
               Verify mobile
-            </button>
-          </form>
-        )}
-
-        {step === "forgot_password_email_otp" && (
-          <form onSubmit={onForgotPasswordEmailOtp} className="mt-6 space-y-3">
-            <p className="text-sm text-muted-foreground">
-              OTP (email) · {maskedEmail}
-              {devEmail ? ` · demo ${devEmail}` : ""}
-            </p>
-            <input
-              className="h-11 w-full rounded-md border border-border bg-background px-3 text-sm"
-              value={emailOtp}
-              onChange={(e) => setEmailOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              required
-            />
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <button
-              type="submit"
-              disabled={loading || emailOtp.length !== 6}
-              className="h-11 w-full rounded-md bg-primary text-sm font-medium text-primary-foreground"
-            >
-              Verify email
             </button>
           </form>
         )}
@@ -670,7 +480,7 @@ function NexusLoginPage() {
         {step === "forgot_pin_ids" && (
           <form onSubmit={onForgotPinIds} className="mt-6 space-y-3">
             <p className="text-sm text-muted-foreground">
-              Enter mobile number and email to reset PIN.
+              Enter mobile number to reset PIN.
             </p>
             <input
               className="h-11 w-full rounded-md border border-border bg-background px-3 text-sm"
@@ -679,20 +489,13 @@ function NexusLoginPage() {
               placeholder="Mobile number"
               required
             />
-            <input
-              className="h-11 w-full rounded-md border border-border bg-background px-3 text-sm"
-              value={resetEmail}
-              onChange={(e) => setResetEmail(e.target.value)}
-              placeholder="Email"
-              required
-            />
             {error && <p className="text-sm text-destructive">{error}</p>}
             <button
               type="submit"
               disabled={loading}
               className="h-11 w-full rounded-md bg-primary text-sm font-medium text-primary-foreground"
             >
-              Send OTPs
+              Send OTP
             </button>
             <button
               type="button"
@@ -723,29 +526,6 @@ function NexusLoginPage() {
               className="h-11 w-full rounded-md bg-primary text-sm font-medium text-primary-foreground"
             >
               Verify mobile
-            </button>
-          </form>
-        )}
-
-        {step === "forgot_pin_email_otp" && (
-          <form onSubmit={onForgotPinEmailOtp} className="mt-6 space-y-3">
-            <p className="text-sm text-muted-foreground">
-              OTP (email) · {maskedEmail}
-              {devEmail ? ` · demo ${devEmail}` : ""}
-            </p>
-            <input
-              className="h-11 w-full rounded-md border border-border bg-background px-3 text-sm"
-              value={emailOtp}
-              onChange={(e) => setEmailOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              required
-            />
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <button
-              type="submit"
-              disabled={loading || emailOtp.length !== 6}
-              className="h-11 w-full rounded-md bg-primary text-sm font-medium text-primary-foreground"
-            >
-              Verify email
             </button>
           </form>
         )}

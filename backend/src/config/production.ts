@@ -54,23 +54,29 @@ export function collectProductionEnvIssues(
     });
   }
 
-  if (!env.FIREBASE_PROJECT_ID) {
-    issues.push({
-      code: "FIREBASE_PROJECT_ID",
-      message: "FIREBASE_PROJECT_ID is required in production",
-    });
-  }
-  if (!env.FIREBASE_CLIENT_EMAIL) {
-    issues.push({
-      code: "FIREBASE_CLIENT_EMAIL",
-      message: "FIREBASE_CLIENT_EMAIL is required in production",
-    });
-  }
-  if (!env.FIREBASE_PRIVATE_KEY) {
-    issues.push({
-      code: "FIREBASE_PRIVATE_KEY",
-      message: "FIREBASE_PRIVATE_KEY is required in production",
-    });
+  // Firebase Admin is for FCM only (Auth bridge removed in Phase 4).
+  if (env.FCM_WORKER_ENABLED) {
+    if (!env.FIREBASE_PROJECT_ID) {
+      issues.push({
+        code: "FIREBASE_PROJECT_ID",
+        message:
+          "FIREBASE_PROJECT_ID is required in production when FCM_WORKER_ENABLED is on",
+      });
+    }
+    if (!env.FIREBASE_CLIENT_EMAIL) {
+      issues.push({
+        code: "FIREBASE_CLIENT_EMAIL",
+        message:
+          "FIREBASE_CLIENT_EMAIL is required in production when FCM_WORKER_ENABLED is on",
+      });
+    }
+    if (!env.FIREBASE_PRIVATE_KEY) {
+      issues.push({
+        code: "FIREBASE_PRIVATE_KEY",
+        message:
+          "FIREBASE_PRIVATE_KEY is required in production when FCM_WORKER_ENABLED is on",
+      });
+    }
   }
 
   if (!raw.CORS_ORIGINS?.trim()) {
@@ -109,6 +115,15 @@ export function collectProductionEnvIssues(
       code: "OTP_SMS_WEBHOOK_URL",
       message: "OTP_SMS_WEBHOOK_URL is required when OTP_SMS_PROVIDER=webhook",
     });
+  }
+  if (env.OTP_SMS_PROVIDER === "startmessaging") {
+    if (!env.STARTMESSAGING_API_KEY || !env.STARTMESSAGING_TEMPLATE_ID) {
+      issues.push({
+        code: "STARTMESSAGING",
+        message:
+          "STARTMESSAGING_API_KEY and STARTMESSAGING_TEMPLATE_ID are required when OTP_SMS_PROVIDER=startmessaging",
+      });
+    }
   }
   if (env.OTP_EMAIL_PROVIDER === "resend") {
     if (!env.RESEND_API_KEY || !env.OTP_EMAIL_FROM) {

@@ -81,6 +81,17 @@ export function createDisposableAuthClient(
   });
 }
 
+/** Best-effort local sign-out; mocks may omit signOut. */
+async function safeLocalSignOut(client: SupabaseClient): Promise<void> {
+  const signOut = client.auth.signOut;
+  if (typeof signOut !== "function") return;
+  try {
+    await signOut.call(client.auth, { scope: "local" });
+  } catch {
+    // Disposable clients / test mocks may not implement signOut.
+  }
+}
+
 /**
  * Verify email+password without poisoning the shared service_role client.
  * Returns true when credentials are valid.
@@ -101,7 +112,7 @@ export async function verifyPasswordWithoutPoisoning(
     });
     return !error;
   } finally {
-    await disposable.auth.signOut({ scope: "local" }).catch(() => undefined);
+    await safeLocalSignOut(disposable);
   }
 }
 
@@ -124,7 +135,7 @@ export async function signInPasswordForUserId(
     if (error || !data.user?.id) return null;
     return data.user.id;
   } finally {
-    await disposable.auth.signOut({ scope: "local" }).catch(() => undefined);
+    await safeLocalSignOut(disposable);
   }
 }
 
@@ -169,4 +180,48 @@ export async function createServerAuthSessionForEmail(
     accessToken: sessionData.session.access_token,
     refreshToken: sessionData.session.refresh_token,
   };
+}
+
+/**
+ * Mint Supabase access/refresh tokens for an existing LumenX user_profile id.
+ * Does not create users. Does not modify membership/roles.
+ */
+export async function createSupabaseSessionForUserId(
+  admin: SupabaseClient,
+  userProfileId: string,
+): Promise<{ accessToken: string; refreshToken: string }> {
+  const { data, error } = await admin.auth.admin.getUserById(userProfileId);
+  if (!error && data.user?.email) {
+    return createServerAuthSessionForEmail(
+      admin,
+      data.user.email.trim().toLowerCase(),
+      "LumenX session",
+      userProfileId,
+    );
+  }
+
+  const profileResult = await admin
+    .from("user_profile")
+    .select("email")
+    .eq("id", userProfileId)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  const email =
+    profileResult.data &&
+    typeof (profileResult.data as { email?: string | null }).email === "string"
+      ? (profileResult.data as { email: string }).email.trim().toLowerCase()
+      : "";
+
+  if (!email) {
+    throw AppError.internal(
+      "Unable to start LumenX session: linked profile has no Auth email",
+    );
+  }
+  return createServerAuthSessionForEmail(
+    admin,
+    email,
+    "LumenX session",
+    userProfileId,
+  );
 }

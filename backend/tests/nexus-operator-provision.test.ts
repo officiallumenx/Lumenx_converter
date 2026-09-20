@@ -36,13 +36,15 @@ function input() {
   };
 }
 
-function harness(options?: { firebaseCreateError?: Error }) {
+function harness(options?: { profileInsertError?: Error }) {
   const deleteSupabase = vi.fn().mockResolvedValue({ error: null });
   const createSupabase = vi.fn().mockResolvedValue({
     data: { user: { id: "22222222-2222-4222-8222-222222222222" } },
     error: null,
   });
-  const profileInsert = vi.fn().mockResolvedValue({ error: null });
+  const profileInsert = options?.profileInsertError
+    ? vi.fn().mockResolvedValue({ error: options.profileInsertError })
+    : vi.fn().mockResolvedValue({ error: null });
   const profileQuery = {
     select: vi.fn().mockReturnThis(),
     or: vi.fn().mockReturnThis(),
@@ -54,16 +56,7 @@ function harness(options?: { firebaseCreateError?: Error }) {
     from: vi.fn().mockReturnValue(profileQuery),
     auth: { admin: { createUser: createSupabase, deleteUser: deleteSupabase } },
   };
-  const deleteFirebase = vi.fn().mockResolvedValue(undefined);
-  const firebase = {
-    getUserByEmail: vi.fn().mockRejectedValue({ code: "auth/user-not-found" }),
-    getUserByPhoneNumber: vi.fn().mockRejectedValue({ code: "auth/user-not-found" }),
-    createUser: options?.firebaseCreateError
-      ? vi.fn().mockRejectedValue(options.firebaseCreateError)
-      : vi.fn().mockResolvedValue({ uid: "22222222-2222-4222-8222-222222222222" }),
-    deleteUser: deleteFirebase,
-  };
-  return { admin, firebase, createSupabase, deleteSupabase, deleteFirebase };
+  return { admin, createSupabase, deleteSupabase, profileInsert };
 }
 
 describe("Nexus operator provisioning", () => {
@@ -86,17 +79,15 @@ describe("Nexus operator provisioning", () => {
   it("rejects lower roles before any identity mutation", async () => {
     const h = harness();
     await expect(
-      provisionOperatorForActor(h.admin as never, h.firebase as never, operationsActor, input()),
+      provisionOperatorForActor(h.admin as never, operationsActor, input()),
     ).rejects.toThrow();
     expect(h.createSupabase).not.toHaveBeenCalled();
-    expect(h.firebase.createUser).not.toHaveBeenCalled();
   });
 
-  it("returns first-login workflow after creating linked identities", async () => {
+  it("returns first-login workflow after creating Supabase identity", async () => {
     const h = harness();
     const result = await provisionOperatorForActor(
       h.admin as never,
-      h.firebase as never,
       rootActor,
       input(),
     );
@@ -111,19 +102,15 @@ describe("Nexus operator provisioning", () => {
       requiresPasswordAndPin: true,
       pinSet: false,
     });
-    expect(h.firebase.createUser).toHaveBeenCalledWith(
-      expect.objectContaining({
-        uid: "22222222-2222-4222-8222-222222222222",
-        phoneNumber: "+919876543210",
-      }),
-    );
+    expect(h.createSupabase).toHaveBeenCalled();
+    expect(h.profileInsert).toHaveBeenCalled();
   });
 
-  it("compensates Supabase auth when Firebase creation fails", async () => {
-    const h = harness({ firebaseCreateError: new Error("firebase unavailable") });
+  it("compensates Supabase auth when profile insert fails", async () => {
+    const h = harness({ profileInsertError: new Error("profile unavailable") });
     await expect(
-      provisionOperatorForActor(h.admin as never, h.firebase as never, rootActor, input()),
-    ).rejects.toThrow("firebase unavailable");
+      provisionOperatorForActor(h.admin as never, rootActor, input()),
+    ).rejects.toThrow("profile unavailable");
     expect(h.deleteSupabase).toHaveBeenCalledWith(
       "22222222-2222-4222-8222-222222222222",
     );

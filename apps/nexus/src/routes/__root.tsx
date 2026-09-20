@@ -10,7 +10,6 @@ import {
   Link,
 } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { ensureFirebasePhoneAuthHost } from "@lumenx/auth";
 
 import appCss from "../styles.css?url";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -23,12 +22,12 @@ import { NexusPoliciesNavBadgeSync } from "@/components/NexusPoliciesNavBadgeSyn
 import { appLockStore } from "@/lib/app-lock-store";
 import { isNexusApiMode } from "@/lib/auth-mode";
 import { getNexusProtectedRouteDecision } from "@/lib/protected-route";
-import { ensureNexusOpenAccessSession, validateNexusSession } from "@/lib/nexus-login-api";
-
-// Firebase Phone Auth fails on hostname `localhost` — stay on 127.0.0.1.
-if (typeof window !== "undefined") {
-  ensureFirebasePhoneAuthHost();
-}
+import {
+  ensureNexusOpenAccessSession,
+  hasNexusOperatorLoginMarker,
+  nexusSignOut,
+  validateNexusSession,
+} from "@/lib/nexus-login-api";
 import { getSupabaseAccessToken } from "@/lib/supabase-browser";
 
 function NotFoundComponent() {
@@ -115,8 +114,8 @@ function RootComponent() {
 function NexusSessionRoot() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
-  // Login UI disabled — still mint a real API session via open-access.
-  const requireLogin = false;
+  // Product mode: always require operator login (ignore open-access bypass).
+  const requireLogin = true;
   const [hydrated, setHydrated] = useState(false);
   const [hasOperatorSession, setHasOperatorSession] = useState(false);
   const [bootError, setBootError] = useState<string | null>(null);
@@ -147,12 +146,25 @@ function NexusSessionRoot() {
           if (!cancelled) setHasOperatorSession(ok);
           return;
         }
+
+        // Only a completed /login flow counts. Open-access or leftover
+        // Supabase sessions are signed out so the login screen is shown.
+        if (!hasNexusOperatorLoginMarker()) {
+          await nexusSignOut().catch(() => undefined);
+          if (!cancelled) setHasOperatorSession(false);
+          return;
+        }
+
         const token = await getSupabaseAccessToken().catch(() => null);
         if (!token) {
+          await nexusSignOut().catch(() => undefined);
           if (!cancelled) setHasOperatorSession(false);
           return;
         }
         const ok = await validateNexusSession(token);
+        if (!ok) {
+          await nexusSignOut().catch(() => undefined);
+        }
         if (!cancelled) setHasOperatorSession(ok);
       } catch (err) {
         if (!cancelled) {
@@ -195,9 +207,13 @@ function NexusSessionRoot() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4 text-center text-sm text-muted-foreground">
         <div>
-          <p className="font-medium text-foreground">Could not open Nexus without login</p>
+          <p className="font-medium text-foreground">
+            {requireLogin ? "Could not open Nexus session" : "Could not open Nexus without login"}
+          </p>
           <p className="mt-2">{bootError}</p>
-          <p className="mt-2 text-xs">Ensure the API is running with NEXUS_OPEN_ACCESS=1.</p>
+          {!requireLogin ? (
+            <p className="mt-2 text-xs">Ensure the API is running with NEXUS_OPEN_ACCESS=1.</p>
+          ) : null}
         </div>
       </div>
     );

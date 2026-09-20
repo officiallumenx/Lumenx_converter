@@ -5,8 +5,7 @@
  * Recovery:
  *   forgot password → mobile+email OTPs → set password → PIN
  *   forgot PIN → mobile+email OTPs → set PIN → dashboard
- * Firebase adaptation: phone SMS OTP replaces numeric mobile OTP; email OTP skipped
- * (Firebase has no numeric email OTP). Password is still required after phone OTP.
+ * Mobile OTP grant alone may skip email OTP (server StartMessaging path).
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -41,8 +40,8 @@ import {
   consumeAuthVerificationGrant,
   issueAuthVerificationGrant,
 } from "../auth-credentials/verification-grant.js";
-import { linkFirebaseIdentityToExistingUser } from "../firebase-identity/service.js";
 import { createServerAuthSessionForEmail, verifyPasswordWithoutPoisoning } from "../../auth/create-server-session.js";
+import { loadEnv } from "../../config/env.js";
 
 const INSTITUTE_WIDE_ROLES = new Set([
   "institute_admin",
@@ -125,11 +124,6 @@ export type RequestStaffOtpInput = {
   instituteId: string;
   identifier: string;
   channel?: "email" | "mobile";
-  /**
-   * `firebase_client` — return phone for client Firebase SMS; do not send Twilio OTP.
-   * Default `server` — store + deliver via Twilio/Resend.
-   */
-  delivery?: "server" | "firebase_client";
 };
 
 export type RequestStaffOtpResult = {
@@ -137,8 +131,6 @@ export type RequestStaffOtpResult = {
   channel: "email" | "mobile";
   displayName: string;
   devOtp?: string;
-  /** E.164 / digits for Firebase phone auth when delivery=firebase_client. */
-  phoneE164?: string;
 };
 
 type StaffProfile = {
@@ -356,25 +348,13 @@ export async function requestStaffLoginOtp(
     );
   }
 
-  const delivery = input.delivery ?? "server";
-
-  // Firebase client SMS — return E.164 for the web SDK; do not store/send Twilio OTP.
-  if (delivery === "firebase_client") {
-    if (channel !== "mobile") {
+  if (channel === "email") {
+    const env = loadEnv();
+    if (env.OTP_EMAIL_PROVIDER === "none") {
       throw AppError.validation(
-        "Firebase client delivery is only supported for the mobile channel.",
+        "Email OTP is not configured. Use the mobile OTP, then password and PIN.",
       );
     }
-    const digits = normalizePhoneDigits(destination);
-    const phoneE164 = destination.trim().startsWith("+")
-      ? destination.trim().replace(/\s+/g, "")
-      : `+91${digits}`;
-    return {
-      maskedDestination: maskStaffIdentifier(destination, "mobile"),
-      channel: "mobile",
-      displayName: resolved.displayName,
-      phoneE164,
-    };
   }
 
   // Dual-channel first login uses workflow OTP keys so email + mobile can coexist.
@@ -415,18 +395,14 @@ export type VerifyStaffLoginInput = {
   /** One-use grants from verifyStaffChannelOtp (preferred over re-submitting OTPs). */
   mobileOtpGrant?: string;
   emailOtpGrant?: string;
-  /** Firebase phone Auth ID token — replaces mobile OTP when present. */
-  firebaseIdToken?: string;
-  password?: string;
+  password: string;
   pin: string;
 };
 
 export type VerifyStaffPasswordLoginInput = {
   instituteId: string;
   identifier: string;
-  password?: string;
-  /** Firebase email/password ID token — replaces server password verification. */
-  firebaseIdToken?: string;
+  password: string;
   pin: string;
 };
 
@@ -442,22 +418,6 @@ async function createAuthSessionForEmail(
   email: string,
 ): Promise<{ accessToken: string; refreshToken: string }> {
   return createServerAuthSessionForEmail(admin, email, "staff session");
-}
-
-async function resolveAuthLoginEmail(
-  admin: SupabaseClient,
-  userId: string,
-  fallbackEmail?: string | null,
-): Promise<string> {
-  const { data, error } = await admin.auth.admin.getUserById(userId);
-  if (!error && data.user?.email?.trim()) {
-    return data.user.email.trim().toLowerCase();
-  }
-  const fallback = fallbackEmail?.trim().toLowerCase();
-  if (fallback) return fallback;
-  throw AppError.validation(
-    "Account is missing a login email. Contact your administrator.",
-  );
 }
 
 async function assertPasswordForUser(
@@ -495,16 +455,8 @@ async function assertPasswordForUser(
 export async function verifyStaffPasswordLogin(
   admin: SupabaseClient,
   input: VerifyStaffPasswordLoginInput,
-  opts?: {
-    verifyFirebaseIdToken?: (idToken: string) => Promise<{
-      email?: string;
-      uid: string;
-      signInProvider?: string;
-    }>;
-  },
 ): Promise<StaffLoginSession> {
-  const firebaseToken = input.firebaseIdToken?.trim();
-  if (!firebaseToken && (!input.password || input.password.length < 1)) {
+  if (!input.password || input.password.length < 1) {
     throw AppError.validation("password is required", { password: ["Required"] });
   }
 
@@ -517,60 +469,21 @@ export async function verifyStaffPasswordLogin(
   const cred = await findCredentialByUserId(admin, resolved.userId);
   const firstLogin = !cred?.first_login_completed_at;
 
-  if (firstLogin && !firebaseToken && resolved.isAssigned) {
+  if (firstLogin && resolved.isAssigned) {
     throw AppError.validation(
       "This account requires OTP verification on first login.",
     );
   }
 
-  let sessionEmail = resolved.authEmail;
-  if (firebaseToken) {
-    if (!opts?.verifyFirebaseIdToken) {
-      throw AppError.internal(
-        "Firebase Auth is not configured on the API. Cannot verify email login.",
-      );
-    }
-    let decoded: { email?: string; uid: string; signInProvider?: string };
-    try {
-      decoded = await opts.verifyFirebaseIdToken(firebaseToken);
-    } catch {
-      throw AppError.validation("Invalid or expired Firebase email session.");
-    }
-    sessionEmail = await resolveAuthLoginEmail(
-      admin,
-      resolved.userId,
-      resolved.authEmail,
-    );
-    if (
-      decoded.signInProvider !== "password" ||
-      !decoded.email ||
-      decoded.email.trim().toLowerCase() !== sessionEmail
-    ) {
-      throw AppError.validation(
-        "Firebase email does not match this staff account.",
-      );
-    }
-    try {
-      await linkFirebaseIdentityToExistingUser(admin, {
-        userProfileId: resolved.userId,
-        firebaseUid: decoded.uid,
-      });
-    } catch (error) {
-      // Phone OTP may already own a different Firebase UID on this profile.
-      // Email/password factor is already verified above — continue to session.
-      if (!(error instanceof AppError) || error.status !== 409) throw error;
-    }
-  } else {
-    sessionEmail = await assertPasswordForUser(
-      admin,
-      resolved.userId,
-      input.password!,
-      resolved.authEmail,
-    );
-  }
+  const sessionEmail = await assertPasswordForUser(
+    admin,
+    resolved.userId,
+    input.password,
+    resolved.authEmail,
+  );
 
   if (firstLogin) {
-    // First Firebase email/password login (or principal signup): set/confirm PIN.
+    // First login (or principal signup): set/confirm PIN.
     assertValidPin(input.pin);
     if (cred?.pin_hash) {
       assertPinMatches(cred, input.pin, { required: true });
@@ -579,14 +492,12 @@ export async function verifyStaffPasswordLogin(
         userId: resolved.userId,
         pin: input.pin,
         markFirstLoginCompleted: true,
-        markEmailVerified: Boolean(firebaseToken),
       });
     }
     if (cred?.pin_hash) {
       await upsertUserAuthCredential(admin, {
         userId: resolved.userId,
         markFirstLoginCompleted: true,
-        markEmailVerified: Boolean(firebaseToken),
       });
     }
   } else {
@@ -605,16 +516,7 @@ export async function verifyStaffPasswordLogin(
 export async function verifyStaffLogin(
   admin: SupabaseClient,
   input: VerifyStaffLoginInput,
-  opts?: {
-    /** Verify Firebase ID token (mobile OTP replacement). */
-    verifyFirebaseIdToken?: (idToken: string) => Promise<{
-      phone_number?: string;
-      uid: string;
-      signInProvider?: string;
-    }>;
-  },
 ): Promise<StaffLoginSession> {
-  const firebaseToken = input.firebaseIdToken?.trim();
   if (!input.password || input.password.length < 1) {
     throw AppError.validation("password is required", { password: ["Required"] });
   }
@@ -638,51 +540,16 @@ export async function verifyStaffLogin(
   }
 
   let mobileVerified = false;
-  let firebasePhoneGrant = false;
-  if (firebaseToken) {
-    if (!opts?.verifyFirebaseIdToken) {
-      throw AppError.internal(
-        "Firebase Auth is not configured on the API. Cannot verify phone OTP.",
-      );
-    }
-    let decoded: { phone_number?: string; uid: string; signInProvider?: string };
-    try {
-      decoded = await opts.verifyFirebaseIdToken(firebaseToken);
-    } catch {
-      throw AppError.validation("Invalid or expired Firebase phone verification.");
-    }
-    const tokenPhone = decoded.phone_number;
-    if (decoded.signInProvider !== "phone" || !tokenPhone || !resolved.phone) {
-      throw AppError.validation(
-        "Firebase phone verification does not match this staff account.",
-      );
-    }
-    if (normalizePhoneDigits(tokenPhone) !== normalizePhoneDigits(resolved.phone)) {
-      throw AppError.validation(
-        "Firebase phone verification does not match this staff account.",
-      );
-    }
-    try {
-      await linkFirebaseIdentityToExistingUser(admin, {
-        userProfileId: resolved.userId,
-        firebaseUid: decoded.uid,
-      });
-    } catch (error) {
-      // Profile may already be linked to email/password Firebase UID. Phone OTP
-      // is still valid as a factor once the numbers match above.
-      if (!(error instanceof AppError) || error.status !== 409) throw error;
-    }
-    mobileVerified = true;
-    firebasePhoneGrant = true;
-  } else if (input.mobileOtpGrant?.trim()) {
-    const consumed = await consumeAuthVerificationGrant(admin, {
+  let usedMobileGrant = false;
+  if (input.mobileOtpGrant?.trim()) {
+    await consumeAuthVerificationGrant(admin, {
       purpose: "staff_login",
       grant: input.mobileOtpGrant.trim(),
       subjectId: resolved.userId,
       metadata: { channel: "mobile" },
     });
     mobileVerified = true;
-    firebasePhoneGrant = consumed.metadata.firebasePhone === true;
+    usedMobileGrant = true;
   } else {
     const mobileOtp = input.mobileOtp ?? input.otp;
     if (!mobileOtp || mobileOtp.length !== 6) {
@@ -708,7 +575,8 @@ export async function verifyStaffLogin(
     throw AppError.validation("Incorrect or expired mobile OTP.");
   }
 
-  if (!firebaseToken && !firebasePhoneGrant) {
+  // Email OTP required unless mobile was already proven via a server mobile grant.
+  if (!usedMobileGrant) {
     if (input.emailOtpGrant?.trim()) {
       await consumeAuthVerificationGrant(admin, {
         purpose: "staff_login",
@@ -732,11 +600,8 @@ export async function verifyStaffLogin(
     }
   }
 
-  // Notebook: password is always required after OTP (including Firebase phone OTP).
+  // Notebook: password is always required after OTP.
   // Verify against Auth user id — profile.email can diverge from auth.users.email.
-  if (!input.password || input.password.length < 1) {
-    throw AppError.validation("password is required", { password: ["Required"] });
-  }
   const sessionEmail = await assertPasswordForUser(
     admin,
     resolved.userId,
@@ -751,7 +616,7 @@ export async function verifyStaffLogin(
       userId: resolved.userId,
       markFirstLoginCompleted: true,
       markPhoneVerified: true,
-      markEmailVerified: !firebaseToken || Boolean(resolved.email),
+      markEmailVerified: !usedMobileGrant,
     });
   } else {
     await upsertUserAuthCredential(admin, {
@@ -779,8 +644,6 @@ async function requestStaffRecoveryOtp(
     identifier: string;
     channel: "email" | "mobile";
     purpose: "password_reset" | "pin_reset";
-    /** `firebase_client` — return phone for Firebase SMS; do not send Twilio. */
-    delivery?: "server" | "firebase_client";
   },
 ) {
   const resolved = await resolveStaffLoginUser(
@@ -799,22 +662,13 @@ async function requestStaffRecoveryOtp(
     );
   }
 
-  if (input.delivery === "firebase_client") {
-    if (input.channel !== "mobile") {
+  if (input.channel === "email") {
+    const env = loadEnv();
+    if (env.OTP_EMAIL_PROVIDER === "none") {
       throw AppError.validation(
-        "Firebase client delivery is only supported for the mobile channel.",
+        "Email OTP is not configured. Complete recovery with the mobile OTP only.",
       );
     }
-    const digits = normalizePhoneDigits(destination);
-    const phoneE164 = destination.trim().startsWith("+")
-      ? destination.trim().replace(/\s+/g, "")
-      : `+91${digits}`;
-    return {
-      maskedDestination: maskWorkflowDestination(destination, "mobile"),
-      channel: "mobile" as const,
-      displayName: resolved.displayName,
-      phoneE164,
-    };
   }
 
   const stored = await storeWorkflowOtp(admin, {
@@ -843,68 +697,6 @@ async function requestStaffRecoveryOtp(
     displayName: resolved.displayName,
     devOtp: stored.devOtp,
   };
-}
-
-/**
- * After Firebase phone SMS confirmation, issue a recovery grant for the mobile channel.
- */
-export async function verifyStaffRecoveryFirebasePhone(
-  admin: SupabaseClient,
-  input: {
-    instituteId: string;
-    identifier: string;
-    purpose: "password_reset" | "pin_reset" | "staff_login";
-    firebaseIdToken: string;
-  },
-  opts: {
-    verifyFirebaseIdToken: (idToken: string) => Promise<{
-      phone_number?: string;
-      uid: string;
-      signInProvider?: string;
-    }>;
-  },
-) {
-  const resolved = await resolveStaffLoginUser(
-    admin,
-    input.instituteId.trim(),
-    input.identifier,
-    { allowInstituteWide: true },
-  );
-  if (!resolved.phone) {
-    throw AppError.validation("Account mobile number is missing.");
-  }
-  let decoded: { phone_number?: string; uid: string; signInProvider?: string };
-  try {
-    decoded = await opts.verifyFirebaseIdToken(input.firebaseIdToken);
-  } catch {
-    throw AppError.validation("Invalid or expired Firebase phone verification.");
-  }
-  if (
-    decoded.signInProvider !== "phone" ||
-    !decoded.phone_number ||
-    normalizePhoneDigits(decoded.phone_number) !==
-      normalizePhoneDigits(resolved.phone)
-  ) {
-    throw AppError.validation(
-      "Firebase phone verification does not match this Admin account.",
-    );
-  }
-  await linkFirebaseIdentityToExistingUser(admin, {
-    userProfileId: resolved.userId,
-    firebaseUid: decoded.uid,
-  });
-  const issued = await issueAuthVerificationGrant(admin, {
-    purpose: input.purpose,
-    subjectId: resolved.userId,
-    destination: resolved.phone,
-    metadata: {
-      channel: "mobile",
-      instituteId: input.instituteId.trim(),
-      ...(input.purpose === "staff_login" ? { firebasePhone: true } : {}),
-    },
-    ttlMs: 10 * 60 * 1000,
-  });
-  return { ok: true as const, channel: "mobile" as const, ...issued };
 }
 
 async function verifyStaffRecoveryOtp(
@@ -965,7 +757,6 @@ export async function requestStaffPasswordResetOtp(
     instituteId: string;
     identifier: string;
     channel: "email" | "mobile";
-    delivery?: "server" | "firebase_client";
   },
 ) {
   return requestStaffRecoveryOtp(admin, { ...input, purpose: "password_reset" });
@@ -989,7 +780,7 @@ export async function completeStaffPasswordReset(
     instituteId: string;
     identifier: string;
     mobileOtpGrant: string;
-    /** Optional when Firebase phone already proved the account (no numeric email OTP). */
+    /** Optional when mobile OTP alone proved the account (no numeric email OTP). */
     emailOtpGrant?: string;
     newPassword: string;
   },
@@ -1012,7 +803,7 @@ export async function completeStaffPasswordReset(
     metadata: { channel: "mobile" },
   });
   const emailGrant = input.emailOtpGrant?.trim();
-  if (emailGrant && emailGrant !== "firebase-email-skipped") {
+  if (emailGrant) {
     await consumeAuthVerificationGrant(admin, {
       purpose: "password_reset",
       grant: emailGrant,
@@ -1037,7 +828,6 @@ export async function requestStaffPinResetOtp(
     instituteId: string;
     identifier: string;
     channel: "email" | "mobile";
-    delivery?: "server" | "firebase_client";
   },
 ) {
   return requestStaffRecoveryOtp(admin, { ...input, purpose: "pin_reset" });
@@ -1061,7 +851,7 @@ export async function completeStaffPinReset(
     instituteId: string;
     identifier: string;
     mobileOtpGrant: string;
-    /** Optional when Firebase phone already proved the account. */
+    /** Optional when mobile OTP alone proved the account. */
     emailOtpGrant?: string;
     newPin: string;
   },
@@ -1080,7 +870,7 @@ export async function completeStaffPinReset(
     metadata: { channel: "mobile" },
   });
   const emailGrant = input.emailOtpGrant?.trim();
-  if (emailGrant && emailGrant !== "firebase-email-skipped") {
+  if (emailGrant) {
     await consumeAuthVerificationGrant(admin, {
       purpose: "pin_reset",
       grant: emailGrant,

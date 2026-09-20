@@ -1,21 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  firebaseReset: vi.fn(),
+  resetPasswordForEmail: vi.fn(),
 }));
 
 vi.mock("@lumenx/auth", () => ({
   completeVerifiedAppSignup: vi.fn(),
-  firebaseEmailLoginToLumenXSession: vi.fn(),
-  firebaseLogout: vi.fn(),
-  requestFirebasePasswordReset: mocks.firebaseReset,
+  clearAppAuthSession: vi.fn(),
 }));
 vi.mock("@lumenx/notifications", () => ({
   invalidatePushDeviceTokensBeforeSignOut: vi.fn(),
 }));
 vi.mock("@/lib/supabase-browser", () => ({
   getSupabaseBrowserClient: () => ({
-    auth: { resetPasswordForEmail: vi.fn(), signOut: vi.fn() },
+    auth: { resetPasswordForEmail: mocks.resetPasswordForEmail, signOut: vi.fn() },
   }),
 }));
 vi.mock("@/lib/careers/repositories", () => ({
@@ -27,17 +25,18 @@ vi.mock("./me-bridge", () => ({
   fetchInstituteName: vi.fn(),
   fetchMe: vi.fn(),
 }));
-vi.mock("./auth-mode", () => ({ isFirebaseAuthProvider: () => true }));
 
 describe("Careers API password reset", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("awaits Firebase and propagates delivery errors", async () => {
-    mocks.firebaseReset.mockRejectedValueOnce(new Error("delivery failed"));
+  it("awaits Supabase and propagates delivery errors", async () => {
+    mocks.resetPasswordForEmail.mockResolvedValueOnce({
+      error: new Error("delivery failed"),
+    });
     const { apiRequestPasswordReset } = await import("./api-auth");
     await expect(apiRequestPasswordReset("candidate@example.com")).rejects.toThrow(
       "delivery failed",
     );
-    expect(mocks.firebaseReset).toHaveBeenCalledWith("candidate@example.com");
+    expect(mocks.resetPasswordForEmail).toHaveBeenCalledWith("candidate@example.com");
   });
 });

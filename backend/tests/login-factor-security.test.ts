@@ -2,15 +2,14 @@ import { describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
 import { loadEnv } from "../src/config/env.js";
 import { createLogger } from "../src/logger/logger.js";
-import type { FirebaseIdentity } from "../src/auth/firebase-identity.js";
 import {
-  completeNexusFirebaseLogin,
-} from "../src/domains/auth-credentials/nexus-login.js";
-import { WORKFLOW_DEMO_OTP } from "../src/domains/auth-credentials/workflow-otp.js";
-import {
-  completeConnectFirebaseLogin,
+  completeConnectLogin,
+  completeConnectPinWithOtpGrant,
+  requestConnectMobileOtp,
   resolveConnectLoginMode,
+  verifyConnectMobileOtp,
 } from "../src/domains/auth-credentials/connect-login.js";
+import { WORKFLOW_DEMO_OTP } from "../src/domains/auth-credentials/workflow-otp.js";
 import {
   createMockSupabaseClients,
   emptyMockDb,
@@ -44,36 +43,25 @@ function profile(id: string, email: string, phone: string) {
   };
 }
 
-function firebaseIdentity(input: {
-  uid?: string;
-  email?: string;
-  phone?: string;
-  provider: "password" | "phone";
-}): FirebaseIdentity {
-  return {
-    uid: input.uid ?? "firebase-user",
-    email: input.email ?? null,
-    emailVerified: Boolean(input.email),
-    phoneNumber: input.phone ?? null,
-    name: null,
-    picture: null,
-    authTime: null,
-    expiresAt: null,
-    issuedAt: null,
-    claims: {
-      uid: input.uid ?? "firebase-user",
-      aud: "test",
-      auth_time: 1,
-      exp: 2,
-      firebase: {
-        identities: {},
-        sign_in_provider: input.provider,
-      },
-      iat: 1,
-      iss: "test",
-      sub: input.uid ?? "firebase-user",
-    },
-  };
+async function completeConnectFirstLoginViaServerOtp(
+  admin: ReturnType<typeof createMockSupabaseClients>["admin"],
+  input: {
+    instituteId: string;
+    phone: string;
+    role: "teacher" | "parent" | "student";
+    pin: string;
+  },
+) {
+  await requestConnectMobileOtp(admin, input);
+  const verified = await verifyConnectMobileOtp(admin, {
+    ...input,
+    otp: WORKFLOW_DEMO_OTP,
+  });
+  return completeConnectPinWithOtpGrant(admin, {
+    ...input,
+    pin: input.pin,
+    otpGrant: verified.otpGrant,
+  });
 }
 
 describe("server-consumed Nexus factors", () => {
@@ -162,7 +150,7 @@ describe("server-consumed Nexus factors", () => {
       }),
     );
     const grants: Record<string, string> = {};
-    for (const channel of ["mobile", "email"] as const) {
+    for (const channel of ["mobile"] as const) {
       await app.request("/api/v1/auth/nexus/request-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -202,145 +190,12 @@ describe("server-consumed Nexus factors", () => {
         pin: "1234",
         password: "correct-password",
         mobile_otp_grant: grants.mobile,
-        email_otp_grant: grants.email,
       }),
     });
     expect(login.status).toBe(200);
     expect(
       db.auth_verification_grant.every((grant) => Boolean(grant.consumed_at)),
     ).toBe(true);
-  });
-
-  it("rejects a valid Firebase token for a non-operator", async () => {
-    const db = emptyMockDb();
-    db.user_profile.push(profile(operatorId, "user@test.edu", "9876543210"));
-    const clients = createMockSupabaseClients({ db, tokens: {} });
-    await expect(
-      completeNexusFirebaseLogin(
-        clients.admin,
-        firebaseIdentity({ email: "user@test.edu", provider: "password" }),
-        {
-          provider: "password",
-          pin: "1234",
-          mobileOtpGrant: "a".repeat(64),
-          emailOtpGrant: "b".repeat(64),
-        },
-      ),
-    ).rejects.toMatchObject({ status: 403 });
-  });
-
-  it("requires the declared Firebase provider and PIN", async () => {
-    const db = emptyMockDb();
-    db.user_profile.push(profile(operatorId, "operator@test.edu", "9876543210"));
-    db.platform_operator.push({
-      user_id: operatorId,
-      handle: "operator",
-      display_name: "Operator",
-      status: "active",
-      role_code: "super_admin",
-    });
-    const clients = createMockSupabaseClients({
-      db,
-      tokens: {},
-      authUsersByEmail: { "operator@test.edu": { id: operatorId } },
-      authPasswords: { "operator@test.edu": "correct-password" },
-    });
-    await expect(
-      completeNexusFirebaseLogin(
-        clients.admin,
-        firebaseIdentity({ email: "operator@test.edu", provider: "password" }),
-        {
-          provider: "phone",
-          pin: "1234",
-          mobileOtpGrant: "a".repeat(64),
-          emailOtpGrant: "b".repeat(64),
-        },
-      ),
-    ).rejects.toMatchObject({ status: 400 });
-    await expect(
-      completeNexusFirebaseLogin(
-        clients.admin,
-        firebaseIdentity({ email: "operator@test.edu", provider: "password" }),
-        {
-          provider: "password",
-          pin: "",
-          mobileOtpGrant: "a".repeat(64),
-          emailOtpGrant: "b".repeat(64),
-        },
-      ),
-    ).rejects.toMatchObject({ status: 400 });
-    await expect(
-      completeNexusFirebaseLogin(
-        clients.admin,
-        firebaseIdentity({ phone: "+919876543210", provider: "phone" }),
-        {
-          provider: "phone",
-          pin: "1234",
-        },
-      ),
-    ).rejects.toMatchObject({ status: 400 });
-    await expect(
-      completeNexusFirebaseLogin(
-        clients.admin,
-        firebaseIdentity({ phone: "+919876543210", provider: "phone" }),
-        {
-          provider: "phone",
-          pin: "1234",
-          password: "wrong-password",
-        },
-      ),
-    ).rejects.toMatchObject({ status: 400 });
-  });
-
-  it("rejects disabled profiles and disabled operators", async () => {
-    const disabledProfileDb = emptyMockDb();
-    disabledProfileDb.user_profile.push({
-      ...profile(operatorId, "operator@test.edu", "9876543210"),
-      status: "disabled",
-    });
-    disabledProfileDb.platform_operator.push({
-      user_id: operatorId,
-      handle: "operator",
-      display_name: "Operator",
-      status: "active",
-      role_code: "super_admin",
-    });
-    await expect(
-      completeNexusFirebaseLogin(
-        createMockSupabaseClients({ db: disabledProfileDb, tokens: {} }).admin,
-        firebaseIdentity({ email: "operator@test.edu", provider: "password" }),
-        {
-          provider: "password",
-          pin: "1234",
-          mobileOtpGrant: "a".repeat(64),
-          emailOtpGrant: "b".repeat(64),
-        },
-      ),
-    ).rejects.toMatchObject({ status: 403 });
-
-    const disabledOperatorDb = emptyMockDb();
-    disabledOperatorDb.user_profile.push(
-      profile(operatorId, "operator@test.edu", "9876543210"),
-    );
-    disabledOperatorDb.platform_operator.push({
-      user_id: operatorId,
-      handle: "operator",
-      display_name: "Operator",
-      status: "disabled",
-      role_code: "super_admin",
-    });
-    await expect(
-      completeNexusFirebaseLogin(
-        createMockSupabaseClients({ db: disabledOperatorDb, tokens: {} }).admin,
-        firebaseIdentity({ email: "operator@test.edu", provider: "password" }),
-        {
-          provider: "password",
-          pin: "1234",
-          mobileOtpGrant: "a".repeat(64),
-          emailOtpGrant: "b".repeat(64),
-        },
-      ),
-    ).rejects.toMatchObject({ status: 403 });
   });
 });
 
@@ -390,11 +245,12 @@ describe("Connect passwordless role and factor enforcement", () => {
     });
     const clients = createMockSupabaseClients({ db, tokens: {} });
     await expect(
-      completeConnectFirebaseLogin(
-        clients.admin,
-        firebaseIdentity({ phone: "+919123456780", provider: "phone" }),
-        { instituteId, role: "teacher", pin: "1234" },
-      ),
+      completeConnectFirstLoginViaServerOtp(clients.admin, {
+        instituteId,
+        phone: "9123456780",
+        role: "teacher",
+        pin: "1234",
+      }),
     ).rejects.toMatchObject({ status: 400 });
   });
 
@@ -408,15 +264,16 @@ describe("Connect passwordless role and factor enforcement", () => {
     });
     const clients = createMockSupabaseClients({ db, tokens: {} });
     await expect(
-      completeConnectFirebaseLogin(
-        clients.admin,
-        firebaseIdentity({ phone: "+919123456780", provider: "phone" }),
-        { instituteId, role: "teacher", pin: "1234" },
-      ),
+      completeConnectFirstLoginViaServerOtp(clients.admin, {
+        instituteId,
+        phone: "9123456780",
+        role: "teacher",
+        pin: "1234",
+      }),
     ).rejects.toMatchObject({ status: 400 });
   });
 
-  it("requires Firebase phone OTP on first login and PIN-only thereafter", async () => {
+  it("requires server SMS OTP on first login and PIN-only thereafter", async () => {
     const db = teacherDb();
     db.membership_role.push({
       membership_id: "00000000-0000-4000-8000-000000000201",
@@ -427,10 +284,6 @@ describe("Connect passwordless role and factor enforcement", () => {
       db,
       tokens: {},
       authUsersByEmail: { "teacher@test.edu": { id: teacherId } },
-    });
-    const identity = firebaseIdentity({
-      phone: "+919123456780",
-      provider: "phone",
     });
     const initialMode = await resolveConnectLoginMode(clients.admin, {
       instituteId,
@@ -445,14 +298,18 @@ describe("Connect passwordless role and factor enforcement", () => {
     });
     expect(initialMode).not.toHaveProperty("displayName");
     await expect(
-      completeConnectFirebaseLogin(clients.admin, identity, {
+      completeConnectPinWithOtpGrant(clients.admin, {
         instituteId,
+        phone: "9123456780",
         role: "teacher",
+        pin: "1234",
+        otpGrant: "a".repeat(64),
       }),
     ).rejects.toMatchObject({ status: 400 });
 
-    const first = await completeConnectFirebaseLogin(clients.admin, identity, {
+    const first = await completeConnectFirstLoginViaServerOtp(clients.admin, {
       instituteId,
+      phone: "9123456780",
       role: "teacher",
       pin: "1234",
     });
@@ -472,8 +329,9 @@ describe("Connect passwordless role and factor enforcement", () => {
     expect(returningMode).not.toHaveProperty("displayName");
 
     await expect(
-      completeConnectFirebaseLogin(clients.admin, identity, {
+      completeConnectLogin(clients.admin, {
         instituteId,
+        phone: "9123456780",
         role: "teacher",
         pin: "9999",
       }),
@@ -511,11 +369,12 @@ describe("Connect passwordless role and factor enforcement", () => {
       tokens: {},
       authUsersByEmail: { "teacher@test.edu": { id: teacherId } },
     });
-    await completeConnectFirebaseLogin(
-      clients.admin,
-      firebaseIdentity({ phone: "+919123456780", provider: "phone" }),
-      { instituteId, role: "teacher", pin: "1234" },
-    );
+    await completeConnectFirstLoginViaServerOtp(clients.admin, {
+      instituteId,
+      phone: "9123456780",
+      role: "teacher",
+      pin: "1234",
+    });
 
     const app = createApp(
       loadEnv({ NODE_ENV: "test", LOG_LEVEL: "error" }),
@@ -548,11 +407,12 @@ describe("Connect passwordless role and factor enforcement", () => {
       tokens: {},
       authUsersByEmail: { "teacher@test.edu": { id: teacherId } },
     });
-    await completeConnectFirebaseLogin(
-      clients.admin,
-      firebaseIdentity({ phone: "+919123456780", provider: "phone" }),
-      { instituteId, role: "teacher", pin: "1234" },
-    );
+    await completeConnectFirstLoginViaServerOtp(clients.admin, {
+      instituteId,
+      phone: "9123456780",
+      role: "teacher",
+      pin: "1234",
+    });
     const app = createApp(
       loadEnv({ NODE_ENV: "test", LOG_LEVEL: "error" }),
       createLogger("error"),
@@ -588,7 +448,7 @@ describe("Connect passwordless role and factor enforcement", () => {
     expect(correctWhileLocked.status).toBe(429);
   });
 
-  it("uses the same Firebase-phone and scoped-PIN flow for parents", async () => {
+  it("uses the same server-OTP and scoped-PIN flow for parents", async () => {
     const db = teacherDb();
     db.user_profile.length = 0;
     db.membership.length = 0;
@@ -608,11 +468,12 @@ describe("Connect passwordless role and factor enforcement", () => {
       deleted_at: null,
     });
     const clients = createMockSupabaseClients({ db, tokens: {} });
-    const first = await completeConnectFirebaseLogin(
-      clients.admin,
-      firebaseIdentity({ phone: "+919988776655", provider: "phone" }),
-      { instituteId, role: "parent", pin: "2468" },
-    );
+    const first = await completeConnectFirstLoginViaServerOtp(clients.admin, {
+      instituteId,
+      phone: "9988776655",
+      role: "parent",
+      pin: "2468",
+    });
     expect(first.role).toBe("parent");
     expect(db.connect_login_credential[0]).toMatchObject({
       institute_id: instituteId,

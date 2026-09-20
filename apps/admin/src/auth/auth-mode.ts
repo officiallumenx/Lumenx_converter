@@ -5,9 +5,9 @@
  * VITE_ADMIN_AUTH_MODE may still be set in env for compatibility, but only
  * "api" (or unset) is accepted. "demo" fails at boot.
  *
- * VITE_AUTH_PROVIDER selects interactive login:
- * - firebase (default) — Firebase phone SMS OTP + Firebase email/password
- * - supabase — legacy password / Twilio / Resend OTP rollback
+ * Auth = Supabase (password + server OTP). VITE_FIREBASE_* is for FCM /
+ * Analytics / Crashlytics only — not interactive Auth.
+ * VITE_AUTH_PROVIDER always resolves to supabase.
  */
 
 import {
@@ -39,7 +39,8 @@ export function getAdminAuthProvider(): AdminAuthProvider {
 }
 
 export function isFirebaseAuthProvider(): boolean {
-  return getAdminAuthProvider() === "firebase";
+  // Auth is Supabase-only; Firebase web config is FCM / Analytics / Crashlytics.
+  return false;
 }
 
 export function isApiAuthMode(): boolean {
@@ -67,21 +68,6 @@ export function assertProductionApiAuthMode(): void {
     missing.push("VITE_SUPABASE_ANON_KEY");
   }
   if (!import.meta.env.VITE_API_BASE_URL?.trim()) missing.push("VITE_API_BASE_URL");
-
-  if (getAdminAuthProvider() === "firebase") {
-    if (!import.meta.env.VITE_FIREBASE_API_KEY?.trim()) {
-      missing.push("VITE_FIREBASE_API_KEY");
-    }
-    if (!import.meta.env.VITE_FIREBASE_AUTH_DOMAIN?.trim()) {
-      missing.push("VITE_FIREBASE_AUTH_DOMAIN");
-    }
-    if (!import.meta.env.VITE_FIREBASE_PROJECT_ID?.trim()) {
-      missing.push("VITE_FIREBASE_PROJECT_ID");
-    }
-    if (!import.meta.env.VITE_FIREBASE_APP_ID?.trim()) {
-      missing.push("VITE_FIREBASE_APP_ID");
-    }
-  }
 
   if (missing.length > 0) {
     throw new Error(

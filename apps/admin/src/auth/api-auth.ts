@@ -1,8 +1,4 @@
-import {
-  firebaseEmailLoginToLumenXSession,
-  firebaseLogout,
-  signInWithFirebaseEmail,
-} from "@lumenx/auth";
+import { clearAppAuthSession } from "@lumenx/auth";
 import { invalidatePushDeviceTokensBeforeSignOut } from "@lumenx/notifications";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import {
@@ -29,7 +25,6 @@ import {
   verifyStaffPasswordLogin,
 } from "@/lib/access-roles";
 import { demoRoleIdForSystemKey } from "@/lib/access-roles/system-keys";
-import { isFirebaseAuthProvider } from "@/auth/auth-mode";
 
 export type ApiAuthHydration = {
   user: AuthUser;
@@ -47,9 +42,7 @@ export type HydrateAccessOptions = {
 };
 
 /**
- * Sign in with email + password, then hydrate via GET /api/v1/me.
- * When VITE_AUTH_PROVIDER=firebase (default): Firebase Auth → ID token → /auth/firebase/session.
- * When supabase (explicit rollback): Supabase Auth password sign-in.
+ * Sign in with email + password via Supabase, then hydrate via GET /api/v1/me.
  * Does not accept or generate mock JWTs. Never falls back to demo.
  */
 export async function apiSignInWithPassword(
@@ -63,23 +56,6 @@ export async function apiSignInWithPassword(
   }
 
   const supabase = getSupabaseBrowserClient();
-
-  if (isFirebaseAuthProvider()) {
-    const session = await firebaseEmailLoginToLumenXSession({
-      email: normalized,
-      password,
-      autoLink: true,
-      setSupabaseSession: async ({ accessToken, refreshToken }) => {
-        const { error } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        });
-        if (error) throw new Error(error.message || "Unable to establish session.");
-      },
-    });
-    return hydrateFromAccessToken(session.accessToken, null, opts);
-  }
-
   const { data, error } = await supabase.auth.signInWithPassword({
     email: normalized,
     password,
@@ -176,10 +152,7 @@ export async function hydrateFromAccessToken(
 }
 
 /**
- * Staff Admin login:
- * - Firebase phone: SMS OTP + PIN
- * - Firebase email: email/password + PIN
- * - Explicit legacy provider: dual OTP + password + PIN on first login
+ * Staff Admin login: server OTP + password + PIN (Supabase session).
  */
 export async function apiSignInWithStaffOtp(input: {
   instituteId: string;
@@ -189,7 +162,6 @@ export async function apiSignInWithStaffOtp(input: {
   emailOtp?: string;
   mobileOtpGrant?: string;
   emailOtpGrant?: string;
-  firebaseIdToken?: string;
   password?: string;
   pin: string;
 }): Promise<ApiAuthHydration> {
@@ -204,7 +176,6 @@ export async function apiSignInWithStaffOtp(input: {
     emailOtp: input.emailOtp,
     mobileOtpGrant: input.mobileOtpGrant,
     emailOtpGrant: input.emailOtpGrant,
-    firebaseIdToken: input.firebaseIdToken,
     password: input.password,
     pin: input.pin,
   });
@@ -225,25 +196,7 @@ export async function apiSignInWithStaffPassword(input: {
   password: string;
   pin: string;
 }): Promise<ApiAuthHydration> {
-  let firebaseIdToken: string | undefined;
-  if (isFirebaseAuthProvider() && input.identifier.trim().includes("@")) {
-    try {
-      const firebaseEmail = await signInWithFirebaseEmail(
-        input.identifier,
-        input.password,
-      );
-      firebaseIdToken = firebaseEmail.idToken;
-    } catch {
-      // Password may have been updated in Supabase only (recovery). Fall back
-      // to server password verification, then continue with Supabase session.
-      firebaseIdToken = undefined;
-    }
-  }
-  const session = await verifyStaffPasswordLogin({
-    ...input,
-    password: firebaseIdToken ? undefined : input.password,
-    firebaseIdToken,
-  });
+  const session = await verifyStaffPasswordLogin(input);
   const supabase = getSupabaseBrowserClient();
   const { error } = await supabase.auth.setSession({
     access_token: session.accessToken,
@@ -274,7 +227,7 @@ export async function apiSignOut(): Promise<void> {
       return data.session?.access_token;
     },
   });
-  await firebaseLogout({
+  await clearAppAuthSession({
     clearSupabaseSession: async () => {
       await getSupabaseBrowserClient().auth.signOut().catch(() => undefined);
     },

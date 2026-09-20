@@ -8,18 +8,12 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
-import { ensureFirebasePhoneAuthHost } from "@lumenx/auth";
 
 import appCss from "../styles.css?url";
 import logoUrl from "../assets/lumenx-logo.png?url";
 import { Toaster } from "@lumenx/ui/sonner";
 import { OfflineSyncHost, TypographyProvider } from "@lumenx/ui";
 import { LumenXNativeShell } from "@lumenx/capacitor/native-shell";
-
-// Firebase Phone Auth fails on hostname `localhost` — stay on 127.0.0.1.
-if (typeof window !== "undefined") {
-  ensureFirebasePhoneAuthHost();
-}
 
 const ConnectPortalProviders = lazy(() =>
   import("@/components/app/ConnectPortalProviders").then((m) => ({

@@ -11,32 +11,6 @@ import {
 } from "../../domains/registrations/service.js";
 import { MAX_REGISTRATION_LOGO_DATA_URL_CHARS } from "../../domains/registrations/types.js";
 import { upsertUserAuthCredential } from "../../domains/auth-credentials/repository.js";
-import { getFirebaseAuth } from "../../integrations/firebase.js";
-import { ensureOwnedFirebaseIdentity } from "../../domains/auth-credentials/app-signup.js";
-import {
-  completeFirebasePhoneSignup,
-  verifyFirebasePhoneSignup,
-} from "../../domains/registrations/firebase-signup.js";
-
-async function syncRegistrationApplicantToFirebase(
-  c: { get: (k: "firebaseApp") => AppBindings["Variables"]["firebaseApp"] },
-  admin: ReturnType<typeof requireAdmin>,
-  input: {
-    applicantUserId: string;
-    applicantName: string;
-    email: string;
-  },
-  password: string,
-): Promise<boolean> {
-  const auth = getFirebaseAuth(c.get("firebaseApp"));
-  if (!auth) return false;
-  await ensureOwnedFirebaseIdentity(admin, auth, input.applicantUserId, {
-    email: input.email,
-    password,
-    displayName: input.applicantName,
-  });
-  return true;
-}
 
 function requireAdmin(c: {
   get: (k: "supabase") => AppBindings["Variables"]["supabase"];
@@ -72,7 +46,6 @@ const createRegistrationSchema = z.object({
   email: z.string().email().max(320),
   password: z.string().min(8).max(128),
   phone: z.string().max(30).nullable().optional(),
-  firebase_id_token: z.string().min(20).max(4096).optional(),
   pin: z.string().min(4).max(8).optional(),
   payload: registrationPayloadSchema,
 });
@@ -92,23 +65,6 @@ const registrations = new Hono<AppBindings>();
 registrations.post("/", async (c) => {
   const admin = requireAdmin(c);
   const body = validateBody(createRegistrationSchema, await c.req.json());
-  const auth = getFirebaseAuth(c.get("firebaseApp"));
-  let verifiedFirebase: { firebaseUid: string } | null = null;
-  if (body.firebase_id_token) {
-    if (!body.phone) {
-      throw AppError.validation(
-        "phone is required when firebase_id_token is provided",
-      );
-    }
-    if (!auth) {
-      throw AppError.internal("Firebase Auth is unavailable");
-    }
-    verifiedFirebase = await verifyFirebasePhoneSignup(auth, {
-      idToken: body.firebase_id_token,
-      phone: body.phone,
-      email: body.email,
-    });
-  }
   const data = await createRegistration(admin, {
     applicantName: body.applicant_name,
     email: body.email,
@@ -117,35 +73,16 @@ registrations.post("/", async (c) => {
     pin: body.pin,
     payload: body.payload,
   });
-  let firebaseProvisioned: boolean;
-  if (verifiedFirebase && auth) {
-    await completeFirebasePhoneSignup(admin, auth, {
-      firebaseUid: verifiedFirebase.firebaseUid,
-      applicantUserId: data.applicantUserId,
-      applicantName: data.applicantName,
-      email: body.email,
-      password: body.password,
-    });
-    firebaseProvisioned = true;
-  } else {
-    // Legacy Supabase/non-Firebase provider fallback.
-    firebaseProvisioned = await syncRegistrationApplicantToFirebase(
-      c,
-      admin,
-      data,
-      body.password,
-    );
-  }
   if (body.pin) {
     await upsertUserAuthCredential(admin, {
       userId: data.applicantUserId,
       pin: body.pin,
       // Signup OTP is separate; first Admin login still requires OTP per notebook.
-      markPhoneVerified: Boolean(verifiedFirebase),
+      markPhoneVerified: false,
       markEmailVerified: false,
     });
   }
-  return c.json({ data: { ...data, firebaseProvisioned } }, 201);
+  return c.json({ data }, 201);
 });
 
 const me = new Hono<AppBindings>();

@@ -56,11 +56,19 @@ export const envSchema = z.object({
     .enum(["true", "false", "1", "0"])
     .optional()
     .transform((v) => v === "true" || v === "1"),
-  /** When true, Firebase ID-token verify checks revocation. Default false. */
-  FIREBASE_AUTH_CHECK_REVOKED: z
-    .enum(["true", "false", "1", "0"])
+  /**
+   * When true (default), production requires Firebase Admin for FCM.
+   * Set false only if push delivery is intentionally disabled.
+   * Auth/OTP use Supabase + OTP_SMS_PROVIDER — not Firebase Auth.
+   */
+  FCM_WORKER_ENABLED: z
+    .enum(["true", "false", "1", "0", "on", "off", "yes", "no"])
     .optional()
-    .transform((v) => v === "true" || v === "1"),
+    .transform((v) => {
+      if (v === undefined || v === null) return true;
+      const t = String(v).trim().toLowerCase();
+      return !(t === "false" || t === "0" || t === "off" || t === "no");
+    }),
 
   /**
    * OTP delivery:
@@ -84,13 +92,19 @@ export const envSchema = z.object({
   /** Email of the platform operator used for open-access sessions. */
   NEXUS_BOOTSTRAP_EMAIL: optionalString,
 
-  // SMS — set OTP_SMS_PROVIDER=twilio|webhook for live parent/staff mobile OTPs
-  OTP_SMS_PROVIDER: z.enum(["none", "twilio", "webhook"]).default("none"),
+  // SMS — twilio | webhook | startmessaging for live mobile OTPs (LumenX owns OTP; provider delivers)
+  OTP_SMS_PROVIDER: z
+    .enum(["none", "twilio", "webhook", "startmessaging"])
+    .default("none"),
   TWILIO_ACCOUNT_SID: optionalString,
   TWILIO_AUTH_TOKEN: optionalString,
   TWILIO_FROM_NUMBER: optionalString,
   OTP_SMS_WEBHOOK_URL: optionalString,
   OTP_SMS_WEBHOOK_TOKEN: optionalString,
+  /** StartMessaging SMS delivery (server-only). Passes LumenX-generated OTP in template variables. */
+  STARTMESSAGING_API_KEY: optionalString,
+  STARTMESSAGING_TEMPLATE_ID: optionalString,
+  STARTMESSAGING_BASE_URL: optionalString,
   /** E.164 country prefix applied when destination is a 10-digit IN mobile (default +91). */
   OTP_SMS_DEFAULT_COUNTRY_CODE: z.string().default("+91"),
 

@@ -1,8 +1,6 @@
 import {
+  clearAppAuthSession,
   completeVerifiedAppSignup,
-  firebaseEmailLoginToLumenXSession,
-  firebaseLogout,
-  requestFirebasePasswordReset,
 } from "@lumenx/auth";
 import { invalidatePushDeviceTokensBeforeSignOut } from "@lumenx/notifications";
 import type { MeResponse } from "@/lib/api/me-types";
@@ -20,7 +18,6 @@ import {
   fetchMe,
   type CareersUserFromMeOptions,
 } from "./me-bridge";
-import { isFirebaseAuthProvider } from "./auth-mode";
 
 export type ApiAuthHydration = {
   user: CareersUser;
@@ -99,19 +96,6 @@ export async function apiSignInWithPassword(
   }
 
   const supabase = getSupabaseBrowserClient();
-
-  if (isFirebaseAuthProvider()) {
-    const session = await firebaseEmailLoginToLumenXSession({
-      email: normalized,
-      password,
-      autoLink: true,
-      setSupabaseSession: async ({ accessToken, refreshToken }) => {
-        await setSupabaseSession(accessToken, refreshToken);
-      },
-    });
-    return hydrateFromAccessToken(session.accessToken);
-  }
-
   const { data, error } = await supabase.auth.signInWithPassword({
     email: normalized,
     password,
@@ -174,10 +158,6 @@ export async function tryHydrateApiSession(): Promise<ApiAuthHydration | null> {
 export async function apiRequestPasswordReset(email: string): Promise<void> {
   const normalized = email.trim().toLowerCase();
   if (!normalized.includes("@")) throw new Error("Enter your email address.");
-  if (isFirebaseAuthProvider()) {
-    await requestFirebasePasswordReset(normalized);
-    return;
-  }
   const { error } = await getSupabaseBrowserClient().auth.resetPasswordForEmail(normalized);
   if (error) throw new Error(error.message);
 }
@@ -247,7 +227,7 @@ export async function apiSignOut(): Promise<void> {
       return data.session?.access_token;
     },
   });
-  await firebaseLogout({
+  await clearAppAuthSession({
     clearSupabaseSession: async () => {
       await getSupabaseBrowserClient().auth.signOut().catch(() => undefined);
     },

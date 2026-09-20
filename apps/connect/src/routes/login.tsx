@@ -17,7 +17,6 @@ import {
 import { Button } from "@lumenx/ui";
 import { Input } from "@lumenx/ui";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@lumenx/ui";
-import { isFirebaseAuthProvider } from "@/auth/auth-mode";
 import {
   apiCompleteConnectForgotPin,
   apiCompleteConnectLogin,
@@ -116,10 +115,8 @@ function LoginPage() {
   const [apiConnectPin, setApiConnectPin] = useState("");
   const [apiConnectConfirmPin, setApiConnectConfirmPin] = useState("");
   const [otpGrant, setOtpGrant] = useState("");
-  const [firebaseIdToken, setFirebaseIdToken] = useState("");
   /** Chart: normal sign-in vs forgotten-PIN recovery. */
   const [loginIntent, setLoginIntent] = useState<"signIn" | "forgotPin">("signIn");
-  const [otpChannel, setOtpChannel] = useState<"firebase" | "server" | null>(null);
 
   useEffect(() => {
     if (hydrated && user) nav({ to: "/" });
@@ -191,8 +188,6 @@ function LoginPage() {
     setApiConnectPin("");
     setApiConnectConfirmPin("");
     setOtpGrant("");
-    setFirebaseIdToken("");
-    setOtpChannel(null);
     setPortalOtpError(null);
     setPortalPinError(null);
   };
@@ -214,7 +209,6 @@ function LoginPage() {
           setPortalDisplayName(result.displayName);
           setOtp("");
           setPortalOtpError(null);
-          setOtpChannel(result.channel);
           setResendSeconds(30);
           toast.success(
             result.devOtp
@@ -260,8 +254,6 @@ function LoginPage() {
             setApiConnectPin("");
             setApiConnectConfirmPin("");
             setOtpGrant("");
-            setFirebaseIdToken("");
-            setOtpChannel(null);
 
             if (loginIntent === "forgotPin") {
               const result = await apiRequestConnectLoginOtp({
@@ -271,7 +263,6 @@ function LoginPage() {
               });
               setOtp("");
               setPortalOtpError(null);
-              setOtpChannel(result.channel);
               setResendSeconds(30);
               setStep("portalOtp");
               toast.success(
@@ -291,7 +282,6 @@ function LoginPage() {
               });
               setOtp("");
               setPortalOtpError(null);
-              setOtpChannel(result.channel);
               setResendSeconds(30);
               setStep("portalOtp");
               toast.success(
@@ -327,8 +317,6 @@ function LoginPage() {
         })
           .then((proof) => {
             setOtpGrant(proof.otpGrant ?? "");
-            setFirebaseIdToken(proof.firebaseIdToken ?? "");
-            setOtpChannel(proof.channel);
             setApiConnectPin("");
             setApiConnectConfirmPin("");
             setPortalOtpError(null);
@@ -344,7 +332,7 @@ function LoginPage() {
       }
     }
     if (step === "portalPinSetup") {
-      if (!role || !instituteId || (!otpGrant && !firebaseIdToken)) {
+      if (!role || !instituteId || !otpGrant) {
         return toast.error("Verification expired. Request a new code.");
       }
       if (!/^\d{4,8}$/.test(apiConnectPin)) {
@@ -359,14 +347,12 @@ function LoginPage() {
           instituteId,
           phone: cleanPhone,
           role,
-          otpGrant: otpGrant || undefined,
-          firebaseIdToken: firebaseIdToken || undefined,
+          otpGrant,
           pin: apiConnectPin,
         })
           .then((session) => {
             signInApi(session.user, role, session.instituteId);
             setOtpGrant("");
-            setFirebaseIdToken("");
             setLoginIntent("signIn");
             toast.success("Login PIN updated");
             nav({ to: "/" });
@@ -381,13 +367,11 @@ function LoginPage() {
         instituteId,
         phone: cleanPhone,
         role,
-        otpGrant: otpGrant || undefined,
-        firebaseIdToken: firebaseIdToken || undefined,
+        otpGrant,
         pin: apiConnectPin,
       })
         .then(() => {
             setOtpGrant("");
-            setFirebaseIdToken("");
             setApiConnectPin("");
             setApiConnectConfirmPin("");
             setPortalPinError(null);
@@ -848,16 +832,9 @@ function LoginPage() {
                       Resend OTP
                     </button>
                   )}
-                  {otpChannel === "firebase" || isFirebaseAuthProvider() ? (
-                    <p className="login-demo-hint text-center text-muted-foreground">
-                      Enter the SMS code sent to your phone.
-                    </p>
-                  ) : (
-                    <p className="login-demo-hint text-center text-muted-foreground">
-                      Enter the code sent by the server. Development codes appear in the toast.
-                    </p>
-                  )}
-                </div>
+                  <p className="login-demo-hint text-center text-muted-foreground">
+                    Enter the code sent by the server. Development codes appear in the toast.
+                  </p>                </div>
               </div>
             )}
 

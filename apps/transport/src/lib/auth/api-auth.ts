@@ -1,10 +1,6 @@
-import {
-  firebaseEmailLoginToLumenXSession,
-  firebaseLogout,
-} from "@lumenx/auth";
+import { clearAppAuthSession } from "@lumenx/auth";
 import { invalidatePushDeviceTokensBeforeSignOut } from "@lumenx/notifications";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
-import { isFirebaseAuthProvider } from "@/lib/auth/auth-mode";
 
 type MeResponse = {
   user: { id: string };
@@ -231,9 +227,7 @@ export async function apiSignInWithPhonePin(
 }
 
 /**
- * Driver email+password login (legacy / rollback).
- * firebase provider → Firebase Auth → /auth/firebase/session → hydrate driver.
- * supabase provider → Supabase password (rollback).
+ * Driver email+password login via Supabase Auth, then hydrate driver profile.
  */
 export async function apiSignInWithPassword(
   email: string,
@@ -245,23 +239,6 @@ export async function apiSignInWithPassword(
   }
 
   const supabase = getSupabaseBrowserClient();
-
-  if (isFirebaseAuthProvider()) {
-    const session = await firebaseEmailLoginToLumenXSession({
-      email: normalized,
-      password,
-      autoLink: true,
-      setSupabaseSession: async ({ accessToken, refreshToken }) => {
-        const { error } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        });
-        if (error) throw new Error(error.message || "Unable to establish session.");
-      },
-    });
-    return hydrateDriverFromToken(session.accessToken);
-  }
-
   const { data, error } = await supabase.auth.signInWithPassword({
     email: normalized,
     password,
@@ -299,7 +276,7 @@ export async function apiSignOut(): Promise<void> {
       return data.session?.access_token;
     },
   });
-  await firebaseLogout({
+  await clearAppAuthSession({
     clearSupabaseSession: async () => {
       await getSupabaseBrowserClient().auth.signOut().catch(() => undefined);
     },

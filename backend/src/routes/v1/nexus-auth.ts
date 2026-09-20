@@ -4,7 +4,6 @@ import type { AppBindings } from "../../types/app.js";
 import { AppError } from "../../errors/app-error.js";
 import { validateBody } from "../../validation/validate.js";
 import {
-  completeNexusFirebaseLogin,
   completeNexusLogin,
   completeNexusPasswordReset,
   completeNexusPinReset,
@@ -17,10 +16,6 @@ import {
   verifyNexusPasswordResetOtp,
   verifyNexusPinResetOtp,
 } from "../../domains/auth-credentials/nexus-login.js";
-import {
-  assertFirebaseAuthenticated,
-  requireFirebaseAuth,
-} from "../../auth/require-firebase-auth.js";
 
 function requireAdmin(c: {
   get: (k: "supabase") => AppBindings["Variables"]["supabase"];
@@ -68,7 +63,6 @@ nexusAuth.post("/request-otp", async (c) => {
     z.object({
       identifier: identifierSchema,
       channel: channelSchema,
-      delivery: z.enum(["server", "firebase_client"]).optional(),
     }),
     await c.req.json(),
   );
@@ -98,43 +92,12 @@ nexusAuth.post("/login", async (c) => {
       pin: z.string().min(4).max(8),
       password: z.string().min(1).max(200),
       mobile_otp_grant: grantSchema,
-      email_otp_grant: grantSchema,
+      email_otp_grant: grantSchema.optional(),
     }),
     await c.req.json(),
   );
   const data = await completeNexusLogin(admin, {
     identifier: body.identifier,
-    pin: body.pin,
-    password: body.password,
-    mobileOtpGrant: body.mobile_otp_grant,
-    emailOtpGrant: body.email_otp_grant,
-  });
-  return c.json({
-    data: {
-      access_token: data.accessToken,
-      refresh_token: data.refreshToken,
-      display_name: data.displayName,
-      first_login_completed: data.firstLoginCompleted,
-      is_root: data.isRoot,
-    },
-  });
-});
-
-nexusAuth.post("/firebase-login", requireFirebaseAuth({ checkRevoked: true }), async (c) => {
-  const admin = requireAdmin(c);
-  const identity = assertFirebaseAuthenticated(c);
-  const body = validateBody(
-    z.object({
-      provider: z.enum(["password", "phone"]),
-      pin: z.string().min(4).max(8),
-      password: z.string().min(1).max(200).optional(),
-      mobile_otp_grant: grantSchema.optional(),
-      email_otp_grant: grantSchema.optional(),
-    }),
-    await c.req.json(),
-  );
-  const data = await completeNexusFirebaseLogin(admin, identity, {
-    provider: body.provider,
     pin: body.pin,
     password: body.password,
     mobileOtpGrant: body.mobile_otp_grant,
@@ -184,7 +147,7 @@ nexusAuth.post("/forgot-password/complete", async (c) => {
     z.object({
       identifier: identifierSchema,
       mobile_otp_grant: grantSchema,
-      email_otp_grant: grantSchema,
+      email_otp_grant: grantSchema.optional(),
       new_password: z.string().min(8).max(128),
     }),
     await c.req.json(),
@@ -231,7 +194,7 @@ nexusAuth.post("/forgot-pin/complete", async (c) => {
     z.object({
       identifier: identifierSchema,
       mobile_otp_grant: grantSchema,
-      email_otp_grant: grantSchema,
+      email_otp_grant: grantSchema.optional(),
       new_pin: z.string().min(4).max(8),
     }),
     await c.req.json(),

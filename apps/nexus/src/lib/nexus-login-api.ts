@@ -1,16 +1,40 @@
-/** Nexus operator / root login API — Firebase OTP + notebook workflow client. */
+/** Nexus operator / root login API — server OTP + notebook workflow client. */
 
-import {
-  firebaseConfirmPhoneOtpOnly,
-  firebaseLogout,
-  firebaseRequestPhoneOtp,
-  requestFirebasePasswordReset,
-  signInWithFirebaseEmail,
-} from "@lumenx/auth";
+import { clearAppAuthSession } from "@lumenx/auth";
 import { invalidatePushDeviceTokensBeforeSignOut } from "@lumenx/notifications";
 import { getApiBaseUrl } from "@/lib/nexus-api";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
-import { isFirebaseAuthProvider } from "@/lib/auth-mode";
+
+/** Set only after a successful /login flow — open-access sessions do not set this. */
+export const NEXUS_OPERATOR_LOGIN_MARKER = "lumenx.nexus.operatorLogin.v1";
+
+export function hasNexusOperatorLoginMarker(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(NEXUS_OPERATOR_LOGIN_MARKER) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function markNexusOperatorLogin(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(NEXUS_OPERATOR_LOGIN_MARKER, "1");
+  } catch {
+    // ignore
+  }
+}
+
+export function clearNexusOperatorLoginMarker(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(NEXUS_OPERATOR_LOGIN_MARKER);
+    window.localStorage.removeItem("lumenx.nexus.openAccessCleared.v1");
+  } catch {
+    // ignore
+  }
+}
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${getApiBaseUrl()}${path}`, {
@@ -28,31 +52,9 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
   return json.data;
 }
 
-async function postFirebaseJson<T>(
-  path: string,
-  idToken: string,
-  body: unknown,
-): Promise<T> {
-  const res = await fetch(`${getApiBaseUrl()}${path}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${idToken}`,
-    },
-    body: JSON.stringify(body),
-  });
-  const json = (await res.json().catch(() => ({}))) as {
-    data?: T;
-    error?: { message?: string };
-  };
-  if (!res.ok || !json.data) {
-    throw new Error(json.error?.message || `Request failed (${res.status})`);
-  }
-  return json.data;
-}
-
+/** @deprecated Firebase OTP removed — always false. */
 export function isNexusFirebaseProvider(): boolean {
-  return isFirebaseAuthProvider();
+  return false;
 }
 
 export async function validateNexusSession(accessToken: string): Promise<boolean> {
@@ -115,28 +117,6 @@ export async function requestNexusOtp(
   identifier: string,
   channel: "email" | "mobile",
 ) {
-  if (isFirebaseAuthProvider() && channel === "mobile") {
-    const prepared = await postJson<{
-      maskedDestination: string;
-      channel: "mobile";
-      displayName: string;
-      phoneE164?: string;
-    }>("/api/v1/auth/nexus/request-otp", {
-      identifier,
-      channel: "mobile",
-      delivery: "firebase_client",
-    });
-    if (!prepared.phoneE164) {
-      throw new Error("Operator mobile number is missing for Firebase OTP.");
-    }
-    const sent = await firebaseRequestPhoneOtp(prepared.phoneE164);
-    return {
-      maskedDestination: sent.maskedDestination || prepared.maskedDestination,
-      channel: "mobile" as const,
-      displayName: prepared.displayName,
-      phoneE164: prepared.phoneE164,
-    };
-  }
   return postJson<{
     maskedDestination: string;
     channel: "email" | "mobile";
@@ -149,19 +129,7 @@ export async function verifyNexusOtp(
   identifier: string,
   channel: "email" | "mobile",
   otp: string,
-  phoneE164?: string,
 ) {
-  if (isFirebaseAuthProvider() && channel === "mobile") {
-    if (!phoneE164) {
-      throw new Error("Firebase phone session missing. Request OTP again.");
-    }
-    const confirmed = await firebaseConfirmPhoneOtpOnly({ phone: phoneE164, otp });
-    return {
-      ok: true as const,
-      channel: "mobile" as const,
-      firebaseIdToken: confirmed.idToken,
-    };
-  }
   return postJson<{
     ok: true;
     channel: "email" | "mobile";
@@ -176,54 +144,11 @@ export async function completeNexusLogin(input: {
   password: string;
   mobileOtpGrant?: string;
   emailOtpGrant?: string;
-  /** After Firebase phone OTP — preferred when VITE_AUTH_PROVIDER=firebase */
-  firebasePhoneIdToken?: string;
 }) {
   const supabase = getSupabaseBrowserClient();
 
-  if (isFirebaseAuthProvider() && input.firebasePhoneIdToken) {
-    const session = await postFirebaseJson<{
-      access_token: string;
-      refresh_token: string;
-      display_name: string;
-      is_root?: boolean;
-    }>("/api/v1/auth/nexus/firebase-login", input.firebasePhoneIdToken, {
-      provider: "phone",
-      pin: input.pin,
-      password: input.password,
-    });
-    const { error } = await supabase.auth.setSession({
-      access_token: session.access_token,
-      refresh_token: session.refresh_token,
-    });
-    if (error) throw new Error(error.message || "Unable to establish Nexus session.");
-    return session;
-  }
-
-  if (isFirebaseAuthProvider() && input.identifier.includes("@")) {
-    const firebase = await signInWithFirebaseEmail(
-      input.identifier.trim().toLowerCase(),
-      input.password,
-    );
-    const session = await postFirebaseJson<{
-      access_token: string;
-      refresh_token: string;
-      display_name: string;
-      is_root?: boolean;
-    }>("/api/v1/auth/nexus/firebase-login", firebase.idToken, {
-      provider: "password",
-      pin: input.pin,
-    });
-    const { error } = await supabase.auth.setSession({
-      access_token: session.access_token,
-      refresh_token: session.refresh_token,
-    });
-    if (error) throw new Error(error.message || "Unable to establish Nexus session.");
-    return session;
-  }
-
-  if (!input.mobileOtpGrant || !input.emailOtpGrant) {
-    throw new Error("Verify mobile and email OTP before completing login.");
+  if (!input.mobileOtpGrant) {
+    throw new Error("Verify mobile OTP before completing login.");
   }
 
   const data = await postJson<{
@@ -236,7 +161,7 @@ export async function completeNexusLogin(input: {
     pin: input.pin,
     password: input.password,
     mobile_otp_grant: input.mobileOtpGrant,
-    email_otp_grant: input.emailOtpGrant,
+    ...(input.emailOtpGrant ? { email_otp_grant: input.emailOtpGrant } : {}),
   });
 
   const { error } = await supabase.auth.setSession({
@@ -244,6 +169,7 @@ export async function completeNexusLogin(input: {
     refresh_token: data.refresh_token,
   });
   if (error) throw new Error(error.message || "Unable to establish Nexus session.");
+  markNexusOperatorLogin();
   return data;
 }
 
@@ -251,15 +177,6 @@ export async function requestNexusPasswordResetOtp(
   identifier: string,
   channel: "email" | "mobile",
 ) {
-  if (isFirebaseAuthProvider() && channel === "email" && identifier.includes("@")) {
-    await requestFirebasePasswordReset(identifier.trim().toLowerCase());
-    return {
-      maskedDestination: identifier.trim().toLowerCase(),
-      channel: "email" as const,
-      displayName: "Operator",
-      firebaseEmailLink: true as const,
-    };
-  }
   return postJson<{
     maskedDestination: string;
     channel: "email" | "mobile";
@@ -288,13 +205,13 @@ export async function verifyNexusPasswordResetOtp(
 export async function completeNexusPasswordReset(input: {
   identifier: string;
   mobileOtpGrant: string;
-  emailOtpGrant: string;
+  emailOtpGrant?: string;
   newPassword: string;
 }) {
   return postJson<{ ok: true }>("/api/v1/auth/nexus/forgot-password/complete", {
     identifier: input.identifier,
     mobile_otp_grant: input.mobileOtpGrant,
-    email_otp_grant: input.emailOtpGrant,
+    ...(input.emailOtpGrant ? { email_otp_grant: input.emailOtpGrant } : {}),
     new_password: input.newPassword,
   });
 }
@@ -331,18 +248,19 @@ export async function verifyNexusPinResetOtp(
 export async function completeNexusPinReset(input: {
   identifier: string;
   mobileOtpGrant: string;
-  emailOtpGrant: string;
+  emailOtpGrant?: string;
   newPin: string;
 }) {
   return postJson<{ ok: true }>("/api/v1/auth/nexus/forgot-pin/complete", {
     identifier: input.identifier,
     mobile_otp_grant: input.mobileOtpGrant,
-    email_otp_grant: input.emailOtpGrant,
+    ...(input.emailOtpGrant ? { email_otp_grant: input.emailOtpGrant } : {}),
     new_pin: input.newPin,
   });
 }
 
 export async function nexusSignOut(): Promise<void> {
+  clearNexusOperatorLoginMarker();
   await invalidatePushDeviceTokensBeforeSignOut({
     app: "nexus",
     apiBaseUrl: getApiBaseUrl(),
@@ -351,7 +269,7 @@ export async function nexusSignOut(): Promise<void> {
       return data.session?.access_token;
     },
   });
-  await firebaseLogout({
+  await clearAppAuthSession({
     clearSupabaseSession: async () => {
       await getSupabaseBrowserClient().auth.signOut().catch(() => undefined);
     },

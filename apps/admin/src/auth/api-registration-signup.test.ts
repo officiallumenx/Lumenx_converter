@@ -104,9 +104,9 @@ describe("API registration sign-up wiring", () => {
     expect(getApiRegistrationSnapshot()?.status).toBe("pending");
   });
 
-  it("forwards a fresh Firebase phone token on final signup", async () => {
+  it("does not include firebaseIdToken on signup payload", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
-    vi.stubEnv("VITE_AUTH_PROVIDER", "firebase");
+    vi.stubEnv("VITE_AUTH_PROVIDER", "supabase");
 
     const submitRegistration = vi.fn().mockResolvedValue({
       id: "reg-1",
@@ -123,11 +123,6 @@ describe("API registration sign-up wiring", () => {
       createdAt: "2024-06-01T08:00:00Z",
       updatedAt: "2024-06-01T08:00:00Z",
     });
-    const getCurrentFirebaseIdToken = vi.fn().mockResolvedValue("stale-session-token");
-    vi.doMock("@lumenx/auth", async (importOriginal) => ({
-      ...(await importOriginal<typeof import("@lumenx/auth")>()),
-      getCurrentFirebaseIdToken,
-    }));
     vi.doMock("@/lib/registrations/api", () => ({ submitRegistration }));
     vi.doMock("./api-auth", () => ({
       apiSignInWithPassword: vi.fn().mockResolvedValue({
@@ -140,55 +135,17 @@ describe("API registration sign-up wiring", () => {
     const { runApiInstituteSignUp } = await import("./api-signup-flow");
     await runApiInstituteSignUp({
       ...signUpData,
-      firebaseIdToken: "fresh-phone-token",
     });
 
-    expect(getCurrentFirebaseIdToken).not.toHaveBeenCalled();
-    expect(submitRegistration).toHaveBeenCalledWith(
-      expect.objectContaining({ firebaseIdToken: "fresh-phone-token" }),
-    );
-  });
-
-  it("falls back to current Firebase session token when signup did not capture one", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
-    vi.stubEnv("VITE_AUTH_PROVIDER", "firebase");
-
-    const submitRegistration = vi.fn().mockResolvedValue({
-      id: "reg-1",
-      applicantUserId: user.id,
-      applicantName: user.name,
-      email: user.email,
-      phone: signUpData.phone,
+    expect(submitRegistration).toHaveBeenCalledWith({
+      applicantName: "Dr. Ananya Verma",
+      email: "principal@school.edu",
+      password: "SecurePass123",
+      phone: "+919876543210",
+      pin: null,
       payload: registrationPayload,
-      status: "pending",
-      reviewedBy: null,
-      reviewedAt: null,
-      rejectionReason: null,
-      instituteId: null,
-      createdAt: "2024-06-01T08:00:00Z",
-      updatedAt: "2024-06-01T08:00:00Z",
     });
-    const getCurrentFirebaseIdToken = vi.fn().mockResolvedValue("session-phone-token");
-    vi.doMock("@lumenx/auth", async (importOriginal) => ({
-      ...(await importOriginal<typeof import("@lumenx/auth")>()),
-      getCurrentFirebaseIdToken,
-    }));
-    vi.doMock("@/lib/registrations/api", () => ({ submitRegistration }));
-    vi.doMock("./api-auth", () => ({
-      apiSignInWithPassword: vi.fn().mockResolvedValue({
-        user,
-        meInstitutes: [],
-        activeInstituteId: null,
-      }),
-    }));
-
-    const { runApiInstituteSignUp } = await import("./api-signup-flow");
-    await runApiInstituteSignUp(signUpData);
-
-    expect(getCurrentFirebaseIdToken).toHaveBeenCalledWith(true);
-    expect(submitRegistration).toHaveBeenCalledWith(
-      expect.objectContaining({ firebaseIdToken: "session-phone-token" }),
-    );
+    expect(submitRegistration.mock.calls[0]?.[0]).not.toHaveProperty("firebaseIdToken");
   });
 
   it("runApiInstituteSignUp failure clears snapshot and does not sign in", async () => {

@@ -1,7 +1,6 @@
 /**
- * Resolve VITE_AUTH_PROVIDER for app shells (API mode only).
- * Default: firebase. Set VITE_AUTH_PROVIDER=supabase for legacy rollback.
- * Never implies demo.
+ * Resolve VITE auth mode for app shells (API mode only).
+ * Interactive Auth is always Supabase. VITE_AUTH_PROVIDER is ignored.
  */
 
 import {
@@ -27,11 +26,9 @@ export function readViteAuthProvider(): LumenXAuthProvider {
   return normalizeAuthProvider(readViteEnv("VITE_AUTH_PROVIDER"));
 }
 
-/** True when API mode and interactive auth should use Firebase. */
-export function isFirebaseAuthProviderActive(appModeKey: string): boolean {
-  const mode = readViteAuthMode(appModeKey);
-  if (mode !== "api") return false;
-  return readViteAuthProvider() === "firebase";
+/** Always false — Firebase Auth interactive login removed. */
+export function isFirebaseAuthProviderActive(_appModeKey: string): boolean {
+  return false;
 }
 
 export function getViteApiBaseUrl(): string {

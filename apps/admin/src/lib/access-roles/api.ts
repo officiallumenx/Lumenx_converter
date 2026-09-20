@@ -139,7 +139,6 @@ export async function requestStaffLoginOtp(input: {
   instituteId: string;
   identifier: string;
   channel?: "email" | "mobile";
-  delivery?: "server" | "firebase_client";
 }): Promise<{
   maskedDestination: string;
   channel: "email" | "mobile";
@@ -154,7 +153,6 @@ export async function requestStaffLoginOtp(input: {
       institute_id: input.instituteId,
       identifier: input.identifier,
       channel: input.channel,
-      delivery: input.delivery,
     },
     { skipAuth: true },
   );
@@ -168,7 +166,6 @@ export async function verifyStaffLogin(input: {
   emailOtp?: string;
   mobileOtpGrant?: string;
   emailOtpGrant?: string;
-  firebaseIdToken?: string;
   password: string;
   pin: string;
 }): Promise<{
@@ -203,7 +200,6 @@ export async function verifyStaffLogin(input: {
       email_otp: input.emailOtp,
       ...(mobileGrant ? { mobile_otp_grant: mobileGrant } : {}),
       ...(emailGrant ? { email_otp_grant: emailGrant } : {}),
-      firebase_id_token: input.firebaseIdToken,
       password: input.password,
       pin: input.pin,
     },
@@ -274,28 +270,10 @@ export async function verifyStaffChannelOtp(input: {
   );
 }
 
-export async function verifyStaffLoginFirebasePhone(input: {
-  instituteId: string;
-  identifier: string;
-  firebaseIdToken: string;
-}): Promise<{ ok: true; channel: "mobile"; grant: string; expiresAt: string }> {
-  assertApiMode();
-  return getAdminApiClient().post(
-    "/api/v1/auth/staff/verify-firebase-phone",
-    {
-      institute_id: input.instituteId,
-      identifier: input.identifier,
-      firebase_id_token: input.firebaseIdToken,
-    },
-    { skipAuth: true },
-  );
-}
-
 export async function requestStaffPasswordResetOtp(input: {
   instituteId: string;
   identifier: string;
   channel: "email" | "mobile";
-  delivery?: "server" | "firebase_client";
 }) {
   assertApiMode();
   return getAdminApiClient().post<{
@@ -310,7 +288,6 @@ export async function requestStaffPasswordResetOtp(input: {
       institute_id: input.instituteId,
       identifier: input.identifier,
       channel: input.channel,
-      delivery: input.delivery,
     },
     { skipAuth: true },
   );
@@ -371,7 +348,6 @@ export async function requestStaffPinResetOtp(input: {
   instituteId: string;
   identifier: string;
   channel: "email" | "mobile";
-  delivery?: "server" | "firebase_client";
 }) {
   assertApiMode();
   return getAdminApiClient().post<{
@@ -386,51 +362,6 @@ export async function requestStaffPinResetOtp(input: {
       institute_id: input.instituteId,
       identifier: input.identifier,
       channel: input.channel,
-      delivery: input.delivery,
-    },
-    { skipAuth: true },
-  );
-}
-
-export async function verifyStaffPasswordResetFirebasePhone(input: {
-  instituteId: string;
-  identifier: string;
-  firebaseIdToken: string;
-}) {
-  assertApiMode();
-  return getAdminApiClient().post<{
-    ok: true;
-    channel: "mobile";
-    grant: string;
-    expiresAt: string;
-  }>(
-    "/api/v1/auth/staff/forgot-password/verify-firebase-phone",
-    {
-      institute_id: input.instituteId,
-      identifier: input.identifier,
-      firebase_id_token: input.firebaseIdToken,
-    },
-    { skipAuth: true },
-  );
-}
-
-export async function verifyStaffPinResetFirebasePhone(input: {
-  instituteId: string;
-  identifier: string;
-  firebaseIdToken: string;
-}) {
-  assertApiMode();
-  return getAdminApiClient().post<{
-    ok: true;
-    channel: "mobile";
-    grant: string;
-    expiresAt: string;
-  }>(
-    "/api/v1/auth/staff/forgot-pin/verify-firebase-phone",
-    {
-      institute_id: input.instituteId,
-      identifier: input.identifier,
-      firebase_id_token: input.firebaseIdToken,
     },
     { skipAuth: true },
   );
@@ -491,7 +422,6 @@ export async function verifyStaffPasswordLogin(input: {
   instituteId: string;
   identifier: string;
   password?: string;
-  firebaseIdToken?: string;
   pin: string;
 }): Promise<{
   accessToken: string;
@@ -511,7 +441,6 @@ export async function verifyStaffPasswordLogin(input: {
       institute_id: input.instituteId,
       identifier: input.identifier,
       password: input.password,
-      firebase_id_token: input.firebaseIdToken,
       pin: input.pin,
     },
     { skipAuth: true },

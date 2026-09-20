@@ -1,7 +1,9 @@
 /**
  * Admissions auth mode — API-only product mode.
  * Demo Mode is no longer supported.
- * VITE_AUTH_PROVIDER=firebase|supabase (api mode).
+ *
+ * Auth = Supabase. VITE_FIREBASE_* is for FCM / Analytics / Crashlytics only —
+ * not interactive Auth. VITE_AUTH_PROVIDER always resolves to supabase.
  */
 
 import {
@@ -33,7 +35,8 @@ export function getAdmissionsAuthProvider(): AdmissionsAuthProvider {
 }
 
 export function isFirebaseAuthProvider(): boolean {
-  return getAdmissionsAuthProvider() === "firebase";
+  // Auth is Supabase-only; Firebase web config is FCM / Analytics / Crashlytics.
+  return false;
 }
 
 export function isApiAuthMode(): boolean {
@@ -57,16 +60,6 @@ export function assertProductionApiAuthMode(): void {
     missing.push("VITE_SUPABASE_ANON_KEY");
   }
   if (!import.meta.env.VITE_API_BASE_URL?.trim()) missing.push("VITE_API_BASE_URL");
-  if (getAdmissionsAuthProvider() === "firebase") {
-    if (!import.meta.env.VITE_FIREBASE_API_KEY?.trim()) missing.push("VITE_FIREBASE_API_KEY");
-    if (!import.meta.env.VITE_FIREBASE_AUTH_DOMAIN?.trim()) {
-      missing.push("VITE_FIREBASE_AUTH_DOMAIN");
-    }
-    if (!import.meta.env.VITE_FIREBASE_PROJECT_ID?.trim()) {
-      missing.push("VITE_FIREBASE_PROJECT_ID");
-    }
-    if (!import.meta.env.VITE_FIREBASE_APP_ID?.trim()) missing.push("VITE_FIREBASE_APP_ID");
-  }
 
   if (missing.length > 0) {
     throw new Error(`Production API auth is misconfigured. Set: ${missing.join(", ")}`);

@@ -43,17 +43,16 @@ School-fees stay office/reception only by product policy (not a Steps 1–10 gap
 
 ---
 
-## Firebase (Phase 1–4)
+## Firebase (Phase 4 — FCM only)
 
 | Concern | Status |
 |---------|--------|
-| **FCM** | Unchanged |
-| **Client Auth** | All six apps: `VITE_AUTH_PROVIDER=firebase\|supabase` |
-| **Session exchange** | `POST /api/v1/auth/firebase/session` |
-| **Supabase Auth** | Still `requireAuth` Bearer; Twilio/Resend kept for `provider=supabase` |
-| **Rollback** | Set `VITE_AUTH_PROVIDER=supabase` (rollback; default is firebase) |
+| **FCM** | Unchanged — Admin Messaging + outbox worker |
+| **Client Auth** | Supabase Auth JWT (`requireAuth`); server OTP via `OTP_SMS_PROVIDER` |
+| **Public config** | `GET /api/v1/firebase/public-config` (Analytics / Crashlytics hints only) |
+| **Auth bridge** | Removed — no `/auth/firebase/session\|whoami\|resolve\|link` |
 
-Apps migrate interactive login to Firebase when provider=firebase; API Authorization remains Supabase access token after exchange.
+Identity and OTP no longer use Firebase Auth. Keep `FIREBASE_PROJECT_ID` / `CLIENT_EMAIL` / `PRIVATE_KEY` and `FCM_WORKER_ENABLED` for push.
 
 ## 1. OTP login
 
@@ -83,9 +82,8 @@ Server PIN + username live on existing `user_profile` (scrypt hash). Passwords r
 | **demo** | `development` / `test` default (`OTP_DELIVERY_MODE=demo`) | No provider call; fixed `123456`; response may include `devOtp` |
 | **live** | `OTP_DELIVERY_MODE=live` **or** `NODE_ENV=production` | Real SMS/email; random 6-digit; **never** echo OTP |
 
-For **real E2E** of Twilio/Resend OTP channels, set `OTP_DELIVERY_MODE=live` and configure providers.
-When apps use `VITE_AUTH_PROVIDER=firebase`, Admin uses Firebase **phone OTP** or
-Firebase **email/password**. Numeric email OTP is not part of the Firebase path.
+For **real E2E** of Twilio/Resend/StartMessaging OTP channels, set `OTP_DELIVERY_MODE=live` and configure providers.
+Production Admin / Connect / Nexus login uses **server OTP** (not Firebase phone Auth).
 
 ### Nexus cold-start operator
 

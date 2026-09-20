@@ -1,7 +1,10 @@
 /**
  * Nexus auth mode — API-only product mode.
  * Demo Mode is no longer supported.
- * VITE_AUTH_PROVIDER=firebase|supabase selects interactive identity provider.
+ *
+ * Auth = Supabase + server OTP. VITE_FIREBASE_* is for FCM / Analytics /
+ * Crashlytics only — not interactive Auth.
+ * VITE_AUTH_PROVIDER always resolves to supabase.
  */
 
 import {
@@ -33,7 +36,8 @@ export function getNexusAuthProvider(): NexusAuthProvider {
 }
 
 export function isFirebaseAuthProvider(): boolean {
-  return getNexusAuthProvider() === "firebase";
+  // Auth is Supabase-only; Firebase web config is FCM / Analytics / Crashlytics.
+  return false;
 }
 
 export function isNexusApiMode(): boolean {
@@ -42,17 +46,17 @@ export function isNexusApiMode(): boolean {
 }
 
 /**
- * Operator login gate. Off by default — Nexus opens without signing in.
- * Set `VITE_NEXUS_REQUIRE_LOGIN=true` only when you want the real login flow.
+ * Operator login gate. On by default — Nexus requires /login.
+ * Set `VITE_NEXUS_REQUIRE_LOGIN=false` only for local open-access (dev).
  */
 export function isNexusLoginRequired(): boolean {
   const raw =
     typeof import.meta !== "undefined"
       ? import.meta.env?.VITE_NEXUS_REQUIRE_LOGIN?.trim().toLowerCase()
       : undefined;
-  // Default OFF so missing/misloaded env never traps users on /login.
-  if (raw === "1" || raw === "true" || raw === "on" || raw === "yes") return true;
-  return false;
+  if (raw === "0" || raw === "false" || raw === "off" || raw === "no") return false;
+  // Default ON so missing env still shows the login screen.
+  return true;
 }
 
 /** @deprecated Demo Mode removed — always false. */

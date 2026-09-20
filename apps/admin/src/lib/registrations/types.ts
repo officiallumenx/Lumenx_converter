@@ -43,7 +43,6 @@ export type SubmitRegistrationInput = {
   email: string;
   password: string;
   phone?: string | null;
-  firebaseIdToken?: string;
   pin?: string | null;
   payload: InstituteRegistrationPayload;
 };

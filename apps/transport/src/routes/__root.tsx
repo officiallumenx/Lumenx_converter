@@ -8,7 +8,6 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { ensureFirebasePhoneAuthHost } from "@lumenx/auth";
 
 import { LumenXNativeShell } from "@lumenx/capacitor/native-shell";
 import { OfflineSyncHost, TypographyProvider } from "@lumenx/ui";
@@ -27,10 +26,6 @@ import appCss from "../styles.css?url";
 // Fail fast if demo mode is configured — product is API-only.
 getTransportAuthMode();
 
-// Firebase Phone Auth fails on hostname `localhost` — stay on 127.0.0.1.
-if (typeof window !== "undefined") {
-  ensureFirebasePhoneAuthHost();
-}
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">

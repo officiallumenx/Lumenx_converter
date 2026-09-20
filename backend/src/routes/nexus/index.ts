@@ -27,7 +27,6 @@ import {
   upsertLicenseForActor,
   upsertSubscriptionForActor,
 } from "../../domains/nexus/service.js";
-import { getFirebaseAuth } from "../../integrations/firebase.js";
 import platformAudit from "./audit.js";
 import billing from "./billing.js";
 import support from "./support.js";
@@ -120,8 +119,6 @@ operators.get("/me", async (c) => {
 operators.post("/provision", async (c) => {
   const actor = assertAuthenticated(c);
   const admin = requireAdmin(c);
-  const firebaseAuth = getFirebaseAuth(c.get("firebaseApp"));
-  if (!firebaseAuth) throw AppError.internal("Firebase Auth is not configured");
   const body = validateBody(
     z.object({
       email: z.string().email().max(200),
@@ -135,7 +132,7 @@ operators.post("/provision", async (c) => {
     }),
     await c.req.json(),
   );
-  const data = await provisionOperatorForActor(admin, firebaseAuth, actor, body);
+  const data = await provisionOperatorForActor(admin, actor, body);
   return c.json({ data }, 201);
 });
 

@@ -3,11 +3,11 @@
  *
  * What this does
  * --------------
- * Connect parent/teacher/student login is passwordless (Firebase phone OTP + PIN
- * on first login; mobile + PIN on return). Historical provisioning often created
- * Auth users with an app-supplied or random password. This script rotates those
- * Auth passwords to a strong random unusable value via the Admin API so password
- * sign-in cannot succeed for Connect-only accounts.
+ * Connect parent/teacher/student login is passwordless (server SMS OTP + PIN
+ * for first login / forgotten PIN; thereafter PIN-only). Historical provisioning
+ * often created Auth users with an app-supplied or random password. This script
+ * rotates those Auth passwords to a strong random unusable value via the Admin
+ * API so password sign-in cannot succeed for Connect-only accounts.
  *
  * Safety rules (mixed-use identities are never touched)
  * -----------------------------------------------------

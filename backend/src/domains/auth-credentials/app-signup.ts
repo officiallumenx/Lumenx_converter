@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Auth, UserRecord } from "firebase-admin/auth";
 import { AppError } from "../../errors/app-error.js";
-import { signInPasswordForUserId } from "../../auth/create-server-session.js";
-import { createSupabaseSessionForUserId } from "../firebase-identity/session.js";
-import { linkFirebaseIdentityToExistingUser } from "../firebase-identity/service.js";
+import {
+  createSupabaseSessionForUserId,
+  signInPasswordForUserId,
+} from "../../auth/create-server-session.js";
 
 export type AppSignupInput = {
   app: "admissions" | "careers";
@@ -134,70 +134,8 @@ async function ensureProfileAndAppIdentity(
   if (identity.error) throw AppError.internal("Unable to provision application identity");
 }
 
-async function getFirebaseUserByUid(auth: Auth, uid: string): Promise<UserRecord | null> {
-  try {
-    return await auth.getUser(uid);
-  } catch (error) {
-    if ((error as { code?: string })?.code === "auth/user-not-found") return null;
-    throw error;
-  }
-}
-
-async function getFirebaseUserByEmail(auth: Auth, email: string): Promise<UserRecord | null> {
-  try {
-    return await auth.getUserByEmail(email);
-  } catch (error) {
-    if ((error as { code?: string })?.code === "auth/user-not-found") return null;
-    throw error;
-  }
-}
-
-/**
- * Uses the Supabase user id as Firebase uid. This makes an interrupted create
- * distinguishable from an unrelated Firebase account sharing the same email.
- */
-export async function ensureOwnedFirebaseIdentity(
-  admin: SupabaseClient,
-  auth: Auth,
-  userId: string,
-  input: Pick<AppSignupInput, "email" | "password" | "displayName">,
-): Promise<string> {
-  const email = normalizeEmail(input.email);
-  let firebaseUser = await getFirebaseUserByUid(auth, userId);
-  if (firebaseUser && normalizeEmail(firebaseUser.email ?? "") !== email) {
-    throw AppError.conflict("Firebase identity belongs to different contact details");
-  }
-  if (!firebaseUser) {
-    const emailOwner = await getFirebaseUserByEmail(auth, email);
-    if (emailOwner && emailOwner.uid !== userId) {
-      throw AppError.conflict(
-        "This email is already attached to a different Firebase identity",
-      );
-    }
-    firebaseUser = emailOwner ?? await auth.createUser({
-      uid: userId,
-      email,
-      password: input.password,
-      displayName: input.displayName.trim(),
-      emailVerified: true,
-    });
-  } else {
-    firebaseUser = await auth.updateUser(userId, {
-      password: input.password,
-      displayName: input.displayName.trim(),
-      emailVerified: true,
-    });
-  }
-  await linkFirebaseIdentityToExistingUser(admin, {
-    userProfileId: userId,
-    firebaseUid: firebaseUser.uid,
-  });
-  return firebaseUser.uid;
-}
-
 export async function completeAppSignup(
   admin: SupabaseClient,
-  firebaseAuth: Auth,
   input: AppSignupInput,
 ) {
   if (!allowedAccountType(input.app, input.accountType)) {
@@ -209,17 +147,10 @@ export async function completeAppSignup(
   await assertVerificationGrants(admin, input);
   const userId = await provisionSupabaseUser(admin, input);
   await ensureProfileAndAppIdentity(admin, userId, input);
-  const firebaseUid = await ensureOwnedFirebaseIdentity(
-    admin,
-    firebaseAuth,
-    userId,
-    input,
-  );
   const session = await createSupabaseSessionForUserId(admin, userId);
   await consumeVerificationGrants(admin, input);
   return {
     userId,
-    firebaseUid,
     accessToken: session.accessToken,
     refreshToken: session.refreshToken,
   };

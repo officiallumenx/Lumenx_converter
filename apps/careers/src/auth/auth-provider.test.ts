@@ -10,10 +10,19 @@ describe("Careers auth provider (Phase 4)", () => {
     vi.resetModules();
   });
 
-  it("supports firebase provider in api mode", async () => {
+  it("defaults to supabase when provider unset", async () => {
+    vi.stubEnv("VITE_CAREERS_AUTH_MODE", "api");
+    vi.stubEnv("VITE_AUTH_PROVIDER", "");
+    const { isFirebaseAuthProvider, getCareersAuthProvider } = await import("./auth-mode");
+    expect(getCareersAuthProvider()).toBe("supabase");
+    expect(isFirebaseAuthProvider()).toBe(false);
+  });
+
+  it("always returns supabase even when VITE_AUTH_PROVIDER=firebase", async () => {
     vi.stubEnv("VITE_CAREERS_AUTH_MODE", "api");
     vi.stubEnv("VITE_AUTH_PROVIDER", "firebase");
-    const { isFirebaseAuthProvider } = await import("./auth-mode");
-    expect(isFirebaseAuthProvider()).toBe(true);
+    const { isFirebaseAuthProvider, getCareersAuthProvider } = await import("./auth-mode");
+    expect(getCareersAuthProvider()).toBe("supabase");
+    expect(isFirebaseAuthProvider()).toBe(false);
   });
 });

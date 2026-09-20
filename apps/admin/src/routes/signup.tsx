@@ -17,9 +17,8 @@ import { LumenXAdminLogo } from "@/components/LumenXAdminLogo";
 import { DemoOtpHint } from "@/auth/components/DemoOtpHint";
 import { OtpInput } from "@/auth/components/OtpInput";
 import { useAuth } from "@/auth/AuthContext";
-import { isApiAuthMode, isFirebaseAuthProvider } from "@/auth/auth-mode";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { resolvePostSignupRoute } from "@/auth/signup-routing";
-import { otpService } from "@/auth/otp-service";
 import {
   requestSignupOtp,
   verifySignupOtp,
@@ -674,8 +673,6 @@ function SignUpPage() {
   const [signupOtp, setSignupOtp] = useState("");
   const [maskedOtpDest, setMaskedOtpDest] = useState("");
   const [devSignupOtp, setDevSignupOtp] = useState<string | undefined>();
-  const [firebasePhoneE164, setFirebasePhoneE164] = useState<string | null>(null);
-  const [firebasePhoneIdToken, setFirebasePhoneIdToken] = useState<string | null>(null);
   const [mobileGrant, setMobileGrant] = useState("");
   const [emailGrant, setEmailGrant] = useState("");
   const [verifyError, setVerifyError] = useState<string | null>(null);
@@ -729,25 +726,14 @@ function SignUpPage() {
     setVerifyError(null);
     setSignupOtp("");
     setVerifyChannel("mobile");
-    setFirebasePhoneIdToken(null);
-    if (isFirebaseAuthProvider()) {
-      const digits = s2.mobile.replace(/\D/g, "").slice(-10);
-      const phoneE164 = `+91${digits}`;
-      setFirebasePhoneE164(phoneE164);
-      const sent = await otpService.sendMobileOtp(phoneE164);
-      setMaskedOtpDest(sent.maskedDestination || `******${digits.slice(-4)}`);
-      setDevSignupOtp(undefined);
-    } else {
-      const sent = await requestSignupOtp({
-        subjectKey,
-        channel: "mobile",
-        destination: s2.mobile,
-        apiBaseUrl,
-      });
-      setMaskedOtpDest(sent.maskedDestination);
-      setDevSignupOtp(sent.devOtp);
-      setFirebasePhoneE164(null);
-    }
+    const sent = await requestSignupOtp({
+      subjectKey,
+      channel: "mobile",
+      destination: s2.mobile,
+      apiBaseUrl,
+    });
+    setMaskedOtpDest(sent.maskedDestination);
+    setDevSignupOtp(sent.devOtp);
   };
 
   const handleNext = async () => {
@@ -790,23 +776,6 @@ function SignUpPage() {
     setVerifyError(null);
     try {
       if (verifyChannel === "mobile") {
-        if (isFirebaseAuthProvider() && firebasePhoneE164) {
-          const verified = await otpService.verifyMobileOtp(
-            firebasePhoneE164,
-            otpValue,
-            false,
-          );
-          if (!verified.success || !verified.firebaseIdToken) {
-            throw new Error(verified.error ?? "Invalid mobile OTP.");
-          }
-          setFirebasePhoneIdToken(verified.firebaseIdToken);
-          setMobileGrant("firebase-phone");
-          // Firebase has no numeric email OTP — password account proves email later.
-          setEmailGrant("firebase-email-skipped");
-          setStep(securityStep);
-          scrollTop();
-          return;
-        }
         const verified = await verifySignupOtp({
           subjectKey,
           channel: "mobile",
@@ -855,13 +824,7 @@ function SignUpPage() {
       setStep(verifyStep);
       return;
     }
-    if (apiMode && isFirebaseAuthProvider() && !firebasePhoneIdToken) {
-      setVerifyError("Phone verification expired. Request a new OTP and try again.");
-      setMobileGrant("");
-      setStep(verifyStep);
-      return;
-    }
-    if (apiMode && !isFirebaseAuthProvider() && !emailGrant) {
+    if (apiMode && !emailGrant) {
       setVerifyError("Verify mobile and email OTP before creating the account.");
       setStep(verifyStep);
       return;
@@ -893,7 +856,7 @@ function SignUpPage() {
       await signUp({
         fullName:        s2.principalName,
         email:           s2.email,
-        phone:           firebasePhoneE164 ?? s2.mobile,
+        phone:           s2.mobile,
         role:            "principal",
         designation:     "Principal",
         password:        s3.password,
@@ -901,7 +864,6 @@ function SignUpPage() {
         acceptTerms:     s3.acceptTerms,
         securityPin:     s3.pin,
         instituteName:   s1.instituteName,
-        firebaseIdToken: firebasePhoneIdToken ?? undefined,
         registrationPayload,
       });
       if (isApiAuthMode()) {
@@ -1057,7 +1019,7 @@ function SignUpPage() {
                   : step === 2
                     ? "How can we reach you?"
                     : step === verifyStep
-                      ? `Enter the Firebase SMS code sent to ${maskedOtpDest || "your phone"}`
+                      ? `Enter the code sent to ${maskedOtpDest || "your phone"}`
                       : "Protect your account with a strong password and PIN"}
               </p>
             </div>

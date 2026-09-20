@@ -106,4 +106,47 @@ describe("production packaging env gate", () => {
     const env = loadEnv({ NODE_ENV: "development" });
     expect(() => assertProductionEnv(env, {})).not.toThrow();
   });
+
+  it("accepts production with StartMessaging SMS provider", () => {
+    const raw = {
+      ...prodBase,
+      OTP_SMS_PROVIDER: "startmessaging",
+      TWILIO_ACCOUNT_SID: "",
+      TWILIO_AUTH_TOKEN: "",
+      TWILIO_FROM_NUMBER: "",
+      STARTMESSAGING_API_KEY: "sm_live_x",
+      STARTMESSAGING_TEMPLATE_ID: "tmpl_1",
+    };
+    const env = loadEnv({ ...raw });
+    expect(() => assertProductionEnv(env, { ...raw })).not.toThrow();
+  });
+
+  it("allows production without Firebase when FCM worker is disabled", () => {
+    const raw = {
+      ...prodBase,
+      FCM_WORKER_ENABLED: "false",
+      FIREBASE_PROJECT_ID: "",
+      FIREBASE_CLIENT_EMAIL: "",
+      FIREBASE_PRIVATE_KEY: "",
+      OTP_SMS_PROVIDER: "startmessaging",
+      STARTMESSAGING_API_KEY: "sm_live_x",
+      STARTMESSAGING_TEMPLATE_ID: "tmpl_1",
+    };
+    const env = loadEnv({ ...raw });
+    expect(() => assertProductionEnv(env, { ...raw })).not.toThrow();
+  });
+
+  it("rejects StartMessaging without API key / template", () => {
+    const env = loadEnv({
+      ...prodBase,
+      OTP_SMS_PROVIDER: "startmessaging",
+      STARTMESSAGING_API_KEY: "",
+      STARTMESSAGING_TEMPLATE_ID: "",
+    });
+    const issues = collectProductionEnvIssues(env, {
+      ...prodBase,
+      OTP_SMS_PROVIDER: "startmessaging",
+    });
+    expect(issues.some((i) => i.code === "STARTMESSAGING")).toBe(true);
+  });
 });

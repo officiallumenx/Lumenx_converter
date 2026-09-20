@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildConnectFirebaseLoginPayload,
   buildConnectLoginModePayload,
   buildConnectReturningLoginPayload,
 } from "./api-auth";
@@ -35,20 +34,6 @@ describe("Connect passwordless auth payloads", () => {
       phone: "9876543210",
       role: "teacher",
       pin: "4826",
-    });
-  });
-
-  it("sends only institute, role, and PIN for Firebase exchange", () => {
-    expect(
-      buildConnectFirebaseLoginPayload({
-        institute_id: instituteId,
-        role: "student",
-        pin: "482615",
-      }),
-    ).toEqual({
-      institute_id: instituteId,
-      role: "student",
-      pin: "482615",
     });
   });
 });

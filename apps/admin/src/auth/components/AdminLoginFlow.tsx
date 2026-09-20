@@ -10,7 +10,6 @@ import { AuthFormError } from "@/auth/components/AuthFormError";
 import { AuthInfoCallout } from "@/auth/components/AuthInfoCallout";
 import { DemoOtpHint } from "@/auth/components/DemoOtpHint";
 import { OtpInput } from "@/auth/components/OtpInput";
-import { isFirebaseAuthProvider } from "@/auth/auth-mode";
 import {
   completeStaffPasswordReset,
   completeStaffPinReset,
@@ -20,24 +19,19 @@ import {
   requestStaffPinResetOtp,
   resolveStaffLoginMode,
   verifyStaffChannelOtp,
-  verifyStaffLoginFirebasePhone,
-  verifyStaffPasswordResetFirebasePhone,
   verifyStaffPasswordResetOtp,
-  verifyStaffPinResetFirebasePhone,
   verifyStaffPinResetOtp,
   type StaffLoginInstituteDto,
 } from "@/lib/access-roles";
 import { isInstituteUuid } from "@/lib/active-institute";
-import { otpService } from "@/auth/otp-service";
 import { Select } from "@lumenx/ui-admin";
-import { requestFirebasePasswordReset } from "@lumenx/auth";
 
 /**
  * Admin root + operator notebook login:
  *   first: institute → id → OTP → password → PIN
  *   return: institute → id → password → PIN
  * Recovery branches for forgotten password / PIN.
- * Firebase: phone SMS OTP; email numeric OTP skipped; password still required.
+ * Server OTP only (StartMessaging / Resend).
  */
 type LoginStep =
   | "institute"
@@ -50,7 +44,6 @@ type LoginStep =
   | "forgot_password_mobile_otp"
   | "forgot_password_email_otp"
   | "forgot_password_set"
-  | "forgot_password_firebase"
   | "forgot_pin_ids"
   | "forgot_pin_mobile_otp"
   | "forgot_pin_email_otp"
@@ -68,7 +61,6 @@ function isApiIdentifierValid(value: string): boolean {
 export function AdminLoginFlow() {
   const navigate = useNavigate();
   const { signInWithStaffOtp, signInWithStaffPassword, clearError } = useAuth();
-  const useFirebase = isFirebaseAuthProvider();
 
   const [step, setStep] = useState<LoginStep>("institute");
   const [institutes, setInstitutes] = useState<StaffLoginInstituteDto[]>([]);
@@ -96,8 +88,6 @@ export function AdminLoginFlow() {
   const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [firebasePhoneE164, setFirebasePhoneE164] = useState<string | null>(null);
-  const [firebaseIdToken, setFirebaseIdToken] = useState<string | null>(null);
   const [loginMobileGrant, setLoginMobileGrant] = useState("");
   const [loginEmailGrant, setLoginEmailGrant] = useState("");
   const [resetMobileGrant, setResetMobileGrant] = useState("");
@@ -168,37 +158,20 @@ export function AdminLoginFlow() {
       setDisplayName(mode.displayName);
       setIsInstituteRoot(Boolean(mode.isInstituteRoot));
       setRequiresOtp(Boolean(mode.requiresOtp));
-      setRequiresDualOtp(Boolean(mode.requiresDualOtp) && !useFirebase);
-      setFirebaseIdToken(null);
-      setFirebasePhoneE164(null);
+      // Mobile server OTP + password is enough.
+      // Email OTP needs Resend; skip until OTP_EMAIL_PROVIDER is fully configured.
+      setRequiresDualOtp(false);
       setLoginMobileGrant("");
       setLoginEmailGrant("");
       if (mode.requiresOtp) {
-        if (useFirebase) {
-          const mobile = await requestStaffLoginOtp({
-            instituteId: instituteId.trim(),
-            identifier: identifier.trim(),
-            channel: "mobile",
-            delivery: "firebase_client",
-          });
-          if (!mobile.phoneE164) {
-            throw new Error("Account is missing a mobile number for Firebase OTP.");
-          }
-          setMaskedDestination(mobile.maskedDestination);
-          setDevOtp(undefined);
-          setFirebasePhoneE164(mobile.phoneE164);
-          await otpService.sendMobileOtp(mobile.phoneE164);
-          setStep("mobile_otp");
-        } else {
-          const mobile = await requestStaffLoginOtp({
-            instituteId: instituteId.trim(),
-            identifier: identifier.trim(),
-            channel: "mobile",
-          });
-          setMaskedDestination(mobile.maskedDestination);
-          setDevOtp(mobile.devOtp);
-          setStep("mobile_otp");
-        }
+        const mobile = await requestStaffLoginOtp({
+          instituteId: instituteId.trim(),
+          identifier: identifier.trim(),
+          channel: "mobile",
+        });
+        setMaskedDestination(mobile.maskedDestination);
+        setDevOtp(mobile.devOtp);
+        setStep("mobile_otp");
       } else {
         setStep("password");
       }
@@ -223,32 +196,6 @@ export function AdminLoginFlow() {
     setError(null);
     setLoading(true);
     try {
-      if (useFirebase) {
-        if (!firebasePhoneE164) {
-          throw new Error("Request a new mobile OTP before continuing.");
-        }
-        const verified = await otpService.verifyMobileOtp(
-          firebasePhoneE164,
-          otpValue,
-          false,
-        );
-        if (!verified.success || !verified.firebaseIdToken) {
-          throw new Error(verified.error ?? "Invalid mobile OTP.");
-        }
-        // Exchange Firebase phone proof for a staff_login grant so the phone
-        // ID token is not required later (and is not invalidated by email sign-in).
-        const exchanged = await verifyStaffLoginFirebasePhone({
-          instituteId: instituteId.trim(),
-          identifier: identifier.trim(),
-          firebaseIdToken: verified.firebaseIdToken,
-        });
-        setLoginMobileGrant(exchanged.grant);
-        setFirebaseIdToken(null);
-        setLoginEmailGrant("");
-        setPassword("");
-        setStep("password");
-        return;
-      }
       const mobileVerified = await verifyStaffChannelOtp({
         instituteId: instituteId.trim(),
         identifier: identifier.trim(),
@@ -256,25 +203,13 @@ export function AdminLoginFlow() {
         otp: otpValue,
       });
       setLoginMobileGrant(mobileVerified.grant);
-      if (requiresDualOtp) {
-        const email = await requestStaffLoginOtp({
-          instituteId: instituteId.trim(),
-          identifier: identifier.trim(),
-          channel: "email",
-        });
-        setMaskedEmailDestination(email.maskedDestination);
-        setDevEmailOtp(email.devOtp);
-        setStep("email_otp");
-      } else {
-        setStep("password");
-      }
+      // Never request email OTP here — Resend is optional; mobile grant + password is enough.
+      setStep("password");
     } catch (reason) {
       setError(
         reason instanceof Error
           ? reason.message
-          : useFirebase
-            ? "Unable to verify mobile OTP."
-            : "Unable to continue after mobile OTP.",
+          : "Unable to continue after mobile OTP.",
       );
     } finally {
       setLoading(false);
@@ -337,21 +272,17 @@ export function AdminLoginFlow() {
     clearError();
     try {
       if (requiresOtp) {
-        if (useFirebase && !loginMobileGrant) {
-          throw new Error("Verify the mobile OTP sent by Firebase before continuing.");
-        }
-        if (!useFirebase && !loginMobileGrant) {
+        if (!loginMobileGrant) {
           throw new Error("Verify the mobile OTP before continuing.");
         }
-        if (!useFirebase && requiresDualOtp && !loginEmailGrant) {
+        if (requiresDualOtp && !loginEmailGrant) {
           throw new Error("Verify the email OTP before continuing.");
         }
         await signInWithStaffOtp({
           instituteId: instituteId.trim(),
           identifier: identifier.trim(),
-          // Prefer one-use grants from verify-otp / verify-firebase-phone.
           mobileOtpGrant: loginMobileGrant || undefined,
-          emailOtpGrant: useFirebase ? undefined : loginEmailGrant || undefined,
+          emailOtpGrant: loginEmailGrant || undefined,
           password,
           pin: pin.trim(),
           remember: rememberMe,
@@ -381,20 +312,8 @@ export function AdminLoginFlow() {
     }
   };
 
-  const startForgotPassword = async () => {
+  const startForgotPassword = () => {
     setError(null);
-    if (useFirebase && identifier.includes("@")) {
-      setLoading(true);
-      try {
-        await requestFirebasePasswordReset(identifier.trim().toLowerCase());
-        setStep("forgot_password_firebase");
-      } catch (reason) {
-        setError(reason instanceof Error ? reason.message : "Unable to send reset email.");
-      } finally {
-        setLoading(false);
-      }
-      return;
-    }
     setResetMobileGrant("");
     setResetEmailGrant("");
     setNewPassword("");
@@ -420,19 +339,9 @@ export function AdminLoginFlow() {
         instituteId: instituteId.trim(),
         identifier: identifier.trim(),
         channel: "mobile",
-        delivery: useFirebase ? "firebase_client" : "server",
       });
       setMaskedDestination(mobile.maskedDestination);
       setDevOtp(mobile.devOtp);
-      if (useFirebase) {
-        if (!mobile.phoneE164) {
-          throw new Error("Account is missing a mobile number for Firebase OTP.");
-        }
-        setFirebasePhoneE164(mobile.phoneE164);
-        await otpService.sendMobileOtp(mobile.phoneE164);
-      } else {
-        setFirebasePhoneE164(null);
-      }
       setMobileOtp("");
       setStep("forgot_password_mobile_otp");
     } catch (reason) {
@@ -456,48 +365,18 @@ export function AdminLoginFlow() {
     setError(null);
     setLoading(true);
     try {
-      if (useFirebase) {
-        if (!firebasePhoneE164) {
-          throw new Error("Request a new mobile OTP before continuing.");
-        }
-        const confirmed = await otpService.verifyMobileOtp(
-          firebasePhoneE164,
-          otpValue,
-          false,
-        );
-        if (!confirmed.success || !confirmed.firebaseIdToken) {
-          throw new Error(confirmed.error ?? "Invalid mobile OTP.");
-        }
-        const verified = await verifyStaffPasswordResetFirebasePhone({
-          instituteId: instituteId.trim(),
-          identifier: identifier.trim(),
-          firebaseIdToken: confirmed.firebaseIdToken,
-        });
-        setResetMobileGrant(verified.grant);
-        // Firebase: no numeric email OTP — continue to set password after phone proof.
-        setResetEmailGrant("firebase-email-skipped");
-        setNewPassword("");
-        setConfirmPassword("");
-        setStep("forgot_password_set");
-        return;
-      } else {
-        const verified = await verifyStaffPasswordResetOtp({
-          instituteId: instituteId.trim(),
-          identifier: identifier.trim(),
-          channel: "mobile",
-          otp: otpValue,
-        });
-        setResetMobileGrant(verified.grant);
-      }
-      const email = await requestStaffPasswordResetOtp({
+      const verified = await verifyStaffPasswordResetOtp({
         instituteId: instituteId.trim(),
         identifier: identifier.trim(),
-        channel: "email",
+        channel: "mobile",
+        otp: otpValue,
       });
-      setMaskedEmailDestination(email.maskedDestination);
-      setDevEmailOtp(email.devOtp);
-      setEmailOtp("");
-      setStep("forgot_password_email_otp");
+      setResetMobileGrant(verified.grant);
+      // Mobile OTP is enough until Resend email OTP is configured.
+      setResetEmailGrant("firebase-email-skipped");
+      setNewPassword("");
+      setConfirmPassword("");
+      setStep("forgot_password_set");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Mobile OTP failed.");
     } finally {
@@ -550,7 +429,6 @@ export function AdminLoginFlow() {
       });
       setPassword(newPassword);
       setRequiresOtp(false);
-      setFirebaseIdToken(null);
       setPin("");
       setError("Password updated. Enter your PIN to finish signing in.");
       setStep("pin");
@@ -570,19 +448,9 @@ export function AdminLoginFlow() {
         instituteId: instituteId.trim(),
         identifier: identifier.trim(),
         channel: "mobile",
-        delivery: useFirebase ? "firebase_client" : "server",
       });
       setMaskedDestination(mobile.maskedDestination);
       setDevOtp(mobile.devOtp);
-      if (useFirebase) {
-        if (!mobile.phoneE164) {
-          throw new Error("Account is missing a mobile number for Firebase OTP.");
-        }
-        setFirebasePhoneE164(mobile.phoneE164);
-        await otpService.sendMobileOtp(mobile.phoneE164);
-      } else {
-        setFirebasePhoneE164(null);
-      }
       setMobileOtp("");
       setStep("forgot_pin_mobile_otp");
     } catch (reason) {
@@ -606,47 +474,18 @@ export function AdminLoginFlow() {
     setError(null);
     setLoading(true);
     try {
-      if (useFirebase) {
-        if (!firebasePhoneE164) {
-          throw new Error("Request a new mobile OTP before continuing.");
-        }
-        const confirmed = await otpService.verifyMobileOtp(
-          firebasePhoneE164,
-          otpValue,
-          false,
-        );
-        if (!confirmed.success || !confirmed.firebaseIdToken) {
-          throw new Error(confirmed.error ?? "Invalid mobile OTP.");
-        }
-        const verified = await verifyStaffPinResetFirebasePhone({
-          instituteId: instituteId.trim(),
-          identifier: identifier.trim(),
-          firebaseIdToken: confirmed.firebaseIdToken,
-        });
-        setResetMobileGrant(verified.grant);
-        setResetEmailGrant("firebase-email-skipped");
-        setNewPin("");
-        setConfirmPin("");
-        setStep("forgot_pin_set");
-        return;
-      } else {
-        const verified = await verifyStaffPinResetOtp({
-          instituteId: instituteId.trim(),
-          identifier: identifier.trim(),
-          channel: "mobile",
-          otp: otpValue,
-        });
-        setResetMobileGrant(verified.grant);
-      }
-      const email = await requestStaffPinResetOtp({
+      const verified = await verifyStaffPinResetOtp({
         instituteId: instituteId.trim(),
         identifier: identifier.trim(),
-        channel: "email",
+        channel: "mobile",
+        otp: otpValue,
       });
-      setMaskedEmailDestination(email.maskedDestination);
-      setDevEmailOtp(email.devOtp);
-      setEmailOtp("");
-      setStep("forgot_pin_email_otp");
+      setResetMobileGrant(verified.grant);
+      // Mobile OTP is enough until Resend email OTP is configured.
+      setResetEmailGrant("firebase-email-skipped");
+      setNewPin("");
+      setConfirmPin("");
+      setStep("forgot_pin_set");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Mobile OTP failed.");
     } finally {
@@ -700,7 +539,6 @@ export function AdminLoginFlow() {
       const nextPin = newPin.trim();
       setPin(nextPin);
       setRequiresOtp(false);
-      setFirebaseIdToken(null);
 
       // Diagram: set PIN → enter PIN → dashboard. Prefer immediate login when
       // password was already collected earlier in this session.
@@ -799,9 +637,7 @@ export function AdminLoginFlow() {
           : step === "identifier"
             ? "Enter username, email, or mobile"
             : step === "mobile_otp"
-              ? useFirebase
-                ? `Firebase sent a mobile code to ${maskedDestination || "your phone"}.`
-                : `We sent a mobile code to ${maskedDestination || "your phone"}.`
+              ? `We sent a mobile code to ${maskedDestination || "your phone"}.`
               : step === "email_otp"
                 ? `We sent an email code to ${maskedEmailDestination || "your email"}.`
                 : step === "password"
@@ -831,9 +667,7 @@ export function AdminLoginFlow() {
           {requiresDualOtp
               ? "First login: identifier · mobile OTP · email OTP · password · PIN"
               : requiresOtp
-                ? useFirebase
-                  ? "First login: identifier · Firebase SMS OTP · password · PIN"
-                  : "First login: identifier · OTP · password · PIN"
+                ? "First login: identifier · OTP · password · PIN"
                 : "Returning: identifier · password · PIN"}
         </AuthInfoCallout>
 
@@ -1048,7 +882,7 @@ export function AdminLoginFlow() {
           <button
               type="button"
               className="text-xs font-medium text-primary hover:underline"
-              onClick={() => void startForgotPassword()}
+              onClick={() => startForgotPassword()}
             >
               Forgotten password?
           </button>
@@ -1096,16 +930,6 @@ export function AdminLoginFlow() {
             <ArrowLeft className="size-4" /> Back
           </AuthButton>
         </form>
-      )}
-
-      {step === "forgot_password_firebase" && (
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Firebase sent a password reset email to {identifier.trim().toLowerCase()}. After
-            resetting, return here and sign in with your new password and PIN.
-          </p>
-          <AuthButton onClick={() => setStep("password")}>Back to password</AuthButton>
-        </div>
       )}
 
       {step === "forgot_password_ids" && (

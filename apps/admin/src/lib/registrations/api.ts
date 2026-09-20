@@ -3,7 +3,7 @@
  * Demo mode must never invoke these functions.
  */
 import { getAdminApiClient } from "@/lib/admin-api";
-import { isApiAuthMode } from "@/auth/auth-mode";
+import { getAdminAuthMode } from "@/auth/auth-mode";
 import type { AdminApiClient } from "@/lib/api";
 import type {
   InstituteRegistrationDto,
@@ -12,9 +12,8 @@ import type {
 } from "./types";
 
 function assertApiMode(): void {
-  if (!isApiAuthMode()) {
-    throw new Error("Registration API is only available in API auth mode");
-  }
+  // Throws when VITE_ADMIN_AUTH_MODE=demo (product is API-only).
+  getAdminAuthMode();
 }
 
 function toRequestBody(input: SubmitRegistrationInput): Record<string, unknown> {
@@ -23,7 +22,6 @@ function toRequestBody(input: SubmitRegistrationInput): Record<string, unknown> 
     email: input.email.trim().toLowerCase(),
     password: input.password,
     phone: input.phone?.trim() || null,
-    firebase_id_token: input.firebaseIdToken,
     pin: input.pin?.trim() || undefined,
     payload: input.payload,
   };

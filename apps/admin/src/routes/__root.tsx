@@ -10,7 +10,6 @@ import {
   Link,
 } from "@tanstack/react-router";
 import { useCallback, useEffect, useLayoutEffect, useSyncExternalStore } from "react";
-import { ensureFirebasePhoneAuthHost } from "@lumenx/auth";
 
 import appCss from "../styles.css?url";
 import logoUrl from "../assets/lumenx-admin-logo.png?url";
@@ -39,11 +38,6 @@ import { LumenXNativeShell } from "@lumenx/capacitor/native-shell";
 import { OfflineSyncHost, TypographyProvider } from "@lumenx/ui";
 import { Toaster } from "@lumenx/ui/sonner";
 import { InAppAlertListener } from "@/components/InAppAlertListener";
-
-// Firebase Phone Auth fails on hostname `localhost` — stay on 127.0.0.1.
-if (typeof window !== "undefined") {
-  ensureFirebasePhoneAuthHost();
-}
 import { PushDeviceTokenRegistration } from "@/components/PushDeviceTokenRegistration";
 import { FirebaseClientServices } from "@/components/FirebaseClientServices";
 import { subscribeInstituteRegistrations } from "@lumenx/utils";

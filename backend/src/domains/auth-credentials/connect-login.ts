@@ -1,11 +1,11 @@
 /**
  * Connect passwordless login (teacher / parent / student).
- * First login: Firebase phone OTP + choose PIN.
+ * First login: server SMS OTP + choose PIN.
  * Returning login: institute + role + mobile + PIN.
+ * Forgotten PIN: server SMS OTP → set new PIN.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { FirebaseIdentity } from "../../auth/firebase-identity.js";
 import { AppError } from "../../errors/app-error.js";
 import { ensureDbOk } from "../../db/errors.js";
 import { assertValidPin, hashPin } from "./repository.js";
@@ -32,10 +32,7 @@ import {
   replaceMembershipRoles,
 } from "../identity/repository.js";
 import { insertUserProfile } from "../registrations/repository.js";
-import {
-  linkFirebaseIdentityToExistingUser,
-} from "../firebase-identity/service.js";
-import { createSupabaseSessionForUserId } from "../firebase-identity/session.js";
+import { createSupabaseSessionForUserId } from "../../auth/create-server-session.js";
 import { deliverLoginOtp, isOtpDemoMode } from "../otp-delivery/index.js";
 import {
   maskWorkflowDestination,
@@ -565,120 +562,6 @@ export async function completeConnectLogin(
   return {
     ...session,
     instituteId: input.instituteId.trim(),
-    displayName: subject.displayName,
-    role: subject.portalRole,
-  };
-}
-
-function firebaseSignInProvider(identity: FirebaseIdentity): string {
-  const firebase = identity.claims.firebase;
-  return firebase && typeof firebase.sign_in_provider === "string"
-    ? firebase.sign_in_provider
-    : "";
-}
-
-export async function completeConnectFirebaseLogin(
-  admin: SupabaseClient,
-  identity: FirebaseIdentity,
-  input: {
-    instituteId: string;
-    role: ConnectPortalRole;
-    pin?: string;
-  },
-) {
-  if (
-    firebaseSignInProvider(identity) !== "phone" ||
-    !identity.phoneNumber ||
-    !input.pin
-  ) {
-    throw genericLoginError();
-  }
-
-  const phone = normalizePhone(identity.phoneNumber);
-  const subject = await resolveConnectSubject(admin, {
-    instituteId: input.instituteId,
-    role: input.role,
-    phone,
-  });
-  if (normalizePhone(subject.phone) !== phone) throw genericLoginError();
-
-  const existing = await findConnectCredential(
-    admin,
-    subject.userId,
-    input.instituteId.trim(),
-    input.role,
-  );
-  if (existing) throw genericLoginError();
-
-  await setFirstLoginPin(admin, subject, input.instituteId.trim(), input.pin);
-  await linkFirebaseIdentityToExistingUser(admin, {
-    userProfileId: subject.userId,
-    firebaseUid: identity.uid,
-  });
-  const session = await createAuthSessionForUserId(admin, subject.userId);
-  return {
-    ...session,
-    instituteId: input.instituteId.trim(),
-    displayName: subject.displayName,
-    role: subject.portalRole,
-  };
-}
-
-/**
- * Forgotten Login PIN: Firebase phone OTP proved, replace Connect PIN, sign in.
- * Chart path: forgotten pin → mobile → OTP → set new pin → dashboard.
- */
-export async function completeConnectForgotPin(
-  admin: SupabaseClient,
-  identity: FirebaseIdentity,
-  input: {
-    instituteId: string;
-    role: ConnectPortalRole;
-    pin?: string;
-  },
-) {
-  if (
-    firebaseSignInProvider(identity) !== "phone" ||
-    !identity.phoneNumber ||
-    !input.pin
-  ) {
-    throw genericLoginError();
-  }
-
-  const phone = normalizePhone(identity.phoneNumber);
-  const subject = await resolveConnectSubject(admin, {
-    instituteId: input.instituteId,
-    role: input.role,
-    phone,
-  });
-  if (normalizePhone(subject.phone) !== phone) throw genericLoginError();
-
-  const instituteId = input.instituteId.trim();
-  const existing = await findConnectCredential(
-    admin,
-    subject.userId,
-    instituteId,
-    input.role,
-  );
-  if (!existing) throw genericLoginError();
-
-  const cleared = await admin
-    .from("connect_login_credential")
-    .delete()
-    .eq("user_profile_id", subject.userId)
-    .eq("institute_id", instituteId)
-    .eq("role", input.role);
-  if (cleared.error) ensureDbOk(cleared);
-
-  await setFirstLoginPin(admin, subject, instituteId, input.pin);
-  await linkFirebaseIdentityToExistingUser(admin, {
-    userProfileId: subject.userId,
-    firebaseUid: identity.uid,
-  });
-  const session = await createAuthSessionForUserId(admin, subject.userId);
-  return {
-    ...session,
-    instituteId,
     displayName: subject.displayName,
     role: subject.portalRole,
   };

@@ -56,8 +56,10 @@ describe("registrations api repository", () => {
         },
         client,
       ),
-    ).rejects.toThrow(/API auth mode/i);
-    await expect(fetchOwnRegistration(client)).rejects.toThrow(/API auth mode/i);
+    ).rejects.toThrow(/Demo Mode is no longer supported|API auth mode/i);
+    await expect(fetchOwnRegistration(client)).rejects.toThrow(
+      /Demo Mode is no longer supported|API auth mode/i,
+    );
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -81,7 +83,6 @@ describe("registrations api repository", () => {
         email: "principal@school.edu",
         password: "SecurePass123",
         phone: "+919876543210",
-        firebaseIdToken: "fresh-firebase-phone-token",
         payload: {
           instituteName: "Alpha International School",
           instituteType: "School (K-12)",
@@ -105,7 +106,7 @@ describe("registrations api repository", () => {
     expect(body.applicant_name).toBe("Dr. Ananya Verma");
     expect(body.email).toBe("principal@school.edu");
     expect(body.password).toBe("SecurePass123");
-    expect(body.firebase_id_token).toBe("fresh-firebase-phone-token");
+    expect(body).not.toHaveProperty("firebase_id_token");
     expect(body.payload.instituteName).toBe("Alpha International School");
   });
 

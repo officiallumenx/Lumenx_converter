@@ -1,5 +1,4 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Auth, UserRecord } from "firebase-admin/auth";
 import { AppError } from "../../errors/app-error.js";
 import type { Actor } from "../../auth/types.js";
 import {
@@ -203,17 +202,6 @@ function normalizeOperatorPhone(value: string): string {
   throw AppError.validation("Operator phone must be a valid mobile number");
 }
 
-async function firebaseUserOrNull(
-  load: () => Promise<UserRecord>,
-): Promise<UserRecord | null> {
-  try {
-    return await load();
-  } catch (error) {
-    if ((error as { code?: string })?.code === "auth/user-not-found") return null;
-    throw error;
-  }
-}
-
 function validateEntitlement(e: EntitlementInput): void {
   const targetId = e.targetId.trim();
   if (!targetId) {
@@ -321,13 +309,12 @@ export async function createOperatorForActor(
 }
 
 /**
- * Creates a fresh Nexus identity across both auth providers and the durable
- * profile/operator records. Existing identities are never adopted or mutated.
+ * Creates a fresh Nexus identity (Supabase Auth + profile/operator records).
+ * Existing identities are never adopted or mutated.
  * Any failure after auth creation is compensated before it is surfaced.
  */
 export async function provisionOperatorForActor(
   admin: SupabaseClient,
-  firebaseAuth: Auth,
   actor: Actor,
   input: ProvisionOperatorInput,
 ): Promise<ProvisionOperatorResult> {
@@ -365,16 +352,8 @@ export async function provisionOperatorForActor(
   if ((profileResult.data ?? []).length > 0) {
     throw AppError.conflict("An existing LumenX identity uses this email or phone");
   }
-  const [firebaseEmailOwner, firebasePhoneOwner] = await Promise.all([
-    firebaseUserOrNull(() => firebaseAuth.getUserByEmail(email)),
-    firebaseUserOrNull(() => firebaseAuth.getUserByPhoneNumber(phone)),
-  ]);
-  if (firebaseEmailOwner || firebasePhoneOwner) {
-    throw AppError.conflict("An existing Firebase identity uses this email or phone");
-  }
 
   let userId: string | null = null;
-  let firebaseUid: string | null = null;
   try {
     const created = await admin.auth.admin.createUser({
       email,
@@ -393,16 +372,6 @@ export async function provisionOperatorForActor(
     }
     userId = created.data.user.id;
 
-    const firebaseUser = await firebaseAuth.createUser({
-      uid: userId,
-      email,
-      phoneNumber: phone,
-      password: input.temporaryPassword,
-      displayName,
-      emailVerified: true,
-    });
-    firebaseUid = firebaseUser.uid;
-
     const linkedAt = new Date().toISOString();
     const profileInsert = await admin.from("user_profile").insert({
       id: userId,
@@ -410,8 +379,6 @@ export async function provisionOperatorForActor(
       email,
       phone,
       status: "active",
-      firebase_uid: firebaseUid,
-      firebase_linked_at: linkedAt,
       email_verified_at: linkedAt,
       phone_verified_at: linkedAt,
       username,
@@ -452,9 +419,6 @@ export async function provisionOperatorForActor(
       },
     };
   } catch (error) {
-    if (firebaseUid) {
-      await firebaseAuth.deleteUser(firebaseUid).catch(() => undefined);
-    }
     if (userId) {
       await admin.auth.admin.deleteUser(userId).catch(() => undefined);
     }

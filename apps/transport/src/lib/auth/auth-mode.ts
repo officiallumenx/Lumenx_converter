@@ -1,7 +1,10 @@
 /**
  * Transport auth mode — API-only product mode.
  * Demo Mode is no longer supported.
- * VITE_AUTH_PROVIDER=firebase|supabase (api mode).
+ *
+ * Auth = Supabase (plus phone+PIN server login). VITE_FIREBASE_* is for FCM /
+ * Analytics / Crashlytics only — not interactive Auth.
+ * VITE_AUTH_PROVIDER always resolves to supabase.
  */
 
 import {
@@ -33,7 +36,8 @@ export function getTransportAuthProvider(): TransportAuthProvider {
 }
 
 export function isFirebaseAuthProvider(): boolean {
-  return getTransportAuthProvider() === "firebase";
+  // Auth is Supabase-only; Firebase web config is FCM / Analytics / Crashlytics.
+  return false;
 }
 
 export function isApiAuthMode(): boolean {

@@ -146,59 +146,18 @@ export {
   type LumenXAuthProvider,
 } from "./firebase/auth-mode";
 export {
-  FirebaseClientAuthError,
-  mapFirebaseClientError,
-} from "./firebase/errors";
-export {
   getFirebaseApp,
   requireFirebaseApp,
-  getFirebaseAuth,
-  requireFirebaseAuth,
 } from "./firebase/client";
-export {
-  requestFirebasePhoneOtp,
-  createInvisibleRecaptcha,
-  getCurrentFirebaseIdToken,
-  type PhoneSignInSession,
-} from "./firebase/phone-auth";
-export {
-  isFirebasePhoneAuthBlockedHost,
-  toFirebasePhoneAuthLoopbackUrl,
-  ensureFirebasePhoneAuthHost,
-  assertFirebasePhoneAuthHostAllowed,
-} from "./firebase/phone-host";
-export {
-  signInWithFirebaseEmail,
-  registerWithFirebaseEmail,
-  requestFirebasePasswordReset,
-  signOutFirebase,
-} from "./firebase/email-auth";
-export {
-  exchangeFirebaseIdTokenForSession,
-  type FirebaseSessionExchangeResult,
-} from "./firebase/session-api";
-export {
-  completeFirebaseLogin,
-  startFirebasePhoneLogin,
-  confirmFirebasePhoneLogin,
-  loginWithFirebaseEmail,
-  logoutFirebaseAndClearLocal,
-} from "./firebase/index";
+export { signOutFirebase } from "./firebase/email-auth";
+export { logoutFirebaseAndClearLocal } from "./firebase/index";
 export {
   readViteAuthMode,
   readViteAuthProvider,
   isFirebaseAuthProviderActive,
   getViteApiBaseUrl,
 } from "./firebase/vite-provider";
-export {
-  firebaseEmailLoginToLumenXSession,
-  firebaseEmailRegister,
-  linkFirebaseToCurrentSupabaseUser,
-  firebaseRequestPhoneOtp,
-  firebaseConfirmPhoneOtpOnly,
-  firebaseConfirmPhoneOtpToLumenXSession,
-  firebaseLogout,
-} from "./firebase/bridge";
+export { firebaseLogout, clearAppAuthSession } from "./firebase/bridge";
 export {
   getFirebaseAnalytics,
   logLumenXAnalyticsEvent,

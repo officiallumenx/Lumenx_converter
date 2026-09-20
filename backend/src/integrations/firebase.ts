@@ -1,17 +1,13 @@
 /**
- * Firebase Admin SDK — FCM + Auth ID-token verification.
+ * Firebase Admin SDK — FCM (Cloud Messaging) only.
  *
- * Architecture (Phase 1 harden / audit source of truth):
- *   Firebase Auth (interactive OTP/email) → verified ID token → map to
- *   existing LumenX user_profile → mint Supabase Auth session → requireAuth.
- *
- * Supabase Auth remains the LumenX session/identity layer (auth.users FK,
- * JWT, RBAC, RLS). Do not remove Supabase Auth from this integration.
+ * Production identity: Supabase Auth JWT → requireAuth.
+ * Production OTP SMS: OTP_SMS_PROVIDER (StartMessaging / Twilio / webhook).
  *
  * Server credentials (client email + private key) must NEVER be exposed to
  * frontends or Vite `VITE_*` env. Only non-secret public hints may leave the API.
  *
- * Not used: Firestore, Realtime Database, Firebase Storage for LumenX data.
+ * Not used: Firebase Auth, Firestore, Realtime Database, Firebase Storage.
  */
 
 import {
@@ -23,15 +19,12 @@ import {
   type App,
 } from "firebase-admin/app";
 import { getMessaging, type Messaging } from "firebase-admin/messaging";
-import { getAuth, type Auth, type DecodedIdToken } from "firebase-admin/auth";
 import type { Env } from "../config/env.js";
 import type { Logger } from "../logger/logger.js";
 
 export type { App } from "firebase-admin/app";
-export type { DecodedIdToken } from "firebase-admin/auth";
 export { deleteApp } from "firebase-admin/app";
 export { getMessaging, type Messaging } from "firebase-admin/messaging";
-export { getAuth, type Auth } from "firebase-admin/auth";
 
 /** Named Admin app — process singleton; avoids duplicate default-app init. */
 export const LUMENX_FIREBASE_ADMIN_APP_NAME = "lumenx";
@@ -69,14 +62,14 @@ export function resolveFirebaseConfig(
     FIREBASE_PROJECT_ID && FIREBASE_CLIENT_EMAIL && FIREBASE_PRIVATE_KEY;
 
   if (!hasAll) {
-    if (env.NODE_ENV === "production") {
+    if (env.NODE_ENV === "production" && env.FCM_WORKER_ENABLED !== false) {
       throw new Error(
-        "Firebase credentials (FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY) are required in production.",
+        "Firebase credentials (FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY) are required in production when FCM is enabled.",
       );
     }
     logger.warn({
       msg: "firebase_not_configured",
-      hint: "Firebase integration is disabled — set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY to enable.",
+      hint: "Firebase FCM is disabled — set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY to enable push. Auth/OTP use Supabase + OTP_SMS_PROVIDER.",
     });
     return null;
   }
@@ -90,10 +83,7 @@ export function resolveFirebaseConfig(
 
 /**
  * Initialize the Firebase Admin SDK (single named process app).
- *
- * Enables:
- *   - FCM push via `getFirebaseMessaging`
- *   - Auth ID-token verify via `getFirebaseAuth` / `verifyFirebaseIdToken`
+ * Enables FCM push via `getFirebaseMessaging`.
  *
  * Returns `null` when credentials are absent in non-production.
  * Reuses an existing named app if already initialized (safe singleton).
@@ -107,7 +97,6 @@ export function initFirebaseAdmin(env: Env, logger: Logger): App | null {
     logger.info({
       msg: "firebase_reused",
       projectId: config.projectId,
-      auth: true,
       messaging: true,
     });
     return already;
@@ -127,7 +116,6 @@ export function initFirebaseAdmin(env: Env, logger: Logger): App | null {
   logger.info({
     msg: "firebase_initialized",
     projectId: config.projectId,
-    auth: true,
     messaging: true,
   });
 
@@ -149,44 +137,6 @@ export function getFirebaseMessaging(app: App | null): Messaging | null {
   } catch {
     return null;
   }
-}
-
-export function getFirebaseAuth(app: App | null): Auth | null {
-  if (!app) return null;
-  try {
-    return getAuth(app);
-  } catch {
-    return null;
-  }
-}
-
-export type VerifyFirebaseIdTokenOptions = {
-  /** When true, rejects revoked tokens (extra Auth API round-trip). Default false. */
-  checkRevoked?: boolean;
-};
-
-/**
- * Verify a Firebase Auth ID token (Authorization: Bearer &lt;idToken&gt;).
- * Throws the underlying Firebase Auth error on invalid/expired tokens.
- * Never trusts client-supplied uid/email/phone — only Admin-verified claims.
- */
-export async function verifyFirebaseIdToken(
-  app: App,
-  idToken: string,
-  opts?: VerifyFirebaseIdTokenOptions,
-): Promise<DecodedIdToken> {
-  const trimmed = idToken.trim();
-  if (!trimmed) {
-    throw Object.assign(new Error("Empty Firebase ID token"), {
-      code: "auth/argument-error",
-    });
-  }
-
-  const auth = getFirebaseAuth(app);
-  if (!auth) {
-    throw new Error("Firebase Auth is unavailable on this Admin app instance");
-  }
-  return auth.verifyIdToken(trimmed, opts?.checkRevoked === true);
 }
 
 /**

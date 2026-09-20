@@ -2,12 +2,14 @@
  * Auth provider selection — API-only product mode.
  * Demo Mode is no longer a supported product mode.
  * Never silently fall back to demo OTP or mock identity.
+ *
+ * Interactive login is Supabase-only. Firebase remains for FCM/Analytics/Crashlytics only.
  */
 
 /** Product auth mode. Only `"api"` is supported. */
 export type LumenXAuthMode = "api";
-/** Under api mode: which identity provider performs interactive login. */
-export type LumenXAuthProvider = "supabase" | "firebase";
+/** Interactive identity provider — Supabase Auth only. */
+export type LumenXAuthProvider = "supabase";
 
 const DEMO_MODE_REJECTED =
   "LumenX Demo Mode is no longer supported. Set VITE_*_AUTH_MODE=api (or omit it). API mode is the only product mode.";
@@ -28,12 +30,12 @@ export function normalizeAuthMode(raw: string | undefined | null): LumenXAuthMod
 
 /**
  * Interactive auth provider under API mode.
- * Default: firebase. Explicit `supabase` enables legacy Twilio/Resend/password rollback.
+ * Always supabase (Firebase Auth has been removed).
  */
 export function normalizeAuthProvider(
-  raw: string | undefined | null,
+  _raw?: string | null,
 ): LumenXAuthProvider {
-  return raw?.trim().toLowerCase() === "supabase" ? "supabase" : "firebase";
+  return "supabase";
 }
 
 export function resolveAuthStack(input: {
@@ -63,7 +65,7 @@ export function assertNotDemoFallback(
   context: string,
 ): never {
   throw new Error(
-    `${context}: demo authentication is disabled. Configure Firebase (or Supabase rollback) and use the real LumenX session API.`,
+    `${context}: demo authentication is disabled. Use Supabase Auth and the LumenX session API.`,
   );
 }
 

@@ -89,6 +89,45 @@ describe("otp delivery", () => {
     expect(body.message).toContain("654321");
   });
 
+  it("live SMS via StartMessaging posts LumenX OTP in variables", async () => {
+    const env = loadEnv({
+      NODE_ENV: "production",
+      OTP_SMS_PROVIDER: "startmessaging",
+      STARTMESSAGING_API_KEY: "sm_live_test",
+      STARTMESSAGING_TEMPLATE_ID: "tmpl_otp",
+      STARTMESSAGING_BASE_URL: "https://api.startmessaging.com",
+      OTP_SMS_DEFAULT_COUNTRY_CODE: "+91",
+      LOG_LEVEL: "error",
+    });
+
+    const fetchSpy = vi.fn(async () => new Response("{}", { status: 201 }));
+    setOtpDeliveryFetch(fetchSpy as unknown as typeof fetch);
+
+    const result = await deliverLoginOtp(
+      {
+        channel: "sms",
+        destination: "9876543210",
+        otp: "998877",
+        purpose: "connect_login",
+      },
+      env,
+    );
+    expect(result).toEqual({
+      mode: "live",
+      provider: "startmessaging",
+      channel: "sms",
+    });
+    const [url, init] = fetchSpy.mock.calls[0]!;
+    expect(url).toBe("https://api.startmessaging.com/otp/send");
+    expect((init as RequestInit).headers).toMatchObject({
+      "X-API-Key": "sm_live_test",
+    });
+    const body = JSON.parse(String((init as RequestInit).body));
+    expect(body.phoneNumber).toBe("+919876543210");
+    expect(body.templateId).toBe("tmpl_otp");
+    expect(body.variables.otp).toBe("998877");
+  });
+
   it("live SMS via Twilio posts form body", async () => {
     const env = loadEnv({
       NODE_ENV: "production",

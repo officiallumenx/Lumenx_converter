@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   resolveFirebaseWebConfig,
   assertFirebaseWebConfig,
@@ -6,12 +6,11 @@ import {
 import {
   resolveAuthStack,
   normalizeAuthMode,
+  normalizeAuthProvider,
   isDemoAuthenticationAllowed,
   assertNotDemoFallback,
   assertApiOnlyProductMode,
 } from "./auth-mode";
-import { mapFirebaseClientError, FirebaseClientAuthError } from "./errors";
-import { exchangeFirebaseIdTokenForSession } from "./session-api";
 import { logoutFirebaseAndClearLocal } from "./index";
 
 describe("Firebase web config", () => {
@@ -61,21 +60,22 @@ describe("Auth mode — API only", () => {
     expect(() => assertApiOnlyProductMode("demo", "Admin")).toThrow(/Admin:/);
   });
 
-  it("api + firebase does not become demo", () => {
-    expect(resolveAuthStack({ mode: "api", provider: "firebase" })).toEqual({
-      mode: "api",
-      provider: "firebase",
-    });
-  });
-
-  it("defaults interactive provider to firebase when unset", () => {
+  it("always uses supabase as interactive provider", () => {
+    expect(normalizeAuthProvider(undefined)).toBe("supabase");
+    expect(normalizeAuthProvider("")).toBe("supabase");
+    expect(normalizeAuthProvider("supabase")).toBe("supabase");
+    expect(normalizeAuthProvider("firebase")).toBe("supabase");
     expect(resolveAuthStack({ mode: "api", provider: undefined })).toEqual({
       mode: "api",
-      provider: "firebase",
+      provider: "supabase",
+    });
+    expect(resolveAuthStack({ mode: "api", provider: "firebase" })).toEqual({
+      mode: "api",
+      provider: "supabase",
     });
   });
 
-  it("allows explicit supabase rollback", () => {
+  it("allows explicit supabase provider", () => {
     expect(resolveAuthStack({ mode: "api", provider: "supabase" })).toEqual({
       mode: "api",
       provider: "supabase",
@@ -84,94 +84,6 @@ describe("Auth mode — API only", () => {
 
   it("throws when demo fallback is attempted", () => {
     expect(() => assertNotDemoFallback("api", "OTP")).toThrow(/disabled/);
-  });
-});
-
-describe("Phone / email client error mapping", () => {
-  it("maps invalid OTP", () => {
-    const err = mapFirebaseClientError({ code: "auth/invalid-verification-code" });
-    expect(err).toBeInstanceOf(FirebaseClientAuthError);
-    expect(err.code).toBe("invalid-otp");
-  });
-
-  it("maps expired OTP", () => {
-    expect(mapFirebaseClientError({ code: "auth/code-expired" }).code).toBe(
-      "expired-otp",
-    );
-  });
-
-  it("maps invalid email credentials", () => {
-    expect(mapFirebaseClientError({ code: "auth/wrong-password" }).code).toBe(
-      "wrong-password",
-    );
-    expect(mapFirebaseClientError({ code: "auth/invalid-credential" }).code).toBe(
-      "wrong-password",
-    );
-  });
-
-  it("maps expired Firebase ID token", () => {
-    expect(mapFirebaseClientError({ code: "auth/id-token-expired" }).code).toBe(
-      "expired-token",
-    );
-  });
-});
-
-describe("Session exchange API client", () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("posts Firebase bearer token and returns LumenX session", async () => {
-    const fetchImpl = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          data: {
-            access_token: "access-1",
-            refresh_token: "refresh-1",
-            mapping: {
-              user_profile_id: "user-1",
-              firebase_uid: "fb-1",
-              memberships: [],
-            },
-          },
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      ),
-    );
-
-    const session = await exchangeFirebaseIdTokenForSession({
-      apiBaseUrl: "http://api.test",
-      idToken: "firebase-id-token",
-      fetchImpl: fetchImpl as unknown as typeof fetch,
-    });
-
-    expect(session.accessToken).toBe("access-1");
-    expect(session.mapping.user_profile_id).toBe("user-1");
-    expect(fetchImpl).toHaveBeenCalledWith(
-      "http://api.test/api/v1/auth/firebase/session",
-      expect.objectContaining({
-        method: "POST",
-        headers: expect.objectContaining({
-          Authorization: "Bearer firebase-id-token",
-        }),
-      }),
-    );
-  });
-
-  it("maps expired token responses", async () => {
-    const fetchImpl = vi.fn(async () =>
-      new Response(
-        JSON.stringify({ error: { message: "Firebase ID token expired" } }),
-        { status: 401 },
-      ),
-    );
-    await expect(
-      exchangeFirebaseIdTokenForSession({
-        apiBaseUrl: "http://api.test",
-        idToken: "expired",
-        fetchImpl: fetchImpl as unknown as typeof fetch,
-      }),
-    ).rejects.toMatchObject({ code: "expired-token" });
   });
 });
 

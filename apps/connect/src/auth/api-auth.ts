@@ -1,15 +1,10 @@
 import type { Role, User } from "@lumenx/types";
-import {
-  firebaseConfirmPhoneOtpOnly,
-  firebaseLogout,
-  firebaseRequestPhoneOtp,
-} from "@lumenx/auth";
+import { clearAppAuthSession } from "@lumenx/auth";
 import { invalidatePushDeviceTokensBeforeSignOut } from "@lumenx/notifications";
-import { getApiBaseUrl, getConnectApiClient } from "@/lib/connect-api";
+import { getConnectApiClient } from "@/lib/connect-api";
 import type { MeResponse } from "@/lib/api/me-types";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { isInstituteUuid } from "@/lib/institute-id";
-import { isFirebaseAuthProvider } from "@/auth/auth-mode";
 
 export type ConnectApiSession = {
   user: User;
@@ -17,7 +12,7 @@ export type ConnectApiSession = {
   me: MeResponse;
 };
 
-export type ConnectOtpChannel = "firebase" | "server";
+export type ConnectOtpChannel = "server";
 
 async function fetchMe(accessToken?: string): Promise<MeResponse> {
   const api = getConnectApiClient();
@@ -118,54 +113,7 @@ export function buildConnectReturningLoginPayload(
   return input;
 }
 
-export function buildConnectFirebaseLoginPayload(input: {
-  institute_id: string;
-  role: Role;
-  pin: string;
-}): { institute_id: string; role: Role; pin: string } {
-  return input;
-}
-
-async function exchangeConnectFirebaseToken(input: {
-  idToken: string;
-  instituteId: string;
-  role: Role;
-  pin: string;
-  path: "firebase-login" | "reset-pin";
-}) {
-  const res = await fetch(`${getApiBaseUrl()}/api/v1/auth/connect/${input.path}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${input.idToken}`,
-    },
-    body: JSON.stringify(buildConnectFirebaseLoginPayload({
-      institute_id: input.instituteId,
-      role: input.role,
-      pin: input.pin,
-    })),
-  });
-  const json = (await res.json().catch(() => ({}))) as {
-    data?: {
-      access_token: string;
-      refresh_token: string;
-      institute_id: string;
-      display_name: string;
-      role: Role;
-    };
-    error?: { message?: string };
-  };
-  if (!res.ok || !json.data) {
-    throw new Error(json.error?.message || `Sign-in failed (${res.status})`);
-  }
-  return json.data;
-}
-
-/**
- * Request Connect mobile OTP.
- * - Firebase provider → real SMS via Firebase Phone Auth
- * - Otherwise → server OTP (live Twilio/webhook, or demo 123456 when OTP_DELIVERY_MODE=demo)
- */
+/** Request Connect mobile OTP via server (StartMessaging / Twilio / webhook). */
 export async function apiRequestConnectLoginOtp(input: {
   instituteId: string;
   phone: string;
@@ -180,15 +128,6 @@ export async function apiRequestConnectLoginOtp(input: {
     throw new Error("Select your institute to continue.");
   }
   const digits = input.phone.replace(/\D/g, "").slice(-10);
-
-  if (isFirebaseAuthProvider()) {
-    const sent = await firebaseRequestPhoneOtp(digits);
-    return {
-      maskedDestination: sent.maskedDestination,
-      displayName: input.role,
-      channel: "firebase",
-    };
-  }
 
   const api = getConnectApiClient();
   const data = await api.post<{
@@ -212,21 +151,13 @@ export async function apiVerifyConnectLoginOtp(input: {
   phone: string;
   role: Role;
   otp: string;
-}): Promise<{ firebaseIdToken?: string; otpGrant?: string; channel: ConnectOtpChannel }> {
+}): Promise<{ otpGrant: string; channel: ConnectOtpChannel }> {
   if (!isInstituteUuid(input.instituteId)) {
     throw new Error("Select your institute to continue.");
   }
   const digits = input.phone.replace(/\D/g, "").slice(-10);
   if (input.otp.trim().length !== 6) {
     throw new Error("Enter the 6-digit SMS code.");
-  }
-
-  if (isFirebaseAuthProvider()) {
-    const confirmed = await firebaseConfirmPhoneOtpOnly({
-      phone: digits,
-      otp: input.otp.trim(),
-    });
-    return { firebaseIdToken: confirmed.idToken, channel: "firebase" };
   }
 
   const api = getConnectApiClient();
@@ -282,25 +213,12 @@ export async function apiCreateConnectPinAfterOtp(input: {
   role: Role;
   pin: string;
   otpGrant?: string;
-  firebaseIdToken?: string;
 }): Promise<void> {
   if (!isInstituteUuid(input.instituteId)) {
     throw new Error("Select your institute to continue.");
   }
   if (!/^\d{4,8}$/.test(input.pin)) throw new Error("Enter a 4–8 digit PIN.");
   const digits = input.phone.replace(/\D/g, "").slice(-10);
-
-  if (input.firebaseIdToken) {
-    await exchangeConnectFirebaseToken({
-      idToken: input.firebaseIdToken,
-      instituteId: input.instituteId,
-      role: input.role,
-      pin: input.pin,
-      path: "firebase-login",
-    });
-    await getSupabaseBrowserClient().auth.signOut().catch(() => undefined);
-    return;
-  }
 
   if (!input.otpGrant) {
     throw new Error("Verification expired. Request a new code.");
@@ -327,31 +245,12 @@ export async function apiCompleteConnectForgotPin(input: {
   role: Role;
   pin: string;
   otpGrant?: string;
-  firebaseIdToken?: string;
 }): Promise<ConnectApiSession> {
   if (!isInstituteUuid(input.instituteId)) {
     throw new Error("Select your institute to continue.");
   }
   const digits = input.phone.replace(/\D/g, "").slice(-10);
   if (!/^\d{4,8}$/.test(input.pin)) throw new Error("Enter a 4–8 digit PIN.");
-
-  if (input.firebaseIdToken) {
-    const session = await exchangeConnectFirebaseToken({
-      idToken: input.firebaseIdToken,
-      instituteId: input.instituteId,
-      role: input.role,
-      pin: input.pin,
-      path: "reset-pin",
-    });
-    return finishConnectSession({
-      accessToken: session.access_token,
-      refreshToken: session.refresh_token,
-      instituteId: input.instituteId,
-      role: input.role,
-      phone: digits,
-      displayName: session.display_name,
-    });
-  }
 
   if (!input.otpGrant) {
     throw new Error("Verification expired. Request a new code.");
@@ -452,7 +351,7 @@ export async function apiSignOut(): Promise<void> {
       return data.session?.access_token;
     },
   });
-  await firebaseLogout({
+  await clearAppAuthSession({
     clearSupabaseSession: async () => {
       await getSupabaseBrowserClient().auth.signOut().catch(() => undefined);
     },

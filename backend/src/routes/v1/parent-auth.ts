@@ -16,7 +16,7 @@ parentAuth.post("/request-otp", async () => {
 
 parentAuth.post("/verify-otp", async () => {
   throw AppError.validation(
-    "Parent login moved to Connect passwordless auth. Use /api/v1/auth/connect/firebase-login or /login.",
+    "Parent login moved to Connect passwordless auth. Use /api/v1/auth/connect/login or /login.",
   );
 });
 
