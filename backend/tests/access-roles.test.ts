@@ -745,4 +745,28 @@ describe("access roles API", () => {
     expect(body.data.displayName).toBe("Admin User");
     expect(body.data.isAssigned).toBe(false);
   });
+
+  it("resolves phone login when phone_digits is out of sync but phone matches", async () => {
+    const db = baseDb();
+    db.user_profile[0]!.phone = "+91 98765 00001";
+    db.user_profile[0]!.phone_digits = "1111111111";
+
+    const response = await appWithDb(db).request(
+      "/api/v1/auth/staff/login-mode",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          institute_id: INST_A,
+          identifier: "9876500001",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      data: { displayName: string };
+    };
+    expect(body.data.displayName).toBe("Admin User");
+  });
 });

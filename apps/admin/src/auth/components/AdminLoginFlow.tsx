@@ -54,7 +54,9 @@ const INSTITUTE_STORAGE_KEY = "lx_admin_login_institute_id";
 function isApiIdentifierValid(value: string): boolean {
   const trimmed = value.trim();
   if (trimmed.includes("@")) return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
-  if (/^\d{10}$/.test(trimmed)) return true;
+  const digits = trimmed.replace(/\D/g, "");
+  // Allow 10-digit or +91… forms — API canonicalizes to last 10 digits.
+  if (digits.length >= 10 && /^\d{10}$/.test(digits.slice(-10))) return true;
   return /^[a-zA-Z0-9._-]{3,64}$/.test(trimmed);
 }
 

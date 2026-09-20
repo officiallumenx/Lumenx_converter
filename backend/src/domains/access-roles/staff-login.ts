@@ -193,16 +193,29 @@ async function resolveStaffLoginUser(
     let candidates = (data ?? []) as StaffProfile[];
 
     // Canonical-phone backfill deliberately leaves legacy collisions NULL so
-    // the unique index can be enabled safely. Keep those owners able to log in
-    // and resolve the correct profile using the selected institute membership.
+    // the unique index can be enabled safely. Also recover when phone_digits is
+    // missing/out of sync but `phone` still holds +91 / spaced forms.
     if (candidates.length === 0) {
-      const fallback = await admin
+      const nullDigits = await admin
         .from("user_profile")
         .select("id, display_name, email, phone, status")
         .is("phone_digits", null)
         .is("deleted_at", null);
-      if (fallback.error) throw fallback.error;
-      candidates = ((fallback.data ?? []) as StaffProfile[]).filter(
+      if (nullDigits.error) throw nullDigits.error;
+      candidates = ((nullDigits.data ?? []) as StaffProfile[]).filter(
+        (candidate) =>
+          candidate.phone != null &&
+          normalizePhoneDigits(candidate.phone) === phoneDigits,
+      );
+    }
+    if (candidates.length === 0) {
+      const byPhone = await admin
+        .from("user_profile")
+        .select("id, display_name, email, phone, status")
+        .is("deleted_at", null)
+        .not("phone", "is", null);
+      if (byPhone.error) throw byPhone.error;
+      candidates = ((byPhone.data ?? []) as StaffProfile[]).filter(
         (candidate) =>
           candidate.phone != null &&
           normalizePhoneDigits(candidate.phone) === phoneDigits,
