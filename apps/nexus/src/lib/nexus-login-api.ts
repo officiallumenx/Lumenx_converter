@@ -164,11 +164,21 @@ export async function completeNexusLogin(input: {
     ...(input.emailOtpGrant ? { email_otp_grant: input.emailOtpGrant } : {}),
   });
 
-  const { error } = await supabase.auth.setSession({
-    access_token: data.access_token,
-    refresh_token: data.refresh_token,
-  });
-  if (error) throw new Error(error.message || "Unable to establish Nexus session.");
+  try {
+    const { error } = await supabase.auth.setSession({
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+    });
+    if (error) throw new Error(error.message || "Unable to establish Nexus session.");
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : String(cause);
+    if (/invalid value|failed to execute 'fetch'/i.test(message)) {
+      throw new Error(
+        "Supabase browser config is invalid (check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY — no quotes or line breaks).",
+      );
+    }
+    throw cause instanceof Error ? cause : new Error(message);
+  }
   markNexusOperatorLogin();
   return data;
 }

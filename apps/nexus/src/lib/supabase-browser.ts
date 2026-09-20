@@ -2,13 +2,28 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 let client: SupabaseClient | null = null;
 
+/** Strip CI paste noise (quotes / newlines) that breaks browser fetch headers. */
+function sanitizeEnvValue(raw: string | undefined): string {
+  return (raw ?? "")
+    .trim()
+    .replace(/^["']|["']$/g, "")
+    .replace(/[\r\n\t]/g, "")
+    .trim();
+}
+
 export function getSupabaseBrowserConfig(): {
   url: string;
   anonKey: string;
 } | null {
-  const url = import.meta.env.VITE_SUPABASE_URL?.trim();
-  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
+  const url = sanitizeEnvValue(import.meta.env.VITE_SUPABASE_URL);
+  const anonKey = sanitizeEnvValue(import.meta.env.VITE_SUPABASE_ANON_KEY);
   if (!url || !anonKey) return null;
+  try {
+    // Throws if CI baked an invalid URL (common cause of fetch "Invalid value").
+    new URL(url);
+  } catch {
+    return null;
+  }
   return { url, anonKey };
 }
 
