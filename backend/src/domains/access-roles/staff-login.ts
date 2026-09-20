@@ -139,7 +139,97 @@ type StaffProfile = {
   email: string | null;
   phone: string | null;
   status: string;
+  phone_digits?: string | null;
 };
+
+/**
+ * When mobile login hits an orphan profile (no institute membership) but the
+ * institute has exactly one institute-wide Admin with no other mobile, move
+ * the number onto that Admin so email/mobile resolve to the same account.
+ */
+async function tryRehomeOrphanPhoneToSoleInstituteAdmin(
+  admin: SupabaseClient,
+  input: {
+    instituteId: string;
+    orphanProfile: StaffProfile;
+    phoneDigits: string;
+  },
+): Promise<StaffProfile | null> {
+  const instituteMemberships = await listMemberships(admin, {
+    instituteId: input.instituteId,
+  });
+  const active = instituteMemberships.filter((m) => m.status !== "ended");
+  if (active.length === 0) return null;
+
+  const candidates: StaffProfile[] = [];
+  for (const membership of active) {
+    const roleRows = await listRolesForMemberships(admin, [membership.id]);
+    const codes = roleRows.map((r) => r.role_code);
+    if (!codes.some((c) => INSTITUTE_WIDE_ROLES.has(c))) continue;
+
+    const { data, error } = await admin
+      .from("user_profile")
+      .select("id, display_name, email, phone, phone_digits, status")
+      .eq("id", membership.user_id)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (error) throw error;
+    const row = data as StaffProfile | null;
+    if (!row || row.status === "disabled") continue;
+    if (row.id === input.orphanProfile.id) continue;
+
+    const existingDigits =
+      (row.phone_digits && /^\d{10}$/.test(row.phone_digits)
+        ? row.phone_digits
+        : null) ??
+      (row.phone ? normalizePhoneDigits(row.phone) : "");
+    if (existingDigits && existingDigits !== input.phoneDigits) continue;
+
+    candidates.push(row);
+  }
+
+  if (candidates.length !== 1) return null;
+  const target = candidates[0]!;
+
+  const { error: clearOrphanError } = await admin
+    .from("user_profile")
+    .update({ phone: null, phone_digits: null })
+    .eq("id", input.orphanProfile.id);
+  if (clearOrphanError) throw clearOrphanError;
+
+  const { data: otherHolders, error: holdersError } = await admin
+    .from("user_profile")
+    .select("id")
+    .eq("phone_digits", input.phoneDigits)
+    .neq("id", target.id)
+    .is("deleted_at", null);
+  if (holdersError) throw holdersError;
+  if (otherHolders && otherHolders.length > 0) {
+    const { error: clearOthersError } = await admin
+      .from("user_profile")
+      .update({ phone: null, phone_digits: null })
+      .in(
+        "id",
+        otherHolders.map((row) => row.id as string),
+      );
+    if (clearOthersError) throw clearOthersError;
+  }
+
+  const { error: setError } = await admin
+    .from("user_profile")
+    .update({
+      phone: input.phoneDigits,
+      phone_digits: input.phoneDigits,
+    })
+    .eq("id", target.id);
+  if (setError) throw setError;
+
+  return {
+    ...target,
+    phone: input.phoneDigits,
+    phone_digits: input.phoneDigits,
+  };
+}
 
 async function resolveStaffLoginUser(
   admin: SupabaseClient,
@@ -268,14 +358,34 @@ async function resolveStaffLoginUser(
     throw AppError.forbidden("This Admin account is disabled. Contact support.");
   }
 
-  const memberships = await listMemberships(admin, {
+  let memberships = await listMemberships(admin, {
     instituteId,
     userId: profile.id,
   });
-  const membership =
+  let membership =
     memberships.find((m) => m.status === "active") ??
     memberships.find((m) => m.status !== "ended") ??
     null;
+
+  if (!membership && looksLikePhone) {
+    const rehomed = await tryRehomeOrphanPhoneToSoleInstituteAdmin(admin, {
+      instituteId,
+      orphanProfile: profile,
+      phoneDigits,
+    });
+    if (rehomed) {
+      profile = rehomed;
+      memberships = await listMemberships(admin, {
+        instituteId,
+        userId: profile.id,
+      });
+      membership =
+        memberships.find((m) => m.status === "active") ??
+        memberships.find((m) => m.status !== "ended") ??
+        null;
+    }
+  }
+
   if (!membership) {
     throw AppError.notFound(
       looksLikePhone

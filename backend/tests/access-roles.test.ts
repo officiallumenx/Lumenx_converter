@@ -769,4 +769,46 @@ describe("access roles API", () => {
     };
     expect(body.data.displayName).toBe("Admin User");
   });
+
+  it("rehomes orphan phone onto sole institute admin without mobile", async () => {
+    const db = baseDb();
+    const orphanId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    db.user_profile[0]!.phone = null;
+    db.user_profile[0]!.phone_digits = null;
+    db.user_profile.push({
+      id: orphanId,
+      display_name: "Orphan",
+      email: "orphan@demo.edu",
+      phone: "9876500001",
+      phone_digits: "9876500001",
+      avatar_url: null,
+      status: "active",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      deleted_at: null,
+    });
+
+    const response = await appWithDb(db).request(
+      "/api/v1/auth/staff/login-mode",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          institute_id: INST_A,
+          identifier: "9876500001",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      data: { displayName: string };
+    };
+    expect(body.data.displayName).toBe("Admin User");
+    expect(db.user_profile[0]!.phone_digits).toBe("9876500001");
+    expect(db.user_profile[0]!.phone).toBe("9876500001");
+    const orphan = db.user_profile.find((row) => row.id === orphanId);
+    expect(orphan?.phone).toBeNull();
+    expect(orphan?.phone_digits).toBeNull();
+  });
 });
