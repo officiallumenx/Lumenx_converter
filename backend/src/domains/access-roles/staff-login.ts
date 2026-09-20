@@ -222,26 +222,24 @@ async function resolveStaffLoginUser(
       );
     }
 
-    if (candidates.length <= 1) {
-      profile = candidates[0] ?? null;
-    } else {
-      const instituteMatches: StaffProfile[] = [];
-      for (const candidate of candidates) {
-        const candidateMemberships = await listMemberships(admin, {
-          instituteId,
-          userId: candidate.id,
-        });
-        if (candidateMemberships.some((m) => m.status !== "ended")) {
-          instituteMatches.push(candidate);
-        }
+    // Prefer profiles that already have membership in the selected institute.
+    // Phone can land on an orphan profile while email login uses another row.
+    const instituteMatches: StaffProfile[] = [];
+    for (const candidate of candidates) {
+      const candidateMemberships = await listMemberships(admin, {
+        instituteId,
+        userId: candidate.id,
+      });
+      if (candidateMemberships.some((m) => m.status !== "ended")) {
+        instituteMatches.push(candidate);
       }
-      if (instituteMatches.length > 1) {
-        throw AppError.conflict(
-          "Multiple Admin accounts use this mobile number in the selected institute. Use email or username.",
-        );
-      }
-      profile = instituteMatches[0] ?? null;
     }
+    if (instituteMatches.length > 1) {
+      throw AppError.conflict(
+        "Multiple Admin accounts use this mobile number in the selected institute. Use email or username.",
+      );
+    }
+    profile = instituteMatches[0] ?? candidates[0] ?? null;
   } else {
     const cred = await findCredentialByUsername(admin, trimmed);
     if (cred) {
@@ -280,7 +278,9 @@ async function resolveStaffLoginUser(
     null;
   if (!membership) {
     throw AppError.notFound(
-      "This user exists but has no active membership in the selected institute.",
+      looksLikePhone
+        ? "This mobile is linked to a different user than your Admin email account. Move phone/phone_digits onto the email Admin profile (or use email login)."
+        : "This user exists but has no active membership in the selected institute.",
     );
   }
   if (membership.status === "suspended") {
