@@ -56,4 +56,24 @@ health.get("/ready", async (c) => {
   );
 });
 
+/**
+ * Public browser Auth config (anon / publishable only — never service_role).
+ * Frontends can sync this at login so stale Vite-baked keys do not block setSession.
+ */
+health.get("/supabase-public", (c) => {
+  const env = loadEnv();
+  if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) {
+    return c.json(
+      { error: { message: "Supabase is not configured on the API." } },
+      503,
+    );
+  }
+  return c.json({
+    data: {
+      url: env.SUPABASE_URL,
+      anonKey: env.SUPABASE_ANON_KEY,
+    },
+  });
+});
+
 export default health;

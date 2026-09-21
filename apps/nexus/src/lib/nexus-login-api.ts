@@ -3,7 +3,10 @@
 import { clearAppAuthSession } from "@lumenx/auth";
 import { invalidatePushDeviceTokensBeforeSignOut } from "@lumenx/notifications";
 import { getApiBaseUrl } from "@/lib/nexus-api";
-import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import {
+  getSupabaseBrowserClient,
+  syncSupabaseBrowserClientFromApi,
+} from "@/lib/supabase-browser";
 
 /** Set only after a successful /login flow — open-access sessions do not set this. */
 export const NEXUS_OPERATOR_LOGIN_MARKER = "lumenx.nexus.operatorLogin.v1";
@@ -92,7 +95,9 @@ export async function ensureNexusOpenAccessSession(): Promise<boolean> {
     is_root?: boolean;
   }>("/api/v1/auth/nexus/open-access", {});
 
-  const supabase = getSupabaseBrowserClient();
+  const supabase = await syncSupabaseBrowserClientFromApi(getApiBaseUrl()).catch(
+    () => getSupabaseBrowserClient(),
+  );
   const { error } = await supabase.auth.setSession({
     access_token: session.access_token,
     refresh_token: session.refresh_token,
@@ -145,8 +150,6 @@ export async function completeNexusLogin(input: {
   mobileOtpGrant?: string;
   emailOtpGrant?: string;
 }) {
-  const supabase = getSupabaseBrowserClient();
-
   if (!input.mobileOtpGrant) {
     throw new Error("Verify mobile OTP before completing login.");
   }
@@ -165,6 +168,10 @@ export async function completeNexusLogin(input: {
   });
 
   try {
+    // Use Railway's current anon key so a stale Cloudflare Vite bake cannot block setSession.
+    const supabase = await syncSupabaseBrowserClientFromApi(getApiBaseUrl()).catch(
+      () => getSupabaseBrowserClient(),
+    );
     const { error } = await supabase.auth.setSession({
       access_token: data.access_token,
       refresh_token: data.refresh_token,
@@ -179,7 +186,7 @@ export async function completeNexusLogin(input: {
     }
     if (/unregistered api key/i.test(message)) {
       throw new Error(
-        "Supabase API key is not registered for this project. Update VITE_SUPABASE_ANON_KEY (Nexus build) and SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY (API) from the Supabase dashboard, then redeploy.",
+        "Supabase API key is not registered for this project. Update SUPABASE_ANON_KEY on Railway (API), then rebuild Nexus once so it can load that key from the API.",
       );
     }
     throw cause instanceof Error ? cause : new Error(message);
