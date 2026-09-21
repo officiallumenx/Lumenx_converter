@@ -177,6 +177,11 @@ export async function completeNexusLogin(input: {
         "Supabase browser config is invalid (check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY — no quotes or line breaks).",
       );
     }
+    if (/unregistered api key/i.test(message)) {
+      throw new Error(
+        "Supabase API key is not registered for this project. Update VITE_SUPABASE_ANON_KEY (Nexus build) and SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY (API) from the Supabase dashboard, then redeploy.",
+      );
+    }
     throw cause instanceof Error ? cause : new Error(message);
   }
   markNexusOperatorLogin();

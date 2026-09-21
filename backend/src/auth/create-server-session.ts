@@ -151,6 +151,11 @@ export async function createServerAuthSessionForEmail(
     email: normalized,
   });
   if (linkError || !linkData.properties?.hashed_token) {
+    if (/unregistered api key/i.test(linkError?.message ?? "")) {
+      throw AppError.internal(
+        `Unable to start ${failureLabel}: Supabase service role key is not registered for this project. Set SUPABASE_SERVICE_ROLE_KEY on the API to the current secret/service_role key from the Supabase dashboard.`,
+      );
+    }
     throw AppError.internal(
       `Unable to start ${failureLabel}${linkError?.message ? `: ${linkError.message}` : ""}`,
     );
@@ -166,9 +171,13 @@ export async function createServerAuthSessionForEmail(
     type: "email",
   });
   if (verifyError || !sessionData.session?.access_token || !sessionData.session.refresh_token) {
-    throw AppError.internal(
-      `Unable to complete ${failureLabel}${verifyError?.message ? `: ${verifyError.message}` : ""}`,
-    );
+    const detail = verifyError?.message ? `: ${verifyError.message}` : "";
+    if (/unregistered api key/i.test(verifyError?.message ?? "")) {
+      throw AppError.internal(
+        `Unable to complete ${failureLabel}: Supabase anon key is not registered for this project. Set SUPABASE_ANON_KEY on the API to the current publishable/anon key from the Supabase dashboard.`,
+      );
+    }
+    throw AppError.internal(`Unable to complete ${failureLabel}${detail}`);
   }
   const sessionUserId = sessionData.session.user?.id;
   if (expectedUserId && sessionUserId !== expectedUserId) {

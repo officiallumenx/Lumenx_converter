@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { ArrowLeft } from "lucide-react";
 import {
   completeNexusLogin,
   completeNexusPasswordReset,
@@ -30,6 +31,25 @@ type Step =
   | "forgot_pin_ids"
   | "forgot_pin_mobile_otp"
   | "forgot_pin_set";
+
+function LoginBackButton({
+  onClick,
+  label = "Back",
+}: {
+  onClick: () => void;
+  label?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+    >
+      <ArrowLeft className="size-4" aria-hidden />
+      {label}
+    </button>
+  );
+}
 
 function NexusLoginPage() {
   const [step, setStep] = useState<Step>("identifier");
@@ -131,7 +151,16 @@ function NexusLoginPage() {
       // Full reload so the session root picks up the operator-login marker.
       window.location.assign("/");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed.");
+      const message = err instanceof Error ? err.message : "Login failed.";
+      // Password is checked on the server during final login — show it on the
+      // password step, not the PIN step.
+      if (/incorrect password/i.test(message)) {
+        setPin("");
+        setError(message);
+        setStep("password");
+        return;
+      }
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -316,6 +345,13 @@ function NexusLoginPage() {
 
         {step === "mobile_otp" && (
           <form onSubmit={onMobileOtp} className="mt-6 space-y-3">
+            <LoginBackButton
+              onClick={() => {
+                clearError();
+                setMobileOtp("");
+                setStep("identifier");
+              }}
+            />
             <p className="text-sm text-muted-foreground">
               Enter OTP (mobile) sent to {maskedMobile || "mobile"}
               {devMobile ? ` · demo ${devMobile}` : ""}
@@ -340,12 +376,22 @@ function NexusLoginPage() {
 
         {step === "password" && (
           <form onSubmit={onPassword} className="mt-6 space-y-3">
+            <LoginBackButton
+              onClick={() => {
+                clearError();
+                setPassword("");
+                setStep("mobile_otp");
+              }}
+            />
             <label className="block text-xs font-medium">Password</label>
             <input
               type="password"
               className="h-11 w-full rounded-md border border-border bg-background px-3 text-sm"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (error) clearError();
+              }}
               placeholder="Password"
               required
             />
@@ -369,6 +415,13 @@ function NexusLoginPage() {
 
         {step === "pin" && (
           <form onSubmit={onPin} className="mt-6 space-y-3">
+            <LoginBackButton
+              onClick={() => {
+                clearError();
+                setPin("");
+                setStep("password");
+              }}
+            />
             <label className="block text-xs font-medium">PIN</label>
             <input
               className="h-11 w-full rounded-md border border-border bg-background px-3 text-sm"
@@ -397,6 +450,12 @@ function NexusLoginPage() {
 
         {step === "forgot_password_ids" && (
           <form onSubmit={onForgotPasswordIds} className="mt-6 space-y-3">
+            <LoginBackButton
+              onClick={() => {
+                clearError();
+                setStep("password");
+              }}
+            />
             <p className="text-sm text-muted-foreground">
               Enter mobile number to reset password.
             </p>
@@ -415,18 +474,18 @@ function NexusLoginPage() {
             >
               Send OTP
             </button>
-            <button
-              type="button"
-              onClick={() => setStep("password")}
-              className="h-10 w-full text-sm text-muted-foreground underline"
-            >
-              Back
-            </button>
           </form>
         )}
 
         {step === "forgot_password_mobile_otp" && (
           <form onSubmit={onForgotPasswordMobileOtp} className="mt-6 space-y-3">
+            <LoginBackButton
+              onClick={() => {
+                clearError();
+                setMobileOtp("");
+                setStep("forgot_password_ids");
+              }}
+            />
             <p className="text-sm text-muted-foreground">
               OTP (mobile) · {maskedMobile}
               {devMobile ? ` · demo ${devMobile}` : ""}
@@ -450,6 +509,12 @@ function NexusLoginPage() {
 
         {step === "forgot_password_set" && (
           <form onSubmit={onForgotPasswordSet} className="mt-6 space-y-3">
+            <LoginBackButton
+              onClick={() => {
+                clearError();
+                setStep("forgot_password_mobile_otp");
+              }}
+            />
             <label className="block text-xs font-medium">Set new password</label>
             <input
               type="password"
@@ -479,6 +544,12 @@ function NexusLoginPage() {
 
         {step === "forgot_pin_ids" && (
           <form onSubmit={onForgotPinIds} className="mt-6 space-y-3">
+            <LoginBackButton
+              onClick={() => {
+                clearError();
+                setStep("pin");
+              }}
+            />
             <p className="text-sm text-muted-foreground">
               Enter mobile number to reset PIN.
             </p>
@@ -497,18 +568,18 @@ function NexusLoginPage() {
             >
               Send OTP
             </button>
-            <button
-              type="button"
-              onClick={() => setStep("pin")}
-              className="h-10 w-full text-sm text-muted-foreground underline"
-            >
-              Back
-            </button>
           </form>
         )}
 
         {step === "forgot_pin_mobile_otp" && (
           <form onSubmit={onForgotPinMobileOtp} className="mt-6 space-y-3">
+            <LoginBackButton
+              onClick={() => {
+                clearError();
+                setMobileOtp("");
+                setStep("forgot_pin_ids");
+              }}
+            />
             <p className="text-sm text-muted-foreground">
               OTP (mobile) · {maskedMobile}
               {devMobile ? ` · demo ${devMobile}` : ""}
@@ -532,6 +603,12 @@ function NexusLoginPage() {
 
         {step === "forgot_pin_set" && (
           <form onSubmit={onForgotPinSet} className="mt-6 space-y-3">
+            <LoginBackButton
+              onClick={() => {
+                clearError();
+                setStep("forgot_pin_mobile_otp");
+              }}
+            />
             <label className="block text-xs font-medium">Set new PIN</label>
             <input
               className="h-11 w-full rounded-md border border-border bg-background px-3 text-sm"
