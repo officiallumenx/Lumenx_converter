@@ -75,6 +75,8 @@ export interface TeacherStudent {
   avgScore: number;
   grade: string;
   avatarInitials: string;
+  /** Short-lived signed URL when a profile photo exists. */
+  photoUrl?: string | null;
 }
 
 export interface StudentPendingItem {

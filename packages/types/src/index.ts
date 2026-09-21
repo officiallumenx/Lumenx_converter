@@ -40,6 +40,8 @@ export interface Child {
   avgScore: number;
   trend: "up" | "down" | "flat";
   accent: "primary" | "success" | "warning";
+  /** Signed profile photo URL when available. */
+  photoUrl?: string | null;
 }
 
 export interface Achievement {

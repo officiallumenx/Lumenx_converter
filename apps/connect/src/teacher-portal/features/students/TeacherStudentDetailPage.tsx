@@ -9,7 +9,7 @@ import { useAsyncLoad } from "@/lib/hooks/useAsyncLoad";
 import { StudentDetailPanel } from "./StudentDetailPanel";
 import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
 import { EmptyState } from "@/teacher-portal/shared/ui/EmptyState";
-import { Avatar, AvatarFallback, Badge, Button } from "@lumenx/ui";
+import { Avatar, AvatarFallback, AvatarImage, Badge, Button } from "@lumenx/ui";
 import { ArrowLeft, UserX } from "lucide-react";
 import { toast } from "sonner";
 import type { RemarkType, StudentDetail, StudentReturnContext } from "@/lib/teacher/types";
@@ -99,6 +99,9 @@ function ApiTeacherStudentDetailPage({
 
       <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-border bg-card p-4 sm:p-5">
         <Avatar className="size-16 shrink-0">
+          {detail.photoUrl ? (
+            <AvatarImage src={detail.photoUrl} alt="" className="object-cover" />
+          ) : null}
           <AvatarFallback className="text-lg">{detail.avatarInitials}</AvatarFallback>
         </Avatar>
         <div className="min-w-0 flex-1">

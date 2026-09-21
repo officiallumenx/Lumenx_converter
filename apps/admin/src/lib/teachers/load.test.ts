@@ -24,6 +24,7 @@ function dto(overrides: Partial<TeacherDto> = {}): TeacherDto {
     subjects: null,
     assignedSectionLabels: null,
     sourceCareerApplicationId: null,
+    photoAssetPath: null,
     createdAt: "2026-06-01T10:00:00Z",
     updatedAt: "2026-06-01T10:00:00Z",
     ...overrides,

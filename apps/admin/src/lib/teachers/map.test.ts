@@ -32,6 +32,7 @@ function dto(overrides: Partial<TeacherDto> = {}): TeacherDto {
     subjects: ["Mathematics", "Algebra"],
     assignedSectionLabels: ["10-A", "10-B", "11-A"],
     sourceCareerApplicationId: null,
+    photoAssetPath: null,
     createdAt: "2026-06-01T10:00:00Z",
     updatedAt: "2026-06-01T10:00:00Z",
     ...overrides,

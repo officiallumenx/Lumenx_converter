@@ -8,7 +8,7 @@ import type {
 } from "./types.js";
 
 const TEACHER_COLS =
-  "id, institute_id, user_profile_id, legacy_code, employee_id, display_name, phone, email, department, qualification, date_of_birth, joined_on, teaching_scope, portal_access_level, status, subjects, assigned_section_labels, source_career_application_id, created_at, updated_at, deleted_at";
+  "id, institute_id, user_profile_id, legacy_code, employee_id, display_name, phone, email, department, qualification, date_of_birth, joined_on, teaching_scope, portal_access_level, status, subjects, assigned_section_labels, source_career_application_id, photo_asset_path, created_at, updated_at, deleted_at";
 
 export async function listTeachers(
   admin: SupabaseClient,
@@ -161,6 +161,9 @@ export function toTeacherUpdatePatch(
   if (input.subjects !== undefined) patch.subjects = input.subjects;
   if (input.assignedSectionLabels !== undefined) {
     patch.assigned_section_labels = input.assignedSectionLabels;
+  }
+  if (input.photoAssetPath !== undefined) {
+    patch.photo_asset_path = input.photoAssetPath;
   }
   return patch;
 }

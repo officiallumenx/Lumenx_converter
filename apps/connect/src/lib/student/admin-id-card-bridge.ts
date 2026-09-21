@@ -110,8 +110,37 @@ export function displayOrEmpty(value: string | undefined | null): string {
   return trimmed ? trimmed : "—";
 }
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** True when value looks like an internal student UUID (not for display). */
+export function isInternalStudentId(value: string | undefined | null): boolean {
+  return Boolean(value?.trim() && UUID_RE.test(value.trim()));
+}
+
+/**
+ * Human-facing ID for the card face / details panel.
+ * Prefer admission number; never show a raw UUID.
+ */
+export function studentCardDisplayId(input: {
+  admissionNumber?: string | null;
+  legacyCode?: string | null;
+  id?: string | null;
+}): string {
+  const admission = input.admissionNumber?.trim();
+  if (admission) return admission;
+  const legacy = input.legacyCode?.trim();
+  if (legacy && !isInternalStudentId(legacy)) return legacy;
+  const id = input.id?.trim();
+  if (id && !isInternalStudentId(id)) return id;
+  return "";
+}
+
 export type ConnectIdCardViewModel = {
+  /** Internal id used for QR / verify (may be a UUID). */
   id: string;
+  /** Human-facing id shown on the card (admission no.). Empty when none. */
+  displayId: string;
   name: string;
   initials: string;
   className: string;
@@ -142,6 +171,7 @@ export function idCardViewFromSyncRow(row: StudentIdCardSyncRow): ConnectIdCardV
 
   return {
     id: row.studentId,
+    displayId: studentCardDisplayId({ id: row.studentId }),
     name: row.name,
     initials: initials || "—",
     className: row.classLabel || "—",
@@ -157,5 +187,57 @@ export function idCardViewFromSyncRow(row: StudentIdCardSyncRow): ConnectIdCardV
     institute: row.institute || "Test1School",
     photoDataUrl: row.photoDataUrl,
     fromAdmin: true,
+  };
+}
+
+/** Build ID card view from live student profile (API mode). */
+export function idCardViewFromStudentProfile(input: {
+  id: string;
+  name: string;
+  className: string;
+  section: string;
+  rollNo: string;
+  address?: string | null;
+  parentName?: string | null;
+  bloodGroup?: string | null;
+  emergencyContact?: string | null;
+  house?: string | null;
+  issuedOn?: string | null;
+  validTill?: string | null;
+  institute?: string | null;
+  photoUrl?: string | null;
+  admissionNumber?: string | null;
+  legacyCode?: string | null;
+}): ConnectIdCardViewModel {
+  const name = input.name.trim() || "Student";
+  const initials =
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((p) => p[0]?.toUpperCase() ?? "")
+      .join("") || "—";
+  return {
+    id: input.id,
+    displayId: studentCardDisplayId({
+      admissionNumber: input.admissionNumber,
+      legacyCode: input.legacyCode,
+      id: input.id,
+    }),
+    name,
+    initials,
+    className: displayOrEmpty(input.className),
+    section: displayOrEmpty(input.section),
+    rollNo: displayOrEmpty(input.rollNo),
+    address: displayOrEmpty(input.address),
+    parentName: displayOrEmpty(input.parentName),
+    bloodGroup: displayOrEmpty(input.bloodGroup),
+    emergencyContact: displayOrEmpty(input.emergencyContact),
+    house: displayOrEmpty(input.house),
+    issuedOn: displayOrEmpty(input.issuedOn),
+    validTill: displayOrEmpty(input.validTill),
+    institute: input.institute?.trim() || "Institute",
+    photoDataUrl: input.photoUrl ?? undefined,
+    fromAdmin: false,
   };
 }

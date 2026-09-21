@@ -674,35 +674,26 @@ export function AdminLoginFlow() {
         </AuthInfoCallout>
 
       {showProgress && (
-        <div className="mb-6 flex items-center gap-2">
-          {visibleSteps.map((item, index) => {
-            const activeIndex = visibleSteps.indexOf(step);
-            const isActive = item === step;
-            const isComplete = index < activeIndex;
-            return (
-              <div key={item} className="flex flex-1 items-center gap-2">
-                <span
-                  className={`flex size-7 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold ${
-                    isActive || isComplete
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border text-muted-foreground"
-                  }`}
-                >
-                  {index + 1}
-                </span>
-                <span
-                  className={`hidden text-[10px] font-medium uppercase tracking-wider sm:block ${
-                    isActive ? "text-foreground" : "text-muted-foreground"
-                  }`}
-                >
-                  {item}
-                </span>
-                {index < visibleSteps.length - 1 && (
-                  <span className="h-px flex-1 bg-border" />
-                )}
-              </div>
-            );
-          })}
+        <div
+          className="mb-6 h-1.5 overflow-hidden rounded-full bg-muted"
+          role="progressbar"
+          aria-valuemin={1}
+          aria-valuemax={visibleSteps.length}
+          aria-valuenow={Math.max(1, visibleSteps.indexOf(step) + 1)}
+          aria-label={`Step ${Math.max(1, visibleSteps.indexOf(step) + 1)} of ${visibleSteps.length}`}
+        >
+          <div
+            className="h-full rounded-full bg-primary transition-[width] duration-300 ease-out"
+            style={{
+              width: `${
+                visibleSteps.length <= 0
+                  ? 0
+                  : ((Math.max(0, visibleSteps.indexOf(step)) + 1) /
+                      visibleSteps.length) *
+                    100
+              }%`,
+            }}
+          />
         </div>
       )}
 

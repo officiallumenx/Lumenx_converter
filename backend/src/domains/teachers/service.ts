@@ -85,6 +85,7 @@ export function toTeacherDto(row: TeacherRow): TeacherDto {
     subjects: row.subjects,
     assignedSectionLabels: row.assigned_section_labels,
     sourceCareerApplicationId: row.source_career_application_id,
+    photoAssetPath: row.photo_asset_path ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

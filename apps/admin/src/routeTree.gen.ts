@@ -30,6 +30,7 @@ import { Route as SetupRouteImport } from './routes/setup'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as PhotosRouteImport } from './routes/photos'
 import { Route as PermissionsRouteImport } from './routes/permissions'
 import { Route as PendingVerificationRouteImport } from './routes/pending-verification'
 import { Route as ParentsRouteImport } from './routes/parents'
@@ -174,6 +175,11 @@ const ReportsRoute = ReportsRouteImport.update({
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PhotosRoute = PhotosRouteImport.update({
+  id: '/photos',
+  path: '/photos',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PermissionsRoute = PermissionsRouteImport.update({
@@ -411,6 +417,7 @@ export interface FileRoutesByFullPath {
   '/parents': typeof ParentsRouteWithChildren
   '/pending-verification': typeof PendingVerificationRoute
   '/permissions': typeof PermissionsRoute
+  '/photos': typeof PhotosRoute
   '/privacy': typeof PrivacyRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
@@ -472,6 +479,7 @@ export interface FileRoutesByTo {
   '/notifications': typeof NotificationsRoute
   '/pending-verification': typeof PendingVerificationRoute
   '/permissions': typeof PermissionsRoute
+  '/photos': typeof PhotosRoute
   '/privacy': typeof PrivacyRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
@@ -535,6 +543,7 @@ export interface FileRoutesById {
   '/parents': typeof ParentsRouteWithChildren
   '/pending-verification': typeof PendingVerificationRoute
   '/permissions': typeof PermissionsRoute
+  '/photos': typeof PhotosRoute
   '/privacy': typeof PrivacyRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
@@ -600,6 +609,7 @@ export interface FileRouteTypes {
     | '/parents'
     | '/pending-verification'
     | '/permissions'
+    | '/photos'
     | '/privacy'
     | '/reports'
     | '/settings'
@@ -661,6 +671,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/pending-verification'
     | '/permissions'
+    | '/photos'
     | '/privacy'
     | '/reports'
     | '/settings'
@@ -723,6 +734,7 @@ export interface FileRouteTypes {
     | '/parents'
     | '/pending-verification'
     | '/permissions'
+    | '/photos'
     | '/privacy'
     | '/reports'
     | '/settings'
@@ -787,6 +799,7 @@ export interface RootRouteChildren {
   ParentsRoute: typeof ParentsRouteWithChildren
   PendingVerificationRoute: typeof PendingVerificationRoute
   PermissionsRoute: typeof PermissionsRoute
+  PhotosRoute: typeof PhotosRoute
   PrivacyRoute: typeof PrivacyRoute
   ReportsRoute: typeof ReportsRoute
   SettingsRoute: typeof SettingsRoute
@@ -957,6 +970,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy'
       fullPath: '/privacy'
       preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/photos': {
+      id: '/photos'
+      path: '/photos'
+      fullPath: '/photos'
+      preLoaderRoute: typeof PhotosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/permissions': {
@@ -1328,6 +1348,7 @@ const rootRouteChildren: RootRouteChildren = {
   ParentsRoute: ParentsRouteWithChildren,
   PendingVerificationRoute: PendingVerificationRoute,
   PermissionsRoute: PermissionsRoute,
+  PhotosRoute: PhotosRoute,
   PrivacyRoute: PrivacyRoute,
   ReportsRoute: ReportsRoute,
   SettingsRoute: SettingsRoute,

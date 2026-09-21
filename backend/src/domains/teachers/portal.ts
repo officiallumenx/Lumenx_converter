@@ -12,6 +12,7 @@ import { listActiveEnrollmentsForStudents } from "../homework/repository.js";
 import { listTeacherAssignments } from "../timetable/repository.js";
 import { findTeacherById } from "./repository.js";
 import { findSectionById, listSectionsByClassTeacherId } from "../academics/repository.js";
+import { resolvePhotoSignedUrl } from "../photos/service.js";
 import type {
   PortalLearnerFacultyDto,
   PortalLearnerFacultyMemberDto,
@@ -65,12 +66,18 @@ async function loadClassSectionLabels(
   return { classLabel, sectionLabel };
 }
 
-function learnerFacultyFromTeacher(
+async function learnerFacultyFromTeacher(
+  admin: SupabaseClient,
   teacher: TeacherRow,
   subjects: string[],
   isClassTeacher: boolean,
-): PortalLearnerFacultyMemberDto {
+): Promise<PortalLearnerFacultyMemberDto> {
   const contactVisible = teacher.status === "active";
+  const signed = await resolvePhotoSignedUrl(
+    admin,
+    teacher.institute_id,
+    teacher.photo_asset_path,
+  );
   return {
     id: teacher.id,
     displayName: teacher.display_name,
@@ -78,9 +85,12 @@ function learnerFacultyFromTeacher(
     qualification: teacher.qualification,
     subjects,
     isClassTeacher,
-    phone: contactVisible ? teacher.phone : null,
+    // Parent/learner portals never expose teacher phone numbers.
+    phone: null,
     email: contactVisible ? teacher.email : null,
     status: teacher.status,
+    photoAssetPath: teacher.photo_asset_path ?? null,
+    photoSignedUrl: signed?.signedUrl ?? null,
   };
 }
 
@@ -177,7 +187,12 @@ export async function getLearnerFacultyForActor(
     ].sort((a, b) => a.localeCompare(b));
 
     teachers.push(
-      learnerFacultyFromTeacher(teacher, subjectList, meta.isClassTeacher),
+      await learnerFacultyFromTeacher(
+        admin,
+        teacher,
+        subjectList,
+        meta.isClassTeacher,
+      ),
     );
   }
 
@@ -293,6 +308,12 @@ export async function getTeacherSelfPortalForActor(
     ),
   );
 
+  const signed = await resolvePhotoSignedUrl(
+    admin,
+    instituteId,
+    teacher.photo_asset_path,
+  );
+
   return {
     instituteId,
     teacherId: teacher.id,
@@ -309,6 +330,8 @@ export async function getTeacherSelfPortalForActor(
     subjects: teacher.subjects,
     assignedSectionLabels: teacher.assigned_section_labels,
     joinedOn: teacher.joined_on,
+    photoAssetPath: teacher.photo_asset_path ?? null,
+    photoSignedUrl: signed?.signedUrl ?? null,
     assignments: assignmentSummaries,
   };
 }

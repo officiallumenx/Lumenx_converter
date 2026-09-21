@@ -89,6 +89,7 @@ import {
 } from "@/lib/students/class-options";
 import type { StudentSectionOption } from "@/components/students/StudentCreateDialog";
 import { PeopleDirectoryCard } from "@/components/people/PeopleDirectoryCard";
+import { StudentListAvatar } from "@/components/students/StudentListAvatar";
 import {
   downloadStudentDirectoryCsv,
   loadStudentDirectory,
@@ -982,6 +983,8 @@ function StudentsPage() {
                   key={s.id}
                   name={s.name}
                   id={s.id}
+                  photoAssetPath={"photoAssetPath" in s ? s.photoAssetPath : null}
+                  photoKind="student"
                   status={<StudentStatusPill student={s} />}
                   meta={
                     <>
@@ -1055,12 +1058,11 @@ function StudentsPage() {
                 >
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-3 group">
-                      <div className="size-9 rounded-md bg-accent border border-border flex items-center justify-center text-[10px] font-mono">
-                        {s.name
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")}
-                      </div>
+                      <StudentListAvatar
+                        studentId={s.id}
+                        name={s.name}
+                        photoAssetPath={"photoAssetPath" in s ? s.photoAssetPath : null}
+                      />
                       <div>
                         <div className="text-xs font-medium group-hover:text-primary">{s.name}</div>
                         <div className="text-[10px] text-muted-foreground font-mono">{s.id}</div>

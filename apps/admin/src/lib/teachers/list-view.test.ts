@@ -27,6 +27,8 @@ const rowA: TeacherListItem = {
   qualification: "",
   lastLogin: "—",
   credentialsSentAt: null,
+  photoAssetPath: null,
+  photoUrl: null,
   identityLabel: "EMP-1",
 };
 

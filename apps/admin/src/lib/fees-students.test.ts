@@ -25,6 +25,7 @@ const row = (overrides: Partial<StudentListItem> = {}): StudentListItem => ({
   attendance: 0,
   gpa: 0,
   parent: "",
+  photoAssetPath: null,
   ...overrides,
 });
 

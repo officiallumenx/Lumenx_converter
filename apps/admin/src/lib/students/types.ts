@@ -66,6 +66,8 @@ export type StudentListItem = {
   attendance: number;
   gpa: number;
   parent: string;
+  /** Canonical storage key when present (API mode). */
+  photoAssetPath: string | null;
 };
 
 export type StudentDetailItem = StudentListItem & {
@@ -75,6 +77,8 @@ export type StudentDetailItem = StudentListItem & {
   emergencyContact: string | null;
   house: string | null;
   legacyCode: string | null;
+  photoAssetPath: string | null;
+  photoUrl: string | null;
   updatedAt: string;
 };
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useReloadKey } from "@/hooks/useReloadKey";
+import { usePersonPhotoUrl } from "@/hooks/usePersonPhotoUrl";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Pencil, Save, Trash2, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
@@ -211,6 +212,7 @@ export function StudentProfileApiPage({ studentId }: { studentId: string }) {
 
   const hint = detailHint(detailView.status, detailView.errorMessage);
   const displayStudent = detailView.detailValid ? detailView.student : null;
+  const photo = usePersonPhotoUrl("student", displayStudent?.id, displayStudent?.photoAssetPath);
 
   const startEdit = () => {
     if (!writesEnabled || !displayStudent) return;
@@ -467,7 +469,7 @@ export function StudentProfileApiPage({ studentId }: { studentId: string }) {
                 title={displayStudent.name}
                 hint={`${displayStudent.grade} · ${displayStudent.admissionNumber ?? "No admission no."}`}
                 action={
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Pill tone={statusTone(displayStudent.status)}>{displayStudent.status}</Pill>
                     <Pill tone={displayStudent.accessStatus === "active" ? "success" : "warning"}>
                       {displayStudent.accessStatus}
@@ -475,7 +477,24 @@ export function StudentProfileApiPage({ studentId }: { studentId: string }) {
                   </div>
                 }
               />
-              <div className="grid gap-4 px-4 pb-5 sm:grid-cols-2 sm:px-5 lg:grid-cols-3">
+              <div className="flex flex-col gap-4 px-4 pb-5 sm:flex-row sm:items-start sm:px-5">
+                {photo.data ? (
+                  <img
+                    src={photo.data}
+                    alt=""
+                    className="size-24 shrink-0 rounded-2xl object-cover ring-2 ring-border bg-primary/10 sm:size-28"
+                  />
+                ) : (
+                  <div className="flex size-24 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-lg font-semibold text-primary ring-2 ring-border sm:size-28">
+                    {displayStudent.name
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")
+                      .slice(0, 2)
+                      .toUpperCase()}
+                  </div>
+                )}
+                <div className="grid min-w-0 flex-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <DetailField label="Roll no." value={displayStudent.rollNo} />
                 <DetailField label="Class" value={displayStudent.classLabel} />
                 <DetailField label="Section" value={displayStudent.sectionLabel} />
@@ -485,6 +504,7 @@ export function StudentProfileApiPage({ studentId }: { studentId: string }) {
                 <DetailField label="Blood group" value={displayStudent.bloodGroup} />
                 <DetailField label="Emergency contact" value={displayStudent.emergencyContact} />
                 <DetailField label="Legacy code" value={displayStudent.legacyCode} />
+                </div>
               </div>
             </Card>
             <Card>

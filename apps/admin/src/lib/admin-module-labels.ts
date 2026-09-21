@@ -45,6 +45,7 @@ export const ADMIN_MODULE_LABELS = {
   reports: "Reports",
   performance: "Performance",
   setup: "Setup",
+  photos: "Photos",
 } as const;
 
 /** Primary route → label (used by sidebar, mobile nav, and titles). */
@@ -53,6 +54,7 @@ export const ADMIN_MODULE_LABEL_BY_ROUTE: Record<string, string> = {
   "/analytics": ADMIN_MODULE_LABELS.analytics,
   "/students": ADMIN_MODULE_LABELS.students,
   "/teachers": ADMIN_MODULE_LABELS.teachers,
+  "/photos": ADMIN_MODULE_LABELS.photos,
   "/parents": ADMIN_MODULE_LABELS.parents,
   "/accounts": ADMIN_MODULE_LABELS.accounts,
   "/classes": ADMIN_MODULE_LABELS.classes,

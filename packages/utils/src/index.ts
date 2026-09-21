@@ -384,11 +384,14 @@ export {
 } from "./dashboard-layout";
 export {
   SIMPLE_UPLOAD_LIMITS,
+  PROFILE_PHOTO_COMPRESS,
   compressImageToDataUrl,
+  prepareProfilePhotoFile,
   processSimpleUpload,
   simpleUploadAccept,
   simpleUploadExtensions,
   simpleUploadLimitLabel,
+  profilePhotoCompressLabel,
   isAllowedSimpleUploadName,
   isPdfFile,
   isImageFile,

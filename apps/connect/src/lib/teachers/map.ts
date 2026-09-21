@@ -15,16 +15,19 @@ import type { WeeklyTimetable } from "@/lib/timetable/types";
 
 export function facultyMemberToCard(member: PortalLearnerFacultyMemberDto): LearnerTeacherCard {
   const subjects = member.subjects.filter(Boolean);
+  const photoUrl = member.photoSignedUrl?.trim() || undefined;
+  const phone = member.phone?.trim() || undefined;
   return {
     id: member.id,
     name: member.displayName,
     subject: subjects.length > 0 ? subjects.join(", ") : member.department,
     isClassTeacher: member.isClassTeacher,
-    phone: member.phone?.trim() || "—",
+    phone,
     initials: getInitials(member.displayName, 2),
     email: member.email?.trim() || undefined,
     qualification: member.qualification?.trim() || undefined,
     department: member.department,
+    photoUrl,
   };
 }
 
@@ -32,7 +35,10 @@ export function facultyDtoToCards(dto: PortalLearnerFacultyDto): LearnerTeacherC
   return dto.teachers.map(facultyMemberToCard);
 }
 
-export function portalTeacherSelfToProfile(dto: PortalTeacherSelfDto): TeacherProfile {
+export function portalTeacherSelfToProfile(
+  dto: PortalTeacherSelfDto,
+  photoUrl?: string | null,
+): TeacherProfile {
   const classLabels = dto.assignments.map(
     (assignment) => `${assignment.classLabel}-${assignment.sectionLabel}`,
   );
@@ -42,6 +48,10 @@ export function portalTeacherSelfToProfile(dto: PortalTeacherSelfDto): TeacherPr
       ...dto.assignments.flatMap((assignment) => assignment.subjects),
     ]),
   ];
+  const avatar =
+    photoUrl?.trim() ||
+    dto.photoSignedUrl?.trim() ||
+    undefined;
 
   return {
     id: dto.teacherId,
@@ -55,6 +65,7 @@ export function portalTeacherSelfToProfile(dto: PortalTeacherSelfDto): TeacherPr
     department: dto.department,
     joinedOn: dto.joinedOn ?? "—",
     bio: dto.qualification?.trim() || undefined,
+    avatar,
   };
 }
 

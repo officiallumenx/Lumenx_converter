@@ -170,8 +170,12 @@ export function TeacherProfilePage({
         <div className="flex min-w-0 items-start gap-3 sm:gap-4">
           <div className="relative shrink-0">
             <Avatar className="size-14 shrink-0 ring-2 ring-primary/10 sm:size-16">
-              {avatarPreview || user.avatar ? (
-                <AvatarImage src={avatarPreview || user.avatar} alt="" className="object-cover" />
+              {avatarPreview || profile.avatar || user.avatar ? (
+                <AvatarImage
+                  src={avatarPreview || profile.avatar || user.avatar}
+                  alt=""
+                  className="object-cover"
+                />
               ) : null}
               <AvatarFallback className="bg-gradient-to-br from-violet-600 to-indigo-700 font-display text-lg text-white sm:text-xl">
                 {getInitials(profile.name, 2)}

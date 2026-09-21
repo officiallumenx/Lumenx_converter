@@ -50,8 +50,13 @@ const studentListItem: StudentListItem = {
   status: "active",
   accessStatus: "active",
   gender: "female",
+  dateOfBirth: null,
+  attendance: 0,
+  gpa: 0,
+  parent: "",
+  photoAssetPath: null,
   instituteId: INST,
-};
+} as StudentListItem & { instituteId: string };
 
 const teacherListItem: TeacherListItem = {
   id: TEACHER,
@@ -72,6 +77,8 @@ const teacherListItem: TeacherListItem = {
   qualification: "M.Sc",
   lastLogin: "",
   credentialsSentAt: null,
+  photoAssetPath: null,
+  photoUrl: null,
   identityLabel: "T-1",
 };
 

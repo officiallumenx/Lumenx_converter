@@ -93,6 +93,8 @@ export function teacherDtoToListItem(dto: TeacherDto): TeacherListItem {
     qualification: dto.qualification?.trim() || "",
     lastLogin: "—",
     credentialsSentAt: null,
+    photoAssetPath: dto.photoAssetPath ?? null,
+    photoUrl: null,
     identityLabel: teacherIdentityLabel(dto),
   };
 }

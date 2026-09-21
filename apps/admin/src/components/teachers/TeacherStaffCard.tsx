@@ -1,6 +1,7 @@
 import { memo, type KeyboardEvent, type MouseEvent } from "react";
 import { Button, Card } from "@lumenx/ui-admin";
 import { KeyRound, Mail } from "lucide-react";
+import { usePersonPhotoUrl } from "@/hooks/usePersonPhotoUrl";
 import {
   TeacherAvatar,
   TeacherRolePill,
@@ -8,11 +9,17 @@ import {
   type Teacher,
 } from "./TeacherDisplay";
 
+export type StaffCardTeacher = Teacher & {
+  photoAssetPath?: string | null;
+  photoUrl?: string | null;
+  identityLabel?: string;
+};
+
 type TeacherStaffCardProps = {
-  teacher: Teacher;
-  onOpen: (teacher: Teacher) => void;
-  onMessage: (teacher: Teacher) => void;
-  onReset: (teacher: Teacher) => void;
+  teacher: StaffCardTeacher;
+  onOpen: (teacher: StaffCardTeacher) => void;
+  onMessage: (teacher: StaffCardTeacher) => void;
+  onReset: (teacher: StaffCardTeacher) => void;
 };
 
 export const TeacherStaffCard = memo(function TeacherStaffCard({
@@ -21,6 +28,15 @@ export const TeacherStaffCard = memo(function TeacherStaffCard({
   onMessage,
   onReset,
 }: TeacherStaffCardProps) {
+  const photo = usePersonPhotoUrl(
+    "teacher",
+    teacher.id,
+    teacher.photoAssetPath,
+  );
+  const photoUrl = teacher.photoUrl ?? photo.data ?? null;
+  const identityCode =
+    teacher.identityLabel?.trim() || teacher.employeeId || teacher.id;
+
   const handleOpen = () => onOpen(teacher);
   const handleKeyDown = (e: KeyboardEvent) => {
     if (e.key === "Enter" || e.key === " ") {
@@ -49,10 +65,12 @@ export const TeacherStaffCard = memo(function TeacherStaffCard({
     >
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <TeacherAvatar name={teacher.name} />
+          <TeacherAvatar name={teacher.name} photoUrl={photoUrl} />
           <div>
             <div className="text-sm font-medium">{teacher.name}</div>
-            <div className="text-[10px] text-muted-foreground font-mono mt-0.5">{teacher.id}</div>
+            <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
+              {identityCode}
+            </div>
           </div>
         </div>
         <TeacherStatusPill status={teacher.status} />

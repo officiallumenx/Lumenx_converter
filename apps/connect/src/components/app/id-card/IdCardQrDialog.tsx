@@ -10,7 +10,10 @@ type IdCardQrDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   verifyUrl: string;
+  /** Internal id used for verification lookup (may be UUID). */
   studentId: string;
+  /** Optional human-facing label instead of the internal id. */
+  displayId?: string;
   name: string;
   rollNo: string;
 };
@@ -20,6 +23,7 @@ export function IdCardQrDialog({
   onOpenChange,
   verifyUrl,
   studentId,
+  displayId,
   name,
   rollNo,
 }: IdCardQrDialogProps) {
@@ -28,6 +32,8 @@ export function IdCardQrDialog({
     const origin = typeof window !== "undefined" ? window.location.origin : "";
     return resolveStudentVerificationProfile(studentId, origin);
   }, [open, studentId]);
+
+  const idLabel = displayId?.trim() || "";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -49,7 +55,7 @@ export function IdCardQrDialog({
                 <div className="mt-3 text-center">
                   <p className="font-semibold">{name}</p>
                   <p className="text-sm text-muted-foreground">
-                    {studentId} · Roll {rollNo}
+                    {idLabel ? `${idLabel} · ` : ""}Roll {rollNo}
                   </p>
                 </div>
                 <div className="mt-2 flex items-center gap-1.5 text-xs text-primary">

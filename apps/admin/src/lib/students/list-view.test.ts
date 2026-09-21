@@ -26,6 +26,7 @@ const rowA: StudentListItem = {
   attendance: 0,
   gpa: 0,
   parent: "",
+  photoAssetPath: null,
 };
 
 describe("resolveStudentsListView", () => {

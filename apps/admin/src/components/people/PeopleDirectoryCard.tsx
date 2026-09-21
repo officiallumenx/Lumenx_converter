@@ -1,4 +1,5 @@
 import type { KeyboardEvent, ReactNode } from "react";
+import { usePersonPhotoUrl } from "@/hooks/usePersonPhotoUrl";
 
 function initialsFrom(name: string) {
   return name
@@ -17,6 +18,8 @@ export function PeopleDirectoryCard({
   meta,
   menu,
   onOpen,
+  photoAssetPath = null,
+  photoKind = "student",
 }: {
   name: string;
   id: string;
@@ -24,7 +27,11 @@ export function PeopleDirectoryCard({
   meta?: ReactNode;
   menu?: ReactNode;
   onOpen: () => void;
+  /** Canonical storage key — resolves a signed URL when present. */
+  photoAssetPath?: string | null;
+  photoKind?: "student" | "teacher";
 }) {
+  const photo = usePersonPhotoUrl(photoKind, id, photoAssetPath);
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
@@ -40,8 +47,16 @@ export function PeopleDirectoryCard({
       onKeyDown={onKeyDown}
       className="lx-people-card"
     >
-      <div className="lx-people-card__avatar" aria-hidden>
-        {initialsFrom(name)}
+      <div className="lx-people-card__avatar overflow-hidden" aria-hidden>
+        {photo.data ? (
+          <img
+            src={photo.data}
+            alt=""
+            className="size-full object-cover"
+          />
+        ) : (
+          initialsFrom(name)
+        )}
       </div>
       <div className="lx-people-card__body min-w-0">
         <div className="flex items-start justify-between gap-2">

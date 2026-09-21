@@ -12,7 +12,6 @@ import {
   Check,
   School,
   Loader2,
-  QrCode,
 } from "lucide-react";
 import { Button } from "@lumenx/ui";
 import { Input } from "@lumenx/ui";
@@ -442,13 +441,6 @@ function LoginPage() {
 
   return (
     <div className="min-h-screen-dvh relative bg-background overflow-hidden">
-      <Link
-        to="/verify-certificate"
-        className="absolute right-4 top-4 z-20 inline-flex items-center gap-2 rounded-xl border border-border/80 bg-card/90 px-3 py-2 text-xs font-medium text-foreground shadow-soft backdrop-blur-sm hover:bg-muted/50"
-      >
-        <QrCode className="size-4 text-primary" />
-        Verify certificate
-      </Link>
       <div className="absolute inset-0 bg-gradient-hero pointer-events-none" />
       <div className="relative grid min-h-screen-dvh lg:grid-cols-2">
         <aside className="hidden lg:flex flex-col justify-between p-12 bg-gradient-primary text-primary-foreground">

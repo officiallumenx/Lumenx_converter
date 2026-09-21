@@ -29,6 +29,8 @@ const detailA: StudentDetailItem = {
   emergencyContact: null,
   house: null,
   legacyCode: null,
+  photoAssetPath: null,
+  photoUrl: null,
   updatedAt: "2026-06-01T10:00:00Z",
 };
 

@@ -25,6 +25,7 @@ export function studentDtoToTeacherDetail(
   dto: StudentDto,
   guardians: StudentGuardianDto[] = [],
   remarks: StudentRemark[] = [],
+  photoUrl: string | null = null,
 ): StudentDetail {
   const name = studentDisplayName(dto);
   const primary = guardians.find((g) => g.isPrimary) ?? guardians[0];
@@ -40,6 +41,7 @@ export function studentDtoToTeacherDetail(
     avgScore: 0,
     grade: dto.classLabel?.trim() || "—",
     avatarInitials: studentInitials(name),
+    photoUrl,
     parentName: primary?.parentName ?? "—",
     parentPhone: primary?.phone?.trim() || "—",
     parentEmail: primary?.email?.trim() || undefined,
@@ -60,7 +62,12 @@ export function studentDtoToTeacherDetail(
 
 export function studentDtoToProfile(
   dto: StudentDto,
-  extras: { email?: string; institute?: string; parentName?: string } = {},
+  extras: {
+    email?: string;
+    institute?: string;
+    parentName?: string;
+    photoUrl?: string | null;
+  } = {},
 ): StudentProfile {
   const name = studentDisplayName(dto);
   return {
@@ -81,6 +88,10 @@ export function studentDtoToProfile(
     classTeacher: "",
     institute: extras.institute?.trim() || "Institute",
     address: dto.address?.trim() || "—",
+    admissionNumber: dto.admissionNumber?.trim() || null,
+    legacyCode: dto.legacyCode?.trim() || null,
+    photoAssetPath: dto.photoAssetPath ?? null,
+    photoUrl: extras.photoUrl ?? null,
   };
 }
 

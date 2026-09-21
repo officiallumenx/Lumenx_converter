@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { Check, TrendingUp, TrendingDown, Minus } from "lucide-react";
-import { Avatar, AvatarFallback } from "@lumenx/ui";
+import { Avatar, AvatarFallback, AvatarImage } from "@lumenx/ui";
 import { useApp } from "@/lib/app-state";
 import { cn } from "@lumenx/ui";
 
@@ -54,6 +54,9 @@ export const ChildSwitcher = memo(function ChildSwitcher() {
             >
               <div className="flex items-center gap-2">
                 <Avatar className={cn("size-9 shrink-0", active && "ring-1 ring-primary/35")}>
+                  {c.photoUrl ? (
+                    <AvatarImage src={c.photoUrl} alt="" className="object-cover" />
+                  ) : null}
                   <AvatarFallback
                     className={cn(
                       "text-xs font-semibold",

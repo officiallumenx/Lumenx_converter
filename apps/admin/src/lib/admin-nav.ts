@@ -38,6 +38,7 @@ import {
   CalendarDays,
   NotebookPen,
   CreditCard,
+  Camera,
   type LucideIcon,
 } from "lucide-react";
 import { ADMIN_MODULE_LABEL_BY_ROUTE as L } from "@/lib/admin-module-labels";
@@ -62,6 +63,7 @@ export const adminNav: readonly AdminNavGroup[] = [
     items: [
       { to: "/students", label: L["/students"],          icon: Users          },
       { to: "/teachers", label: L["/teachers"],          icon: GraduationCap  },
+      { to: "/photos",   label: L["/photos"],            icon: Camera         },
       { to: "/parents",  label: L["/parents"],           icon: Heart          },
       { to: "/accounts", label: L["/accounts"], icon: KeyRound       },
     ],

@@ -1,4 +1,5 @@
 import { BookOpen, Calendar, Eye, EyeOff, KeyRound, Mail, Phone, Shield } from "lucide-react";
+import { usePersonPhotoUrl } from "@/hooks/usePersonPhotoUrl";
 import {
   TeacherAvatar,
   TeacherChip,
@@ -11,7 +12,7 @@ import {
 } from "./TeacherDisplay";
 
 type TeacherProfileReadonlyProps = {
-  teacher: Teacher;
+  teacher: Teacher & { photoAssetPath?: string | null };
   showPassword: boolean;
   onTogglePassword: () => void;
 };
@@ -21,10 +22,19 @@ export function TeacherProfileReadonly({
   showPassword,
   onTogglePassword,
 }: TeacherProfileReadonlyProps) {
+  const photo = usePersonPhotoUrl(
+    "teacher",
+    selected.id,
+    selected.photoAssetPath,
+  );
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-4">
-        <TeacherAvatar name={selected.name} size="lg" />
+        <TeacherAvatar
+          name={selected.name}
+          size="lg"
+          photoUrl={photo.data ?? null}
+        />
         <div className="flex-1 min-w-0">
           <div className="text-base font-semibold">{selected.name}</div>
           <div className="mt-2 flex flex-wrap gap-1.5">

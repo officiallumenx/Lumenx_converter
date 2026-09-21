@@ -89,6 +89,7 @@ import {
 import { TeacherStaffCard } from "@/components/teachers/TeacherStaffCard";
 import { TeacherProfileReadonly } from "@/components/teachers/TeacherProfileReadonly";
 import { coerceSelectValue } from "@lumenx/utils";
+import { usePersonPhotoUrl } from "@/hooks/usePersonPhotoUrl";
 
 export const Route = createFileRoute("/teachers")({
   head: () => ({ meta: [{ title: "Teachers — LumenX Admin" }] }),
@@ -1179,7 +1180,7 @@ function TeachersPage() {
                 key={t.id}
                 teacher={t as Teacher}
                 onOpen={(teacher) => openDetail(teacher)}
-                onMessage={(teacher) => openMessage(teacher)}
+                onMessage={(teacher) => openMessage(teacher as Teacher)}
                 onReset={(teacher) => {
                   if (!guardWrite()) return;
                   setResetTarget(teacher as Teacher);
@@ -1974,6 +1975,10 @@ function TeachersPage() {
   );
 }
 
+function teacherPhotoAssetPath(teacher: TeacherRow): string | null {
+  return "photoAssetPath" in teacher ? (teacher.photoAssetPath ?? null) : null;
+}
+
 function TeacherDirectoryCard({
   teacher,
   onOpen,
@@ -1981,6 +1986,11 @@ function TeacherDirectoryCard({
   teacher: TeacherRow;
   onOpen: (teacher: TeacherRow) => void;
 }) {
+  const photo = usePersonPhotoUrl(
+    "teacher",
+    teacher.id,
+    teacherPhotoAssetPath(teacher),
+  );
   return (
     <Card
       interactive
@@ -1998,7 +2008,7 @@ function TeacherDirectoryCard({
     >
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <TeacherAvatar name={teacher.name} />
+          <TeacherAvatar name={teacher.name} photoUrl={photo.data ?? null} />
           <div>
             <div className="text-sm font-medium">{teacher.name}</div>
             <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
@@ -2045,12 +2055,21 @@ function ApiTeacherProfileSummary({
   assignmentSubjects?: string[];
   classTeacherLabel?: string | null;
 }) {
+  const photo = usePersonPhotoUrl(
+    "teacher",
+    teacher.id,
+    teacherPhotoAssetPath(teacher),
+  );
   const subjects =
     teacher.subjects.length > 0 ? teacher.subjects : assignmentSubjects;
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-4">
-        <TeacherAvatar name={teacher.name} size="lg" />
+        <TeacherAvatar
+          name={teacher.name}
+          size="lg"
+          photoUrl={photo.data ?? null}
+        />
         <div className="flex-1 min-w-0">
           <div className="text-base font-semibold">{teacher.name}</div>
           <div className="mt-2 flex flex-wrap gap-1.5">

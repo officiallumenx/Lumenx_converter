@@ -1,6 +1,7 @@
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/institute-id";
+import { getPhotoSignedUrl } from "@/lib/photos/api";
 import { getLearnerFacultyPortal, getTeacherSelfPortal } from "./api";
 import {
   buildTeacherDashboardFromApi,
@@ -21,6 +22,19 @@ export type LearnerTeachersLoadStatus =
   | "error"
   | "needs_institute"
   | "forbidden";
+
+async function resolveTeacherPhotoUrl(
+  teacherId: string,
+  photoAssetPath: string | null | undefined,
+): Promise<string | undefined> {
+  if (!photoAssetPath?.trim()) return undefined;
+  try {
+    const signed = await getPhotoSignedUrl("teacher", teacherId);
+    return signed.photoSignedUrl ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export async function loadLearnerTeachers(input: {
   instituteId: string | null;
@@ -113,7 +127,15 @@ export async function loadTeacherPortalBundle(input: {
     loadTeacherPortalProfile({ instituteId: input.instituteId }),
     loadTeacherTimetable({ instituteId: input.instituteId }),
   ]);
-  const profile = portalTeacherSelfToProfile(portalSelf);
+  // Prefer portal-provided signed URL; fall back to photos signed-url endpoint.
+  let photoUrl = portalSelf.photoSignedUrl?.trim() || undefined;
+  if (!photoUrl && portalSelf.photoAssetPath?.trim()) {
+    photoUrl = await resolveTeacherPhotoUrl(
+      portalSelf.teacherId,
+      portalSelf.photoAssetPath,
+    );
+  }
+  const profile = portalTeacherSelfToProfile(portalSelf, photoUrl);
   const base = buildTeacherDashboardFromApi({
     schedule: timetable.schedule,
     todayName: getTodayDayName(),

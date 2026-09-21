@@ -548,6 +548,19 @@ describe("teachers — portal reads", () => {
         body.data.teachers as Array<{ displayName: string; isClassTeacher: boolean }>
       ).find((t) => t.displayName === "Ravi Mehta");
       expect(subjectOnly?.isClassTeacher).toBe(false);
+      const withPhone = (
+        body.data.teachers as Array<{ phone: string | null; photoSignedUrl: string | null }>
+      ).find((t) => t.phone != null);
+      expect(withPhone).toBeUndefined();
+      for (const teacher of body.data.teachers as Array<{
+        phone: string | null;
+        photoAssetPath: string | null;
+        photoSignedUrl: string | null;
+      }>) {
+        expect(teacher.phone).toBeNull();
+        expect(teacher).toHaveProperty("photoAssetPath");
+        expect(teacher).toHaveProperty("photoSignedUrl");
+      }
     }
   });
 

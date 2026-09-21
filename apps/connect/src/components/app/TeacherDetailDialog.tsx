@@ -5,7 +5,6 @@ import {
   DialogHeader,
   DialogTitle,
   Badge,
-  Button,
   cn,
 } from "@lumenx/ui";
 import { Crown, Mail, Phone } from "lucide-react";
@@ -13,6 +12,34 @@ import { teachers } from "@/lib/mock-data";
 import type { LearnerTeacherCard } from "@/lib/teachers/types";
 
 export type TeacherRecord = (typeof teachers)[number] | LearnerTeacherCard;
+
+function TeacherAvatar({
+  teacher,
+  className,
+}: {
+  teacher: TeacherRecord;
+  className?: string;
+}) {
+  const photoUrl =
+    "photoUrl" in teacher && typeof teacher.photoUrl === "string"
+      ? teacher.photoUrl.trim() || undefined
+      : undefined;
+
+  if (photoUrl) {
+    return <img src={photoUrl} alt="" className={cn("object-cover", className)} />;
+  }
+
+  return (
+    <div
+      className={cn(
+        "grid place-items-center bg-primary/15 font-display font-semibold text-primary",
+        className,
+      )}
+    >
+      {teacher.initials}
+    </div>
+  );
+}
 
 export function TeacherDetailDialog({
   teacher,
@@ -31,6 +58,7 @@ export function TeacherDetailDialog({
   const qualification =
     "qualification" in t && t.qualification ? t.qualification : undefined;
   const department = "department" in t && t.department ? t.department : undefined;
+  const phone = "phone" in t && t.phone?.trim() ? t.phone.trim() : undefined;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -51,9 +79,10 @@ export function TeacherDetailDialog({
 
         <div className="space-y-4">
           <div className="flex items-center gap-3">
-            <div className="grid size-14 place-items-center rounded-2xl bg-primary/15 font-display text-lg font-semibold text-primary">
-              {t.initials}
-            </div>
+            <TeacherAvatar
+              teacher={t}
+              className="size-14 shrink-0 rounded-2xl text-lg ring-4 ring-primary/10"
+            />
             <div>
               <div className="font-medium">{t.subject}</div>
               {department ? (
@@ -81,10 +110,12 @@ export function TeacherDetailDialog({
                 <span className="break-all">{t.email}</span>
               </li>
             ) : null}
-            <li className="flex items-center gap-2">
-              <Phone className="size-4 shrink-0 text-muted-foreground" />
-              {t.phone}
-            </li>
+            {phone ? (
+              <li className="flex items-center gap-2">
+                <Phone className="size-4 shrink-0 text-muted-foreground" />
+                {phone}
+              </li>
+            ) : null}
             {"room" in t && t.room ? (
               <li className="flex items-start gap-2">
                 <span className="mt-0.5 text-muted-foreground">Room</span>
@@ -126,6 +157,9 @@ export function TeacherCard({
   teacher: TeacherRecord;
   onSelect: (id: string) => void;
 }) {
+  const phone =
+    "phone" in teacher && teacher.phone?.trim() ? teacher.phone.trim() : undefined;
+
   return (
     <button
       type="button"
@@ -144,12 +178,15 @@ export function TeacherCard({
           </Badge>
         </>
       )}
-      <div className="grid size-14 place-items-center rounded-full bg-primary/15 font-display text-lg font-semibold text-primary ring-4 ring-primary/10">
-        {teacher.initials}
-      </div>
+      <TeacherAvatar
+        teacher={teacher}
+        className="size-14 rounded-full text-lg ring-4 ring-primary/10"
+      />
       <h3 className="mt-3 line-clamp-2 font-semibold leading-snug">{teacher.name}</h3>
       <div className="truncate text-sm text-muted-foreground">{teacher.subject}</div>
-      <div className="mt-1 truncate text-xs text-muted-foreground">{teacher.phone}</div>
+      {phone ? (
+        <div className="mt-1 truncate text-xs text-muted-foreground">{phone}</div>
+      ) : null}
       <div className="mt-3 text-xs font-medium text-primary">View profile →</div>
     </button>
   );

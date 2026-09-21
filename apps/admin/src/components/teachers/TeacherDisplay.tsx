@@ -43,11 +43,23 @@ export function TeacherRolePill({ role }: { role: TeacherRole }) {
 export function TeacherAvatar({
   name,
   size = "md",
+  photoUrl = null,
 }: {
   name: string;
   size?: "md" | "lg";
+  /** Canonical profile photo signed URL when available. */
+  photoUrl?: string | null;
 }) {
   const sizeClass = size === "lg" ? "size-16 text-sm" : "size-11 text-xs";
+  if (photoUrl) {
+    return (
+      <img
+        src={photoUrl}
+        alt=""
+        className={`${sizeClass} rounded-full object-cover ring-2 ring-border shrink-0 bg-primary/10`}
+      />
+    );
+  }
   return (
     <div
       className={`${sizeClass} rounded-full bg-gradient-to-br from-primary/30 to-chart-5/30 ring-2 ring-border flex items-center justify-center font-semibold`}

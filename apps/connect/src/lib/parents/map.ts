@@ -21,7 +21,12 @@ function scoreTrend(current: number, previous: number | null): Child["trend"] {
 export function studentDtoToChild(
   dto: StudentDto,
   index: number,
-  metrics: { attendancePct: number; avgScore: number; trend: Child["trend"] } = {
+  metrics: {
+    attendancePct: number;
+    avgScore: number;
+    trend: Child["trend"];
+    photoUrl?: string | null;
+  } = {
     attendancePct: 0,
     avgScore: 0,
     trend: "flat",
@@ -39,6 +44,7 @@ export function studentDtoToChild(
     avgScore: Math.round(metrics.avgScore),
     trend: metrics.trend,
     accent: ACCENTS[index % ACCENTS.length] ?? "primary",
+    photoUrl: metrics.photoUrl?.trim() || null,
   };
 }
 

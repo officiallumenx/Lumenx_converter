@@ -129,6 +129,14 @@ export const MODULE_CATALOG: ModuleDef[] = [
     description: "Faculty records and ratings",
   },
   {
+    id: "photos",
+    label: M.photos,
+    route: "/photos",
+    minPlan: "core",
+    group: "Core",
+    description: "Assign profile photos for staff and students",
+  },
+  {
     id: "parents",
     label: "Parents",
     route: "/parents",

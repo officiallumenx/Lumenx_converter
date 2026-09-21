@@ -31,6 +31,8 @@ function teacherStub(
     lastLogin: "",
     credentialsSentAt: null,
     identityLabel: partial.name,
+    photoAssetPath: null,
+    photoUrl: null,
     ...partial,
   };
 }

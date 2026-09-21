@@ -62,7 +62,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@lumenx/ui";
-import { Avatar, AvatarFallback } from "@lumenx/ui";
+import { Avatar, AvatarFallback, AvatarImage } from "@lumenx/ui";
 import { Sheet, SheetTrigger } from "@lumenx/ui";
 import { PendingSyncBadge } from "@lumenx/ui";
 import { DataRefreshHost } from "@/components/DataRefreshHost";
@@ -118,6 +118,7 @@ import {
 import { PORTAL_LABEL, PortalMark } from "@/components/app/PortalMark";
 import { useParentPortal } from "@/context/ParentPortalContext";
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
+import { useStudentPortal } from "@/context/StudentPortalContext";
 import { formatUnreadBadgeCount, useConnectUnreadBadge } from "@/lib/use-connect-unread-badge";
 import { useConnectAlertBadge } from "@/lib/use-connect-alert-badge";
 import { getConnectProtectedRouteDecision } from "@/auth/protected-route";
@@ -260,6 +261,7 @@ function AuthenticatedAppShell({ children }: { children?: ReactNode }) {
 
   const isTeacher = role === "teacher";
   const teacherPortal = useTeacherPortal();
+  const studentPortal = useStudentPortal();
   const portalAccess = useTeacherPortalAccess();
   const onActivityPath = isActivityWorkspacePath(loc.pathname);
   const useActivityNav =
@@ -688,6 +690,23 @@ function AuthenticatedAppShell({ children }: { children?: ReactNode }) {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="px-2 gap-2" aria-label="Account menu">
                   <Avatar className="size-8">
+                    {(role === "teacher"
+                      ? teacherPortal.profile?.avatar
+                      : role === "student"
+                        ? studentPortal.snapshot?.profile.photoUrl
+                        : undefined) || user.avatar ? (
+                      <AvatarImage
+                        src={
+                          (role === "teacher"
+                            ? teacherPortal.profile?.avatar
+                            : role === "student"
+                              ? studentPortal.snapshot?.profile.photoUrl
+                              : undefined) || user.avatar
+                        }
+                        alt=""
+                        className="object-cover"
+                      />
+                    ) : null}
                     <AvatarFallback className="bg-primary text-primary-foreground text-xs">
                       {getInitials(user.name, 2)}
                     </AvatarFallback>

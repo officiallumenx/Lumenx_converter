@@ -15,6 +15,7 @@ import { cn } from "@lumenx/ui";
 
 export type IdCardDetails = {
   id: string;
+  displayId?: string;
   rollNo: string;
   className: string;
   section: string;
@@ -34,11 +35,15 @@ function emptyLabel(value: string | undefined): string {
 }
 
 export function IdCardDetailsPanel({ details }: { details: IdCardDetails }) {
+  const displayId = details.displayId?.trim() || "";
+
   return (
     <SectionCard title="Card details" className="h-full">
       <div className="space-y-4">
         <DetailGroup title="Identity">
-          <DetailItem icon={IdCard} label="Student ID" value={details.id} />
+          {displayId ? (
+            <DetailItem icon={IdCard} label="Admission no." value={displayId} />
+          ) : null}
           <DetailItem icon={User} label="Roll number" value={emptyLabel(details.rollNo)} />
           <DetailItem
             icon={Building2}

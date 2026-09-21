@@ -33,6 +33,7 @@ export type TeacherDto = {
   subjects: string[] | null;
   assignedSectionLabels: string[] | null;
   sourceCareerApplicationId: string | null;
+  photoAssetPath: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -65,6 +66,10 @@ export type TeacherListItem = {
   /** Demo-compat — hidden in API UI. */
   credentialsSentAt: string | null;
   /** Short identity label for cards (employee/legacy code, not tenant authority). */
+  /** Canonical storage key when present. */
+  photoAssetPath: string | null;
+  /** Short-lived signed URL when resolved. */
+  photoUrl: string | null;
   identityLabel: string;
 };
 

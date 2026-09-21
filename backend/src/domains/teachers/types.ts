@@ -31,6 +31,8 @@ export type TeacherRow = {
   subjects: string[] | null;
   assigned_section_labels: string[] | null;
   source_career_application_id: string | null;
+  /** Private Storage object key (not a public URL). */
+  photo_asset_path: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -55,6 +57,8 @@ export type TeacherDto = {
   subjects: string[] | null;
   assignedSectionLabels: string[] | null;
   sourceCareerApplicationId: string | null;
+  /** Private Storage object key (not a public URL). */
+  photoAssetPath: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -119,6 +123,8 @@ export type UpdateTeacherInput = {
    * Subject placements (teacher_assignment) are unchanged.
    */
   classTeacherSectionIds?: string[];
+  /** Private Storage object key (not a public URL). */
+  photoAssetPath?: string | null;
 };
 
 export type ListTeachersFilter = {
@@ -135,9 +141,12 @@ export type PortalLearnerFacultyMemberDto = {
   qualification: string | null;
   subjects: string[];
   isClassTeacher: boolean;
+  /** Always null for parent/learner faculty — phones are not exposed. */
   phone: string | null;
   email: string | null;
   status: TeacherStatus;
+  photoAssetPath: string | null;
+  photoSignedUrl: string | null;
 };
 
 export type PortalLearnerFacultyDto = {
@@ -172,5 +181,7 @@ export type PortalTeacherSelfDto = {
   subjects: string[] | null;
   assignedSectionLabels: string[] | null;
   joinedOn: string | null;
+  photoAssetPath: string | null;
+  photoSignedUrl: string | null;
   assignments: PortalTeacherAssignmentSummaryDto[];
 };

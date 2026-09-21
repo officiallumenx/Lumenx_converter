@@ -2,6 +2,7 @@
 
 import { CONNECT_LEARNER_TO_STUDENT_ID } from "@lumenx/utils";
 
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { formatStudentGradeDisplay, parseClassSection } from "@/lib/class-section-filter";
 
 export const STUDENT_ID_CARD_SYNC_KEY = "lumenx.shared.studentIdCards.v1";
@@ -115,6 +116,8 @@ export function toIdCardSyncRow(record: StudentIdCardSource): StudentIdCardSyncR
 }
 
 export function publishStudentIdCardSync(records: readonly StudentIdCardSource[]): void {
+  // API mode uses signed URLs from the photos API — avoid dual localStorage photo sources.
+  if (isApiAuthMode()) return;
   const snapshot: StudentIdCardSyncSnapshot = {
     updatedAt: new Date().toISOString(),
     students: records.map(toIdCardSyncRow),

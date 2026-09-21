@@ -55,6 +55,7 @@ export function studentDtoToListItem(dto: StudentDto): StudentListItem {
     attendance: 0,
     gpa: 0,
     parent: "",
+    photoAssetPath: dto.photoAssetPath ?? null,
   };
 }
 
@@ -68,6 +69,8 @@ export function studentDtoToDetailItem(dto: StudentDto): StudentDetailItem {
     emergencyContact: dto.emergencyContact?.trim() || null,
     house: dto.house?.trim() || null,
     legacyCode: dto.legacyCode?.trim() || null,
+    photoAssetPath: dto.photoAssetPath ?? null,
+    photoUrl: null,
     updatedAt: dto.updatedAt,
   };
 }

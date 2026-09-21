@@ -114,7 +114,6 @@ export function StudentVerifyView({ profile, compact = false }: StudentVerifyVie
             {emptyLabel(identity.class)} · Sec {emptyLabel(identity.section)} · Roll{" "}
             {emptyLabel(identity.rollNo)}
           </p>
-          <p className="mt-0.5 text-xs font-medium text-muted-foreground">{identity.studentId}</p>
         </div>
         <dl className="grid grid-cols-2 gap-px border-t border-border bg-border text-sm">
           <InfoCell icon={Building2} label="House" value={emptyLabel(identity.house)} />

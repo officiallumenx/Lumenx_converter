@@ -115,9 +115,11 @@ export function IdCardVisual({
             <h3 className="mt-6 text-center font-display text-xl font-bold leading-tight text-slate-900 sm:text-[1.35rem]">
               {name}
             </h3>
-            <span className="mt-1.5 inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 shadow-sm">
-              {sid}
-            </span>
+            {!empty(sid) ? (
+              <span className="mt-1.5 inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 shadow-sm">
+                {sid}
+              </span>
+            ) : null}
           </div>
 
           <div className="mt-5 grid grid-cols-3 gap-2">

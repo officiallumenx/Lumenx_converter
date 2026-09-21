@@ -19,6 +19,12 @@ export interface StudentProfile {
   classTeacher: string;
   institute: string;
   address: string;
+  admissionNumber?: string | null;
+  legacyCode?: string | null;
+  /** Storage object key when a canonical photo exists. */
+  photoAssetPath?: string | null;
+  /** Short-lived signed URL for the profile/ID photo. */
+  photoUrl?: string | null;
 }
 
 export type PerformanceRow = { subject: string; score: number; prev: number };

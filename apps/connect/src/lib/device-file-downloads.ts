@@ -16,7 +16,7 @@ export function downloadStudentIdCardToDevice(card: ConnectIdCardViewModel): { f
     "DIGITAL STUDENT ID CARD",
     "========================================",
     `Name           : ${card.name}`,
-    `Student ID     : ${card.id}`,
+    ...(card.displayId ? [`Admission no.  : ${card.displayId}`] : []),
     `Class / Sec.   : ${card.className}-${card.section}`,
     `Roll No.       : ${card.rollNo}`,
     `House          : ${card.house}`,

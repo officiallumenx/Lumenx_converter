@@ -7,6 +7,7 @@
 export const adminQueryRoots = {
   students: "admin-students",
   teachers: "admin-teachers",
+  photos: "admin-photos",
   classes: "admin-classes",
   subjects: "admin-subjects",
   fees: "admin-fees",
@@ -37,6 +38,12 @@ export const adminQueryKeys = {
     [adminQueryRoots.students, instituteId, q] as const,
   teachers: (instituteId: string, q = "") =>
     [adminQueryRoots.teachers, instituteId, q] as const,
+  photosTeachers: (instituteId: string, q = "") =>
+    [adminQueryRoots.photos, instituteId, "teachers", q] as const,
+  photosStudents: (instituteId: string, classId: string, sectionId: string, q = "") =>
+    [adminQueryRoots.photos, instituteId, "students", classId, sectionId, q] as const,
+  photosSignedUrl: (kind: "student" | "teacher", id: string) =>
+    [adminQueryRoots.photos, "signed-url", kind, id] as const,
   classes: (instituteId: string) => [adminQueryRoots.classes, instituteId] as const,
   subjects: (instituteId: string) => [adminQueryRoots.subjects, instituteId] as const,
   fees: (instituteId: string) => [adminQueryRoots.fees, instituteId] as const,

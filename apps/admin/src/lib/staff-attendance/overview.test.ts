@@ -32,6 +32,8 @@ const teachersById = new Map<string, TeacherListItem>([
       lastLogin: "",
       credentialsSentAt: null,
       identityLabel: "EMP-1",
+      photoAssetPath: null,
+      photoUrl: null,
     },
   ],
   [
@@ -56,6 +58,8 @@ const teachersById = new Map<string, TeacherListItem>([
       lastLogin: "",
       credentialsSentAt: null,
       identityLabel: "EMP-2",
+      photoAssetPath: null,
+      photoUrl: null,
     },
   ],
 ]);

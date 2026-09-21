@@ -9,6 +9,7 @@ import { useStudentPortal } from "@/context/StudentPortalContext";
 import { studentProfile } from "@/lib/mock-data";
 import {
   findIdCardSyncRow,
+  idCardViewFromStudentProfile,
   idCardViewFromSyncRow,
   useStudentIdCardSync,
   type ConnectIdCardViewModel,
@@ -39,10 +40,29 @@ export function StudentIdCardPage() {
   let card: ConnectIdCardViewModel;
   if (syncRow) {
     card = idCardViewFromSyncRow(syncRow);
-    // Prefer logged-in display name when present.
     if (user?.name) {
       card = { ...card, name: user.name, initials: getInitials(user.name, 2) };
     }
+  } else if (isApiAuthMode()) {
+    const displayName = user?.name ?? profile.name;
+    card = idCardViewFromStudentProfile({
+      id: profile.id,
+      name: displayName,
+      className: profile.class,
+      section: profile.section,
+      rollNo: profile.rollNo,
+      bloodGroup: profile.bloodGroup,
+      emergencyContact: profile.emergencyContact,
+      parentName: profile.parentName,
+      house: profile.house,
+      issuedOn: profile.idCardIssuedOn,
+      validTill: profile.idCardValidTill,
+      institute: profile.institute,
+      address: profile.address,
+      photoUrl: profile.photoUrl,
+      admissionNumber: profile.admissionNumber,
+      legacyCode: profile.legacyCode,
+    });
   } else {
     const displayName = user?.name ?? profile.name;
     card = {
@@ -52,6 +72,7 @@ export function StudentIdCardPage() {
       section: profile.section,
       rollNo: profile.rollNo,
       id: profile.id.startsWith("STU-") ? profile.id : lookupId,
+      displayId: profile.id.startsWith("STU-") ? profile.id : "",
       bloodGroup: profile.bloodGroup || "—",
       emergencyContact: profile.emergencyContact || "—",
       parentName: profile.parentName || "—",
@@ -123,7 +144,7 @@ function StudentIdCardContent({
             className={card.className}
             section={card.section}
             rollNo={card.rollNo}
-            sid={card.id}
+            sid={card.displayId}
             address={card.address}
             validTill={card.validTill}
             qrPayload={verifyUrl}
@@ -140,6 +161,7 @@ function StudentIdCardContent({
         onOpenChange={setQrOpen}
         verifyUrl={verifyUrl}
         studentId={card.id}
+        displayId={card.displayId}
         name={card.name}
         rollNo={card.rollNo}
       />

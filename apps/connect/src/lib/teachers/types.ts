@@ -7,9 +7,12 @@ export type PortalLearnerFacultyMemberDto = {
   qualification: string | null;
   subjects: string[];
   isClassTeacher: boolean;
+  /** Always null for parent/learner faculty — phones are not exposed. */
   phone: string | null;
   email: string | null;
   status: "active" | "on_leave" | "pending";
+  photoAssetPath: string | null;
+  photoSignedUrl: string | null;
 };
 
 export type PortalLearnerFacultyDto = {
@@ -44,6 +47,8 @@ export type PortalTeacherSelfDto = {
   subjects: string[] | null;
   assignedSectionLabels: string[] | null;
   joinedOn: string | null;
+  photoAssetPath: string | null;
+  photoSignedUrl: string | null;
   assignments: PortalTeacherAssignmentSummaryDto[];
 };
 
@@ -52,9 +57,11 @@ export type LearnerTeacherCard = {
   name: string;
   subject: string;
   isClassTeacher: boolean;
-  phone: string;
+  /** Omitted when institute policy hides faculty phones from parents. */
+  phone?: string;
   initials: string;
   email?: string;
   qualification?: string;
   department?: string;
+  photoUrl?: string;
 };

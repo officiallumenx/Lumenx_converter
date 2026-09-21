@@ -5,6 +5,7 @@ import type { MeResponse } from "@/lib/api/me-types";
 import { isInstituteUuid } from "@/lib/institute-id";
 import { loadLearnerAttendancePortal } from "@/lib/attendance/load";
 import { loadStudentReportCards } from "@/lib/marks";
+import { getPhotoSignedUrl } from "@/lib/photos/api";
 import { getStudent } from "@/lib/students/api";
 import { getParent } from "./api";
 import { reportCardsToChildMetrics, studentDtoToChild } from "./map";
@@ -22,6 +23,15 @@ function activeLinks(links: GuardianLinkDto[] | undefined): GuardianLinkDto[] {
   return links.filter((link) => link.status === "active" || !link.status);
 }
 
+async function resolveChildPhotoUrl(studentId: string): Promise<string | null> {
+  try {
+    const signed = await getPhotoSignedUrl("student", studentId);
+    return signed.photoSignedUrl;
+  } catch {
+    return null;
+  }
+}
+
 async function childFromLink(
   instituteId: string,
   link: GuardianLinkDto,
@@ -29,7 +39,7 @@ async function childFromLink(
 ): Promise<Child | null> {
   try {
     const dto = await getStudent(link.studentId);
-    const [cardsResult, attendanceResult] = await Promise.all([
+    const [cardsResult, attendanceResult, photoUrl] = await Promise.all([
       loadStudentReportCards({
         instituteId,
         studentId: link.studentId,
@@ -38,6 +48,7 @@ async function childFromLink(
         instituteId,
         studentId: link.studentId,
       }),
+      resolveChildPhotoUrl(dto.id),
     ]);
     const cardMetrics = reportCardsToChildMetrics(cardsResult.reportCards);
     const attendancePct = attendanceResult.portal?.summary.attendancePct ?? 0;
@@ -45,6 +56,7 @@ async function childFromLink(
       attendancePct,
       avgScore: cardMetrics.avgScore,
       trend: cardMetrics.trend,
+      photoUrl,
     });
   } catch {
     return null;

@@ -16,6 +16,8 @@ import {
   studentDtoToTeacherDetail,
 } from "./map";
 import { enrichStudentDashboardSnapshot } from "@/lib/dashboard";
+import { getPhotoSignedUrl } from "@/lib/photos/api";
+import { getInstitute } from "@/lib/institute-profile/api";
 import type { StudentDto, StudentGuardianDto } from "./types";
 
 export type StudentsLoadStatus =
@@ -26,6 +28,24 @@ export type StudentsLoadStatus =
   | "empty"
   | "forbidden"
   | "error";
+
+async function resolveStudentPhotoUrl(studentId: string): Promise<string | null> {
+  try {
+    const signed = await getPhotoSignedUrl("student", studentId);
+    return signed.photoSignedUrl;
+  } catch {
+    return null;
+  }
+}
+
+async function resolveInstituteDisplayName(instituteId: string): Promise<string> {
+  try {
+    const institute = await getInstitute(instituteId);
+    return institute.name?.trim() || "Institute";
+  } catch {
+    return "Institute";
+  }
+}
 
 function mapError(err: unknown, label: string): { status: StudentsLoadStatus; message: string } {
   const status =
@@ -75,12 +95,14 @@ export async function loadTeacherStudentDetail(input: {
     if (dto.instituteId !== input.instituteId) {
       return { status: "empty", detail: null, errorMessage: "Student not found." };
     }
+    const photoUrl = await resolveStudentPhotoUrl(dto.id);
     return {
       status: "ready",
       detail: studentDtoToTeacherDetail(
         dto,
         guardians,
         remarkDtos.map(mapRemarkDtoToStudentRemark),
+        photoUrl,
       ),
       errorMessage: null,
     };
@@ -118,15 +140,18 @@ export async function loadStudentPortalSnapshot(input: {
       };
     }
 
-    const [dto, guardians] = await Promise.all([
+    const [dto, guardians, instituteName] = await Promise.all([
       getStudent(identity.studentId),
       getStudentGuardians(identity.studentId).catch(() => [] as StudentGuardianDto[]),
+      resolveInstituteDisplayName(input.instituteId),
     ]);
     const primary = guardians.find((g) => g.isPrimary) ?? guardians[0];
+    const photoUrl = await resolveStudentPhotoUrl(dto.id);
     const profile = studentDtoToProfile(dto, {
-      email: input.userEmail ?? me.profile.email,
-      institute: me.profile.displayName?.trim() || "Institute",
+      email: input.userEmail ?? me.profile.email ?? undefined,
+      institute: instituteName,
       parentName: primary?.parentName,
+      photoUrl,
     });
     if (input.userDisplayName?.trim()) {
       profile.name = input.userDisplayName.trim();
