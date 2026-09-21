@@ -811,4 +811,56 @@ describe("access roles API", () => {
     expect(orphan?.phone).toBeNull();
     expect(orphan?.phone_digits).toBeNull();
   });
+
+  it("does not steal Nexus operator phone; bridges Admin by shared email", async () => {
+    const db = baseDb();
+    const operatorId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    db.user_profile[0]!.phone = null;
+    db.user_profile[0]!.phone_digits = null;
+    db.user_profile[0]!.email = "leo@lumenx.edu";
+    db.user_profile.push({
+      id: operatorId,
+      display_name: "Leo Nexus",
+      email: "leo@lumenx.edu",
+      phone: "9876500001",
+      phone_digits: "9876500001",
+      avatar_url: null,
+      status: "active",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      deleted_at: null,
+    });
+    db.platform_operator = [
+      {
+        user_id: operatorId,
+        handle: "leo",
+        display_name: "Leo",
+        status: "active",
+        role_code: "nexus_root",
+      },
+    ];
+
+    const response = await appWithDb(db).request(
+      "/api/v1/auth/staff/login-mode",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          institute_id: INST_A,
+          identifier: "9876500001",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      data: { displayName: string };
+    };
+    expect(body.data.displayName).toBe("Admin User");
+    expect(db.user_profile[0]!.phone_digits).toBeNull();
+    expect(db.user_profile[0]!.phone).toBeNull();
+    const operator = db.user_profile.find((row) => row.id === operatorId);
+    expect(operator?.phone_digits).toBe("9876500001");
+    expect(operator?.phone).toBe("9876500001");
+  });
 });

@@ -254,6 +254,29 @@ class QueryBuilder {
     return this;
   }
 
+  /** Best-effort PostgREST `or` for phone lookup tests. */
+  or(expression: string) {
+    const parts = expression.split(",").map((p) => p.trim());
+    this.filters.push((r) =>
+      parts.some((part) => {
+        const ilike = part.match(/^(\w+)\.ilike\.%(.+)%$/);
+        if (ilike) {
+          const [, col, needle] = ilike;
+          return String(r[col!] ?? "")
+            .toLowerCase()
+            .includes(String(needle).toLowerCase());
+        }
+        const eq = part.match(/^(\w+)\.eq\.(.+)$/);
+        if (eq) {
+          const [, col, value] = eq;
+          return String(r[col!] ?? "") === value;
+        }
+        return false;
+      }),
+    );
+    return this;
+  }
+
   order(_column: string, _opts?: { ascending?: boolean }) {
     return this;
   }

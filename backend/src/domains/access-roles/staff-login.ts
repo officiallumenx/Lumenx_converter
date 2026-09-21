@@ -142,25 +142,30 @@ type StaffProfile = {
   phone_digits?: string | null;
 };
 
-/**
- * When mobile login hits an orphan profile (no institute membership) but the
- * institute has exactly one institute-wide Admin with no other mobile, move
- * the number onto that Admin so email/mobile resolve to the same account.
- */
-async function tryRehomeOrphanPhoneToSoleInstituteAdmin(
+async function isPlatformOperatorUser(
   admin: SupabaseClient,
-  input: {
-    instituteId: string;
-    orphanProfile: StaffProfile;
-    phoneDigits: string;
-  },
-): Promise<StaffProfile | null> {
-  const instituteMemberships = await listMemberships(admin, {
-    instituteId: input.instituteId,
-  });
-  const active = instituteMemberships.filter((m) => m.status !== "ended");
-  if (active.length === 0) return null;
+  userId: string,
+): Promise<boolean> {
+  const { data, error } = await admin
+    .from("platform_operator")
+    .select("user_id, status")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw error;
+  const row = data as { user_id: string; status: string } | null;
+  return Boolean(row && (row.status === "active" || row.status === "invited"));
+}
 
+/**
+ * List institute-wide Admin profiles in the institute (excluding one user id).
+ */
+async function listInstituteWideAdminProfiles(
+  admin: SupabaseClient,
+  instituteId: string,
+  excludeUserId?: string,
+): Promise<StaffProfile[]> {
+  const instituteMemberships = await listMemberships(admin, { instituteId });
+  const active = instituteMemberships.filter((m) => m.status !== "ended");
   const candidates: StaffProfile[] = [];
   for (const membership of active) {
     const roleRows = await listRolesForMemberships(admin, [membership.id]);
@@ -176,17 +181,70 @@ async function tryRehomeOrphanPhoneToSoleInstituteAdmin(
     if (error) throw error;
     const row = data as StaffProfile | null;
     if (!row || row.status === "disabled") continue;
-    if (row.id === input.orphanProfile.id) continue;
+    if (excludeUserId && row.id === excludeUserId) continue;
+    candidates.push(row);
+  }
+  return candidates;
+}
 
+/**
+ * Same person may hold Nexus (platform_operator) on one profile and Admin on
+ * another. Phone stays on the operator profile; Admin login bridges by email
+ * without moving phone_digits.
+ */
+async function tryResolveInstituteAdminSharingEmail(
+  admin: SupabaseClient,
+  input: {
+    instituteId: string;
+    phoneHolderProfile: StaffProfile;
+  },
+): Promise<StaffProfile | null> {
+  const email = input.phoneHolderProfile.email?.trim().toLowerCase();
+  if (!email) return null;
+
+  const admins = await listInstituteWideAdminProfiles(
+    admin,
+    input.instituteId,
+    input.phoneHolderProfile.id,
+  );
+  const matches = admins.filter(
+    (row) => row.email?.trim().toLowerCase() === email,
+  );
+  return matches.length === 1 ? matches[0]! : null;
+}
+
+/**
+ * When mobile login hits an orphan profile (no institute membership) but the
+ * institute has exactly one institute-wide Admin with no other mobile, move
+ * the number onto that Admin so email/mobile resolve to the same account.
+ * Never steals a phone from a Nexus platform_operator profile.
+ */
+async function tryRehomeOrphanPhoneToSoleInstituteAdmin(
+  admin: SupabaseClient,
+  input: {
+    instituteId: string;
+    orphanProfile: StaffProfile;
+    phoneDigits: string;
+  },
+): Promise<StaffProfile | null> {
+  if (await isPlatformOperatorUser(admin, input.orphanProfile.id)) {
+    return null;
+  }
+
+  const admins = await listInstituteWideAdminProfiles(
+    admin,
+    input.instituteId,
+    input.orphanProfile.id,
+  );
+  const candidates = admins.filter((row) => {
     const existingDigits =
       (row.phone_digits && /^\d{10}$/.test(row.phone_digits)
         ? row.phone_digits
         : null) ??
       (row.phone ? normalizePhoneDigits(row.phone) : "");
-    if (existingDigits && existingDigits !== input.phoneDigits) continue;
-
-    candidates.push(row);
-  }
+    if (existingDigits && existingDigits !== input.phoneDigits) return false;
+    return true;
+  });
 
   if (candidates.length !== 1) return null;
   const target = candidates[0]!;
@@ -204,14 +262,17 @@ async function tryRehomeOrphanPhoneToSoleInstituteAdmin(
     .neq("id", target.id)
     .is("deleted_at", null);
   if (holdersError) throw holdersError;
-  if (otherHolders && otherHolders.length > 0) {
+  const holderIds = (otherHolders ?? []).map((row) => row.id as string);
+  const safeToClear: string[] = [];
+  for (const holderId of holderIds) {
+    if (await isPlatformOperatorUser(admin, holderId)) continue;
+    safeToClear.push(holderId);
+  }
+  if (safeToClear.length > 0) {
     const { error: clearOthersError } = await admin
       .from("user_profile")
       .update({ phone: null, phone_digits: null })
-      .in(
-        "id",
-        otherHolders.map((row) => row.id as string),
-      );
+      .in("id", safeToClear);
     if (clearOthersError) throw clearOthersError;
   }
 
@@ -368,6 +429,25 @@ async function resolveStaffLoginUser(
     null;
 
   if (!membership && looksLikePhone) {
+    // Nexus operator + separate Admin (same email): bridge without moving phone.
+    const bridged = await tryResolveInstituteAdminSharingEmail(admin, {
+      instituteId,
+      phoneHolderProfile: profile,
+    });
+    if (bridged) {
+      profile = bridged;
+      memberships = await listMemberships(admin, {
+        instituteId,
+        userId: profile.id,
+      });
+      membership =
+        memberships.find((m) => m.status === "active") ??
+        memberships.find((m) => m.status !== "ended") ??
+        null;
+    }
+  }
+
+  if (!membership && looksLikePhone) {
     const rehomed = await tryRehomeOrphanPhoneToSoleInstituteAdmin(admin, {
       instituteId,
       orphanProfile: profile,
@@ -387,9 +467,13 @@ async function resolveStaffLoginUser(
   }
 
   if (!membership) {
+    const phoneOnNexusOperator =
+      looksLikePhone && (await isPlatformOperatorUser(admin, profile.id));
     throw AppError.notFound(
       looksLikePhone
-        ? "This mobile is linked to a different user than your Admin email account. Move phone/phone_digits onto the email Admin profile (or use email login)."
+        ? phoneOnNexusOperator
+          ? "This mobile is linked to a Nexus operator account. Sign in to Admin with the institute Admin email, or use an Admin profile that shares the same email as the Nexus operator."
+          : "This mobile is linked to a different user than your Admin email account. Use email login for Admin."
         : "This user exists but has no active membership in the selected institute.",
     );
   }

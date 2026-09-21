@@ -82,7 +82,7 @@ export async function openNexusOpenAccessSession(admin: SupabaseClient) {
 async function loadActiveOperator(
   admin: SupabaseClient,
   userId: string,
-): Promise<PlatformOperatorRow> {
+): Promise<PlatformOperatorRow | null> {
   const { data, error } = await admin
     .from("platform_operator")
     .select("user_id, handle, display_name, status, role_code")
@@ -91,9 +91,110 @@ async function loadActiveOperator(
   if (error) throw error;
   const row = data as PlatformOperatorRow | null;
   if (!row || (row.status !== "active" && row.status !== "invited")) {
-    throw AppError.forbidden("No active Nexus operator account for this user.");
+    return null;
   }
   return row;
+}
+
+async function findProfilesMatchingPhone(
+  admin: SupabaseClient,
+  phone: string,
+): Promise<OperatorProfile[]> {
+  const selectProfile =
+    "id, display_name, email, phone, status" as const;
+  const byId = new Map<string, OperatorProfile>();
+
+  const { data: byDigits, error: digitsError } = await admin
+    .from("user_profile")
+    .select(selectProfile)
+    .eq("phone_digits", phone)
+    .is("deleted_at", null);
+  if (digitsError) throw digitsError;
+  for (const row of (byDigits ?? []) as OperatorProfile[]) {
+    if (row.status !== "disabled") byId.set(row.id, row);
+  }
+
+  // Also match phone column (root may still have phone after phone_digits was cleared).
+  const { data: byPhone, error: phoneError } = await admin
+    .from("user_profile")
+    .select(selectProfile)
+    .is("deleted_at", null)
+    .or(`phone.eq.${phone},phone.eq.+91${phone},phone.ilike.%${phone}%`);
+  if (phoneError) throw phoneError;
+  for (const row of (byPhone ?? []) as OperatorProfile[]) {
+    if (
+      row.status !== "disabled" &&
+      normalizePhoneDigits(row.phone ?? "") === phone
+    ) {
+      byId.set(row.id, row);
+    }
+  }
+
+  return [...byId.values()];
+}
+
+/**
+ * Prefer Nexus root/operator profiles over Admin (or other) profiles that
+ * happen to hold the same contact after a phone rehome.
+ */
+async function pickOperatorFromPhoneProfiles(
+  admin: SupabaseClient,
+  profiles: OperatorProfile[],
+): Promise<{ profile: OperatorProfile; operator: PlatformOperatorRow } | null> {
+  // Prefer nexus_root when multiple Nexus accounts somehow match.
+  const scored: Array<{
+    profile: OperatorProfile;
+    operator: PlatformOperatorRow;
+    rank: number;
+  }> = [];
+  for (const profile of profiles) {
+    const operator = await loadActiveOperator(admin, profile.id);
+    if (!operator) continue;
+    const rank = operator.role_code === "nexus_root" ? 0 : 1;
+    scored.push({ profile, operator, rank });
+  }
+  if (scored.length === 0) return null;
+  scored.sort((a, b) => a.rank - b.rank);
+  return { profile: scored[0]!.profile, operator: scored[0]!.operator };
+}
+
+/**
+ * Phone may sit on an Admin profile after a prior rehome while platform_operator
+ * (including nexus_root) points at another profile with the same email.
+ */
+async function recoverOperatorBySharedEmail(
+  admin: SupabaseClient,
+  phoneHoldingProfile: OperatorProfile,
+): Promise<{ profile: OperatorProfile; operator: PlatformOperatorRow } | null> {
+  const email = phoneHoldingProfile.email?.trim().toLowerCase();
+  if (!email) return null;
+
+  const { data, error } = await admin
+    .from("platform_operator")
+    .select("user_id, handle, display_name, status, role_code")
+    .in("status", ["active", "invited"]);
+  if (error) throw error;
+  const operators = (data ?? []) as PlatformOperatorRow[];
+
+  const matches: Array<{
+    profile: OperatorProfile;
+    operator: PlatformOperatorRow;
+    rank: number;
+  }> = [];
+  for (const operator of operators) {
+    if (operator.user_id === phoneHoldingProfile.id) continue;
+    const candidate = await loadProfile(admin, operator.user_id);
+    if (candidate.email?.trim().toLowerCase() === email) {
+      matches.push({
+        profile: candidate,
+        operator,
+        rank: operator.role_code === "nexus_root" ? 0 : 1,
+      });
+    }
+  }
+  if (matches.length === 0) return null;
+  matches.sort((a, b) => a.rank - b.rank);
+  return { profile: matches[0]!.profile, operator: matches[0]!.operator };
 }
 
 async function loadProfile(
@@ -109,7 +210,7 @@ async function loadProfile(
   if (error) throw error;
   const profile = data as OperatorProfile | null;
   if (!profile || profile.status === "disabled") {
-    throw AppError.notFound("Operator profile not found.");
+    throw AppError.notFound("Nexus profile not found.");
   }
   return profile;
 }
@@ -120,7 +221,7 @@ async function resolveOperatorByIdentifier(
 ): Promise<{ profile: OperatorProfile; operator: PlatformOperatorRow }> {
   const trimmed = identifier.trim();
   if (!trimmed) {
-    throw AppError.notFound("No Nexus operator found for this identifier.");
+    throw AppError.notFound("No Nexus account found for this identifier.");
   }
 
   let profile: OperatorProfile | null = null;
@@ -128,40 +229,30 @@ async function resolveOperatorByIdentifier(
   const selectProfile =
     "id, display_name, email, phone, status" as const;
 
-  // 1) Email
+  // 1) Email — prefer a profile that is an active Nexus root/operator
   if (trimmed.includes("@")) {
     const { data, error } = await admin
       .from("user_profile")
       .select(selectProfile)
       .ilike("email", trimmed.toLowerCase())
-      .is("deleted_at", null)
-      .maybeSingle();
+      .is("deleted_at", null);
     if (error) throw error;
-    profile = (data as OperatorProfile | null) ?? null;
+    const emailProfiles = ((data ?? []) as OperatorProfile[]).filter(
+      (row) => row.status !== "disabled",
+    );
+    const viaEmail = await pickOperatorFromPhoneProfiles(admin, emailProfiles);
+    if (viaEmail) return viaEmail;
+    profile = emailProfiles[0] ?? null;
   }
 
-  // 2) Phone (any input that yields 10 digits)
+  // 2) Phone — collect all matches; prefer Nexus root/operator over Admin holder
   if (!profile) {
     const phone = normalizePhoneDigits(trimmed);
     if (/^\d{10}$/.test(phone)) {
-      const { data, error } = await admin
-        .from("user_profile")
-        .select(selectProfile)
-        .eq("phone_digits", phone)
-        .is("deleted_at", null)
-        .maybeSingle();
-      if (error) throw error;
-      profile = (data as OperatorProfile | null) ?? null;
-      if (!profile) {
-        // Fallback: phone stored with +91 / spaces
-        const { data: byPhone, error: phoneError } = await admin
-          .from("user_profile")
-          .select(selectProfile)
-          .is("deleted_at", null)
-          .or(`phone.eq.${phone},phone.eq.+91${phone},phone.ilike.%${phone}%`);
-        if (phoneError) throw phoneError;
-        profile = (byPhone?.[0] as OperatorProfile | null) ?? null;
-      }
+      const phoneProfiles = await findProfilesMatchingPhone(admin, phone);
+      const viaPhone = await pickOperatorFromPhoneProfiles(admin, phoneProfiles);
+      if (viaPhone) return viaPhone;
+      profile = phoneProfiles[0] ?? null;
     }
   }
 
@@ -177,7 +268,7 @@ async function resolveOperatorByIdentifier(
     profile = (data as OperatorProfile | null) ?? null;
   }
 
-  // 4) Operator handle
+  // 4) Operator / root handle
   if (!profile) {
     const { data: op, error } = await admin
       .from("platform_operator")
@@ -186,17 +277,42 @@ async function resolveOperatorByIdentifier(
       .maybeSingle();
     if (error) throw error;
     const operator = op as PlatformOperatorRow | null;
-    if (operator) {
+    if (
+      operator &&
+      (operator.status === "active" || operator.status === "invited")
+    ) {
       profile = await loadProfile(admin, operator.user_id);
       return { profile, operator };
     }
   }
 
   if (!profile) {
-    throw AppError.notFound("No Nexus operator found for this identifier.");
+    throw AppError.notFound("No Nexus account found for this identifier.");
   }
-  const operator = await loadActiveOperator(admin, profile.id);
-  return { profile, operator };
+
+  const direct = await loadActiveOperator(admin, profile.id);
+  if (direct) {
+    return { profile, operator: direct };
+  }
+
+  const recovered = await recoverOperatorBySharedEmail(admin, profile);
+  if (recovered) {
+    return recovered;
+  }
+
+  throw AppError.forbidden(
+    "No active Nexus root/operator account for this user. If this mobile was moved to Admin, sign in with the Nexus account email/handle, or restore phone on the Nexus root profile.",
+  );
+}
+
+function mobileOtpDestination(
+  identifier: string,
+  profile: OperatorProfile,
+): string {
+  const fromProfile = profile.phone?.trim() ?? "";
+  if (fromProfile) return fromProfile;
+  const digits = normalizePhoneDigits(identifier);
+  return /^\d{10}$/.test(digits) ? digits : "";
 }
 
 function nexusWorkflowFlags(
@@ -239,7 +355,7 @@ async function requestChannelOtp(
   const destination =
     input.channel === "email"
       ? profile.email?.trim().toLowerCase()
-      : profile.phone ?? "";
+      : mobileOtpDestination(input.identifier, profile);
   if (!destination) {
     throw AppError.validation(
       input.channel === "email"
