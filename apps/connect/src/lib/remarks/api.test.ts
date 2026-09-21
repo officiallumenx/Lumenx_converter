@@ -14,6 +14,7 @@ const sample: StudentRemarkDto = {
   authorUserId: "22222222-2222-4222-8222-222222222222",
   authorName: "Ms Teacher",
   type: "academic",
+  tone: "good",
   text: "Strong progress in algebra this week.",
   createdAt: "2026-09-10T10:00:00.000Z",
   updatedAt: "2026-09-10T10:00:00.000Z",
@@ -27,15 +28,21 @@ describe("remarks map", () => {
     expect(row.studentName).toBe("Ada Lovelace");
     expect(row.authorName).toBe("Ms Teacher");
     expect(row.type).toBe("academic");
+    expect(row.tone).toBe("good");
     expect(row.text).toContain("algebra");
     expect(row.visibleTo).toEqual(["teacher", "parent", "admin"]);
   });
 
-  it("maps behaviour/improvement to warning tone for parents", () => {
-    const warning = mapRemarkDtoToParentCard({ ...sample, type: "behaviour" });
-    expect(warning.tone).toBe("warning");
-    const positive = mapRemarkDtoToParentCard({ ...sample, type: "academic" });
-    expect(positive.tone).toBe("positive");
+  it("maps stored tone to parent badge (not remark category)", () => {
+    expect(mapRemarkDtoToParentCard({ ...sample, type: "academic", tone: "bad" }).tone).toBe(
+      "warning",
+    );
+    expect(mapRemarkDtoToParentCard({ ...sample, type: "behaviour", tone: "good" }).tone).toBe(
+      "positive",
+    );
+    expect(mapRemarkDtoToParentCard({ ...sample, type: "academic", tone: "none" }).tone).toBe(
+      "neutral",
+    );
   });
 });
 
@@ -66,6 +73,7 @@ describe("remarks api client", () => {
       instituteId: sample.instituteId,
       studentId: sample.studentId,
       type: "academic",
+      tone: "good",
       text: "Strong progress in algebra this week.",
     });
     expect(post).toHaveBeenCalledWith(
@@ -74,13 +82,20 @@ describe("remarks api client", () => {
         institute_id: sample.instituteId,
         student_id: sample.studentId,
         type: "academic",
+        tone: "good",
       }),
     );
 
-    await api.updateStudentRemark(sample.id, "Updated remark about algebra skills.");
+    await api.updateStudentRemark(sample.id, {
+      text: "Updated remark about algebra skills.",
+      tone: "none",
+    });
     expect(patch).toHaveBeenCalledWith(
       `/api/v1/remarks/${sample.id}`,
-      expect.objectContaining({ text: "Updated remark about algebra skills." }),
+      expect.objectContaining({
+        text: "Updated remark about algebra skills.",
+        tone: "none",
+      }),
     );
   });
 });

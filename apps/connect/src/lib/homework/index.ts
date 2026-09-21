@@ -23,6 +23,7 @@ export {
 export {
   attachHomeworkPdf,
   expireHomeworkItem,
+  homeworkAttachmentToFile,
   publishHomeworkItem,
   saveHomeworkDraft,
   toggleHomeworkSubmission,

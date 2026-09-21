@@ -388,6 +388,7 @@ export {
   compressImageToDataUrl,
   prepareProfilePhotoFile,
   processSimpleUpload,
+  dataUrlToFile,
   simpleUploadAccept,
   simpleUploadExtensions,
   simpleUploadLimitLabel,

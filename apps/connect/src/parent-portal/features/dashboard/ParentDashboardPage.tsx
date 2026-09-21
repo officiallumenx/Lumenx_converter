@@ -650,9 +650,14 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
                           r.tone === "warning" &&
                             "border-warning/40 text-warning-foreground bg-warning/10",
                           r.tone === "positive" && "border-success/40 text-success bg-success/10",
+                          r.tone === "neutral" && "border-border text-muted-foreground bg-muted/40",
                         )}
                       >
-                        {r.tone === "warning" ? "Needs attention" : "Positive"}
+                        {r.tone === "warning"
+                          ? "Needs attention"
+                          : r.tone === "neutral"
+                            ? "Neutral"
+                            : "Positive"}
                       </Badge>
                     </div>
                     <div className="mt-1.5 text-sm leading-snug break-words">{r.text}</div>

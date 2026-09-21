@@ -105,6 +105,7 @@ import type {
   MarkEntry,
   MarkStatus,
   PublishStatus,
+  RemarkTone,
   RemarkType,
   StudentDetail,
   StudentRemark,
@@ -1676,7 +1677,7 @@ export const teacherRepository = {
 
   async addRemark(
     studentId: string,
-    remark: { type: RemarkType; text: string },
+    remark: { type: RemarkType; tone: RemarkTone; text: string },
     opts?: { instituteId?: string | null },
   ): Promise<StudentRemark> {
     assertTeacherCanWrite();
@@ -1691,6 +1692,7 @@ export const teacherRepository = {
       instituteId,
       studentId,
       type: remark.type,
+      tone: remark.tone,
       text: remark.text,
     });
     return mapRemarkDtoToStudentRemark(dto);
@@ -1698,7 +1700,7 @@ export const teacherRepository = {
 
   async updateRemark(
     id: string,
-    text: string,
+    input: { text?: string; tone?: RemarkTone },
     opts?: { instituteId?: string | null },
   ): Promise<StudentRemark | null> {
     assertTeacherCanWrite();
@@ -1709,7 +1711,7 @@ export const teacherRepository = {
     if (!isInstituteUuid(instituteId)) {
       throw new Error("Select an institute before editing remarks.");
     }
-    const dto = await updateStudentRemark(id, text);
+    const dto = await updateStudentRemark(id, input);
     return mapRemarkDtoToStudentRemark(dto);
   },
 

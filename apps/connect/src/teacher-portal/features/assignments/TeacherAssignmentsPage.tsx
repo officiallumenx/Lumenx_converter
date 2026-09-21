@@ -704,7 +704,7 @@ function NewAssignmentDialog({
   }, [sectionOptions, form]);
 
   const createFn = useCallback(
-    async (data: NewAssignmentForm) => {
+    async (data: NewAssignmentForm, mode: "draft" | "sent") => {
       const match = classes.find(
         (c) => c.className === data.className && c.section === data.section,
       );
@@ -712,7 +712,7 @@ function NewAssignmentDialog({
         toast.error("Select a valid class and section.");
         return;
       }
-      await teacherRepository.createAssignment({
+      const created = await teacherRepository.createAssignment({
         title: data.title,
         description: data.description,
         instructions: data.description,
@@ -722,6 +722,9 @@ function NewAssignmentDialog({
         type: data.type,
         attachment,
       });
+      if (mode === "sent") {
+        await teacherRepository.publishAssignment(created.id);
+      }
       setOpen(false);
       setAttachment(null);
       form.reset({
@@ -733,13 +736,24 @@ function NewAssignmentDialog({
         dueDate: "",
         type: "homework",
       });
-      toast.success("Saved as draft.");
+      toast.success(mode === "sent" ? "Sent." : "Saved as draft.");
       onCreated();
     },
     [attachment, classes, defaultClass, form, onCreated],
   );
 
-  const { run: onSubmit, pending: creating } = useAsyncAction(createFn);
+  const saveDraftFn = useCallback(
+    (data: NewAssignmentForm) => createFn(data, "draft"),
+    [createFn],
+  );
+  const sendFn = useCallback(
+    (data: NewAssignmentForm) => createFn(data, "sent"),
+    [createFn],
+  );
+
+  const { run: onSaveDraft, pending: savingDraft } = useAsyncAction(saveDraftFn);
+  const { run: onSend, pending: sending } = useAsyncAction(sendFn);
+  const creating = savingDraft || sending;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -751,8 +765,13 @@ function NewAssignmentDialog({
           <DialogTitle>Create assignment / homework</DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
-            <FormField
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void form.handleSubmit(onSend)(e);
+            }}
+            className="space-y-4 py-2"
+          >            <FormField
               control={form.control}
               name="title"
               render={({ field }) => (
@@ -907,11 +926,11 @@ function NewAssignmentDialog({
             />
             <SimpleFileUpload
               kind="homework"
-              label="Attachment (optional)"
+              label="PDF attachment (optional)"
               value={attachment}
               onChange={setAttachment}
             />
-            <DialogFooter className="gap-2">
+            <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
               <Button
                 type="button"
                 variant="ghost"
@@ -920,8 +939,16 @@ function NewAssignmentDialog({
               >
                 Cancel
               </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={creating}
+                onClick={() => void form.handleSubmit(onSaveDraft)()}
+              >
+                {savingDraft ? "Saving…" : "Draft"}
+              </Button>
               <Button type="submit" disabled={creating}>
-                {creating ? "Saving…" : "Save draft"}
+                {sending ? "Sending…" : "Sent"}
               </Button>
             </DialogFooter>
           </form>

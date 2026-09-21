@@ -12,6 +12,7 @@ export type ComplaintStatus =
   | "closed"
   | "archived";
 export type RemarkType = "academic" | "behaviour" | "improvement" | "parent_note";
+export type RemarkTone = "good" | "bad" | "none";
 
 export interface TeacherProfile {
   id: string;
@@ -120,6 +121,7 @@ export interface StudentRemark {
   studentId: string;
   studentName: string;
   type: RemarkType;
+  tone: RemarkTone;
   text: string;
   authorId: string;
   authorName: string;

@@ -44,15 +44,19 @@ export type SimpleUploadValue = {
 
 const IMAGE_EXT = [".jpg", ".jpeg", ".png"] as const;
 const DOC_EXT = [".jpg", ".jpeg", ".png", ".pdf"] as const;
+const HOMEWORK_EXT = [".pdf"] as const;
 const PROFILE_IMAGE_EXT = [".jpg", ".jpeg", ".png", ".webp"] as const;
 
 export function simpleUploadAccept(kind: SimpleUploadKind): string {
   if (kind === "image") return "image/jpeg,image/jpg,image/png,.jpg,.jpeg,.png";
+  if (kind === "homework") return "application/pdf,.pdf";
   return "image/jpeg,image/jpg,image/png,application/pdf,.jpg,.jpeg,.png,.pdf";
 }
 
 export function simpleUploadExtensions(kind: SimpleUploadKind): readonly string[] {
-  return kind === "image" ? IMAGE_EXT : DOC_EXT;
+  if (kind === "image") return IMAGE_EXT;
+  if (kind === "homework") return HOMEWORK_EXT;
+  return DOC_EXT;
 }
 
 export function isAllowedSimpleUploadName(fileName: string, kind: SimpleUploadKind): boolean {
@@ -201,17 +205,28 @@ export function compressImageToDataUrl(
   });
 }
 
-function dataUrlToFile(dataUrl: string, fileName: string): File {
+export function dataUrlToFile(dataUrl: string, fileName: string): File {
   const comma = dataUrl.indexOf(",");
   const header = comma >= 0 ? dataUrl.slice(0, comma) : "";
   const b64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
-  const mime = /data:(.*?);/.exec(header)?.[1] ?? "image/jpeg";
+  const mime = /data:(.*?);/.exec(header)?.[1] ?? "application/octet-stream";
   const bin = atob(b64);
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
-  const ext = mime === "image/webp" ? ".webp" : ".jpg";
-  const base = fileName.replace(/\.[^.]+$/, "") || "photo";
-  const safeName = `${base}${ext}`;
+
+  let safeName = fileName.trim();
+  if (!safeName) {
+    safeName =
+      mime === "application/pdf"
+        ? "document.pdf"
+        : mime === "image/webp"
+          ? "photo.webp"
+          : "photo.jpg";
+  } else if (mime === "image/webp" || mime === "image/jpeg" || mime === "image/jpg") {
+    const ext = mime === "image/webp" ? ".webp" : ".jpg";
+    const base = safeName.replace(/\.[^.]+$/, "") || "photo";
+    safeName = `${base}${ext}`;
+  }
   return new File([bytes], safeName, { type: mime });
 }
 
@@ -289,7 +304,9 @@ export async function processSimpleUpload(
     throw new Error(
       kind === "image"
         ? "Upload JPG, JPEG, or PNG only."
-        : "Upload JPG, JPEG, PNG, or PDF only.",
+        : kind === "homework"
+          ? "Upload a PDF only."
+          : "Upload JPG, JPEG, PNG, or PDF only.",
     );
   }
 
@@ -330,7 +347,7 @@ export async function processSimpleUpload(
 }
 
 export function simpleUploadLimitLabel(kind: SimpleUploadKind): string {
-  if (kind === "homework") return "JPG, PNG, or PDF · max 3 MB";
+  if (kind === "homework") return "PDF · max 3 MB";
   if (kind === "image") return "JPG or PNG · max 1 MB (auto-compressed)";
   return "JPG, PNG, or PDF · images & PDFs max 1 MB";
 }

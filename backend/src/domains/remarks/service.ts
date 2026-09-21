@@ -55,6 +55,7 @@ function toDto(
     authorUserId: row.author_user_id,
     authorName: extras.authorName,
     type: row.remark_type,
+    tone: row.tone ?? "none",
     text: row.body,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -239,12 +240,18 @@ export async function updateStudentRemarkForActor(
     throw AppError.forbidden("Only the author can edit this remark");
   }
 
-  const text = input.text.trim();
-  if (text.length < 8) {
+  const text = input.text?.trim();
+  if (text !== undefined && text.length < 8) {
     throw AppError.validation("Remark text must be at least 8 characters");
   }
+  if (text === undefined && input.tone === undefined) {
+    throw AppError.validation("Nothing to update");
+  }
 
-  const row = await updateStudentRemarkBody(admin, id, { text });
+  const row = await updateStudentRemarkBody(admin, id, {
+    text,
+    tone: input.tone,
+  });
   return (await enrich(admin, [row]))[0]!;
 }
 

@@ -12,7 +12,7 @@ import { EmptyState } from "@/teacher-portal/shared/ui/EmptyState";
 import { Avatar, AvatarFallback, AvatarImage, Badge, Button } from "@lumenx/ui";
 import { ArrowLeft, UserX } from "lucide-react";
 import { toast } from "sonner";
-import type { RemarkType, StudentDetail, StudentReturnContext } from "@/lib/teacher/types";
+import type { RemarkTone, RemarkType, StudentDetail, StudentReturnContext } from "@/lib/teacher/types";
 
 /** Full-page student profile (e.g. from global search). List views use StudentAccordionList instead. */
 export function TeacherStudentDetailPage({
@@ -45,11 +45,11 @@ function ApiTeacherStudentDetailPage({
   const detail = data?.status === "ready" ? data.detail : null;
   const loading = isLoading && !data;
 
-  const addRemark = async (type: RemarkType, text: string) => {
+  const addRemark = async (type: RemarkType, tone: RemarkTone, text: string) => {
     try {
       await teacherRepository.addRemark(
         studentId,
-        { type, text },
+        { type, tone, text },
         { instituteId: activeInstituteId },
       );
     } catch (error) {
@@ -129,9 +129,9 @@ function DemoTeacherStudentDetailPage({
     { initial: null as StudentDetail | null },
   );
 
-  const addRemark = async (type: RemarkType, text: string) => {
+  const addRemark = async (type: RemarkType, tone: RemarkTone, text: string) => {
     try {
-      await teacherRepository.addRemark(studentId, { type, text });
+      await teacherRepository.addRemark(studentId, { type, tone, text });
     } catch (error) {
       if (isTeacherAccessDenied(error)) return;
       throw error;

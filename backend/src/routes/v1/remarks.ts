@@ -36,6 +36,7 @@ const remarkTypeSchema = z.enum([
   "improvement",
   "parent_note",
 ]);
+const remarkToneSchema = z.enum(["good", "bad", "none"]);
 
 remarks.get("/", async (c) => {
   const actor = assertAuthenticated(c);
@@ -62,6 +63,7 @@ remarks.post("/", async (c) => {
       institute_id: uuid,
       student_id: uuid,
       type: remarkTypeSchema,
+      tone: remarkToneSchema.default("none"),
       text: z.string().min(8).max(10000),
     }),
     await c.req.json(),
@@ -70,6 +72,7 @@ remarks.post("/", async (c) => {
     instituteId: body.institute_id,
     studentId: body.student_id,
     type: body.type,
+    tone: body.tone,
     text: body.text,
   });
   return c.json({ data }, 201);
@@ -80,11 +83,19 @@ remarks.patch("/:id", async (c) => {
   const admin = requireAdmin(c);
   const { id } = validateParams(z.object({ id: uuid }), c.req.param());
   const body = validateBody(
-    z.object({ text: z.string().min(8).max(10000) }),
+    z
+      .object({
+        text: z.string().min(8).max(10000).optional(),
+        tone: remarkToneSchema.optional(),
+      })
+      .refine((v) => v.text !== undefined || v.tone !== undefined, {
+        message: "text or tone required",
+      }),
     await c.req.json(),
   );
   const data = await updateStudentRemarkForActor(admin, actor, id, {
     text: body.text,
+    tone: body.tone,
   });
   return c.json({ data });
 });

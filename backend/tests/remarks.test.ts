@@ -239,8 +239,9 @@ describe("remarks", () => {
       }),
     });
     expect(create.status).toBe(201);
-    const created = (await json(create)).data as { id: string; text: string };
+    const created = (await json(create)).data as { id: string; text: string; tone: string };
     expect(created.text).toContain("algebra");
+    expect(created.tone).toBe("none");
     expect(db.student_remark).toHaveLength(1);
 
     const list = await app.request(`/api/v1/remarks?institute_id=${INST_A}`, {
@@ -250,6 +251,34 @@ describe("remarks", () => {
     const rows = (await json(list)).data as Array<{ id: string }>;
     expect(rows).toHaveLength(1);
     expect(rows[0]!.id).toBe(created.id);
+  });
+
+  it("persists tone on create and update", async () => {
+    const db = baseDb();
+    const app = appWithDb(db);
+    const create = await app.request("/api/v1/remarks", {
+      method: "POST",
+      headers: { ...auth("token-teacher"), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        student_id: STUDENT_A,
+        type: "academic",
+        tone: "bad",
+        text: "Needs more practice with fractions this week.",
+      }),
+    });
+    expect(create.status).toBe(201);
+    const created = (await json(create)).data as { id: string; tone: string };
+    expect(created.tone).toBe("bad");
+
+    const patch = await app.request(`/api/v1/remarks/${created.id}`, {
+      method: "PATCH",
+      headers: { ...auth("token-teacher"), "Content-Type": "application/json" },
+      body: JSON.stringify({ tone: "good" }),
+    });
+    expect(patch.status).toBe(200);
+    const updated = (await json(patch)).data as { tone: string };
+    expect(updated.tone).toBe("good");
   });
 
   it("rejects remark for student outside teacher scope", async () => {

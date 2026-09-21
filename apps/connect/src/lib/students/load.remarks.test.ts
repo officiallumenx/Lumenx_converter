@@ -24,6 +24,7 @@ vi.mock("@/lib/remarks", () => ({
     studentId: string;
     studentName: string | null;
     type: string;
+    tone?: string;
     text: string;
     authorTeacherId: string;
     authorName: string | null;
@@ -35,6 +36,7 @@ vi.mock("@/lib/remarks", () => ({
     studentId: dto.studentId,
     studentName: dto.studentName ?? "Student",
     type: dto.type,
+    tone: dto.tone ?? "none",
     text: dto.text,
     authorId: dto.authorTeacherId,
     authorName: dto.authorName ?? "Teacher",
@@ -74,6 +76,7 @@ describe("loadTeacherStudentDetail remarks SoT", () => {
         authorUserId: "22222222-2222-4222-8222-222222222222",
         authorName: "Ms Teacher",
         type: "academic",
+        tone: "good",
         text: "Strong progress in algebra this week.",
         createdAt: "2026-09-10T10:00:00.000Z",
         updatedAt: "2026-09-10T10:00:00.000Z",

@@ -1,4 +1,5 @@
 import { isApiAuthMode } from "@/auth/auth-mode";
+import { dataUrlToFile } from "@lumenx/utils";
 import {
   createHomework,
   expireHomework,
@@ -60,4 +61,18 @@ export async function attachHomeworkPdf(input: {
     homeworkId: input.homeworkId,
   });
   return updateHomework(input.homeworkId, { attachmentAssetId: asset.id });
+}
+
+/** Build a File from SimpleFileUpload value for homework PDF attach. */
+export function homeworkAttachmentToFile(
+  attachment: { fileName: string; mimeType: string; dataUrl: string } | null | undefined,
+): File | null {
+  if (!attachment?.dataUrl?.trim()) return null;
+  const name = attachment.fileName?.trim() || "homework.pdf";
+  const lower = name.toLowerCase();
+  const mime = attachment.mimeType?.trim().toLowerCase() || "";
+  if (mime !== "application/pdf" && !lower.endsWith(".pdf")) {
+    throw new Error("Only PDF files are supported");
+  }
+  return dataUrlToFile(attachment.dataUrl, lower.endsWith(".pdf") ? name : `${name}.pdf`);
 }

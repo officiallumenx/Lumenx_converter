@@ -55,6 +55,7 @@ export async function insertStudentRemark(
       author_teacher_id: input.authorTeacherId,
       author_user_id: input.authorUserId,
       remark_type: input.type satisfies RemarkType,
+      tone: input.tone,
       body: input.text.trim(),
     })
     .select("*")
@@ -68,9 +69,12 @@ export async function updateStudentRemarkBody(
   id: string,
   input: UpdateStudentRemarkInput,
 ): Promise<StudentRemarkRow> {
+  const patch: Record<string, string> = {};
+  if (input.text !== undefined) patch.body = input.text.trim();
+  if (input.tone !== undefined) patch.tone = input.tone;
   const result = await admin
     .from("student_remark")
-    .update({ body: input.text.trim() })
+    .update(patch)
     .eq("id", id)
     .is("deleted_at", null)
     .select("*")

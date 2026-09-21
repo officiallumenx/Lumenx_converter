@@ -10,7 +10,7 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
-import type { RemarkType, StudentDetail } from "@/lib/teacher/types";
+import type { RemarkTone, RemarkType, StudentDetail } from "@/lib/teacher/types";
 
 export function StudentDetailPanel({
   detail,
@@ -20,7 +20,7 @@ export function StudentDetailPanel({
 }: {
   detail: StudentDetail;
   compact?: boolean;
-  onAddRemark?: (type: RemarkType, text: string) => void | Promise<void>;
+  onAddRemark?: (type: RemarkType, tone: RemarkTone, text: string) => void | Promise<void>;
   apiMode?: boolean;
 }) {
   return (

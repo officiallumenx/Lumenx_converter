@@ -57,6 +57,7 @@ describe("connect students map", () => {
         studentId: dto.id,
         studentName: "Aarav Sharma",
         type: "academic",
+        tone: "good",
         text: "Strong progress in algebra this week.",
         authorId: "bb111111-1111-4111-8111-111111111111",
         authorName: "Ms Teacher",
@@ -66,6 +67,7 @@ describe("connect students map", () => {
     ]);
     expect(detail.remarks).toHaveLength(1);
     expect(detail.remarks[0]?.text).toContain("algebra");
+    expect(detail.remarks[0]?.tone).toBe("good");
   });
 
   it("maps dto to student portal profile", () => {

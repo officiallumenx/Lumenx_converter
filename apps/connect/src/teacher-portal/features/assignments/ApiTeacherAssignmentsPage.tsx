@@ -45,6 +45,7 @@ import type {
 import {
   attachHomeworkPdf,
   expireHomeworkItem,
+  homeworkAttachmentToFile,
   homeworkDtoToTeacherAssignment,
   loadTeacherHomeworkClassOverview,
   loadTeacherHomeworkSheet,
@@ -872,12 +873,15 @@ function ApiEditDraftDialog({
           dueDate: data.dueDate,
         },
       });
-      if (attachment?.file) {
-        await attachHomeworkPdf({
-          instituteId,
-          homeworkId: homework.id,
-          file: attachment.file,
-        });
+      if (attachment?.dataUrl) {
+        const file = homeworkAttachmentToFile(attachment);
+        if (file) {
+          await attachHomeworkPdf({
+            instituteId,
+            homeworkId: homework.id,
+            file,
+          });
+        }
       }
       onOpenChange(false);
       setAttachment(null);
@@ -1051,11 +1055,11 @@ function ApiNewAssignmentDialog({
     }
   }, [subjectOptions, form]);
 
-  const createFn = useCallback(
+  const persistNewHomework = useCallback(
     async (data: NewAssignmentForm) => {
       if (!instituteId) {
         toast.error("Institute not loaded.");
-        return;
+        return null;
       }
       const match = teacherAssignments.find(
         (a) =>
@@ -1065,7 +1069,7 @@ function ApiNewAssignmentDialog({
       );
       if (!match) {
         toast.error("Select a valid class and subject.");
-        return;
+        return null;
       }
       const saved = await saveHomeworkDraft({
         homeworkId: null,
@@ -1083,13 +1087,23 @@ function ApiNewAssignmentDialog({
         },
         updateInput: {},
       });
-      if (attachment?.file) {
-        await attachHomeworkPdf({
-          instituteId,
-          homeworkId: saved.id,
-          file: attachment.file,
-        });
+      if (attachment?.dataUrl) {
+        const file = homeworkAttachmentToFile(attachment);
+        if (file) {
+          await attachHomeworkPdf({
+            instituteId,
+            homeworkId: saved.id,
+            file,
+          });
+        }
       }
+      return saved;
+    },
+    [instituteId, teacherAssignments, attachment],
+  );
+
+  const finishCreate = useCallback(
+    (message: string) => {
       setOpen(false);
       setAttachment(null);
       form.reset({
@@ -1100,13 +1114,34 @@ function ApiNewAssignmentDialog({
         dueDate: "",
         type: "homework",
       });
-      toast.success("Saved as draft.");
+      toast.success(message);
       onCreated();
     },
-    [instituteId, teacherAssignments, attachment, form, subjectOptions, defaultClass, onCreated],
+    [form, subjectOptions, defaultClass, onCreated],
   );
 
-  const { run: onSubmit, pending: creating } = useAsyncAction(createFn);
+  const saveDraftFn = useCallback(
+    async (data: NewAssignmentForm) => {
+      const saved = await persistNewHomework(data);
+      if (!saved) return;
+      finishCreate("Saved as draft.");
+    },
+    [persistNewHomework, finishCreate],
+  );
+
+  const sendFn = useCallback(
+    async (data: NewAssignmentForm) => {
+      const saved = await persistNewHomework(data);
+      if (!saved) return;
+      await publishHomeworkItem(saved.id);
+      finishCreate("Sent.");
+    },
+    [persistNewHomework, finishCreate],
+  );
+
+  const { run: onSaveDraft, pending: savingDraft } = useAsyncAction(saveDraftFn);
+  const { run: onSend, pending: sending } = useAsyncAction(sendFn);
+  const creating = savingDraft || sending;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -1118,8 +1153,13 @@ function ApiNewAssignmentDialog({
           <DialogTitle>Create assignment / homework</DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
-            <FormField
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void form.handleSubmit(onSend)(e);
+            }}
+            className="space-y-4 py-2"
+          >            <FormField
               control={form.control}
               name="title"
               render={({ field }) => (
@@ -1245,7 +1285,7 @@ function ApiNewAssignmentDialog({
               value={attachment}
               onChange={setAttachment}
             />
-            <DialogFooter className="gap-2">
+            <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
               <Button
                 type="button"
                 variant="ghost"
@@ -1254,8 +1294,16 @@ function ApiNewAssignmentDialog({
               >
                 Cancel
               </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={creating}
+                onClick={() => void form.handleSubmit(onSaveDraft)()}
+              >
+                {savingDraft ? "Saving…" : "Draft"}
+              </Button>
               <Button type="submit" disabled={creating}>
-                {creating ? "Saving…" : "Save draft"}
+                {sending ? "Sending…" : "Sent"}
               </Button>
             </DialogFooter>
           </form>

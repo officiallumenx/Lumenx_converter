@@ -26,13 +26,19 @@ import {
 } from "@lumenx/ui";
 import { PenLine, Pencil, Search } from "lucide-react";
 import { toast } from "sonner";
-import type { RemarkType, StudentRemark } from "@/lib/teacher/types";
+import type { RemarkTone, RemarkType, StudentRemark } from "@/lib/teacher/types";
 
 const TYPE_LABEL: Record<RemarkType, string> = {
   academic: "Academic",
   behaviour: "Behaviour",
   improvement: "Improvement",
   parent_note: "Parent note",
+};
+
+const TONE_LABEL: Record<RemarkTone, string> = {
+  good: "Good",
+  bad: "Bad",
+  none: "None",
 };
 
 export function TeacherRemarksPage() {
@@ -46,6 +52,7 @@ export function TeacherRemarksPage() {
   const [q, setQ] = useState("");
   const [editRemark, setEditRemark] = useState<StudentRemark | null>(null);
   const [editText, setEditText] = useState("");
+  const [editTone, setEditTone] = useState<RemarkTone>("none");
 
   const {
     data: remarks,
@@ -105,7 +112,7 @@ export function TeacherRemarksPage() {
     }
   }, [studentId, studentOptions]);
 
-  const addRemark = async (type: RemarkType, text: string) => {
+  const addRemark = async (type: RemarkType, tone: RemarkTone, text: string) => {
     if (!studentId) {
       toast.error("Select a student first");
       return;
@@ -113,7 +120,7 @@ export function TeacherRemarksPage() {
     try {
       await teacherRepository.addRemark(
         studentId,
-        { type, text },
+        { type, tone, text },
         { instituteId: activeInstituteId },
       );
     } catch (error) {
@@ -128,9 +135,13 @@ export function TeacherRemarksPage() {
   const saveEdit = async () => {
     if (!editRemark || editText.trim().length < 8) return;
     try {
-      await teacherRepository.updateRemark(editRemark.id, editText.trim(), {
-        instituteId: activeInstituteId,
-      });
+      await teacherRepository.updateRemark(
+        editRemark.id,
+        { text: editText.trim(), tone: editTone },
+        {
+          instituteId: activeInstituteId,
+        },
+      );
     } catch (error) {
       if (isTeacherAccessDenied(error)) return;
       toast.error(error instanceof Error ? error.message : "Could not update remark");
@@ -250,7 +261,7 @@ export function TeacherRemarksPage() {
                 <div>
                   <p className="font-medium">{r.studentName}</p>
                   <p className="text-xs text-muted-foreground">
-                    {TYPE_LABEL[r.type] ?? r.type} · {r.createdAt}
+                    {TYPE_LABEL[r.type] ?? r.type} · {TONE_LABEL[r.tone] ?? "None"} · {r.createdAt}
                   </p>
                 </div>
                 <Button
@@ -260,6 +271,7 @@ export function TeacherRemarksPage() {
                   onClick={() => {
                     setEditRemark(r);
                     setEditText(r.text);
+                    setEditTone(r.tone ?? "none");
                   }}
                 >
                   <Pencil className="size-3" /> Edit
@@ -285,6 +297,16 @@ export function TeacherRemarksPage() {
           <DialogHeader>
             <DialogTitle>Edit remark</DialogTitle>
           </DialogHeader>
+          <Select value={editTone} onValueChange={(v) => setEditTone(v as RemarkTone)}>
+            <SelectTrigger className="rounded-xl">
+              <SelectValue placeholder="Tone" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="good">Good</SelectItem>
+              <SelectItem value="bad">Bad</SelectItem>
+              <SelectItem value="none">None</SelectItem>
+            </SelectContent>
+          </Select>
           <Textarea
             value={editText}
             onChange={(e) => setEditText(e.target.value)}

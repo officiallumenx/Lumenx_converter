@@ -8,7 +8,7 @@ import { isTeacherAccessDenied } from "@/lib/teacher/portal-access-guard";
 import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
 import { StudentDetailPanel } from "./StudentDetailPanel";
 import { toast } from "sonner";
-import type { RemarkType, StudentDetail, TeacherStudent } from "@/lib/teacher/types";
+import type { RemarkTone, RemarkType, StudentDetail, TeacherStudent } from "@/lib/teacher/types";
 
 export function StudentAccordionList({
   students,
@@ -51,11 +51,11 @@ export function StudentAccordionList({
     if (!details[id]) void loadDetail(id);
   };
 
-  const addRemark = async (studentId: string, type: RemarkType, text: string) => {
+  const addRemark = async (studentId: string, type: RemarkType, tone: RemarkTone, text: string) => {
     try {
       await teacherRepository.addRemark(
         studentId,
-        { type, text },
+        { type, tone, text },
         { instituteId: activeInstituteId },
       );
     } catch (error) {
@@ -133,7 +133,7 @@ export function StudentAccordionList({
                     detail={details[s.id]}
                     compact
                     apiMode={apiMode}
-                    onAddRemark={(type, text) => addRemark(s.id, type, text)}
+                    onAddRemark={(type, tone, text) => addRemark(s.id, type, tone, text)}
                   />
                 ) : (
                   <p className="text-sm text-muted-foreground">Could not load student details.</p>
