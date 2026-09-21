@@ -222,6 +222,56 @@ describe("server-consumed Nexus factors", () => {
     expect(body.data.isRoot).toBe(true);
   });
 
+  it("recovers sole nexus_root when phone is only on Admin with a different email", async () => {
+    const db = emptyMockDb();
+    const adminProfileId = "00000000-0000-4000-8000-000000000203";
+    db.user_profile.push({
+      ...profile(adminProfileId, "admin@school.edu", "9123456780"),
+      display_name: "School Admin",
+    });
+    db.user_profile.push({
+      ...profile(operatorId, "root@lumenx.edu", ""),
+      phone: null,
+      phone_digits: null,
+      display_name: "Platform Root",
+    });
+    db.platform_operator.push({
+      user_id: operatorId,
+      handle: "root",
+      display_name: "Platform Root",
+      status: "active",
+      role_code: "nexus_root",
+    });
+    const app = createApp(
+      loadEnv({ NODE_ENV: "test", LOG_LEVEL: "error" }),
+      createLogger("error"),
+      createMockSupabaseClients({
+        db,
+        tokens: {},
+        authUsersByEmail: { "root@lumenx.edu": { id: operatorId } },
+      }),
+    );
+
+    const mode = await app.request("/api/v1/auth/nexus/login-mode", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ identifier: "9123456780" }),
+    });
+    expect(mode.status).toBe(200);
+    const body = (await mode.json()) as {
+      data: { handle: string | null; isRoot?: boolean };
+    };
+    expect(body.data.handle).toBe("root");
+    expect(body.data.isRoot).toBe(true);
+
+    const otp = await app.request("/api/v1/auth/nexus/request-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ identifier: "9123456780", channel: "mobile" }),
+    });
+    expect(otp.status).toBe(200);
+  });
+
   it("accepts only server-issued one-use grants for first login", async () => {
     const db = emptyMockDb();
     db.user_profile.push(profile(operatorId, "operator@test.edu", "9876543210"));

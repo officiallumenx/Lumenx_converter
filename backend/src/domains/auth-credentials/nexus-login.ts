@@ -197,6 +197,30 @@ async function recoverOperatorBySharedEmail(
   return { profile: matches[0]!.profile, operator: matches[0]!.operator };
 }
 
+/**
+ * After Admin phone rehome, mobile may only exist on a non-Nexus profile with a
+ * different email than root. If there is exactly one active nexus_root, use it
+ * for Nexus login (OTP still goes to the typed mobile digits).
+ */
+async function recoverSoleNexusRoot(
+  admin: SupabaseClient,
+  phoneHoldingProfile: OperatorProfile,
+): Promise<{ profile: OperatorProfile; operator: PlatformOperatorRow } | null> {
+  const { data, error } = await admin
+    .from("platform_operator")
+    .select("user_id, handle, display_name, status, role_code")
+    .eq("role_code", "nexus_root")
+    .in("status", ["active", "invited"]);
+  if (error) throw error;
+  const roots = ((data ?? []) as PlatformOperatorRow[]).filter(
+    (row) => row.user_id !== phoneHoldingProfile.id,
+  );
+  if (roots.length !== 1) return null;
+  const operator = roots[0]!;
+  const profile = await loadProfile(admin, operator.user_id);
+  return { profile, operator };
+}
+
 async function loadProfile(
   admin: SupabaseClient,
   userId: string,
@@ -298,6 +322,11 @@ async function resolveOperatorByIdentifier(
   const recovered = await recoverOperatorBySharedEmail(admin, profile);
   if (recovered) {
     return recovered;
+  }
+
+  const soleRoot = await recoverSoleNexusRoot(admin, profile);
+  if (soleRoot) {
+    return soleRoot;
   }
 
   throw AppError.forbidden(
