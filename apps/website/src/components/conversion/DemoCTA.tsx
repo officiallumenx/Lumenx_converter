@@ -20,14 +20,10 @@ export function DemoCTA({
   const label =
     children ??
     (demo ? DEMO_FLOWS.find((item) => item.id === demo)?.title : null) ??
-    (product ? `View ${PRODUCT_FAMILY[product].shortName} preview` : "View preview");
-  const search = {
-    ...(demo ? { demo } : {}),
-    ...(product ? { product } : {}),
-  };
+    (product ? `Book a ${PRODUCT_FAMILY[product].shortName} demo` : "Book a Demo");
   return (
     <CTAButton asChild variant={variant} size="md">
-      <Link to="/resources/demo" search={search}>
+      <Link to="/contact" search={{ intent: "demo" }}>
         {label}
       </Link>
     </CTAButton>

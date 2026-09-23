@@ -23,6 +23,8 @@ interface ImportMetaEnv {
   readonly VITE_TRANSPORT_VERSION?: string;
   readonly VITE_NEXUS_VERSION?: string;
   readonly VITE_LEAD_ENDPOINT?: string;
+  /** Web3Forms access key (public by design) — Book a Demo / contact leads. */
+  readonly VITE_WEB3FORMS_ACCESS_KEY?: string;
   /** Absolute public origin (no trailing slash), e.g. https://www.example.com. Prefer this in production so canonical/OG URLs stay stable. */
   readonly VITE_SITE_ORIGIN?: string;
   /** Set to 1/true/yes on preview hosts so robots disallow indexing. */

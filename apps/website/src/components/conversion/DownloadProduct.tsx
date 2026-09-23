@@ -67,24 +67,38 @@ export function DownloadProduct({
           <dl className="download-platforms mt-5">
             {PLATFORM_ORDER.map((key) => {
               const offer = channel.platforms[key];
+              if (offer === "not-offered") return null;
               const href = key === "web" ? web : key === "android" ? android : ios;
+              const label = key === "ios" ? "iOS" : key === "web" ? "Web" : "Android";
+              const state = platformStateLabel(offer, href);
               return (
-                <div key={key} className="download-platform">
-                  <dt>{key === "ios" ? "iOS" : key === "web" ? "Web" : "Android"}</dt>
-                  <dd>{platformStateLabel(offer, href)}</dd>
+                <div
+                  key={key}
+                  className={cn(
+                    "download-platform",
+                    key === "web" && href && "download-platform--link",
+                  )}
+                >
+                  <dt>{label}</dt>
+                  <dd>{state}</dd>
+                  {key === "web" && href ? (
+                    <a
+                      href={href}
+                      className="download-platform__hit"
+                      aria-label={`Open ${downloadTitle(id)} on the web`}
+                    />
+                  ) : null}
                 </div>
               );
             })}
           </dl>
 
           <div className="mt-5 flex flex-wrap gap-2">
-            {web ? (
-              <CTAButton asChild size="md">
-                <a href={web} target="_blank" rel="noreferrer">
-                  {webButtonLabel(channel)}
-                </a>
-              </CTAButton>
-            ) : isDemoExploreId(id) ? (
+            {channel.platforms.web !== "not-offered" && web ? (
+              <a href={web} className="site-btn site-btn--primary">
+                {webButtonLabel(channel)}
+              </a>
+            ) : channel.platforms.web !== "not-offered" && isDemoExploreId(id) ? (
               <>
                 <CTAButton type="button" size="md" disabled>
                   Coming soon

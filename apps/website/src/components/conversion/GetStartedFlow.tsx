@@ -99,8 +99,8 @@ export function GetStartedFlow({
                 </CTAButton>
                 {view.demo ? (
                   <CTAButton asChild variant="ghost">
-                    <Link to="/resources/demo" search={{ product: view.product }}>
-                      Try the mock demo
+                    <Link to="/contact" search={contactSearch("demo")}>
+                      Book a Demo
                     </Link>
                   </CTAButton>
                 ) : null}
@@ -132,7 +132,7 @@ export function GetStartedFlow({
           <ul className="mt-6 grid gap-3 sm:grid-cols-2">
             {view?.demo ? (
               <li className="rounded-lg border bg-muted/40 p-4 text-sm">
-                Explore {PRODUCT_FAMILY[view.product].shortName} with mock data. No account.
+                Book a live walkthrough of {PRODUCT_FAMILY[view.product].shortName} with our team.
               </li>
             ) : (
               <li className="rounded-lg border bg-muted/40 p-4 text-sm">
@@ -146,8 +146,8 @@ export function GetStartedFlow({
           <div className="mt-8 flex flex-wrap gap-3">
             {view?.demo ? (
               <CTAButton asChild variant="secondary">
-                <Link to="/resources/demo" search={{ product: view.product }}>
-                  Open demo
+                <Link to="/contact" search={contactSearch("demo")}>
+                  Book a Demo
                 </Link>
               </CTAButton>
             ) : null}

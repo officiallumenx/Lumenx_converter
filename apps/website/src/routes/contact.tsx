@@ -17,7 +17,7 @@ const INTENT_COPY: Record<WebsiteLeadIntent, { title: string; lede: string }> = 
   },
   demo: {
     title: "Book a demo",
-    lede: "Tell us about the institute and what you want to see. We’ll follow up to schedule a walkthrough — this page does not open a live tenant.",
+    lede: "Tell us about the institute and what you want to see. We’ll email the request to our team and follow up to schedule a walkthrough — this page does not open a live tenant.",
   },
   trial: {
     title: "Start a 60-day trial",
@@ -88,6 +88,11 @@ function ContactPage() {
     if (result.ok) {
       setStatus("ok");
       setFeedback("Thank you. We’ll reach you at the email you provided.");
+    } else if (result.mode === "needs-activation") {
+      setStatus("error");
+      setFeedback(
+        `Almost ready: open ${result.inbox ?? "lumenxtech.official@gmail.com"} (check Spam) for an email from FormSubmit titled “Activate Form”, click the link once, then press Send again. ${result.message}`,
+      );
     } else {
       setStatus("error");
       setFeedback(result.message);
@@ -154,9 +159,18 @@ function ContactPage() {
               </p>
             ) : null}
             {feedback && status === "error" ? (
-              <p className="text-sm text-destructive" role="alert">
-                {feedback}
-              </p>
+              <div className="space-y-2 text-sm text-destructive" role="alert">
+                <p>{feedback}</p>
+                <p className="text-muted-foreground">
+                  Or email us directly:{" "}
+                  <a
+                    className="underline underline-offset-2"
+                    href="mailto:lumenxtech.official@gmail.com?subject=LumenX%20demo%20request"
+                  >
+                    lumenxtech.official@gmail.com
+                  </a>
+                </p>
+              </div>
             ) : null}
             <CTAButton type="submit" disabled={status === "sending"}>
               {status === "sending" ? "Sending…" : "Send"}

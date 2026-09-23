@@ -8,30 +8,38 @@ import {
   NORMAL_PER_STUDENT_RATE_MIN_INR,
   type SubscriptionDurationMonths,
 } from "@lumenx/utils/subscription/policy";
-import {
-  calculateSubscriptionQuote,
-  normalizeAssignedRate,
-  quoteAllDurations,
-} from "@lumenx/utils/subscription/pricing";
+import { calculateSubscriptionQuote, quoteAllDurations } from "@lumenx/utils/subscription/pricing";
 import { formatCount, formatInr } from "@/lib/format";
 import { contactSearch } from "@/lib/search";
-import { PricingCard } from "./content/PricingCard";
 import { SiteCard } from "./SiteCard";
-import { Grid } from "./layout/Grid";
 import { CTAButton } from "./conversion/CTAButton";
+import { cn } from "@lumenx/ui";
 
-const TENURE_OPTIONS: {
+const TENURES: {
   months: SubscriptionDurationMonths;
   label: string;
   hint: string;
 }[] = [
-  { months: 1, label: "Monthly", hint: "Pay as you go" },
-  { months: 6, label: "6 months", hint: "No free months" },
+  { months: 1, label: "Monthly", hint: "Pay each month" },
+  { months: 6, label: "6 months", hint: "Pay twice a year" },
   { months: 12, label: "Yearly", hint: "2 months free" },
 ];
 
-function clampStudents(n: number): number {
-  return Math.min(50000, Math.max(1, Math.round(n)));
+const RATE_PRESETS = [
+  NORMAL_PER_STUDENT_RATE_MIN_INR,
+  13,
+  14,
+  NORMAL_PER_STUDENT_RATE_MAX_INR,
+] as const;
+
+function parsePositiveInt(raw: string, max: number): number | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const n = Number(trimmed);
+  if (!Number.isFinite(n)) return null;
+  const rounded = Math.round(n);
+  if (rounded < 1 || rounded > max) return null;
+  return rounded;
 }
 
 export function QuoteCalculator({
@@ -47,170 +55,237 @@ export function QuoteCalculator({
   onRatePerHeadChange?: (rate: number) => void;
   initialStudents?: number;
 }) {
-  const [internalStudents, setInternalStudents] = useState(initialStudents);
-  const [internalRate, setInternalRate] = useState(DEFAULT_PER_STUDENT_RATE_INR);
+  const [studentsDraft, setStudentsDraft] = useState(
+    String(studentsProp && studentsProp > 0 ? studentsProp : initialStudents),
+  );
+  const [rateDraft, setRateDraft] = useState(String(rateProp ?? DEFAULT_PER_STUDENT_RATE_INR));
   const [tenure, setTenure] = useState<SubscriptionDurationMonths>(12);
 
-  const students = studentsProp ?? internalStudents;
-  const setStudents = onStudentsChange ?? setInternalStudents;
-  const ratePerHead = rateProp ?? internalRate;
-  const setRatePerHead = onRatePerHeadChange ?? setInternalRate;
+  const students = parsePositiveInt(studentsDraft, 50000);
+  const rate = parsePositiveInt(rateDraft, EXTENDED_PER_STUDENT_RATE_MAX_INR);
+  const ready = students !== null && rate !== null;
 
-  const quote = useMemo(
-    () =>
-      calculateSubscriptionQuote({
-        activeStudentCount: students,
-        assignedRateInr: ratePerHead,
-        durationMonths: tenure,
-      }),
-    [students, ratePerHead, tenure],
-  );
+  const quote = useMemo(() => {
+    if (!ready || students === null || rate === null) return null;
+    return calculateSubscriptionQuote({
+      activeStudentCount: students,
+      assignedRateInr: rate,
+      durationMonths: tenure,
+    });
+  }, [ready, students, rate, tenure]);
 
-  const quotes = useMemo(
-    () =>
-      quoteAllDurations({
-        activeStudentCount: students,
-        assignedRateInr: ratePerHead,
-      }),
-    [students, ratePerHead],
-  );
+  const allQuotes = useMemo(() => {
+    if (!ready || students === null || rate === null) return null;
+    return quoteAllDurations({
+      activeStudentCount: students,
+      assignedRateInr: rate,
+    });
+  }, [ready, students, rate]);
+
+  const rawMonthly = ready && students !== null && rate !== null ? students * rate : null;
+  const usingMinimum = quote?.showAsBaseSubscription ?? false;
+  const periodTotal = quote?.payableAmountInr ?? null;
+  const showPeriodQuote = tenure > 1;
+
+  function commitStudents(raw: string) {
+    setStudentsDraft(raw);
+    const parsed = parsePositiveInt(raw, 50000);
+    if (parsed !== null) onStudentsChange?.(parsed);
+  }
+
+  function commitRate(raw: string) {
+    setRateDraft(raw);
+    const parsed = parsePositiveInt(raw, EXTENDED_PER_STUDENT_RATE_MAX_INR);
+    if (parsed !== null) onRatePerHeadChange?.(parsed);
+  }
 
   return (
-    <div>
-      <SiteCard quiet className="max-w-2xl">
-        <p className="text-sm font-semibold tracking-tight">Your institute estimate</p>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="block text-sm font-medium" htmlFor="student-count">
-              Number of students
-            </label>
+    <SiteCard className="mx-auto max-w-xl border-[var(--border-brand)]">
+      <p className="text-sm font-semibold tracking-tight">Estimate your campus price</p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Per-student rate is set for your institute. Try a rate below — one bill only: higher of
+        (students × rate) or {formatInr(MIN_MONTHLY_CHARGE_INR)}.
+      </p>
+
+      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className="block text-sm font-medium" htmlFor="student-count">
+            Number of students
+          </label>
+          <input
+            id="student-count"
+            type="number"
+            min={1}
+            max={50000}
+            inputMode="numeric"
+            value={studentsDraft}
+            placeholder="e.g. 400"
+            onChange={(e) => commitStudents(e.target.value)}
+            className="site-input mt-2 font-mono text-lg tabular-nums"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium" htmlFor="rate-per-student">
+            Rate per student (₹)
+          </label>
+          <div className="site-input-group mt-2">
+            <span className="site-input-group__prefix" aria-hidden="true">
+              ₹
+            </span>
             <input
-              id="student-count"
+              id="rate-per-student"
               type="number"
               min={1}
-              max={50000}
+              max={EXTENDED_PER_STUDENT_RATE_MAX_INR}
               inputMode="numeric"
-              value={students}
-              onChange={(e) => {
-                const n = Number(e.target.value);
-                if (!Number.isFinite(n)) return;
-                setStudents(clampStudents(n));
-              }}
-              className="site-input mt-2 font-mono tabular-nums"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium" htmlFor="cost-per-head">
-              Cost per head
-            </label>
-            <div className="site-input-group mt-2">
-              <span className="site-input-group__prefix" aria-hidden="true">
-                ₹
-              </span>
-              <input
-                id="cost-per-head"
-                type="number"
-                min={1}
-                max={EXTENDED_PER_STUDENT_RATE_MAX_INR}
-                inputMode="numeric"
-                aria-describedby="quote-rate-hint"
-                value={ratePerHead}
-                onChange={(e) => {
-                  const n = Number(e.target.value);
-                  if (!Number.isFinite(n)) return;
-                  setRatePerHead(normalizeAssignedRate(n));
-                }}
-                className="site-input-group__field font-mono tabular-nums"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium" htmlFor="tenure">
-              Tenure
-            </label>
-            <select
-              id="tenure"
-              value={tenure}
-              onChange={(e) => setTenure(Number(e.target.value) as SubscriptionDurationMonths)}
-              className="site-input mt-2"
-            >
-              {TENURE_OPTIONS.map((opt) => (
-                <option key={opt.months} value={opt.months}>
-                  {opt.label} — {opt.hint}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium" htmlFor="total-cost">
-              Total cost
-            </label>
-            <input
-              id="total-cost"
-              type="text"
-              readOnly
-              value={formatInr(quote.payableAmountInr)}
-              className="site-input mt-2 font-mono tabular-nums"
-              aria-describedby="total-cost-hint"
+              value={rateDraft}
+              placeholder="e.g. 12"
+              onChange={(e) => commitRate(e.target.value)}
+              className="site-input-group__field font-mono text-lg tabular-nums"
+              aria-describedby="rate-hint"
             />
           </div>
         </div>
-        <p id="quote-rate-hint" className="mt-3 text-sm leading-relaxed text-muted-foreground">
-          Many institutes land around {formatInr(NORMAL_PER_STUDENT_RATE_MIN_INR)}–
-          {formatInr(NORMAL_PER_STUDENT_RATE_MAX_INR)} per student — enter any rate you were quoted.
-          Monthly campus price starts from {formatInr(MIN_MONTHLY_CHARGE_INR)}. Total is for the selected
-          tenure
-          {quote.freeMonths > 0
-            ? ` (${quote.freeMonths} months free · ${quote.billableMonths} paid).`
-            : "."}
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Common rates">
+        {RATE_PRESETS.map((preset) => (
+          <button
+            key={preset}
+            type="button"
+            aria-pressed={rate === preset}
+            onClick={() => commitRate(String(preset))}
+            className={cn(
+              "rounded-lg border px-2.5 py-1 text-xs font-semibold tabular-nums transition-colors",
+              rate === preset
+                ? "border-[var(--border-brand)] bg-[color-mix(in_oklch,var(--site-brand-soft)_55%,var(--card))]"
+                : "border-[var(--border)] text-muted-foreground hover:border-[var(--border-strong)]",
+            )}
+          >
+            {formatInr(preset)}
+          </button>
+        ))}
+      </div>
+      <p id="rate-hint" className="mt-2 text-xs text-muted-foreground">
+        Typical band {formatInr(NORMAL_PER_STUDENT_RATE_MIN_INR)}–
+        {formatInr(NORMAL_PER_STUDENT_RATE_MAX_INR)}. Your confirmed rate is set for your campus.
+      </p>
+
+      <fieldset className="mt-6">
+        <legend className="text-sm font-medium">How do you want to pay?</legend>
+        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+          {TENURES.map((opt) => {
+            const active = tenure === opt.months;
+            const optionQuote = allQuotes?.find((q) => q.durationMonths === opt.months);
+            return (
+              <button
+                key={opt.months}
+                type="button"
+                aria-pressed={active}
+                onClick={() => setTenure(opt.months)}
+                className={cn(
+                  "rounded-xl border px-3 py-3 text-left transition-colors",
+                  active
+                    ? "border-[var(--border-brand)] bg-[color-mix(in_oklch,var(--site-brand-soft)_55%,var(--card))]"
+                    : "border-[var(--border)] bg-[var(--card)] hover:border-[var(--border-strong)]",
+                )}
+              >
+                <span className="block text-sm font-semibold">{opt.label}</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">{opt.hint}</span>
+                {optionQuote ? (
+                  <span className="mt-2 block font-mono text-sm font-semibold tabular-nums text-foreground">
+                    {formatInr(optionQuote.payableAmountInr)}
+                    <span className="ml-1 text-xs font-normal text-muted-foreground">
+                      {opt.months === 1 ? "/mo" : " total"}
+                    </span>
+                  </span>
+                ) : (
+                  <span className="mt-2 block font-mono text-sm text-muted-foreground">—</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </fieldset>
+
+      <div className="mt-6 rounded-2xl bg-[var(--muted)] px-5 py-5 text-center">
+        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+          {showPeriodQuote
+            ? tenure === 12
+              ? "Yearly quote"
+              : "6-month quote"
+            : "Monthly quote"}
         </p>
-        <p id="total-cost-hint" className="mt-2 text-sm text-muted-foreground">
-          Campus monthly price:{" "}
-          <span className="font-medium text-foreground">{formatInr(quote.monthlyPriceInr)}/month</span>
-          {quote.showAsBaseSubscription
-            ? ` (campus minimum at ${formatCount(students)} students).`
-            : ` (${formatCount(students)} × ${formatInr(ratePerHead)}).`}
-        </p>
-        <CTAButton asChild className="mt-5">
-          <Link to="/contact" search={contactSearch("quote", students)}>
+        {quote && students !== null && rate !== null && rawMonthly !== null && periodTotal !== null ? (
+          <>
+            <p className="mt-2 font-mono text-4xl font-semibold tabular-nums tracking-tight">
+              {formatInr(showPeriodQuote ? periodTotal : quote.monthlyPriceInr)}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {showPeriodQuote
+                ? tenure === 12
+                  ? "total for 12 months (2 months free)"
+                  : "total for 6 months"
+                : "per month"}
+            </p>
+            {showPeriodQuote ? (
+              <p className="mt-3 font-mono text-lg font-semibold tabular-nums text-foreground">
+                {formatInr(quote.monthlyPriceInr)}
+                <span className="ml-1 text-sm font-normal text-muted-foreground">/ month</span>
+              </p>
+            ) : null}
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+              {usingMinimum ? (
+                <>
+                  {formatCount(students)} × {formatInr(rate)} = {formatInr(rawMonthly)}, so the{" "}
+                  <span className="font-medium text-foreground">
+                    {formatInr(MIN_MONTHLY_CHARGE_INR)} campus minimum
+                  </span>{" "}
+                  applies each month.
+                </>
+              ) : (
+                <>
+                  {formatCount(students)} students × {formatInr(rate)} ={" "}
+                  <span className="font-medium text-foreground">
+                    {formatInr(quote.monthlyPriceInr)}/month
+                  </span>
+                </>
+              )}
+              {showPeriodQuote && quote.freeMonths > 0
+                ? ` · pay for ${quote.billableMonths} months, ${quote.freeMonths} free.`
+                : showPeriodQuote
+                  ? ` · ${tenure} × ${formatInr(quote.monthlyPriceInr)}.`
+                  : null}
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="mt-2 font-mono text-4xl font-semibold tabular-nums tracking-tight text-muted-foreground">
+              —
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">quote</p>
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+              Enter students and rate to see an estimate.
+            </p>
+          </>
+        )}
+      </div>
+
+      <div className="mt-6 flex flex-wrap justify-center gap-3">
+        <CTAButton asChild>
+          <Link
+            to="/contact"
+            search={contactSearch("quote", students ?? undefined)}
+          >
             Request this quote
           </Link>
         </CTAButton>
-      </SiteCard>
-
-      <Grid columns={3} className="mt-6">
-        {quotes.map((q) => (
-          <PricingCard
-            key={q.durationMonths}
-            title={q.durationLabel}
-            hint={TENURE_OPTIONS.find((t) => t.months === q.durationMonths)?.hint}
-            badge={q.durationMonths === 12 ? "Best value" : undefined}
-            amount={formatInr(q.monthlyPriceInr)}
-            amountNote="per month for the institute"
-            secondaryAmount={formatInr(q.payableAmountInr)}
-            secondaryNote={
-              q.durationMonths === 1 ? "this month" : `across ${q.billableMonths} paid months`
-            }
-            featured={q.durationMonths === 12}
-          >
-            <p className="mt-3 text-sm text-muted-foreground">
-              {q.showAsBaseSubscription
-                ? `At ${formatCount(students)} students, the campus minimum keeps you at ${formatInr(q.monthlyPriceInr)}/month.`
-                : `${formatCount(students)} students × ${formatInr(q.assignedRateInr)} = ${formatInr(q.studentChargeInr)}/month before tenure.`}
-            </p>
-            <CTAButton
-              asChild
-              variant={q.durationMonths === 12 ? "primary" : "secondary"}
-              size="md"
-              className="mt-4"
-            >
-              <Link to="/contact" search={contactSearch("quote", q.activeStudentCount)}>
-                Request this quote
-              </Link>
-            </CTAButton>
-          </PricingCard>
-        ))}
-      </Grid>
-    </div>
+        <CTAButton asChild variant="secondary">
+          <Link to="/contact" search={contactSearch("trial")}>
+            Start free trial
+          </Link>
+        </CTAButton>
+      </div>
+    </SiteCard>
   );
 }

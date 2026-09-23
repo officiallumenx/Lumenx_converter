@@ -330,7 +330,7 @@ export const HOME_FAQ: { q: string; a: string }[] = [
   },
   {
     q: "How is pricing calculated?",
-    a: "About ₹12 per student each month on the estimate we show here (typical band ₹12–₹15). The whole campus starts from ₹8,000 per month. You can choose monthly, 6-month, or yearly tenure.",
+    a: "One monthly bill — not two. Your institute gets a per-student rate (often ₹12–₹15, set for your campus). You pay whichever is higher: students × that rate, or ₹8,000 minimum. They are never added. You can choose monthly, 6-month, or yearly tenure.",
   },
   {
     q: "Is there a trial?",
@@ -342,11 +342,11 @@ export const HOME_FAQ: { q: string; a: string }[] = [
   },
   {
     q: "How do demos work?",
-    a: "Interactive demos use labelled mock screens. They are not live campus data, they do not save, and they do not take payment.",
+    a: "Book a Demo from the site and we walk you through the products with your campus in mind. This website does not create a live institute login by itself.",
   },
   {
     q: "How do I get started?",
-    a: "Book a demo, open Get Started, or Contact us with your institute details. After verification, a 60-day trial can begin. You can also explore mock demos with no login.",
+    a: "Book a demo, open Get Started, or Contact us with your institute details. After verification, a 60-day trial can begin.",
   },
   {
     q: "How do I contact LumenX?",

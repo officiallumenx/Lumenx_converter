@@ -48,7 +48,6 @@ export const SOLUTIONS: SolutionView[] = [
     points: [
       "One directory instead of parallel spreadsheets",
       "Modules enabled per institute when you need them",
-      "About ₹12 per student each month, with a clear campus minimum",
     ],
   },
   {
@@ -88,7 +87,7 @@ export const SOLUTIONS: SolutionView[] = [
     narrative:
       "Parents use Connect with a multi-child switch. They see presence, dues, homework, marks, messages, and — when Transport is on — trip status, boarding, and approach alerts. They do not see a live GPS map, and they do not configure the institute.",
     product: "connect",
-    products: ["connect", "transport"],
+    products: ["connect"],
     icon: Users,
     points: [
       "One account for every child",
@@ -118,7 +117,7 @@ export const SOLUTIONS: SolutionView[] = [
     narrative:
       "Transport is a driver app: today’s route, stops, boarding, trip status, and an emergency note to the office. Admin assigns students to routes. Parents follow status in Connect. Device location is for stop setup and readiness — not a parent telematics stream.",
     product: "transport",
-    products: ["transport", "admin", "connect"],
+    products: ["transport"],
     icon: Bus,
     points: [
       "Today’s manifest and stops",

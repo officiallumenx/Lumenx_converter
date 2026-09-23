@@ -83,31 +83,25 @@ export const PAGE_SEO = {
     path: "/solutions",
     title: "LumenX Solutions | Tools for Institutions, Teachers & Parents",
     description:
-      "Audience-focused outcomes for institutions, administrators, teachers, parents, students, and drivers on LumenX.",
+      "All LumenX solutions on one page — institutions, administrators, teachers, parents, students, and drivers.",
   },
   modules: {
     path: "/modules",
     title: "LumenX Modules | Institute Management Modules",
     description:
-      "Browse LumenX modules by category — academics, administration, finance, communication, transport, documents, admissions, and careers.",
+      "All LumenX modules in one place — Admin, Connect (parent, teacher, student), Transport, Admissions, and Careers.",
   },
   pricing: {
     path: "/pricing",
     title: "LumenX Pricing | Simple Institute Management Pricing",
     description:
-      "About ₹12 per student each month, campus from ₹8,000/month, and a 60-day trial after approval. One clear campus subscription.",
+      "Per-student rate set for your campus (often ₹12–₹15). One monthly bill: higher of students × rate, or ₹8,000 minimum. 60-day trial.",
   },
   resources: {
     path: "/resources",
-    title: "LumenX Resources | Demo, Help, FAQs & Downloads",
+    title: "LumenX Resources | Help, FAQs & Downloads",
     description:
-      "Explore LumenX demos, help, FAQs, and downloads. Mock screens are labelled as previews. Store links appear only when real.",
-  },
-  demo: {
-    path: "/resources/demo",
-    title: "Demo — LumenX",
-    description:
-      "Explore LumenX Admin, Connect, Transport, Admissions, and Careers with mock screens. No account, no live institute data, and no payment on this site.",
+      "Explore LumenX help, FAQs, and downloads. Store links appear only when real.",
   },
   help: {
     path: "/resources/help",
@@ -125,12 +119,7 @@ export const PAGE_SEO = {
     path: "/resources/downloads",
     title: "Downloads — LumenX",
     description:
-      "Open LumenX web apps when they are public. Android and iOS stay Coming soon until a real store listing is configured.",
-  },
-  blog: {
-    path: "/resources/blog",
-    title: "Blog — LumenX",
-    description: "Product notes and platform updates from LumenX. Articles appear here when published — we do not invent posts.",
+      "Get LumenX Connect and Transport on mobile. Open Admin and Careers on the web when configured. Store links appear only when real.",
   },
   about: {
     path: "/about",

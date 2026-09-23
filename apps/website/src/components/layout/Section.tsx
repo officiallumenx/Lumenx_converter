@@ -16,6 +16,7 @@ export function Section({
   narrow = false,
   tone = "default",
   headingAs = "h2",
+  dense = false,
 }: {
   id?: string;
   eyebrow?: string;
@@ -26,6 +27,8 @@ export function Section({
   narrow?: boolean;
   tone?: SectionTone;
   headingAs?: "h1" | "h2" | "h3";
+  /** Tighter top padding and heading gap — for catalogue pages. */
+  dense?: boolean;
 }) {
   const revealRef = useReveal<HTMLElement>();
   const hasHeading = Boolean(eyebrow || title || lede);
@@ -33,11 +36,22 @@ export function Section({
     <section
       id={id}
       ref={revealRef}
-      className={cn("site-section site-reveal", tone === "muted" && "site-section--muted", className)}
+      className={cn(
+        "site-section site-reveal",
+        tone === "muted" && "site-section--muted",
+        dense && "site-section--dense",
+        className,
+      )}
     >
       <Container narrow={narrow}>
         {hasHeading ? (
-          <SectionHeading as={headingAs} eyebrow={eyebrow} title={title} lede={lede} className="site-section-head mb-10" />
+          <SectionHeading
+            as={headingAs}
+            eyebrow={eyebrow}
+            title={title}
+            lede={lede}
+            className={cn("site-section-head", dense ? "mb-5" : "mb-10")}
+          />
         ) : null}
         {children}
       </Container>

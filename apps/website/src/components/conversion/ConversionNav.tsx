@@ -1,9 +1,9 @@
 import { Link } from "@tanstack/react-router";
 
 const LINKS = [
-  { to: "/resources/demo", label: "Demo" },
   { to: "/pricing", label: "Pricing" },
   { to: "/get-started", label: "Get started" },
+  { to: "/contact", label: "Book a Demo" },
 ] as const;
 
 export function ConversionNav({
@@ -17,7 +17,7 @@ export function ConversionNav({
         <Link
           key={link.to}
           to={link.to}
-          search={{}}
+          search={link.to === "/contact" ? { intent: "demo" } : {}}
           aria-current={link.to === active ? "page" : undefined}
           className="site-product-nav__item"
         >

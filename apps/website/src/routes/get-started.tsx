@@ -100,8 +100,8 @@ function GetStartedPage() {
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <CTAButton asChild variant="secondary">
-                <Link to="/resources/demo" search={{}}>
-                  Explore mock demo
+                <Link to="/contact" search={contactSearch("demo")}>
+                  Book a Demo
                 </Link>
               </CTAButton>
               <CTAButton asChild variant="ghost">
@@ -171,11 +171,6 @@ function GetStartedPage() {
               <CTAButton asChild variant="secondary">
                 <Link to="/contact" search={contactSearch("demo")}>
                   Book a Demo instead
-                </Link>
-              </CTAButton>
-              <CTAButton asChild variant="ghost">
-                <Link to="/resources/demo" search={{}}>
-                  Try mock demo
                 </Link>
               </CTAButton>
             </div>

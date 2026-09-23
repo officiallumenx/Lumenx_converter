@@ -4,6 +4,7 @@ import {
   DEFAULT_TRIAL_DAYS,
   MIN_MONTHLY_CHARGE_INR,
   NORMAL_PER_STUDENT_RATE_MAX_INR,
+  NORMAL_PER_STUDENT_RATE_MIN_INR,
 } from "@lumenx/utils/subscription/policy";
 import { Section } from "../layout/Section";
 import { CTAButton } from "../conversion/CTAButton";
@@ -16,48 +17,33 @@ export function HomePricing() {
     <Section
       id="pricing"
       eyebrow="Pricing"
-      title={`Simple for institutes — about ${formatInr(DEFAULT_PER_STUDENT_RATE_INR)} per student each month.`}
-      lede={`One campus plan. Free trial for ${DEFAULT_TRIAL_DAYS} days after approval. No payment on this website.`}
+      title="One monthly bill — not two."
+      lede={`Per-student rate is set for your campus (often ${formatInr(NORMAL_PER_STUDENT_RATE_MIN_INR)}–${formatInr(NORMAL_PER_STUDENT_RATE_MAX_INR)}). You pay that × students, or ${formatInr(MIN_MONTHLY_CHARGE_INR)} — whichever is higher. ${DEFAULT_TRIAL_DAYS}-day free trial.`}
     >
-      <div className="grid gap-4 sm:grid-cols-3">
-        <SiteCard quiet>
-          <p className="text-sm font-semibold tracking-tight">Per student</p>
-          <p className="mt-2 font-mono text-2xl font-semibold tabular-nums tracking-tight">
-            {formatInr(DEFAULT_PER_STUDENT_RATE_INR)}
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Typical band {formatInr(DEFAULT_PER_STUDENT_RATE_INR)}–{formatInr(NORMAL_PER_STUDENT_RATE_MAX_INR)} / month
-          </p>
-        </SiteCard>
-        <SiteCard quiet>
-          <p className="text-sm font-semibold tracking-tight">Campus from</p>
-          <p className="mt-2 font-mono text-2xl font-semibold tabular-nums tracking-tight">
-            {formatInr(MIN_MONTHLY_CHARGE_INR)}
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">Whole institute / month</p>
-        </SiteCard>
-        <SiteCard quiet>
-          <p className="text-sm font-semibold tracking-tight">Trial</p>
-          <p className="mt-2 font-mono text-2xl font-semibold tabular-nums tracking-tight">
-            {DEFAULT_TRIAL_DAYS} days
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">Full access after approval</p>
-        </SiteCard>
-      </div>
-      <div className="mt-8 flex flex-wrap gap-3">
+      <SiteCard quiet className="mx-auto max-w-2xl">
+        <p className="text-center text-sm leading-relaxed text-muted-foreground sm:text-base">
+          {formatInr(DEFAULT_PER_STUDENT_RATE_INR)} on this site is only a starting estimate — not the only
+          rate. Example at {formatInr(DEFAULT_PER_STUDENT_RATE_INR)}: 400 students →{" "}
+          <span className="font-medium text-foreground">{formatInr(MIN_MONTHLY_CHARGE_INR)}</span>{" "}
+          minimum; 1,000 students →{" "}
+          <span className="font-medium text-foreground">
+            {formatInr(1000 * DEFAULT_PER_STUDENT_RATE_INR)}
+          </span>
+          .
+        </p>
+        <p className="mt-3 text-center text-sm text-muted-foreground">
+          Admin and Connect included. No payment on this website.
+        </p>
+      </SiteCard>
+      <div className="mt-8 flex flex-wrap justify-center gap-3">
         <CTAButton asChild>
           <Link to="/pricing" search={{}}>
-            See full pricing
+            Estimate your price
           </Link>
         </CTAButton>
         <CTAButton asChild variant="secondary">
           <Link to="/contact" search={contactSearch("trial")}>
             Start free trial
-          </Link>
-        </CTAButton>
-        <CTAButton asChild variant="ghost">
-          <Link to="/contact" search={contactSearch("quote")}>
-            Request a quote
           </Link>
         </CTAButton>
       </div>

@@ -47,9 +47,9 @@ export function ProductRoles({
           <div className="min-w-0 flex-1">
             <h3 className="text-2xl font-semibold tracking-tight">{role.title}</h3>
             <p className="mt-2 max-w-2xl text-muted-foreground">{role.outcome}</p>
-            <ul className="mt-5 grid gap-2 sm:grid-cols-3">
+            <ul className="mt-5 list-disc space-y-1.5 pl-5 text-sm text-muted-foreground sm:columns-2 sm:gap-x-10">
               {role.points.map((point) => (
-                <li key={point} className="rounded-lg border bg-muted/40 p-4 text-sm">
+                <li key={point} className="break-inside-avoid">
                   {point}
                 </li>
               ))}

@@ -132,7 +132,7 @@ export const MODULE_SECTIONS: ModuleSection[] = [
     buckets: [
       {
         id: "connect-parent",
-        title: "Parent",
+        title: "Parent portal",
         lede: "Guardian view of each linked child — attendance, fees, messages, and more.",
         items: [
           { name: "Home", blurb: "Daily overview for linked children." },
@@ -161,7 +161,7 @@ export const MODULE_SECTIONS: ModuleSection[] = [
       },
       {
         id: "connect-teacher",
-        title: "Teacher",
+        title: "Teacher portal",
         lede: "Classroom work — attendance, diary, homework, marks — without the office console.",
         items: [
           { name: "Dashboard", blurb: "Today’s teaching priorities." },
@@ -186,7 +186,7 @@ export const MODULE_SECTIONS: ModuleSection[] = [
       },
       {
         id: "connect-student",
-        title: "Student",
+        title: "Student portal",
         lede: "The learner’s own slice — attendance, homework, marks, and campus life.",
         items: [
           { name: "Home", blurb: "Personal daily overview." },

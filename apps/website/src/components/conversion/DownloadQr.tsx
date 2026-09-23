@@ -9,9 +9,14 @@ export function DownloadQr({
 }) {
   return (
     <figure className="download-qr">
-      <div className="download-qr__code">
+      <a
+        href={value}
+        className="download-qr__code"
+        aria-label={label}
+        title={value}
+      >
         <QRCode value={value} size={128} level="M" bgColor="#ffffff" fgColor="#111827" />
-      </div>
+      </a>
       <figcaption className="download-qr__caption">{label}</figcaption>
     </figure>
   );

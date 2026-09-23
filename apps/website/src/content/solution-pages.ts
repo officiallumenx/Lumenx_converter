@@ -17,7 +17,7 @@ export function isPublicSolutionId(value: string): value is PublicSolutionId {
 }
 
 export function solutionPath(id: PublicSolutionId | SolutionId): string {
-  if (isPublicSolutionId(id)) return `/solutions/${id}`;
+  if (isPublicSolutionId(id)) return `/solutions?role=${id}`;
   return "/solutions";
 }
 
@@ -41,7 +41,6 @@ export const SOLUTION_PAGES: Record<PublicSolutionId, SolutionPageExtra> = {
       "One directory instead of parallel spreadsheets",
       "Admin + Connect as the campus core",
       "Transport, Admissions, and Careers on request",
-      "Clear per-student campus pricing",
     ],
   },
   administrators: {

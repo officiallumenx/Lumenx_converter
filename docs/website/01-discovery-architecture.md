@@ -71,7 +71,9 @@ Later:
 | `VITE_CONNECT_ORIGIN` | Deep-link to demo Connect |
 | `VITE_TRANSPORT_ORIGIN` | Deep-link to demo Transport |
 | `VITE_NEXUS_ORIGIN` | Deep-link to demo Nexus |
-| `VITE_LEAD_ENDPOINT` | POST contact form |
+| `VITE_LEAD_ENDPOINT` | Optional override for lead POST (default: same-origin `/api/leads`) |
+| `LEAD_EMAIL_TO` (Worker var) | Inbox for Book a Demo / Contact (default `lumenxtech.official@gmail.com`) |
+| `RESEND_API_KEY` / `LEAD_EMAIL_FROM` (Worker secrets) | Preferred mail path via Resend; otherwise FormSubmit fallback |
 
 Until those exist, “Open live demo” buttons go to `/demos` (in-site stages) rather than broken origins.
 

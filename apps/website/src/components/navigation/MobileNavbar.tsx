@@ -43,8 +43,13 @@ function MobileMenuSection({
             </li>
           ) : null}
           {item.children.map((child) => (
-            <li key={child.to}>
-              <Link to={child.to} className="site-nav-link w-full text-sm" onClick={onNavigate}>
+            <li key={`${child.to}-${child.label}`}>
+              <Link
+                to={child.to}
+                search={child.search}
+                className="site-nav-link w-full text-sm"
+                onClick={onNavigate}
+              >
                 {child.label}
               </Link>
             </li>

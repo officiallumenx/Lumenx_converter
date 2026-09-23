@@ -1,15 +1,10 @@
 export const RESOURCES_HERO = {
   eyebrow: "Resources",
   title: "Explore LumenX before you commit.",
-  lede: "Open a mock demo, read FAQs, check downloads when they exist, or get help. Nothing here invents store listings or live institute data.",
+  lede: "Read FAQs, check downloads when they exist, or get help. Nothing here invents store listings or live institute data.",
 } as const;
 
 export const RESOURCE_CARDS = [
-  {
-    to: "/resources/demo",
-    title: "Demo",
-    body: "Tap through mock product screens — labelled as previews, no account required.",
-  },
   {
     to: "/resources/help",
     title: "Help",
@@ -24,11 +19,6 @@ export const RESOURCE_CARDS = [
     to: "/resources/downloads",
     title: "Downloads",
     body: "Web apps and store links only when a real URL is configured — otherwise Coming soon.",
-  },
-  {
-    to: "/resources/blog",
-    title: "Blog",
-    body: "Product notes and platform updates. New posts appear here when published.",
   },
 ] as const;
 
@@ -49,7 +39,7 @@ export const HELP_CATEGORIES: HelpCategory[] = [
       },
       {
         title: "What should we explore first?",
-        body: "Most campuses start with LumenX Admin and LumenX Connect. Open the Platform pages, then try the labelled mock demos under Resources.",
+        body: "Most campuses start with LumenX Admin and LumenX Connect. Open the Platform pages, then Book a Demo when you want a live walkthrough.",
       },
     ],
   },

@@ -36,40 +36,46 @@ export type DownloadChannel = {
 
 const CONNECT_WEB = readUrl(import.meta.env.VITE_CONNECT_ORIGIN);
 const CAREERS_WEB = readUrl(import.meta.env.VITE_CAREERS_ORIGIN) ?? CONNECT_WEB;
+/**
+ * Public Admin console.
+ * Override with VITE_ADMIN_ORIGIN when needed.
+ */
+const ADMIN_WEB =
+  readUrl(import.meta.env.VITE_ADMIN_ORIGIN) ?? "https://admin.lumenxtech.in";
 
 export const DOWNLOADS: Record<ProductId, DownloadChannel> = {
   connect: {
     id: "connect",
     slug: "connect",
     description: PRODUCT_PAGES.connect.purpose,
-    webNote: "Parent, teacher, and student portal.",
-    webUrl: CONNECT_WEB,
+    webNote: "Parent, teacher, and student app — Android and iOS.",
+    webUrl: null,
     apkUrl: readUrl(import.meta.env.VITE_CONNECT_APK_URL),
     playStoreUrl: readUrl(import.meta.env.VITE_CONNECT_PLAY_URL),
     appStoreUrl: readUrl(import.meta.env.VITE_CONNECT_APP_STORE_URL),
     iosUrl: readUrl(import.meta.env.VITE_CONNECT_IOS_URL),
     version: readVersion(import.meta.env.VITE_CONNECT_VERSION),
-    platforms: { web: "web", android: "android", ios: "ios-later" },
+    platforms: { web: "not-offered", android: "android", ios: "ios-later" },
   },
   transport: {
     id: "transport",
     slug: "transport",
     description: PRODUCT_PAGES.transport.purpose,
-    webNote: "Driver and fleet operations.",
-    webUrl: readUrl(import.meta.env.VITE_TRANSPORT_ORIGIN),
+    webNote: "Driver and fleet app — Android and iOS.",
+    webUrl: null,
     apkUrl: readUrl(import.meta.env.VITE_TRANSPORT_APK_URL),
     playStoreUrl: readUrl(import.meta.env.VITE_TRANSPORT_PLAY_URL),
     appStoreUrl: readUrl(import.meta.env.VITE_TRANSPORT_APP_STORE_URL),
     iosUrl: readUrl(import.meta.env.VITE_TRANSPORT_IOS_URL),
     version: readVersion(import.meta.env.VITE_TRANSPORT_VERSION),
-    platforms: { web: "web", android: "android", ios: "ios-later" },
+    platforms: { web: "not-offered", android: "android", ios: "ios-later" },
   },
   admin: {
     id: "admin",
     slug: "admin",
     description: PRODUCT_PAGES.admin.purpose,
     webNote: "Browser console for the institute office.",
-    webUrl: readUrl(import.meta.env.VITE_ADMIN_ORIGIN),
+    webUrl: ADMIN_WEB,
     apkUrl: readUrl(import.meta.env.VITE_ADMIN_APK_URL),
     playStoreUrl: readUrl(import.meta.env.VITE_ADMIN_PLAY_URL),
     appStoreUrl: readUrl(import.meta.env.VITE_ADMIN_APP_STORE_URL),
@@ -146,6 +152,10 @@ export function platformStateLabel(offer: PlatformOffer, href: string | null): s
 export function releaseLabel(channel: DownloadChannel): string {
   if (channel.platforms.web === "via-connect") {
     return channel.webUrl ? "Connect portal" : "Coming soon";
+  }
+  if (channel.platforms.web === "not-offered") {
+    if (androidHref(channel) || iosHref(channel)) return "Mobile app";
+    return "Coming soon";
   }
   if (channel.webUrl) return "Web available";
   if (channel.platforms.android === "android") return "Coming soon";

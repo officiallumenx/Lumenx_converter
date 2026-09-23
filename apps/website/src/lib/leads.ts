@@ -1,6 +1,13 @@
+import {
+  LEAD_INBOX_EMAIL,
+  leadEmailText,
+  leadSubject,
+  type WebsiteLeadIntent,
+} from "./lead-mail";
+
 const LEADS_KEY = "lumenx.website.leads.v1";
 
-export type WebsiteLeadIntent = "trial" | "quote" | "partner" | "question" | "demo";
+export type { WebsiteLeadIntent };
 
 export type WebsiteLead = {
   name: string;
@@ -18,21 +25,26 @@ export type LeadSubmitResult =
   | { ok: true; mode: "remote"; lead: WebsiteLead }
   | {
       ok: false;
-      mode: "unavailable" | "remote-error";
+      mode: "unavailable" | "remote-error" | "needs-activation";
       lead: WebsiteLead;
       message: string;
+      inbox?: string;
     };
 
-function readLeadEndpoint(): string | null {
+function readLeadEndpoint(): string {
   const value = import.meta.env.VITE_LEAD_ENDPOINT?.trim();
-  return value ? value : null;
+  return value || "/api/leads";
+}
+
+function readWeb3FormsKey(): string | null {
+  const value = import.meta.env.VITE_WEB3FORMS_ACCESS_KEY?.trim();
+  return value || null;
 }
 
 function buildLead(lead: Omit<WebsiteLead, "submittedAt">): WebsiteLead {
   return { ...lead, submittedAt: new Date().toISOString() };
 }
 
-/** Local draft only — never presented as a successful delivery to LumenX. */
 function saveLocalDraft(lead: WebsiteLead): void {
   try {
     const raw = localStorage.getItem(LEADS_KEY);
@@ -44,28 +56,56 @@ function saveLocalDraft(lead: WebsiteLead): void {
   }
 }
 
-/**
- * Submit a website lead.
- * - If `VITE_LEAD_ENDPOINT` is set, POST JSON and only treat HTTP 2xx as success.
- * - Otherwise return an honest failure — local draft is optional backup, not delivery.
- */
-export async function submitWebsiteLead(
-  leadInput: Omit<WebsiteLead, "submittedAt">,
-): Promise<LeadSubmitResult> {
-  const lead = buildLead(leadInput);
-  const endpoint = readLeadEndpoint();
+function failureMessage(kind: "http" | "network"): string {
+  const inbox = LEAD_INBOX_EMAIL;
+  if (kind === "network") {
+    return `We could not reach the message service. A draft was kept in this browser only — LumenX has not confirmed receipt. Please email ${inbox}.`;
+  }
+  return `We could not deliver your message just now. A draft was kept in this browser only. Please email ${inbox} or try again shortly.`;
+}
 
-  if (!endpoint) {
+async function submitViaWeb3Forms(lead: WebsiteLead, accessKey: string): Promise<LeadSubmitResult | null> {
+  try {
+    const response = await fetch("https://api.web3forms.com/submit", {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify({
+        access_key: accessKey,
+        subject: leadSubject(lead),
+        from_name: "LumenX Website",
+        replyto: lead.email,
+        name: lead.name,
+        email: lead.email,
+        phone: lead.phone,
+        institute: lead.institute,
+        role: lead.role,
+        student_count: lead.studentCount,
+        intent: lead.intent,
+        message: leadEmailText(lead),
+      }),
+    });
+    const body = (await response.json().catch(() => null)) as {
+      success?: boolean;
+      message?: string;
+    } | null;
+    if (response.ok && body?.success) {
+      return { ok: true, mode: "remote", lead };
+    }
     saveLocalDraft(lead);
     return {
       ok: false,
-      mode: "unavailable",
+      mode: "remote-error",
       lead,
-      message:
-        "Online message delivery is not configured on this site yet. Your details were saved only in this browser as a draft — LumenX has not received them. Email official.lumenx@gmail.com or try again later.",
+      message: body?.message?.trim() || failureMessage("http"),
+      inbox: LEAD_INBOX_EMAIL,
     };
+  } catch {
+    return null;
   }
+}
 
+async function submitViaLeadApi(lead: WebsiteLead): Promise<LeadSubmitResult> {
+  const endpoint = readLeadEndpoint();
   try {
     const response = await fetch(endpoint, {
       method: "POST",
@@ -74,12 +114,24 @@ export async function submitWebsiteLead(
     });
     if (!response.ok) {
       saveLocalDraft(lead);
+      let message = failureMessage("http");
+      let needsActivation = false;
+      try {
+        const body = (await response.json()) as {
+          error?: string;
+          needsActivation?: boolean;
+        };
+        if (body.error?.trim()) message = body.error.trim();
+        needsActivation = Boolean(body.needsActivation);
+      } catch {
+        // keep default
+      }
       return {
         ok: false,
-        mode: "remote-error",
+        mode: needsActivation ? "needs-activation" : "remote-error",
         lead,
-        message:
-          "We could not deliver your message just now. A draft was kept in this browser only. Please email official.lumenx@gmail.com or try again shortly.",
+        message,
+        inbox: LEAD_INBOX_EMAIL,
       };
     }
     return { ok: true, mode: "remote", lead };
@@ -89,10 +141,28 @@ export async function submitWebsiteLead(
       ok: false,
       mode: "remote-error",
       lead,
-      message:
-        "We could not reach the message service. A draft was kept in this browser only — LumenX has not confirmed receipt. Please email official.lumenx@gmail.com.",
+      message: failureMessage("network"),
+      inbox: LEAD_INBOX_EMAIL,
     };
   }
+}
+
+/**
+ * Submit a website lead (demo, trial, quote, partner, question).
+ * Prefers Web3Forms in the browser (access key is public by design), then `/api/leads`.
+ */
+export async function submitWebsiteLead(
+  leadInput: Omit<WebsiteLead, "submittedAt">,
+): Promise<LeadSubmitResult> {
+  const lead = buildLead(leadInput);
+  const web3Key = readWeb3FormsKey();
+
+  if (web3Key) {
+    const web3 = await submitViaWeb3Forms(lead, web3Key);
+    if (web3) return web3;
+  }
+
+  return submitViaLeadApi(lead);
 }
 
 /** @deprecated Use submitWebsiteLead — local-only save is not a successful delivery. */

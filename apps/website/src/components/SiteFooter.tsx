@@ -49,15 +49,15 @@ function FooterColumn({
   links,
 }: {
   title: string;
-  links: readonly { to: string; label: string }[];
+  links: readonly { to: string; label: string; search?: Record<string, string> }[];
 }) {
   return (
     <div>
       <h2 className="site-kicker">{title}</h2>
       <ul className="mt-3 space-y-1">
         {links.map((link) => (
-          <li key={link.to}>
-            <Link to={link.to} className="site-footer-link">
+          <li key={`${link.to}-${link.label}`}>
+            <Link to={link.to} search={link.search} className="site-footer-link">
               {link.label}
             </Link>
           </li>

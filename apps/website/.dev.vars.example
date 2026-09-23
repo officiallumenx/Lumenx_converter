@@ -1,0 +1,15 @@
+# Optional local Worker secrets for website lead email.
+# Copy to `.dev.vars` (gitignored) when using `wrangler` / Cloudflare Vite.
+#
+# Preferred (Resend — verified sender domain):
+# RESEND_API_KEY=re_xxx
+# LEAD_EMAIL_FROM=LumenX Leads <leads@yourdomain.com>
+#
+# Or Web3Forms (free key emailed to you from https://web3forms.com — enter lumenxtech.official@gmail.com):
+# WEB3FORMS_ACCESS_KEY=your-access-key
+#
+# Inbox (also set in wrangler.jsonc vars):
+# LEAD_EMAIL_TO=lumenxtech.official@gmail.com
+#
+# Without Resend/Web3Forms, /api/leads uses FormSubmit.
+# First FormSubmit delivery sends an “Activate Form” email — check Spam, click once, resubmit.

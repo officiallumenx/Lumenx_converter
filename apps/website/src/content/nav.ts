@@ -9,6 +9,7 @@ export type NavChild = {
   to: string;
   label: string;
   description?: string;
+  search?: Record<string, string>;
 };
 
 export type NavItem =
@@ -47,15 +48,46 @@ export const PRIMARY_NAV: readonly NavItem[] = [
     overview: {
       to: "/solutions",
       title: "Solutions by role",
-      description: "Outcomes for everyone who uses the campus",
+      description: "All audiences on one page",
     },
     children: [
-      { to: "/solutions/institutions", label: "Institutions" },
-      { to: "/solutions/administrators", label: "Administrators" },
-      { to: "/solutions/teachers", label: "Teachers" },
-      { to: "/solutions/parents", label: "Parents" },
-      { to: "/solutions/students", label: "Students" },
-      { to: "/solutions/drivers", label: "Drivers" },
+      { to: "/solutions", label: "All solutions", description: "Full directory on one page" },
+      {
+        to: "/solutions",
+        label: "Institutions",
+        description: "Whole-campus platform",
+        search: { role: "institutions" },
+      },
+      {
+        to: "/solutions",
+        label: "Administrators",
+        description: "Office day in Admin",
+        search: { role: "administrators" },
+      },
+      {
+        to: "/solutions",
+        label: "Teachers",
+        description: "Connect classroom work",
+        search: { role: "teachers" },
+      },
+      {
+        to: "/solutions",
+        label: "Parents",
+        description: "Family view in Connect",
+        search: { role: "parents" },
+      },
+      {
+        to: "/solutions",
+        label: "Students",
+        description: "Learner portal",
+        search: { role: "students" },
+      },
+      {
+        to: "/solutions",
+        label: "Drivers",
+        description: "Transport trip app",
+        search: { role: "drivers" },
+      },
     ],
   },
   {
@@ -65,17 +97,25 @@ export const PRIMARY_NAV: readonly NavItem[] = [
     overview: {
       to: "/modules",
       title: "Module directory",
-      description: "Capabilities grouped by how campuses work",
+      description: "All modules in one place by app",
     },
     children: [
-      { to: "/modules/academics", label: "Academics" },
-      { to: "/modules/administration", label: "Administration" },
-      { to: "/modules/finance", label: "Finance" },
-      { to: "/modules/communication", label: "Communication" },
-      { to: "/modules/transport", label: "Transport" },
-      { to: "/modules/documents", label: "Documents" },
-      { to: "/modules/admissions", label: "Admissions & Careers" },
-      { to: "/modules/growth", label: "Growth & Analytics" },
+      { to: "/modules", label: "All modules", description: "Full catalogue on one page" },
+      { to: "/modules", label: "Admin", description: "Office console modules", search: { section: "admin" } },
+      {
+        to: "/modules",
+        label: "Connect",
+        description: "Parent, teacher, and student",
+        search: { section: "connect" },
+      },
+      { to: "/modules", label: "Transport", description: "Driver trip modules", search: { section: "transport" } },
+      {
+        to: "/modules",
+        label: "Admissions",
+        description: "Applicant and institute intake",
+        search: { section: "admissions" },
+      },
+      { to: "/modules", label: "Careers", description: "Hiring and recruiters", search: { section: "careers" } },
     ],
     footerLink: { to: "/modules", label: "View all modules →" },
   },
@@ -90,11 +130,9 @@ export const PRIMARY_NAV: readonly NavItem[] = [
       description: "Explore, learn, and get help",
     },
     children: [
-      { to: "/resources/demo", label: "Demo" },
       { to: "/resources/help", label: "Help" },
       { to: "/resources/faq", label: "FAQs" },
       { to: "/resources/downloads", label: "Downloads" },
-      { to: "/resources/blog", label: "Blog" },
     ],
   },
 ] as const;
@@ -123,20 +161,19 @@ export const FOOTER_PLATFORM = [
 ] as const;
 
 export const FOOTER_SOLUTIONS = [
-  { to: "/solutions/institutions", label: "Institutions" },
-  { to: "/solutions/administrators", label: "Administrators" },
-  { to: "/solutions/teachers", label: "Teachers" },
-  { to: "/solutions/parents", label: "Parents" },
-  { to: "/solutions/students", label: "Students" },
-  { to: "/solutions/drivers", label: "Drivers" },
+  { to: "/solutions", label: "All solutions" },
+  { to: "/solutions", label: "Institutions", search: { role: "institutions" } },
+  { to: "/solutions", label: "Administrators", search: { role: "administrators" } },
+  { to: "/solutions", label: "Teachers", search: { role: "teachers" } },
+  { to: "/solutions", label: "Parents", search: { role: "parents" } },
+  { to: "/solutions", label: "Students", search: { role: "students" } },
+  { to: "/solutions", label: "Drivers", search: { role: "drivers" } },
 ] as const;
 
 export const FOOTER_RESOURCES = [
-  { to: "/resources/demo", label: "Demo" },
   { to: "/resources/help", label: "Help" },
   { to: "/resources/faq", label: "FAQs" },
   { to: "/resources/downloads", label: "Downloads" },
-  { to: "/resources/blog", label: "Blog" },
 ] as const;
 
 export const FOOTER_COMPANY = [

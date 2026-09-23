@@ -16,7 +16,7 @@ export function HomeDemos() {
     >
       <DemoHub flow={flow} onFlowChange={setFlow} />
       <div className="mt-8 flex justify-center">
-        <DemoCTA demo={flow}>Open the product demo</DemoCTA>
+        <DemoCTA demo={flow}>Book a Demo</DemoCTA>
       </div>
     </Section>
   );

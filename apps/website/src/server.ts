@@ -5,6 +5,7 @@ import { renderErrorPage } from "@lumenx/utils/error-page";
 import { robotsTxt, sitemapXml } from "./lib/seo";
 import { requestOriginStore } from "./lib/request-origin";
 import { SITE_PATHS, getSiteOrigin, registerRequestOriginReader } from "./lib/site";
+import { handleLeadApiRequest } from "./lib/lead-api";
 
 registerRequestOriginReader(() => requestOriginStore.getStore());
 
@@ -14,7 +15,7 @@ const CSP = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data:",
-  "connect-src 'self'",
+  "connect-src 'self' https://formsubmit.co https://api.web3forms.com https://api.resend.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -42,7 +43,8 @@ function withSecurityHeaders(response: Response): Response {
 function handleWellKnown(request: Request): Response | null {
   const url = new URL(request.url);
   if (request.method !== "GET" && request.method !== "HEAD") return null;
-  const origin = getSiteOrigin(request);
+  // Prefer configured public origin; fall back to this request so sitemap/robots never break.
+  const origin = getSiteOrigin(request) || url.origin;
 
   if (url.pathname === "/robots.txt") {
     return new Response(robotsTxt(origin), {
@@ -141,6 +143,9 @@ export default {
 
 async function handleFetch(request: Request, env: unknown, ctx: unknown): Promise<Response> {
   try {
+    const leadApi = await handleLeadApiRequest(request, env);
+    if (leadApi) return withSecurityHeaders(leadApi);
+
     const wellKnown = handleWellKnown(request);
     if (wellKnown) return withSecurityHeaders(wellKnown);
 

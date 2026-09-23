@@ -89,9 +89,10 @@ function NavDropdown({
           ) : null}
           <ul className="site-nav-panel__list">
             {item.children.map((child) => (
-              <li key={child.to}>
+              <li key={`${child.to}-${child.label}`}>
                 <Link
                   to={child.to}
+                  search={child.search}
                   role="menuitem"
                   className="site-nav-panel__item"
                   onClick={() => {

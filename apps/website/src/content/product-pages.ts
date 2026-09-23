@@ -39,7 +39,10 @@ export type ProductDelivery = "app" | "connect-portal" | "platform";
 
 export type ProductPageFeature = {
   title: string;
-  body: string;
+  /** Short prose — used for highlights and as a fallback. */
+  body?: string;
+  /** Bullet items for the “What it actually does” cards. */
+  points?: readonly string[];
 };
 
 export type ProductPageRole = {
@@ -62,7 +65,10 @@ export type ProductPreviewTab = {
 export type ProductShot = {
   title: string;
   caption: string;
-  panel: PreviewPanelId;
+  /** Illustrative in-app mock panel (used when `image` is absent). */
+  panel?: PreviewPanelId;
+  /** Real product screenshot under `/public` (preferred when present). */
+  image?: string;
   device?: ProductDevice;
 };
 
@@ -82,7 +88,7 @@ export type ProductPageContent = {
   demoProduct?: ProductId;
   capabilities: readonly ProductPageFeature[];
   previewTabs: readonly ProductPreviewTab[];
-  workflows: readonly { title: string; body: string }[];
+  workflows: readonly { title: string; body?: string; points?: readonly string[] }[];
   roles: readonly ProductPageRole[];
   connections: readonly ProductPageConnection[];
   highlights: readonly ProductPageFeature[];
@@ -118,39 +124,68 @@ export const PRODUCT_PAGES: Record<ProductId, ProductPageContent> = {
     capabilities: [
       {
         title: "People",
-        body: "Students, teachers, parents, and accounts in one directory — including guardian linking.",
+        points: ["Students", "Teachers", "Parents", "Accounts", "Guardian linking"],
       },
       {
         title: "Academics",
-        body: "Classes, years, subjects, timetable, exams, marks, homework, diary, promotion, and graduation.",
+        points: [
+          "Classes & years",
+          "Subjects",
+          "Timetable",
+          "Exams & marks",
+          "Homework & diary",
+          "Promotion & graduation",
+        ],
       },
       {
         title: "Attendance",
-        body: "Student and staff attendance, plus monitor, reports, and analytics views.",
+        points: ["Student attendance", "Staff attendance", "Monitor", "Reports", "Analytics"],
       },
       {
         title: "Fees",
-        body: "Class fees, transport fees, extras, publish, and per-student dues — not a public payment gateway claim.",
+        points: [
+          "Class fees",
+          "Transport fees",
+          "Extras",
+          "Publish",
+          "Per-student dues",
+        ],
       },
       {
         title: "Transport",
-        body: "When the module is on: vehicles, drivers, stops, routes, student assignment, trips, and emergencies.",
+        points: [
+          "Vehicles & drivers",
+          "Stops & routes",
+          "Student assignment",
+          "Trips",
+          "Emergencies",
+        ],
       },
       {
         title: "Documents & certificates",
-        body: "Document requests, packages, templates, generate and issue. Certificate library, builder, and issued copies.",
+        points: [
+          "Document requests",
+          "Packages & templates",
+          "Generate & issue",
+          "Certificate library",
+          "Issued copies",
+        ],
       },
       {
         title: "Admissions & careers review",
-        body: "Pipeline visibility and convert-to-student / convert-to-teacher. Day-to-day review lives in the Connect portals.",
+        points: [
+          "Pipeline visibility",
+          "Convert to student",
+          "Convert to teacher",
+        ],
       },
       {
         title: "Roles & access",
-        body: "Custom office roles with per-module access — not another person’s Connect portal.",
+        points: ["Custom office roles", "Per-module access"],
       },
       {
         title: "Reports & insights",
-        body: "Home, analytics, reports, and teacher performance for the institute — not Nexus service tooling.",
+        points: ["Home", "Analytics", "Reports", "Teacher performance"],
       },
     ],
     previewTabs: [
@@ -161,36 +196,74 @@ export const PRODUCT_PAGES: Record<ProductId, ProductPageContent> = {
       { id: "roles", label: "Roles", panel: "admin-roles" },
     ],
     workflows: [
-      { title: "Configure", body: "The office sets people, classes, fees, and — when Transport is on — routes." },
-      { title: "Run the day", body: "Attendance, announcements, complaints, and documents stay in one console." },
-      { title: "Share outward", body: "Families and teachers see only their slice in Connect. Drivers run Transport." },
+      {
+        title: "Set up the institute",
+        body: "Build the shared record the rest of LumenX will read.",
+        points: [
+          "Add students, teachers, parents, and accounts",
+          "Create classes, years, subjects, and the timetable",
+          "Publish fee structures",
+          "Assign vehicles, stops, and routes when Transport is on",
+        ],
+      },
+      {
+        title: "Run the campus day",
+        body: "Keep daily operations in one office console.",
+        points: [
+          "Mark student and staff attendance",
+          "Send announcements and handle complaints",
+          "Track fees and dues",
+          "Generate documents and issue certificates",
+        ],
+      },
+      {
+        title: "Hand off to the right door",
+        body: "Other apps show only what each role needs — they do not keep a second roster.",
+        points: [
+          "Families and teachers open Connect",
+          "Drivers run trips in Transport",
+          "Accepted admissions convert to students here",
+          "Approved hires convert to teachers here",
+        ],
+      },
     ],
     roles: [
       {
         title: "Principal & office",
         outcome: "Run the institute day without chasing notebooks.",
-        points: ["Directory, classes, and attendance in one place", "Fees and documents without parallel sheets", "Roles that match the office, not a leftover menu"],
+        points: [
+          "People directory",
+          "Classes and attendance",
+          "Fees and documents",
+          "Office roles and access",
+        ],
       },
       {
         title: "Accountant",
         outcome: "See structures, dues, and history the families also see.",
-        points: ["Class, transport, and extra fee structures", "Publish and student-level dues", "No claim of a public checkout on this site"],
+        points: [
+          "Class fee structures",
+          "Transport and extra fees",
+          "Publish dues",
+          "Student-level fee history",
+        ],
       },
       {
         title: "Front office",
         outcome: "Intake and certificates without a second database.",
-        points: ["Admissions conversion into the student record", "Document requests and issued certificates", "Complaints with a clear owner"],
+        points: [
+          "Convert admissions to students",
+          "Document requests",
+          "Issued certificates",
+          "Complaints with a clear owner",
+        ],
       },
     ],
     connections: [
-      { product: "connect", body: "Connect shows what Admin wrote — attendance, fees, timetable, messages — by role." },
-      { product: "transport", body: "Admin assigns students to routes. Drivers execute the trip in Transport." },
-      { product: "admissions", body: "Applications arrive from the Admissions portal. Admin converts intake to a student." },
-      { product: "careers", body: "Hiring runs in the Careers portal. Admin converts a hire to a teacher record." },
-      {
-        product: "nexus",
-        body: "Nexus is the service platform — licensing, support, and feedback. Admin is where the school works.",
-      },
+      { product: "connect", body: "Families and staff see attendance, fees, timetable, and messages." },
+      { product: "transport", body: "Routes assigned here; drivers run the trip in Transport." },
+      { product: "admissions", body: "Applications arrive here; convert accepted intake to students." },
+      { product: "careers", body: "Hiring runs in Careers; convert approved hires to teachers." },
     ],
     highlights: [
       { title: "Source of truth", body: "People and operations are written here. Other products do not keep a parallel roster." },
@@ -198,9 +271,48 @@ export const PRODUCT_PAGES: Record<ProductId, ProductPageContent> = {
       { title: "Office-shaped access", body: "Permissions are for Admin modules — not a parent or driver leftover screen." },
     ],
     shots: [
-      { title: "Today", caption: "Home command — illustrative, not live institute data.", panel: "admin-command", device: "tablet" },
-      { title: "Directory", caption: "People the rest of the platform reads.", panel: "admin-people", device: "tablet" },
-      { title: "Certificates", caption: "Templates and issued documents in Admin.", panel: "admin-docs", device: "browser" },
+      {
+        title: "Today",
+        caption: "Home command from LumenX Admin.",
+        image: "/screenshots/admin/command.png",
+        panel: "admin-command",
+        device: "tablet",
+      },
+      {
+        title: "Directory",
+        caption: "People directory the rest of the platform reads.",
+        image: "/screenshots/admin/people.png",
+        panel: "admin-people",
+        device: "tablet",
+      },
+      {
+        title: "Attendance",
+        caption: "Student and staff attendance for the campus day.",
+        image: "/screenshots/admin/attendance.png",
+        panel: "admin-attendance",
+        device: "tablet",
+      },
+      {
+        title: "Fees",
+        caption: "Structures, publish, and per-student dues.",
+        image: "/screenshots/admin/fees.png",
+        panel: "admin-fees",
+        device: "tablet",
+      },
+      {
+        title: "Roles",
+        caption: "Office roles with per-module access.",
+        image: "/screenshots/admin/roles.png",
+        panel: "admin-roles",
+        device: "tablet",
+      },
+      {
+        title: "Certificates",
+        caption: "Templates and issued documents in Admin.",
+        image: "/screenshots/admin/certificates.png",
+        panel: "admin-docs",
+        device: "browser",
+      },
     ],
     getStarted: {
       title: "Give the office one console.",

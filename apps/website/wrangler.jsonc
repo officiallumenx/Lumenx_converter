@@ -3,5 +3,16 @@
   "name": "lumenx-website",
   "compatibility_date": "2025-09-24",
   "compatibility_flags": ["nodejs_compat"],
-  "main": "src/server.ts"
+  "main": "src/server.ts",
+  // Lead inbox for Book a Demo / Contact.
+  // Put WEB3FORMS_ACCESS_KEY in `.dev.vars` (local) or:
+  //   wrangler secret put WEB3FORMS_ACCESS_KEY
+  // Browser forms also use VITE_WEB3FORMS_ACCESS_KEY from `.env.local`.
+  // Optional Resend:
+  //   wrangler secret put RESEND_API_KEY
+  //   wrangler secret put LEAD_EMAIL_FROM
+  "vars": {
+    "LEAD_EMAIL_TO": "lumenxtech.official@gmail.com",
+    "LEAD_FORMSUBMIT": "false"
+  }
 }

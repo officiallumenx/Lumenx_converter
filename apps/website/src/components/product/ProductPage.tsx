@@ -14,12 +14,11 @@ import { FeatureCard } from "../content/FeatureCard";
 import { ProductCard } from "../content/ProductCard";
 import { ProductHero } from "./ProductHero";
 import { ProductWorkflow } from "./ProductWorkflow";
-import { ProductScreenshot } from "./ProductScreenshot";
 import { ProductCTA } from "./ProductCTA";
 import { ProductPreview } from "./ProductPreview";
 import { ProductRoles } from "./ProductRoles";
 import { ProductConnections } from "./ProductConnections";
-import { PreviewPanel } from "./previews";
+import { ProductSurfaceGallery } from "./ProductSurfaceGallery";
 import { CTAButton } from "../conversion/CTAButton";
 import { DemoCTA } from "../conversion/DemoCTA";
 import { DownloadProduct } from "../conversion/DownloadProduct";
@@ -35,11 +34,16 @@ function ProductDownload({ content }: { content: ProductPageContent }) {
 }
 
 export function ProductPage({ content }: { content: ProductPageContent }) {
-  const related = relatedProductPages(content.id).filter((page) => page.id !== "nexus");
-  const navProducts = PRODUCT_FAMILY_LIST.filter((p) => p.id !== "nexus").map((p) => ({
-    id: p.id,
-    label: p.shortName,
-  }));
+  const showRelated = content.id !== "admin";
+  const related = showRelated
+    ? relatedProductPages(content.id).filter((page) => page.id !== "nexus")
+    : [];
+  const navProducts = showRelated
+    ? PRODUCT_FAMILY_LIST.filter((p) => p.id !== "nexus").map((p) => ({
+        id: p.id,
+        label: p.shortName,
+      }))
+    : [];
 
   return (
     <SiteShell>
@@ -68,7 +72,7 @@ export function ProductPage({ content }: { content: ProductPageContent }) {
             </CTAButton>
             {isDemoExploreId(content.id) ? (
               <DemoCTA product={content.id} variant="secondary">
-                Interactive preview
+                Book a Demo
               </DemoCTA>
             ) : null}
           </>
@@ -105,7 +109,15 @@ export function ProductPage({ content }: { content: ProductPageContent }) {
         <Grid columns={3} stagger>
           {content.capabilities.map((item) => (
             <FeatureCard key={item.title} product={content.id} title={item.title}>
-              {item.body}
+              {item.points?.length ? (
+                <ul className="mt-1 list-disc space-y-1 pl-4">
+                  {item.points.map((point) => (
+                    <li key={point}>{point}</li>
+                  ))}
+                </ul>
+              ) : (
+                item.body
+              )}
             </FeatureCard>
           ))}
         </Grid>
@@ -129,7 +141,11 @@ export function ProductPage({ content }: { content: ProductPageContent }) {
         id="workflows"
         eyebrow="Workflows"
         title="How the work actually moves."
-        lede="These steps match the product — they are not invented hops."
+        lede={
+          content.id === "admin"
+            ? "Set up once, run the day from one console, then hand each role their own door."
+            : "These steps match the product — they are not invented hops."
+        }
         tone="muted"
       >
         <ProductWorkflow steps={content.workflows} />
@@ -143,42 +159,44 @@ export function ProductPage({ content }: { content: ProductPageContent }) {
         id="ecosystem"
         eyebrow="Ecosystem"
         title="How it connects to the rest of LumenX."
-        lede="Separate products. Shared records. Not another role’s navigation."
+        lede={
+          content.id === "admin"
+            ? "Admin at the centre. Every other app reads and writes through the same institute record."
+            : "Separate products. Shared records. Not another role’s navigation."
+        }
         tone="muted"
       >
-        <ProductConnections items={content.connections} />
+        <ProductConnections items={content.connections} hub={content.id === "admin" ? "admin" : undefined} />
       </Section>
 
-      <Section id="highlights" eyebrow="Highlights" title="What to remember.">
-        <Grid columns={3} stagger>
-          {content.highlights.map((item) => (
-            <FeatureCard key={item.title} product={content.id} title={item.title}>
-              {item.body}
-            </FeatureCard>
-          ))}
-        </Grid>
-      </Section>
+      {content.id !== "admin" ? (
+        <Section id="highlights" eyebrow="Highlights" title="What to remember.">
+          <Grid columns={3} stagger>
+            {content.highlights.map((item) => (
+              <FeatureCard key={item.title} product={content.id} title={item.title}>
+                {item.body}
+              </FeatureCard>
+            ))}
+          </Grid>
+        </Section>
+      ) : null}
 
       <Section
         id="screens"
         eyebrow="Look"
         title="More of the surface."
-        lede="Illustrative layouts — not screenshots of a live tenant."
+        lede={
+          content.id === "admin"
+            ? "One screen at a time — use the arrows to move through Admin surfaces."
+            : "One screen at a time — use the arrows to browse the surface."
+        }
         tone="muted"
       >
-        <Grid columns={3} stagger>
-          {content.shots.map((shot) => (
-            <ProductScreenshot
-              key={shot.title}
-              product={content.id}
-              title={shot.title}
-              caption={shot.caption}
-              device={shot.device ?? (content.device === "browser" ? "tablet" : content.device)}
-            >
-              <PreviewPanel id={shot.panel} />
-            </ProductScreenshot>
-          ))}
-        </Grid>
+        <ProductSurfaceGallery
+          product={content.id}
+          shots={content.shots}
+          defaultDevice={content.device}
+        />
       </Section>
 
       {content.id !== "nexus" ? (
@@ -215,30 +233,32 @@ export function ProductPage({ content }: { content: ProductPageContent }) {
         </Section>
       )}
 
-      <Section
-        id="related"
-        eyebrow="Related"
-        title="The rest of the family."
-        tone="muted"
-      >
-        <ProductNavigation
-          products={navProducts}
-          active={content.id}
-        />
-        <div className="mt-8">
-          <Grid columns={3} stagger>
-            {related.slice(0, 3).map((page) => (
-              <ProductCard
-                key={page.id}
-                product={page.id}
-                name={page.shortName}
-                tagline={page.tagline}
-                points={page.capabilities.slice(0, 2).map((item) => item.title)}
-              />
-            ))}
-          </Grid>
-        </div>
-      </Section>
+      {showRelated ? (
+        <Section
+          id="related"
+          eyebrow="Related"
+          title="The rest of the family."
+          tone="muted"
+        >
+          <ProductNavigation
+            products={navProducts}
+            active={content.id}
+          />
+          <div className="mt-8">
+            <Grid columns={3} stagger>
+              {related.slice(0, 3).map((page) => (
+                <ProductCard
+                  key={page.id}
+                  product={page.id}
+                  name={page.shortName}
+                  tagline={page.tagline}
+                  points={page.capabilities.slice(0, 2).map((item) => item.title)}
+                />
+              ))}
+            </Grid>
+          </div>
+        </Section>
+      ) : null}
 
       <ProductCTA product={content.id} title={content.getStarted.title} body={content.getStarted.body} />
     </SiteShell>

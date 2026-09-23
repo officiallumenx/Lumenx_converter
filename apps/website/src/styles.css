@@ -103,6 +103,91 @@
 .site-section {
   padding-block: var(--site-section-y);
 }
+.site-section--dense {
+  padding-top: clamp(1.25rem, 2.5vw, 2rem);
+}
+.site-section--flush {
+  padding-top: 1rem;
+  padding-bottom: var(--site-section-y);
+}
+
+/* —— Catalog sections (Modules / Solutions) —— */
+.site-catalog-section {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--site-radius-lg);
+  background: color-mix(in oklab, var(--card) 92%, var(--background));
+  box-shadow: var(--site-shadow-sm);
+  padding: 0;
+}
+.site-catalog-section--active {
+  border-color: color-mix(in oklab, var(--site-ink) 28%, var(--border));
+  box-shadow: var(--site-shadow-md);
+}
+.site-catalog-section__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  padding: 1rem 1.15rem 0.9rem 1.15rem;
+  border-bottom: 1px solid color-mix(in oklab, var(--site-brand) 70%, #000);
+  background: var(--site-brand);
+  color: var(--site-brand-foreground);
+}
+.site-catalog-section__head h2 {
+  color: var(--site-brand-foreground);
+}
+.site-catalog-section__head .text-muted-foreground {
+  color: color-mix(in oklab, var(--site-brand-foreground) 78%, transparent);
+}
+.site-catalog-section__head .text-foreground\/70 {
+  color: color-mix(in oklab, var(--site-brand-foreground) 85%, transparent);
+}
+.site-catalog-section--active .site-catalog-section__head {
+  background: var(--site-ink);
+  border-bottom-color: color-mix(in oklab, var(--site-ink) 70%, #000);
+}
+.site-catalog-section--active .site-catalog-section__head h2 {
+  color: var(--site-brand-foreground);
+}
+.site-catalog-section__head .site-product-chip {
+  background: var(--site-brand-foreground);
+  color: var(--site-ink);
+  border-color: transparent;
+}
+.site-catalog-section__head .site-product-chip .site-product-mark {
+  background: color-mix(in oklab, var(--site-brand) 18%, var(--site-brand-foreground));
+}
+.site-catalog-section__body {
+  display: grid;
+  gap: 0;
+  padding: 0.25rem 0;
+}
+.site-catalog-bucket {
+  padding: 1rem 1.15rem 1.1rem 1.15rem;
+  border-bottom: 1px dashed color-mix(in oklab, var(--border) 85%, transparent);
+}
+.site-catalog-bucket:last-child {
+  border-bottom: 0;
+}
+.site-catalog-bucket__title {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.site-catalog-section__foot {
+  margin: 0;
+  padding: 0.75rem 1.15rem 1rem 1.15rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+  background: color-mix(in oklab, var(--muted) 35%, transparent);
+}
 .site-section--muted {
   background:
     linear-gradient(180deg, oklch(0.925 0.048 255) 0%, oklch(0.91 0.05 255) 100%);
@@ -884,6 +969,104 @@ button.site-card { text-align: left; cursor: pointer; }
   color: var(--muted-foreground);
 }
 
+/* —— Product surface gallery (one screen at a time) —— */
+.product-surface-gallery {
+  display: grid;
+  gap: var(--site-space-4);
+  max-width: 40rem;
+  margin-inline: auto;
+}
+.product-surface-gallery__stage {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--site-space-2);
+}
+.product-surface-gallery__frame {
+  min-width: 0;
+}
+.product-surface-gallery__nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--site-radius-full);
+  border: 1px solid var(--border);
+  background: var(--background);
+  color: var(--foreground);
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, opacity 160ms ease;
+}
+.product-surface-gallery__nav:hover:not(:disabled) {
+  background: var(--muted);
+  border-color: color-mix(in oklab, var(--product-accent, var(--site-brand)) 35%, var(--border));
+}
+.product-surface-gallery__nav:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.product-surface-gallery__meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--site-space-3);
+  padding-inline: 0.25rem;
+}
+.product-surface-gallery__title {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.product-surface-gallery__count {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.product-surface-gallery__dots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.45rem;
+}
+.product-surface-gallery__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--foreground) 22%, transparent);
+  cursor: pointer;
+}
+.product-surface-gallery__dot[aria-selected="true"] {
+  background: var(--product-accent, var(--site-brand));
+  transform: scale(1.15);
+}
+
+@media (max-width: 639px) {
+  .product-surface-gallery__stage {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "frame frame"
+      "prev next";
+    gap: var(--site-space-3);
+  }
+  .product-surface-gallery__frame {
+    grid-area: frame;
+  }
+  .product-surface-gallery__nav--prev {
+    grid-area: prev;
+    justify-self: start;
+  }
+  .product-surface-gallery__nav--next {
+    grid-area: next;
+    justify-self: end;
+  }
+}
+
 /* —— Workflow / ecosystem —— */
 .site-workflow-index {
   display: inline-flex;
@@ -902,6 +1085,133 @@ button.site-card { text-align: left; cursor: pointer; }
   align-items: center;
   gap: var(--site-space-3);
   width: 100%;
+}
+
+/* —— Product hub (Admin at centre) —— */
+.product-hub {
+  display: grid;
+  gap: var(--site-space-6);
+}
+.product-hub__lede {
+  max-width: 40rem;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--muted-foreground);
+}
+.product-hub__map {
+  display: grid;
+  justify-items: center;
+  gap: var(--site-space-2);
+  padding: var(--site-space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--site-radius-lg);
+  background:
+    radial-gradient(ellipse 60% 50% at 50% 50%, color-mix(in oklab, var(--product-accent, var(--site-brand)) 8%, transparent), transparent 70%),
+    var(--card);
+}
+.product-hub__mid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto minmax(0, 1fr);
+  align-items: center;
+  justify-items: center;
+  gap: var(--site-space-2);
+  width: 100%;
+  max-width: 52rem;
+}
+.product-hub__cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+.product-hub__cell--top,
+.product-hub__cell--bottom {
+  max-width: 16rem;
+}
+.product-hub__core {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.35rem;
+  min-width: 8.5rem;
+  padding: var(--site-space-4) var(--site-space-5);
+  border-radius: var(--site-radius-lg);
+  border: 1px solid color-mix(in oklab, var(--product-accent, var(--site-brand)) 35%, var(--border));
+  background: color-mix(in oklab, var(--product-accent, var(--site-brand)) 10%, var(--background));
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--product-accent, var(--site-brand)) 6%, transparent);
+}
+.product-hub__core-name {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+.product-hub__core-role {
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.product-hub__satellite {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  width: 100%;
+  max-width: 16rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--site-radius-md);
+  border: 1px solid var(--border);
+  background: var(--background);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 160ms ease, transform 160ms ease;
+}
+.product-hub__satellite:hover {
+  border-color: color-mix(in oklab, var(--product-accent, var(--site-brand)) 45%, var(--border));
+  transform: translateY(-1px);
+}
+.product-hub__name {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.product-hub__hint {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--muted-foreground);
+}
+.product-hub__arrow {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: color-mix(in oklab, var(--product-accent, var(--site-brand)) 70%, var(--muted-foreground));
+  flex-shrink: 0;
+}
+.product-hub__arrow--v {
+  transform: rotate(90deg);
+}
+
+@media (max-width: 767px) {
+  .product-hub__mid {
+    display: flex;
+    flex-direction: column;
+    gap: var(--site-space-3);
+  }
+  .product-hub__cell--left,
+  .product-hub__cell--right {
+    max-width: 16rem;
+  }
+  .product-hub__cell--arrow-h .product-hub__arrow {
+    transform: rotate(90deg);
+  }
+  .product-hub__map {
+    gap: var(--site-space-3);
+  }
 }
 
 .site-icon-animated {
@@ -1661,10 +1971,30 @@ button[aria-pressed="true"] .site-card {
   .download-platforms { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 .download-platform {
+  position: relative;
   border: 1px solid var(--border);
   border-radius: var(--site-radius-md);
   background: var(--muted);
   padding: 0.65rem 0.75rem;
+}
+.download-platform--link {
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.download-platform--link:hover,
+.download-platform--link:focus-within {
+  border-color: var(--foreground);
+  background: var(--card);
+}
+.download-platform__hit {
+  position: absolute;
+  inset: 0;
+  display: block;
+  border-radius: inherit;
+  z-index: 1;
+}
+.download-platform__hit:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 .download-platform dt {
   font-size: 0.65rem;
@@ -1693,6 +2023,16 @@ button[aria-pressed="true"] .site-card {
   border-radius: var(--site-radius-lg);
   background: #fff;
   box-shadow: var(--site-shadow-xs);
+  color: inherit;
+  text-decoration: none;
+  transition: box-shadow 0.15s ease;
+}
+a.download-qr__code:hover {
+  box-shadow: var(--site-shadow-md);
+}
+a.download-qr__code:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 .download-qr__code svg {
   display: block;
