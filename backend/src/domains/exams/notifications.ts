@@ -150,8 +150,11 @@ export async function emitExamSchedulePublishedNotifications(
       title: `Exam schedule published: ${exam.name}`,
       body,
       deepLink: "/exams",
+      dueAt: exam.startDate,
       dedupeKey: `exam-published:${exam.id}`,
       payload: {
+        entityType: "exam",
+        entityId: exam.id,
         kind: "exam_schedule_published",
         examId: exam.id,
       },

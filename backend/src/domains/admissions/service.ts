@@ -789,7 +789,7 @@ async function emitAdmissionDocumentStatusNotification(
       title,
       body,
       deepLink: "/admissions/documents",
-      dedupeKey: `adm-doc-${input.document.doc_type}-${input.status}-${Date.now()}`,
+      dedupeKey: `adm-doc:${input.application.institute_id}:${applicantId}:${input.document.doc_type}:${input.status}`,
     });
   } catch {
     /* notification delivery must not block document updates */

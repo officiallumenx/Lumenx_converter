@@ -47,6 +47,7 @@ export type NotificationRow = {
   payload: Record<string, unknown>;
   deep_link: string | null;
   dedupe_key: string | null;
+  due_at: string | null;
   created_by_user_profile_id: string | null;
   created_at: string;
   updated_at: string;
@@ -115,6 +116,7 @@ export type InboxItemDto = {
     deepLink: string | null;
     templateId: string | null;
     createdAt: string;
+    dueAt: string | null;
   };
 };
 
@@ -163,6 +165,7 @@ export type EmitNotificationInput = {
   body: string;
   payload?: Record<string, unknown>;
   deepLink?: string | null;
+  dueAt?: string | null;
   dedupeKey?: string | null;
   /** Explicit recipients XOR audience (server resolves memberships). */
   recipientUserIds?: string[];

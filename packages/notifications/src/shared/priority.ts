@@ -11,11 +11,11 @@ export function fromAppNotificationPriority(
   return "normal";
 }
 
-/** Map shared priority → legacy AppNotification.priority (lossy for success/critical). */
+/** Map shared priority → legacy AppNotification.priority. Only critical is "high". */
 export function toAppNotificationPriority(
   priority: LumenXNotificationPriority,
 ): NonNullable<AppNotification["priority"]> {
-  if (priority === "important" || priority === "critical") return "high";
+  if (priority === "critical") return "high";
   return "normal";
 }
 

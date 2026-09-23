@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import type { Role } from "@lumenx/types";
+import { isApiAuthMode } from "@/auth/auth-mode";
+import { useApp } from "@/lib/app-state";
+import { useConnectApiInbox } from "@/hooks/use-connect-api-inbox";
 import { parentNotificationStore } from "@/lib/parent/notification-store";
 import { studentNotificationStore } from "@/lib/student/notification-store";
 import { teacherRepository } from "@/lib/teacher/repositories";
@@ -9,13 +12,23 @@ import type { ParentPortalState } from "@/context/ParentPortalContext";
 
 /** Unread notification count for the header bell badge (alerts use the Alerts nav item). */
 export function useConnectUnreadBadge(role: Role | null, portal: ParentPortalState): number {
+  const { activeInstituteId } = useApp();
+  const apiMode = isApiAuthMode();
+  const apiInbox = useConnectApiInbox(activeInstituteId);
+  const apiUnread = apiInbox.items.filter((n) => n.unread).length;
+
   useEffect(() => {
+    if (!apiMode) return;
     if (role !== "parent" || !portal.isParent) return;
-    // Only sync once the loaded snapshot matches the active child. Syncing the generic
-    // fallback during a child switch would attach read state to the wrong child bucket.
     if (!portal.snapshot || portal.snapshot.child.id !== portal.activeChildId) return;
     parentNotificationStore.syncForChild(portal.activeChildId, portal.snapshot.notifications);
-  }, [role, portal.isParent, portal.isParent ? portal.activeChildId : null, portal.isParent ? portal.snapshot : null]);
+  }, [
+    apiMode,
+    role,
+    portal.isParent,
+    portal.isParent ? portal.activeChildId : null,
+    portal.isParent ? portal.snapshot : null,
+  ]);
 
   const studentNotifUnread = useSyncExternalStore(
     studentNotificationStore.subscribe,
@@ -40,17 +53,18 @@ export function useConnectUnreadBadge(role: Role | null, portal: ParentPortalSta
 
   return useMemo(() => {
     if (!role) return 0;
+    if (teacherAccess.isReady && teacherAccess.isActivityWorkspaceActive && role === "teacher") {
+      return activityNotifUnread;
+    }
+    if (apiMode) return apiUnread;
     if (role === "student") return studentNotifUnread;
     if (role === "parent") return parentNotifUnread;
-    if (role === "teacher") {
-      if (teacherAccess.isReady && teacherAccess.isActivityWorkspaceActive) {
-        return activityNotifUnread;
-      }
-      return teacherNotifUnread;
-    }
+    if (role === "teacher") return teacherNotifUnread;
     return 0;
   }, [
     role,
+    apiMode,
+    apiUnread,
     studentNotifUnread,
     parentNotifUnread,
     teacherNotifUnread,

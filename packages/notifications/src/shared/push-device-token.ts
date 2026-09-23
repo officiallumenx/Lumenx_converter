@@ -45,6 +45,10 @@ export async function bootstrapPushDeviceToken(input: {
   }) => Promise<() => void>;
   onPermission?: (granted: boolean) => void;
   onTokenRegistered?: (platform: DevicePlatform) => void;
+  /** Called when a push arrives in the foreground (native or after in-app dispatch). */
+  onForegroundPush?: (data: { href?: string }) => void;
+  /** Native notification tap. */
+  onNotificationOpened?: (href: string) => void;
 }): Promise<() => void> {
   if (typeof window === "undefined") return () => undefined;
 
@@ -81,6 +85,8 @@ async function bootstrapNativePush(input: {
   register: RegisterDeviceTokenFn;
   onPermission?: (granted: boolean) => void;
   onTokenRegistered?: (platform: DevicePlatform) => void;
+  onForegroundPush?: (data: { href?: string }) => void;
+  onNotificationOpened?: (href: string) => void;
 }): Promise<() => void> {
   try {
     const mod = await import(/* @vite-ignore */ "@capacitor/push-notifications").catch(
@@ -138,6 +144,15 @@ async function bootstrapNativePush(input: {
                 : "mandatory",
           });
         });
+        input.onForegroundPush?.({ href: data.href });
+      },
+    );
+
+    const openedHandler = await PushNotifications.addListener(
+      "pushNotificationActionPerformed",
+      (event: { notification?: { data?: Record<string, string> } }) => {
+        const href = event.notification?.data?.href?.trim();
+        if (href) input.onNotificationOpened?.(href);
       },
     );
 
@@ -151,6 +166,7 @@ async function bootstrapNativePush(input: {
     return () => {
       void registrationHandler.remove();
       void receivedHandler.remove();
+      void openedHandler.remove();
       void errorHandler.remove();
     };
   } catch {

@@ -129,3 +129,16 @@ export async function emitNotification(
 
   return client.post("/api/v1/notifications", body);
 }
+
+export async function markAllInboxRead(
+  instituteId: string,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<{ updated: number }> {
+  assertApiMode();
+  if (!isInstituteUuid(instituteId)) {
+    throw new Error("institute_id must be a valid UUID");
+  }
+  return client.post<{ updated: number }>("/api/v1/notifications/mark-all-read", {
+    institute_id: instituteId.trim(),
+  });
+}

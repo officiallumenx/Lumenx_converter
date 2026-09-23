@@ -44,6 +44,7 @@ export type InboxItemDto = {
     deepLink: string | null;
     templateId: string | null;
     createdAt: string;
+    dueAt?: string | null;
   };
 };
 

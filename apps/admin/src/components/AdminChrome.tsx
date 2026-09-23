@@ -93,6 +93,55 @@ import {
 } from "@/lib/admin-section-nav";
 import { AdminAlertsNavBadgeSync } from "@/components/AdminAlertsNavBadgeSync";
 import { useAdminAlertsNavBadge } from "@/lib/use-admin-alerts-nav-badge";
+import { useNotificationsListQuery } from "@/lib/admin-queries";
+
+function AdminNotificationBellButton({
+  onModuleLinkClick,
+}: {
+  onModuleLinkClick: (to: string, event: { preventDefault: () => void }) => void;
+}) {
+  const apiMode = isApiAuthMode();
+  const instituteCtx = useInstituteContext();
+  const query = useNotificationsListQuery(
+    instituteCtx.activeInstituteId,
+    apiMode && instituteCtx.status === "ready" && Boolean(instituteCtx.activeInstituteId),
+  );
+  const [demoUnread, setDemoUnread] = useState(() => getAdminUnreadCount());
+  useEffect(() => {
+    if (apiMode) return;
+    startTransportAdminNotificationSync();
+    setDemoUnread(getAdminUnreadCount());
+    return subscribeAdminNotifications(() => setDemoUnread(getAdminUnreadCount()));
+  }, [apiMode]);
+
+  const items = query.data?.items ?? [];
+  const notifUnread = apiMode ? items.filter((n) => n.unread).length : demoUnread;
+
+  return (
+    <Link
+      to="/notifications"
+      search={{ tab: "inbox" }}
+      onClick={(event) => onModuleLinkClick("/notifications", event)}
+    >
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        aria-label={
+          notifUnread > 0 ? `Notifications, ${notifUnread} unread` : "Notifications"
+        }
+        className="lx-admin-icon-btn relative"
+      >
+        <Bell className="size-5" />
+        {notifUnread > 0 ? (
+          <span className="absolute -top-0.5 -right-0.5 flex h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-primary-foreground">
+            {notifUnread > 99 ? "99+" : notifUnread > 9 ? "9+" : notifUnread}
+          </span>
+        ) : null}
+      </Button>
+    </Link>
+  );
+}
 
 function AcademicYearLockSync() {
   const { profile } = useDemoProfile();
@@ -146,12 +195,10 @@ export function AdminChrome() {
   const { user } = useAuth();
   const rolesRevision = useRolesAccessRevision();
   const signOut = useSignOut();
-  const [notifUnread, setNotifUnread] = useState(() => getAdminUnreadCount());
 
   useEffect(() => {
+    if (isApiAuthMode()) return;
     startTransportAdminNotificationSync();
-    setNotifUnread(getAdminUnreadCount());
-    return subscribeAdminNotifications(() => setNotifUnread(getAdminUnreadCount()));
   }, []);
 
   const [openSearch, setOpenSearch] = useState(false);
@@ -658,30 +705,7 @@ export function AdminChrome() {
               >
                 {theme === "dark" ? <Sun className="size-5" /> : <Moon className="size-5" />}
               </Button>
-              <Link
-                to="/notifications"
-                search={{ tab: "inbox" }}
-                onClick={(event) => onModuleLinkClick("/notifications", event)}
-              >
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={
-                    notifUnread > 0
-                      ? `Notifications, ${notifUnread} unread`
-                      : "Notifications"
-                  }
-                  className="lx-admin-icon-btn relative"
-                >
-                  <Bell className="size-5" />
-                  {notifUnread > 0 ? (
-                    <span className="absolute -top-0.5 -right-0.5 flex h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-primary-foreground">
-                      {notifUnread > 99 ? "99+" : notifUnread > 9 ? "9+" : notifUnread}
-                    </span>
-                  ) : null}
-                </Button>
-              </Link>
+              <AdminNotificationBellButton onModuleLinkClick={onModuleLinkClick} />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="gap-2 px-2" aria-label="Account menu">

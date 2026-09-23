@@ -54,6 +54,8 @@ async function emitFeesNotification(
       deepLink: "/fees",
       dedupeKey: input.dedupeKey,
       payload: {
+        entityType: "fees",
+        entityId: input.planId ?? input.paymentId ?? input.studentId ?? "",
         kind: input.kind,
         studentId: input.studentId,
         planId: input.planId,

@@ -13,7 +13,7 @@ import type {
 } from "./types.js";
 
 const NOTIFICATION_COLS =
-  "id, institute_id, template_id, category, priority, title, body, payload, deep_link, dedupe_key, created_by_user_profile_id, created_at, updated_at, deleted_at";
+  "id, institute_id, template_id, category, priority, title, body, payload, deep_link, due_at, dedupe_key, created_by_user_profile_id, created_at, updated_at, deleted_at";
 
 const RECIPIENT_COLS =
   "id, institute_id, notification_id, user_profile_id, read_at, starred_at, created_at, updated_at, deleted_at";
@@ -140,6 +140,7 @@ export async function insertNotification(
       body: input.body,
       payload: input.payload ?? {},
       deep_link: input.deepLink ?? null,
+      due_at: input.dueAt ?? null,
       dedupe_key: input.dedupeKey ?? null,
       created_by_user_profile_id: input.createdByUserProfileId,
     })
@@ -164,6 +165,8 @@ export async function insertRecipients(
         institute_id: input.instituteId,
         notification_id: input.notificationId,
         user_profile_id,
+        read_at: null,
+        starred_at: null,
       })),
     )
     .select(RECIPIENT_COLS);
@@ -331,6 +334,25 @@ export async function updateRecipientFields(
     .maybeSingle();
   if (result.error) ensureDbOk(result);
   return (result.data as RecipientRow | null) ?? null;
+}
+
+export async function markAllUnreadRecipientsRead(
+  admin: SupabaseClient,
+  userProfileId: string,
+  instituteId: string,
+): Promise<number> {
+  const now = new Date().toISOString();
+  const result = await admin
+    .from("notification_recipient")
+    .update({ read_at: now })
+    .eq("user_profile_id", userProfileId)
+    .eq("institute_id", instituteId)
+    .is("deleted_at", null)
+    .is("read_at", null)
+    .select("id");
+  if (result.error) ensureDbOk(result);
+  const matched = Array.isArray(result.data) ? result.data : [];
+  return matched.length;
 }
 
 export async function softDeleteRecipient(

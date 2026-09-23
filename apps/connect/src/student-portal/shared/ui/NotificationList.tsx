@@ -111,28 +111,18 @@ export function NotificationList({
                 n.unread && meta.unreadRow,
                 "hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
               )}
-              style={
-                n.unread && n.type === "info"
-                  ? {
-                      borderColor: `color-mix(in srgb, ${NOTIFICATION_ACCENT.primary} 35%, var(--border))`,
-                      backgroundColor: `color-mix(in srgb, ${NOTIFICATION_ACCENT.primary} 8%, var(--card))`,
-                    }
-                  : undefined
-              }
             >
               <div
-                className={cn("w-1 shrink-0", n.unread && meta.barClass)}
-                style={n.unread && n.type === "info" ? { backgroundColor: NOTIFICATION_ACCENT.primary } : undefined}
+                className={cn("w-1 shrink-0", n.unread && (meta.barClass || "bg-primary"))}
                 aria-hidden
               />
               <div className="flex min-w-0 flex-1 items-start gap-3 p-4">
                 <div
                   className={cn(
                     "grid size-10 shrink-0 place-items-center rounded-xl",
-                    meta.tone,
+                    meta.tone || "bg-primary/15 text-primary border-primary/30",
                     !n.unread && "opacity-80",
                   )}
-                  style={n.type === "info" ? NOTIFICATION_ICON_STYLE : undefined}
                 >
                   <Icon className="size-5" />
                 </div>
@@ -141,13 +131,8 @@ export function NotificationList({
                     <span
                       className={cn(
                         "text-xs font-bold",
-                        n.unread ? meta.labelClass || "text-foreground" : "text-foreground",
+                        n.unread ? meta.labelClass || "text-primary" : "text-foreground",
                       )}
-                      style={
-                        n.unread && n.type === "info"
-                          ? { color: NOTIFICATION_ACCENT.primary }
-                          : undefined
-                      }
                     >
                       {CATEGORY_LABELS[n.category]}
                     </span>
@@ -155,14 +140,11 @@ export function NotificationList({
                       <span
                         className={cn(
                           "rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-white",
-                          n.type === "warning" && "bg-warning text-warning-foreground",
+                          n.type === "warning" && n.priority !== "high" && "bg-warning text-warning-foreground",
+                          n.type === "warning" && n.priority === "high" && "bg-destructive",
                           n.type === "positive" && "bg-success",
+                          n.type === "info" && "bg-primary",
                         )}
-                        style={
-                          n.type === "info"
-                            ? { backgroundColor: NOTIFICATION_ACCENT.primary }
-                            : undefined
-                        }
                       >
                         Unread
                       </span>
@@ -172,7 +154,7 @@ export function NotificationList({
                         variant="outline"
                         className="h-5 gap-1 border-destructive/40 px-1.5 text-xs text-destructive"
                       >
-                        <Flame className="size-3" /> High
+                        <Flame className="size-3" /> Urgent
                       </Badge>
                     )}
                   </div>
@@ -194,25 +176,19 @@ export function NotificationList({
                     <span
                       className={cn(
                         "mb-1 ml-auto block size-2 rounded-full",
-                        n.type === "warning" && "bg-warning",
+                        n.type === "warning" && n.priority !== "high" && "bg-warning",
+                        n.type === "warning" && n.priority === "high" && "bg-destructive",
                         n.type === "positive" && "bg-success",
+                        n.type === "info" && "bg-primary",
                       )}
-                      style={
-                        n.type === "info" ? { backgroundColor: NOTIFICATION_ACCENT.primary } : undefined
-                      }
                       aria-label="Unread"
                     />
                   )}
                   <div
                     className={cn(
                       "text-xs font-bold",
-                      n.unread ? meta.labelClass || "text-foreground" : "text-foreground",
+                      n.unread ? meta.labelClass || "text-primary" : "text-foreground",
                     )}
-                    style={
-                      n.unread && n.type === "info"
-                        ? { color: NOTIFICATION_ACCENT.primary }
-                        : undefined
-                    }
                   >
                     {meta.label}
                   </div>

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { notificationEntityPayload } from "../notifications/deadline-priority.js";
 import { emitNotificationForInstituteSystem } from "../notifications/service.js";
 import { findParentById, listLinksForStudent } from "../parents/repository.js";
 import { findStudentById } from "../students/repository.js";
@@ -38,6 +39,7 @@ async function emitHomeworkNotification(
     dedupeKey: string;
     homeworkId: string;
     studentId?: string;
+    dueAt?: string | null;
   },
 ): Promise<void> {
   if (input.recipientUserIds.length === 0) return;
@@ -50,12 +52,13 @@ async function emitHomeworkNotification(
       title: input.title,
       body: input.body,
       deepLink: "/assignments",
+      dueAt: input.dueAt ?? null,
       dedupeKey: input.dedupeKey,
-      payload: {
+      payload: notificationEntityPayload("homework", input.homeworkId, {
         kind: "homework_published",
         homeworkId: input.homeworkId,
         studentId: input.studentId,
-      },
+      }),
     });
   } catch {
     /* notification delivery must not block homework writes */
@@ -100,6 +103,7 @@ export async function emitHomeworkPublishedNotifications(
       dedupeKey: `homework-publish:${homework.id}:${studentId}`,
       homeworkId: homework.id,
       studentId,
+      dueAt: homework.due_date,
     });
   }
 }

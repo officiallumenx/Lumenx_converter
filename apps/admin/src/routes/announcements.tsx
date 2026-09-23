@@ -136,6 +136,9 @@ function AnnouncementsPage() {
       void queryClient.invalidateQueries({
         queryKey: [adminQueryRoots.announcements, instituteCtx.activeInstituteId],
       });
+      void queryClient.invalidateQueries({
+        queryKey: [adminQueryRoots.notifications, instituteCtx.activeInstituteId],
+      });
     }
   };
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);

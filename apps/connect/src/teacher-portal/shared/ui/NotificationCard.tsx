@@ -32,7 +32,7 @@ const CATEGORY_META: Record<
   exam_updates: {
     label: "Exam",
     icon: FileText,
-    color: STUDENT_MODULE_COLORS.red,
+    color: STUDENT_MODULE_COLORS.indigo,
   },
   staff_notices: {
     label: "Staff",
@@ -59,7 +59,7 @@ const CATEGORY_META: Record<
 const FALLBACK_CATEGORY_META = {
   label: "Update",
   icon: Bell,
-  color: STUDENT_MODULE_COLORS.crimson,
+  color: STUDENT_MODULE_COLORS.sky,
 };
 
 export function NotificationCard({

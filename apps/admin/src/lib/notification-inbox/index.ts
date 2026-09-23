@@ -27,6 +27,7 @@ export {
   updateInboxItem,
   deleteInboxItem,
   emitNotification,
+  markAllInboxRead,
   type UpdateInboxItemInput,
   type EmitNotificationInput,
   type NotificationAudience,

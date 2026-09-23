@@ -17,6 +17,7 @@ import {
   listDeviceTokensForActor,
   listInboxForActor,
   listTemplatesForActor,
+  markAllInboxReadForActor,
   registerDeviceTokenForActor,
   updateInboxItemForActor,
 } from "../../domains/notifications/service.js";
@@ -178,6 +179,7 @@ notifications.post("/", async (c) => {
           body: z.string().min(1).max(4000),
           payload: z.record(z.unknown()).optional(),
           deep_link: z.string().max(500).nullable().optional(),
+          due_at: z.string().min(4).max(40).nullable().optional(),
           dedupe_key: z.string().max(200).nullable().optional(),
           recipient_user_ids: z.array(uuid).min(1).max(500).optional(),
           audience: audienceSchema.optional(),
@@ -205,12 +207,24 @@ notifications.post("/", async (c) => {
       body: body.body,
       payload: body.payload,
       deepLink: body.deep_link,
+      dueAt: body.due_at,
       dedupeKey: resolveNotificationDedupeKey(c, body.dedupe_key),
       recipientUserIds: body.recipient_user_ids,
       audience: body.audience,
     });
     return { status: 201, body: { data } };
   });
+});
+
+notifications.post("/mark-all-read", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const body = validateBody(
+    z.object({ institute_id: uuid }),
+    await c.req.json(),
+  );
+  const data = await markAllInboxReadForActor(admin, actor, body.institute_id);
+  return c.json({ data });
 });
 
 notifications.get("/:id", async (c) => {

@@ -26,10 +26,12 @@ import {
   softDeleteDeviceTokensForUser,
   softDeleteRecipient,
   updateRecipientFields,
+  markAllUnreadRecipientsRead,
   upsertDeviceToken,
   userHasNotificationRecipientAtInstitute,
 } from "./repository.js";
 import { enqueueFcmDeliveryAttempts } from "./fcm-enqueue.js";
+import { escalatePriorityFromDueAt } from "./deadline-priority.js";
 import type {
   DeviceTokenDto,
   DeviceTokenRow,
@@ -87,6 +89,7 @@ export function toInboxItemDto(
       deepLink: notification.deep_link,
       templateId: notification.template_id,
       createdAt: notification.created_at,
+      dueAt: notification.due_at ?? null,
     },
   };
 }
@@ -266,6 +269,21 @@ export async function updateInboxItemForActor(
   return toInboxItemDto(updated, notification);
 }
 
+export async function markAllInboxReadForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  instituteIdRaw: string,
+): Promise<{ updated: number }> {
+  const instituteId = instituteIdRaw.trim();
+  await assertCanAccessInboxInstitute(admin, actor, instituteId);
+  const updated = await markAllUnreadRecipientsRead(
+    admin,
+    actor.userId,
+    instituteId,
+  );
+  return { updated };
+}
+
 export async function deleteInboxItemForActor(
   admin: SupabaseClient,
   actor: Actor,
@@ -369,6 +387,7 @@ async function emitNotificationInternal(
     instituteId,
     title,
     body,
+    priority: escalatePriorityFromDueAt(input.priority ?? "normal", input.dueAt),
     createdByUserProfileId,
   });
 

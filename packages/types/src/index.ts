@@ -139,6 +139,10 @@ export interface AppNotification {
   templateId?: string;
   /** In-app deep link path (e.g. `/fees`, `/student-attendance`). */
   href?: string;
+  /** Raw backend payload (entityType/entityId, alert presentation). */
+  payload?: Record<string, unknown>;
+  /** ISO due timestamp for deadline presentation. */
+  dueAt?: string | null;
 }
 
 /** Mandatory vs emergency alerts routed to parents/students (distinct from general notifications). */

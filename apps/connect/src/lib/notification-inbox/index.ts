@@ -4,7 +4,7 @@ export type {
   InboxItemDto,
   ListInboxParams,
 } from "./types";
-export { listInboxNotifications, markInboxItemRead } from "./api";
+export { listInboxNotifications, markInboxItemRead, markAllInboxRead } from "./api";
 export {
   inboxItemDtoToAppNotification,
   inboxItemDtosToAppNotifications,

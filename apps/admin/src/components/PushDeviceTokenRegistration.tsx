@@ -1,13 +1,20 @@
 import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { getAdminApiClient } from "@/lib/admin-api";
 import { bootstrapPushDeviceToken } from "@lumenx/notifications";
 import { bootstrapWebFcm, logLumenXAnalyticsEventForContext } from "@lumenx/auth";
 import { dispatchInAppAlert } from "@lumenx/notifications";
+import { adminQueryRoots } from "@/lib/admin-queries/keys";
 
 export function PushDeviceTokenRegistration({ enabled }: { enabled: boolean }): null {
+  const queryClient = useQueryClient();
+
   useEffect(() => {
     if (!enabled || !isApiAuthMode()) return;
+    const invalidateInbox = () => {
+      void queryClient.invalidateQueries({ queryKey: [adminQueryRoots.notifications] });
+    };
     let cleanup: (() => void) | undefined;
     void bootstrapPushDeviceToken({
       app: "admin",
@@ -29,6 +36,11 @@ export function PushDeviceTokenRegistration({ enabled }: { enabled: boolean }): 
           params: { platform },
         });
       },
+      onForegroundPush: () => invalidateInbox(),
+      onNotificationOpened: (href) => {
+        if (typeof window === "undefined") return;
+        window.location.assign(href);
+      },
       bootstrapWeb: async ({ register }) =>
         bootstrapWebFcm({
           register: async ({ token }) => register(token),
@@ -44,12 +56,13 @@ export function PushDeviceTokenRegistration({ enabled }: { enabled: boolean }): 
               variant: isAlert ? "alert" : "notification",
               severity: payload.data?.priority === "critical" ? "emergency" : "mandatory",
             });
+            invalidateInbox();
           },
         }),
     }).then((dispose) => {
       cleanup = dispose;
     });
     return () => cleanup?.();
-  }, [enabled]);
+  }, [enabled, queryClient]);
   return null;
 }

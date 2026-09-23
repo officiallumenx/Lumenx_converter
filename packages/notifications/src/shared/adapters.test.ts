@@ -55,6 +55,7 @@ describe("notification foundation", () => {
     expect(fromAppNotificationPriority("high")).toBe("important");
     expect(toAppNotificationPriority("success")).toBe("normal");
     expect(toAppNotificationPriority("critical")).toBe("high");
+    expect(toAppNotificationPriority("important")).toBe("normal");
   });
 
   it("buildAppNotification produces legacy shape", () => {

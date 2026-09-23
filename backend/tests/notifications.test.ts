@@ -474,3 +474,55 @@ describe("notifications — role audience broadcast", () => {
     ).toBe(400);
   });
 });
+
+describe("notifications — mark all read and due_at", () => {
+  it("marks all unread for caller only", async () => {
+    const app = appWithDb(baseDb());
+    await app.request("/api/v1/notifications", {
+      method: "POST",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify({
+        institute_id: INST_A,
+        category: "announcements",
+        title: "Hello students",
+        body: "Please read this notice today.",
+        audience: "students",
+      }),
+    });
+    const marked = await app.request("/api/v1/notifications/mark-all-read", {
+      method: "POST",
+      headers: jsonHeaders("token-student"),
+      body: JSON.stringify({ institute_id: INST_A }),
+    });
+    expect(marked.status).toBe(200);
+    expect((await json(marked)).data.updated).toBeGreaterThanOrEqual(1);
+    const inbox = await app.request(`/api/v1/notifications?institute_id=${INST_A}`, {
+      headers: auth("token-student"),
+    });
+    const rows = (await json(inbox)).data as Array<{ readAt: string | null }>;
+    expect(rows.every((r) => r.readAt)).toBe(true);
+  });
+
+  it("stores due_at and escalates priority when due soon", async () => {
+    const app = appWithDb(baseDb());
+    const soon = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+    const emitted = await app.request("/api/v1/notifications", {
+      method: "POST",
+      headers: jsonHeaders("token-admin"),
+      body: JSON.stringify({
+        institute_id: INST_A,
+        category: "homework",
+        title: "Homework due soon",
+        body: "Submit the assignment before the deadline today.",
+        recipient_user_ids: [USER_STUDENT],
+        due_at: soon,
+      }),
+    });
+    expect(emitted.status).toBe(201);
+    const row = (await json(emitted)).data[0] as {
+      notification: { dueAt: string | null; priority: string };
+    };
+    expect(row.notification.dueAt).toBeTruthy();
+    expect(row.notification.priority).toBe("critical");
+  });
+});

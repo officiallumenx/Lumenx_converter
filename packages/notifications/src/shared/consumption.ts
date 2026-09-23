@@ -3,6 +3,7 @@
  * Keeps existing AppNotification UI shapes; does not redesign inboxes.
  */
 import type { AppNotification, NotificationCategory } from "@lumenx/types";
+import { isAlertNotification } from "./alert-presentation";
 
 /** Default deep links for actionable categories when href is missing. */
 export const DEFAULT_NOTIFICATION_HREF: Partial<Record<NotificationCategory, string>> = {
@@ -41,7 +42,7 @@ export function dedupeNotificationsById(rows: AppNotification[]): AppNotificatio
 }
 
 export function isImportantNotification(n: AppNotification): boolean {
-  return n.priority === "high" || n.category === "emergency" || n.type === "warning";
+  return n.priority === "high" || isAlertNotification(n);
 }
 
 export {
@@ -52,6 +53,17 @@ export {
   ALERT_ICON_CHIP_CLASS,
   ALERT_BADGE_CLASS,
 } from "./alert-presentation";
+export {
+  deadlinePriorityFromDueAt,
+  escalatePriorityFromDueAt,
+  notificationEntityPayload,
+} from "./deadline-priority";
+export {
+  backendCategoryToUiCategory,
+  presentationFromPriority,
+  effectiveStoredPriority,
+  toneTokenFromPriority,
+} from "./priority-presentation";
 export {
   playAlertChime,
   playNotificationChime,

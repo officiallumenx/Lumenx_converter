@@ -59,6 +59,14 @@ describe("notification inbox DTO mapping", () => {
     ).toBe("info");
   });
 
+  it("maps important as warning type without high priority", () => {
+    const item = inboxItemDtoToListItem(
+      dto({ notification: { ...dto().notification, priority: "important" } }),
+    );
+    expect(item.type).toBe("warning");
+    expect(item.priority).toBe("normal");
+  });
+
   it("maps backend category to UI category", () => {
     expect(
       inboxItemDtoToListItem(
@@ -69,7 +77,7 @@ describe("notification inbox DTO mapping", () => {
       inboxItemDtoToListItem(
         dto({ notification: { ...dto().notification, category: "system" } }),
       ).category,
-    ).toBe("emergency");
+    ).toBe("circulars");
   });
 
   it("maps deepLink to href", () => {

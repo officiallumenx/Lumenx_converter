@@ -15,6 +15,7 @@ import { days } from "@/lib/mock-data";
 import { getInitials } from "@lumenx/utils";
 import { prefersReducedMotion } from "@/lib/prefers-reduced-motion";
 import { studentNotificationStore } from "@/lib/student/notification-store";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { useStudentPortal } from "@/context/StudentPortalContext";
 import {
   Badge,
@@ -125,7 +126,7 @@ export function StudentDashboardPage() {
   const { activeInstituteId } = useApp();
   const { pathname } = useLocation();
 
-  const notifications = useSyncExternalStore(
+  const storeNotifications = useSyncExternalStore(
     studentNotificationStore.subscribe,
     studentNotificationStore.getItems,
     studentNotificationStore.getItems,
@@ -135,6 +136,7 @@ export function StudentDashboardPage() {
   if (portal.isLoading || !portal.snapshot) return <PageSkeleton rows={5} />;
 
   const snap = portal.snapshot;
+  const notifications = isApiAuthMode() ? snap.notifications ?? [] : storeNotifications;
   const today = getTodayDayName();
   const todayClasses = snap.timetable[today] ?? snap.timetable[days[Math.max(0, Math.min(5, new Date().getDay() - 1))]] ?? [];
   const weak = [...snap.performance].sort((a, b) => a.score - b.score).slice(0, 2);
@@ -374,20 +376,17 @@ export function StudentDashboardPage() {
                             key={n.id}
                             className={cn(
                               "student-list-row flex min-w-0 gap-2 rounded-xl border p-3",
-                              !n.unread && "border-border",
-                            )}
-                            style={
                               n.unread
-                                ? {
-                                    borderColor: `${STUDENT_NOTIFICATION_COLOR.primary}4D`,
-                                    backgroundColor: `${STUDENT_NOTIFICATION_COLOR.primary}08`,
-                                  }
-                                : undefined
-                            }
+                                ? n.priority === "high"
+                                  ? "border-destructive/40 bg-destructive/5"
+                                  : n.type === "warning"
+                                    ? "border-warning/30 bg-warning/5"
+                                    : "border-primary/30 bg-primary/5"
+                                : "border-border",
+                            )}
                           >
                             <Bell
-                              className="mt-0.5 size-4 shrink-0"
-                              style={{ color: STUDENT_NOTIFICATION_COLOR.primary }}
+                              className="mt-0.5 size-4 shrink-0 text-primary"
                             />
                             <div className="min-w-0 flex-1">
                               <div className="truncate text-sm font-medium">{n.title}</div>
@@ -395,8 +394,10 @@ export function StudentDashboardPage() {
                             </div>
                             {n.unread && (
                               <span
-                                className="size-1.5 shrink-0 rounded-full mt-2"
-                                style={{ backgroundColor: STUDENT_NOTIFICATION_COLOR.primary }}
+                                className={cn(
+                                  "size-1.5 shrink-0 rounded-full mt-2",
+                                  n.priority === "high" ? "bg-destructive" : n.type === "warning" ? "bg-warning" : "bg-primary",
+                                )}
                               />
                             )}
                           </div>

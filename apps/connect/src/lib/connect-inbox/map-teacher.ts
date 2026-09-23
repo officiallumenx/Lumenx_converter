@@ -32,7 +32,8 @@ export function appNotificationToTeacherNotification(
     id: notification.id,
     title: notification.title || "Notification",
     body: notification.desc || "",
-    category: toTeacherCategory(notification.category),
+    category:
+      notification.priority === "high" ? "urgent" : toTeacherCategory(notification.category),
     time: notification.time || "",
     unread: notification.unread !== false,
     portalScope: "subject",

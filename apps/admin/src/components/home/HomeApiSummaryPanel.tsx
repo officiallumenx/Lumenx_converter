@@ -12,8 +12,7 @@ import {
   type DashboardSummary,
   type DashboardWidgetsState,
 } from "@/lib/dashboard";
-import {
-  Users,
+import { Bell, Users,
   GraduationCap,
   Heart,
   MessageSquareWarning,
@@ -32,6 +31,8 @@ import {
 import { HomeQuickActionsCard } from "@/components/HomeQuickActionsCard";
 import { SetupChecklistBanner } from "@/components/setup/SetupChecklistPanel";
 import { useSetupChecklist } from "@/lib/institute-setup-checklist";
+import { useNotificationsListQuery } from "@/lib/admin-queries";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { listTransportEmergencies } from "@/lib/transport/ops-api";
 import { syncPendingReviewsComplaintsApi } from "@/lib/pending-reviews";
 import { IconChip } from "@/components/IconChip";
@@ -80,6 +81,13 @@ export function HomeApiSummaryPanel() {
     Awaited<ReturnType<typeof listTransportEmergencies>>
   >([]);
   const { state: setupState } = useSetupChecklist();
+  const apiMode = isApiAuthMode();
+  const inboxQuery = useNotificationsListQuery(
+    instituteCtx.activeInstituteId,
+    apiMode && instituteCtx.status === "ready" && Boolean(instituteCtx.activeInstituteId),
+  );
+  const inboxItems = inboxQuery.data?.items ?? [];
+  const inboxUnread = inboxItems.filter((n) => n.unread).length;
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(null);
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
@@ -245,6 +253,58 @@ export function HomeApiSummaryPanel() {
   return (
     <div className="space-y-4">
       <SetupChecklistBanner state={setupState} />
+
+      {apiMode ? (
+        <Card>
+          <CardHeader
+            title="Recent notifications"
+            hint="Your institute inbox"
+            action={
+              <div className="flex items-center gap-2">
+                {inboxUnread > 0 ? <Pill tone="info">{inboxUnread} unread</Pill> : <Pill tone="neutral">All read</Pill>}
+                <Link to="/notifications" search={{ tab: "inbox" }}>
+                  <Button size="sm" variant="outline">
+                    Open
+                  </Button>
+                </Link>
+              </div>
+            }
+          />
+          <div className="px-3 pb-3">
+            {inboxQuery.isLoading && inboxItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground px-1">Loading notifications…</p>
+            ) : inboxItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground px-1">No notifications yet.</p>
+            ) : (
+              <ul className="divide-y divide-border rounded-lg border border-border">
+                {inboxItems.slice(0, 6).map((row) => {
+                  const urgent = row.priority === "high";
+                  return (
+                    <li key={row.id} className="flex items-center gap-2.5 px-2.5 py-2">
+                      <IconChip
+                        icon={Bell}
+                        size="sm"
+                        variant={urgent ? "danger" : "brand"}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-medium">{row.title}</span>
+                        <span className="block text-[11px] text-muted-foreground">
+                          {row.desc} · {row.time}
+                        </span>
+                      </span>
+                      <Link to="/notifications" search={{ tab: "inbox" }}>
+                        <Button size="sm" variant="outline">
+                          Open
+                        </Button>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader

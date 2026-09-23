@@ -15,6 +15,19 @@ export {
 } from "./priority";
 
 export {
+  deadlinePriorityFromDueAt,
+  escalatePriorityFromDueAt,
+  notificationEntityPayload,
+} from "./deadline-priority";
+
+export {
+  backendCategoryToUiCategory,
+  presentationFromPriority,
+  effectiveStoredPriority,
+  toneTokenFromPriority,
+} from "./priority-presentation";
+
+export {
   createLumenXNotification,
   categoryFromAppNotificationCategory,
   toAppNotificationCategory,

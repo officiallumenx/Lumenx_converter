@@ -169,7 +169,7 @@ export async function emitMarkEntryWorkflowNotifications(
     recipientUserIds: [teacher.user_profile_id],
     title,
     body,
-    dedupeKey: `marks-${action}:${entry.id}:${Date.now()}`,
+    dedupeKey: `marks-${action}:${entry.id}`,
     kind: action === "returned" ? "marks_returned" : "marks_rejected",
     examId: entry.examId,
     entryId: entry.id,

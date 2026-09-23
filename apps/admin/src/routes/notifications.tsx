@@ -243,6 +243,7 @@ function NotificationsPage() {
           rowsValid={listView.rowsValid}
           listHint={listHint}
           instituteResetKey={instituteCtx.activeInstituteId}
+          instituteId={instituteCtx.activeInstituteId}
         />
       ) : apiMode ? (
         <NotificationApiEmitCompose

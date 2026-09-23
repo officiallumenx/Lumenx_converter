@@ -4,7 +4,7 @@ import { isApiAuthMode } from "@/auth/auth-mode";
 import { useApp } from "@/lib/app-state";
 import { useConnectInboxQuery } from "@/lib/connect-queries/hooks";
 import { connectQueryKeys } from "@/lib/connect-queries/keys";
-import { markInboxItemRead } from "@/lib/notification-inbox";
+import { markInboxItemRead, markAllInboxRead } from "@/lib/notification-inbox";
 import { isAlertNotification, subscribeInAppAlerts } from "@lumenx/notifications";
 import type { AppNotification } from "@lumenx/types";
 
@@ -83,15 +83,15 @@ export function useConnectApiInbox(activeInstituteId: string | null) {
   );
 
   const markAllRead = useCallback(async () => {
-    const unread = items.filter((n) => n.unread);
+    const unread = items.filter((n) => n.unread && !n.id.startsWith("ann-row-"));
     patchItems((prev) => prev.map((n) => ({ ...n, unread: false })));
-    if (!isApiAuthMode()) return;
-    await Promise.all(
-      unread
-        .filter((n) => !n.id.startsWith("ann-row-"))
-        .map((n) => markInboxItemRead(n.id).catch(() => undefined)),
-    );
-  }, [items, patchItems]);
+    if (!isApiAuthMode() || !activeInstituteId) return;
+    try {
+      await markAllInboxRead(activeInstituteId);
+    } catch {
+      await Promise.all(unread.map((n) => markInboxItemRead(n.id).catch(() => undefined)));
+    }
+  }, [activeInstituteId, items, patchItems]);
 
   return { items, loading, error, markRead, markAllRead, reload: query.refresh };
 }

@@ -33,6 +33,7 @@ import type { NotificationInboxListItem } from "@/lib/notification-inbox";
 import {
   deleteInboxItem,
   updateInboxItem,
+  markAllInboxRead,
 } from "@/lib/notification-inbox/mutations";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useAdminToast } from "@/components/AdminActionToast";
@@ -57,8 +58,7 @@ const CATEGORY_OPTIONS: { value: NotificationCategory | "all"; label: string }[]
 type InboxRow = AdminNotification | NotificationInboxListItem;
 
 function isInboxAlertRow(n: InboxRow): boolean {
-  if (n.category === "emergency") return true;
-  if (n.priority === "high" && n.type === "warning") return true;
+  if (n.priority === "high") return true;
   if ("payload" in n && n.payload) {
     return isAlertPresentationPayload(n.payload);
   }
@@ -84,6 +84,7 @@ export function NotificationCenterInbox({
   rowsValid = true,
   listHint = null,
   instituteResetKey = null,
+  instituteId = null,
 }: {
   items: InboxRow[];
   onChange: () => void;
@@ -91,6 +92,7 @@ export function NotificationCenterInbox({
   rowsValid?: boolean;
   listHint?: string | null;
   instituteResetKey?: string | null;
+  instituteId?: string | null;
 }) {
   const notify = useAdminToast();
   const navigate = useNavigate();
@@ -194,10 +196,12 @@ export function NotificationCenterInbox({
                   disabled={unreadCount === 0}
                   onClick={() => {
                     if (apiMode) {
-                      const unread = items.filter((n) => n.unread);
-                      void Promise.all(
-                        unread.map((n) => updateInboxItem(n.id, { read: true })),
-                      )
+                      const run = instituteId
+                        ? markAllInboxRead(instituteId)
+                        : Promise.all(
+                            items.filter((n) => n.unread).map((n) => updateInboxItem(n.id, { read: true })),
+                          );
+                      void run
                         .then(() => {
                           onChange();
                           notify("All notifications marked read");

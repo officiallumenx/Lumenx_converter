@@ -1,33 +1,12 @@
-import type { NotificationCategory } from "@lumenx/types";
 import type {
-  BackendNotificationCategory,
-  BackendNotificationPriority,
   InboxItemDto,
   NotificationInboxListItem,
 } from "./types";
-
-const BACKEND_TO_UI_CATEGORY: Record<
-  BackendNotificationCategory,
-  NotificationCategory
-> = {
-  attendance: "attendance",
-  homework: "assignments",
-  fees: "fees",
-  exams: "exams",
-  events: "events",
-  transport: "circulars",
-  leave: "circulars",
-  announcements: "circulars",
-  messages: "circulars",
-  complaints: "circulars",
-  admissions: "academic",
-  careers: "circulars",
-  certificates: "academic",
-  documents: "academic",
-  timetable: "academic",
-  system: "emergency",
-  nexus: "circulars",
-};
+import {
+  backendCategoryToUiCategory,
+  effectiveStoredPriority,
+  presentationFromPriority,
+} from "@lumenx/notifications";
 
 export function relativeInboxTimeLabel(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime();
@@ -46,23 +25,6 @@ export function relativeInboxTimeLabel(iso: string): string {
   });
 }
 
-function uiCategory(category: BackendNotificationCategory): NotificationCategory {
-  return BACKEND_TO_UI_CATEGORY[category] ?? "circulars";
-}
-
-function presentationType(priority: BackendNotificationPriority): {
-  type: NotificationInboxListItem["type"];
-  priority: NotificationInboxListItem["priority"];
-} {
-  if (priority === "critical" || priority === "important") {
-    return { type: "warning", priority: "high" };
-  }
-  if (priority === "success") {
-    return { type: "positive", priority: "normal" };
-  }
-  return { type: "info", priority: "normal" };
-}
-
 /**
  * Presentation-only mapping. DTO identity fields are never used as authority.
  */
@@ -72,7 +34,12 @@ export function inboxItemDtoToListItem(
   const body = dto.notification.body?.trim() || "";
   const title = dto.notification.title?.trim() || "Notification";
   const createdAt = dto.notification.createdAt || dto.createdAt;
-  const { type, priority } = presentationType(dto.notification.priority);
+  const dueAt = dto.notification.dueAt ?? null;
+  const stored = effectiveStoredPriority({
+    stored: dto.notification.priority,
+    dueAt,
+  });
+  const { type, priority } = presentationFromPriority(stored);
   const href = dto.notification.deepLink?.trim() || undefined;
   const templateId = dto.notification.templateId?.trim() || undefined;
 
@@ -83,7 +50,7 @@ export function inboxItemDtoToListItem(
     detail: body,
     time: relativeInboxTimeLabel(createdAt),
     type,
-    category: uiCategory(dto.notification.category),
+    category: backendCategoryToUiCategory(dto.notification.category),
     unread: dto.readAt == null,
     priority,
     createdAt,

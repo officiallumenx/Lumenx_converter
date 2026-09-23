@@ -1,32 +1,13 @@
-import type { AppNotification, NotificationCategory } from "@lumenx/types";
+import type { AppNotification } from "@lumenx/types";
+import {
+  backendCategoryToUiCategory,
+  effectiveStoredPriority,
+  presentationFromPriority,
+} from "@lumenx/notifications";
 import type {
   BackendNotificationCategory,
-  BackendNotificationPriority,
   InboxItemDto,
 } from "./types";
-
-const BACKEND_TO_UI_CATEGORY: Record<
-  BackendNotificationCategory,
-  NotificationCategory
-> = {
-  attendance: "attendance",
-  homework: "assignments",
-  fees: "fees",
-  exams: "exams",
-  events: "events",
-  transport: "circulars",
-  leave: "circulars",
-  announcements: "circulars",
-  messages: "circulars",
-  complaints: "circulars",
-  admissions: "academic",
-  careers: "circulars",
-  certificates: "academic",
-  documents: "academic",
-  timetable: "academic",
-  system: "emergency",
-  nexus: "circulars",
-};
 
 export function relativeInboxTimeLabel(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime();
@@ -45,24 +26,16 @@ export function relativeInboxTimeLabel(iso: string): string {
   });
 }
 
-function uiCategory(category: BackendNotificationCategory | string): NotificationCategory {
-  return (
-    BACKEND_TO_UI_CATEGORY[category as BackendNotificationCategory] ?? "circulars"
-  );
-}
-
-function presentationType(
-  priority: BackendNotificationPriority | string | null | undefined,
-): AppNotification["type"] {
-  if (priority === "critical" || priority === "important") return "warning";
-  if (priority === "success") return "positive";
-  return "info";
-}
-
 export function inboxItemDtoToAppNotification(dto: InboxItemDto): AppNotification {
   const body = dto.notification.body?.trim() || "";
   const title = dto.notification.title?.trim() || "Notification";
   const createdAt = dto.notification.createdAt || dto.createdAt;
+  const dueAt = dto.notification.dueAt ?? null;
+  const stored = effectiveStoredPriority({
+    stored: dto.notification.priority,
+    dueAt,
+  });
+  const { type, priority } = presentationFromPriority(stored);
 
   return {
     id: dto.id,
@@ -70,16 +43,15 @@ export function inboxItemDtoToAppNotification(dto: InboxItemDto): AppNotificatio
     desc: body,
     detail: body,
     time: relativeInboxTimeLabel(createdAt),
-    type: presentationType(dto.notification.priority),
-    category: uiCategory(dto.notification.category),
+    type,
+    category: backendCategoryToUiCategory(dto.notification.category as BackendNotificationCategory),
     unread: dto.readAt == null,
-    priority:
-      dto.notification.priority === "critical" || dto.notification.priority === "important"
-        ? "high"
-        : "normal",
+    priority,
     createdAt,
     href: dto.notification.deepLink?.trim() || undefined,
     templateId: dto.notification.templateId?.trim() || undefined,
+    payload: dto.notification.payload ?? undefined,
+    dueAt,
   };
 }
 
