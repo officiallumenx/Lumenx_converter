@@ -1,11 +1,12 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useRef, useCallback } from "react";
 import {
-  ArrowLeft, ArrowRight, ChevronLeft, Check,
+  ArrowRight, ChevronLeft, Check,
   Building2, Globe, Mail, Phone, User, MapPin, Hash,
-  Lock, Upload, X, ShieldCheck, Image as ImageIcon,
+  Lock, X, ShieldCheck, Image as ImageIcon,
   BookOpen, GraduationCap,
 } from "lucide-react";
+import { AuthLayout } from "@/auth/components/AuthLayout";
 import { AuthInput } from "@/auth/components/AuthInput";
 import { AuthButton } from "@/auth/components/AuthButton";
 import { AuthSelect } from "@/auth/components/AuthSelect";
@@ -13,7 +14,6 @@ import { AuthSectionHeader } from "@/auth/components/AuthSectionHeader";
 import { AuthStepBar } from "@/auth/components/AuthStepBar";
 import { PasswordStrength } from "@/auth/components/PasswordStrength";
 import { PinInput } from "@/auth/components/PinInput";
-import { LumenXAdminLogo } from "@/components/LumenXAdminLogo";
 import { DemoOtpHint } from "@/auth/components/DemoOtpHint";
 import { OtpInput } from "@/auth/components/OtpInput";
 import { useAuth } from "@/auth/AuthContext";
@@ -23,10 +23,8 @@ import {
   requestSignupOtp,
   verifySignupOtp,
 } from "@lumenx/auth";
-import { useTheme } from "@/components/theme-provider";
 import { IconChip } from "@/components/IconChip";
 import {
-  getPasswordStrength,
   getPasswordErrors,
   isValidEmail,
   isValidPhone,
@@ -68,16 +66,16 @@ const INDIA_STATES = [
 ];
 
 const DEMO_STEP_META = [
-  { label: "Institute Profile",    short: "Profile"  },
-  { label: "Contact & Location",   short: "Contact"  },
-  { label: "Security",             short: "Security" },
+  { label: "Institute", short: "Profile" },
+  { label: "Contact",   short: "Contact" },
+  { label: "Security",  short: "Security" },
 ] as const;
 
 const API_STEP_META = [
-  { label: "Institute Profile",    short: "Profile"  },
-  { label: "Contact & Location",   short: "Contact"  },
-  { label: "OTP Verify",           short: "Verify"   },
-  { label: "Security",             short: "Security" },
+  { label: "Institute", short: "Profile" },
+  { label: "Contact",   short: "Contact" },
+  { label: "Verify",    short: "Verify" },
+  { label: "Security",  short: "Security" },
 ] as const;
 
 /* ══════════════════════════════════════════════════════════════
@@ -86,6 +84,7 @@ const API_STEP_META = [
 
 interface Step1 {
   instituteName: string;
+  instituteCode: string;
   logoFile: File | null;
   logoPreview: string;
   instituteType: string;
@@ -123,6 +122,11 @@ function validateStep1(d: Step1): Errors<Step1> {
   const e: Errors<Step1> = {};
   if (!d.instituteName.trim())        e.instituteName  = "Institute name is required";
   else if (d.instituteName.trim().length < 3)  e.instituteName  = "Must be at least 3 characters";
+  const code = d.instituteCode.trim();
+  if (!code) e.instituteCode = "Institute code is required";
+  else if (!/^[A-Za-z0-9][A-Za-z0-9_-]{2,31}$/.test(code)) {
+    e.instituteCode = "3–32 characters: letters, numbers, - or _";
+  }
   if (!d.instituteType)               e.instituteType  = "Please select institute type";
   if (!d.educationBoard)              e.educationBoard = "Please select education board";
   return e;
@@ -220,7 +224,6 @@ function LogoUpload({
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-xs font-medium">Logo uploaded</div>
-            <div className="text-[10px] text-muted-foreground mt-0.5">Looking good! Shown on documents and portals.</div>
           </div>
           <button
             type="button"
@@ -243,9 +246,9 @@ function LogoUpload({
           <IconChip icon={ImageIcon} size="md" variant="soft" />
           <div className="text-center">
             <div className="text-xs font-medium group-hover:text-primary transition-colors">
-              Click to upload <span className="text-primary underline">or drag &amp; drop</span>
+              Upload logo
             </div>
-            <div className="text-[10px] text-muted-foreground mt-0.5">PNG, JPG, SVG up to 2 MB · Recommended 400×400</div>
+            <div className="text-[10px] text-muted-foreground mt-0.5">PNG or JPG · optional</div>
           </div>
         </button>
       )}
@@ -283,8 +286,7 @@ function Step1({
     <div className="space-y-4">
       <AuthSectionHeader
         icon={Building2}
-        title="Institute Profile"
-        subtitle="Basic information about your educational institution"
+        title="Institute"
       />
 
       <AuthInput
@@ -298,13 +300,30 @@ function Step1({
         required
       />
 
+      <AuthInput
+        label="Institute Code"
+        name="instituteCode"
+        icon={Hash}
+        placeholder="e.g. lumenx-001"
+        value={data.instituteCode}
+        onChange={(e) =>
+          onChange(
+            "instituteCode",
+            e.target.value.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 32),
+          )
+        }
+        error={errors.instituteCode}
+        hint="Shown on login · must be unique"
+        required
+      />
+
       <LogoUpload
         preview={data.logoPreview}
         onChange={onLogoChange}
         onClear={onLogoClear}
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4">
         <AuthSelect
           label="Institute Type"
           name="instituteType"
@@ -350,10 +369,9 @@ function Step2({
       {/* Admin info */}
       <AuthSectionHeader
         icon={GraduationCap}
-        title="Principal / Admin Details"
-        subtitle="The primary contact person for this institute account"
+        title="Principal"
       />
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4">
         <AuthInput
           label="Principal Name"
           name="principalName"
@@ -376,7 +394,7 @@ function Step2({
           required
         />
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4">
         <AuthInput
           label="Mobile Number"
           name="mobile"
@@ -404,12 +422,11 @@ function Step2({
       <div className="pt-2">
         <AuthSectionHeader
           icon={MapPin}
-          title="Institute Location"
-          subtitle="Official registered address of the institute"
+          title="Location"
         />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4">
         <AuthSelect
           label="Country"
           name="country"
@@ -447,7 +464,7 @@ function Step2({
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4">
         <AuthInput
           label="District"
           name="district"
@@ -481,7 +498,7 @@ function Step2({
         required
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4">
         <AuthInput
           label="Pincode"
           name="pincode"
@@ -511,7 +528,6 @@ function Step3({
   errors: Errors<Step3>;
   onChange: (field: keyof Step3, value: string | boolean) => void;
 }) {
-  const pwdStrength = getPasswordStrength(data.password);
   const pinMatch    = data.pin.length === 6 && data.confirmPin.length === 6 && data.pin === data.confirmPin;
 
   return (
@@ -520,7 +536,6 @@ function Step3({
       <AuthSectionHeader
         icon={Lock}
         title="Password"
-        subtitle="Set a strong password for your admin account"
       />
 
       <div>
@@ -562,8 +577,7 @@ function Step3({
       <div className="pt-2">
         <AuthSectionHeader
           icon={ShieldCheck}
-          title="6-Digit Security PIN"
-          subtitle="Used at login and for sensitive Admin actions"
+          title="Security PIN"
         />
       </div>
 
@@ -572,7 +586,7 @@ function Step3({
         value={data.pin}
         onChange={(v) => onChange("pin", v)}
         error={errors.pin}
-        hint="Use 6 unique digits — do not use birth year or repeating numbers"
+        hint="6 digits"
         required
         autoFocus
       />
@@ -582,42 +596,10 @@ function Step3({
         value={data.confirmPin}
         onChange={(v) => onChange("confirmPin", v)}
         error={errors.confirmPin}
-        hint={pinMatch ? "PINs match" : "Re-enter the same 6-digit PIN"}
+        hint={pinMatch ? "Match" : "Re-enter PIN"}
         required
       />
-
-      {pinMatch && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-success/30 bg-success/[0.04] text-xs text-success">
-          <Check className="size-3.5 shrink-0" />
-          PINs match — you&apos;re all set
-        </div>
-      )}
-
-      {/* Security tips */}
-      <div className="p-3.5 rounded-xl border border-border/50 bg-surface/50 space-y-1.5">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Security tips</div>
-        {[
-          "Never share your PIN with anyone, including support staff",
-          "Your PIN is separate from your login password",
-          "You can change your PIN anytime from Settings → Security",
-        ].map((tip) => (
-          <div key={tip} className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
-            <ShieldCheck className="size-3 text-primary shrink-0 mt-0.5" />
-            {tip}
-          </div>
-        ))}
-      </div>
       </>
-
-      {/* Password strength reminder */}
-      {pwdStrength < 3 && data.password && (
-        <div className="flex items-start gap-2 p-3 rounded-lg border border-warning/30 bg-warning/[0.05] text-[11px] text-warning">
-          <svg className="size-3.5 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-          </svg>
-          <span>Consider a stronger password — add uppercase letters, numbers, and special characters.</span>
-        </div>
-      )}
 
       {/* Terms */}
       <div className="pt-1">
@@ -661,7 +643,6 @@ function Step3({
 function SignUpPage() {
   const navigate = useNavigate();
   const { signUp, error: authError, clearError } = useAuth();
-  const { theme } = useTheme();
   const apiMode = isApiAuthMode();
   const STEP_META = apiMode ? API_STEP_META : DEMO_STEP_META;
   const securityStep = apiMode ? 4 : 3;
@@ -679,7 +660,7 @@ function SignUpPage() {
 
   /* ─ form state ─ */
   const [s1, setS1] = useState<Step1>({
-    instituteName: "", logoFile: null, logoPreview: "", instituteType: "", educationBoard: "",
+    instituteName: "", instituteCode: "", logoFile: null, logoPreview: "", instituteType: "", educationBoard: "",
   });
   const [s2, setS2] = useState<Step2>({
     principalName: "", email: "", mobile: "", country: "India",
@@ -838,6 +819,7 @@ function SignUpPage() {
     try {
       const registrationPayload = {
         instituteName: s1.instituteName.trim(),
+        instituteCode: s1.instituteCode.trim(),
         instituteType: s1.instituteType || undefined,
         educationBoard: s1.educationBoard || undefined,
         country: s2.country || undefined,
@@ -910,241 +892,143 @@ function SignUpPage() {
   };
 
   /* ── RENDER ──────────────────────────────────────────────── */
+  const pageTitle =
+    step === 1
+      ? "Register"
+      : step === 2
+        ? "Contact"
+        : step === verifyStep
+          ? "Verify"
+          : "Security";
+  const pageSubtitle =
+    step === 1
+      ? "Institute details"
+      : step === 2
+        ? "Principal and address"
+        : step === verifyStep
+          ? maskedOtpDest
+            ? `Code sent to ${maskedOtpDest}`
+            : "Enter the code we sent"
+          : "Password and PIN";
+
   return (
-    <div className="min-h-screen-dvh flex bg-background text-foreground">
-      {/* ── Left brand panel ───────────────────────────── */}
-      <aside className="hidden xl:flex xl:w-[36%] flex-col justify-between p-10 bg-gradient-to-br from-primary/[0.07] via-background to-chart-5/[0.05] border-r border-border relative overflow-hidden shrink-0">
-        {/* Grid texture */}
-        <div className="pointer-events-none absolute inset-0 opacity-[0.03]"
-          style={{ backgroundImage: "linear-gradient(hsl(var(--border)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--border)) 1px, transparent 1px)", backgroundSize: "40px 40px" }}
-        />
-        <div className="pointer-events-none absolute -top-32 -left-32 w-96 h-96 bg-primary/10 rounded-full blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-32 -right-32 w-80 h-80 bg-chart-5/10 rounded-full blur-3xl" />
-
-        <div className="relative z-10">
-          <Link to="/" className="flex items-center gap-3 mb-10">
-            <LumenXAdminLogo size="lg" className="max-h-12" />
+    <AuthLayout
+      title={pageTitle}
+      subtitle={pageSubtitle}
+      showBack
+      onBack={handleBack}
+      backLabel="Back"
+      footer={
+        <>
+          Already registered?{" "}
+          <Link to="/login" className="font-medium text-primary hover:underline">
+            Sign in
           </Link>
+        </>
+      }
+    >
+      <AuthStepBar steps={[...STEP_META]} current={step} />
 
-          <h2 className="text-3xl font-bold tracking-tight leading-tight">
-            Set up your<br />institute account
-          </h2>
-          <p className="mt-3 text-sm text-muted-foreground leading-relaxed max-w-xs">
-            Complete institute onboarding in a few steps — profile, contact, and security setup.
-          </p>
-
-          {/* Progress summary */}
-          <div className="mt-8 space-y-3">
-            {STEP_META.map((s, i) => {
-              const n     = i + 1;
-              const done  = n < step;
-              const active = n === step;
-              return (
-                <div key={n} className={[
-                  "flex items-center gap-3 px-4 py-3 rounded-xl border transition-all",
-                  active ? "border-primary/30 bg-primary/[0.04]" : done ? "border-success/20 bg-success/[0.03]" : "border-border/50 bg-transparent opacity-60",
-                ].join(" ")}>
-                  <div className={[
-                    "size-6 rounded-full flex items-center justify-center text-[10px] font-bold border shrink-0",
-                    active ? "bg-primary border-primary text-primary-foreground" : done ? "bg-success border-success text-white" : "bg-muted border-border text-muted-foreground",
-                  ].join(" ")}>
-                    {done ? <Check className="size-3" /> : n}
-                  </div>
-                  <div>
-                    <div className={`text-xs font-medium ${active ? "text-primary" : done ? "text-foreground" : "text-muted-foreground"}`}>{s.label}</div>
-                    <div className="text-[10px] text-muted-foreground">
-                      {n === 1 ? "Name, logo, type, board" : n === 2 ? "Principal, contact, address" : "Password & security PIN"}
-                    </div>
-                  </div>
-                  {active && <div className="ml-auto size-1.5 rounded-full bg-primary animate-pulse" />}
-                  {done  && <Check className="ml-auto size-3.5 text-success" />}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="relative z-10 text-[10px] text-muted-foreground">
-          &copy; {new Date().getFullYear()} LumenX Technologies · All rights reserved
-        </div>
-      </aside>
-
-      {/* ── Right: form ────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-h-0 min-w-0">
-        {/* Top bar */}
-        <div className="lx-auth-top-bar flex items-center justify-between border-b border-border/50 shrink-0">
-          <div className="flex items-center gap-3">
-            {/* Mobile logo */}
-            <div className="flex items-center gap-2 xl:hidden">
-              <LumenXAdminLogo size="xs" className="max-h-7" />
+      <div className="mt-5 space-y-4">
+        {step === 1 && (
+          <Step1
+            data={s1}
+            errors={e1}
+            onChange={change1}
+            onLogoChange={(file, url) => setS1((p) => ({ ...p, logoFile: file, logoPreview: url }))}
+            onLogoClear={() => setS1((p) => ({ ...p, logoFile: null, logoPreview: "" }))}
+          />
+        )}
+        {step === 2 && (
+          <Step2 data={s2} errors={e2} onChange={change2} />
+        )}
+        {step === verifyStep && (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-foreground">
+                {verifyChannel === "mobile" ? "Mobile OTP" : "Email OTP"}
+              </p>
+              <OtpInput
+                value={signupOtp}
+                onChange={(value) => {
+                  setSignupOtp(value);
+                  setVerifyError(null);
+                }}
+                onComplete={(value) => {
+                  void handleVerifyOtpContinue(value);
+                }}
+                error={verifyError ?? undefined}
+                disabled={loading}
+              />
             </div>
+            {devSignupOtp && (
+              <DemoOtpHint
+                otp={devSignupOtp}
+                channel={verifyChannel}
+                onUse={setSignupOtp}
+              />
+            )}
           </div>
+        )}
+        {step === securityStep && (
+          <form id="step3-form" onSubmit={handleSubmit}>
+            <Step3 data={s3} errors={e3} onChange={change3} />
+          </form>
+        )}
 
-          <div className="flex items-center gap-4">
+        {authError && (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/[0.05] p-3 text-xs text-destructive">
+            {authError}
+          </div>
+        )}
+
+        <div className="flex items-center gap-3 pt-1">
+          {step > 1 && (
             <button
               type="button"
               onClick={handleBack}
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              disabled={loading}
+              className="flex h-10 items-center gap-1.5 rounded-lg border border-border px-4 text-sm transition-colors hover:bg-surface-hover"
             >
-              <ArrowLeft className="size-3.5" />
-              {step === 1 ? "Welcome" : `Step ${step - 1}`}
+              <ChevronLeft className="size-4" /> Back
             </button>
-            <span className="text-[11px] text-muted-foreground hidden sm:block">
-              Step {step} of {STEP_META.length}
-            </span>
-            <Link to="/login" className="text-[11px] text-primary hover:underline">
-              Login instead
-            </Link>
-          </div>
-        </div>
+          )}
 
-        {/* Scrollable form content */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-2xl mx-auto px-6 sm:px-8 py-8">
-
-            {/* Heading */}
-            <div className="mb-6">
-              <h1 className="text-xl font-bold tracking-tight">
-                {step === 1
-                  ? "Institute Profile"
-                  : step === 2
-                    ? "Contact & Location"
-                    : step === verifyStep
-                      ? "Verify contact"
-                      : "Security Setup"}
-              </h1>
-              <p className="text-sm text-muted-foreground mt-1">
-                {step === 1
-                  ? "Tell us about your institution"
-                  : step === 2
-                    ? "How can we reach you?"
-                    : step === verifyStep
-                      ? `Enter the code sent to ${maskedOtpDest || "your phone"}`
-                      : "Protect your account with a strong password and PIN"}
-              </p>
-            </div>
-
-            {/* Step progress bar */}
-            <AuthStepBar steps={[...STEP_META]} current={step} />
-
-            {/* Step content */}
-            {step === 1 && (
-              <Step1
-                data={s1}
-                errors={e1}
-                onChange={change1}
-                onLogoChange={(file, url) => setS1((p) => ({ ...p, logoFile: file, logoPreview: url }))}
-                onLogoClear={() => setS1((p) => ({ ...p, logoFile: null, logoPreview: "" }))}
-              />
-            )}
-            {step === 2 && (
-              <Step2 data={s2} errors={e2} onChange={change2} />
-            )}
-            {step === verifyStep && (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-foreground">
-                    {verifyChannel === "mobile" ? "Mobile OTP" : "Email OTP"}
-                    {maskedOtpDest ? ` (${maskedOtpDest})` : ""}
-                  </p>
-                  <OtpInput
-                    value={signupOtp}
-                    onChange={(value) => {
-                      setSignupOtp(value);
-                      setVerifyError(null);
-                    }}
-                    onComplete={(value) => {
-                      void handleVerifyOtpContinue(value);
-                    }}
-                    error={verifyError ?? undefined}
-                    disabled={loading}
-                  />
-                </div>
-                {devSignupOtp && (
-                  <DemoOtpHint
-                    otp={devSignupOtp}
-                    channel={verifyChannel}
-                    onUse={setSignupOtp}
-                  />
-                )}
-              </div>
-            )}
-            {step === securityStep && (
-              <form id="step3-form" onSubmit={handleSubmit}>
-                <Step3 data={s3} errors={e3} onChange={change3} />
-              </form>
-            )}
-
-            {/* Auth error */}
-            {authError && (
-              <div className="mt-4 p-3 rounded-lg border border-destructive/30 bg-destructive/[0.05] text-xs text-destructive">
-                {authError}
-              </div>
-            )}
-
-            {/* Navigation buttons */}
-            <div className="mt-6 flex items-center gap-3">
-              {step > 1 && (
-                <button
-                  type="button"
-                  onClick={handleBack}
-                  disabled={loading}
-                  className="flex items-center gap-1.5 h-10 px-4 rounded-lg border border-border text-sm hover:bg-surface-hover transition-colors"
-                >
-                  <ChevronLeft className="size-4" /> Back
-                </button>
-              )}
-
-              {step < securityStep ? (
-                step === verifyStep ? (
-                  <AuthButton
-                    type="button"
-                    onClick={() => void handleVerifyOtpContinue()}
-                    loading={loading}
-                    fullWidth={false}
-                    className="flex-1"
-                    disabled={signupOtp.length !== 6}
-                  >
-                    Verify &amp; continue <ArrowRight className="size-4" />
-                  </AuthButton>
-                ) : (
-                  <AuthButton
-                    type="button"
-                    onClick={() => void handleNext()}
-                    loading={loading}
-                    fullWidth={step === 1}
-                  >
-                    Continue <ArrowRight className="size-4" />
-                  </AuthButton>
-                )
-              ) : (
-                <AuthButton
-                  type="submit"
-                  form="step3-form"
-                  loading={loading}
-                  fullWidth={false}
-                  className="flex-1"
-                >
-                  Create account &amp; get started
-                </AuthButton>
-              )}
-            </div>
-
-            {/* Login link */}
-            <p className="mt-5 text-center text-xs text-muted-foreground">
-              Already have an account?{" "}
-              <Link to="/login" className="text-primary hover:underline font-medium">
-                Login
-              </Link>
-            </p>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 py-3 text-center text-[10px] text-muted-foreground/40 shrink-0 border-t border-border/30">
-          {theme} mode
+          {step < securityStep ? (
+            step === verifyStep ? (
+              <AuthButton
+                type="button"
+                onClick={() => void handleVerifyOtpContinue()}
+                loading={loading}
+                fullWidth={false}
+                className="flex-1"
+                disabled={signupOtp.length !== 6}
+              >
+                Continue <ArrowRight className="size-4" />
+              </AuthButton>
+            ) : (
+              <AuthButton
+                type="button"
+                onClick={() => void handleNext()}
+                loading={loading}
+                fullWidth={step === 1}
+              >
+                Continue <ArrowRight className="size-4" />
+              </AuthButton>
+            )
+          ) : (
+            <AuthButton
+              type="submit"
+              form="step3-form"
+              loading={loading}
+              fullWidth={false}
+              className="flex-1"
+            >
+              Create account
+            </AuthButton>
+          )}
         </div>
       </div>
-    </div>
+    </AuthLayout>
   );
 }

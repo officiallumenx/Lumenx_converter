@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { useReloadKey } from "@/hooks/useReloadKey";
+import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
@@ -17,14 +17,16 @@ import {
 import { useInstituteContext } from "@/lib/institutes";
 import {
   gradesDisplayLabel,
-  loadSubjectDetail,
   resolveSubjectDetailView,
-  shouldCommitSubjectsLoad,
   updateSubject,
-  type SubjectDetailItem,
   type SubjectStatus,
   type SubjectsListStatus,
 } from "@/lib/subjects";
+import {
+  useSubjectDetailQuery,
+  adminModulePrefix,
+  adminQueryRoots,
+} from "@/lib/admin-queries";
 
 function detailHint(status: SubjectsListStatus, errorMessage: string | null): string | null {
   if (status === "loading") return "Loading subject…";
@@ -48,15 +50,39 @@ function DetailField({ label, value }: { label: string; value: string | null | u
 
 export function SubjectProfileApiPage({ subjectId }: { subjectId: string }) {
   const notify = useAdminToast();
+  const queryClient = useQueryClient();
   const instituteCtx = useInstituteContext();
-  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
-  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
-  const [subject, setSubject] = useState<SubjectDetailItem | null>(null);
-  const [status, setStatus] = useState<SubjectsListStatus>("loading");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useReloadKey();
+  const detailEnabled =
+    instituteCtx.status === "ready" && Boolean(instituteCtx.activeInstituteId);
+  const detailQuery = useSubjectDetailQuery(
+    instituteCtx.activeInstituteId,
+    subjectId,
+    detailEnabled,
+  );
+
+  const subject = detailQuery.data?.subject ?? null;
+  const status: SubjectsListStatus =
+    instituteCtx.status === "loading"
+      ? "loading"
+      : instituteCtx.status === "forbidden"
+        ? "forbidden"
+        : instituteCtx.status === "error"
+          ? "error"
+          : instituteCtx.status === "needs_selection" ||
+              instituteCtx.status === "empty" ||
+              !instituteCtx.activeInstituteId
+            ? "needs_institute"
+            : detailQuery.isLoading && !detailQuery.data
+              ? "loading"
+              : (detailQuery.data?.status ?? "loading");
+  const errorMessage =
+    instituteCtx.status === "error" || instituteCtx.status === "forbidden"
+      ? instituteCtx.errorMessage
+      : (detailQuery.data?.errorMessage ?? null);
+  const resolvedForInstituteId =
+    detailQuery.data && detailEnabled ? instituteCtx.activeInstituteId : null;
+
   const [saving, setSaving] = useState(false);
   const [periods, setPeriods] = useState("5");
   const [subjectStatus, setSubjectStatus] = useState<SubjectStatus>("active");
@@ -73,68 +99,24 @@ export function SubjectProfileApiPage({ subjectId }: { subjectId: string }) {
   });
 
   useEffect(() => {
-    if (instituteCtx.status === "loading") {
-      setSubject(null);
-      setStatus("loading");
-      setErrorMessage(null);
-      setResolvedForInstituteId(null);
-      return;
-    }
+    if (!subject) return;
+    setPeriods(String(subject.periodsPerWeek));
+    setSubjectStatus(subject.status);
+  }, [subject]);
 
-    if (instituteCtx.status === "error" || instituteCtx.status === "forbidden") {
-      setSubject(null);
-      setStatus(instituteCtx.status === "forbidden" ? "forbidden" : "error");
-      setErrorMessage(instituteCtx.errorMessage);
-      setResolvedForInstituteId(null);
-      return;
-    }
-
-    if (
-      instituteCtx.status === "needs_selection" ||
-      instituteCtx.status === "empty" ||
-      !instituteCtx.activeInstituteId
-    ) {
-      setSubject(null);
-      setStatus("needs_institute");
-      setErrorMessage(null);
-      setResolvedForInstituteId(null);
-      return;
-    }
-
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setSubject(null);
-    setStatus("loading");
-    setErrorMessage(null);
-    void loadSubjectDetail(subjectId).then((next) => {
-      if (
-        !shouldCommitSubjectsLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setSubject(next.subject);
-      setStatus(next.status);
-      setErrorMessage(next.errorMessage);
-      setResolvedForInstituteId(requestInstituteId);
-      if (next.subject) {
-        setPeriods(String(next.subject.periodsPerWeek));
-        setSubjectStatus(next.subject.status);
-      }
+  const invalidateSubjectCaches = () => {
+    const id = instituteCtx.activeInstituteId;
+    if (!id) return;
+    void queryClient.invalidateQueries({
+      queryKey: adminModulePrefix(id, adminQueryRoots.subject),
     });
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    instituteCtx.status,
-    instituteCtx.activeInstituteId,
-    instituteCtx.errorMessage,
-    subjectId,
-    reloadKey,
-  ]);
+    void queryClient.invalidateQueries({
+      queryKey: adminModulePrefix(id, adminQueryRoots.subjects),
+    });
+    void queryClient.invalidateQueries({
+      queryKey: adminModulePrefix(id, adminQueryRoots.catalog),
+    });
+  };
 
   const hint = detailHint(detailView.status, detailView.errorMessage);
   const displaySubject = detailView.detailValid ? detailView.subject : null;
@@ -147,7 +129,7 @@ export function SubjectProfileApiPage({ subjectId }: { subjectId: string }) {
       status: subjectStatus,
     })
       .then(() => {
-        setReloadKey((k) => k + 1);
+        invalidateSubjectCaches();
         notify("Subject updated");
       })
       .catch((err) => {

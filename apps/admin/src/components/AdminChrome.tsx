@@ -433,9 +433,9 @@ export function AdminChrome() {
     <>
       <div className="flex items-center gap-2.5 px-6 h-16 border-b border-sidebar-border shrink-0">
         <LumenXAdminLogo size="sm" className="max-h-9" />
-        <div className="leading-tight min-w-0">
+        <div className="leading-tight min-w-0 flex-1">
           {apiMode ? (
-            <ApiInstituteSwitcher className="mt-0.5" />
+            <ApiInstituteSwitcher className="mt-0.5 max-w-[12rem]" />
           ) : (
             <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground truncate max-w-[11rem]">
               {profile.admin.headerSubtitle}
@@ -653,19 +653,7 @@ export function AdminChrome() {
               >
                 <Menu className="size-5" />
               </Button>
-              <LumenXAdminLogo size="xs" className="max-h-8 shrink-0" />
-              <div className="hidden min-w-0 sm:block">
-                {apiMode ? (
-                  <ApiInstituteSwitcher className="mt-0.5 max-w-[14rem]" />
-                ) : (
-                  <div
-                    className="truncate text-[10px] text-muted-foreground md:text-[11px]"
-                    title={profile.admin.headerSubtitle}
-                  >
-                    {profile.admin.headerSubtitle}
-                  </div>
-                )}
-              </div>
+              {/* Branding (LumenX + institute) lives in the sidebar only — avoid duplicate header marks. */}
             </div>
 
             <div className="ml-auto flex min-w-0 items-center gap-1 md:gap-2">

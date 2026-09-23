@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { useReloadKey } from "@/hooks/useReloadKey";
+import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Button,
   Card,
@@ -22,10 +22,8 @@ import {
   collectMembershipCandidates,
   createMembership,
   deleteMembership,
-  loadMembershipsList,
   loadRolesCatalog,
   resolveMembershipsListView,
-  shouldCommitIdentityLoad,
   toggleRoleCode,
   updateMembership,
   type IdentityListStatus,
@@ -37,6 +35,11 @@ import {
 import { listStudents } from "@/lib/students/api";
 import { listTeachers } from "@/lib/teachers/api";
 import { KeyRound, Plus, ShieldOff, Users } from "lucide-react";
+import {
+  useAccountsMembershipsQuery,
+  adminModulePrefix,
+  adminQueryRoots,
+} from "@/lib/admin-queries";
 
 function listHint(status: IdentityListStatus, error: string | null): string {
   if (status === "loading") return "Loading memberships…";
@@ -106,17 +109,13 @@ function RoleChecklist({
 
 export function AccountsApiMembershipsPanel() {
   const notify = useAdminToast();
+  const queryClient = useQueryClient();
   const instituteCtx = useInstituteContext();
   const writesEnabled = resolveWritesEnabled(true, {
     status: instituteCtx.status,
     activeInstituteId: instituteCtx.activeInstituteId,
   });
-  const [items, setItems] = useState<MembershipListItem[]>([]);
-  const [listStatus, setListStatus] = useState<IdentityListStatus>("loading");
-  const [listError, setListError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<MembershipStatus | "">("");
-  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useReloadKey();
   const [roleCatalog, setRoleCatalog] = useState<RoleCatalogItem[]>([]);
   const [candidates, setCandidates] = useState<MembershipCandidate[]>([]);
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -128,8 +127,36 @@ export function AccountsApiMembershipsPanel() {
   const [editStatus, setEditStatus] = useState<MembershipStatus>("active");
   const [editRoles, setEditRoles] = useState<string[]>([]);
   const [pendingDelete, setPendingDelete] = useState<MembershipListItem | null>(null);
-  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
-  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
+
+  const listEnabled =
+    instituteCtx.status === "ready" && Boolean(instituteCtx.activeInstituteId);
+  const membershipsQuery = useAccountsMembershipsQuery(
+    instituteCtx.activeInstituteId,
+    statusFilter,
+    listEnabled,
+  );
+
+  const items = membershipsQuery.data?.items ?? [];
+  const listStatus: IdentityListStatus =
+    instituteCtx.status === "loading"
+      ? "loading"
+      : instituteCtx.status === "forbidden"
+        ? "forbidden"
+        : instituteCtx.status === "error"
+          ? "error"
+          : instituteCtx.status === "needs_selection" ||
+              instituteCtx.status === "empty" ||
+              !instituteCtx.activeInstituteId
+            ? "needs_institute"
+            : membershipsQuery.isLoading && !membershipsQuery.data
+              ? "loading"
+              : (membershipsQuery.data?.status ?? "loading");
+  const listError =
+    instituteCtx.status === "error" || instituteCtx.status === "forbidden"
+      ? instituteCtx.errorMessage
+      : (membershipsQuery.data?.errorMessage ?? null);
+  const resolvedForInstituteId =
+    membershipsQuery.data && listEnabled ? instituteCtx.activeInstituteId : null;
 
   useEffect(() => {
     void loadRolesCatalog().then((next) => {
@@ -140,71 +167,17 @@ export function AccountsApiMembershipsPanel() {
   }, []);
 
   useEffect(() => {
-    if (instituteCtx.status === "loading") {
-      setItems([]);
-      setListStatus("loading");
-      setListError(null);
-      setResolvedForInstituteId(null);
+    if (!listEnabled || !instituteCtx.activeInstituteId) {
       setCandidates([]);
       return;
     }
-    if (instituteCtx.status === "error" || instituteCtx.status === "forbidden") {
-      setItems([]);
-      setListStatus(instituteCtx.status === "forbidden" ? "forbidden" : "error");
-      setListError(instituteCtx.errorMessage);
-      setResolvedForInstituteId(null);
-      setCandidates([]);
-      return;
-    }
-    if (
-      instituteCtx.status === "needs_selection" ||
-      instituteCtx.status === "empty" ||
-      !instituteCtx.activeInstituteId
-    ) {
-      setItems([]);
-      setListStatus("needs_institute");
-      setListError(null);
-      setResolvedForInstituteId(null);
-      setCandidates([]);
-      return;
-    }
-
     const requestInstituteId = instituteCtx.activeInstituteId;
     let cancelled = false;
-    setListStatus("loading");
-    setListError(null);
-    void loadMembershipsList(
-      requestInstituteId,
-      statusFilter ? { status: statusFilter } : undefined,
-    ).then((next) => {
-      if (
-        !shouldCommitIdentityLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setItems(next.items);
-      setListStatus(next.status);
-      setListError(next.errorMessage);
-      setResolvedForInstituteId(requestInstituteId);
-    });
-
     void Promise.all([
       listTeachers({ instituteId: requestInstituteId }).catch(() => []),
       listStudents({ instituteId: requestInstituteId }).catch(() => []),
     ]).then(([teachers, students]) => {
-      if (
-        !shouldCommitIdentityLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
+      if (cancelled) return;
       setCandidates(
         collectMembershipCandidates({
           teachers,
@@ -213,17 +186,10 @@ export function AccountsApiMembershipsPanel() {
         }),
       );
     });
-
     return () => {
       cancelled = true;
     };
-  }, [
-    instituteCtx.status,
-    instituteCtx.activeInstituteId,
-    instituteCtx.errorMessage,
-    reloadKey,
-    statusFilter,
-  ]);
+  }, [listEnabled, instituteCtx.activeInstituteId]);
 
   useEffect(() => {
     setInviteOpen(false);
@@ -244,8 +210,19 @@ export function AccountsApiMembershipsPanel() {
 
   const hint = listHint(view.status, view.errorMessage);
   const displayItems = view.rowsValid ? view.items : [];
-  const existingUserIds = new Set(displayItems.map((r) => r.userId));
+  const existingUserIds = useMemo(
+    () => new Set(displayItems.map((r) => r.userId)),
+    [displayItems],
+  );
   const inviteCandidates = candidates.filter((c) => !existingUserIds.has(c.userId));
+
+  const invalidateAccounts = () => {
+    const id = instituteCtx.activeInstituteId;
+    if (!id) return;
+    void queryClient.invalidateQueries({
+      queryKey: adminModulePrefix(id, adminQueryRoots.accounts),
+    });
+  };
 
   const submitInvite = () => {
     const instituteId = instituteCtx.activeInstituteId;
@@ -273,7 +250,7 @@ export function AccountsApiMembershipsPanel() {
         setUserId("");
         setSelectedRoles(["institute_admin"]);
         setInviteStatus("invited");
-        setReloadKey((k) => k + 1);
+        invalidateAccounts();
         notify("Membership created");
       })
       .catch((err) => {
@@ -293,7 +270,7 @@ export function AccountsApiMembershipsPanel() {
     })
       .then(() => {
         setEditTarget(null);
-        setReloadKey((k) => k + 1);
+        invalidateAccounts();
         notify("Membership updated");
       })
       .catch((err) => {
@@ -306,7 +283,7 @@ export function AccountsApiMembershipsPanel() {
     void deleteMembership(pendingDelete.id)
       .then(() => {
         setPendingDelete(null);
-        setReloadKey((k) => k + 1);
+        invalidateAccounts();
         notify("Membership removed");
       })
       .catch((err) => {

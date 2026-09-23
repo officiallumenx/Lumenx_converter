@@ -5,7 +5,7 @@ import { getAdminApiClient } from "@/lib/admin-api";
 import { bootstrapPushDeviceToken } from "@lumenx/notifications";
 import { bootstrapWebFcm, logLumenXAnalyticsEventForContext } from "@lumenx/auth";
 import { dispatchInAppAlert } from "@lumenx/notifications";
-import { adminQueryRoots } from "@/lib/admin-queries/keys";
+import { adminQueryRoots, ADMIN_QUERY_SCOPE } from "@/lib/admin-queries/keys";
 
 export function PushDeviceTokenRegistration({ enabled }: { enabled: boolean }): null {
   const queryClient = useQueryClient();
@@ -13,7 +13,12 @@ export function PushDeviceTokenRegistration({ enabled }: { enabled: boolean }): 
   useEffect(() => {
     if (!enabled || !isApiAuthMode()) return;
     const invalidateInbox = () => {
-      void queryClient.invalidateQueries({ queryKey: [adminQueryRoots.notifications] });
+      void queryClient.invalidateQueries({
+        predicate: (q) =>
+          Array.isArray(q.queryKey) &&
+          q.queryKey[0] === ADMIN_QUERY_SCOPE &&
+          q.queryKey[2] === adminQueryRoots.notifications,
+      });
     };
     let cleanup: (() => void) | undefined;
     void bootstrapPushDeviceToken({

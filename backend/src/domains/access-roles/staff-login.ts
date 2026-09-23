@@ -13,9 +13,11 @@ import { AppError } from "../../errors/app-error.js";
 import {
   findInstituteById,
   listActiveInstitutesForLogin,
+  listInstituteSettingsByIds,
   listMemberships,
   listRolesForMemberships,
 } from "../identity/repository.js";
+import { extractPublicProfileFromSettings } from "../identity/institute-public-profile.js";
 import { findAccessAssignmentForUserInstitute } from "./repository.js";
 import {
   maskStaffIdentifier,
@@ -55,17 +57,72 @@ export type StaffLoginInstituteDto = {
   name: string;
   code: string;
   kind: string;
+  /** Uploaded institute profile photo / logo image URL (data: or https), when available. */
+  logoUrl: string | null;
 };
+
+const MAX_LOGIN_LOGO_CHARS = 3_000_000;
+
+function pickImageCandidate(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (
+    !(
+      trimmed.startsWith("data:image/") ||
+      trimmed.startsWith("https://") ||
+      trimmed.startsWith("http://")
+    )
+  ) {
+    return null;
+  }
+  if (trimmed.length > MAX_LOGIN_LOGO_CHARS) return null;
+  return trimmed;
+}
+
+function resolveStaffLoginLogoUrl(
+  settings: Record<string, unknown> | null | undefined,
+): string | null {
+  const rawProfile = settings?.profile;
+  if (rawProfile && typeof rawProfile === "object") {
+    const profile = rawProfile as Record<string, unknown>;
+    const fromRaw =
+      pickImageCandidate(profile.profilePhoto) ??
+      pickImageCandidate(profile.logo);
+    if (fromRaw) return fromRaw;
+  }
+  try {
+    const profile = extractPublicProfileFromSettings(settings);
+    if (!profile) return null;
+    return (
+      pickImageCandidate(profile.profilePhoto) ??
+      pickImageCandidate(profile.logo)
+    );
+  } catch {
+    return null;
+  }
+}
 
 export async function listInstitutesForStaffLogin(
   admin: SupabaseClient,
 ): Promise<StaffLoginInstituteDto[]> {
   const rows = await listActiveInstitutesForLogin(admin);
+  const settingsRows = await listInstituteSettingsByIds(
+    admin,
+    rows.map((row) => row.id),
+  );
+  const settingsById = new Map(
+    settingsRows.map((row) => [
+      row.institute_id,
+      (row.settings ?? {}) as Record<string, unknown>,
+    ]),
+  );
   return rows.map((row) => ({
     id: row.id,
     name: row.name,
     code: row.code,
     kind: row.kind,
+    logoUrl: resolveStaffLoginLogoUrl(settingsById.get(row.id)),
   }));
 }
 

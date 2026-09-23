@@ -6,12 +6,6 @@
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/active-institute";
-import {
-  adminCacheKey,
-  cachedAdminFetch,
-  invalidateAdminCache,
-  peekAdminCacheSoft,
-} from "@/lib/admin-resource-cache";
 import { listEnrollments } from "@/lib/enrollments/api";
 import { listSubjects } from "@/lib/subjects/api";
 import { listTeachers } from "@/lib/teachers/api";
@@ -153,14 +147,9 @@ function classesListErrorState(err: unknown): ClassesListState {
   return { status: "error", items: [], errorMessage: message };
 }
 
-function isCacheableClassesListState(state: ClassesListState): boolean {
-  // Never cache empty — a just-created class must not be hidden by a prior empty fetch.
-  return state.status === "ready" && state.items.length > 0;
-}
-
 export async function loadClassesList(
   activeInstituteId: string | null,
-  opts?: { force?: boolean },
+  _opts?: { force?: boolean },
 ): Promise<ClassesListState> {
   if (!isApiAuthMode()) {
     return { status: "demo", items: [], errorMessage: null };
@@ -174,90 +163,64 @@ export async function loadClassesList(
     };
   }
 
-  const cacheKey = adminCacheKey("classes-list", activeInstituteId);
-
-  // Prior failures must not stick in the TTL cache (soft-stale would keep
-  // returning error while a background refresh succeeds unnoticed).
-  const poisoned = peekAdminCacheSoft<ClassesListState>(cacheKey);
-  if (poisoned && !isCacheableClassesListState(poisoned)) {
-    invalidateAdminCache(cacheKey);
-  }
-
   try {
-    const result = await cachedAdminFetch(
-      cacheKey,
-      async () => {
-        const instituteId = activeInstituteId;
-        const [catalog, enrollments, assignments, teachers, subjects] =
-          await Promise.all([
-            listClassesCatalog({ instituteId }),
-            listEnrollments({ instituteId, status: "active" }).catch(() => []),
-            listTeacherAssignments({ instituteId, status: "active" }).catch(
-              () => [],
-            ),
-            listTeachers({ instituteId }).catch(() => []),
-            listSubjects({ instituteId }).catch(() => []),
-          ]);
+    const instituteId = activeInstituteId;
+    const [catalog, enrollments, assignments, teachers, subjects] =
+      await Promise.all([
+        listClassesCatalog({ instituteId }),
+        listEnrollments({ instituteId, status: "active" }).catch(() => []),
+        listTeacherAssignments({ instituteId, status: "active" }).catch(
+          () => [],
+        ),
+        listTeachers({ instituteId }).catch(() => []),
+        listSubjects({ instituteId }).catch(() => []),
+      ]);
 
-        const sections = Array.isArray(catalog?.sections) ? catalog.sections : [];
-        const classes = Array.isArray(catalog?.classes) ? catalog.classes : [];
-        const teacherRows = Array.isArray(teachers) ? teachers : [];
-        const subjectRows = Array.isArray(subjects) ? subjects : [];
-        const enrollmentRows = Array.isArray(enrollments) ? enrollments : [];
-        const assignmentRows = Array.isArray(assignments) ? assignments : [];
+    const sections = Array.isArray(catalog?.sections) ? catalog.sections : [];
+    const classes = Array.isArray(catalog?.classes) ? catalog.classes : [];
+    const teacherRows = Array.isArray(teachers) ? teachers : [];
+    const subjectRows = Array.isArray(subjects) ? subjects : [];
+    const enrollmentRows = Array.isArray(enrollments) ? enrollments : [];
+    const assignmentRows = Array.isArray(assignments) ? assignments : [];
 
-        const enrich = applyClassTeacherEnrichment(
-          buildSectionEnrichment(
-            enrollmentRows,
-            assignmentRows,
-            new Map(
-              teacherRows.map((t) => [
-                t.id,
-                {
-                  name:
-                    t.displayName?.trim() || t.employeeId?.trim() || "Teacher",
-                },
-              ]),
-            ),
-            new Map(subjectRows.map((s) => [s.id, s])),
-          ),
-          sections,
-          classes,
-          teacherRows,
-        );
-        const items = sectionsToListItems(sections, classes, enrich);
-        return {
-          status: items.length === 0 ? "empty" : "ready",
-          items,
-          errorMessage: null,
-        } satisfies ClassesListState;
-      },
-      { force: opts?.force },
+    const enrich = applyClassTeacherEnrichment(
+      buildSectionEnrichment(
+        enrollmentRows,
+        assignmentRows,
+        new Map(
+          teacherRows.map((t) => [
+            t.id,
+            {
+              name:
+                t.displayName?.trim() || t.employeeId?.trim() || "Teacher",
+            },
+          ]),
+        ),
+        new Map(subjectRows.map((s) => [s.id, s])),
+      ),
+      sections,
+      classes,
+      teacherRows,
     );
-    if (!isCacheableClassesListState(result)) {
-      invalidateAdminCache(cacheKey);
-    }
-    return result;
+    const items = sectionsToListItems(sections, classes, enrich);
+    return {
+      status: items.length === 0 ? "empty" : "ready",
+      items,
+      errorMessage: null,
+    } satisfies ClassesListState;
   } catch (err) {
-    invalidateAdminCache(cacheKey);
     return classesListErrorState(err);
   }
 }
 
+/** @deprecated Map TTL removed — TanStack Query owns cache. Kept for call-site compat. */
 export function peekClassesListCache(
-  activeInstituteId: string,
+  _activeInstituteId: string,
 ): ClassesListState | null {
-  const cached = peekAdminCacheSoft<ClassesListState>(
-    adminCacheKey("classes-list", activeInstituteId),
-  );
-  if (!cached || !isCacheableClassesListState(cached)) return null;
-  return cached;
+  return null;
 }
 
-export function invalidateClassesListCache(instituteId?: string): void {
-  if (instituteId) {
-    invalidateAdminCache(adminCacheKey("classes-list", instituteId));
-  } else {
-    invalidateAdminCache("admin:classes-list:");
-  }
+/** @deprecated Map TTL removed — invalidate via TanStack Query. */
+export function invalidateClassesListCache(_instituteId?: string): void {
+  // no-op: QueryClient invalidation is the source of truth
 }

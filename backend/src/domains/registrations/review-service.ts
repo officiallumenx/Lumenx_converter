@@ -85,6 +85,15 @@ function deriveInstituteCode(name: string, registrationId: string): string {
   return code.slice(0, 50);
 }
 
+function resolveInstituteCode(
+  payload: { instituteCode?: string; instituteName: string },
+  registrationId: string,
+): string {
+  const requested = (payload.instituteCode ?? "").trim();
+  if (requested) return requested.slice(0, 50);
+  return deriveInstituteCode(payload.instituteName, registrationId);
+}
+
 /** Match demo Nexus — 60-day trial at ₹12/student on approval. */
 const DEFAULT_TRIAL_DAYS = 60;
 const DEFAULT_GRACE_DAYS = 7;
@@ -303,9 +312,20 @@ export async function approveRegistrationForReviewer(
     instituteName,
     claimed.payload,
   );
-  const instituteCode = deriveInstituteCode(instituteName, claimed.id);
+  const requestedCode = (claimed.payload.instituteCode ?? "").trim();
+  const instituteCode = resolveInstituteCode(claimed.payload, claimed.id);
+  const existingByCode = await findInstituteByCode(admin, instituteCode);
+  if (
+    existingByCode &&
+    requestedCode &&
+    existingByCode.name.trim().toLowerCase() !== instituteName.trim().toLowerCase()
+  ) {
+    throw AppError.conflict(
+      `Institute code "${instituteCode}" is already in use. Ask the applicant to choose another code.`,
+    );
+  }
   const institute =
-    (await findInstituteByCode(admin, instituteCode)) ??
+    existingByCode ??
     (await insertInstitute(admin, {
       code: instituteCode,
       name: instituteName,

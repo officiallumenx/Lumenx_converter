@@ -20,7 +20,7 @@ import {
   type ClassListItem,
   type ClassesListStatus,
 } from "@/lib/classes";
-import { useClassesListQuery, adminQueryRoots } from "@/lib/admin-queries";
+import { useClassesListQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { invalidateSetupChecklistCache } from "@/lib/institute-setup-checklist";
 import { listAcademicYears } from "@/lib/academic-years";
 import {
@@ -88,10 +88,10 @@ function ClassesPage() {
     setTeachersReload((k) => k + 1);
     if (instituteCtx.activeInstituteId) {
       void queryClient.invalidateQueries({
-        queryKey: [adminQueryRoots.classes, instituteCtx.activeInstituteId],
+        queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.classes),
       });
       void queryClient.invalidateQueries({
-        queryKey: [adminQueryRoots.teachers, instituteCtx.activeInstituteId],
+        queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.teachers),
       });
     }
   };

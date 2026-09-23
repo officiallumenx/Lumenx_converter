@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
 import {
   createRootRouteWithContext,
   useRouter,
@@ -43,6 +43,7 @@ import { FirebaseClientServices } from "@/components/FirebaseClientServices";
 import { subscribeInstituteRegistrations } from "@lumenx/utils";
 import { useState } from "react";
 import { syncAdminTenantForUser } from "@/lib/sync-admin-tenant";
+import { AdminPersistQueryProvider } from "@/lib/admin-queries/PersistProvider";
 
 // ── 404 ───────────────────────────────────────────────────────
 
@@ -338,25 +339,27 @@ function AuthGate() {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
-    <QueryClientProvider client={queryClient}>
+    <>
       <LumenXNativeShell />
       <ThemeProvider>
         <AuthProvider>
-          <DemoProfileProvider>
-            <AdminActionToastProvider>
-              <OfflineSyncHost app="admin" seedDemo={false} topStatus={false} className="min-h-screen-dvh">
-                <TypographyProvider>
-                  <InAppAlertListener />
-                  <FirebaseClientServices enabled />
-                  <PushDeviceTokenRegistration enabled />
-                  <AuthGate />
-                </TypographyProvider>
-              </OfflineSyncHost>
-              <Toaster position="top-center" richColors />
-            </AdminActionToastProvider>
-          </DemoProfileProvider>
+          <AdminPersistQueryProvider client={queryClient}>
+            <DemoProfileProvider>
+              <AdminActionToastProvider>
+                <OfflineSyncHost app="admin" seedDemo={false} topStatus={false} className="min-h-screen-dvh">
+                  <TypographyProvider>
+                    <InAppAlertListener />
+                    <FirebaseClientServices enabled />
+                    <PushDeviceTokenRegistration enabled />
+                    <AuthGate />
+                  </TypographyProvider>
+                </OfflineSyncHost>
+                <Toaster position="top-center" richColors />
+              </AdminActionToastProvider>
+            </DemoProfileProvider>
+          </AdminPersistQueryProvider>
         </AuthProvider>
       </ThemeProvider>
-    </QueryClientProvider>
+    </>
   );
 }

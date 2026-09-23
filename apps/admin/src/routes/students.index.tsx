@@ -50,7 +50,7 @@ import {
   useStudentsListQuery,
   useCatalogClassesQuery,
   useCatalogYearsQuery,
-  adminQueryRoots,
+  adminModulePrefix, adminQueryRoots,
 } from "@/lib/admin-queries";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { syncSubscriptionHeadcountAfterStudentChange } from "@/lib/subscription-headcount";
@@ -191,7 +191,7 @@ function StudentsPage() {
     invalidateStudentsListCache(instituteCtx.activeInstituteId ?? undefined);
     if (instituteCtx.activeInstituteId) {
       void queryClient.invalidateQueries({
-        queryKey: [adminQueryRoots.students, instituteCtx.activeInstituteId],
+        queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.students),
       });
     }
   };

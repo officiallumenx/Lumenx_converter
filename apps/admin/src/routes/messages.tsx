@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { useMessagesThreadsQuery, adminQueryRoots } from "@/lib/admin-queries";
+import { useMessagesThreadsQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
@@ -97,7 +97,7 @@ function MessagesPage() {
     invalidateAdminCache("admin:messages");
     if (instituteCtx.activeInstituteId) {
       void queryClient.invalidateQueries({
-        queryKey: [adminQueryRoots.messages, instituteCtx.activeInstituteId],
+        queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.messages),
       });
     }
   };

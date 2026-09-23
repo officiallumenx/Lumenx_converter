@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useReloadKey } from "@/hooks/useReloadKey";
+import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button, Card, CardHeader, PageStack, Pill } from "@lumenx/ui-admin";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { useInstituteContext } from "@/lib/institutes";
@@ -11,17 +11,20 @@ import {
   filterCatalogByModule,
   formatReportJobWhen,
   listReportModules,
-  loadReportsCatalog,
   resolveReportName,
   resolveReportsCatalogView,
   saveBlobAsFile,
-  shouldCommitReportsLoad,
   sortJobsNewestFirst,
   type ReportDefinitionDto,
   type ReportJobDto,
   type ReportsLoadStatus,
 } from "@/lib/reports";
 import { Download, FileText, Info } from "lucide-react";
+import {
+  useReportsCatalogQuery,
+  adminModulePrefix,
+  adminQueryRoots,
+} from "@/lib/admin-queries";
 
 function statusHint(status: ReportsLoadStatus, error: string | null): string {
   if (status === "loading") return "Loading report catalog…";
@@ -41,87 +44,46 @@ function jobTone(status: ReportJobDto["status"]) {
 
 export function ReportsApiCatalogPanel() {
   const notify = useAdminToast();
+  const queryClient = useQueryClient();
   const instituteCtx = useInstituteContext();
   const writesEnabled = resolveWritesEnabled(true, {
     status: instituteCtx.status,
     activeInstituteId: instituteCtx.activeInstituteId,
   });
-  const [catalog, setCatalog] = useState<ReportDefinitionDto[]>([]);
-  const [jobs, setJobs] = useState<ReportJobDto[]>([]);
-  const [jobsError, setJobsError] = useState<string | null>(null);
-  const [loadStatus, setLoadStatus] = useState<ReportsLoadStatus>("loading");
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(null);
   const [moduleFilter, setModuleFilter] = useState<string>("all");
   const [queueingId, setQueueingId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useReloadKey();
-  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
-  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
-  useEffect(() => {
-    if (instituteCtx.status === "loading") {
-      setCatalog([]);
-      setJobs([]);
-      setJobsError(null);
-      setLoadStatus("loading");
-      setLoadError(null);
-      setResolvedForInstituteId(null);
-      return;
-    }
-    if (instituteCtx.status === "error" || instituteCtx.status === "forbidden") {
-      setCatalog([]);
-      setJobs([]);
-      setJobsError(null);
-      setLoadStatus(instituteCtx.status === "forbidden" ? "forbidden" : "error");
-      setLoadError(instituteCtx.errorMessage);
-      setResolvedForInstituteId(null);
-      return;
-    }
-    if (
-      instituteCtx.status === "needs_selection" ||
-      instituteCtx.status === "empty" ||
-      !instituteCtx.activeInstituteId
-    ) {
-      setCatalog([]);
-      setJobs([]);
-      setJobsError(null);
-      setLoadStatus("needs_institute");
-      setLoadError(null);
-      setResolvedForInstituteId(null);
-      return;
-    }
-
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setLoadStatus("loading");
-    setLoadError(null);
-    void loadReportsCatalog(requestInstituteId).then((next) => {
-      if (
-        !shouldCommitReportsLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setCatalog(next.catalog);
-      setJobs(next.jobs);
-      setJobsError(next.jobsErrorMessage);
-      setLoadStatus(next.status);
-      setLoadError(next.errorMessage);
-      setResolvedForInstituteId(requestInstituteId);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    instituteCtx.status,
+  const reportsEnabled =
+    instituteCtx.status === "ready" && Boolean(instituteCtx.activeInstituteId);
+  const reportsQuery = useReportsCatalogQuery(
     instituteCtx.activeInstituteId,
-    instituteCtx.errorMessage,
-    reloadKey,
-  ]);
+    reportsEnabled,
+  );
+
+  const catalog = reportsQuery.data?.catalog ?? [];
+  const jobs = reportsQuery.data?.jobs ?? [];
+  const jobsError = reportsQuery.data?.jobsErrorMessage ?? null;
+  const loadStatus: ReportsLoadStatus =
+    instituteCtx.status === "loading"
+      ? "loading"
+      : instituteCtx.status === "forbidden"
+        ? "forbidden"
+        : instituteCtx.status === "error"
+          ? "error"
+          : instituteCtx.status === "needs_selection" ||
+              instituteCtx.status === "empty" ||
+              !instituteCtx.activeInstituteId
+            ? "needs_institute"
+            : reportsQuery.isLoading && !reportsQuery.data
+              ? "loading"
+              : (reportsQuery.data?.status ?? "loading");
+  const loadError =
+    instituteCtx.status === "error" || instituteCtx.status === "forbidden"
+      ? instituteCtx.errorMessage
+      : (reportsQuery.data?.errorMessage ?? null);
+  const resolvedForInstituteId =
+    reportsQuery.data && reportsEnabled ? instituteCtx.activeInstituteId : null;
 
   const view = resolveReportsCatalogView({
     apiMode: true,
@@ -148,6 +110,14 @@ export function ReportsApiCatalogPanel() {
   );
   const supportedCount = countSupportedReports(view.catalog);
 
+  const invalidateReports = () => {
+    const id = instituteCtx.activeInstituteId;
+    if (!id) return;
+    void queryClient.invalidateQueries({
+      queryKey: adminModulePrefix(id, adminQueryRoots.reports),
+    });
+  };
+
   const queueExport = async (report: ReportDefinitionDto) => {
     if (!instituteCtx.activeInstituteId) return;
     setQueueingId(report.id);
@@ -163,7 +133,7 @@ export function ReportsApiCatalogPanel() {
       } else {
         notify(`Queued · ${report.name}`);
       }
-      setReloadKey((k) => k + 1);
+      invalidateReports();
     } catch (err) {
       notify(err instanceof Error ? err.message : "Failed to queue export");
     } finally {

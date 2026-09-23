@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { useDocumentsTemplatesQuery, useDocumentsGeneratedQuery, adminQueryRoots } from "@/lib/admin-queries";
+import { useDocumentsTemplatesQuery, useDocumentsGeneratedQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
 import { AdminPageTransition } from "@/components/AdminPageTransition";
@@ -143,7 +143,7 @@ function DocumentsPage() {
     invalidateAdminCache("admin:documents");
     if (instituteCtx.activeInstituteId) {
       void queryClient.invalidateQueries({
-        queryKey: [adminQueryRoots.documents, instituteCtx.activeInstituteId],
+        queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.documents),
       });
     }
   };

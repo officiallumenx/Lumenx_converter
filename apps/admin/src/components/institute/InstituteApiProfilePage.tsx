@@ -1,9 +1,14 @@
-import { useEffect, useRef, useState } from "react";
-import { useReloadKey } from "@/hooks/useReloadKey";
+import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { DemoInstituteProfile } from "@lumenx/types";
-import { normalizeInstituteProfile } from "@lumenx/utils";
+import { compressInstituteLogoDataUrl, normalizeInstituteProfile } from "@lumenx/utils";
 import { AppShell } from "@/components/AppShell";
 import { useAdminToast } from "@/components/AdminActionToast";
+import { useAuth } from "@/auth/AuthContext";
+import {
+  readStoredActiveInstituteId,
+  writeStoredActiveInstituteId,
+} from "@/lib/active-institute";
 import {
   Button,
   Card,
@@ -16,24 +21,26 @@ import {
 } from "@lumenx/ui-admin";
 import {
   demoProfileToSettingsPatch,
-  loadInstituteProfile,
   resolveInstituteProfileView,
   settingsToDemoProfile,
-  shouldCommitInstituteProfileLoad,
   updateInstitute,
   updateInstituteSettings,
   useInstituteContext,
   type InstituteProfileStatus,
 } from "@/lib/institutes";
 import type {
-  InstituteDto,
   InstituteKind,
-  InstituteSettingsDto,
   InstituteStatus,
 } from "@/lib/institutes/types";
 import { InstituteCreateApiPanel } from "@/components/institute/InstituteCreateApiPanel";
 import { AdminInstituteProfileEditor } from "@/components/institute/InstituteRichProfileEditor";
 import { Building2 } from "lucide-react";
+import {
+  useInstituteProfileQuery,
+  adminModulePrefix,
+  adminQueryKeys,
+  adminQueryRoots,
+} from "@/lib/admin-queries";
 
 function profileHint(status: InstituteProfileStatus, error: string | null): string {
   if (status === "loading") return "Loading institute profile…";
@@ -60,13 +67,9 @@ const STATUS_OPTIONS: InstituteStatus[] = [
 
 export function InstituteApiProfilePage() {
   const notify = useAdminToast();
+  const queryClient = useQueryClient();
   const instituteCtx = useInstituteContext();
-  const [institute, setInstitute] = useState<InstituteDto | null>(null);
-  const [settings, setSettings] = useState<InstituteSettingsDto | null>(null);
-  const [loadStatus, setLoadStatus] = useState<InstituteProfileStatus>("loading");
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useReloadKey();
+  const { applyApiActiveInstitute } = useAuth();
   const [savingIdentity, setSavingIdentity] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
   const [name, setName] = useState("");
@@ -77,83 +80,56 @@ export function InstituteApiProfilePage() {
   const [locale, setLocale] = useState("");
   const [richProfile, setRichProfile] = useState<DemoInstituteProfile | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
-  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
-  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
+
+  const profileEnabled =
+    instituteCtx.status === "ready" && Boolean(instituteCtx.activeInstituteId);
+  const profileQuery = useInstituteProfileQuery(
+    instituteCtx.activeInstituteId,
+    profileEnabled,
+  );
+
+  const institute = profileQuery.data?.institute ?? null;
+  const settings = profileQuery.data?.settings ?? null;
+  const loadStatus: InstituteProfileStatus =
+    instituteCtx.status === "loading"
+      ? "loading"
+      : instituteCtx.status === "forbidden"
+        ? "forbidden"
+        : instituteCtx.status === "error"
+          ? "error"
+          : instituteCtx.status === "needs_selection" ||
+              instituteCtx.status === "empty" ||
+              !instituteCtx.activeInstituteId
+            ? "needs_institute"
+            : profileQuery.isLoading && !profileQuery.data
+              ? "loading"
+              : (profileQuery.data?.status ?? "loading");
+  const loadError =
+    instituteCtx.status === "error" || instituteCtx.status === "forbidden"
+      ? instituteCtx.errorMessage
+      : (profileQuery.data?.errorMessage ?? null);
+  const resolvedForInstituteId =
+    profileQuery.data && profileEnabled ? instituteCtx.activeInstituteId : null;
 
   useEffect(() => {
-    if (instituteCtx.status === "loading") {
-      setInstitute(null);
-      setSettings(null);
-      setLoadStatus("loading");
-      setLoadError(null);
-      setResolvedForInstituteId(null);
-      return;
+    if (!profileQuery.data) return;
+    const next = profileQuery.data;
+    if (next.institute) {
+      setName(next.institute.name);
+      setCode(next.institute.code);
+      setKind(next.institute.kind);
+      setStatus(next.institute.status);
     }
-    if (instituteCtx.status === "error" || instituteCtx.status === "forbidden") {
-      setInstitute(null);
-      setSettings(null);
-      setLoadStatus(instituteCtx.status === "forbidden" ? "forbidden" : "error");
-      setLoadError(instituteCtx.errorMessage);
-      setResolvedForInstituteId(null);
-      return;
+    if (next.settings) {
+      setTimezone(next.settings.timezone);
+      setLocale(next.settings.locale);
     }
-    if (
-      instituteCtx.status === "needs_selection" ||
-      instituteCtx.status === "empty" ||
-      !instituteCtx.activeInstituteId
-    ) {
-      setInstitute(null);
-      setSettings(null);
-      setLoadStatus("needs_institute");
-      setLoadError(null);
-      setResolvedForInstituteId(null);
-      return;
+    if (next.institute && next.settings) {
+      setRichProfile(settingsToDemoProfile(next.institute, next.settings));
+    } else {
+      setRichProfile(null);
     }
-
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setLoadStatus("loading");
-    setLoadError(null);
-    void loadInstituteProfile(requestInstituteId).then((next) => {
-      if (
-        !shouldCommitInstituteProfileLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setInstitute(next.institute);
-      setSettings(next.settings);
-      setLoadStatus(next.status);
-      setLoadError(next.errorMessage);
-      setResolvedForInstituteId(requestInstituteId);
-      if (next.institute) {
-        setName(next.institute.name);
-        setCode(next.institute.code);
-        setKind(next.institute.kind);
-        setStatus(next.institute.status);
-      }
-      if (next.settings) {
-        setTimezone(next.settings.timezone);
-        setLocale(next.settings.locale);
-      }
-      if (next.institute && next.settings) {
-        setRichProfile(settingsToDemoProfile(next.institute, next.settings));
-      } else {
-        setRichProfile(null);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    instituteCtx.status,
-    instituteCtx.activeInstituteId,
-    instituteCtx.errorMessage,
-    reloadKey,
-  ]);
+  }, [profileQuery.data]);
 
   const view = resolveInstituteProfileView({
     apiMode: true,
@@ -169,18 +145,92 @@ export function InstituteApiProfilePage() {
 
   const hint = profileHint(view.status, view.errorMessage);
 
+  const invalidateInstitute = () => {
+    const id = instituteCtx.activeInstituteId;
+    if (!id) return;
+    void queryClient.invalidateQueries({
+      queryKey: adminModulePrefix(id, adminQueryRoots.institute),
+    });
+  };
+
+  const applySavedInstitute = (updated: {
+    id: string;
+    name: string;
+    code: string;
+    kind: InstituteKind;
+    status: InstituteStatus;
+    createdAt?: string;
+    updatedAt?: string;
+  }) => {
+    const dto = {
+      id: updated.id,
+      name: updated.name,
+      code: updated.code,
+      kind: updated.kind,
+      status: updated.status,
+      createdAt: updated.createdAt ?? view.institute?.createdAt ?? new Date().toISOString(),
+      updatedAt: updated.updatedAt ?? new Date().toISOString(),
+    };
+    instituteCtx.upsertInstitute(dto);
+    // Ensure auth session name apply is allowed (must match stored active preference).
+    if (readStoredActiveInstituteId() !== dto.id) {
+      writeStoredActiveInstituteId(dto.id);
+    }
+    applyApiActiveInstitute(dto.id, dto.name);
+    setName(dto.name);
+    setCode(dto.code);
+    setKind(dto.kind);
+    setStatus(dto.status);
+    setRichProfile((prev) => (prev ? { ...prev, name: dto.name } : prev));
+    queryClient.setQueryData(
+      adminQueryKeys.instituteProfile(dto.id),
+      (prev: { status: string; institute: typeof dto | null; settings: unknown; errorMessage: string | null } | undefined) => {
+        if (!prev) {
+          return {
+            status: "ready",
+            institute: dto,
+            settings: null,
+            errorMessage: null,
+          };
+        }
+        return {
+          ...prev,
+          status: "ready",
+          institute: dto,
+          errorMessage: null,
+        };
+      },
+    );
+    invalidateInstitute();
+  };
+
   const saveIdentity = () => {
     if (!view.institute) return;
+    const nextName = name.trim();
+    const nextCode = code.trim();
+    if (!nextName || !nextCode) {
+      notify("Name and code are required");
+      return;
+    }
     setSavingIdentity(true);
     void updateInstitute(view.institute.id, {
-      name: name.trim(),
-      code: code.trim(),
+      name: nextName,
+      code: nextCode,
       kind,
       status,
     })
-      .then(() => {
-        setReloadKey((k) => k + 1);
+      .then((updated) => {
+        applySavedInstitute(updated);
         notify("Institute identity saved");
+        // Background refresh — do not block UI on list reload.
+        void instituteCtx.reload().then((next) => {
+          if (next.activeInstitute) {
+            applyApiActiveInstitute(
+              next.activeInstitute.id,
+              next.activeInstitute.name,
+            );
+          }
+        });
       })
       .catch((err) => {
         notify(err instanceof Error ? err.message : "Failed to save institute");
@@ -198,7 +248,7 @@ export function InstituteApiProfilePage() {
       locale: locale.trim(),
     })
       .then(() => {
-        setReloadKey((k) => k + 1);
+        invalidateInstitute();
         notify("Institute settings saved");
       })
       .catch((err) => {
@@ -212,13 +262,26 @@ export function InstituteApiProfilePage() {
   const saveRichProfile = () => {
     if (!view.institute || !view.settings || !richProfile) return;
     setSavingProfile(true);
-    void updateInstituteSettings(view.institute.id, {
-      settings: demoProfileToSettingsPatch(view.settings.settings, richProfile),
-    })
-      .then(() => {
-        setReloadKey((k) => k + 1);
-        notify("Institute profile saved");
-      })
+    void (async () => {
+      let profile = richProfile;
+      const photo = profile.profilePhoto?.trim() ?? "";
+      if (photo.startsWith("data:image/") && photo.length > 120_000) {
+        const compressed = await compressInstituteLogoDataUrl(photo, {
+          maxEdge: 256,
+          quality: 0.82,
+          maxDataUrlChars: 400_000,
+        }).catch(() => null);
+        if (compressed) {
+          profile = { ...profile, profilePhoto: compressed };
+          setRichProfile(profile);
+        }
+      }
+      await updateInstituteSettings(view.institute!.id, {
+        settings: demoProfileToSettingsPatch(view.settings!.settings, profile),
+      });
+      invalidateInstitute();
+      notify("Institute profile saved");
+    })()
       .catch((err) => {
         notify(err instanceof Error ? err.message : "Failed to save institute profile");
       })
@@ -250,6 +313,9 @@ export function InstituteApiProfilePage() {
                 <Field label="Code" required>
                   <TextInput value={code} onChange={(e) => setCode(e.target.value)} />
                 </Field>
+                <p className="text-[11px] text-muted-foreground">
+                  Saving updates the login list and header switcher name/code.
+                </p>
                 <Field label="Kind">
                   <Select
                     value={kind}

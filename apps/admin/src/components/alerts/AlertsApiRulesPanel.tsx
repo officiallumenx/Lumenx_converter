@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { useReloadKey } from "@/hooks/useReloadKey";
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Button,
   Card,
@@ -17,17 +17,22 @@ import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
   createAlertRule,
   deleteAlertRule,
-  loadAlertRules,
   resolveAlertRulesView,
   runAlertRulesEvaluation,
   resolveAlertFire,
-  shouldCommitAlertRulesLoad,
   updateAlertRule,
   type AlertFireDto,
   type AlertRuleDto,
   type AlertRulesLoadStatus,
+  type AlertRulesState,
 } from "@/lib/alert-rules-api";
 import { Pencil, Plus, Play, Siren, Trash2 } from "lucide-react";
+import {
+  useAlertRulesQuery,
+  adminModulePrefix,
+  adminQueryKeys,
+  adminQueryRoots,
+} from "@/lib/admin-queries";
 
 function statusHint(status: AlertRulesLoadStatus, error: string | null): string {
   if (status === "loading") return "Loading alert rules…";
@@ -40,17 +45,12 @@ function statusHint(status: AlertRulesLoadStatus, error: string | null): string 
 
 export function AlertsApiRulesPanel() {
   const notify = useAdminToast();
+  const queryClient = useQueryClient();
   const instituteCtx = useInstituteContext();
   const writesEnabled = resolveWritesEnabled(true, {
     status: instituteCtx.status,
     activeInstituteId: instituteCtx.activeInstituteId,
   });
-  const [rules, setRules] = useState<AlertRuleDto[]>([]);
-  const [fired, setFired] = useState<AlertFireDto[]>([]);
-  const [loadStatus, setLoadStatus] = useState<AlertRulesLoadStatus>("loading");
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useReloadKey();
   const [evaluating, setEvaluating] = useState(false);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<AlertRuleDto | null>(null);
@@ -60,68 +60,36 @@ export function AlertsApiRulesPanel() {
   const [ruleTrigger, setRuleTrigger] = useState<AlertRuleDto["iconKey"]>(
     "complaint",
   );
-  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
-  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
-  useEffect(() => {
-    if (instituteCtx.status === "loading") {
-      setRules([]);
-      setFired([]);
-      setLoadStatus("loading");
-      setLoadError(null);
-      setResolvedForInstituteId(null);
-      return;
-    }
-    if (instituteCtx.status === "error" || instituteCtx.status === "forbidden") {
-      setRules([]);
-      setFired([]);
-      setLoadStatus(instituteCtx.status === "forbidden" ? "forbidden" : "error");
-      setLoadError(instituteCtx.errorMessage);
-      setResolvedForInstituteId(null);
-      return;
-    }
-    if (
-      instituteCtx.status === "needs_selection" ||
-      instituteCtx.status === "empty" ||
-      !instituteCtx.activeInstituteId
-    ) {
-      setRules([]);
-      setFired([]);
-      setLoadStatus("needs_institute");
-      setLoadError(null);
-      setResolvedForInstituteId(null);
-      return;
-    }
-
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setLoadStatus("loading");
-    setLoadError(null);
-    void loadAlertRules(requestInstituteId).then((next) => {
-      if (
-        !shouldCommitAlertRulesLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setRules(next.rules);
-      setFired(next.fired);
-      setLoadStatus(next.status);
-      setLoadError(next.errorMessage);
-      setResolvedForInstituteId(requestInstituteId);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    instituteCtx.status,
+  const alertsEnabled =
+    instituteCtx.status === "ready" && Boolean(instituteCtx.activeInstituteId);
+  const alertsQuery = useAlertRulesQuery(
     instituteCtx.activeInstituteId,
-    instituteCtx.errorMessage,
-    reloadKey,
-  ]);
+    alertsEnabled,
+  );
+
+  const rules = alertsQuery.data?.rules ?? [];
+  const fired = alertsQuery.data?.fired ?? [];
+  const loadStatus: AlertRulesLoadStatus =
+    instituteCtx.status === "loading"
+      ? "loading"
+      : instituteCtx.status === "forbidden"
+        ? "forbidden"
+        : instituteCtx.status === "error"
+          ? "error"
+          : instituteCtx.status === "needs_selection" ||
+              instituteCtx.status === "empty" ||
+              !instituteCtx.activeInstituteId
+            ? "needs_institute"
+            : alertsQuery.isLoading && !alertsQuery.data
+              ? "loading"
+              : (alertsQuery.data?.status ?? "loading");
+  const loadError =
+    instituteCtx.status === "error" || instituteCtx.status === "forbidden"
+      ? instituteCtx.errorMessage
+      : (alertsQuery.data?.errorMessage ?? null);
+  const resolvedForInstituteId =
+    alertsQuery.data && alertsEnabled ? instituteCtx.activeInstituteId : null;
 
   const view = resolveAlertRulesView({
     apiMode: true,
@@ -136,6 +104,23 @@ export function AlertsApiRulesPanel() {
   });
 
   const hint = statusHint(view.status, view.errorMessage);
+
+  const invalidateAlerts = () => {
+    const id = instituteCtx.activeInstituteId;
+    if (!id) return;
+    void queryClient.invalidateQueries({
+      queryKey: adminModulePrefix(id, adminQueryRoots.alerts),
+    });
+  };
+
+  const patchAlertsCache = (updater: (prev: AlertRulesState) => AlertRulesState) => {
+    const id = instituteCtx.activeInstituteId;
+    if (!id) return;
+    queryClient.setQueryData(
+      adminQueryKeys.alerts(id),
+      (prev: AlertRulesState | undefined) => (prev ? updater(prev) : prev),
+    );
+  };
 
   const resetForm = () => {
     setEditing(null);
@@ -188,7 +173,7 @@ export function AlertsApiRulesPanel() {
       }
       resetForm();
       setOpen(false);
-      setReloadKey((k) => k + 1);
+      invalidateAlerts();
     } catch (err) {
       notify(
         err instanceof Error
@@ -204,7 +189,7 @@ export function AlertsApiRulesPanel() {
     try {
       await updateAlertRule(rule.id, { active: !rule.active });
       notify(`${rule.active ? "Paused" : "Activated"} ${rule.name}`);
-      setReloadKey((k) => k + 1);
+      invalidateAlerts();
     } catch (err) {
       notify(err instanceof Error ? err.message : "Failed to update rule");
     }
@@ -214,7 +199,7 @@ export function AlertsApiRulesPanel() {
     try {
       await deleteAlertRule(rule.id);
       notify(`Deleted ${rule.name}`);
-      setReloadKey((k) => k + 1);
+      invalidateAlerts();
     } catch (err) {
       notify(err instanceof Error ? err.message : "Failed to delete rule");
     }
@@ -226,8 +211,8 @@ export function AlertsApiRulesPanel() {
     setEvaluating(true);
     void runAlertRulesEvaluation(requestInstituteId)
       .then((nextFired) => {
-        if (activeInstituteIdRef.current !== requestInstituteId) return;
-        setFired(nextFired);
+        if (instituteCtx.activeInstituteId !== requestInstituteId) return;
+        patchAlertsCache((prev) => ({ ...prev, fired: nextFired }));
         notify(
           nextFired.length === 0
             ? "Evaluation complete · no active fires"
@@ -258,7 +243,10 @@ export function AlertsApiRulesPanel() {
   const markFireHandled = async (fire: AlertFireDto) => {
     try {
       await resolveAlertFire(fire.id);
-      setFired((prev) => prev.filter((row) => row.id !== fire.id));
+      patchAlertsCache((prev) => ({
+        ...prev,
+        fired: prev.fired.filter((row) => row.id !== fire.id),
+      }));
       notify("Alert marked handled");
     } catch (err) {
       notify(err instanceof Error ? err.message : "Failed to mark handled");

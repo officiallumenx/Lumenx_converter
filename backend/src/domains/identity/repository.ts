@@ -154,6 +154,19 @@ export async function findInstituteSettings(
   return (result.data as InstituteSettingsRow | null) ?? null;
 }
 
+/** Batch-load settings for login institute marks (logo / profile photo). */
+export async function listInstituteSettingsByIds(
+  admin: SupabaseClient,
+  instituteIds: string[],
+): Promise<InstituteSettingsRow[]> {
+  if (instituteIds.length === 0) return [];
+  const result = await admin
+    .from("institute_settings")
+    .select(SETTINGS_COLS)
+    .in("institute_id", instituteIds);
+  return ensureDbOk(result) as InstituteSettingsRow[];
+}
+
 export async function insertInstituteSettings(
   admin: SupabaseClient,
   input: {

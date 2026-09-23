@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { useReloadKey } from "@/hooks/useReloadKey";
+import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Pencil, Save, Trash2, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
@@ -22,20 +22,22 @@ import {
   createParentLink,
   deleteParent,
   deleteParentLink,
-  loadParentDetail,
   relationshipToLabel,
   resolveParentsDetailView,
-  shouldCommitParentsLoad,
   updateParent,
   updateParentLink,
   type GuardianLinkStatus,
   type GuardianRelationship,
-  type ParentDetailItem,
   type ParentsListStatus,
   type PortalAccessStatus,
 } from "@/lib/parents";
 import { normalizeParentPhone } from "@/lib/parent-directory-store";
 import { StudentLinkPicker } from "@/components/parents/StudentLinkPicker";
+import {
+  useParentDetailQuery,
+  adminModulePrefix,
+  adminQueryRoots,
+} from "@/lib/admin-queries";
 
 function detailHint(status: ParentsListStatus, errorMessage: string | null): string | null {
   if (status === "loading") return "Loading parent profile…";
@@ -68,19 +70,43 @@ type EditDraft = {
 export function ParentProfileApiPage({ parentId }: { parentId: string }) {
   const notify = useAdminToast();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const instituteCtx = useInstituteContext();
   const writesEnabled = resolveWritesEnabled(true, {
     status: instituteCtx.status,
     activeInstituteId: instituteCtx.activeInstituteId,
   });
-  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
-  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
-  const [parent, setParent] = useState<ParentDetailItem | null>(null);
-  const [status, setStatus] = useState<ParentsListStatus>("loading");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useReloadKey();
+  const detailEnabled =
+    instituteCtx.status === "ready" && Boolean(instituteCtx.activeInstituteId);
+  const detailQuery = useParentDetailQuery(
+    instituteCtx.activeInstituteId,
+    parentId,
+    detailEnabled,
+  );
+
+  const parent = detailQuery.data?.parent ?? null;
+  const status: ParentsListStatus =
+    instituteCtx.status === "loading"
+      ? "loading"
+      : instituteCtx.status === "forbidden"
+        ? "forbidden"
+        : instituteCtx.status === "error"
+          ? "error"
+          : instituteCtx.status === "needs_selection" ||
+              instituteCtx.status === "empty" ||
+              !instituteCtx.activeInstituteId
+            ? "needs_institute"
+            : detailQuery.isLoading && !detailQuery.data
+              ? "loading"
+              : (detailQuery.data?.status ?? "loading");
+  const errorMessage =
+    instituteCtx.status === "error" || instituteCtx.status === "forbidden"
+      ? instituteCtx.errorMessage
+      : (detailQuery.data?.errorMessage ?? null);
+  const resolvedForInstituteId =
+    detailQuery.data && detailEnabled ? instituteCtx.activeInstituteId : null;
+
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<EditDraft | null>(null);
   const [saveError, setSaveError] = useState("");
@@ -111,65 +137,16 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
     setLinkStudentId("");
   }, [instituteCtx.activeInstituteId, parentId]);
 
-  useEffect(() => {
-    if (instituteCtx.status === "loading") {
-      setParent(null);
-      setStatus("loading");
-      setErrorMessage(null);
-      setResolvedForInstituteId(null);
-      return;
-    }
-
-    if (instituteCtx.status === "error" || instituteCtx.status === "forbidden") {
-      setParent(null);
-      setStatus(instituteCtx.status === "forbidden" ? "forbidden" : "error");
-      setErrorMessage(instituteCtx.errorMessage);
-      setResolvedForInstituteId(null);
-      return;
-    }
-
-    if (
-      instituteCtx.status === "needs_selection" ||
-      instituteCtx.status === "empty" ||
-      !instituteCtx.activeInstituteId
-    ) {
-      setParent(null);
-      setStatus("needs_institute");
-      setErrorMessage(null);
-      setResolvedForInstituteId(null);
-      return;
-    }
-
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setParent(null);
-    setStatus("loading");
-    setErrorMessage(null);
-    void loadParentDetail(parentId, requestInstituteId).then((next) => {
-      if (
-        !shouldCommitParentsLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setParent(next.parent);
-      setStatus(next.status);
-      setErrorMessage(next.errorMessage);
-      setResolvedForInstituteId(requestInstituteId);
+  const invalidateParentCaches = () => {
+    const id = instituteCtx.activeInstituteId;
+    if (!id) return;
+    void queryClient.invalidateQueries({
+      queryKey: adminModulePrefix(id, adminQueryRoots.parent),
     });
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    instituteCtx.status,
-    instituteCtx.activeInstituteId,
-    instituteCtx.errorMessage,
-    parentId,
-    reloadKey,
-  ]);
+    void queryClient.invalidateQueries({
+      queryKey: adminModulePrefix(id, adminQueryRoots.parents),
+    });
+  };
 
   const hint = detailHint(detailView.status, detailView.errorMessage);
   const displayParent = detailView.detailValid ? detailView.parent : null;
@@ -220,7 +197,7 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
         setEditing(false);
         setDraft(null);
         setSaveError("");
-        setReloadKey((k) => k + 1);
+        invalidateParentCaches();
         notify("Parent updated");
       })
       .catch((err) => {
@@ -233,6 +210,7 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
     void deleteParent(parentId)
       .then(() => {
         setPendingDelete(false);
+        invalidateParentCaches();
         notify("Parent deleted");
         void navigate({ to: "/parents" });
       })
@@ -255,7 +233,7 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
         setLinkStudentId("");
         setLinkPrimary(false);
         setLinkEmergency(false);
-        setReloadKey((k) => k + 1);
+        invalidateParentCaches();
         notify("Student link created");
       })
       .catch((err) => {
@@ -276,7 +254,7 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
     if (!writesEnabled) return;
     void updateParentLink(parentId, linkId, patch)
       .then(() => {
-        setReloadKey((k) => k + 1);
+        invalidateParentCaches();
         notify("Link updated");
       })
       .catch((err) => {
@@ -288,7 +266,7 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
     if (!writesEnabled) return;
     void deleteParentLink(parentId, linkId)
       .then(() => {
-        setReloadKey((k) => k + 1);
+        invalidateParentCaches();
         notify("Student link removed");
       })
       .catch((err) => {

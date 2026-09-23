@@ -33,6 +33,7 @@ export type SubjectDetailState = {
 
 export async function loadSubjectDetail(
   subjectId: string,
+  _activeInstituteId?: string | null,
 ): Promise<SubjectDetailState> {
   if (!isApiAuthMode()) {
     return { status: "demo", subject: null, errorMessage: null };
@@ -128,4 +129,16 @@ export async function loadSubjectsList(
       errorMessage: message,
     };
   }
+}
+
+/** @deprecated Map TTL removed — TanStack Query owns cache. Kept for call-site compat. */
+export function peekSubjectsListCache(
+  _activeInstituteId: string,
+): SubjectsListState | null {
+  return null;
+}
+
+/** @deprecated Map TTL removed — invalidate via TanStack Query. */
+export function invalidateSubjectsListCache(_instituteId?: string): void {
+  // no-op: QueryClient invalidation is the source of truth
 }

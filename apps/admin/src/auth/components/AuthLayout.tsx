@@ -1,13 +1,10 @@
 /** ─────────────────────────────────────────────────────────────
  *  LumenX Admin — AuthLayout
- *  Responsive two-column wrapper for all auth screens.
- *  Left: brand panel (lg+) | Right: form content (all sizes)
+ *  App-style centered shell for login / register (no marketing panel).
  * ───────────────────────────────────────────────────────────── */
 
 import { Link } from "@tanstack/react-router";
-import { ArrowLeft, ShieldCheck, BarChart3, Users, GraduationCap } from "lucide-react";
-import { useTheme } from "@/components/theme-provider";
-import { IconChip } from "@/components/IconChip";
+import { ArrowLeft } from "lucide-react";
 import { LumenXAdminLogo } from "@/components/LumenXAdminLogo";
 import { AUTH_PAGE_ENTER } from "../auth-ui";
 import type { ReactNode } from "react";
@@ -15,38 +12,19 @@ import type { ReactNode } from "react";
 interface AuthLayoutProps {
   /** Main heading displayed above the form */
   title: string;
-  /** Subheading / context sentence */
+  /** Short context line under the title */
   subtitle?: string;
-  /** Show a back-navigation link */
+  /** Show a back control in the top bar */
   showBack?: boolean;
-  /** Route for the back link (defaults to /welcome) */
+  /** Route for the back link (ignored when onBack is set) */
   backTo?: string;
   backLabel?: string;
+  /** Prefer callback back (multi-step flows) over a route link */
+  onBack?: () => void;
   children: ReactNode;
+  /** Optional line under the form (e.g. Login / Register link) */
+  footer?: ReactNode;
 }
-
-const BRAND_FEATURES = [
-  {
-    icon: Users,
-    label: "People & Academics",
-    hint: "Students · Teachers · Parents · Attendance",
-  },
-  {
-    icon: BarChart3,
-    label: "Analytics & Intelligence",
-    hint: "Live KPIs · Reports · Insights · Export",
-  },
-  {
-    icon: ShieldCheck,
-    label: "Enterprise Security",
-    hint: "Roles & Access · OTP · Audit log",
-  },
-  {
-    icon: GraduationCap,
-    label: "Certificates",
-    hint: "Designs · Issue · Student records",
-  },
-] as const;
 
 export function AuthLayout({
   title,
@@ -54,107 +32,59 @@ export function AuthLayout({
   showBack = false,
   backTo = "/welcome",
   backLabel = "Back",
+  onBack,
   children,
+  footer,
 }: AuthLayoutProps) {
-  const { theme } = useTheme();
-
   return (
-    <div className="min-h-screen-dvh flex bg-background text-foreground">
-      {/* ── Left: brand panel (visible lg+) ───────────────── */}
-      <aside className="hidden lg:flex lg:w-[44%] xl:w-[40%] flex-col justify-between p-12 bg-gradient-to-br from-primary/[0.07] via-background to-chart-5/[0.05] border-r border-border relative overflow-hidden shrink-0">
-        {/* Grid texture */}
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.035]"
-          style={{
-            backgroundImage:
-              "linear-gradient(hsl(var(--border)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--border)) 1px, transparent 1px)",
-            backgroundSize: "40px 40px",
-          }}
-        />
-        {/* Glow blobs */}
-        <div className="pointer-events-none absolute -top-24 -left-24 w-96 h-96 bg-primary/10 rounded-full blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-24 -right-24 w-80 h-80 bg-chart-5/10 rounded-full blur-3xl" />
+    <div className="min-h-screen-dvh flex flex-col bg-gradient-to-b from-background via-background to-muted/30 text-foreground">
+      <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 h-[280px] w-[560px] rounded-full bg-primary/[0.04] blur-3xl" />
+      </div>
 
-        {/* Brand header */}
-        <div className="relative z-10">
-          <Link to="/" className="flex items-center gap-3 mb-10 group w-fit">
-            <LumenXAdminLogo size="lg" className="max-h-12" />
-          </Link>
-
-          <h1 className="text-4xl xl:text-[2.6rem] font-bold tracking-tight leading-tight">
-            One platform.<br />Every classroom.
-          </h1>
-          <p className="mt-4 text-sm text-muted-foreground leading-relaxed max-w-[22rem]">
-            Built for principals who demand clarity — academics, people,
-            operations, and insights in a single pane.
-          </p>
-        </div>
-
-        {/* Feature list */}
-        <div className="relative z-10 space-y-2.5">
-          {BRAND_FEATURES.map(({ icon: Icon, label, hint }) => (
-            <div
-              key={label}
-              className="flex items-start gap-3 p-3.5 rounded-xl border border-border/60 bg-background/60 backdrop-blur-sm hover:bg-background/80 transition-colors"
-            >
-              <IconChip icon={Icon} size="sm" variant="soft" />
-              <div>
-                <div className="text-xs font-semibold">{label}</div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">{hint}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="relative z-10 text-[10px] text-muted-foreground">
-          &copy; {new Date().getFullYear()} LumenX Technologies · All rights reserved
-        </div>
-      </aside>
-
-      {/* ── Right: form area ───────────────────────────────── */}
-      <main className="flex-1 flex flex-col min-h-0">
-        {/* Mobile logo bar */}
-        <div className="lx-auth-top-bar flex items-center justify-between lg:hidden border-b border-border shrink-0">
-          <Link to="/" className="flex items-center gap-2.5">
-            <LumenXAdminLogo size="sm" className="max-h-8" />
-          </Link>
-          {showBack && (
-            <Link
-              to={backTo as never}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ArrowLeft className="size-3.5" /> {backLabel}
-            </Link>
-          )}
-        </div>
-
-        {/* Scrollable form area */}
-        <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center px-6 sm:px-10 xl:px-14 py-10">
-          <div className="w-full max-w-[26rem]">
-            {/* Desktop back link */}
-            {showBack && (
+      <header className="lx-auth-top-bar relative z-10 flex shrink-0 items-center border-b border-border/40">
+        <div className="flex w-20 shrink-0 items-center justify-start">
+          {showBack ? (
+            onBack ? (
+              <button
+                type="button"
+                onClick={onBack}
+                className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <ArrowLeft className="size-3.5" />
+                {backLabel}
+              </button>
+            ) : (
               <Link
                 to={backTo as never}
-                className="hidden lg:flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-6 w-fit transition-colors"
+                className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
               >
-                <ArrowLeft className="size-3.5" /> {backLabel}
+                <ArrowLeft className="size-3.5" />
+                {backLabel}
               </Link>
-            )}
-
-            {/* Page heading */}
-            <h2 className="text-2xl font-bold tracking-tight">{title}</h2>
-            {subtitle && (
-              <p className="text-sm text-muted-foreground mt-1.5">{subtitle}</p>
-            )}
-
-            {/* Form content */}
-            <div className={`mt-6 ${AUTH_PAGE_ENTER}`}>{children}</div>
-          </div>
+            )
+          ) : null}
         </div>
+        <div className="flex flex-1 justify-center">
+          <LumenXAdminLogo size="sm" className="max-h-8" />
+        </div>
+        <div className="w-20 shrink-0" aria-hidden />
+      </header>
 
-        {/* Footer */}
-        <div className="px-6 pb-[max(1rem,var(--lx-safe-bottom))] text-center text-[10px] text-muted-foreground/50 shrink-0">
-          {theme} mode
+      <main className="relative z-10 flex flex-1 flex-col items-center overflow-y-auto px-4 py-8 sm:py-10">
+        <div className="my-auto w-full max-w-[24rem] pb-[max(1rem,var(--lx-safe-bottom))]">
+          <div className="mb-6 text-center">
+            <h1 className="text-xl font-bold tracking-tight sm:text-[1.35rem]">{title}</h1>
+            {subtitle ? (
+              <p className="mt-1.5 text-[13px] leading-snug text-muted-foreground">{subtitle}</p>
+            ) : null}
+          </div>
+
+          <div className={AUTH_PAGE_ENTER}>{children}</div>
+
+          {footer ? (
+            <div className="mt-6 text-center text-xs text-muted-foreground">{footer}</div>
+          ) : null}
         </div>
       </main>
     </div>

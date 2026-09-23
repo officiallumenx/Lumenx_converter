@@ -13,6 +13,7 @@ type Props = {
 export function RegistrationResubmitPanel({ registration, onResubmitted }: Props) {
   const payload = registration.payload;
   const [instituteName, setInstituteName] = useState(payload.instituteName);
+  const [instituteCode, setInstituteCode] = useState(payload.instituteCode ?? "");
   const [city, setCity] = useState(payload.city ?? "");
   const [state, setState] = useState(payload.state ?? "");
   const [address, setAddress] = useState(payload.address ?? "");
@@ -23,6 +24,15 @@ export function RegistrationResubmitPanel({ registration, onResubmitted }: Props
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    const code = instituteCode.trim();
+    if (!code) {
+      setError("Institute code is required.");
+      return;
+    }
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]{2,31}$/.test(code)) {
+      setError("Institute code must be 3–32 characters (letters, numbers, - or _).");
+      return;
+    }
     setLoading(true);
     try {
       await resubmitRegistration({
@@ -31,6 +41,7 @@ export function RegistrationResubmitPanel({ registration, onResubmitted }: Props
         payload: {
           ...payload,
           instituteName: instituteName.trim(),
+          instituteCode: code,
           city: city.trim() || undefined,
           state: state.trim() || undefined,
           address: address.trim() || undefined,
@@ -81,6 +92,22 @@ export function RegistrationResubmitPanel({ registration, onResubmitted }: Props
           required
           value={instituteName}
           onChange={(e) => setInstituteName(e.target.value)}
+          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+        />
+      </label>
+
+      <label className="block space-y-1">
+        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+          Institute code
+        </span>
+        <input
+          type="text"
+          required
+          value={instituteCode}
+          onChange={(e) =>
+            setInstituteCode(e.target.value.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 32))
+          }
+          placeholder="e.g. lumenx-001"
           className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
         />
       </label>

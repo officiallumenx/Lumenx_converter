@@ -1,18 +1,112 @@
 /**
  * Minimal API-mode institute indicator + switcher for Admin chrome.
  * Hidden entirely in demo mode.
+ *
+ * Logo = institute profile photo uploaded in Institute Profile (not the LumenX product mark).
  */
 import { Building2, ChevronDown } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { buildInstituteMonogramLogoUrl } from "@lumenx/utils";
 import { useAuth } from "@/auth/AuthContext";
-import { useInstituteContext } from "@/lib/institutes";
+import { useInstituteContext, settingsToDemoProfile } from "@/lib/institutes";
+import { useInstituteProfileQuery } from "@/lib/admin-queries";
 import { cn } from "@lumenx/ui";
+
+function hueFromId(id: string): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h + id.charCodeAt(i) * 17) % 360;
+  return h;
+}
+
+function isImageUrl(value: string | null | undefined): boolean {
+  const v = value?.trim() ?? "";
+  return (
+    v.startsWith("data:image/") ||
+    v.startsWith("http://") ||
+    v.startsWith("https://") ||
+    v.startsWith("blob:")
+  );
+}
+
+/** Prefer uploaded profile photo; fall back to logo only when it is an image URL. */
+function resolveInstituteMarkUrl(profile: {
+  profilePhoto?: string;
+  logo?: string;
+} | null): string | null {
+  if (!profile) return null;
+  if (isImageUrl(profile.profilePhoto)) return profile.profilePhoto!.trim();
+  if (isImageUrl(profile.logo)) return profile.logo!.trim();
+  return null;
+}
+
+function SwitcherMark({
+  name,
+  imageUrl,
+  instituteId,
+  size = "sm",
+}: {
+  name: string;
+  imageUrl?: string | null;
+  instituteId: string;
+  size?: "sm" | "md";
+}) {
+  const dim = size === "md" ? "size-7" : "size-5";
+  const src = imageUrl?.trim() || null;
+
+  if (src && isImageUrl(src)) {
+    return (
+      <span
+        className={cn(
+          dim,
+          "shrink-0 overflow-hidden rounded-md border border-border/70 bg-background",
+        )}
+      >
+        <img
+          src={src}
+          alt=""
+          className="size-full object-cover"
+          loading="lazy"
+        />
+      </span>
+    );
+  }
+
+  const monogram = buildInstituteMonogramLogoUrl(
+    name.trim().slice(0, 2) || "IN",
+    hueFromId(instituteId),
+  );
+
+  return (
+    <span
+      className={cn(
+        dim,
+        "shrink-0 overflow-hidden rounded-md border border-border/70 bg-background",
+      )}
+    >
+      <img src={monogram} alt="" className="size-full object-cover" />
+    </span>
+  );
+}
 
 export function ApiInstituteSwitcher({ className }: { className?: string }) {
   const ctx = useInstituteContext();
   const { applyApiActiveInstitute, clearApiActiveInstitutePresentation } = useAuth();
   const [open, setOpen] = useState(false);
   const [selectError, setSelectError] = useState<string | null>(null);
+
+  const profileEnabled =
+    ctx.isApiMode && ctx.status === "ready" && Boolean(ctx.activeInstituteId);
+  const profileQuery = useInstituteProfileQuery(
+    ctx.activeInstituteId,
+    profileEnabled,
+  );
+
+  const activeMarkUrl = useMemo(() => {
+    const institute = profileQuery.data?.institute;
+    const settings = profileQuery.data?.settings;
+    if (!institute || !settings) return null;
+    return resolveInstituteMarkUrl(settingsToDemoProfile(institute, settings));
+  }, [profileQuery.data]);
 
   // Sync AuthUser institute presentation with validated context (never demo fallback).
   useEffect(() => {
@@ -102,9 +196,13 @@ export function ApiInstituteSwitcher({ className }: { className?: string }) {
 
   const needsSelection = ctx.status === "needs_selection";
   const canSwitch = ctx.institutes.length > 1;
+  const active = ctx.activeInstitute;
+  const titleName = active?.name?.trim() || "Institute";
+  const titleCode = active?.code?.trim() || "";
+  const fullLabel = titleCode ? `${titleName} · ${titleCode}` : titleName;
 
   return (
-    <div className={cn("relative min-w-0", className)}>
+    <div className={cn("relative min-w-0 max-w-full", className)}>
       <button
         type="button"
         disabled={!canSwitch && !needsSelection}
@@ -112,35 +210,52 @@ export function ApiInstituteSwitcher({ className }: { className?: string }) {
           if (canSwitch || needsSelection) setOpen((v) => !v);
         }}
         className={cn(
-          "flex max-w-full items-center gap-1 truncate text-left text-[10px] uppercase tracking-[0.12em]",
+          "flex w-full max-w-full items-center gap-2 text-left",
           needsSelection
             ? "font-semibold text-amber-700 dark:text-amber-400"
-            : "text-muted-foreground",
-          (canSwitch || needsSelection) && "hover:text-foreground",
+            : "text-foreground",
+          (canSwitch || needsSelection) && "hover:opacity-90",
         )}
         aria-expanded={open}
         aria-haspopup="listbox"
         title={
-          needsSelection
-            ? "Select an institute to continue"
-            : (ctx.displayLabel ?? undefined)
+          needsSelection ? "Select an institute to continue" : fullLabel
         }
       >
-        <Building2 className="size-3 shrink-0 opacity-70" aria-hidden />
-        <span className="truncate normal-case tracking-normal">
-          {needsSelection
-            ? "Select institute…"
-            : (ctx.displayLabel ?? "Institute")}
+        {active && !needsSelection ? (
+          <SwitcherMark
+            name={titleName}
+            imageUrl={activeMarkUrl}
+            instituteId={active.id}
+          />
+        ) : (
+          <Building2 className="size-4 shrink-0 opacity-70" aria-hidden />
+        )}
+        <span className="min-w-0 flex-1 leading-tight">
+          {needsSelection ? (
+            <span className="block truncate text-[11px]">Select institute…</span>
+          ) : (
+            <>
+              <span className="block truncate text-[11px] font-semibold normal-case tracking-normal">
+                {titleName}
+              </span>
+              {titleCode ? (
+                <span className="block truncate text-[9px] font-normal uppercase tracking-[0.12em] text-muted-foreground">
+                  {titleCode}
+                </span>
+              ) : null}
+            </>
+          )}
         </span>
         {(canSwitch || needsSelection) && (
-          <ChevronDown className="size-3 shrink-0 opacity-60" aria-hidden />
+          <ChevronDown className="size-3.5 shrink-0 opacity-60" aria-hidden />
         )}
       </button>
 
       {open && (canSwitch || needsSelection) && (
         <div
           role="listbox"
-          className="absolute left-0 top-full z-50 mt-1 min-w-[12rem] max-w-[18rem] rounded-md border border-border bg-popover py-1 shadow-md"
+          className="absolute left-0 top-full z-50 mt-1 min-w-[14rem] max-w-[20rem] rounded-md border border-border bg-popover py-1 shadow-md"
         >
           {ctx.institutes.map((inst) => (
             <button
@@ -149,13 +264,27 @@ export function ApiInstituteSwitcher({ className }: { className?: string }) {
               role="option"
               aria-selected={inst.id === ctx.activeInstituteId}
               className={cn(
-                "flex w-full flex-col px-3 py-2 text-left text-xs hover:bg-muted",
+                "flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs hover:bg-muted",
                 inst.id === ctx.activeInstituteId && "bg-muted/60",
               )}
               onClick={() => void onSelect(inst.id)}
             >
-              <span className="font-medium text-foreground">{inst.name}</span>
-              <span className="text-[10px] text-muted-foreground">{inst.code}</span>
+              <SwitcherMark
+                name={inst.name}
+                imageUrl={
+                  inst.id === ctx.activeInstituteId ? activeMarkUrl : null
+                }
+                instituteId={inst.id}
+                size="md"
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium text-foreground">
+                  {inst.name}
+                </span>
+                <span className="block truncate text-[10px] text-muted-foreground">
+                  {inst.code}
+                </span>
+              </span>
             </button>
           ))}
           {selectError && (

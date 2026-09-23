@@ -15,7 +15,7 @@ import {
   type ParentListItem,
   type ParentsListStatus,
 } from "@/lib/parents";
-import { useParentsListQuery, adminQueryRoots } from "@/lib/admin-queries";
+import { useParentsListQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { Mail, MoreHorizontal, Phone, Plus, Users } from "lucide-react";
 
@@ -158,7 +158,7 @@ function ParentsPage() {
     invalidateAdminCache("admin:parents");
     if (instituteCtx.activeInstituteId) {
       void queryClient.invalidateQueries({
-        queryKey: [adminQueryRoots.parents, instituteCtx.activeInstituteId],
+        queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.parents),
       });
     }
   };

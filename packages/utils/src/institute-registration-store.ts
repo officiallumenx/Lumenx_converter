@@ -12,6 +12,7 @@ export type InstituteRegistrationStatus = "pending" | "approved" | "rejected";
 
 export type InstituteRegistrationPayload = {
   instituteName: string;
+  instituteCode?: string;
   logoPreview?: string;
   instituteType: string;
   educationBoard: string;
@@ -433,6 +434,7 @@ export function ensureDemoPendingRegistration(): void {
     status: "pending",
     payload: {
       instituteName: "Test1School",
+      instituteCode: "test1-school",
       instituteType: "School (K-12)",
       educationBoard: "CBSE",
       country: "India",

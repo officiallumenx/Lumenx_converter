@@ -1,145 +1,159 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-  ArrowRight, BarChart3, Users, ShieldCheck,
-  GraduationCap, CalendarRange, FileBarChart, Award,
+  ArrowRight,
+  BarChart3,
+  GraduationCap,
+  ShieldCheck,
+  Sparkles,
+  Users,
 } from "lucide-react";
 import { AuthButton } from "@/auth/components/AuthButton";
-import { IconChip } from "@/components/IconChip";
 import { LumenXAdminLogo } from "@/components/LumenXAdminLogo";
-import { RegistrationOnboardingCallout } from "@/components/registration/RegistrationOnboardingCallout";
+import { AUTH_CARD_ENTER, AUTH_PAGE_ENTER } from "@/auth/auth-ui";
 
 export const Route = createFileRoute("/welcome")({
   head: () => ({ meta: [{ title: "Welcome — LumenX Admin" }] }),
   component: WelcomePage,
 });
 
-const FEATURES = [
-  { icon: Users,        label: "People Management",   desc: "Students, teachers, parents"     },
-  { icon: CalendarRange,label: "Smart Timetables",     desc: "Visual drag-and-drop builder"    },
-  { icon: BarChart3,    label: "Live Analytics",       desc: "Live dashboard, charts, insights" },
-  { icon: GraduationCap,label: "Exams & Marks",        desc: "Pipeline from paper to portal"   },
-  { icon: FileBarChart, label: "Reports",     desc: "Download Excel, PDF, and CSV"     },
-  { icon: ShieldCheck,  label: "Roles & Access",  desc: "Granular institute access"      },
-];
+const BENEFITS = [
+  { icon: Users, label: "People", hint: "Students & staff" },
+  { icon: GraduationCap, label: "Academics", hint: "Classes & exams" },
+  { icon: BarChart3, label: "Ops", hint: "Fees & reports" },
+  { icon: ShieldCheck, label: "Secure", hint: "Roles & OTP" },
+] as const;
+
+function WelcomeMark() {
+  return (
+    <div className="relative mx-auto mb-7 flex size-[9.5rem] items-center justify-center">
+      {/* Soft bloom */}
+      <div
+        className="absolute inset-[-18%] rounded-full bg-primary/[0.12] blur-2xl"
+        aria-hidden
+      />
+      {/* Orbit rings */}
+      <div
+        className="absolute inset-0 rounded-full border border-primary/15"
+        aria-hidden
+      />
+      <div
+        className="absolute inset-[12%] animate-[spin_18s_linear_infinite] rounded-full border border-dashed border-primary/25"
+        aria-hidden
+      />
+      <div
+        className="absolute inset-[24%] rounded-full border border-primary/10 bg-gradient-to-b from-primary/[0.08] to-transparent"
+        aria-hidden
+      />
+      {/* Core — LumenX Admin logo on white */}
+      <div className="relative z-10 flex size-[5.5rem] items-center justify-center overflow-hidden rounded-[1.4rem] border border-primary/20 bg-white p-1.5 shadow-[0_12px_40px_-12px_hsl(var(--primary)/0.45)]">
+        <LumenXAdminLogo size="xl" className="max-h-full w-auto object-contain" />
+      </div>
+      {/* Orbit dots */}
+      <span
+        className="absolute left-1/2 top-0 size-2 -translate-x-1/2 rounded-full bg-primary shadow-[0_0_10px_hsl(var(--primary)/0.7)]"
+        aria-hidden
+      />
+      <span
+        className="absolute bottom-[10%] right-[8%] size-1.5 rounded-full bg-chart-5/80"
+        aria-hidden
+      />
+    </div>
+  );
+}
 
 function WelcomePage() {
   return (
-    <div className="min-h-screen-dvh bg-background text-foreground overflow-x-hidden">
-      {/* Ambient background */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -top-32 -left-32 w-[50vw] h-[50vw] bg-primary/[0.06] rounded-full blur-3xl" />
-        <div className="absolute -bottom-32 -right-32 w-[40vw] h-[40vw] bg-chart-5/[0.05] rounded-full blur-3xl" />
+    <div className="min-h-screen-dvh flex flex-col bg-gradient-to-b from-background via-background to-muted/35 text-foreground">
+      <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
+        <div className="absolute top-[-10%] left-1/2 h-[420px] w-[720px] -translate-x-1/2 rounded-full bg-primary/[0.07] blur-3xl" />
+        <div className="absolute bottom-[-15%] right-[-10%] h-[280px] w-[280px] rounded-full bg-chart-5/[0.06] blur-3xl" />
         <div
-          className="absolute inset-0 opacity-[0.025]"
+          className="absolute inset-0 opacity-[0.035]"
           style={{
-            backgroundImage: "radial-gradient(hsl(var(--border)) 1px, transparent 1px)",
-            backgroundSize: "24px 24px",
+            backgroundImage:
+              "radial-gradient(hsl(var(--foreground)) 0.6px, transparent 0.6px)",
+            backgroundSize: "18px 18px",
+            maskImage:
+              "radial-gradient(ellipse 70% 55% at 50% 35%, black 20%, transparent 75%)",
           }}
         />
       </div>
 
-      {/* ── Top nav ──────────────────────────────────────────── */}
-      <header className="lx-auth-top-bar relative z-10 flex items-center justify-between border-b border-border/50 backdrop-blur-sm">
-        <div className="flex items-center gap-2.5">
-          <LumenXAdminLogo size="sm" className="max-h-9" />
-        </div>
-        <div className="flex items-center gap-2">
-          <Link to="/login">
-            <AuthButton variant="outline" fullWidth={false} size="sm">
-              Login
-            </AuthButton>
-          </Link>
-          <Link to="/signup">
-            <AuthButton variant="primary" fullWidth={false} size="sm">
-              Get started <ArrowRight className="size-3.5" />
-            </AuthButton>
-          </Link>
-        </div>
+      <header className="lx-auth-top-bar relative z-10 flex shrink-0 items-center justify-center border-b border-border/40">
+        <LumenXAdminLogo size="sm" className="max-h-8" />
       </header>
 
-      {/* ── Hero ─────────────────────────────────────────────── */}
-      <section className="relative z-10 flex flex-col items-center text-center px-6 pt-20 pb-16 sm:pt-24 sm:pb-20">
-        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-primary/30 bg-primary/[0.06] text-xs text-primary mb-6">
-          Institute operating system
-        </div>
+      <main className="relative z-10 flex flex-1 flex-col items-center overflow-y-auto px-4 py-8 sm:py-10">
+        <div
+          className={`my-auto w-full max-w-[24rem] pb-[max(1rem,var(--lx-safe-bottom))] ${AUTH_PAGE_ENTER}`}
+        >
+          <WelcomeMark />
 
-        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1] max-w-3xl">
-          The operating system<br />
-          <span className="text-primary">for modern institutes</span>
-        </h1>
-        <p className="mt-5 text-base sm:text-lg text-muted-foreground max-w-xl leading-relaxed">
-          Manage academics, people, operations, and analytics — all from one
-          powerful, enterprise-grade admin platform.
-        </p>
+          <div className="mb-6 text-center">
+            <h1 className="text-[1.55rem] font-bold tracking-tight sm:text-[1.7rem]">
+              LumenX Admin
+            </h1>
+            <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+              The operating system for your institute —
+              <br className="hidden sm:block" />
+              academics, people, and operations in one place.
+            </p>
+          </div>
 
-        <div className="flex flex-col sm:flex-row items-center gap-3 mt-8">
-          <Link to="/signup">
-            <AuthButton variant="primary" fullWidth={false}>
-              Start free trial <ArrowRight className="size-4" />
-            </AuthButton>
-          </Link>
-          <Link to="/login">
-            <AuthButton variant="outline" fullWidth={false}>
-              Login to your institute
-            </AuthButton>
-          </Link>
-        </div>
-      </section>
+          {/* Trial offer */}
+          <div
+            className={`relative mb-5 overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/[0.14] via-primary/[0.05] to-chart-5/[0.08] p-4 ${AUTH_CARD_ENTER}`}
+          >
+            <div
+              className="pointer-events-none absolute -right-6 -top-8 size-24 rounded-full bg-primary/20 blur-2xl"
+              aria-hidden
+            />
+            <div className="relative flex items-start gap-3">
+              <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+                <Sparkles className="size-4" aria-hidden />
+              </span>
+              <div className="min-w-0 text-left">
+                <p className="text-sm font-semibold tracking-tight text-foreground">
+                  60-day free trial
+                </p>
+                <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
+                  Register now · full access after approval · no payment during trial
+                </p>
+              </div>
+            </div>
+          </div>
 
-      {/* ── Feature cards ─────────────────────────────────────── */}
-      <section className="relative z-10 px-6 sm:px-10 pb-16">
-        <div className="max-w-5xl mx-auto">
-          <h2 className="text-center text-xl font-bold mb-8">
-            Everything your institute needs
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {FEATURES.map(({ icon: Icon, label, desc }) => (
+          {/* Benefit icons */}
+          <div className="mb-6 grid grid-cols-4 gap-2">
+            {BENEFITS.map(({ icon: Icon, label, hint }) => (
               <div
                 key={label}
-                className="p-5 rounded-2xl border border-border bg-surface/60 hover:bg-surface-hover hover:-translate-y-0.5 transition-all group"
+                className="flex flex-col items-center gap-1.5 rounded-xl border border-border/70 bg-card/70 px-1 py-2.5 text-center shadow-sm backdrop-blur-sm"
               >
-                <IconChip icon={Icon} size="md" className="mb-3" />
-                <div className="text-sm font-semibold group-hover:text-primary transition-colors">{label}</div>
-                <div className="text-[11px] text-muted-foreground mt-1">{desc}</div>
+                <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Icon className="size-3.5" aria-hidden />
+                </span>
+                <span className="text-[10px] font-semibold leading-none">{label}</span>
+                <span className="text-[9px] leading-tight text-muted-foreground">{hint}</span>
               </div>
             ))}
           </div>
-        </div>
-      </section>
 
-      {/* ── CTA banner ───────────────────────────────────────── */}
-      <section className="relative z-10 px-6 sm:px-10 pb-16">
-        <div className="max-w-3xl mx-auto rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/[0.06] to-chart-5/[0.04] p-10 text-center">
-          <IconChip icon={Award} size="lg" className="mx-auto mb-4" />
-          <h3 className="text-xl font-bold">Ready to transform your institute?</h3>
-          <p className="text-sm text-muted-foreground mt-2 mb-4 max-w-sm mx-auto">
-            Create your institute account and start managing academics, people, and operations.
-          </p>
-          <RegistrationOnboardingCallout variant="welcome" />
-          <div className="flex flex-col sm:flex-row gap-3 justify-center mt-6">
-            <Link to="/signup">
-              <AuthButton variant="primary" fullWidth={false}>
-                Create your account <ArrowRight className="size-4" />
+          <div className="space-y-3">
+            <Link to="/signup" className="block">
+              <AuthButton variant="primary" fullWidth>
+                Start free trial
+                <ArrowRight className="size-4" />
               </AuthButton>
             </Link>
-            <Link to="/login">
-              <AuthButton variant="outline" fullWidth={false}>
-                Already have an account? Login
+            <Link to="/login" className="block">
+              <AuthButton variant="outline" fullWidth>
+                Sign in
               </AuthButton>
             </Link>
           </div>
         </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="relative z-10 border-t border-border px-6 sm:px-10 py-5 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-muted-foreground">
-        <span>&copy; {new Date().getFullYear()} LumenX Technologies Pvt. Ltd.</span>
-        <div className="flex gap-4">
-          <span className="hover:text-foreground cursor-pointer transition-colors">Privacy</span>
-          <span className="hover:text-foreground cursor-pointer transition-colors">Terms</span>
-          <span className="hover:text-foreground cursor-pointer transition-colors">Support</span>
-        </div>
-      </footer>
+      </main>
     </div>
   );
 }

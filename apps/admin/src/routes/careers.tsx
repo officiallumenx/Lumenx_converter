@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { useCareersListQuery, useCareerJobsQuery, adminQueryRoots } from "@/lib/admin-queries";
+import { useCareersListQuery, useCareerJobsQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
 import { Button, Pill, Card, CardHeader, Kpi, KpiGrid } from "@lumenx/ui-admin";
@@ -149,7 +149,7 @@ function CareersPage() {
     invalidateAdminCache("admin:careers");
     if (instituteCtx.activeInstituteId) {
       void queryClient.invalidateQueries({
-        queryKey: [adminQueryRoots.careers, instituteCtx.activeInstituteId],
+        queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.careers),
       });
     }
   };

@@ -7,7 +7,7 @@ import { useAdminToast } from "@/components/AdminActionToast";
 import { useInstituteContext } from "@/lib/institutes";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { adminPageTitle } from "@/lib/admin-module-labels";
-import { adminQueryKeys, adminQueryRoots } from "@/lib/admin-queries/keys";
+import { adminModulePrefix, adminQueryKeys, adminQueryRoots } from "@/lib/admin-queries/keys";
 import { listSections, listClasses } from "@/lib/classes/api";
 import {
   listPhotoStudents,
@@ -145,9 +145,9 @@ function PhotosPage() {
     invalidateTeachersListCache(instituteId);
     invalidateStudentsListCache(instituteId);
     await Promise.all([
-      qc.invalidateQueries({ queryKey: [adminQueryRoots.photos] }),
-      qc.invalidateQueries({ queryKey: [adminQueryRoots.teachers, instituteId] }),
-      qc.invalidateQueries({ queryKey: [adminQueryRoots.students, instituteId] }),
+      qc.invalidateQueries({ queryKey: adminModulePrefix(instituteId, adminQueryRoots.photos) }),
+      qc.invalidateQueries({ queryKey: adminModulePrefix(instituteId, adminQueryRoots.teachers) }),
+      qc.invalidateQueries({ queryKey: adminModulePrefix(instituteId, adminQueryRoots.students) }),
     ]);
   }
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useAttendanceRegistersQuery, adminQueryRoots } from "@/lib/admin-queries";
+import { useAttendanceRegistersQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { Link } from "@tanstack/react-router";
 import {
@@ -145,7 +145,7 @@ export function StudentAttendanceApiPage() {
     invalidateAdminCache("admin:attendance");
     if (instituteCtx.activeInstituteId) {
       void queryClient.invalidateQueries({
-        queryKey: [adminQueryRoots.attendance, instituteCtx.activeInstituteId],
+        queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.attendance),
       });
     }
   };

@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { useReloadKey } from "@/hooks/useReloadKey";
+import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
@@ -19,19 +19,21 @@ import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
   deleteSection,
-  loadSectionDetail,
   resolveSectionDetailView,
-  shouldCommitClassesLoad,
   updateClass,
   updateSection,
   type ClassesListStatus,
   type ClassStatus,
-  type SectionDetailItem,
   type SectionStatus,
 } from "@/lib/classes";
 import { listTeachersForSectionPicker } from "@/lib/classes/section-teachers";
 import { SectionRosterPanel } from "@/components/classes/SectionRosterPanel";
 import { SectionTeachersPanel } from "@/components/classes/SectionTeachersPanel";
+import {
+  useClassSectionDetailQuery,
+  adminModulePrefix,
+  adminQueryRoots,
+} from "@/lib/admin-queries";
 
 function detailHint(status: ClassesListStatus, errorMessage: string | null): string | null {
   if (status === "loading") return "Loading class section…";
@@ -56,19 +58,43 @@ function DetailField({ label, value }: { label: string; value: string | null | u
 export function ClassSectionApiPage({ sectionId }: { sectionId: string }) {
   const notify = useAdminToast();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const instituteCtx = useInstituteContext();
   const writesEnabled = resolveWritesEnabled(true, {
     status: instituteCtx.status,
     activeInstituteId: instituteCtx.activeInstituteId,
   });
-  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
-  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
-  const [section, setSection] = useState<SectionDetailItem | null>(null);
-  const [status, setStatus] = useState<ClassesListStatus>("loading");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useReloadKey();
+  const detailEnabled =
+    instituteCtx.status === "ready" && Boolean(instituteCtx.activeInstituteId);
+  const detailQuery = useClassSectionDetailQuery(
+    instituteCtx.activeInstituteId,
+    sectionId,
+    detailEnabled,
+  );
+
+  const section = detailQuery.data?.section ?? null;
+  const status: ClassesListStatus =
+    instituteCtx.status === "loading"
+      ? "loading"
+      : instituteCtx.status === "forbidden"
+        ? "forbidden"
+        : instituteCtx.status === "error"
+          ? "error"
+          : instituteCtx.status === "needs_selection" ||
+              instituteCtx.status === "empty" ||
+              !instituteCtx.activeInstituteId
+            ? "needs_institute"
+            : detailQuery.isLoading && !detailQuery.data
+              ? "loading"
+              : (detailQuery.data?.status ?? "loading");
+  const errorMessage =
+    instituteCtx.status === "error" || instituteCtx.status === "forbidden"
+      ? instituteCtx.errorMessage
+      : (detailQuery.data?.errorMessage ?? null);
+  const resolvedForInstituteId =
+    detailQuery.data && detailEnabled ? instituteCtx.activeInstituteId : null;
+
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -93,77 +119,46 @@ export function ClassSectionApiPage({ sectionId }: { sectionId: string }) {
   });
 
   useEffect(() => {
-    if (instituteCtx.status === "loading") {
-      setSection(null);
-      setStatus("loading");
-      setErrorMessage(null);
-      setResolvedForInstituteId(null);
+    if (!detailEnabled || !instituteCtx.activeInstituteId) {
+      setTeacherOptions([]);
       return;
     }
-
-    if (instituteCtx.status === "error" || instituteCtx.status === "forbidden") {
-      setSection(null);
-      setStatus(instituteCtx.status === "forbidden" ? "forbidden" : "error");
-      setErrorMessage(instituteCtx.errorMessage);
-      setResolvedForInstituteId(null);
-      return;
-    }
-
-    if (
-      instituteCtx.status === "needs_selection" ||
-      instituteCtx.status === "empty" ||
-      !instituteCtx.activeInstituteId
-    ) {
-      setSection(null);
-      setStatus("needs_institute");
-      setErrorMessage(null);
-      setResolvedForInstituteId(null);
-      return;
-    }
-
     const requestInstituteId = instituteCtx.activeInstituteId;
     let cancelled = false;
-    setSection(null);
-    setStatus("loading");
-    setErrorMessage(null);
-    void Promise.all([
-      loadSectionDetail(sectionId, requestInstituteId),
-      listTeachersForSectionPicker(requestInstituteId).catch(
-        () => [] as Array<{ id: string; label: string }>,
-      ),
-    ]).then(([next, teachers]) => {
-      if (
-        !shouldCommitClassesLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setSection(next.section);
-      setStatus(next.status);
-      setErrorMessage(next.errorMessage);
-      setResolvedForInstituteId(requestInstituteId);
-      setTeacherOptions(teachers);
-      if (next.section) {
-        setRoom(next.section.room === "—" ? "" : next.section.room);
-        setCapacity(String(next.section.capacity ?? 0));
-        setSectionStatus(next.section.sectionStatus);
-        setClassStatus(next.section.classStatus);
-        setClassTeacherId(next.section.classTeacherId ?? "");
-      }
-    });
+    void listTeachersForSectionPicker(requestInstituteId)
+      .catch(() => [] as Array<{ id: string; label: string }>)
+      .then((teachers) => {
+        if (cancelled) return;
+        if (instituteCtx.activeInstituteId !== requestInstituteId) return;
+        setTeacherOptions(teachers);
+      });
     return () => {
       cancelled = true;
     };
-  }, [
-    instituteCtx.status,
-    instituteCtx.activeInstituteId,
-    instituteCtx.errorMessage,
-    sectionId,
-    reloadKey,
-  ]);
+  }, [detailEnabled, instituteCtx.activeInstituteId]);
+
+  useEffect(() => {
+    if (!section) return;
+    setRoom(section.room === "—" ? "" : section.room);
+    setCapacity(String(section.capacity ?? 0));
+    setSectionStatus(section.sectionStatus);
+    setClassStatus(section.classStatus);
+    setClassTeacherId(section.classTeacherId ?? "");
+  }, [section]);
+
+  const invalidateClassCaches = () => {
+    const id = instituteCtx.activeInstituteId;
+    if (!id) return;
+    void queryClient.invalidateQueries({
+      queryKey: adminModulePrefix(id, adminQueryRoots.classSection),
+    });
+    void queryClient.invalidateQueries({
+      queryKey: adminModulePrefix(id, adminQueryRoots.classes),
+    });
+    void queryClient.invalidateQueries({
+      queryKey: adminModulePrefix(id, adminQueryRoots.catalog),
+    });
+  };
 
   const hint = detailHint(detailView.status, detailView.errorMessage);
   const displaySection = detailView.detailValid ? detailView.section : null;
@@ -184,7 +179,7 @@ export function ClassSectionApiPage({ sectionId }: { sectionId: string }) {
     }
     void Promise.all(tasks)
       .then(() => {
-        setReloadKey((k) => k + 1);
+        invalidateClassCaches();
         notify("Section updated");
       })
       .catch((err) => {
@@ -201,6 +196,7 @@ export function ClassSectionApiPage({ sectionId }: { sectionId: string }) {
     void deleteSection(sectionId)
       .then(() => {
         setConfirmDelete(false);
+        invalidateClassCaches();
         notify("Section deleted");
         void navigate({ to: "/classes" });
       })
@@ -337,13 +333,13 @@ export function ClassSectionApiPage({ sectionId }: { sectionId: string }) {
             <SectionRosterPanel
               section={displaySection}
               writesEnabled={writesEnabled}
-              onChanged={() => setReloadKey((k) => k + 1)}
+              onChanged={invalidateClassCaches}
               notify={notify}
             />
             <SectionTeachersPanel
               section={displaySection}
               writesEnabled={writesEnabled}
-              onChanged={() => setReloadKey((k) => k + 1)}
+              onChanged={invalidateClassCaches}
               notify={notify}
             />
           </>

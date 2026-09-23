@@ -191,6 +191,20 @@ export async function loadInstituteContext(): Promise<InstituteContextState> {
       }
     }
 
+    // Always re-fetch active institute identity so rename/code changes are not stuck
+    // behind a stale listInstitutes payload.
+    if (activeInstitute) {
+      try {
+        const fresh = await getInstitute(activeInstitute.id);
+        activeInstitute = fresh;
+        const ix = institutes.findIndex((i) => i.id === fresh.id);
+        if (ix >= 0) institutes[ix] = fresh;
+        else institutes.push(fresh);
+      } catch {
+        // keep list entry if detail fetch fails
+      }
+    }
+
     return {
       mode: "api",
       status: statusFromResolve(resolved.reason, activeInstitute),
@@ -268,6 +282,8 @@ export function chooseActiveInstitute(
 export type InstituteContextValue = InstituteContextState & {
   reload: () => Promise<InstituteContextState>;
   selectInstitute: (instituteId: string) => Promise<InstituteDto>;
+  /** Merge a server-returned institute into list + active presentation (name/code sync). */
+  upsertInstitute: (institute: InstituteDto) => void;
   isApiMode: boolean;
 };
 
@@ -311,12 +327,24 @@ function useInstituteContextController(): InstituteContextValue {
       skipNextStorageReload.current = true;
       // Re-read latest context from loader so callers after `reload()` are not stale.
       const latest = await loadInstituteContext();
+      const previousId = latest.activeInstituteId;
       const chosen = chooseActiveInstitute(
         instituteId,
         latest.memberships,
         latest.institutes,
         { isPlatformOperator: latest.isPlatformOperator },
       );
+      if (previousId && previousId !== chosen.id) {
+        void import("@/lib/admin-queries").then((m) => {
+          const qc = m.getAdminQueryClient();
+          if (qc) {
+            m.removeAdminInstituteQueries(qc, previousId);
+          }
+        }).catch(() => undefined);
+        void import("@/lib/admin-resource-cache").then((m) => {
+          m.invalidateAdminInstituteCache(previousId);
+        }).catch(() => undefined);
+      }
       setState({
         ...latest,
         status: "ready",
@@ -330,6 +358,31 @@ function useInstituteContextController(): InstituteContextValue {
     },
     [],
   );
+
+  const upsertInstitute = useCallback((institute: InstituteDto) => {
+    setState((prev) => {
+      if (prev.mode !== "api") return prev;
+      const idx = prev.institutes.findIndex((i) => i.id === institute.id);
+      const institutes =
+        idx >= 0
+          ? prev.institutes.map((i) => (i.id === institute.id ? institute : i))
+          : [...prev.institutes, institute];
+      const isActive =
+        prev.activeInstituteId === institute.id ||
+        prev.activeInstitute?.id === institute.id;
+      return {
+        ...prev,
+        status: prev.status === "loading" ? "ready" : prev.status,
+        institutes,
+        activeInstitute: isActive ? institute : prev.activeInstitute,
+        activeInstituteId: isActive ? institute.id : prev.activeInstituteId,
+        displayLabel: isActive
+          ? displayLabelFor(institute)
+          : prev.displayLabel,
+        errorMessage: null,
+      };
+    });
+  }, []);
 
   useEffect(() => {
     if (!isApiMode) {
@@ -354,6 +407,7 @@ function useInstituteContextController(): InstituteContextValue {
     ...state,
     reload,
     selectInstitute,
+    upsertInstitute,
     isApiMode,
   };
 }

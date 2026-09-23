@@ -48,6 +48,7 @@ import {
   useTeachersListQuery,
   useCatalogSubjectsQuery,
   useCatalogClassesQuery,
+  adminModulePrefix,
   adminQueryRoots,
   adminQueryKeys,
 } from "@/lib/admin-queries";
@@ -446,10 +447,10 @@ function TeachersPage() {
     setDetailReload((k) => k + 1);
     if (instituteCtx.activeInstituteId) {
       void queryClient.invalidateQueries({
-        queryKey: [adminQueryRoots.teachers, instituteCtx.activeInstituteId],
+        queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.teachers),
       });
       void queryClient.invalidateQueries({
-        queryKey: [adminQueryRoots.classes, instituteCtx.activeInstituteId],
+        queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.classes),
       });
       void queryClient.invalidateQueries({
         queryKey: adminQueryKeys.catalogClasses(instituteCtx.activeInstituteId),

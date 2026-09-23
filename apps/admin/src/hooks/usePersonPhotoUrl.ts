@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { isApiAuthMode } from "@/auth/auth-mode";
-import { adminQueryRoots } from "@/lib/admin-queries/keys";
+import { adminQueryKeys } from "@/lib/admin-queries/keys";
 import { getPhotoSignedUrl } from "@/lib/photos/api";
 
 /**
@@ -13,7 +13,7 @@ export function usePersonPhotoUrl(
   _photoAssetPath?: string | null | undefined,
 ) {
   return useQuery({
-    queryKey: [adminQueryRoots.photos, "signed-url", kind, personId ?? ""] as const,
+    queryKey: adminQueryKeys.photosSignedUrl(kind, personId ?? ""),
     enabled: isApiAuthMode() && Boolean(personId?.trim()),
     queryFn: () => getPhotoSignedUrl(kind, personId!.trim()),
     select: (data) => data.photoSignedUrl,

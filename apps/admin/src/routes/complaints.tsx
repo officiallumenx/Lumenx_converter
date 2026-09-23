@@ -27,7 +27,7 @@ import {
   type ComplaintListItem,
   type ComplaintStatus as BackendComplaintStatus,
 } from "@/lib/complaints";
-import { useComplaintsListQuery, adminQueryRoots } from "@/lib/admin-queries";
+import { useComplaintsListQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { refreshAdminComplaintsPendingCount } from "@/lib/complaints/pending-count-store";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 
@@ -66,7 +66,7 @@ function ComplaintsPage() {
     invalidateAdminCache("admin:complaints");
     if (instituteCtx.activeInstituteId) {
       void queryClient.invalidateQueries({
-        queryKey: [adminQueryRoots.complaints, instituteCtx.activeInstituteId],
+        queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.complaints),
       });
       void refreshAdminComplaintsPendingCount(instituteCtx.activeInstituteId);
     }

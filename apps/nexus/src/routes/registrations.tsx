@@ -20,6 +20,7 @@ import {
   Building2,
   CheckCircle2,
   ClipboardList,
+  Hash,
   Loader2,
   Mail,
   MapPin,
@@ -409,6 +410,9 @@ function RegistrationsPage() {
                             {app.payload.instituteName}
                           </div>
                           <div className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                            {app.payload.instituteCode
+                              ? `${app.payload.instituteCode} · `
+                              : ""}
                             {app.payload.principalName} · {app.payload.principalEmail}
                           </div>
                           <div className="text-[10px] font-mono text-muted-foreground/80 mt-1">
@@ -462,6 +466,11 @@ function RegistrationsPage() {
 
               <div className="px-4 py-4 space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <Detail
+                    icon={Hash}
+                    label="Institute code"
+                    value={selected.payload.instituteCode || "—"}
+                  />
                   <Detail
                     icon={MapPin}
                     label="Location"

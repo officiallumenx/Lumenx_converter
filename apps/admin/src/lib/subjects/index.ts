@@ -23,6 +23,8 @@ export {
 export {
   loadSubjectDetail,
   loadSubjectsList,
+  peekSubjectsListCache,
+  invalidateSubjectsListCache,
   type SubjectDetailState,
   type SubjectsListState,
   type SubjectsListStatus,

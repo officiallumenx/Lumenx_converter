@@ -8,7 +8,7 @@ import {
   useTransportSettingsQuery,
   useCatalogClassesQuery,
   useCatalogYearsQuery,
-  adminQueryRoots,
+  adminModulePrefix, adminQueryRoots,
 } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
@@ -218,7 +218,7 @@ function TransportPage() {
     invalidateAdminCache("admin:transport");
     if (instituteCtx.activeInstituteId) {
       void queryClient.invalidateQueries({
-        queryKey: [adminQueryRoots.transport, instituteCtx.activeInstituteId],
+        queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.transport),
       });
     }
   };

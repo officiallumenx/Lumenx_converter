@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { useReloadKey } from "@/hooks/useReloadKey";
+import { useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Button,
   Card,
@@ -14,15 +14,17 @@ import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
   deleteAsset,
   getAssetSignedUrl,
-  loadStorageUsage,
   resolveStorageUsageView,
-  shouldCommitAssetsLoad,
   uploadAsset,
   type AssetDto,
   type AssetsLoadStatus,
-  type StorageUsageSummary,
 } from "@/lib/assets";
 import { HardDrive, Download, RefreshCw, Trash2, Upload } from "lucide-react";
+import {
+  useStorageUsageQuery,
+  adminModulePrefix,
+  adminQueryRoots,
+} from "@/lib/admin-queries";
 
 function fmtBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -50,87 +52,47 @@ function statusHint(status: AssetsLoadStatus, error: string | null): string {
  */
 export function StorageApiUsagePanel() {
   const notify = useAdminToast();
+  const queryClient = useQueryClient();
   const instituteCtx = useInstituteContext();
   const writesEnabled = resolveWritesEnabled(true, {
     status: instituteCtx.status,
     activeInstituteId: instituteCtx.activeInstituteId,
   });
-  const [summary, setSummary] = useState<StorageUsageSummary | null>(null);
-  const [assets, setAssets] = useState<AssetDto[]>([]);
-  const [loadStatus, setLoadStatus] = useState<AssetsLoadStatus>("loading");
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
-    string | null
-  >(null);
-  const [reloadKey, setReloadKey] = useReloadKey();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadPurpose, setUploadPurpose] = useState<"logo" | "general">("logo");
   const [refreshing, setRefreshing] = useState(false);
-  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
-  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (instituteCtx.status === "loading") {
-      setSummary(null);
-      setAssets([]);
-      setLoadStatus("loading");
-      setLoadError(null);
-      setResolvedForInstituteId(null);
-      return;
-    }
-    if (instituteCtx.status === "error" || instituteCtx.status === "forbidden") {
-      setSummary(null);
-      setAssets([]);
-      setLoadStatus(instituteCtx.status === "forbidden" ? "forbidden" : "error");
-      setLoadError(instituteCtx.errorMessage);
-      setResolvedForInstituteId(null);
-      return;
-    }
-    if (
-      instituteCtx.status === "needs_selection" ||
-      instituteCtx.status === "empty" ||
-      !instituteCtx.activeInstituteId
-    ) {
-      setSummary(null);
-      setAssets([]);
-      setLoadStatus("needs_institute");
-      setLoadError(null);
-      setResolvedForInstituteId(null);
-      return;
-    }
-
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setLoadStatus("loading");
-    setLoadError(null);
-    void loadStorageUsage(requestInstituteId).then((next) => {
-      if (
-        !shouldCommitAssetsLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setSummary(next.summary);
-      setAssets(next.assets);
-      setLoadStatus(next.status);
-      setLoadError(next.errorMessage);
-      setResolvedForInstituteId(requestInstituteId);
-      setRefreshing(false);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    instituteCtx.status,
+  const storageEnabled =
+    instituteCtx.status === "ready" && Boolean(instituteCtx.activeInstituteId);
+  const storageQuery = useStorageUsageQuery(
     instituteCtx.activeInstituteId,
-    instituteCtx.errorMessage,
-    reloadKey,
-  ]);
+    storageEnabled,
+  );
+
+  const summary = storageQuery.data?.summary ?? null;
+  const assets = storageQuery.data?.assets ?? [];
+  const loadStatus: AssetsLoadStatus =
+    instituteCtx.status === "loading"
+      ? "loading"
+      : instituteCtx.status === "forbidden"
+        ? "forbidden"
+        : instituteCtx.status === "error"
+          ? "error"
+          : instituteCtx.status === "needs_selection" ||
+              instituteCtx.status === "empty" ||
+              !instituteCtx.activeInstituteId
+            ? "needs_institute"
+            : storageQuery.isLoading && !storageQuery.data
+              ? "loading"
+              : (storageQuery.data?.status ?? "loading");
+  const loadError =
+    instituteCtx.status === "error" || instituteCtx.status === "forbidden"
+      ? instituteCtx.errorMessage
+      : (storageQuery.data?.errorMessage ?? null);
+  const resolvedForInstituteId =
+    storageQuery.data && storageEnabled ? instituteCtx.activeInstituteId : null;
 
   const view = resolveStorageUsageView({
     apiMode: true,
@@ -148,9 +110,17 @@ export function StorageApiUsagePanel() {
   const displaySummary = view.rowsValid ? view.summary : null;
   const displayAssets = view.rowsValid ? view.assets : [];
 
+  const invalidateStorage = async () => {
+    const id = instituteCtx.activeInstituteId;
+    if (!id) return;
+    await queryClient.invalidateQueries({
+      queryKey: adminModulePrefix(id, adminQueryRoots.storage),
+    });
+  };
+
   const refresh = () => {
     setRefreshing(true);
-    setReloadKey((k) => k + 1);
+    void invalidateStorage().finally(() => setRefreshing(false));
   };
 
   const remove = async (asset: AssetDto) => {
@@ -159,7 +129,7 @@ export function StorageApiUsagePanel() {
     try {
       await deleteAsset(asset.id);
       notify(`Deleted ${asset.fileName ?? asset.objectPath}`);
-      setReloadKey((k) => k + 1);
+      await invalidateStorage();
     } catch (err) {
       notify(err instanceof Error ? err.message : "Failed to delete asset");
     } finally {
@@ -178,7 +148,7 @@ export function StorageApiUsagePanel() {
         visibility: "institute",
       });
       notify(`Uploaded ${asset.fileName ?? file.name}`);
-      setReloadKey((k) => k + 1);
+      await invalidateStorage();
     } catch (err) {
       notify(err instanceof Error ? err.message : "Upload failed");
     } finally {

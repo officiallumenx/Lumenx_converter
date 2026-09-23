@@ -6,7 +6,7 @@ import type {
   DemoInstituteProfile,
   DemoInstituteSectionEntry,
 } from "@lumenx/types";
-import { normalizeInstituteProfile } from "@lumenx/utils";
+import { compressInstituteLogoDataUrl, normalizeInstituteProfile } from "@lumenx/utils";
 
 type Props = {
   value: DemoInstituteProfile;
@@ -448,7 +448,19 @@ function InstituteProfilePhoto({
     if (!file?.type.startsWith("image/")) return;
     const reader = new FileReader();
     reader.onload = () => {
-      if (typeof reader.result === "string") onPhotoChange(reader.result);
+      if (typeof reader.result !== "string") return;
+      const raw = reader.result;
+      void compressInstituteLogoDataUrl(raw, {
+        maxEdge: 256,
+        quality: 0.82,
+        maxDataUrlChars: 400_000,
+      })
+        .then((compressed) => {
+          onPhotoChange(compressed ?? raw);
+        })
+        .catch(() => {
+          onPhotoChange(raw);
+        });
     };
     reader.readAsDataURL(file);
     event.target.value = "";

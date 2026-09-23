@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useReloadKey } from "@/hooks/useReloadKey";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Check,
   Copy,
@@ -31,8 +31,6 @@ import { ClassSectionAudienceField } from "@/components/ClassSectionMultiPicker"
 import { AccessLevelToggle } from "@/components/permissions/AccessLevelToggle";
 import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
-import { listTeachers } from "@/lib/teachers/api";
-import { listStaffAccounts } from "@/lib/staff/api";
 import { loadAttendanceCoordinatorSectionOptions } from "@/lib/access-roles/attendance-section-options";
 import { isAttendanceCoordinatorRole } from "@/lib/access-roles/system-keys";
 import {
@@ -45,13 +43,16 @@ import {
   createAccessRole,
   deleteAccessAssignee,
   deleteAccessRole,
-  listAccessAssignees,
-  listAccessRoles,
   updateAccessAssignee,
   updateAccessRole,
   type AccessAssigneeDto,
   type AccessRoleDto,
 } from "@/lib/access-roles";
+import {
+  usePermissionsAccessQuery,
+  adminModulePrefix,
+  adminQueryRoots,
+} from "@/lib/admin-queries";
 
 const groupedModules = Array.from(new Set(ACCESS_MODULES.map((m) => m.group))).map(
   (group) => ({
@@ -77,19 +78,12 @@ type StaffOption = {
 
 export function RolesAccessApiPanel() {
   const notify = useAdminToast();
+  const queryClient = useQueryClient();
   const instituteCtx = useInstituteContext();
   const writesEnabled = resolveWritesEnabled(true, {
     status: instituteCtx.status,
     activeInstituteId: instituteCtx.activeInstituteId,
   });
-
-  const [roles, setRoles] = useState<AccessRoleDto[]>([]);
-  const [assignees, setAssignees] = useState<AccessAssigneeDto[]>([]);
-  const [teachers, setTeachers] = useState<TeacherOption[]>([]);
-  const [staffAccounts, setStaffAccounts] = useState<StaffOption[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useReloadKey();
 
   const [roleEditorOpen, setRoleEditorOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<AccessRoleDto | null>(null);
@@ -107,68 +101,42 @@ export function RolesAccessApiPanel() {
   } | null>(null);
 
   const instituteId = instituteCtx.activeInstituteId;
+  const accessEnabled =
+    instituteCtx.status === "ready" && Boolean(instituteId);
+  const accessQuery = usePermissionsAccessQuery(instituteId, accessEnabled);
+
+  const roles = accessQuery.data?.roles ?? [];
+  const assignees = accessQuery.data?.assignees ?? [];
+  const teachers = accessQuery.data?.teachers ?? [];
+  const staffAccounts = accessQuery.data?.staffAccounts ?? [];
+  const loading = accessQuery.isLoading && !accessQuery.data;
+  const error =
+    accessQuery.error instanceof Error
+      ? accessQuery.error.message
+      : accessQuery.error
+        ? "Failed to load access roles"
+        : null;
 
   useEffect(() => {
-    if (!instituteId || instituteCtx.status === "loading") {
-      setRoles([]);
-      setAssignees([]);
-      return;
+    if (!accessQuery.data) return;
+    if (
+      accessQuery.data.teachersCatalogFailed ||
+      accessQuery.data.staffCatalogFailed
+    ) {
+      notify("Could not load all people for role assignment");
     }
-    let cancelled = false;
-    let teachersCatalogFailed = false;
-    let staffCatalogFailed = false;
-    setLoading(true);
-    setError(null);
-    void Promise.all([
-      listAccessRoles(instituteId),
-      listAccessAssignees(instituteId),
-      listTeachers({ instituteId }).catch(() => {
-        teachersCatalogFailed = true;
-        return [];
-      }),
-      listStaffAccounts({ instituteId }).catch(() => {
-        staffCatalogFailed = true;
-        return [];
-      }),
-    ])
-      .then(([nextRoles, nextAssignees, nextTeachers, nextStaff]) => {
-        if (cancelled) return;
-        setRoles(nextRoles);
-        setAssignees(nextAssignees);
-        setTeachers(
-          nextTeachers.map((t) => ({
-            id: t.id,
-            displayName: t.displayName,
-            email: t.email,
-            phone: t.phone,
-          })),
-        );
-        setStaffAccounts(
-          nextStaff.map((s) => ({
-            id: s.id,
-            displayName: s.displayName,
-            email: s.email,
-            phone: s.phone,
-            department: s.department,
-          })),
-        );
-        if (teachersCatalogFailed || staffCatalogFailed) {
-          notify("Could not load all people for role assignment");
-        }
-      })
-      .catch((reason) => {
-        if (cancelled) return;
-        setError(reason instanceof Error ? reason.message : "Failed to load access roles");
-        setRoles([]);
-        setAssignees([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [instituteId, instituteCtx.status, reloadKey]);
+  }, [
+    accessQuery.data?.teachersCatalogFailed,
+    accessQuery.data?.staffCatalogFailed,
+    notify,
+  ]);
+
+  const invalidatePermissions = () => {
+    if (!instituteId) return;
+    void queryClient.invalidateQueries({
+      queryKey: adminModulePrefix(instituteId, adminQueryRoots.permissions),
+    });
+  };
 
   const assignedCount = (roleId: string) =>
     assignees.filter((a) => a.accessRoleId === roleId).length;
@@ -282,7 +250,7 @@ export function RolesAccessApiPanel() {
                             permissions: role.permissions,
                           });
                           notify("Role duplicated");
-                          setReloadKey((k) => k + 1);
+                          invalidatePermissions();
                         } catch (reason) {
                           notify(
                             reason instanceof Error ? reason.message : "Unable to duplicate role",
@@ -328,7 +296,7 @@ export function RolesAccessApiPanel() {
                                 ? `Role deleted (${assigneeCount} assignment(s) removed)`
                                 : "Role deleted",
                             );
-                            setReloadKey((k) => k + 1);
+                            invalidatePermissions();
                           } catch (reason) {
                             notify(
                               reason instanceof Error
@@ -461,7 +429,7 @@ export function RolesAccessApiPanel() {
                                   ? "User suspended"
                                   : "User activated",
                               );
-                              setReloadKey((k) => k + 1);
+                              invalidatePermissions();
                             } catch (reason) {
                               notify(
                                 reason instanceof Error
@@ -493,7 +461,7 @@ export function RolesAccessApiPanel() {
                             try {
                               await deleteAccessAssignee(assignee.id);
                               notify("Assignment removed");
-                              setReloadKey((k) => k + 1);
+                              invalidatePermissions();
                             } catch (reason) {
                               notify(
                                 reason instanceof Error
@@ -538,7 +506,7 @@ export function RolesAccessApiPanel() {
             notify("Role created");
           }
           setRoleEditorOpen(false);
-          setReloadKey((k) => k + 1);
+          invalidatePermissions();
         }}
       />
       <ApiAssigneeEditor
@@ -584,7 +552,7 @@ export function RolesAccessApiPanel() {
             });
             notify("User assigned — copy login details now");
           }
-          setReloadKey((k) => k + 1);
+          invalidatePermissions();
         }}
       />
       <ApiCreatedCredentialsSummary

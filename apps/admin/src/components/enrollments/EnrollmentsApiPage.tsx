@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useReloadKey } from "@/hooks/useReloadKey";
+import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Button,
   Card,
@@ -22,17 +22,12 @@ import {
 } from "@lumenx/ui-admin";
 import { Plus, Users } from "lucide-react";
 import { useAdminToast } from "@/components/AdminActionToast";
-import { listAcademicYears } from "@/lib/academic-years/api";
-import type { AcademicYearDto } from "@/lib/academic-years/types";
-import { classLabelForSection, listClassesCatalog } from "@/lib/classes";
+import { classLabelForSection } from "@/lib/classes";
 import type { ClassDto, SectionDto } from "@/lib/classes/types";
 import {
   createEnrollmentRecord,
-  enrollmentDtosToListItems,
   enrollmentStatusLabel,
-  listEnrollments,
   resolveEnrollmentsListView,
-  shouldCommitEnrollmentsLoad,
   updateEnrollmentRecord,
   type EnrollmentListItem,
   type EnrollmentListStatus,
@@ -40,7 +35,14 @@ import {
 } from "@/lib/enrollments";
 import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
-import { listStudents, studentDtosToListItems, type StudentListItem } from "@/lib/students";
+import {
+  useCatalogClassesQuery,
+  useCatalogYearsQuery,
+  useEnrollmentsListQuery,
+  useStudentsListQuery,
+  adminModulePrefix,
+  adminQueryRoots,
+} from "@/lib/admin-queries";
 
 const STATUS_FILTERS: Array<{ value: "all" | EnrollmentStatus; label: string }> = [
   { value: "all", label: "All statuses" },
@@ -77,6 +79,28 @@ function nextRollNo(items: EnrollmentListItem[]): string {
   return String(max + 1);
 }
 
+function enrichEnrollmentLabels(
+  items: EnrollmentListItem[],
+  classes: ClassDto[],
+  sections: SectionDto[],
+): EnrollmentListItem[] {
+  if (classes.length === 0 && sections.length === 0) return items;
+  const classesById = new Map(classes.map((row) => [row.id, row]));
+  const sectionsById = new Map(sections.map((row) => [row.id, row]));
+  return items.map((item) => {
+    const section = sectionsById.get(item.sectionId);
+    const cls =
+      classesById.get(item.classId) ??
+      (section ? classesById.get(section.classId) : undefined);
+    return {
+      ...item,
+      classLabel: cls?.name?.trim() || cls?.code?.trim() || item.classLabel || "—",
+      sectionLabel:
+        section?.code?.trim() || section?.name?.trim() || item.sectionLabel || "—",
+    };
+  });
+}
+
 type Props = {
   initialSectionId?: string;
   initialAcademicYearId?: string;
@@ -87,28 +111,18 @@ export function EnrollmentsApiPage({
   initialAcademicYearId,
 }: Props) {
   const notify = useAdminToast();
+  const queryClient = useQueryClient();
   const instituteCtx = useInstituteContext();
   const writesEnabled = resolveWritesEnabled(true, {
     status: instituteCtx.status,
     activeInstituteId: instituteCtx.activeInstituteId,
   });
-  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
-  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
-  const [years, setYears] = useState<AcademicYearDto[]>([]);
-  const [classes, setClasses] = useState<ClassDto[]>([]);
-  const [sections, setSections] = useState<SectionDto[]>([]);
-  const [students, setStudents] = useState<StudentListItem[]>([]);
   const [academicYearId, setAcademicYearId] = useState(initialAcademicYearId ?? "");
   const [classId, setClassId] = useState("all");
   const [sectionId, setSectionId] = useState(initialSectionId ?? "all");
   const [statusFilter, setStatusFilter] = useState<"all" | EnrollmentStatus>("all");
   const [search, setSearch] = useState("");
-  const [items, setItems] = useState<EnrollmentListItem[]>([]);
-  const [loadStatus, setLoadStatus] = useState<EnrollmentListStatus>("loading");
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useReloadKey();
   const [createOpen, setCreateOpen] = useState(false);
   const [editRow, setEditRow] = useState<EnrollmentListItem | null>(null);
   const [saving, setSaving] = useState(false);
@@ -124,7 +138,70 @@ export function EnrollmentsApiPage({
   const [editStatus, setEditStatus] = useState<EnrollmentStatus>("active");
   const [editSectionId, setEditSectionId] = useState("");
 
-  const filterKey = `${academicYearId}|${classId}|${sectionId}|${statusFilter}`;
+  const catalogEnabled =
+    instituteCtx.status === "ready" && Boolean(instituteCtx.activeInstituteId);
+  const yearsQuery = useCatalogYearsQuery(
+    instituteCtx.activeInstituteId,
+    catalogEnabled,
+  );
+  const classesQuery = useCatalogClassesQuery(
+    instituteCtx.activeInstituteId,
+    catalogEnabled,
+  );
+  const studentsQuery = useStudentsListQuery(
+    instituteCtx.activeInstituteId,
+    {},
+    catalogEnabled,
+  );
+  const enrollmentsQuery = useEnrollmentsListQuery(
+    instituteCtx.activeInstituteId,
+    {
+      academicYearId: academicYearId || undefined,
+      classId: classId !== "all" ? classId : undefined,
+      sectionId: sectionId !== "all" ? sectionId : undefined,
+      status: statusFilter !== "all" ? statusFilter : undefined,
+    },
+    catalogEnabled,
+  );
+
+  const years = yearsQuery.data ?? [];
+  const classes = classesQuery.data?.classes ?? [];
+  const sections = classesQuery.data?.sections ?? [];
+  const students = studentsQuery.data?.items ?? [];
+
+  useEffect(() => {
+    if (!academicYearId && years.length > 0) {
+      const activeYear = years.find((year) => year.status === "active") ?? years[0];
+      if (activeYear) setAcademicYearId(activeYear.id);
+    }
+  }, [years, academicYearId]);
+
+  const rawItems = enrollmentsQuery.data?.items ?? [];
+  const items = useMemo(
+    () => enrichEnrollmentLabels(rawItems, classes, sections),
+    [rawItems, classes, sections],
+  );
+
+  const loadStatus: EnrollmentListStatus =
+    instituteCtx.status === "loading"
+      ? "loading"
+      : instituteCtx.status === "forbidden"
+        ? "forbidden"
+        : instituteCtx.status === "error"
+          ? "error"
+          : instituteCtx.status === "needs_selection" ||
+              instituteCtx.status === "empty" ||
+              !instituteCtx.activeInstituteId
+            ? "needs_institute"
+            : enrollmentsQuery.isLoading && !enrollmentsQuery.data
+              ? "loading"
+              : (enrollmentsQuery.data?.status ?? "loading");
+  const loadError =
+    instituteCtx.status === "error" || instituteCtx.status === "forbidden"
+      ? instituteCtx.errorMessage
+      : (enrollmentsQuery.data?.errorMessage ?? null);
+  const resolvedForInstituteId =
+    enrollmentsQuery.data && catalogEnabled ? instituteCtx.activeInstituteId : null;
 
   const listView = resolveEnrollmentsListView({
     apiMode: true,
@@ -139,101 +216,13 @@ export function EnrollmentsApiPage({
 
   const hint = loadHint(listView.status, listView.errorMessage);
 
-  useEffect(() => {
-    if (instituteCtx.status !== "ready" || !instituteCtx.activeInstituteId) {
-      setYears([]);
-      setClasses([]);
-      setSections([]);
-      setStudents([]);
-      return;
-    }
-    const instituteId = instituteCtx.activeInstituteId;
-    void Promise.all([
-      listAcademicYears({ instituteId }),
-      listClassesCatalog({ instituteId }),
-      listStudents({ instituteId }).then(studentDtosToListItems),
-    ]).then(([yearRows, catalog, studentRows]) => {
-      if (activeInstituteIdRef.current !== instituteId) return;
-      setYears(yearRows);
-      setClasses(catalog.classes);
-      setSections(catalog.sections);
-      setStudents(studentRows);
-      if (!academicYearId && yearRows.length > 0) {
-        const activeYear = yearRows.find((year) => year.status === "active") ?? yearRows[0];
-        if (activeYear) setAcademicYearId(activeYear.id);
-      }
+  const invalidateEnrollments = () => {
+    const id = instituteCtx.activeInstituteId;
+    if (!id) return;
+    void queryClient.invalidateQueries({
+      queryKey: adminModulePrefix(id, adminQueryRoots.enrollments),
     });
-  }, [instituteCtx.status, instituteCtx.activeInstituteId, academicYearId]);
-
-  useEffect(() => {
-    if (instituteCtx.status !== "ready" || !instituteCtx.activeInstituteId) {
-      setItems([]);
-      setLoadStatus("needs_institute");
-      setLoadError(null);
-      setResolvedForInstituteId(null);
-      return;
-    }
-
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    const requestKey = filterKey;
-    let cancelled = false;
-    setLoadStatus("loading");
-    setLoadError(null);
-
-    void listEnrollments({
-      instituteId: requestInstituteId,
-      academicYearId: academicYearId || undefined,
-      classId: classId !== "all" ? classId : undefined,
-      sectionId: sectionId !== "all" ? sectionId : undefined,
-      status: statusFilter !== "all" ? statusFilter : undefined,
-    })
-      .then((rows) => {
-        if (
-          !shouldCommitEnrollmentsLoad({
-            cancelled,
-            requestInstituteId,
-            activeInstituteId: activeInstituteIdRef.current,
-            requestKey,
-            activeKey: filterKey,
-          })
-        ) {
-          return;
-        }
-        const classesById = new Map(classes.map((row) => [row.id, row]));
-        const sectionsById = new Map(sections.map((row) => [row.id, row]));
-        const mapped = enrollmentDtosToListItems(rows, { classesById, sectionsById });
-        setItems(mapped);
-        setLoadStatus(mapped.length === 0 ? "empty" : "ready");
-        setLoadError(null);
-        setResolvedForInstituteId(requestInstituteId);
-      })
-      .catch((err) => {
-        if (cancelled || activeInstituteIdRef.current !== requestInstituteId) return;
-        const message = err instanceof Error ? err.message : "Failed to load enrollments";
-        const status =
-          err &&
-          typeof err === "object" &&
-          "status" in err &&
-          (err as { status: number }).status === 403
-            ? "forbidden"
-            : "error";
-        setItems([]);
-        setLoadStatus(status);
-        setLoadError(message);
-        setResolvedForInstituteId(requestInstituteId);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    instituteCtx.status,
-    instituteCtx.activeInstituteId,
-    filterKey,
-    reloadKey,
-    classes,
-    sections,
-  ]);
+  };
 
   const yearSections = useMemo(() => {
     return sections.filter((section) =>
@@ -293,7 +282,7 @@ export function EnrollmentsApiPage({
     })
       .then(() => {
         setCreateOpen(false);
-        setReloadKey((value) => value + 1);
+        invalidateEnrollments();
         notify("Student enrolled");
       })
       .catch((err) => {
@@ -321,7 +310,7 @@ export function EnrollmentsApiPage({
     })
       .then(() => {
         setEditRow(null);
-        setReloadKey((value) => value + 1);
+        invalidateEnrollments();
         notify("Enrollment updated");
       })
       .catch((err) => {

@@ -19,7 +19,7 @@ export function AuthStepBar({ steps, current }: AuthStepBarProps) {
   const total = steps.length;
 
   return (
-    <div className="mb-6" aria-label={`Step ${current} of ${total}`}>
+    <div className="mb-1" aria-label={`Step ${current} of ${total}`}>
       <div className="flex items-start">
         {steps.map((s, i) => {
           const step   = i + 1;

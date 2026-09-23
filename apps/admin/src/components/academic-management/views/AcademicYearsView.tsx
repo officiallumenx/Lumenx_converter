@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useReloadKey } from "@/hooks/useReloadKey";
+import { useQueryClient } from "@tanstack/react-query";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
@@ -7,12 +7,15 @@ import {
   createAcademicYear,
   updateAcademicYear,
   deleteAcademicYear,
-  loadAcademicYearsList,
   resolveAcademicYearsListView,
-  shouldCommitAcademicYearsLoad,
   type AcademicYearListItem,
   type AcademicYearsListStatus,
 } from "@/lib/academic-years";
+import {
+  useAcademicYearsListQuery,
+  adminModulePrefix,
+  adminQueryRoots,
+} from "@/lib/admin-queries";
 import {
   Button,
   Card,
@@ -85,23 +88,56 @@ type YearRow = AcademicYear | AcademicYearListItem;
 
 export function AcademicYearsView() {
   const notify = useAdminToast();
+  const queryClient = useQueryClient();
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
   const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
   const [years, setYears] = useState<AcademicYear[]>(() =>
     apiMode ? [] : loadAcademicYears(),
   );
-  const [apiItems, setApiItems] = useState<AcademicYearListItem[]>([]);
-  const [listStatus, setListStatus] = useState<AcademicYearsListStatus>(() =>
-    apiMode ? "loading" : "demo",
+
+  const listEnabled =
+    apiMode &&
+    instituteCtx.status === "ready" &&
+    Boolean(instituteCtx.activeInstituteId);
+  const yearsQuery = useAcademicYearsListQuery(
+    instituteCtx.activeInstituteId,
+    listEnabled,
   );
-  const [listError, setListError] = useState<string | null>(null);
-  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
-    string | null
-  >(null);
-  const [reloadKey, setReloadKey] = useReloadKey();
-  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
-  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
+
+  const apiItems = yearsQuery.data?.items ?? [];
+  const listStatus: AcademicYearsListStatus = !apiMode
+    ? "demo"
+    : instituteCtx.status === "loading"
+      ? "loading"
+      : instituteCtx.status === "forbidden"
+        ? "forbidden"
+        : instituteCtx.status === "error"
+          ? "error"
+          : instituteCtx.status === "needs_selection" ||
+              instituteCtx.status === "empty" ||
+              !instituteCtx.activeInstituteId
+            ? "needs_institute"
+            : yearsQuery.isLoading && !yearsQuery.data
+              ? "loading"
+              : (yearsQuery.data?.status ?? "loading");
+  const listError =
+    instituteCtx.status === "error" || instituteCtx.status === "forbidden"
+      ? instituteCtx.errorMessage
+      : (yearsQuery.data?.errorMessage ?? null);
+  const resolvedForInstituteId =
+    yearsQuery.data && listEnabled ? instituteCtx.activeInstituteId : null;
+
+  const invalidateAcademicYearsCaches = () => {
+    const id = instituteCtx.activeInstituteId;
+    if (!id) return;
+    void queryClient.invalidateQueries({
+      queryKey: adminModulePrefix(id, adminQueryRoots.academicYears),
+    });
+    void queryClient.invalidateQueries({
+      queryKey: adminModulePrefix(id, adminQueryRoots.catalog),
+    });
+  };
 
   const listView = resolveAcademicYearsListView({
     apiMode,
@@ -132,71 +168,6 @@ export function AcademicYearsView() {
     "idle" | "loading" | "ready" | "empty" | "error"
   >("idle");
   const [apiRecordsError, setApiRecordsError] = useState<string | null>(null);
-  useEffect(() => {
-    if (!apiMode) return;
-
-    if (instituteCtx.status === "loading") {
-      setApiItems([]);
-      setListStatus("loading");
-      setListError(null);
-      setResolvedForInstituteId(null);
-      return;
-    }
-
-    if (
-      instituteCtx.status === "error" ||
-      instituteCtx.status === "forbidden"
-    ) {
-      setApiItems([]);
-      setListStatus(
-        instituteCtx.status === "forbidden" ? "forbidden" : "error",
-      );
-      setListError(instituteCtx.errorMessage);
-      setResolvedForInstituteId(null);
-      return;
-    }
-
-    if (
-      instituteCtx.status === "needs_selection" ||
-      instituteCtx.status === "empty" ||
-      !instituteCtx.activeInstituteId
-    ) {
-      setApiItems([]);
-      setListStatus("needs_institute");
-      setListError(null);
-      setResolvedForInstituteId(null);
-      return;
-    }
-
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setListStatus("loading");
-    setListError(null);
-    void loadAcademicYearsList(requestInstituteId).then((next) => {
-      if (
-        !shouldCommitAcademicYearsLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setApiItems(next.items);
-      setListStatus(next.status);
-      setListError(next.errorMessage);
-      setResolvedForInstituteId(requestInstituteId);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    apiMode,
-    instituteCtx.status,
-    instituteCtx.activeInstituteId,
-    instituteCtx.errorMessage,
-    reloadKey,
-  ]);
 
   useEffect(() => {
     if (!apiMode) return;
@@ -233,7 +204,7 @@ export function AcademicYearsView() {
     return () => {
       cancelled = true;
     };
-  }, [apiMode, instituteCtx.activeInstituteId, viewYearId, reloadKey]);
+  }, [apiMode, instituteCtx.activeInstituteId, viewYearId]);
 
   useEffect(() => {
     setModal(null);
@@ -464,7 +435,7 @@ export function AcademicYearsView() {
           setModal(null);
           setEditing(null);
           setForm(EMPTY_FORM);
-          setReloadKey((k) => k + 1);
+          invalidateAcademicYearsCaches();
           notify(
             modal === "edit"
               ? "Academic year updated"
@@ -543,7 +514,7 @@ export function AcademicYearsView() {
           notify(`${activateTarget.label} activated`);
           setActivateTarget(null);
           setConfirmText("");
-          setReloadKey((k) => k + 1);
+          invalidateAcademicYearsCaches();
         } catch (err) {
           notify(err instanceof Error ? err.message : "Failed to activate academic year");
         }
@@ -581,7 +552,7 @@ export function AcademicYearsView() {
     if (apiMode) {
       void updateAcademicYear(year.id, { status: "archived" })
         .then(() => {
-          setReloadKey((k) => k + 1);
+          invalidateAcademicYearsCaches();
           notify(`${year.label} archived`);
         })
         .catch((err) => {
@@ -601,7 +572,7 @@ export function AcademicYearsView() {
       void deleteAcademicYear(deleteTarget.id)
         .then(() => {
           setDeleteTarget(null);
-          setReloadKey((k) => k + 1);
+          invalidateAcademicYearsCaches();
           notify(`${deleteTarget.label} deleted`);
         })
         .catch((err) => {

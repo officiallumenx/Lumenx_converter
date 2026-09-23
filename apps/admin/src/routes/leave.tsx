@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { useLeaveRequestsQuery, adminQueryRoots } from "@/lib/admin-queries";
+import { useLeaveRequestsQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
 import {
@@ -135,7 +135,7 @@ function LeavePage() {
     invalidateAdminCache("admin:leave");
     if (instituteCtx.activeInstituteId) {
       void queryClient.invalidateQueries({
-        queryKey: [adminQueryRoots.leave, instituteCtx.activeInstituteId],
+        queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.leave),
       });
     }
   };

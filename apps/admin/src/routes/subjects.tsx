@@ -35,7 +35,7 @@ import {
   type SubjectListItem,
   type SubjectsListStatus,
 } from "@/lib/subjects";
-import { useSubjectsListQuery, adminQueryRoots } from "@/lib/admin-queries";
+import { useSubjectsListQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import {
   assignTeacherSubjectSection,
@@ -138,7 +138,7 @@ function SubjectsPage() {
     setAuxReload((k) => k + 1);
     if (instituteCtx.activeInstituteId) {
       void queryClient.invalidateQueries({
-        queryKey: [adminQueryRoots.subjects, instituteCtx.activeInstituteId],
+        queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.subjects),
       });
     }
   };

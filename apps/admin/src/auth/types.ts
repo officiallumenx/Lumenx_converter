@@ -108,6 +108,7 @@ export interface SignUpStep2Data {
 
 export type SignUpRegistrationPayload = {
   instituteName: string;
+  instituteCode?: string;
   instituteType?: string;
   educationBoard?: string;
   country?: string;

@@ -1,17 +1,10 @@
 /**
  * Dual-mode teachers directory list loader.
- * Demo: never calls API (caller keeps demo seed/store).
- * API: requires validated institute UUID; no demo fallback on failure.
+ * Caching is owned by TanStack Query — loaders always hit the API.
  */
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/active-institute";
-import {
-  adminCacheKey,
-  cachedAdminFetch,
-  invalidateAdminCache,
-  peekAdminCacheSoft,
-} from "@/lib/admin-resource-cache";
 import { getTeacher, listTeachers } from "./api";
 import { teacherDtoToListItem, teacherDtosToListItems } from "./map";
 import type { ListTeachersParams, TeacherListItem } from "./types";
@@ -95,7 +88,7 @@ export async function loadTeacherDetail(
 export async function loadTeachersList(
   activeInstituteId: string | null,
   filters: Pick<ListTeachersParams, "status" | "teachingScope" | "q"> = {},
-  opts?: { force?: boolean },
+  _opts?: { force?: boolean },
 ): Promise<TeachersListState> {
   if (!isApiAuthMode()) {
     return { status: "demo", items: [], errorMessage: null };
@@ -109,78 +102,56 @@ export async function loadTeachersList(
     };
   }
 
-  const filterKey = JSON.stringify({
-    status: filters.status ?? null,
-    teachingScope: filters.teachingScope ?? null,
-    q: filters.q ?? null,
-  });
-  const cacheKey = adminCacheKey("teachers-list", activeInstituteId, filterKey);
+  try {
+    const dtos = await listTeachers({
+      instituteId: activeInstituteId,
+      status: filters.status,
+      teachingScope: filters.teachingScope,
+      q: filters.q,
+    });
+    const items = teacherDtosToListItems(dtos);
+    return {
+      status: items.length === 0 ? "empty" : "ready",
+      items,
+      errorMessage: null,
+    };
+  } catch (err) {
+    const status =
+      err instanceof ApiClientError
+        ? err.status
+        : err &&
+            typeof err === "object" &&
+            "status" in err &&
+            typeof (err as { status: unknown }).status === "number"
+          ? (err as { status: number }).status
+          : null;
+    const message =
+      err instanceof Error ? err.message : "Failed to load teachers";
 
-  return cachedAdminFetch(
-    cacheKey,
-    async () => {
-      try {
-        const dtos = await listTeachers({
-          instituteId: activeInstituteId,
-          status: filters.status,
-          teachingScope: filters.teachingScope,
-          q: filters.q,
-        });
-        const items = teacherDtosToListItems(dtos);
-        return {
-          status: items.length === 0 ? "empty" : "ready",
-          items,
-          errorMessage: null,
-        } satisfies TeachersListState;
-      } catch (err) {
-        const status =
-          err instanceof ApiClientError
-            ? err.status
-            : err &&
-                typeof err === "object" &&
-                "status" in err &&
-                typeof (err as { status: unknown }).status === "number"
-              ? (err as { status: number }).status
-              : null;
-        const message =
-          err instanceof Error ? err.message : "Failed to load teachers";
-
-        if (status === 403) {
-          return {
-            status: "forbidden",
-            items: [],
-            errorMessage: message,
-          } satisfies TeachersListState;
-        }
-        return {
-          status: "error",
-          items: [],
-          errorMessage: message,
-        } satisfies TeachersListState;
-      }
-    },
-    { force: opts?.force },
-  );
-}
-
-export function peekTeachersListCache(
-  activeInstituteId: string,
-  filters: Pick<ListTeachersParams, "status" | "teachingScope" | "q"> = {},
-): TeachersListState | null {
-  const filterKey = JSON.stringify({
-    status: filters.status ?? null,
-    teachingScope: filters.teachingScope ?? null,
-    q: filters.q ?? null,
-  });
-  return peekAdminCacheSoft(
-    adminCacheKey("teachers-list", activeInstituteId, filterKey),
-  );
-}
-
-export function invalidateTeachersListCache(instituteId?: string): void {
-  if (instituteId) {
-    invalidateAdminCache(adminCacheKey("teachers-list", instituteId));
-  } else {
-    invalidateAdminCache("admin:teachers-list:");
+    if (status === 403) {
+      return {
+        status: "forbidden",
+        items: [],
+        errorMessage: message,
+      };
+    }
+    return {
+      status: "error",
+      items: [],
+      errorMessage: message,
+    };
   }
+}
+
+/** @deprecated TanStack Query owns cache. */
+export function peekTeachersListCache(
+  _activeInstituteId: string,
+  _filters: Pick<ListTeachersParams, "status" | "teachingScope" | "q"> = {},
+): TeachersListState | null {
+  return null;
+}
+
+/** @deprecated Invalidate via TanStack Query. */
+export function invalidateTeachersListCache(_instituteId?: string): void {
+  // no-op
 }

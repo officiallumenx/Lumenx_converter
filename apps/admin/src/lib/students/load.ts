@@ -2,16 +2,11 @@
  * Dual-mode students directory list loader.
  * Demo: never calls API (caller keeps demo seed/store).
  * API: requires validated institute UUID; no demo fallback on failure.
+ * Caching is owned by TanStack Query — loaders always hit the API.
  */
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/active-institute";
-import {
-  adminCacheKey,
-  cachedAdminFetch,
-  invalidateAdminCache,
-  peekAdminCacheSoft,
-} from "@/lib/admin-resource-cache";
 import { getStudent, getStudentGuardians, listStudents } from "./api";
 import { studentDtosToListItems, studentDtoToDetailItem } from "./map";
 import type {
@@ -139,7 +134,7 @@ export async function loadStudentGuardians(
 export async function loadStudentsList(
   activeInstituteId: string | null,
   filters: Omit<ListStudentsParams, "instituteId"> = {},
-  opts?: { force?: boolean },
+  _opts?: { force?: boolean },
 ): Promise<StudentsListState> {
   if (!isApiAuthMode()) {
     return { status: "demo", items: [], errorMessage: null };
@@ -153,75 +148,51 @@ export async function loadStudentsList(
     };
   }
 
-  const filterKey = JSON.stringify({
-    status: filters.status ?? null,
-    q: filters.q ?? null,
-    classLabel: filters.classLabel ?? null,
-    sectionLabel: filters.sectionLabel ?? null,
-  });
-  const cacheKey = adminCacheKey("students-list", activeInstituteId, filterKey);
+  try {
+    const dtos = await listStudents({ instituteId: activeInstituteId, ...filters });
+    const items = studentDtosToListItems(dtos);
+    return {
+      status: items.length === 0 ? "empty" : "ready",
+      items,
+      errorMessage: null,
+    };
+  } catch (err) {
+    const status =
+      err instanceof ApiClientError
+        ? err.status
+        : err &&
+            typeof err === "object" &&
+            "status" in err &&
+            typeof (err as { status: unknown }).status === "number"
+          ? (err as { status: number }).status
+          : null;
+    const message =
+      err instanceof Error ? err.message : "Failed to load students";
 
-  return cachedAdminFetch(
-    cacheKey,
-    async () => {
-      try {
-        const dtos = await listStudents({ instituteId: activeInstituteId, ...filters });
-        const items = studentDtosToListItems(dtos);
-        return {
-          status: items.length === 0 ? "empty" : "ready",
-          items,
-          errorMessage: null,
-        } satisfies StudentsListState;
-      } catch (err) {
-        const status =
-          err instanceof ApiClientError
-            ? err.status
-            : err &&
-                typeof err === "object" &&
-                "status" in err &&
-                typeof (err as { status: unknown }).status === "number"
-              ? (err as { status: number }).status
-              : null;
-        const message =
-          err instanceof Error ? err.message : "Failed to load students";
-
-        if (status === 403) {
-          return {
-            status: "forbidden",
-            items: [],
-            errorMessage: message,
-          } satisfies StudentsListState;
-        }
-        return {
-          status: "error",
-          items: [],
-          errorMessage: message,
-        } satisfies StudentsListState;
-      }
-    },
-    { force: opts?.force },
-  );
-}
-
-export function peekStudentsListCache(
-  activeInstituteId: string,
-  filters: Omit<ListStudentsParams, "instituteId"> = {},
-): StudentsListState | null {
-  const filterKey = JSON.stringify({
-    status: filters.status ?? null,
-    q: filters.q ?? null,
-    classLabel: filters.classLabel ?? null,
-    sectionLabel: filters.sectionLabel ?? null,
-  });
-  return peekAdminCacheSoft(
-    adminCacheKey("students-list", activeInstituteId, filterKey),
-  );
-}
-
-export function invalidateStudentsListCache(instituteId?: string): void {
-  if (instituteId) {
-    invalidateAdminCache(adminCacheKey("students-list", instituteId));
-  } else {
-    invalidateAdminCache("admin:students-list:");
+    if (status === 403) {
+      return {
+        status: "forbidden",
+        items: [],
+        errorMessage: message,
+      };
+    }
+    return {
+      status: "error",
+      items: [],
+      errorMessage: message,
+    };
   }
+}
+
+/** @deprecated Map TTL removed — TanStack Query owns cache. Kept for call-site compat. */
+export function peekStudentsListCache(
+  _activeInstituteId: string,
+  _filters: Omit<ListStudentsParams, "instituteId"> = {},
+): StudentsListState | null {
+  return null;
+}
+
+/** @deprecated Map TTL removed — invalidate via TanStack Query. */
+export function invalidateStudentsListCache(_instituteId?: string): void {
+  // no-op: QueryClient invalidation is the source of truth
 }

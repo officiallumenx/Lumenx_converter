@@ -218,14 +218,22 @@ export type StaffLoginInstituteDto = {
   name: string;
   code: string;
   kind: string;
+  /** Uploaded institute profile photo / logo when provided by API. */
+  logoUrl?: string | null;
 };
 
 export async function listStaffLoginInstitutes(): Promise<StaffLoginInstituteDto[]> {
   assertApiMode();
-  return getAdminApiClient().get<StaffLoginInstituteDto[]>(
-    "/api/v1/auth/staff/institutes",
-    { skipAuth: true },
-  );
+  const rows = await getAdminApiClient().get<
+    Array<StaffLoginInstituteDto & { logo_url?: string | null }>
+  >("/api/v1/auth/staff/institutes", { skipAuth: true });
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    code: row.code,
+    kind: row.kind,
+    logoUrl: row.logoUrl ?? row.logo_url ?? null,
+  }));
 }
 
 export async function resolveStaffLoginMode(input: {

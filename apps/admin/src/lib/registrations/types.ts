@@ -2,6 +2,8 @@
 
 export type InstituteRegistrationPayload = {
   instituteName: string;
+  /** Unique short code shown on Admin login (e.g. lumenx-001). */
+  instituteCode?: string;
   instituteType?: string;
   educationBoard?: string;
   country?: string;

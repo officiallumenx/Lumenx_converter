@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEventsListQuery, adminQueryRoots } from "@/lib/admin-queries";
+import { useEventsListQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
 import {
@@ -146,7 +146,7 @@ function EventsPage() {
     invalidateAdminCache("admin:events");
     if (instituteCtx.activeInstituteId) {
       void queryClient.invalidateQueries({
-        queryKey: [adminQueryRoots.events, instituteCtx.activeInstituteId],
+        queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.events),
       });
     }
   };

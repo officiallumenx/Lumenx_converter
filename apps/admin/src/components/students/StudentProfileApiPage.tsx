@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { useReloadKey } from "@/hooks/useReloadKey";
+import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { usePersonPhotoUrl } from "@/hooks/usePersonPhotoUrl";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Pencil, Save, Trash2, X } from "lucide-react";
@@ -21,18 +21,20 @@ import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
   deleteStudent,
-  loadStudentDetail,
-  loadStudentGuardians,
   resolveStudentsDetailView,
-  shouldCommitStudentsLoad,
   updateStudent,
   type StudentAccessStatus,
   type StudentDetailItem,
   type StudentGender,
-  type StudentGuardianDto,
   type StudentStatus,
   type StudentsListStatus,
 } from "@/lib/students";
+import {
+  useStudentDetailQuery,
+  useStudentGuardiansQuery,
+  adminModulePrefix,
+  adminQueryRoots,
+} from "@/lib/admin-queries";
 
 function detailHint(status: StudentsListStatus, errorMessage: string | null): string | null {
   if (status === "loading") return "Loading student profile…";
@@ -98,24 +100,54 @@ const GENDER_OPTIONS: StudentGender[] = [
 export function StudentProfileApiPage({ studentId }: { studentId: string }) {
   const notify = useAdminToast();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const instituteCtx = useInstituteContext();
   const writesEnabled = resolveWritesEnabled(true, {
     status: instituteCtx.status,
     activeInstituteId: instituteCtx.activeInstituteId,
   });
-  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
-  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
-  const [student, setStudent] = useState<StudentDetailItem | null>(null);
-  const [status, setStatus] = useState<StudentsListStatus>("loading");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useReloadKey();
+  const detailEnabled =
+    instituteCtx.status === "ready" && Boolean(instituteCtx.activeInstituteId);
+  const detailQuery = useStudentDetailQuery(
+    instituteCtx.activeInstituteId,
+    studentId,
+    detailEnabled,
+  );
+  const guardiansQuery = useStudentGuardiansQuery(
+    instituteCtx.activeInstituteId,
+    studentId,
+    detailEnabled && detailQuery.data?.status === "ready",
+  );
+
+  const student = detailQuery.data?.student ?? null;
+  const status: StudentsListStatus =
+    instituteCtx.status === "loading"
+      ? "loading"
+      : instituteCtx.status === "forbidden"
+        ? "forbidden"
+        : instituteCtx.status === "error"
+          ? "error"
+          : instituteCtx.status === "needs_selection" ||
+              instituteCtx.status === "empty" ||
+              !instituteCtx.activeInstituteId
+            ? "needs_institute"
+            : detailQuery.isLoading && !detailQuery.data
+              ? "loading"
+              : (detailQuery.data?.status ?? "loading");
+  const errorMessage =
+    instituteCtx.status === "error" || instituteCtx.status === "forbidden"
+      ? instituteCtx.errorMessage
+      : (detailQuery.data?.errorMessage ?? null);
+  const resolvedForInstituteId =
+    detailQuery.data && detailEnabled ? instituteCtx.activeInstituteId : null;
+  const guardians =
+    guardiansQuery.data?.status === "ready" ? guardiansQuery.data.guardians : [];
+
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<EditDraft | null>(null);
   const [saveError, setSaveError] = useState("");
   const [pendingDelete, setPendingDelete] = useState(false);
-  const [guardians, setGuardians] = useState<StudentGuardianDto[]>([]);
 
   const detailView = resolveStudentsDetailView({
     apiMode: true,
@@ -135,81 +167,16 @@ export function StudentProfileApiPage({ studentId }: { studentId: string }) {
     setSaveError("");
   }, [instituteCtx.activeInstituteId, studentId]);
 
-  useEffect(() => {
-    if (instituteCtx.status === "loading") {
-      setStudent(null);
-      setStatus("loading");
-      setErrorMessage(null);
-      setResolvedForInstituteId(null);
-      return;
-    }
-
-    if (instituteCtx.status === "error" || instituteCtx.status === "forbidden") {
-      setStudent(null);
-      setStatus(instituteCtx.status === "forbidden" ? "forbidden" : "error");
-      setErrorMessage(instituteCtx.errorMessage);
-      setResolvedForInstituteId(null);
-      return;
-    }
-
-    if (
-      instituteCtx.status === "needs_selection" ||
-      instituteCtx.status === "empty" ||
-      !instituteCtx.activeInstituteId
-    ) {
-      setStudent(null);
-      setStatus("needs_institute");
-      setErrorMessage(null);
-      setResolvedForInstituteId(null);
-      return;
-    }
-
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setStudent(null);
-    setStatus("loading");
-    setErrorMessage(null);
-    void loadStudentDetail(studentId, requestInstituteId).then((next) => {
-      if (
-        !shouldCommitStudentsLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setStudent(next.student);
-      setStatus(next.status);
-      setErrorMessage(next.errorMessage);
-      setResolvedForInstituteId(requestInstituteId);
+  const invalidateStudentCaches = () => {
+    const id = instituteCtx.activeInstituteId;
+    if (!id) return;
+    void queryClient.invalidateQueries({
+      queryKey: adminModulePrefix(id, adminQueryRoots.student),
     });
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    instituteCtx.status,
-    instituteCtx.activeInstituteId,
-    instituteCtx.errorMessage,
-    studentId,
-    reloadKey,
-  ]);
-
-  useEffect(() => {
-    if (status !== "ready" || !student) {
-      setGuardians([]);
-      return;
-    }
-    let cancelled = false;
-    void loadStudentGuardians(studentId).then((result) => {
-      if (cancelled) return;
-      setGuardians(result.status === "ready" ? result.guardians : []);
+    void queryClient.invalidateQueries({
+      queryKey: adminModulePrefix(id, adminQueryRoots.students),
     });
-    return () => {
-      cancelled = true;
-    };
-  }, [studentId, student, status, reloadKey]);
-
+  };
   const hint = detailHint(detailView.status, detailView.errorMessage);
   const displayStudent = detailView.detailValid ? detailView.student : null;
   const photo = usePersonPhotoUrl("student", displayStudent?.id, displayStudent?.photoAssetPath);
@@ -272,7 +239,7 @@ export function StudentProfileApiPage({ studentId }: { studentId: string }) {
         setEditing(false);
         setDraft(null);
         setSaveError("");
-        setReloadKey((k) => k + 1);
+        invalidateStudentCaches();
         notify("Student updated");
       })
       .catch((err) => {
@@ -285,6 +252,7 @@ export function StudentProfileApiPage({ studentId }: { studentId: string }) {
     void deleteStudent(studentId)
       .then(() => {
         setPendingDelete(false);
+        invalidateStudentCaches();
         notify("Student deleted");
         void navigate({ to: "/students" });
       })

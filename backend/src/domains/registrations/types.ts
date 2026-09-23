@@ -4,6 +4,8 @@ export const MAX_REGISTRATION_LOGO_DATA_URL_CHARS = 3_000_000;
 
 export type InstituteRegistrationPayload = {
   instituteName: string;
+  /** Unique short code for login picker (e.g. lumenx-001). */
+  instituteCode?: string;
   instituteType?: string;
   educationBoard?: string;
   country?: string;

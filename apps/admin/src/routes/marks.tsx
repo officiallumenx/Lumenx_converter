@@ -80,7 +80,7 @@ import {
   type MarkStudentScoreItem,
   type MarksListStatus,
 } from "@/lib/marks";
-import { useMarksListQuery, adminQueryRoots } from "@/lib/admin-queries";
+import { useMarksListQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { adminDataFacade } from "@/lib/admin-data-facade";
 
@@ -136,7 +136,7 @@ function MarksPage() {
     invalidateAdminCache("admin:marks");
     if (instituteCtx.activeInstituteId) {
       void queryClient.invalidateQueries({
-        queryKey: [adminQueryRoots.marks, instituteCtx.activeInstituteId],
+        queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.marks),
       });
     }
   };

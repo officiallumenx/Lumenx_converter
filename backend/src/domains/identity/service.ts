@@ -8,6 +8,7 @@ import {
   requireInstituteId,
 } from "../../authorization/index.js";
 import {
+  findInstituteByCode,
   findInstituteById,
   findInstituteSettings,
   findMembershipById,
@@ -260,17 +261,26 @@ export async function updateInstituteForActor(
   if (!existing) throw AppError.notFound("Institute not found");
 
   if (actor.isPlatformOperator) {
-    // full update including code
+    // Platform operators may update any active institute identity fields.
   } else {
+    // Institute admins / principals may update their own institute name, code, kind, status.
     assertInstituteRoles(actor, instituteId, [...INSTITUTE_UPDATE_ROLES]);
-    if (patch.code !== undefined) {
-      throw AppError.forbidden("Only platform operators may change institute code");
-    }
   }
 
   const fieldPatch = toInstituteUpdatePatch(patch);
   if (typeof fieldPatch.name === "string") fieldPatch.name = fieldPatch.name.trim();
-  if (typeof fieldPatch.code === "string") fieldPatch.code = fieldPatch.code.trim();
+  if (typeof fieldPatch.code === "string") {
+    fieldPatch.code = fieldPatch.code.trim();
+    if (
+      fieldPatch.code &&
+      fieldPatch.code.toLowerCase() !== existing.code.toLowerCase()
+    ) {
+      const clash = await findInstituteByCode(admin, fieldPatch.code);
+      if (clash && clash.id !== existing.id) {
+        throw AppError.conflict("Institute code is already in use");
+      }
+    }
+  }
 
   if (Object.keys(fieldPatch).length === 0) {
     return toInstituteDto(existing);

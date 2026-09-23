@@ -1,13 +1,12 @@
-import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, AtSign, Building2, Lock, ShieldCheck } from "lucide-react";
-import { useNavigate } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
+import { ArrowLeft, ArrowRight, AtSign, Building2, Check, ChevronDown, Lock, ShieldCheck } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
 
 import { useAuth } from "@/auth/AuthContext";
 import { AuthLayout } from "@/auth/components/AuthLayout";
 import { AuthInput } from "@/auth/components/AuthInput";
 import { AuthButton } from "@/auth/components/AuthButton";
 import { AuthFormError } from "@/auth/components/AuthFormError";
-import { AuthInfoCallout } from "@/auth/components/AuthInfoCallout";
 import { DemoOtpHint } from "@/auth/components/DemoOtpHint";
 import { OtpInput } from "@/auth/components/OtpInput";
 import {
@@ -24,7 +23,51 @@ import {
   type StaffLoginInstituteDto,
 } from "@/lib/access-roles";
 import { isInstituteUuid } from "@/lib/active-institute";
-import { Select } from "@lumenx/ui-admin";
+import { cn } from "@lumenx/ui";
+
+function isInstituteLogoUrl(value: string | null | undefined): boolean {
+  const v = value?.trim() ?? "";
+  return (
+    v.startsWith("data:image/") ||
+    v.startsWith("https://") ||
+    v.startsWith("http://")
+  );
+}
+
+function LoginInstituteMark({
+  name,
+  logoUrl,
+  size = "sm",
+}: {
+  name: string;
+  logoUrl?: string | null;
+  size?: "sm" | "md";
+}) {
+  const dim = size === "md" ? "size-7" : "size-6";
+  if (isInstituteLogoUrl(logoUrl)) {
+    return (
+      <span
+        className={cn(
+          dim,
+          "shrink-0 overflow-hidden rounded-md border border-border/80 bg-background",
+        )}
+      >
+        <img src={logoUrl!} alt="" className="size-full object-cover" />
+      </span>
+    );
+  }
+  return (
+    <span
+      className={cn(
+        dim,
+        "flex shrink-0 items-center justify-center overflow-hidden rounded-md border border-border/80 bg-muted/40",
+      )}
+      title={name}
+    >
+      <Building2 className="size-3.5 text-muted-foreground" aria-hidden />
+    </span>
+  );
+}
 
 /**
  * Admin root + operator notebook login:
@@ -67,6 +110,7 @@ export function AdminLoginFlow() {
   const [step, setStep] = useState<LoginStep>("institute");
   const [institutes, setInstitutes] = useState<StaffLoginInstituteDto[]>([]);
   const [institutesLoading, setInstitutesLoading] = useState(false);
+  const [institutePickerOpen, setInstitutePickerOpen] = useState(false);
   const [instituteId, setInstituteId] = useState(() => {
     try {
       return localStorage.getItem(INSTITUTE_STORAGE_KEY) ?? "";
@@ -82,7 +126,6 @@ export function AdminLoginFlow() {
   const [rememberMe, setRememberMe] = useState(false);
   const [requiresOtp, setRequiresOtp] = useState(true);
   const [requiresDualOtp, setRequiresDualOtp] = useState(false);
-  const [isInstituteRoot, setIsInstituteRoot] = useState(false);
   const [maskedDestination, setMaskedDestination] = useState("");
   const [maskedEmailDestination, setMaskedEmailDestination] = useState("");
   const [devOtp, setDevOtp] = useState<string | undefined>();
@@ -98,6 +141,26 @@ export function AdminLoginFlow() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
+  const institutePickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!institutePickerOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      const root = institutePickerRef.current;
+      if (root && !root.contains(event.target as Node)) {
+        setInstitutePickerOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setInstitutePickerOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [institutePickerOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -158,7 +221,6 @@ export function AdminLoginFlow() {
         identifier: identifier.trim(),
       });
       setDisplayName(mode.displayName);
-      setIsInstituteRoot(Boolean(mode.isInstituteRoot));
       setRequiresOtp(Boolean(mode.requiresOtp));
       // Mobile server OTP + password is enough.
       // Email OTP needs Resend; skip until OTP_EMAIL_PROVIDER is fully configured.
@@ -632,50 +694,59 @@ export function AdminLoginFlow() {
 
   return (
     <AuthLayout
-      title="Login to LumenX Admin"
+      title={
+        step === "institute"
+          ? "Sign in"
+          : step === "identifier"
+            ? "Your ID"
+            : step === "mobile_otp" || step === "email_otp"
+              ? "Enter code"
+              : step === "password"
+                ? "Password"
+                : step === "pin"
+                  ? "PIN"
+                  : step.startsWith("forgot_password")
+                    ? "Reset password"
+                    : step.startsWith("forgot_pin")
+                      ? "Reset PIN"
+                      : "Sign in"
+      }
       subtitle={
         step === "institute"
-          ? "Select your institute to continue"
+          ? "Choose your institute"
           : step === "identifier"
-            ? "Enter username, email, or mobile"
+            ? "Username, email, or mobile"
             : step === "mobile_otp"
-              ? `We sent a mobile code to ${maskedDestination || "your phone"}.`
+              ? maskedDestination
+                ? `Sent to ${maskedDestination}`
+                : undefined
               : step === "email_otp"
-                ? `We sent an email code to ${maskedEmailDestination || "your email"}.`
+                ? maskedEmailDestination
+                  ? `Sent to ${maskedEmailDestination}`
+                  : undefined
                 : step === "password"
-                  ? `Continue as ${displayName || identifier.trim()}`
+                  ? displayName || undefined
                   : step === "pin"
-                    ? "Enter your PIN to open Admin"
-                    : step.startsWith("forgot_password")
-                      ? "Reset your password"
-                      : step.startsWith("forgot_pin")
-                        ? "Reset your PIN"
-                        : ""
+                    ? "Unlock Admin"
+                    : undefined
       }
       showBack={step === "institute"}
       backTo="/welcome"
       backLabel="Back"
+      footer={
+        step === "institute" ? (
+          <>
+            New institute?{" "}
+            <Link to="/signup" className="font-medium text-primary hover:underline">
+              Register
+            </Link>
+          </>
+        ) : undefined
+      }
     >
-      <AuthInfoCallout
-          icon={ShieldCheck}
-          title={
-            isInstituteRoot
-                ? "Institute root sign-in"
-                : "Staff Admin sign-in"
-          }
-          variant="primary"
-          className="mb-6"
-        >
-          {requiresDualOtp
-              ? "First login: identifier · mobile OTP · email OTP · password · PIN"
-              : requiresOtp
-                ? "First login: identifier · OTP · password · PIN"
-                : "Returning: identifier · password · PIN"}
-        </AuthInfoCallout>
-
       {showProgress && (
         <div
-          className="mb-6 h-1.5 overflow-hidden rounded-full bg-muted"
+          className="mb-5 h-1 overflow-hidden rounded-full bg-muted"
           role="progressbar"
           aria-valuemin={1}
           aria-valuemax={visibleSteps.length}
@@ -701,33 +772,99 @@ export function AdminLoginFlow() {
         <form onSubmit={handleInstitute} className="space-y-4" noValidate>
           <div>
             <label
-              htmlFor="instituteId"
+              id="institute-picker-label"
               className="mb-1.5 block text-xs font-medium text-foreground"
             >
               Institute
             </label>
-            <div className="relative">
-              <Building2 className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Select
+            <div className="relative" ref={institutePickerRef}>
+              <button
+                type="button"
                 id="instituteId"
-                value={instituteId}
-                onChange={(event) => {
-                  setInstituteId(event.target.value);
-                  setError(null);
-                }}
-                className="h-11 w-full pl-10"
+                aria-labelledby="institute-picker-label"
+                aria-haspopup="listbox"
+                aria-expanded={institutePickerOpen}
                 disabled={institutesLoading}
-                required
+                onClick={() => setInstitutePickerOpen((open) => !open)}
+                className={cn(
+                  "flex h-11 w-full items-center gap-2.5 rounded-md border border-input bg-background px-2.5 text-left text-sm shadow-sm transition-colors",
+                  "hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  institutePickerOpen && "ring-2 ring-ring",
+                  institutesLoading && "opacity-60",
+                )}
               >
-                <option value="">
-                  {institutesLoading ? "Loading institutes…" : "Select institute"}
-                </option>
-                {institutes.map((institute) => (
-                  <option key={institute.id} value={institute.id}>
-                    {institute.name} · {institute.code}
-                  </option>
-                ))}
-              </Select>
+                <LoginInstituteMark
+                  name={selectedInstitute?.name ?? "Institute"}
+                  logoUrl={selectedInstitute?.logoUrl}
+                />
+                <span className="min-w-0 flex-1 truncate">
+                  {institutesLoading
+                    ? "Loading institutes…"
+                    : selectedInstitute
+                      ? `${selectedInstitute.name} · ${selectedInstitute.code}`
+                      : "Select institute"}
+                </span>
+                <ChevronDown
+                  className={cn(
+                    "size-4 shrink-0 text-muted-foreground transition-transform",
+                    institutePickerOpen && "rotate-180",
+                  )}
+                  aria-hidden
+                />
+              </button>
+
+              {institutePickerOpen && !institutesLoading ? (
+                <ul
+                  role="listbox"
+                  aria-labelledby="institute-picker-label"
+                  className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-50 max-h-60 overflow-auto rounded-md border border-border bg-popover py-1 shadow-md"
+                >
+                  {institutes.length === 0 ? (
+                    <li className="px-3 py-2 text-xs text-muted-foreground">
+                      No institutes available
+                    </li>
+                  ) : (
+                    institutes.map((institute) => {
+                      const selected = institute.id === instituteId;
+                      return (
+                        <li key={institute.id} role="presentation">
+                          <button
+                            type="button"
+                            role="option"
+                            aria-selected={selected}
+                            className={cn(
+                              "flex w-full items-center gap-2.5 px-2.5 py-2 text-left text-sm hover:bg-muted",
+                              selected && "bg-primary/10",
+                            )}
+                            onClick={() => {
+                              setInstituteId(institute.id);
+                              setError(null);
+                              setInstitutePickerOpen(false);
+                            }}
+                          >
+                            <LoginInstituteMark
+                              name={institute.name}
+                              logoUrl={institute.logoUrl}
+                              size="md"
+                            />
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate font-medium text-foreground">
+                                {institute.name}
+                              </span>
+                              <span className="block truncate text-[11px] text-muted-foreground">
+                                {institute.code}
+                              </span>
+                            </span>
+                            {selected ? (
+                              <Check className="size-4 shrink-0 text-primary" aria-hidden />
+                            ) : null}
+                          </button>
+                        </li>
+                      );
+                    })
+                  )}
+                </ul>
+              ) : null}
             </div>
             {selectedInstitute ? (
               <p className="mt-1.5 text-[11px] text-muted-foreground">
@@ -869,7 +1006,7 @@ export function AdminLoginFlow() {
               className="mt-0.5 size-4 rounded border-border accent-primary"
             />
             <span className="text-xs text-muted-foreground">
-              Keep me logged in on this device
+              Stay signed in
             </span>
           </label>
           <button

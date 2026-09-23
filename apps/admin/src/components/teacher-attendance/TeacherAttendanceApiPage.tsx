@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useStaffAttendanceDayQuery,
   useStaffAttendanceRangeQuery,
-  adminQueryRoots,
+  adminModulePrefix, adminQueryRoots,
 } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import {
@@ -161,7 +161,7 @@ export function TeacherAttendanceApiPage() {
     invalidateAdminCache("admin:attendance");
     if (instituteCtx.activeInstituteId) {
       void queryClient.invalidateQueries({
-        queryKey: [adminQueryRoots.attendance, instituteCtx.activeInstituteId],
+        queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.teacherAttendance),
       });
     }
   };

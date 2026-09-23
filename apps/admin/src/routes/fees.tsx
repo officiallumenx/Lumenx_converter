@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { useFeesSnapshotQuery, useStudentsListQuery, useAcademicYearsListQuery, adminQueryRoots } from "@/lib/admin-queries";
+import { useFeesSnapshotQuery, useStudentsListQuery, useAcademicYearsListQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
 import { AdminPageTransition } from "@/components/AdminPageTransition";
@@ -185,13 +185,13 @@ function FeesPage() {
     invalidateAdminCache("admin:fees");
     if (instituteCtx.activeInstituteId) {
       void queryClient.invalidateQueries({
-        queryKey: [adminQueryRoots.fees, instituteCtx.activeInstituteId],
+        queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.fees),
       });
       void queryClient.invalidateQueries({
-        queryKey: [adminQueryRoots.students, instituteCtx.activeInstituteId],
+        queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.students),
       });
       void queryClient.invalidateQueries({
-        queryKey: [adminQueryRoots.catalog, instituteCtx.activeInstituteId],
+        queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.catalog),
       });
     }
   };

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { useTimetableReadQuery, adminQueryRoots } from "@/lib/admin-queries";
+import { useTimetableReadQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
 import { useAdminToast } from "@/components/AdminActionToast";
@@ -108,7 +108,7 @@ export function TimetableApiPage() {
     invalidateAdminCache("admin:timetable");
     if (instituteCtx.activeInstituteId) {
       void queryClient.invalidateQueries({
-        queryKey: [adminQueryRoots.timetable, instituteCtx.activeInstituteId],
+        queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.timetable),
       });
     }
   };

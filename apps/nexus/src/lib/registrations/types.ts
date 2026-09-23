@@ -1,5 +1,6 @@
 export type InstituteRegistrationPayload = {
   instituteName: string;
+  instituteCode?: string;
   instituteType?: string;
   educationBoard?: string;
   country?: string;

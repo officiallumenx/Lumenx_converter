@@ -1,15 +1,10 @@
-import { useEffect, useRef, useState } from "react";
-import { useDataRefreshGeneration } from "@/hooks/useReloadKey";
+import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Card, CardHeader, Kpi, Pill, Button, EmptyState } from "@lumenx/ui-admin";
 import { useInstituteContext } from "@/lib/institutes";
 import {
-  loadDashboardSummary,
-  loadDashboardWidgets,
   resolveDashboardSummaryView,
-  shouldCommitDashboardLoad,
   type DashboardLoadStatus,
-  type DashboardSummary,
   type DashboardWidgetsState,
 } from "@/lib/dashboard";
 import { Bell, Users,
@@ -31,7 +26,11 @@ import {
 import { HomeQuickActionsCard } from "@/components/HomeQuickActionsCard";
 import { SetupChecklistBanner } from "@/components/setup/SetupChecklistPanel";
 import { useSetupChecklist } from "@/lib/institute-setup-checklist";
-import { useNotificationsListQuery } from "@/lib/admin-queries";
+import {
+  useHomeSummaryQuery,
+  useHomeWidgetsQuery,
+  useNotificationsListQuery,
+} from "@/lib/admin-queries";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { listTransportEmergencies } from "@/lib/transport/ops-api";
 import { syncPendingReviewsComplaintsApi } from "@/lib/pending-reviews";
@@ -72,98 +71,98 @@ function formatSubmittedAt(iso: string | null): string {
 
 export function HomeApiSummaryPanel() {
   const instituteCtx = useInstituteContext();
-  const dataRefreshGeneration = useDataRefreshGeneration();
-  const [summary, setSummary] = useState<DashboardSummary | null>(null);
-  const [loadStatus, setLoadStatus] = useState<DashboardLoadStatus>("loading");
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [widgets, setWidgets] = useState<DashboardWidgetsState>(emptyWidgets);
+  const { state: setupState } = useSetupChecklist();
+  const apiMode = isApiAuthMode();
+  const queriesEnabled =
+    apiMode &&
+    instituteCtx.status === "ready" &&
+    Boolean(instituteCtx.activeInstituteId);
+
+  const summaryQuery = useHomeSummaryQuery(
+    instituteCtx.activeInstituteId,
+    queriesEnabled,
+  );
+  const widgetsQuery = useHomeWidgetsQuery(
+    instituteCtx.activeInstituteId,
+    queriesEnabled,
+  );
+  const inboxQuery = useNotificationsListQuery(
+    instituteCtx.activeInstituteId,
+    queriesEnabled,
+  );
+
   const [transportEmergencies, setTransportEmergencies] = useState<
     Awaited<ReturnType<typeof listTransportEmergencies>>
   >([]);
-  const { state: setupState } = useSetupChecklist();
-  const apiMode = isApiAuthMode();
-  const inboxQuery = useNotificationsListQuery(
-    instituteCtx.activeInstituteId,
-    apiMode && instituteCtx.status === "ready" && Boolean(instituteCtx.activeInstituteId),
-  );
+
   const inboxItems = inboxQuery.data?.items ?? [];
   const inboxUnread = inboxItems.filter((n) => n.unread).length;
-  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(null);
-  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
-  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
+
+  const summary = summaryQuery.data?.summary ?? null;
+  const loadStatus: DashboardLoadStatus =
+    instituteCtx.status === "loading"
+      ? "loading"
+      : instituteCtx.status === "forbidden"
+        ? "forbidden"
+        : instituteCtx.status === "error"
+          ? "error"
+          : instituteCtx.status === "needs_selection" ||
+              instituteCtx.status === "empty" ||
+              !instituteCtx.activeInstituteId
+            ? "needs_institute"
+            : summaryQuery.isLoading && !summaryQuery.data
+              ? "loading"
+              : (summaryQuery.data?.status ?? "loading");
+  const loadError =
+    instituteCtx.status === "error" || instituteCtx.status === "forbidden"
+      ? instituteCtx.errorMessage
+      : (summaryQuery.data?.errorMessage ?? null);
+  const resolvedForInstituteId =
+    summaryQuery.data && queriesEnabled ? instituteCtx.activeInstituteId : null;
+
+  const widgets = widgetsQuery.data ?? emptyWidgets();
+  const widgetsValid =
+    Boolean(widgetsQuery.data) &&
+    queriesEnabled &&
+    (widgets.status === "ready" ||
+      widgets.status === "error" ||
+      widgets.status === "forbidden");
+  const widgetsLoading = widgetsQuery.isLoading && !widgetsQuery.data;
 
   useEffect(() => {
-    if (instituteCtx.status === "loading") {
-      setSummary(null);
-      setLoadStatus("loading");
-      setLoadError(null);
-      setWidgets(emptyWidgets());
-      setResolvedForInstituteId(null);
+    if (!queriesEnabled || !instituteCtx.activeInstituteId) {
+      setTransportEmergencies([]);
       return;
     }
-    if (instituteCtx.status === "error" || instituteCtx.status === "forbidden") {
-      setSummary(null);
-      setLoadStatus(instituteCtx.status === "forbidden" ? "forbidden" : "error");
-      setLoadError(instituteCtx.errorMessage);
-      setWidgets(emptyWidgets());
-      setResolvedForInstituteId(null);
-      return;
-    }
-    if (
-      instituteCtx.status === "needs_selection" ||
-      instituteCtx.status === "empty" ||
-      !instituteCtx.activeInstituteId
-    ) {
-      setSummary(null);
-      setLoadStatus("needs_institute");
-      setLoadError(null);
-      setWidgets(emptyWidgets());
-      setResolvedForInstituteId(null);
-      return;
-    }
-
     const requestInstituteId = instituteCtx.activeInstituteId;
     let cancelled = false;
-    // Soft refresh: keep showing prior data; only spin on first load / institute switch.
-    if (resolvedForInstituteId !== requestInstituteId) {
-      setLoadStatus("loading");
-      setLoadError(null);
-      setWidgets((w) => ({ ...w, status: "loading" }));
-    }
-
-    void Promise.all([
-      loadDashboardSummary(requestInstituteId),
-      loadDashboardWidgets(requestInstituteId),
-      listTransportEmergencies({ instituteId: requestInstituteId, status: "active" }).catch(
-        () => [],
-      ),
-    ]).then(([summaryNext, widgetsNext, emergencies]) => {
-      if (
-        !shouldCommitDashboardLoad({
-          cancelled,
-          requestInstituteId,
-          activeInstituteId: activeInstituteIdRef.current,
-        })
-      ) {
-        return;
-      }
-      setSummary(summaryNext.summary);
-      setLoadStatus(summaryNext.status);
-      setLoadError(summaryNext.errorMessage);
-      setWidgets(widgetsNext);
-      setTransportEmergencies(emergencies);
-      setResolvedForInstituteId(requestInstituteId);
-      if (summaryNext.summary) {
-        syncPendingReviewsComplaintsApi(
-          requestInstituteId,
-          summaryNext.summary.pendingLeave,
-        );
-      }
-    });
+    void listTransportEmergencies({
+      instituteId: requestInstituteId,
+      status: "active",
+    })
+      .catch(() => [])
+      .then((emergencies) => {
+        if (cancelled) return;
+        if (instituteCtx.activeInstituteId !== requestInstituteId) return;
+        setTransportEmergencies(emergencies);
+      });
     return () => {
       cancelled = true;
     };
-  }, [instituteCtx.status, instituteCtx.activeInstituteId, instituteCtx.errorMessage, dataRefreshGeneration]);
+  }, [queriesEnabled, instituteCtx.activeInstituteId]);
+
+  useEffect(() => {
+    if (!queriesEnabled || !instituteCtx.activeInstituteId) return;
+    if (!summaryQuery.data?.summary) return;
+    syncPendingReviewsComplaintsApi(
+      instituteCtx.activeInstituteId,
+      summaryQuery.data.summary.pendingLeave,
+    );
+  }, [
+    queriesEnabled,
+    instituteCtx.activeInstituteId,
+    summaryQuery.data?.summary,
+  ]);
 
   const view = resolveDashboardSummaryView({
     apiMode: true,
@@ -175,12 +174,6 @@ export function HomeApiSummaryPanel() {
     storedErrorMessage: loadError,
     instituteErrorMessage: instituteCtx.errorMessage,
   });
-
-  const widgetsValid =
-    resolvedForInstituteId === instituteCtx.activeInstituteId &&
-    (widgets.status === "ready" ||
-      widgets.status === "error" ||
-      widgets.status === "forbidden");
 
   const hint = statusHint(view.status, view.errorMessage);
 
@@ -319,7 +312,7 @@ export function HomeApiSummaryPanel() {
           }
         />
         <div className="px-3 pb-3">
-          {!widgetsValid ? (
+          {widgetsLoading || !widgetsValid ? (
             <p className="text-sm text-muted-foreground px-1">Loading birthdays…</p>
           ) : widgets.birthdays.status === "error" ? (
             <p className="text-sm text-muted-foreground px-1">
@@ -441,7 +434,7 @@ export function HomeApiSummaryPanel() {
             }
           />
           <div className="px-3 pb-3">
-            {!widgetsValid ? (
+            {widgetsLoading || !widgetsValid ? (
               <p className="text-sm text-muted-foreground px-1">Loading diary…</p>
             ) : widgets.diary.status === "error" ? (
               <p className="text-sm text-muted-foreground px-1">
@@ -493,7 +486,7 @@ export function HomeApiSummaryPanel() {
             }
           />
           <div className="px-3 pb-3">
-            {!widgetsValid ? (
+            {widgetsLoading || !widgetsValid ? (
               <p className="text-sm text-muted-foreground px-1">Loading attendance…</p>
             ) : widgets.attendanceDrafts.status === "error" ? (
               <p className="text-sm text-muted-foreground px-1">
@@ -542,7 +535,7 @@ export function HomeApiSummaryPanel() {
             }
           />
           <div className="px-3 pb-3">
-            {!widgetsValid ? (
+            {widgetsLoading || !widgetsValid ? (
               <p className="text-sm text-muted-foreground px-1">Loading marks…</p>
             ) : widgets.marksPending.status === "error" ? (
               <p className="text-sm text-muted-foreground px-1">
