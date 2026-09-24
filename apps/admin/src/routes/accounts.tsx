@@ -567,7 +567,8 @@ function AccountsPage() {
                   <PeopleDirectoryCard
                     key={a.id}
                     name={a.name}
-                    id={`${a.id} · ${a.role}`}
+                    personId={a.id}
+                    subtitle={a.role}
                     status={<AccountStatusPill status={a.status} />}
                     meta={
                       <>

@@ -1,8 +1,10 @@
-import { Card, CascadingFiltersMenu } from "@lumenx/ui-admin";
+import { Card, Select } from "@lumenx/ui-admin";
+import { StudentAttendanceClassSelect } from "./StudentAttendanceClassSelect";
+import { StudentAttendanceDateField } from "./StudentAttendanceDateField";
 import { StudentAttendanceSearchField } from "./StudentAttendanceSearchField";
+import { StudentAttendanceSectionSelect } from "./StudentAttendanceSectionSelect";
 import {
   STUDENT_ATTENDANCE_STATUS_OPTIONS,
-  todayIsoDate,
   type StudentAttendanceClassOption,
   type StudentAttendanceSectionOption,
   type StudentAttendanceStatusFilter,
@@ -18,7 +20,7 @@ export type StudentAttendanceFiltersProps = {
 };
 
 /**
- * Filters block (class · section · date · status) + normal search field.
+ * Visible class · section · date · status fields + search.
  */
 export function StudentAttendanceFilters({
   state,
@@ -29,53 +31,49 @@ export function StudentAttendanceFilters({
 }: StudentAttendanceFiltersProps) {
   return (
     <Card>
-      <div className="lx-filter-bar flex flex-wrap items-center gap-2 px-3 py-2 sm:px-4">
-        <CascadingFiltersMenu
-          disabled={disabled}
-          groups={[
-            {
-              id: "class",
-              label: "Class",
-              value: state.classId,
-              clearValues: [""],
-              onChange: (classId) => onChange({ classId, sectionId: "" }),
-              options: [
-                { value: "", label: "Select class" },
-                ...classOptions.map((c) => ({ value: c.id, label: c.label })),
-              ],
-            },
-            {
-              id: "section",
-              label: "Section",
-              value: state.sectionId,
-              clearValues: [""],
-              onChange: (sectionId) => onChange({ sectionId }),
-              options: [
-                { value: "", label: "Select section" },
-                ...sectionOptions.map((s) => ({ value: s.id, label: s.label })),
-              ],
-            },
-            {
-              id: "date",
-              label: "Date",
-              kind: "date",
-              value: state.date,
-              clearValues: [todayIsoDate()],
-              onChange: (date) => onChange({ date }),
-            },
-            {
-              id: "status",
-              label: "Status",
-              value: state.status,
-              onChange: (status) => onChange({ status: status as StudentAttendanceStatusFilter }),
-              options: STUDENT_ATTENDANCE_STATUS_OPTIONS.map((o) => ({
-                value: o.value,
-                label: o.label,
-              })),
-            },
-          ]}
-        />
-        <div className="min-w-[12rem] flex-1">
+      <div className="lx-filter-bar space-y-2 px-3 py-2.5 sm:px-4">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <StudentAttendanceClassSelect
+            value={state.classId}
+            options={classOptions}
+            disabled={disabled}
+            onChange={(classId) => onChange({ classId, sectionId: "" })}
+          />
+          <StudentAttendanceSectionSelect
+            value={state.sectionId}
+            options={sectionOptions}
+            disabled={disabled || !state.classId}
+            onChange={(sectionId) => onChange({ sectionId })}
+          />
+          <StudentAttendanceDateField
+            value={state.date}
+            disabled={disabled}
+            onChange={(date) => onChange({ date })}
+          />
+          <label className="block min-w-0 text-xs" htmlFor="student-attendance-status">
+            <span className="mb-0.5 block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              Status
+            </span>
+            <Select
+              id="student-attendance-status"
+              fieldSize="compact"
+              className="lx-filter-field"
+              value={state.status}
+              disabled={disabled}
+              onChange={(e) =>
+                onChange({ status: e.target.value as StudentAttendanceStatusFilter })
+              }
+              aria-label="Attendance status"
+            >
+              {STUDENT_ATTENDANCE_STATUS_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </Select>
+          </label>
+        </div>
+        <div className="min-w-0 sm:max-w-sm">
           <StudentAttendanceSearchField
             value={state.search}
             disabled={disabled}

@@ -1,5 +1,16 @@
 import type { MembershipDto, MembershipListItem } from "./types";
 
+/** Provisioned Connect placeholders — not useful as admin-facing contact. */
+export function isInternalSystemEmail(email: string | null | undefined): boolean {
+  const value = email?.trim().toLowerCase() ?? "";
+  if (!value) return false;
+  return (
+    value.endsWith(".invalid") ||
+    value.endsWith("@connect.lumenx.invalid") ||
+    value.includes(".lumenx.invalid")
+  );
+}
+
 export function membershipIdentityLabel(dto: {
   displayName?: string | null;
   email?: string | null;
@@ -8,16 +19,17 @@ export function membershipIdentityLabel(dto: {
   const name = dto.displayName?.trim();
   if (name) return name;
   const email = dto.email?.trim();
-  if (email) return email;
-  return dto.userId;
+  if (email && !isInternalSystemEmail(email)) return email;
+  return "Member";
 }
 
 export function membershipDtoToListItem(dto: MembershipDto): MembershipListItem {
+  const email = dto.email?.trim() || null;
   return {
     id: dto.id,
     userId: dto.userId,
     displayName: dto.displayName ?? null,
-    email: dto.email ?? null,
+    email: email && !isInternalSystemEmail(email) ? email : null,
     identityLabel: membershipIdentityLabel(dto),
     status: dto.status,
     roles: dto.roles,

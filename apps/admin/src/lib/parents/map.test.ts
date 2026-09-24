@@ -72,7 +72,16 @@ describe("parents DTO mapping", () => {
       parentIdentityLabel(
         dto({ legacyCode: null, id: "ba111111-1111-4111-8111-111111111111" }),
       ),
-    ).toBe("ba111111");
+    ).toBe("9876512345");
+    expect(
+      parentIdentityLabel(
+        dto({
+          legacyCode: null,
+          phone: null,
+          id: "ba111111-1111-4111-8111-111111111111",
+        }),
+      ),
+    ).toBe("");
   });
 
   it("ignores inactive links and handles sparse fields", () => {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardHeader, Kpi, Pill, Button, EmptyState } from "@lumenx/ui-admin";
 import { useInstituteContext } from "@/lib/institutes";
 import {
@@ -27,14 +28,18 @@ import { HomeQuickActionsCard } from "@/components/HomeQuickActionsCard";
 import { SetupChecklistBanner } from "@/components/setup/SetupChecklistPanel";
 import { useSetupChecklist } from "@/lib/institute-setup-checklist";
 import {
+  adminQueryRoots,
+  invalidateAdminModule,
   useHomeSummaryQuery,
   useHomeWidgetsQuery,
   useNotificationsListQuery,
 } from "@/lib/admin-queries";
+import { updateInboxItem } from "@/lib/notification-inbox/mutations";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { listTransportEmergencies } from "@/lib/transport/ops-api";
 import { syncPendingReviewsComplaintsApi } from "@/lib/pending-reviews";
 import { IconChip } from "@/components/IconChip";
+import { useAdminToast } from "@/components/AdminActionToast";
 
 function statusHint(status: DashboardLoadStatus, error: string | null): string {
   if (status === "loading") return "Loading institute summary…";
@@ -72,6 +77,9 @@ function formatSubmittedAt(iso: string | null): string {
 export function HomeApiSummaryPanel() {
   const instituteCtx = useInstituteContext();
   const { state: setupState } = useSetupChecklist();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const notify = useAdminToast();
   const apiMode = isApiAuthMode();
   const queriesEnabled =
     apiMode &&
@@ -94,9 +102,32 @@ export function HomeApiSummaryPanel() {
   const [transportEmergencies, setTransportEmergencies] = useState<
     Awaited<ReturnType<typeof listTransportEmergencies>>
   >([]);
+  const [markingReadId, setMarkingReadId] = useState<string | null>(null);
 
   const inboxItems = inboxQuery.data?.items ?? [];
-  const inboxUnread = inboxItems.filter((n) => n.unread).length;
+  const unreadNotifications = inboxItems.filter((n) => n.unread);
+  const inboxUnread = unreadNotifications.length;
+
+  const openUnreadNotification = async (id: string) => {
+    if (markingReadId) return;
+    setMarkingReadId(id);
+    try {
+      await updateInboxItem(id, { read: true });
+      const instituteId = instituteCtx.activeInstituteId;
+      if (instituteId) {
+        await invalidateAdminModule(
+          queryClient,
+          instituteId,
+          adminQueryRoots.notifications,
+        );
+      }
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Failed to mark read");
+    } finally {
+      setMarkingReadId(null);
+    }
+    void navigate({ to: "/notifications", search: { tab: "inbox" } });
+  };
 
   const summary = summaryQuery.data?.summary ?? null;
   const loadStatus: DashboardLoadStatus =
@@ -247,57 +278,37 @@ export function HomeApiSummaryPanel() {
     <div className="space-y-4">
       <SetupChecklistBanner state={setupState} />
 
-      {apiMode ? (
-        <Card>
-          <CardHeader
-            title="Recent notifications"
-            hint="Your institute inbox"
-            action={
-              <div className="flex items-center gap-2">
-                {inboxUnread > 0 ? <Pill tone="info">{inboxUnread} unread</Pill> : <Pill tone="neutral">All read</Pill>}
-                <Link to="/notifications" search={{ tab: "inbox" }}>
-                  <Button size="sm" variant="outline">
-                    Open
-                  </Button>
-                </Link>
-              </div>
-            }
-          />
-          <div className="px-3 pb-3">
-            {inboxQuery.isLoading && inboxItems.length === 0 ? (
-              <p className="text-sm text-muted-foreground px-1">Loading notifications…</p>
-            ) : inboxItems.length === 0 ? (
-              <p className="text-sm text-muted-foreground px-1">No notifications yet.</p>
-            ) : (
-              <ul className="divide-y divide-border rounded-lg border border-border">
-                {inboxItems.slice(0, 6).map((row) => {
-                  const urgent = row.priority === "high";
-                  return (
-                    <li key={row.id} className="flex items-center gap-2.5 px-2.5 py-2">
-                      <IconChip
-                        icon={Bell}
-                        size="sm"
-                        variant={urgent ? "danger" : "brand"}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-medium">{row.title}</span>
-                        <span className="block text-[11px] text-muted-foreground">
-                          {row.desc} · {row.time}
-                        </span>
-                      </span>
-                      <Link to="/notifications" search={{ tab: "inbox" }}>
-                        <Button size="sm" variant="outline">
-                          Open
-                        </Button>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
+      <Card>
+        <CardHeader
+          title="Institute overview"
+          hint="Live institute counts"
+          action={<Pill tone="neutral">Read-only</Pill>}
+        />
+        {hint ? (
+          <p className="px-4 pb-4 text-sm text-muted-foreground">{hint}</p>
+        ) : view.summary ? (
+          <div className="px-4 pb-4 lx-kpi-grid">
+            <Kpi label="Students" value={String(view.summary.students)} icon={<Users className="size-3.5" />} />
+            <Kpi label="Teachers" value={String(view.summary.teachers)} icon={<GraduationCap className="size-3.5" />} />
+            <Kpi label="Parents" value={String(view.summary.parents)} icon={<Heart className="size-3.5" />} />
+            <Kpi
+              label="Open complaints"
+              value={String(view.summary.openComplaints)}
+              icon={<MessageSquareWarning className="size-3.5" />}
+            />
+            <Kpi
+              label="Pending leave"
+              value={String(view.summary.pendingLeave)}
+              icon={<CalendarOff className="size-3.5" />}
+            />
+            <Kpi
+              label="Homework items"
+              value={String(view.summary.homeworkItems)}
+              icon={<BookOpen className="size-3.5" />}
+            />
           </div>
-        </Card>
-      ) : null}
+        ) : null}
+      </Card>
 
       <Card>
         <CardHeader
@@ -353,37 +364,65 @@ export function HomeApiSummaryPanel() {
 
       <HomeQuickActionsCard />
 
-      <Card>
-        <CardHeader
-          title="Institute overview"
-          hint="Live institute counts"
-          action={<Pill tone="neutral">Read-only</Pill>}
-        />
-        {hint ? (
-          <p className="px-4 pb-4 text-sm text-muted-foreground">{hint}</p>
-        ) : view.summary ? (
-          <div className="px-4 pb-4 lx-kpi-grid">
-            <Kpi label="Students" value={String(view.summary.students)} icon={<Users className="size-3.5" />} />
-            <Kpi label="Teachers" value={String(view.summary.teachers)} icon={<GraduationCap className="size-3.5" />} />
-            <Kpi label="Parents" value={String(view.summary.parents)} icon={<Heart className="size-3.5" />} />
-            <Kpi
-              label="Open complaints"
-              value={String(view.summary.openComplaints)}
-              icon={<MessageSquareWarning className="size-3.5" />}
-            />
-            <Kpi
-              label="Pending leave"
-              value={String(view.summary.pendingLeave)}
-              icon={<CalendarOff className="size-3.5" />}
-            />
-            <Kpi
-              label="Homework items"
-              value={String(view.summary.homeworkItems)}
-              icon={<BookOpen className="size-3.5" />}
-            />
+      {apiMode ? (
+        <Card>
+          <CardHeader
+            title="Unread notifications"
+            hint="Clears from Home once you open it"
+            action={
+              <div className="flex items-center gap-2">
+                {inboxUnread > 0 ? (
+                  <Pill tone="info">{inboxUnread} unread</Pill>
+                ) : (
+                  <Pill tone="neutral">None</Pill>
+                )}
+                <Link to="/notifications" search={{ tab: "inbox" }}>
+                  <Button size="sm" variant="outline">
+                    Inbox
+                  </Button>
+                </Link>
+              </div>
+            }
+          />
+          <div className="px-3 pb-3">
+            {inboxQuery.isLoading && unreadNotifications.length === 0 ? (
+              <p className="text-sm text-muted-foreground px-1">Loading notifications…</p>
+            ) : unreadNotifications.length === 0 ? (
+              <p className="text-sm text-muted-foreground px-1">No unread notifications.</p>
+            ) : (
+              <ul className="divide-y divide-border rounded-lg border border-border">
+                {unreadNotifications.slice(0, 6).map((row) => {
+                  const urgent = row.priority === "high";
+                  const busy = markingReadId === row.id;
+                  return (
+                    <li key={row.id} className="flex items-center gap-2.5 px-2.5 py-2">
+                      <IconChip
+                        icon={Bell}
+                        size="sm"
+                        variant={urgent ? "danger" : "brand"}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-medium">{row.title}</span>
+                        <span className="block text-[11px] text-muted-foreground">
+                          {row.desc} · {row.time}
+                        </span>
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={Boolean(markingReadId)}
+                        onClick={() => void openUnreadNotification(row.id)}
+                      >
+                        {busy ? "Opening…" : "Open"}
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
-        ) : null}
-      </Card>
+        </Card>
+      ) : null}
 
       {view.rowsValid || widgetsValid ? (
         <Card>

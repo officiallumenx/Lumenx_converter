@@ -376,10 +376,7 @@ export function AccountsApiMembershipsPanel() {
                   <Tr key={row.id}>
                     <Td>
                       <span className="block text-sm font-medium">{row.identityLabel}</span>
-                      <span className="block text-[11px] text-muted-foreground font-mono">
-                        {row.userId}
-                      </span>
-                      {row.email && row.identityLabel !== row.email ? (
+                      {row.email ? (
                         <span className="block text-[11px] text-muted-foreground">{row.email}</span>
                       ) : null}
                     </Td>

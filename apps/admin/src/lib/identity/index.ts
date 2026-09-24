@@ -17,7 +17,7 @@ export {
   type UpdateMembershipInput,
   type UpdateOwnProfileInput,
 } from "./mutations";
-export { membershipDtoToListItem, membershipDtosToListItems, membershipIdentityLabel, toggleRoleCode } from "./map";
+export { membershipDtoToListItem, membershipDtosToListItems, membershipIdentityLabel, isInternalSystemEmail, toggleRoleCode } from "./map";
 export {
   collectMembershipCandidates,
   type MembershipCandidate,

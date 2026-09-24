@@ -7,7 +7,7 @@ import {
 import { collectMembershipCandidates } from "./membership-candidates";
 
 describe("membershipIdentityLabel", () => {
-  it("prefers display name, then email, then user id", () => {
+  it("prefers display name, then real email, then Member (never raw user id)", () => {
     expect(
       membershipIdentityLabel({
         displayName: "Ada",
@@ -25,10 +25,17 @@ describe("membershipIdentityLabel", () => {
     expect(
       membershipIdentityLabel({
         displayName: null,
+        email: "teacher.1.abc@connect.lumenx.invalid",
+        userId: "u1",
+      }),
+    ).toBe("Member");
+    expect(
+      membershipIdentityLabel({
+        displayName: null,
         email: null,
         userId: "u1",
       }),
-    ).toBe("u1");
+    ).toBe("Member");
   });
 });
 

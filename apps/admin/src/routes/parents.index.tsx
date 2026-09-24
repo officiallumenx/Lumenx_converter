@@ -83,7 +83,14 @@ function parentIdentityCode(parent: ParentRow): string {
   if ("identityLabel" in parent && parent.identityLabel) {
     return parent.identityLabel;
   }
-  return parent.id;
+  if (parent.phone?.trim()) return parent.phone.trim();
+  return "";
+}
+
+function parentListSubtitle(parent: ParentRow): string {
+  const code = parentIdentityCode(parent);
+  const relationship = parent.relationship || "Guardian";
+  return code ? `${code} · ${relationship}` : relationship;
 }
 
 function parentLinkedChildrenText(
@@ -639,7 +646,8 @@ function ParentsPage() {
                 <PeopleDirectoryCard
                   key={parent.id}
                   name={parent.name}
-                  id={`${parentIdentityCode(parent)} · ${parent.relationship}`}
+                  personId={parent.id}
+                  subtitle={parentListSubtitle(parent)}
                   status={<ParentStatusPill parent={parent} />}
                   meta={
                     <>
@@ -707,8 +715,8 @@ function ParentsPage() {
                 >
                   <td className="px-5 py-3">
                     <div className="text-xs font-medium">{parent.name}</div>
-                    <div className="font-mono text-[10px] text-muted-foreground">
-                      {parentIdentityCode(parent)} · {parent.relationship}
+                    <div className="text-[10px] text-muted-foreground">
+                      {parentListSubtitle(parent)}
                     </div>
                   </td>
                   <td className="px-5 py-3 text-xs">

@@ -118,6 +118,16 @@ export const Route = createFileRoute("/students/")({
 
 type StudentRow = StudentDirectoryRecord | StudentListItem;
 
+/** Admission / roll for list subtitles — never the database UUID. */
+function studentListSubtitle(student: StudentRow): string {
+  const admission =
+    "admissionNumber" in student ? student.admissionNumber?.trim() : undefined;
+  if (admission) return admission;
+  const roll = "rollNo" in student ? student.rollNo?.trim() : undefined;
+  if (roll) return `Roll ${roll}`;
+  return "";
+}
+
 function StudentsPage() {
   const notify = useAdminToast();
   const { user } = useAuth();
@@ -982,7 +992,8 @@ function StudentsPage() {
                 <PeopleDirectoryCard
                   key={s.id}
                   name={s.name}
-                  id={s.id}
+                  personId={s.id}
+                  subtitle={studentListSubtitle(s)}
                   photoAssetPath={"photoAssetPath" in s ? s.photoAssetPath : null}
                   photoKind="student"
                   status={<StudentStatusPill student={s} />}
@@ -1065,7 +1076,11 @@ function StudentsPage() {
                       />
                       <div>
                         <div className="text-xs font-medium group-hover:text-primary">{s.name}</div>
-                        <div className="text-[10px] text-muted-foreground font-mono">{s.id}</div>
+                        {studentListSubtitle(s) ? (
+                          <div className="text-[10px] text-muted-foreground">
+                            {studentListSubtitle(s)}
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   </td>

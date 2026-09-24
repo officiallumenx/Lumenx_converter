@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
+  ADMIN_QUERY_CACHE_BUSTER,
+  ADMIN_QUERY_CATALOG_STALE_TIME_MS,
+  ADMIN_QUERY_GC_TIME_MS,
+  ADMIN_QUERY_PERSIST_MAX_AGE_MS,
   ADMIN_QUERY_SCOPE,
+  ADMIN_QUERY_STALE_TIME_MS,
   adminInstitutePrefix,
   adminModulePrefix,
   adminPersistStorageKey,
   adminQueryKeys,
   adminQueryRoots,
   adminScopePrefix,
+  isAdminPersistStorageKey,
   shouldDehydrateAdminQuery,
 } from "./index";
 
@@ -47,6 +53,14 @@ describe("persist helpers", () => {
     expect(a).not.toBe(b);
     expect(a).toContain("user-a");
     expect(b).toContain("user-b");
+    expect(a).toContain(`v${ADMIN_QUERY_CACHE_BUSTER}`);
+    expect(isAdminPersistStorageKey(a)).toBe(true);
+    expect(isAdminPersistStorageKey("other-key")).toBe(false);
+  });
+
+  it("rejects empty user ids for persist keys", () => {
+    expect(() => adminPersistStorageKey("")).toThrow(/non-empty user id/);
+    expect(() => adminPersistStorageKey("   ")).toThrow(/non-empty user id/);
   });
 
   it("dehydrates successful admin queries only", () => {
@@ -74,5 +88,13 @@ describe("persist helpers", () => {
         state: { status: "success" },
       }),
     ).toBe(false);
+  });
+});
+
+describe("cache-first constants", () => {
+  it("keeps list/catalog stale aligned with persist maxAge and gcTime", () => {
+    expect(ADMIN_QUERY_STALE_TIME_MS).toBe(ADMIN_QUERY_PERSIST_MAX_AGE_MS);
+    expect(ADMIN_QUERY_CATALOG_STALE_TIME_MS).toBe(ADMIN_QUERY_PERSIST_MAX_AGE_MS);
+    expect(ADMIN_QUERY_GC_TIME_MS).toBeGreaterThanOrEqual(ADMIN_QUERY_PERSIST_MAX_AGE_MS);
   });
 });

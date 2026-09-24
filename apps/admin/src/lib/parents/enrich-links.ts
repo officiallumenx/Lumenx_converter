@@ -37,7 +37,7 @@ export function enrichParentDetailWithStudents<
     const student = studentById.get(link.studentId);
     linkStudentLabels[link.studentId] = student
       ? `${student.name} (${student.grade})`
-      : `Student · ${link.studentId.slice(0, 8)}…`;
+      : "Linked student";
   }
   return {
     ...parent,

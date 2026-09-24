@@ -12,6 +12,8 @@ export function createAdminQueryClient(): QueryClient {
       queries: {
         staleTime: ADMIN_QUERY_STALE_TIME_MS,
         gcTime: ADMIN_QUERY_GC_TIME_MS,
+        // Cache-first paint: show restored data immediately; refresh in background.
+        refetchOnMount: "always",
         refetchOnWindowFocus: false,
         refetchOnReconnect: true,
         retry: 1,

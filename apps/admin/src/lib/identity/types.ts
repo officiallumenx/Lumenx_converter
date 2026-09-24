@@ -44,7 +44,7 @@ export type MembershipListItem = {
   userId: string;
   displayName: string | null;
   email: string | null;
-  /** Prefer display name, then email, then user id. */
+  /** Prefer display name, then real email. Never show raw user UUID. */
   identityLabel: string;
   status: MembershipStatus;
   roles: string[];

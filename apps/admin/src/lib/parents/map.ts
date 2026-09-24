@@ -39,7 +39,9 @@ export function linkedChildrenLabel(count: number): string {
 export function parentIdentityLabel(dto: ParentDto): string {
   const legacyCode = dto.legacyCode?.trim();
   if (legacyCode) return legacyCode;
-  return dto.id.slice(0, 8);
+  const phone = dto.phone?.trim();
+  if (phone) return phone;
+  return "";
 }
 
 /**

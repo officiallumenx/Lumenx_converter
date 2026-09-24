@@ -275,8 +275,7 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
   };
 
   const linkedStudentLabel = (studentId: string) =>
-    displayParent?.linkStudentLabels?.[studentId] ??
-    `Student · ${studentId.slice(0, 8)}…`;
+    displayParent?.linkStudentLabels?.[studentId] ?? "Linked student";
 
   return (
     <AppShell

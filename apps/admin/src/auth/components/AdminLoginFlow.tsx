@@ -163,6 +163,10 @@ export function AdminLoginFlow() {
   }, [institutePickerOpen]);
 
   useEffect(() => {
+    setInstitutePickerOpen(false);
+  }, [step]);
+
+  useEffect(() => {
     let cancelled = false;
     setInstitutesLoading(true);
     void listStaffLoginInstitutes()
@@ -191,6 +195,7 @@ export function AdminLoginFlow() {
 
   const handleInstitute = async (event: React.FormEvent) => {
     event.preventDefault();
+    setInstitutePickerOpen(false);
     setError(null);
     const id = instituteId.trim();
     if (!isInstituteUuid(id)) {
@@ -806,7 +811,7 @@ export function AdminLoginFlow() {
                 </span>
                 <ChevronDown
                   className={cn(
-                    "size-4 shrink-0 text-muted-foreground transition-transform",
+                    "size-4 shrink-0 text-muted-foreground",
                     institutePickerOpen && "rotate-180",
                   )}
                   aria-hidden

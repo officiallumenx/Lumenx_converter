@@ -3,7 +3,7 @@
  *  Primary / outline / ghost variants for auth forms.
  * ───────────────────────────────────────────────────────────── */
 
-import type { ComponentPropsWithoutRef, ReactNode } from "react";
+import { Children, isValidElement, type ComponentPropsWithoutRef, type ReactNode } from "react";
 
 interface AuthButtonProps extends ComponentPropsWithoutRef<"button"> {
   variant?: "primary" | "outline" | "ghost";
@@ -11,6 +11,23 @@ interface AuthButtonProps extends ComponentPropsWithoutRef<"button"> {
   fullWidth?: boolean;
   size?: "sm" | "md";
   children: ReactNode;
+}
+
+/** Prefer plain text for the loading label so icons (e.g. ArrowRight) do not wrap/shift. */
+function loadingLabelFromChildren(children: ReactNode): string {
+  if (typeof children === "string" || typeof children === "number") {
+    return `${String(children).trim()}…`;
+  }
+  const text = Children.toArray(children)
+    .filter((child) => typeof child === "string" || typeof child === "number")
+    .join("")
+    .trim();
+  if (text) return `${text}…`;
+  const first = Children.toArray(children)[0];
+  if (isValidElement<{ children?: ReactNode }>(first) && first.props.children != null) {
+    return loadingLabelFromChildren(first.props.children);
+  }
+  return "Please wait…";
 }
 
 export function AuthButton({
@@ -28,6 +45,7 @@ export function AuthButton({
     "inline-flex items-center justify-center gap-2 font-medium rounded-lg transition-all",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
     "disabled:opacity-60 disabled:cursor-not-allowed",
+    "whitespace-nowrap",
     fullWidth ? "w-full" : "",
     size === "sm" ? "h-9 text-xs px-4" : "h-10 text-sm px-5",
   ].join(" ");
@@ -60,7 +78,7 @@ export function AuthButton({
             ].join(" ")}
             aria-hidden
           />
-          <span>{typeof children === "string" ? `${children}…` : children}</span>
+          <span>{loadingLabelFromChildren(children)}</span>
         </>
       ) : (
         children
