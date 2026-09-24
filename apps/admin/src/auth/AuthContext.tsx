@@ -30,7 +30,10 @@ import {
   apiSignOut,
   tryHydrateApiSession,
 } from "./api-auth";
-import { clearApiModeLocalIdentity } from "./api-local-cleanup";
+import {
+  clearApiModeLocalIdentity,
+  clearApiModeSessionIdentity,
+} from "./api-local-cleanup";
 import { mergeApiPresentationPatch } from "./login-flow-auth";
 import {
   tryApplyApiActiveInstituteSession,
@@ -46,16 +49,38 @@ import { assertNotDemoFallback } from "@lumenx/auth";
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function readOptimisticApiUser(): AuthUser | null {
+  try {
+    const session = loadSession();
+    if (!session || session.authSource === "demo") return null;
+    return sessionToUser(session);
+  } catch {
+    return null;
+  }
+}
+
 // ── Provider ──────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user,    setUser]    = useState<AuthUser | null>(null);
-  const [status,  setStatus]  = useState<AuthContextValue["status"]>("idle");
+  const [user, setUser] = useState<AuthUser | null>(() => readOptimisticApiUser());
+  const [status, setStatus] = useState<AuthContextValue["status"]>(() =>
+    readOptimisticApiUser() ? "authenticated" : "idle",
+  );
   const [error,   setError]   = useState<string | null>(null);
   const bootstrapped = useRef(false);
 
   const clearApiLocalState = useCallback(() => {
+    // Explicit logout — wipe session + query IndexedDB cache.
     clearApiModeLocalIdentity();
+    clearLoginFlowDraft();
+    clearAppUnlock();
+    setUser(null);
+    setStatus("unauthenticated");
+  }, []);
+
+  const clearApiSessionKeepCache = useCallback(() => {
+    // 401 / soft auth miss — drop UI session but keep IndexedDB module cache.
+    clearApiModeSessionIdentity({ clearActiveInstitute: true });
     clearLoginFlowDraft();
     clearAppUnlock();
     setUser(null);
@@ -69,13 +94,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setAdminApiUnauthorizedHandler(() => {
       void apiSignOut().finally(() => {
-        clearApiLocalState();
+        clearApiSessionKeepCache();
       });
     });
     return () => setAdminApiUnauthorizedHandler(null);
-  }, [clearApiLocalState]);
+  }, [clearApiSessionKeepCache]);
 
-  /** On mount — hydrate API session from Supabase / LumenX session. */
+  /** On mount — optimistic local session, then confirm via Supabase / /me. */
   useEffect(() => {
     if (bootstrapped.current) return;
     bootstrapped.current = true;
@@ -83,30 +108,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
 
     async function bootstrap() {
-      setStatus("loading");
+      const optimistic = readOptimisticApiUser();
+      if (optimistic) {
+        bindApiRegistrationUser(optimistic.id);
+        setUser(optimistic);
+        setStatus("authenticated");
+      } else {
+        setStatus("loading");
+      }
 
       try {
         const hydrated = await tryHydrateApiSession();
         if (cancelled) return;
         if (hydrated) {
           bindApiRegistrationUser(hydrated.user.id);
-          const user = await finalizeApiAuthUser(hydrated);
+          const nextUser = await finalizeApiAuthUser(hydrated);
           if (cancelled) return;
           const remember =
             typeof localStorage !== "undefined" &&
             localStorage.getItem(AUTH_REMEMBER_KEY) === "1";
-          saveSession(user, remember, { authSource: "api" });
-          setUser(user);
+          saveSession(nextUser, remember, { authSource: "api" });
+          setUser(nextUser);
           setStatus("authenticated");
           return;
         }
-        // No Supabase session — drop UI session + stale institute preference.
-        clearApiModeLocalIdentity();
+        // No Supabase session yet. Keep optimistic UI session so PersistProvider
+        // can finish IndexedDB restore; 401 handler clears if APIs truly reject.
+        if (optimistic) {
+          return;
+        }
+        clearApiModeSessionIdentity();
         setUser(null);
         setStatus("unauthenticated");
       } catch (err) {
         if (cancelled) return;
-        clearApiModeLocalIdentity();
+        if (optimistic) {
+          return;
+        }
+        clearApiModeSessionIdentity();
         setUser(null);
         setError(err instanceof Error ? err.message : "Session restore failed");
         setStatus("unauthenticated");

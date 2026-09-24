@@ -43,6 +43,29 @@ function institute(
   };
 }
 
+describe("createOptimisticApiInstituteState", () => {
+  beforeEach(() => {
+    store.clear();
+    vi.resetModules();
+  });
+
+  it("seeds ready status and activeInstituteId from stored UUID", async () => {
+    store.set(ACTIVE_INSTITUTE_STORAGE_KEY, A);
+    const { createOptimisticApiInstituteState } = await import("./context");
+    const state = createOptimisticApiInstituteState();
+    expect(state.mode).toBe("api");
+    expect(state.status).toBe("ready");
+    expect(state.activeInstituteId).toBe(A);
+  });
+
+  it("stays loading when no stored institute id", async () => {
+    const { createOptimisticApiInstituteState } = await import("./context");
+    const state = createOptimisticApiInstituteState(null);
+    expect(state.status).toBe("loading");
+    expect(state.activeInstituteId).toBeNull();
+  });
+});
+
 describe("loadInstituteContext mode branching", () => {
   beforeEach(() => {
     store.clear();
@@ -50,25 +73,33 @@ describe("loadInstituteContext mode branching", () => {
     vi.unstubAllEnvs();
   });
 
-  it("demo mode returns demo state without calling institutes API or /me", async () => {
+  it("API-only product: loadInstituteContext never returns demo mode", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const listSpy = vi.fn();
-    const meSpy = vi.fn();
-    vi.doMock("./api", () => ({
-      listInstitutes: listSpy,
-      getInstitute: vi.fn(),
-    }));
     vi.doMock("@/auth/me-bridge", () => ({
-      fetchMe: meSpy,
+      fetchMe: vi.fn(async () => ({
+        user: { id: "u1" },
+        profile: {
+          id: "p1",
+          displayName: "Admin",
+          email: "a@b.edu",
+          status: "active",
+        },
+        institutes: [
+          { instituteId: A, membershipId: "m1", status: "active", roles: ["principal"] },
+        ],
+        platformOperator: { active: false, roleCode: null },
+        identities: { teachers: [], students: [], parents: [], staff: [] },
+      })),
+    }));
+    vi.doMock("./api", () => ({
+      listInstitutes: vi.fn(async () => [institute(A, "Alpha School")]),
+      getInstitute: vi.fn(async (id: string) => institute(id, "Alpha School")),
     }));
 
     const { loadInstituteContext } = await import("./context");
     const state = await loadInstituteContext();
-    expect(state.mode).toBe("demo");
-    expect(state.status).toBe("demo");
-    expect(state.displayLabel).toBeNull();
-    expect(listSpy).not.toHaveBeenCalled();
-    expect(meSpy).not.toHaveBeenCalled();
+    expect(state.mode).toBe("api");
+    expect(state.status).toBe("ready");
   });
 
   it("API mode loads institutes and auto-selects single membership", async () => {
@@ -91,7 +122,7 @@ describe("loadInstituteContext mode branching", () => {
     }));
     vi.doMock("./api", () => ({
       listInstitutes: vi.fn(async () => [institute(A, "Alpha School")]),
-      getInstitute: vi.fn(),
+      getInstitute: vi.fn(async (id: string) => institute(id, "Alpha School")),
     }));
 
     const { loadInstituteContext } = await import("./context");

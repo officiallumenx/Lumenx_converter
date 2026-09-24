@@ -58,6 +58,11 @@ function resolveApiRegistrationGate(user: AuthUser | null): RegistrationGate {
     return { kind: "loading", application: null };
   }
 
+  // Verified returnees: do not block chrome on registration sync (runs in background).
+  if ((!loaded || syncing || snapshot === undefined) && user.isVerified) {
+    return { kind: "allow", application: null };
+  }
+
   if (!loaded || syncing || snapshot === undefined) {
     return { kind: "loading", application: null };
   }

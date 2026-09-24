@@ -21,6 +21,7 @@ export { demoProfileToSettingsPatch, settingsToDemoProfile } from "./map";
 export {
   loadInstituteContext,
   chooseActiveInstitute,
+  createOptimisticApiInstituteState,
   useInstituteContext,
   InstituteContextProvider,
   type InstituteContextState,

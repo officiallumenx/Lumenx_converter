@@ -70,6 +70,35 @@ describe("resolveRegistrationGate", () => {
     });
   });
 
+  it("allows verified API users while registration snapshot is still syncing", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    mockApiView({
+      loaded: false,
+      syncing: true,
+      snapshot: undefined,
+    });
+    const { resolveRegistrationGate } = await import("./registration-gate");
+    expect(
+      resolveRegistrationGate({ ...user, isVerified: true }),
+    ).toEqual({
+      kind: "allow",
+      application: null,
+    });
+  });
+
+  it("keeps loading for unverified users until registration snapshot loads", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    mockApiView({
+      loaded: false,
+      syncing: true,
+      snapshot: undefined,
+    });
+    const { resolveRegistrationGate } = await import("./registration-gate");
+    expect(resolveRegistrationGate({ ...user, isVerified: false }).kind).toBe(
+      "loading",
+    );
+  });
+
   it("allows API users without a registration row", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     mockApiView({ snapshot: null });

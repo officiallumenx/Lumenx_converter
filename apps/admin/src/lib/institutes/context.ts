@@ -11,6 +11,8 @@ import {
   ACTIVE_INSTITUTE_CHANGED_EVENT,
   accessibleInstituteIds,
   clearStoredActiveInstituteId,
+  isInstituteUuid,
+  readStoredActiveInstituteId,
   resolveActiveInstitute,
   selectActiveInstitute,
   type InstituteMembershipRef,
@@ -56,6 +58,39 @@ const DEMO_STATE: InstituteContextState = {
   displayLabel: null,
   isPlatformOperator: false,
 };
+
+/** Optimistic API boot from stored institute UUID — enables module queries before /me returns. */
+export function createOptimisticApiInstituteState(
+  storedInstituteId: string | null = readStoredActiveInstituteId(),
+): InstituteContextState {
+  const id = storedInstituteId?.trim() || null;
+  if (id && isInstituteUuid(id)) {
+    return {
+      mode: "api",
+      status: "ready",
+      institutes: [],
+      activeInstitute: null,
+      activeInstituteId: id,
+      reason: "stored",
+      memberships: [],
+      errorMessage: null,
+      displayLabel: null,
+      isPlatformOperator: false,
+    };
+  }
+  return {
+    mode: "api",
+    status: "loading",
+    institutes: [],
+    activeInstitute: null,
+    activeInstituteId: null,
+    reason: null,
+    memberships: [],
+    errorMessage: null,
+    displayLabel: null,
+    isPlatformOperator: false,
+  };
+}
 
 function displayLabelFor(institute: InstituteDto | null): string | null {
   if (!institute) return null;
@@ -196,10 +231,12 @@ export async function loadInstituteContext(): Promise<InstituteContextState> {
     if (activeInstitute) {
       try {
         const fresh = await getInstitute(activeInstitute.id);
-        activeInstitute = fresh;
-        const ix = institutes.findIndex((i) => i.id === fresh.id);
-        if (ix >= 0) institutes[ix] = fresh;
-        else institutes.push(fresh);
+        if (fresh?.id) {
+          activeInstitute = fresh;
+          const ix = institutes.findIndex((i) => i.id === fresh.id);
+          if (ix >= 0) institutes[ix] = fresh;
+          else institutes.push(fresh);
+        }
       } catch {
         // keep list entry if detail fetch fails
       }
@@ -293,13 +330,7 @@ function useInstituteContextController(): InstituteContextValue {
   const isApiMode = isApiAuthMode();
   const skipNextStorageReload = useRef(false);
   const [state, setState] = useState<InstituteContextState>(() =>
-    isApiMode
-      ? {
-          ...DEMO_STATE,
-          mode: "api",
-          status: "loading",
-        }
-      : DEMO_STATE,
+    isApiMode ? createOptimisticApiInstituteState() : DEMO_STATE,
   );
 
   const reload = useCallback(async (): Promise<InstituteContextState> => {
@@ -307,13 +338,18 @@ function useInstituteContextController(): InstituteContextValue {
       setState(DEMO_STATE);
       return DEMO_STATE;
     }
-    setState((prev) => ({
-      ...prev,
-      mode: "api",
-      status: "loading",
-      errorMessage: null,
-      displayLabel: prev.mode === "api" ? prev.displayLabel : null,
-    }));
+    setState((prev) => {
+      const seeded = createOptimisticApiInstituteState();
+      return {
+        ...prev,
+        mode: "api",
+        // Keep optimistic ready + stored id so module queries stay enabled during refetch.
+        status: seeded.activeInstituteId ? "ready" : "loading",
+        activeInstituteId: seeded.activeInstituteId ?? prev.activeInstituteId,
+        errorMessage: null,
+        displayLabel: prev.mode === "api" ? prev.displayLabel : null,
+      };
+    });
     const next = await loadInstituteContext();
     setState(next);
     return next;

@@ -97,6 +97,39 @@ describe("clearApiModeLocalIdentity", () => {
   });
 });
 
+describe("clearApiModeSessionIdentity", () => {
+  beforeEach(() => {
+    store.clear();
+    vi.resetModules();
+  });
+
+  it("clears UI session without dropping stored active institute by default", async () => {
+    saveSession(
+      {
+        ...demoUser,
+        id: "11111111-1111-4111-8111-111111111111",
+        instituteId: INSTITUTE,
+      },
+      false,
+      { authSource: "api" },
+    );
+    writeStoredActiveInstituteId(INSTITUTE);
+
+    const { clearApiModeSessionIdentity } = await import("./api-local-cleanup");
+    clearApiModeSessionIdentity();
+
+    expect(loadSession()).toBeNull();
+    expect(store.get(ACTIVE_INSTITUTE_STORAGE_KEY)).toBe(INSTITUTE);
+  });
+
+  it("can clear active institute when requested (logout-style session clear)", async () => {
+    writeStoredActiveInstituteId(INSTITUTE);
+    const { clearApiModeSessionIdentity } = await import("./api-local-cleanup");
+    clearApiModeSessionIdentity({ clearActiveInstitute: true });
+    expect(store.get(ACTIVE_INSTITUTE_STORAGE_KEY)).toBeUndefined();
+  });
+});
+
 describe("API login path isolation (no mock fallback)", () => {
   beforeEach(() => {
     store.clear();
