@@ -10,18 +10,6 @@ describe("diary mutations", () => {
     vi.clearAllMocks();
   });
 
-  it("refuses create in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const { createDiaryDay } = await import("./mutations");
-    await expect(
-      createDiaryDay({
-        instituteId: INST,
-        diaryDate: "2026-08-29",
-        scope: "subject",
-      }),
-    ).rejects.toThrow(/API auth mode/);
-  });
-
   it("does not call network for invalid diary UUID on delete", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const del = vi.fn();

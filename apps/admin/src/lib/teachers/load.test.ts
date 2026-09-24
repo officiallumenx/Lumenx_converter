@@ -41,19 +41,6 @@ describe("loadTeachersList", () => {
     }));
   });
 
-  it("returns demo status without calling API in demo mode", async () => {
-    vi.doMock("@/auth/auth-mode", () => ({
-      isApiAuthMode: () => false,
-      isDemoAuthMode: () => true,
-    }));
-    const listTeachers = vi.fn();
-    vi.doMock("./api", () => ({ listTeachers }));
-    const { loadTeachersList } = await import("./load");
-    const result = await loadTeachersList(INST);
-    expect(result).toEqual({ status: "demo", items: [], errorMessage: null });
-    expect(listTeachers).not.toHaveBeenCalled();
-  });
-
   it("requires a valid active institute UUID in API mode", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const listTeachers = vi.fn();

@@ -9,14 +9,6 @@ describe("announcements mutations", () => {
     vi.clearAllMocks();
   });
 
-  it("refuses create in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const { createAnnouncement } = await import("./mutations");
-    await expect(
-      createAnnouncement({ instituteId: INST, title: "Hello" }),
-    ).rejects.toThrow(/API auth mode/);
-  });
-
   it("does not call network for invalid announcement UUID on delete", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const del = vi.fn();

@@ -9,20 +9,6 @@ describe("events mutations", () => {
     vi.clearAllMocks();
   });
 
-  it("refuses create in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const { createEvent } = await import("./mutations");
-    await expect(
-      createEvent({
-        instituteId: INST,
-        title: "Holiday",
-        kind: "holiday",
-        source: "calendar",
-        startsOn: "2026-10-02",
-      }),
-    ).rejects.toThrow(/API auth mode/);
-  });
-
   it("does not call network for invalid event UUID on delete", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const del = vi.fn();

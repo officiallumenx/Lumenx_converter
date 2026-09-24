@@ -34,16 +34,6 @@ describe("loadHomeworkList", () => {
     vi.clearAllMocks();
   });
 
-  it("returns demo status without calling API in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const listHomework = vi.fn();
-    vi.doMock("./api", () => ({ listHomework, getHomework: vi.fn() }));
-    const { loadHomeworkList } = await import("./load");
-    const result = await loadHomeworkList(INST);
-    expect(result.status).toBe("demo");
-    expect(listHomework).not.toHaveBeenCalled();
-  });
-
   it("returns forbidden on 403 without demo fallback", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const listHomework = vi.fn().mockRejectedValue(

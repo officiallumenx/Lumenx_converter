@@ -11,18 +11,6 @@ describe("parents mutations", () => {
     vi.clearAllMocks();
   });
 
-  it("refuses create in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const { createParent } = await import("./mutations");
-    await expect(
-      createParent({
-        instituteId: INST,
-        name: "Maya",
-        phone: "9876543210",
-      }),
-    ).rejects.toThrow(/API auth mode/);
-  });
-
   it("does not call network for invalid parent UUID on delete", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const del = vi.fn();

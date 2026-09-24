@@ -11,19 +11,6 @@ describe("transport mutations", () => {
     vi.clearAllMocks();
   });
 
-  it("refuses create in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const { createVehicle } = await import("./mutations");
-    await expect(
-      createVehicle({
-        instituteId: INST,
-        vehicleNumber: "BUS-1",
-        registrationNumber: "TS09AB1234",
-        capacity: 40,
-      }),
-    ).rejects.toThrow(/API auth mode|Authentication required|Demo Mode is no longer supported/);
-  });
-
   it("does not call network for invalid UUID on delete", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const del = vi.fn();

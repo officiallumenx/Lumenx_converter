@@ -14,16 +14,7 @@ describe("loadEnrollmentsList", () => {
     vi.clearAllMocks();
   });
 
-  it("returns demo status without calling API in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const listEnrollments = vi.fn();
-    vi.doMock("./api", () => ({ listEnrollments }));
-    const { loadEnrollmentsList } = await import("./load");
-    const result = await loadEnrollmentsList(INST_A, { sectionId: INST_A });
-    expect(result.status).toBe("demo");
-    expect(result.items).toEqual([]);
-    expect(listEnrollments).not.toHaveBeenCalled();
-  });
+
 
   it("returns forbidden on 403 without demo fallback", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");

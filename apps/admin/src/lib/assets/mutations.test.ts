@@ -9,19 +9,6 @@ describe("assets mutations", () => {
     vi.clearAllMocks();
   });
 
-  it("refuses create in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const { createAsset } = await import("./mutations");
-    await expect(
-      createAsset({
-        instituteId: INST,
-        bucket: "institute-branding",
-        objectPath: "logo.png",
-        category: "logo",
-      }),
-    ).rejects.toThrow(/API auth mode/);
-  });
-
   it("does not call network for invalid asset UUID on delete", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const del = vi.fn();

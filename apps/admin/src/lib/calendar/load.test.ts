@@ -45,16 +45,6 @@ describe("loadCalendarList", () => {
     vi.clearAllMocks();
   });
 
-  it("returns demo status without calling API in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const listCalendarEvents = vi.fn();
-    vi.doMock("./api", () => ({ listCalendarEvents }));
-    const { loadCalendarList } = await import("./load");
-    const result = await loadCalendarList(INST);
-    expect(result).toEqual({ status: "demo", items: [], errorMessage: null });
-    expect(listCalendarEvents).not.toHaveBeenCalled();
-  });
-
   it("requires a valid active institute UUID in API mode", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const listCalendarEvents = vi.fn();

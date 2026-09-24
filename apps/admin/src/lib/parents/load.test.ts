@@ -28,16 +28,6 @@ describe("loadParentsList", () => {
     vi.clearAllMocks();
   });
 
-  it("returns demo status without calling API in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const listParents = vi.fn();
-    vi.doMock("./api", () => ({ listParents }));
-    const { loadParentsList } = await import("./load");
-    const result = await loadParentsList(INST);
-    expect(result).toEqual({ status: "demo", items: [], errorMessage: null });
-    expect(listParents).not.toHaveBeenCalled();
-  });
-
   it("requires a valid active institute UUID in API mode", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const listParents = vi.fn();
@@ -141,16 +131,6 @@ describe("loadParentDetail", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
-  });
-
-  it("returns demo status in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const getParent = vi.fn();
-    vi.doMock("./api", () => ({ getParent }));
-    const { loadParentDetail } = await import("./load");
-    const result = await loadParentDetail("parent-1");
-    expect(result.status).toBe("demo");
-    expect(getParent).not.toHaveBeenCalled();
   });
 
   it("rejects invalid resource id without calling API", async () => {

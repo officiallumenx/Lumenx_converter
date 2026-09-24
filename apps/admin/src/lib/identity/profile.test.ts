@@ -8,12 +8,6 @@ describe("identity profile API", () => {
     vi.clearAllMocks();
   });
 
-  it("refuses getProfile in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const { getProfile } = await import("./api");
-    await expect(getProfile(PROFILE)).rejects.toThrow(/API auth mode/);
-  });
-
   it("does not call network for invalid profile UUID", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const get = vi.fn();
@@ -37,14 +31,6 @@ describe("identity profile mutations", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
-  });
-
-  it("refuses updateOwnProfile in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const { updateOwnProfile } = await import("./mutations");
-    await expect(
-      updateOwnProfile(PROFILE, { displayName: "Ada" }),
-    ).rejects.toThrow(/API auth mode/);
   });
 
   it("patches own profile in API mode", async () => {

@@ -37,32 +37,6 @@ describe("registrations api repository", () => {
     vi.resetModules();
   });
 
-  it("refuses to call backend in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const { submitRegistration, fetchOwnRegistration } = await import("./api");
-    const fetchMock = vi.fn();
-    const client = createApiClient({
-      getBaseUrl: () => "http://api.test",
-      getAccessToken: async () => "tok",
-      fetchImpl: fetchMock as unknown as typeof fetch,
-    });
-    await expect(
-      submitRegistration(
-        {
-          applicantName: "Test",
-          email: "test@school.edu",
-          password: "password123",
-          payload: { instituteName: "Test School" },
-        },
-        client,
-      ),
-    ).rejects.toThrow(/Demo Mode is no longer supported|API auth mode/i);
-    await expect(fetchOwnRegistration(client)).rejects.toThrow(
-      /Demo Mode is no longer supported|API auth mode/i,
-    );
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
   it("posts registration payload without auth in API mode", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const { submitRegistration } = await import("./api");

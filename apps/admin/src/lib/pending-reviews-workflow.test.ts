@@ -12,7 +12,7 @@ import {
   countSubmittedMarks,
   loadPendingReviews,
 } from "./pending-reviews";
-import { teachersWithPendingMarks, getMarkEntriesSnapshot } from "./marks-entry-store";
+import { teachersWithPendingMarks } from "./marks-entry-store";
 
 const store = new Map<string, string>();
 
@@ -242,33 +242,19 @@ describe("Admin Home Pending Reviews workflow", () => {
     expect(second).toBe(first);
   });
 
-  it("loadPendingReviews row counts align with underlying demo stores", () => {
-    const rows = loadPendingReviews();
-    const submittedMarks = countSubmittedMarks(getMarkEntriesSnapshot());
-    const teacherLeave = countPendingTeacherLeave(getInitialTeacherLeave());
-    const complaints = countAdminComplaints(DEMO_COMPLAINTS_SEED);
+  it("loadPendingReviews uses API counts (not demo mark/leave stores)", async () => {
+    vi.resetModules();
+    const { getPendingReviewsApiCounts } = await import("./pending-reviews-api-store");
+    const { loadPendingReviews: load } = await import("./pending-reviews");
 
-    const marksRow = rows.find((r) => r.id === "marks-review");
-    if (submittedMarks > 0) {
-      expect(marksRow?.count).toBe(submittedMarks);
-      expect(marksRow?.to).toBe("/marks");
-    } else {
-      expect(marksRow).toBeUndefined();
-    }
+    const apiCounts = getPendingReviewsApiCounts();
+    expect(apiCounts.submittedMarks).toBe(0);
+    expect(apiCounts.pendingTeacherLeave).toBe(0);
 
-    const leaveRow = rows.find((r) => r.id === "teacher-leave");
-    if (teacherLeave > 0) {
-      expect(leaveRow?.count).toBe(teacherLeave);
-      expect(leaveRow?.to).toBe("/leave");
-    } else {
-      expect(leaveRow).toBeUndefined();
-    }
-
-    const complaintRow = rows.find((r) => r.id === "complaints-admin");
-    if (complaints > 0) {
-      expect(complaintRow?.count).toBe(complaints);
-      expect(complaintRow?.to).toBe("/complaints");
-    }
+    const rows = load();
+    // Default empty API counts → no marks/leave rows even if demo stores have data
+    expect(rows.find((r) => r.id === "marks-review")).toBeUndefined();
+    expect(rows.find((r) => r.id === "teacher-leave")).toBeUndefined();
 
     for (const row of rows) {
       expect(row.count).toBeGreaterThan(0);

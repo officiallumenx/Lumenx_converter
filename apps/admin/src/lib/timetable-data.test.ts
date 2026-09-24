@@ -42,7 +42,7 @@ describe("timetable generation helpers", () => {
     const { getSubjectsByGrade } = await import("./subjects-data");
 
     const schedule = buildScheduleConfig(defaultScheduleInput());
-    const subjects = getSubjectsByGrade()["Grade 10"] ?? [];
+    const subjects = getSubjectsByGrade()["Class 10"] ?? [];
     expect(subjects.length).toBeGreaterThan(0);
 
     const subject = subjects[0]!;
@@ -52,9 +52,9 @@ describe("timetable generation helpers", () => {
     expect(budget.ok).toBe(true);
 
     const teachers = Object.fromEntries(subjects.map((s) => [s.id, ""]));
-    const { grid, relaxedNotices } = autoGenerateTimetableDetailed("Grade 10", "A", {
+    const { grid, relaxedNotices } = autoGenerateTimetableDetailed("Class 10", "A", {
       teacherMode: "auto",
-      grade: "Grade 10",
+      grade: "Class 10",
       section: "A",
       schedule,
       subjectTeachers: teachers,
@@ -110,7 +110,7 @@ describe("timetable generation helpers", () => {
     const conflicts = detectConflicts([
       {
         id: "TT-A",
-        grade: "Grade 10",
+        grade: "Class 10",
         section: "A",
         term: "T1",
         status: "draft",
@@ -120,7 +120,7 @@ describe("timetable generation helpers", () => {
       },
       {
         id: "TT-B",
-        grade: "Grade 10",
+        grade: "Class 10",
         section: "B",
         term: "T1",
         status: "draft",
@@ -141,12 +141,12 @@ describe("timetable generation helpers", () => {
     const { getSubjectsByGrade } = await import("./subjects-data");
 
     const schedule = buildScheduleConfig(defaultScheduleInput());
-    const subjects = getSubjectsByGrade()["Grade 10"] ?? [];
+    const subjects = getSubjectsByGrade()["Class 10"] ?? [];
     const periods = buildDefaultSubjectPeriods(subjects);
 
-    const { grid } = autoGenerateTimetableDetailed("Grade 10", "A", {
+    const { grid } = autoGenerateTimetableDetailed("Class 10", "A", {
       teacherMode: "auto",
-      grade: "Grade 10",
+      grade: "Class 10",
       section: "A",
       schedule,
       subjectTeachers: Object.fromEntries(subjects.map((s) => [s.id, ""])),
@@ -184,7 +184,7 @@ describe("timetable generation helpers", () => {
     const { getSubjectsByGrade } = await import("./subjects-data");
 
     const schedule = buildScheduleConfig(defaultScheduleInput());
-    const subjects = getSubjectsByGrade()["Grade 10"] ?? [];
+    const subjects = getSubjectsByGrade()["Class 10"] ?? [];
     const focus = subjects[0]!;
     const periods = buildDefaultSubjectPeriods(subjects);
     periods[focus.id] = 3;
@@ -193,9 +193,9 @@ describe("timetable generation helpers", () => {
       subjects.map((s) => [s.id, s.id === focus.id ? ("after_lunch" as const) : ("any" as const)]),
     );
 
-    const { grid } = autoGenerateTimetableDetailed("Grade 10", "A", {
+    const { grid } = autoGenerateTimetableDetailed("Class 10", "A", {
       teacherMode: "auto",
-      grade: "Grade 10",
+      grade: "Class 10",
       section: "A",
       schedule,
       subjectTeachers: Object.fromEntries(subjects.map((s) => [s.id, ""])),
@@ -219,7 +219,7 @@ describe("timetable generation helpers", () => {
     const { getSubjectsByGrade } = await import("./subjects-data");
 
     const schedule = buildScheduleConfig(defaultScheduleInput());
-    const subjects = getSubjectsByGrade()["Grade 10"] ?? [];
+    const subjects = getSubjectsByGrade()["Class 10"] ?? [];
     const subject = subjects[0]!;
     const teachingIdx = schedule.periodRows.findIndex((row) => !row.isBreak);
     const preserveGrid = emptyGrid(schedule);
@@ -231,9 +231,9 @@ describe("timetable generation helpers", () => {
       room: "LOCK-ROOM",
     };
 
-    const { grid } = autoGenerateTimetableDetailed("Grade 10", "A", {
+    const { grid } = autoGenerateTimetableDetailed("Class 10", "A", {
       teacherMode: "auto",
-      grade: "Grade 10",
+      grade: "Class 10",
       section: "A",
       schedule,
       subjectTeachers: Object.fromEntries(subjects.map((s) => [s.id, ""])),
@@ -254,15 +254,15 @@ describe("timetable generation helpers", () => {
     const { getSubjectsByGrade } = await import("./subjects-data");
 
     const schedule = buildScheduleConfig(defaultScheduleInput());
-    const subjects = getSubjectsByGrade()["Grade 10"] ?? [];
+    const subjects = getSubjectsByGrade()["Class 10"] ?? [];
     const subject = subjects[0]!;
     const teachingIdx = schedule.periodRows.findIndex((row) => !row.isBreak);
     const periods = buildDefaultSubjectPeriods(subjects);
     periods[subject.id] = 2;
 
-    const { unplaced, grid } = autoGenerateTimetableDetailed("Grade 10", "A", {
+    const { unplaced, grid } = autoGenerateTimetableDetailed("Class 10", "A", {
       teacherMode: "auto",
-      grade: "Grade 10",
+      grade: "Class 10",
       section: "A",
       schedule,
       subjectTeachers: Object.fromEntries(subjects.map((s) => [s.id, ""])),
@@ -294,9 +294,9 @@ describe("timetable generation helpers", () => {
     const { getSubjectsByGrade } = await import("./subjects-data");
 
     const schedule = buildScheduleConfig(defaultScheduleInput());
-    const subjects = getSubjectsByGrade()["Grade 10"] ?? [];
+    const subjects = getSubjectsByGrade()["Class 10"] ?? [];
     const teachingIdx = schedule.periodRows.findIndex((row) => !row.isBreak);
-    const venueA = slotVenue("Grade 10", "A");
+    const venueA = slotVenue("Class 10", "A");
 
     const gridA = emptyGrid(schedule);
     gridA[0]![teachingIdx] = {
@@ -310,7 +310,7 @@ describe("timetable generation helpers", () => {
     const existing = [
       {
         id: "TT-10A",
-        grade: "Grade 10",
+        grade: "Class 10",
         section: "A",
         term: "T1",
         status: "draft" as const,
@@ -320,9 +320,9 @@ describe("timetable generation helpers", () => {
       },
     ];
 
-    const { grid } = autoGenerateTimetableDetailed("Grade 10", "B", {
+    const { grid } = autoGenerateTimetableDetailed("Class 10", "B", {
       teacherMode: "auto",
-      grade: "Grade 10",
+      grade: "Class 10",
       section: "B",
       schedule,
       subjectTeachers: Object.fromEntries(subjects.map((s) => [s.id, ""])),
@@ -337,7 +337,7 @@ describe("timetable generation helpers", () => {
       ...existing,
       {
         id: "TT-10B",
-        grade: "Grade 10",
+        grade: "Class 10",
         section: "B",
         term: "T1",
         status: "draft",
@@ -347,7 +347,7 @@ describe("timetable generation helpers", () => {
       },
     ]);
     // Room conflicts for venueA at overlapping times should not involve both A and B if rooms differ.
-    // B uses its own venue by default (slotVenue Grade 10 B), so room conflicts for venueA alone are ok.
+    // B uses its own venue by default (slotVenue Class 10 B), so room conflicts for venueA alone are ok.
     const roomConflicts = conflicts.filter((c) => c.kind === "room");
     expect(roomConflicts.every((c) => c.classes.length === 2)).toBe(true);
   });

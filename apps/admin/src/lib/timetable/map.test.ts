@@ -80,7 +80,7 @@ describe("timetable map", () => {
     expect(bundle.sections[0]?.activeCount).toBe(1);
     expect(bundle.sections[0]?.inactiveCount).toBe(1);
     expect(bundle.sections[0]?.publishStatus).toBe("draft");
-    expect(bundle.slots[0]?.classLabel).toBe("Grade 10");
+    expect(bundle.slots[0]?.classLabel).toBe("Class 10");
     expect(bundle.slots[0]?.dayLabel).toBe("Mon");
   });
 

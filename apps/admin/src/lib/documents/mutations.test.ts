@@ -9,18 +9,6 @@ describe("documents mutations", () => {
     vi.clearAllMocks();
   });
 
-  it("refuses create in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const { createDocumentTemplate } = await import("./mutations");
-    await expect(
-      createDocumentTemplate({
-        instituteId: INST,
-        type: "document",
-        name: "TC",
-      }),
-    ).rejects.toThrow(/API auth mode/);
-  });
-
   it("does not call network for invalid UUID on activate", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const post = vi.fn();

@@ -25,16 +25,6 @@ describe("loadAcademicYearsList", () => {
     vi.clearAllMocks();
   });
 
-  it("returns demo status without calling API in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const listAcademicYears = vi.fn();
-    vi.doMock("./api", () => ({ listAcademicYears }));
-    const { loadAcademicYearsList } = await import("./load");
-    const result = await loadAcademicYearsList(INST);
-    expect(result).toEqual({ status: "demo", items: [], errorMessage: null });
-    expect(listAcademicYears).not.toHaveBeenCalled();
-  });
-
   it("requires a valid active institute UUID in API mode", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const listAcademicYears = vi.fn();

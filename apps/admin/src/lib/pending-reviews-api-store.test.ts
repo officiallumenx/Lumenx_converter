@@ -8,22 +8,6 @@ describe("pending-reviews-api-store", () => {
     vi.clearAllMocks();
   });
 
-  it("returns zero counts outside API mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const { refreshPendingReviewsApi, getPendingReviewsApiCounts } = await import(
-      "./pending-reviews-api-store"
-    );
-    await refreshPendingReviewsApi(INST, 3);
-    expect(getPendingReviewsApiCounts()).toEqual({
-      submittedMarks: 0,
-      pendingTeacherLeave: 0,
-      pendingAdmissionConverts: 0,
-      pendingCareerHires: 0,
-      pendingTransportStops: 0,
-      pendingTransportAssignments: 0,
-    });
-  });
-
   it("counts submitted marks and approved admissions awaiting convert", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     vi.doMock("@/lib/marks/api", () => ({

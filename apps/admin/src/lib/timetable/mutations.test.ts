@@ -13,24 +13,6 @@ describe("timetable mutations", () => {
     vi.clearAllMocks();
   });
 
-  it("refuses create in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const { createTimetableSlot } = await import("./mutations");
-    await expect(
-      createTimetableSlot({
-        instituteId: INST,
-        academicYearId: YEAR,
-        classId: CLASS,
-        sectionId: SECTION,
-        teacherAssignmentId: ASSIGN,
-        dayOfWeek: 1,
-        periodIndex: 1,
-        startsAt: "09:00",
-        endsAt: "09:45",
-      }),
-    ).rejects.toThrow(/API auth mode|Authentication required|Demo Mode is no longer supported/);
-  });
-
   it("does not call network for invalid slot UUID on delete", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const del = vi.fn();

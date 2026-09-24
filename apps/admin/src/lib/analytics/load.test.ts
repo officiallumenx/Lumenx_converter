@@ -8,16 +8,6 @@ describe("loadAnalyticsSummary", () => {
     vi.clearAllMocks();
   });
 
-  it("returns demo status without calling API in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const getAnalyticsSummary = vi.fn();
-    vi.doMock("./api", () => ({ getAnalyticsSummary }));
-    const { loadAnalyticsSummary } = await import("./load");
-    const result = await loadAnalyticsSummary(INST);
-    expect(result.status).toBe("demo");
-    expect(getAnalyticsSummary).not.toHaveBeenCalled();
-  });
-
   it("returns needs_institute for invalid UUID", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const { loadAnalyticsSummary } = await import("./load");

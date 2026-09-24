@@ -13,24 +13,6 @@ describe("homework mutations", () => {
     vi.clearAllMocks();
   });
 
-  it("refuses create in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const { createHomework } = await import("./mutations");
-    await expect(
-      createHomework({
-        instituteId: INST,
-        academicYearId: YEAR,
-        classId: CLASS,
-        sectionId: SECTION,
-        subjectId: SUBJECT,
-        kind: "homework",
-        title: "Essay",
-        description: "Write",
-        dueDate: "2026-09-01",
-      }),
-    ).rejects.toThrow(/API auth mode/);
-  });
-
   it("does not call network for invalid homework UUID on delete", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const del = vi.fn();

@@ -9,17 +9,6 @@ describe("loadStorageUsage", () => {
     vi.clearAllMocks();
   });
 
-  it("returns demo status without calling API in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const listAssets = vi.fn();
-    vi.doMock("./api", () => ({ listAssets }));
-    const { loadStorageUsage } = await import("./load");
-    const result = await loadStorageUsage(INST);
-    expect(result.status).toBe("demo");
-    expect(result.assets).toEqual([]);
-    expect(listAssets).not.toHaveBeenCalled();
-  });
-
   it("returns needs_institute for invalid UUID", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const { loadStorageUsage } = await import("./load");

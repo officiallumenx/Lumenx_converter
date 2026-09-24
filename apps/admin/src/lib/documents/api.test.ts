@@ -74,14 +74,6 @@ describe("documents api repository", () => {
     expect(url).toContain(`institute_id=${INST}`);
   });
 
-  it("refuses list in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const { listGeneratedDocuments } = await import("./api");
-    await expect(
-      listGeneratedDocuments({ instituteId: INST }),
-    ).rejects.toThrow(/API auth mode/);
-  });
-
   it("gets generated document signed url", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const { getGeneratedDocumentSignedUrl } = await import("./api");

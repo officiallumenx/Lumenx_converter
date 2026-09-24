@@ -9,16 +9,6 @@ describe("loadIssuedCertificatesList", () => {
     vi.clearAllMocks();
   });
 
-  it("returns demo status without calling API in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const listIssuedCertificates = vi.fn();
-    vi.doMock("./api", () => ({ listIssuedCertificates }));
-    const { loadIssuedCertificatesList } = await import("./load");
-    const result = await loadIssuedCertificatesList(INST);
-    expect(result.status).toBe("demo");
-    expect(listIssuedCertificates).not.toHaveBeenCalled();
-  });
-
   it("returns forbidden on 403 without demo fallback", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const listIssuedCertificates = vi.fn().mockRejectedValue(

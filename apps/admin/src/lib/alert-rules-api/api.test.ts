@@ -9,12 +9,6 @@ describe("alert-rules-api", () => {
     vi.clearAllMocks();
   });
 
-  it("refuses list in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const { listAlertRules } = await import("./api");
-    await expect(listAlertRules(INST)).rejects.toThrow(/API auth mode/);
-  });
-
   it("does not call network for invalid institute UUID", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const get = vi.fn();

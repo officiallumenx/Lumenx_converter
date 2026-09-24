@@ -9,21 +9,6 @@ describe("subjects mutations", () => {
     vi.clearAllMocks();
   });
 
-  it("refuses create in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const { createSubject } = await import("./mutations");
-    await expect(
-      createSubject({
-        instituteId: INST,
-        name: "Math",
-        code: "MATH",
-        category: "Core",
-        periodsPerWeek: 5,
-        applicableClassCodes: ["G10"],
-      }),
-    ).rejects.toThrow(/Demo Mode is no longer supported|API auth mode|Authentication required/);
-  });
-
   it("does not call network for invalid subject UUID on delete", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const del = vi.fn();

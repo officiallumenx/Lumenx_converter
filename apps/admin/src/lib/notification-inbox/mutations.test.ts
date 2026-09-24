@@ -10,14 +10,6 @@ describe("notification-inbox mutations", () => {
     vi.clearAllMocks();
   });
 
-  it("refuses update in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const { updateInboxItem } = await import("./mutations");
-    await expect(
-      updateInboxItem(ITEM, { read: true }),
-    ).rejects.toThrow(/API auth mode/);
-  });
-
   it("does not call network for invalid item UUID on delete", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const del = vi.fn();
@@ -127,19 +119,5 @@ describe("notification-inbox mutations", () => {
       ),
     ).rejects.toThrow(/UUID/);
     expect(post).not.toHaveBeenCalled();
-  });
-
-  it("refuses emit in demo mode (no demo fallback)", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const { emitNotification } = await import("./mutations");
-    await expect(
-      emitNotification({
-        instituteId: INST,
-        category: "system",
-        title: "Hello",
-        body: "World",
-        audience: "everyone",
-      }),
-    ).rejects.toThrow(/API auth mode/);
   });
 });

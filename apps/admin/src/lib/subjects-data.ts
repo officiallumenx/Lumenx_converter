@@ -7,8 +7,9 @@ import {
   isRegisteredAdminTenant,
   readAdminDataScopeKey,
 } from "@/lib/admin-tenant";
+import { classIdentityKey } from "@/lib/classes/name-format";
 
-export const GRADES = ["Grade 9", "Grade 10", "Grade 11", "Grade 12"] as const;
+export const GRADES = ["Class 9", "Class 10", "Class 11", "Class 12"] as const;
 
 export function getGrades(): readonly string[] {
   return getLevelLabels();
@@ -905,11 +906,18 @@ export function getAssignedSubjectNamesForTeacher(teacherId: string): string[] {
     .map((subject) => subject.name);
 }
 
+function subjectAppliesToLevel(subjectGrades: string[], yearLabel: string): boolean {
+  if (subjectGrades.includes(yearLabel)) return true;
+  const yearKey = classIdentityKey(yearLabel);
+  if (!yearKey) return false;
+  return subjectGrades.some((g) => classIdentityKey(g) === yearKey);
+}
+
 export function getSubjectsByGrade(): Record<string, TimetableSubject[]> {
   const out: Record<string, TimetableSubject[]> = {};
   const yearSubjects = (yearLabel: string): TimetableSubject[] =>
     subjectCatalog
-      .filter((s) => s.status === "active" && s.grades.includes(yearLabel))
+      .filter((s) => s.status === "active" && subjectAppliesToLevel(s.grades, yearLabel))
       .map((s) => ({ id: s.id, name: s.name, code: s.code, periodsPerWeek: s.periodsPerWeek }));
 
   for (const year of getLevelLabels()) {

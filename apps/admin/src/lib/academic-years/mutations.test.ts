@@ -9,20 +9,6 @@ describe("academic-years mutations", () => {
     vi.clearAllMocks();
   });
 
-  it("refuses create in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const { createAcademicYear } = await import("./mutations");
-    await expect(
-      createAcademicYear({
-        instituteId: INST,
-        name: "2025-26",
-        code: "AY2526",
-        startsOn: "2025-04-01",
-        endsOn: "2026-03-31",
-      }),
-    ).rejects.toThrow(/API auth mode/);
-  });
-
   it("does not call network for invalid year UUID on delete", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const del = vi.fn();

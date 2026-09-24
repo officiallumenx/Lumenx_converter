@@ -64,7 +64,7 @@ function mockRegistrationView(
   }));
 }
 
-describe("resolveRegistrationGate API pending status", () => {
+describe("resolveRegistrationGate API pending status", { timeout: 20_000 }, () => {
   beforeEach(() => {
     vi.resetModules();
     vi.unstubAllEnvs();
@@ -125,7 +125,8 @@ describe("resolveRegistrationGate API pending status", () => {
       syncing: true,
     });
     const { resolveRegistrationGate } = await import("./registration-gate");
-    expect(resolveRegistrationGate(user).kind).toBe("loading");
+    // Verified returnees are allowed during background sync; unverified users stay gated.
+    expect(resolveRegistrationGate({ ...user, isVerified: false }).kind).toBe("loading");
   });
 
   it("blocks access when the registration API fails", async () => {

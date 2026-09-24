@@ -35,16 +35,6 @@ describe("loadNotificationInboxList", () => {
     vi.clearAllMocks();
   });
 
-  it("returns demo status without calling API in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const listInboxNotifications = vi.fn();
-    vi.doMock("./api", () => ({ listInboxNotifications }));
-    const { loadNotificationInboxList } = await import("./load");
-    const result = await loadNotificationInboxList(INST);
-    expect(result).toEqual({ status: "demo", items: [], errorMessage: null });
-    expect(listInboxNotifications).not.toHaveBeenCalled();
-  });
-
   it("requires a valid active institute UUID in API mode", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const listInboxNotifications = vi.fn();

@@ -33,16 +33,6 @@ describe("loadRecycleItemsList", () => {
     vi.clearAllMocks();
   });
 
-  it("returns demo status without calling API in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const listRecycleItems = vi.fn();
-    vi.doMock("./api", () => ({ listRecycleItems }));
-    const { loadRecycleItemsList } = await import("./load");
-    const result = await loadRecycleItemsList(INST);
-    expect(result).toEqual({ status: "demo", items: [], errorMessage: null });
-    expect(listRecycleItems).not.toHaveBeenCalled();
-  });
-
   it("requires a valid active institute UUID in API mode", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const listRecycleItems = vi.fn();

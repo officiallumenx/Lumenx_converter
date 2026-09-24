@@ -8,24 +8,7 @@ describe("loadDashboardWidgets", () => {
     vi.clearAllMocks();
   });
 
-  it("returns demo status without calling list APIs in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const listStudents = vi.fn();
-    const listTeachers = vi.fn();
-    const listDiaryDays = vi.fn();
-    const listAttendanceRegisters = vi.fn();
-    const listMarkEntries = vi.fn();
-    vi.doMock("@/lib/students/api", () => ({ listStudents }));
-    vi.doMock("@/lib/teachers/api", () => ({ listTeachers }));
-    vi.doMock("@/lib/diary/api", () => ({ listDiaryDays }));
-    vi.doMock("@/lib/attendance/api", () => ({ listAttendanceRegisters }));
-    vi.doMock("@/lib/marks/api", () => ({ listMarkEntries }));
-    const { loadDashboardWidgets } = await import("./load-widgets");
-    const result = await loadDashboardWidgets(INST);
-    expect(result.status).toBe("demo");
-    expect(listStudents).not.toHaveBeenCalled();
-    expect(listMarkEntries).not.toHaveBeenCalled();
-  });
+
 
   it("returns needs_institute for invalid institute UUID", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");

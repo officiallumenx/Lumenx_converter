@@ -9,16 +9,6 @@ describe("loadCareersList", () => {
     vi.clearAllMocks();
   });
 
-  it("returns demo status without calling API in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const listCareerApplications = vi.fn();
-    vi.doMock("./api", () => ({ listCareerApplications }));
-    const { loadCareersList } = await import("./load");
-    const result = await loadCareersList(INST);
-    expect(result.status).toBe("demo");
-    expect(listCareerApplications).not.toHaveBeenCalled();
-  });
-
   it("returns forbidden on 403 without demo fallback", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const listCareerApplications = vi.fn().mockRejectedValue(
@@ -33,22 +23,5 @@ describe("loadCareersList", () => {
     const result = await loadCareersList(INST);
     expect(result.status).toBe("forbidden");
     expect(result.items).toEqual([]);
-  });
-});
-
-describe("loadCareerJobsList", () => {
-  beforeEach(() => {
-    vi.resetModules();
-    vi.clearAllMocks();
-  });
-
-  it("returns demo status without calling API in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const listCareerJobs = vi.fn();
-    vi.doMock("./api", () => ({ listCareerJobs }));
-    const { loadCareerJobsList } = await import("./load");
-    const result = await loadCareerJobsList(INST);
-    expect(result.status).toBe("demo");
-    expect(listCareerJobs).not.toHaveBeenCalled();
   });
 });

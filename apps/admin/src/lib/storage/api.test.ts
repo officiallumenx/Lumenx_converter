@@ -24,12 +24,6 @@ describe("storage api repository", () => {
     vi.resetModules();
   });
 
-  it("refuses to call backend in demo mode", async () => {
-    vi.doMock("@/auth/auth-mode", () => ({ isApiAuthMode: () => false }));
-    const { getStorageUsage } = await import("./api");
-    await expect(getStorageUsage(INST_ID)).rejects.toThrow(/API auth mode/i);
-  });
-
   it("loads institute usage in api mode", async () => {
     vi.doMock("@/auth/auth-mode", () => ({ isApiAuthMode: () => true }));
     vi.doMock("@/lib/admin-api", () => ({

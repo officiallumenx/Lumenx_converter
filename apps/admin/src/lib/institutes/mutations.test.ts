@@ -8,14 +8,6 @@ describe("institutes mutations", () => {
     vi.clearAllMocks();
   });
 
-  it("refuses update in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const { updateInstitute } = await import("./mutations");
-    await expect(
-      updateInstitute(INST, { name: "New Name" }),
-    ).rejects.toThrow(/API auth mode/);
-  });
-
   it("does not call network for invalid institute UUID", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const patch = vi.fn();
@@ -53,14 +45,6 @@ describe("institutes mutations", () => {
       `/api/v1/institutes/${INST}/settings`,
       expect.objectContaining({ timezone: "Asia/Kolkata", locale: "en-IN" }),
     );
-  });
-
-  it("refuses createInstitute in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const { createInstitute } = await import("./mutations");
-    await expect(
-      createInstitute({ code: "LX", name: "School", kind: "school" }),
-    ).rejects.toThrow(/API auth mode/);
   });
 
   it("posts createInstitute in API mode", async () => {

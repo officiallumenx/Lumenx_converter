@@ -32,21 +32,6 @@ describe("recycle api repository", () => {
     vi.resetModules();
   });
 
-  it("refuses to call backend in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const { listRecycleItems } = await import("./api");
-    const fetchMock = vi.fn();
-    const client = createApiClient({
-      getBaseUrl: () => "http://api.test",
-      getAccessToken: async () => "tok",
-      fetchImpl: fetchMock as unknown as typeof fetch,
-    });
-    await expect(
-      listRecycleItems({ instituteId: INST }, client),
-    ).rejects.toThrow(/API auth mode/i);
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
   it("rejects non-UUID institute ids without calling fetch", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const { listRecycleItems } = await import("./api");

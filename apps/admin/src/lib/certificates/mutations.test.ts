@@ -9,14 +9,6 @@ describe("certificates mutations", () => {
     vi.clearAllMocks();
   });
 
-  it("refuses issue in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const { issueCertificate } = await import("./mutations");
-    await expect(
-      issueCertificate({ instituteId: INST, title: "Merit" }),
-    ).rejects.toThrow(/API auth mode/);
-  });
-
   it("does not call network for invalid UUID on revoke", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const post = vi.fn();

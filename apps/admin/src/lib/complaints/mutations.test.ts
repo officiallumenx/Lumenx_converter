@@ -8,14 +8,6 @@ describe("complaints mutations", () => {
     vi.clearAllMocks();
   });
 
-  it("refuses transition in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const { transitionComplaint } = await import("./mutations");
-    await expect(
-      transitionComplaint(COMPLAINT, { status: "review" }),
-    ).rejects.toThrow(/API auth mode/);
-  });
-
   it("does not call network for invalid complaint UUID on update", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const patch = vi.fn();

@@ -78,7 +78,7 @@ function student(overrides: Partial<StudentDirectoryRecord>): StudentDirectoryRe
 }
 
 function grade10Row(rows: ReturnType<typeof buildClassSeatAvailability>) {
-  return rows.find((row) => row.classLabel === "Grade 10");
+  return rows.find((row) => row.classLabel === "Class 10");
 }
 
 describe("admissions seat availability", () => {
@@ -101,6 +101,11 @@ describe("admissions seat availability", () => {
   });
 
   it("3/10 counts existing students as occupied", () => {
+    // API mode does not seed demo students — plant Class 10 roster explicitly.
+    saveStudentDirectory([
+      student({ id: "STU-10-1", grade: "10-A", name: "Alpha" }),
+      student({ id: "STU-10-2", grade: "10-B", name: "Beta" }),
+    ]);
     const rows = buildClassSeatAvailability(INSTITUTE_ID, SCHOOL_ACADEMIC);
     const grade10 = grade10Row(rows);
     expect(grade10?.occupied).toBe(2);

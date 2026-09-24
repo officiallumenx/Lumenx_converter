@@ -40,6 +40,7 @@ const BROADCAST_KEY = "lumenx.demo.broadcast-inbox.v1";
 
 async function loadAlertsModule() {
   vi.resetModules();
+  vi.doMock("@/auth/auth-mode", () => ({ isApiAuthMode: () => false }));
   return import("./alert-rules-store");
 }
 
@@ -61,7 +62,6 @@ function seedNotificationInbox() {
 
 describe("admin alerts workflow", () => {
   beforeEach(() => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
     store.clear();
     vi.clearAllMocks();
     seedNotificationInbox();
@@ -232,7 +232,7 @@ describe("alert rules API mode guard", () => {
   });
 
   it("evaluateAllAlertRules returns 0 in API auth mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    vi.doMock("@/auth/auth-mode", () => ({ isApiAuthMode: () => true }));
     const { evaluateAllAlertRules } = await import("./alert-rules-store");
     expect(evaluateAllAlertRules()).toBe(0);
   });

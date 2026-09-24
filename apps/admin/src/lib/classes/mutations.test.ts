@@ -11,19 +11,6 @@ describe("classes mutations", () => {
     vi.clearAllMocks();
   });
 
-  it("refuses create in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const { createClass } = await import("./mutations");
-    await expect(
-      createClass({
-        instituteId: INST,
-        academicYearId: YEAR,
-        name: "Grade 10",
-        code: "G10",
-      }),
-    ).rejects.toThrow(/Demo Mode is no longer supported|API auth mode|Authentication required/);
-  });
-
   it("does not call network for invalid section UUID on delete", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const del = vi.fn();

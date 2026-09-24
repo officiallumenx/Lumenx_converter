@@ -8,12 +8,6 @@ describe("recycle mutations", () => {
     vi.clearAllMocks();
   });
 
-  it("refuses restore in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const { restoreRecycleItem } = await import("./mutations");
-    await expect(restoreRecycleItem(ITEM)).rejects.toThrow(/API auth mode/);
-  });
-
   it("does not call network for invalid item UUID on purge", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const post = vi.fn();

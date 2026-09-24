@@ -9,16 +9,6 @@ describe("loadDocumentsTemplatesList", () => {
     vi.clearAllMocks();
   });
 
-  it("returns demo status without calling API in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const listDocumentTemplates = vi.fn();
-    vi.doMock("./api", () => ({ listDocumentTemplates }));
-    const { loadDocumentsTemplatesList } = await import("./load");
-    const result = await loadDocumentsTemplatesList(INST);
-    expect(result.status).toBe("demo");
-    expect(listDocumentTemplates).not.toHaveBeenCalled();
-  });
-
   it("returns forbidden on 403 without demo fallback", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const listDocumentTemplates = vi.fn().mockRejectedValue(

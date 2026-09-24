@@ -8,14 +8,6 @@ describe("leave mutations", () => {
     vi.clearAllMocks();
   });
 
-  it("refuses decide in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const { decideLeave } = await import("./mutations");
-    await expect(
-      decideLeave(LEAVE, { outcome: "approved" }),
-    ).rejects.toThrow(/API auth mode/);
-  });
-
   it("does not call network for invalid leave UUID on cancel", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const post = vi.fn();

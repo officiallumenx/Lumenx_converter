@@ -9,20 +9,6 @@ describe("students mutations", () => {
     vi.clearAllMocks();
   });
 
-  it("refuses create in demo mode", async () => {
-    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "demo");
-    const { createStudent } = await import("./mutations");
-    await expect(
-      createStudent({
-        instituteId: INST,
-        firstName: "A",
-        surname: "B",
-        gender: "female",
-        address: "Addr",
-      }),
-    ).rejects.toThrow(/API auth mode/);
-  });
-
   it("does not call network for invalid student UUID on delete", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const del = vi.fn();
