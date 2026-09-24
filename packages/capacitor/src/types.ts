@@ -18,6 +18,8 @@ export interface LumenXCapacitorConfig {
   };
   server: {
     androidScheme: "https" | "http";
+    /** WebView host so Origin matches production CORS (e.g. admin.lumenxtech.in). */
+    hostname?: string;
   };
   plugins?: {
     StatusBar?: {
@@ -39,6 +41,12 @@ export interface LumenXCapacitorAppOptions {
   androidPath?: string;
   /** WebView + native window background color (hex) to avoid load/resume flashes. */
   backgroundColor?: string;
+  /**
+   * Capacitor WebView hostname (no scheme). With androidScheme https this becomes
+   * Origin `https://{hostname}` — must be listed in API CORS_ORIGINS.
+   * Defaults to Capacitor's `localhost` if omitted.
+   */
+  hostname?: string;
 }
 
 export interface LumenXViteCapacitorOptions {

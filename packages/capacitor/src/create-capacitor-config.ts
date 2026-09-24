@@ -21,6 +21,7 @@ export function createCapacitorConfig(options: LumenXCapacitorAppOptions): Lumen
     },
     server: {
       androidScheme: LUMENX_ANDROID_SCHEME,
+      ...(options.hostname ? { hostname: options.hostname } : {}),
     },
     plugins: {
       StatusBar: {
