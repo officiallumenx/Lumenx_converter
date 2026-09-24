@@ -19,7 +19,7 @@ test("Nexus pre-login requires an operator identifier without network activity",
   const writes = await blockApiWrites(page);
   await page.goto("/login");
 
-  const identifier = page.getByPlaceholder("username, email, or mobile");
+  const identifier = page.getByPlaceholder("email, mobile, lokesh, or nexus-root");
   await expect(identifier).toBeVisible();
   await page.getByRole("button", { name: /continue/i }).click();
   await expect(identifier).toHaveAttribute("required", "");
