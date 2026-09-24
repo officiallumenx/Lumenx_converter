@@ -20,6 +20,7 @@ const TOKEN_B = "token-user-b";
 
 const validPayload = {
   instituteName: "Test1School",
+  instituteCode: "TEST1SCHOOL",
   instituteType: "School (K-12)",
   educationBoard: "CBSE",
   country: "India",
@@ -185,7 +186,7 @@ describe("POST /api/v1/registrations", () => {
         applicant_name: "Someone",
         email: "taken@example.com",
         password: "SecurePass1!",
-        payload: { instituteName: "Test School" },
+        payload: { instituteName: "Test School", instituteCode: "TESTSCHOOL" },
       }),
     });
 
@@ -391,7 +392,7 @@ describe("registration security invariants", () => {
         applicant_name: "Owner",
         email: "owner@example.com",
         password: "SecurePass1!",
-        payload: { instituteName: "Owner Institute" },
+        payload: { instituteName: "Owner Institute", instituteCode: "OWNERINST" },
       }),
     });
 
@@ -410,7 +411,7 @@ describe("registration security invariants", () => {
         applicant_name: "Owner",
         email: "owner2@example.com",
         password: "SecurePass1!",
-        payload: { instituteName: "Owner Institute 2" },
+        payload: { instituteName: "Owner Institute 2", instituteCode: "OWNERINST2" },
       }),
     });
 

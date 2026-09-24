@@ -24,6 +24,12 @@ function requireAdmin(c: {
 
 const registrationPayloadSchema = z.object({
   instituteName: z.string().min(1).max(200),
+  /** Unique short code for login picker (letters, numbers, - or _). */
+  instituteCode: z
+    .string()
+    .min(3)
+    .max(32)
+    .regex(/^[A-Za-z0-9][A-Za-z0-9_-]{2,31}$/),
   instituteType: z.string().max(120).optional(),
   educationBoard: z.string().max(120).optional(),
   country: z.string().max(80).optional(),

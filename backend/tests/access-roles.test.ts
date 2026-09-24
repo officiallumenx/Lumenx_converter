@@ -92,7 +92,12 @@ function baseDb(): MockDb {
 }
 
 function appWithDb(db: MockDb, authUsersByEmail?: Record<string, { id: string }>) {
-  const env = loadEnv({ NODE_ENV: "test", LOG_LEVEL: "error" });
+  // Dual-channel staff first-login needs email OTP enabled (demo delivery still no-ops).
+  const env = loadEnv({
+    NODE_ENV: "test",
+    LOG_LEVEL: "error",
+    OTP_EMAIL_PROVIDER: "webhook",
+  });
   return createApp(
     env,
     silentLogger,
@@ -663,7 +668,7 @@ describe("access roles API", () => {
         }),
       },
     );
-    expect(disabledUser.status).toBe(404);
+    expect(disabledUser.status).toBe(403);
 
     const disabledInstituteDb = baseDb();
     disabledInstituteDb.institute[0]!.status = "disabled";
