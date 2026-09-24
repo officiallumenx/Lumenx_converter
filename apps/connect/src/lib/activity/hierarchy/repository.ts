@@ -51,7 +51,7 @@ import { assertTeacherCanWrite } from "@/lib/teacher/portal-access-guard";
 
 const delay = (ms = 120) => new Promise((r) => setTimeout(r, ms));
 
-function useApi() {
+function isApiMode() {
   return isApiAuthMode();
 }
 
@@ -61,57 +61,57 @@ function useApi() {
  */
 export const activityHierarchyRepository = {
   async preload() {
-    if (!useApi()) return;
+    if (!isApiMode()) return;
     await loadActivityApiHierarchy();
   },
 
   async listSportsByCategory(category: SportsCategory) {
-    if (useApi()) return apiListSportsByCategory(category);
+    if (isApiMode()) return apiListSportsByCategory(category);
     await delay();
     return listSportsByCategoryFromStore(category);
   },
 
   async listSports() {
-    if (useApi()) return apiListSports();
+    if (isApiMode()) return apiListSports();
     await delay();
     return listAllSportsFromStore();
   },
 
   async getSport(id: string) {
-    if (useApi()) return apiGetSport(id);
+    if (isApiMode()) return apiGetSport(id);
     await delay();
     return getSportByIdFromStore(id);
   },
 
   async createSport(input: CreateSportInput) {
     assertTeacherCanWrite();
-    if (useApi()) return apiCreateSport(input);
+    if (isApiMode()) return apiCreateSport(input);
     await delay();
     return createSportInStore(input);
   },
 
   async listTeamsBySport(sportId: string) {
-    if (useApi()) return apiListTeamsBySport(sportId);
+    if (isApiMode()) return apiListTeamsBySport(sportId);
     await delay();
     return listTeamsBySportFromStore(sportId);
   },
 
   async getTeam(id: string) {
-    if (useApi()) return apiGetTeam(id);
+    if (isApiMode()) return apiGetTeam(id);
     await delay();
     return getTeamByIdFromStore(id);
   },
 
   async createTeam(input: CreateTeamInput) {
     assertTeacherCanWrite();
-    if (useApi()) return apiCreateTeam(input);
+    if (isApiMode()) return apiCreateTeam(input);
     await delay();
     return createTeamInStore(input);
   },
 
   async setTeamStudents(teamId: string, students: HierarchyStudent[]) {
     assertTeacherCanWrite();
-    if (useApi()) {
+    if (isApiMode()) {
       const updated = await apiSetTeamStudents(teamId, students);
       if (!updated) throw new Error("Team not found");
       return updated;
@@ -123,46 +123,46 @@ export const activityHierarchyRepository = {
   },
 
   async listEcaActivities() {
-    if (useApi()) return apiListEcaActivities();
+    if (isApiMode()) return apiListEcaActivities();
     await delay();
     return listEcaActivitiesFromStore();
   },
 
   async getEcaActivity(id: string) {
-    if (useApi()) return apiGetEcaActivity(id);
+    if (isApiMode()) return apiGetEcaActivity(id);
     await delay();
     return getEcaActivityByIdFromStore(id);
   },
 
   async createEcaActivity(input: CreateEcaActivityInput) {
     assertTeacherCanWrite();
-    if (useApi()) return apiCreateEcaActivity(input);
+    if (isApiMode()) return apiCreateEcaActivity(input);
     await delay();
     return createEcaActivityInStore(input);
   },
 
   async listGroupsByActivity(activityId: string) {
-    if (useApi()) return apiListGroupsByActivity(activityId);
+    if (isApiMode()) return apiListGroupsByActivity(activityId);
     await delay();
     return listGroupsByActivityFromStore(activityId);
   },
 
   async getGroup(id: string) {
-    if (useApi()) return apiGetGroup(id);
+    if (isApiMode()) return apiGetGroup(id);
     await delay();
     return getGroupByIdFromStore(id);
   },
 
   async createGroup(input: CreateGroupInput) {
     assertTeacherCanWrite();
-    if (useApi()) return apiCreateGroup(input);
+    if (isApiMode()) return apiCreateGroup(input);
     await delay();
     return createGroupInStore(input);
   },
 
   async setGroupStudents(groupId: string, students: HierarchyStudent[]) {
     assertTeacherCanWrite();
-    if (useApi()) {
+    if (isApiMode()) {
       const updated = await apiSetGroupStudents(groupId, students);
       if (!updated) throw new Error("Group not found");
       return updated;
@@ -175,13 +175,13 @@ export const activityHierarchyRepository = {
 
   /** For Phase 5+ shared modules — do not invent parallel team lists. */
   async listUnits(domain?: ActivityDomain) {
-    if (useApi()) return apiListUnits(domain);
+    if (isApiMode()) return apiListUnits(domain);
     await delay();
     return listUnitsFromStore(domain);
   },
 
   reset() {
-    if (useApi()) {
+    if (isApiMode()) {
       resetActivityApiStore();
       return;
     }

@@ -15,8 +15,14 @@ export const Route = createFileRoute("/_authenticated/announcements")({
 function AnnouncementsRoutePage() {
   const { role, activeInstituteId } = useApp();
   const portal = useParentPortal();
+  const allowed = role === "parent" || role === "student" || role === "teacher";
+  const portalRole = (allowed ? role : "student") as ConnectAnnouncementPortalRole;
+  const { items, loading, error } = useConnectAnnouncementsList(
+    allowed ? activeInstituteId : null,
+    portalRole,
+  );
 
-  if (role !== "parent" && role !== "student" && role !== "teacher") {
+  if (!allowed) {
     return (
       <AnnouncementsCenterView
         items={[]}
@@ -24,12 +30,6 @@ function AnnouncementsRoutePage() {
       />
     );
   }
-
-  const portalRole = role as ConnectAnnouncementPortalRole;
-  const { items, loading, error } = useConnectAnnouncementsList(
-    activeInstituteId,
-    portalRole,
-  );
 
   const subtitle =
     role === "parent" && portal.isParent && portal.snapshot

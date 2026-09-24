@@ -14,17 +14,17 @@ export const Route = createFileRoute("/_authenticated/announcements/$id")({
 function AnnouncementDetailRoutePage() {
   const { id } = Route.useParams();
   const { role, activeInstituteId } = useApp();
-
-  if (role !== "parent" && role !== "student" && role !== "teacher") {
-    return <AnnouncementDetailView row={null} error="Announcements are not available for this role." />;
-  }
-
-  const portalRole = role as ConnectAnnouncementPortalRole;
+  const allowed = role === "parent" || role === "student" || role === "teacher";
+  const portalRole = (allowed ? role : "student") as ConnectAnnouncementPortalRole;
   const { item, loading, error } = useConnectAnnouncementDetail(
-    id,
-    activeInstituteId,
+    allowed ? id : "",
+    allowed ? activeInstituteId : null,
     portalRole,
   );
+
+  if (!allowed) {
+    return <AnnouncementDetailView row={null} error="Announcements are not available for this role." />;
+  }
 
   return <AnnouncementDetailView row={item} loading={loading} error={error} />;
 }

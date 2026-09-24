@@ -29,7 +29,7 @@ import { isDiaryDayReady, isDiaryDaySubmitted } from "./types";
 
 const delay = (ms = 200) => new Promise((r) => setTimeout(r, ms));
 
-function useApi() {
+function isApiMode() {
   return isApiAuthMode();
 }
 
@@ -39,27 +39,27 @@ export const diaryRepository = {
   },
 
   subscribe(listener: () => void) {
-    if (useApi()) return subscribeDiaryApiStore(listener);
+    if (isApiMode()) return subscribeDiaryApiStore(listener);
     return subscribeDiaryStore(listener);
   },
 
   getSnapshot() {
-    if (useApi()) return getDiaryApiSnapshot();
+    if (isApiMode()) return getDiaryApiSnapshot();
     return getDiarySnapshot();
   },
 
   async loadDay(scope: DiaryScope, date: string) {
-    if (useApi()) return loadDiaryApiDay(scope, date);
+    if (isApiMode()) return loadDiaryApiDay(scope, date);
     return ensureDiaryDay(scope, date);
   },
 
   getDay(scope: DiaryScope, date: string) {
-    if (useApi()) return getDiaryApiDay(scope, date);
+    if (isApiMode()) return getDiaryApiDay(scope, date);
     return getDiaryDay(scope, date);
   },
 
   ensureDay(scope: DiaryScope, date: string) {
-    if (useApi()) {
+    if (isApiMode()) {
       const existing = getDiaryApiDay(scope, date);
       if (existing) return existing;
       return {
@@ -74,7 +74,7 @@ export const diaryRepository = {
 
   /** Local or API draft persist (UI debounces typing). */
   async saveRows(scope: DiaryScope, date: string, rows: DiaryRow[]) {
-    if (useApi()) return saveDiaryApiRows(scope, date, rows);
+    if (isApiMode()) return saveDiaryApiRows(scope, date, rows);
     return setDiaryRows(scope, date, rows);
   },
 
@@ -87,7 +87,7 @@ export const diaryRepository = {
           : "Fill at least one row with a class and description.",
       );
     }
-    if (useApi()) {
+    if (isApiMode()) {
       return submitDiaryApiDay(scope, date, rows);
     }
     await delay();
@@ -95,12 +95,12 @@ export const diaryRepository = {
   },
 
   isReady(scope: DiaryScope, date: string) {
-    if (useApi()) return isDiaryApiReady(scope, date);
+    if (isApiMode()) return isDiaryApiReady(scope, date);
     return isDiaryReady(scope, date);
   },
 
   isSubmitted(scope: DiaryScope, date: string) {
-    if (useApi()) return isDiaryApiSubmitted(scope, date);
+    if (isApiMode()) return isDiaryApiSubmitted(scope, date);
     return isDiarySubmitted(scope, date);
   },
 
@@ -109,7 +109,7 @@ export const diaryRepository = {
   },
 
   isYesterdayOverdue(scope: DiaryScope) {
-    if (useApi()) return isYesterdayDiaryApiOverdue(scope);
+    if (isApiMode()) return isYesterdayDiaryApiOverdue(scope);
     return isYesterdayDiaryOverdue(scope);
   },
 

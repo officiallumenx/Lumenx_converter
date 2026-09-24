@@ -16,7 +16,7 @@ import {
 
 const delay = (ms = 120) => new Promise((r) => setTimeout(r, ms));
 
-function useApi() {
+function isApiMode() {
   return isApiAuthMode();
 }
 
@@ -66,7 +66,7 @@ async function loadApiAchievements(): Promise<RecordedAchievement[]> {
 
 export const workspaceAchievementsRepository = {
   subscribe(listener: () => void) {
-    if (useApi()) {
+    if (isApiMode()) {
       apiListeners.add(listener);
       return () => apiListeners.delete(listener);
     }
@@ -74,18 +74,18 @@ export const workspaceAchievementsRepository = {
   },
 
   getSnapshot(): RecordedAchievement[] {
-    if (useApi()) return apiRecords;
+    if (isApiMode()) return apiRecords;
     return getAchievementsSnapshot();
   },
 
   async preload() {
-    if (!useApi()) return;
+    if (!isApiMode()) return;
     apiRecords = await loadApiAchievements();
     emitApi();
   },
 
   async recordUnit(input: RecordUnitAchievementInput) {
-    if (useApi()) {
+    if (isApiMode()) {
       const instituteId = requireInstituteId();
       await loadActivityApiHierarchy();
       const snapshot = getActivityApiSnapshot();
@@ -131,7 +131,7 @@ export const workspaceAchievementsRepository = {
   },
 
   async recordStudents(input: RecordStudentAchievementsInput) {
-    if (useApi()) {
+    if (isApiMode()) {
       const instituteId = requireInstituteId();
       const awardedOn = todayIsoDate();
       const created: RecordedAchievement[] = [];
@@ -166,7 +166,7 @@ export const workspaceAchievementsRepository = {
   },
 
   reset() {
-    if (useApi()) {
+    if (isApiMode()) {
       apiRecords = [];
       emitApi();
       return;

@@ -76,7 +76,7 @@ let store = [...SEED];
 let snapshot: WorkspaceCommunicationItem[] = store;
 const listeners = new Set<() => void>();
 
-function useApi() {
+function isApiMode() {
   return isApiAuthMode();
 }
 
@@ -287,7 +287,7 @@ export const workspaceCommunicationRepository = {
   },
 
   async preload() {
-    if (!useApi()) return;
+    if (!isApiMode()) return;
     store = [];
     const apiItems = await loadApiItems();
     store = apiItems;
@@ -301,7 +301,7 @@ export const workspaceCommunicationRepository = {
   },
 
   async list(filters?: WorkspaceCommunicationFilters): Promise<WorkspaceCommunicationItem[]> {
-    if (useApi()) {
+    if (isApiMode()) {
       const apiItems = await loadApiItems();
       const localNotifications = store.filter((i) => i.kind === "notification");
       return applyFilters([...localNotifications, ...apiItems], filters);
@@ -340,7 +340,7 @@ export const workspaceCommunicationRepository = {
     unitLabels: string[];
     unitIds: string[];
   }): Promise<WorkspaceCommunicationItem> {
-    if (useApi()) return sendTeamMessageApi(input);
+    if (isApiMode()) return sendTeamMessageApi(input);
     return persistOutboundDemo({ ...input, kind: "message" });
   },
 
@@ -351,7 +351,7 @@ export const workspaceCommunicationRepository = {
     unitLabels: string[];
     unitIds: string[];
   }): Promise<WorkspaceCommunicationItem> {
-    if (useApi()) return sendTeamAnnouncementApi(input);
+    if (isApiMode()) return sendTeamAnnouncementApi(input);
     return persistOutboundDemo({ ...input, kind: "announcement" });
   },
 

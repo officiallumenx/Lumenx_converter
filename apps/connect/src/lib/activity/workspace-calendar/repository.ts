@@ -26,7 +26,7 @@ import { WORKSPACE_CALENDAR_CATEGORY_COLORS } from "./types";
 
 const delay = (ms = 80) => new Promise((r) => setTimeout(r, ms));
 
-function useApi() {
+function isApiMode() {
   return isApiAuthMode();
 }
 
@@ -78,14 +78,14 @@ export const workspaceCalendarRepository = {
   getSnapshot: getCalendarSnapshot,
 
   async preload() {
-    if (!useApi()) return;
+    if (!isApiMode()) return;
     clearDemoLinkedCalendarEntries();
     const entries = await loadApiPracticeEntries();
     setApiCalendarLinkedOverlay(entries);
   },
 
   async listEntries(filters?: WorkspaceCalendarFilters) {
-    if (useApi()) {
+    if (isApiMode()) {
       return listCalendarEntriesFromStore(filters).map((e) => ({ ...e }));
     }
     await delay();
@@ -114,7 +114,7 @@ export const workspaceCalendarRepository = {
 
   /** Called when coordinator assigns practice — appears on Calendar. */
   async addPractice(input: CreatePracticeCalendarInput) {
-    if (useApi()) {
+    if (isApiMode()) {
       await this.preload();
       const latest = getCalendarSnapshot().find(
         (e) =>
