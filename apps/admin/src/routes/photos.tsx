@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Camera, ImagePlus, Search, Upload } from "lucide-react";
+import { Camera, Search, Upload } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { useInstituteContext } from "@/lib/institutes";
@@ -71,6 +71,45 @@ function PhotoThumb({
   );
 }
 
+function PersonPhotoActions({
+  busy,
+  onGallery,
+  onCamera,
+}: {
+  busy: boolean;
+  onGallery: () => void;
+  onCamera: () => void;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-2 pt-1">
+      <button
+        type="button"
+        disabled={busy}
+        className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary text-primary-foreground px-3 py-2.5 text-sm font-medium disabled:opacity-50"
+        onClick={(e) => {
+          e.stopPropagation();
+          onGallery();
+        }}
+      >
+        <Upload className="h-4 w-4 shrink-0" />
+        Upload photo
+      </button>
+      <button
+        type="button"
+        disabled={busy}
+        className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-medium disabled:opacity-50"
+        onClick={(e) => {
+          e.stopPropagation();
+          onCamera();
+        }}
+      >
+        <Camera className="h-4 w-4 shrink-0" />
+        Take photo
+      </button>
+    </div>
+  );
+}
+
 function PhotosPage() {
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
@@ -129,10 +168,6 @@ function PhotosPage() {
 
   const teachers = teachersQuery.data ?? [];
   const students = studentsQuery.data ?? [];
-  const selectedTeacher =
-    teachers.find((t) => t.id === selectedTeacherId) ?? null;
-  const selectedStudent =
-    students.find((s) => s.id === selectedStudentId) ?? null;
 
   const classOptions = useMemo(() => classesQuery.data ?? [], [classesQuery.data]);
   const sectionOptions = useMemo(
@@ -194,6 +229,16 @@ function PhotosPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function toggleTeacher(id: string) {
+    setSelectedTeacherId((prev) => (prev === id ? null : id));
+    setStatusMsg(null);
+  }
+
+  function toggleStudent(id: string) {
+    setSelectedStudentId((prev) => (prev === id ? null : id));
+    setStatusMsg(null);
   }
 
   if (!apiMode) {
@@ -311,188 +356,123 @@ function PhotosPage() {
         <p className="mb-3 text-sm text-muted-foreground">{statusMsg}</p>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
-        <div className="rounded-xl border border-border bg-card overflow-hidden">
-          {mode === "staff" && teachersQuery.isLoading && (
-            <p className="p-4 text-sm text-muted-foreground">Loading staff…</p>
-          )}
-          {mode === "staff" && teachersQuery.isError && (
-            <p className="p-4 text-sm text-destructive">
-              {(teachersQuery.error as Error).message || "Failed to load staff"}
-            </p>
-          )}
-          {mode === "staff" && !teachersQuery.isLoading && teachers.length === 0 && (
-            <p className="p-4 text-sm text-muted-foreground">No staff found.</p>
-          )}
-          {mode === "staff" &&
-            teachers.map((t) => (
-              <button
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
+        {mode === "staff" && teachersQuery.isLoading && (
+          <p className="p-4 text-sm text-muted-foreground">Loading staff…</p>
+        )}
+        {mode === "staff" && teachersQuery.isError && (
+          <p className="p-4 text-sm text-destructive">
+            {(teachersQuery.error as Error).message || "Failed to load staff"}
+          </p>
+        )}
+        {mode === "staff" && !teachersQuery.isLoading && teachers.length === 0 && (
+          <p className="p-4 text-sm text-muted-foreground">No staff found.</p>
+        )}
+        {mode === "staff" &&
+          teachers.map((t) => {
+            const selected = selectedTeacherId === t.id;
+            return (
+              <div
                 key={t.id}
-                type="button"
-                className={`w-full flex items-center gap-3 px-4 py-3 text-left border-b border-border last:border-0 hover:bg-muted/40 ${
-                  selectedTeacherId === t.id ? "bg-muted/60" : ""
-                }`}
-                onClick={() => setSelectedTeacherId(t.id)}
+                className={`border-b border-border last:border-0 ${selected ? "bg-muted/50" : ""}`}
               >
-                <PhotoThumb url={t.photoSignedUrl} name={t.displayName} />
-                <div className="min-w-0">
-                  <div className="font-medium truncate">{t.displayName}</div>
-                  <div className="text-xs text-muted-foreground truncate">
-                    {t.department}
-                    {t.phone ? ` · ${t.phone}` : ""}
+                <button
+                  type="button"
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/40"
+                  onClick={() => toggleTeacher(t.id)}
+                  aria-expanded={selected}
+                >
+                  <PhotoThumb url={t.photoSignedUrl} name={t.displayName} />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium truncate">{t.displayName}</div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      {t.department}
+                      {t.phone ? ` · ${t.phone}` : ""}
+                    </div>
                   </div>
-                </div>
-              </button>
-            ))}
+                  <span className="text-xs text-muted-foreground shrink-0">
+                    {selected ? "Hide" : "Photo"}
+                  </span>
+                </button>
+                {selected && (
+                  <div className="px-4 pb-3 space-y-2">
+                    <PersonPhotoActions
+                      busy={busy}
+                      onGallery={() =>
+                        void runUpload("gallery", { type: "teacher", row: t })
+                      }
+                      onCamera={() =>
+                        void runUpload("camera", { type: "teacher", row: t })
+                      }
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })}
 
-          {mode === "student" && (!classId || !sectionId) && (
-            <p className="p-4 text-sm text-muted-foreground">
-              Select class and section to load students.
-            </p>
+        {mode === "student" && (!classId || !sectionId) && (
+          <p className="p-4 text-sm text-muted-foreground">
+            Select class and section to load students.
+          </p>
+        )}
+        {mode === "student" && classId && sectionId && studentsQuery.isLoading && (
+          <p className="p-4 text-sm text-muted-foreground">Loading students…</p>
+        )}
+        {mode === "student" && studentsQuery.isError && (
+          <p className="p-4 text-sm text-destructive">
+            {(studentsQuery.error as Error).message || "Failed to load students"}
+          </p>
+        )}
+        {mode === "student" &&
+          classId &&
+          sectionId &&
+          !studentsQuery.isLoading &&
+          students.length === 0 && (
+            <p className="p-4 text-sm text-muted-foreground">No students in this section.</p>
           )}
-          {mode === "student" && classId && sectionId && studentsQuery.isLoading && (
-            <p className="p-4 text-sm text-muted-foreground">Loading students…</p>
-          )}
-          {mode === "student" && studentsQuery.isError && (
-            <p className="p-4 text-sm text-destructive">
-              {(studentsQuery.error as Error).message || "Failed to load students"}
-            </p>
-          )}
-          {mode === "student" &&
-            classId &&
-            sectionId &&
-            !studentsQuery.isLoading &&
-            students.length === 0 && (
-              <p className="p-4 text-sm text-muted-foreground">No students in this section.</p>
-            )}
-          {mode === "student" &&
-            students.map((s) => (
-              <button
+        {mode === "student" &&
+          students.map((s) => {
+            const selected = selectedStudentId === s.id;
+            return (
+              <div
                 key={s.id}
-                type="button"
-                className={`w-full flex items-center gap-3 px-4 py-3 text-left border-b border-border last:border-0 hover:bg-muted/40 ${
-                  selectedStudentId === s.id ? "bg-muted/60" : ""
-                }`}
-                onClick={() => setSelectedStudentId(s.id)}
+                className={`border-b border-border last:border-0 ${selected ? "bg-muted/50" : ""}`}
               >
-                <PhotoThumb url={s.photoSignedUrl} name={s.displayName} />
-                <div className="min-w-0">
-                  <div className="font-medium truncate">{s.displayName}</div>
-                  <div className="text-xs text-muted-foreground truncate">
-                    {[s.classLabel, s.sectionLabel].filter(Boolean).join(" · ")}
-                    {s.rollNo ? ` · Roll ${s.rollNo}` : ""}
+                <button
+                  type="button"
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/40"
+                  onClick={() => toggleStudent(s.id)}
+                  aria-expanded={selected}
+                >
+                  <PhotoThumb url={s.photoSignedUrl} name={s.displayName} />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium truncate">{s.displayName}</div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      {[s.classLabel, s.sectionLabel].filter(Boolean).join(" · ")}
+                      {s.rollNo ? ` · Roll ${s.rollNo}` : ""}
+                    </div>
                   </div>
-                </div>
-              </button>
-            ))}
-        </div>
-
-        <div className="rounded-xl border border-border bg-card p-4 space-y-4 h-fit">
-          {mode === "staff" && !selectedTeacher && (
-            <p className="text-sm text-muted-foreground">Select a staff member.</p>
-          )}
-          {mode === "student" && !selectedStudent && (
-            <p className="text-sm text-muted-foreground">Select a student.</p>
-          )}
-
-          {selectedTeacher && (
-            <>
-              <div className="flex flex-col items-center gap-3">
-                <PhotoThumb
-                  url={selectedTeacher.photoSignedUrl}
-                  name={selectedTeacher.displayName}
-                  size="lg"
-                />
-                <div className="text-center">
-                  <div className="font-semibold">{selectedTeacher.displayName}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {selectedTeacher.department}
+                  <span className="text-xs text-muted-foreground shrink-0">
+                    {selected ? "Hide" : "Photo"}
+                  </span>
+                </button>
+                {selected && (
+                  <div className="px-4 pb-3 space-y-2">
+                    <PersonPhotoActions
+                      busy={busy}
+                      onGallery={() =>
+                        void runUpload("gallery", { type: "student", row: s })
+                      }
+                      onCamera={() =>
+                        void runUpload("camera", { type: "student", row: s })
+                      }
+                    />
                   </div>
-                </div>
+                )}
               </div>
-              <div className="grid gap-2">
-                <button
-                  type="button"
-                  disabled={busy}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary text-primary-foreground px-3 py-2 text-sm font-medium disabled:opacity-50"
-                  onClick={() =>
-                    void runUpload("gallery", {
-                      type: "teacher",
-                      row: selectedTeacher,
-                    })
-                  }
-                >
-                  <Upload className="h-4 w-4" />
-                  Upload Photo
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium disabled:opacity-50"
-                  onClick={() =>
-                    void runUpload("camera", {
-                      type: "teacher",
-                      row: selectedTeacher,
-                    })
-                  }
-                >
-                  <Camera className="h-4 w-4" />
-                  Take Photo
-                </button>
-              </div>
-            </>
-          )}
-
-          {selectedStudent && (
-            <>
-              <div className="flex flex-col items-center gap-3">
-                <PhotoThumb
-                  url={selectedStudent.photoSignedUrl}
-                  name={selectedStudent.displayName}
-                  size="lg"
-                />
-                <div className="text-center">
-                  <div className="font-semibold">{selectedStudent.displayName}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {[selectedStudent.classLabel, selectedStudent.sectionLabel]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </div>
-                </div>
-              </div>
-              <div className="grid gap-2">
-                <button
-                  type="button"
-                  disabled={busy}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary text-primary-foreground px-3 py-2 text-sm font-medium disabled:opacity-50"
-                  onClick={() =>
-                    void runUpload("gallery", {
-                      type: "student",
-                      row: selectedStudent,
-                    })
-                  }
-                >
-                  <ImagePlus className="h-4 w-4" />
-                  Upload Photo
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium disabled:opacity-50"
-                  onClick={() =>
-                    void runUpload("camera", {
-                      type: "student",
-                      row: selectedStudent,
-                    })
-                  }
-                >
-                  <Camera className="h-4 w-4" />
-                  Take Photo
-                </button>
-              </div>
-            </>
-          )}
-        </div>
+            );
+          })}
       </div>
     </AppShell>
   );
