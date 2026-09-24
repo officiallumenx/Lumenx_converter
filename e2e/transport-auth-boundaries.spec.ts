@@ -11,14 +11,14 @@ test("Transport protected root redirects signed-out drivers to login", async ({
   await expect(page.getByRole("heading", { name: /Driver sign in/i })).toBeVisible();
 });
 
-test("Transport API login exposes email/password without starting SMS", async ({
+test("Transport API login exposes phone/PIN without starting SMS", async ({
   page,
 }) => {
   const writes = await blockApiWrites(page);
   await page.goto("/login");
 
-  await expect(page.getByRole("textbox", { name: "Email" })).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "Password" })).toBeVisible();
+  await expect(page.getByPlaceholder("9876543210")).toBeVisible();
+  await expect(page.getByPlaceholder("App account PIN")).toBeVisible();
   await expect(page.getByRole("button", { name: /sign in/i })).toBeVisible();
   expect(writes).toEqual([]);
 });
