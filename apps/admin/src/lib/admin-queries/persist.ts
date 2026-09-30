@@ -111,13 +111,23 @@ export async function clearAllPersistedAdminCaches(): Promise<void> {
 
 export function shouldDehydrateAdminQuery(query: {
   queryKey: readonly unknown[];
-  state: { status: string };
+  state: { status: string; data?: unknown };
 }): boolean {
   if (query.state.status !== "success") return false;
+  const data = query.state.data;
+  if (
+    data &&
+    typeof data === "object" &&
+    "status" in data &&
+    ((data as { status: unknown }).status === "error" ||
+      (data as { status: unknown }).status === "forbidden")
+  ) {
+    return false;
+  }
   const key = query.queryKey;
   if (!Array.isArray(key) || key[0] !== ADMIN_QUERY_SCOPE) return false;
-  // Never persist auth-ish accidental keys
   const joined = key.map(String).join(":").toLowerCase();
+  // Never persist auth-ish accidental keys
   if (
     joined.includes("token") ||
     joined.includes("password") ||
@@ -125,6 +135,10 @@ export function shouldDehydrateAdminQuery(query: {
     joined.includes("secret") ||
     joined.includes("refresh")
   ) {
+    return false;
+  }
+  // Signed photo URLs expire (~1h). Persisting them causes broken/slow photos on reopen.
+  if (joined.includes("signed-url")) {
     return false;
   }
   return true;

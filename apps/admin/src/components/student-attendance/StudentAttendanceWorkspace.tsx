@@ -132,18 +132,18 @@ export function StudentAttendanceWorkspace({
         </div>
       ) : null}
 
+      <StudentAttendanceSummary
+        summary={summary}
+        dateLabel={state.date || undefined}
+        scopeLabel={scopeLabel}
+      />
+
       <StudentAttendanceFilters
         state={state}
         classOptions={classOptions}
         sectionOptions={sectionOptions}
         onChange={setState}
         disabled={access.permission === "none"}
-      />
-
-      <StudentAttendanceSummary
-        summary={summary}
-        dateLabel={state.date || undefined}
-        scopeLabel={scopeLabel}
       />
 
       <StudentAttendanceMarkPanel

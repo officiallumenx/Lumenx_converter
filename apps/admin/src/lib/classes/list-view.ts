@@ -1,6 +1,7 @@
 /**
  * Pure helpers for API-mode classes directory list validity.
  */
+import { resolveInstituteScopedListView } from "@/lib/admin-queries/institute-list-gate";
 import type { ClassListItem } from "./types";
 import type { ClassesListStatus } from "./load";
 
@@ -34,55 +35,21 @@ export type ClassesListView = {
 export function resolveClassesListView(
   input: ResolveClassesListViewInput,
 ): ClassesListView {
-  if (!input.apiMode) {
-    return {
-      status: "demo",
-      items: input.storedItems,
-      errorMessage: null,
-      rowsValid: true,
-    };
-  }
+  const gated = resolveInstituteScopedListView<ClassesListStatus, ClassListItem>({
+    ...input,
+    demoStatus: "demo",
+    needsInstituteStatus: "needs_institute",
+    loadingStatus: "loading",
+    errorStatus: "error",
+    forbiddenStatus: "forbidden",
+  });
 
-  if (input.instituteStatus === "loading") {
+  if (!gated.passThrough) {
     return {
-      status: "loading",
-      items: [],
-      errorMessage: null,
-      rowsValid: false,
-    };
-  }
-
-  if (
-    input.instituteStatus === "error" ||
-    input.instituteStatus === "forbidden"
-  ) {
-    return {
-      status: input.instituteStatus === "forbidden" ? "forbidden" : "error",
-      items: [],
-      errorMessage: input.instituteErrorMessage,
-      rowsValid: false,
-    };
-  }
-
-  if (
-    input.instituteStatus === "needs_selection" ||
-    input.instituteStatus === "empty" ||
-    !input.activeInstituteId
-  ) {
-    return {
-      status: "needs_institute",
-      items: [],
-      errorMessage: null,
-      rowsValid: false,
-    };
-  }
-
-  if (input.resolvedForInstituteId !== input.activeInstituteId) {
-    return {
-      status: "loading",
-      items: [],
-      errorMessage: null,
-      rowsValid: false,
+      status: gated.status,
+      items: gated.items,
+      errorMessage: gated.errorMessage,
+      rowsValid: gated.rowsValid,
     };
   }
 

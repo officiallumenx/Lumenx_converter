@@ -17,6 +17,7 @@ import {
   loadSectionRoster,
   type SectionRosterRow,
 } from "@/lib/classes/section-roster";
+import { formatApiClientError } from "@/lib/api/errors";
 
 type Props = {
   section: SectionDetailItem;
@@ -66,6 +67,7 @@ export function SectionRosterPanel({
   }, [open, section.instituteId]);
 
   async function handleEnroll() {
+    if (saving) return;
     if (!studentId || !rollNo.trim()) {
       notify("Choose a student and enter a roll number");
       return;
@@ -80,7 +82,9 @@ export function SectionRosterPanel({
       onChanged();
       notify("Student enrolled in section");
     } catch (err) {
-      notify(err instanceof Error ? err.message : "Failed to enroll student");
+      notify(
+        formatApiClientError(err, "Failed to enroll student"),
+      );
     } finally {
       setSaving(false);
     }

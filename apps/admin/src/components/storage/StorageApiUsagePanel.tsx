@@ -7,6 +7,7 @@ import {
   EmptyState,
   Kpi,
   Pill,
+  Select,
 } from "@lumenx/ui-admin";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { useInstituteContext } from "@/lib/institutes";
@@ -110,17 +111,26 @@ export function StorageApiUsagePanel() {
   const displaySummary = view.rowsValid ? view.summary : null;
   const displayAssets = view.rowsValid ? view.assets : [];
 
-  const invalidateStorage = async () => {
+  const invalidateStorage = () => {
     const id = instituteCtx.activeInstituteId;
     if (!id) return;
-    await queryClient.invalidateQueries({
+    void queryClient.invalidateQueries({
       queryKey: adminModulePrefix(id, adminQueryRoots.storage),
     });
   };
 
   const refresh = () => {
     setRefreshing(true);
-    void invalidateStorage().finally(() => setRefreshing(false));
+    const id = instituteCtx.activeInstituteId;
+    if (!id) {
+      setRefreshing(false);
+      return;
+    }
+    void queryClient
+      .invalidateQueries({
+        queryKey: adminModulePrefix(id, adminQueryRoots.storage),
+      })
+      .finally(() => setRefreshing(false));
   };
 
   const remove = async (asset: AssetDto) => {
@@ -129,7 +139,7 @@ export function StorageApiUsagePanel() {
     try {
       await deleteAsset(asset.id);
       notify(`Deleted ${asset.fileName ?? asset.objectPath}`);
-      await invalidateStorage();
+      invalidateStorage();
     } catch (err) {
       notify(err instanceof Error ? err.message : "Failed to delete asset");
     } finally {
@@ -148,7 +158,7 @@ export function StorageApiUsagePanel() {
         visibility: "institute",
       });
       notify(`Uploaded ${asset.fileName ?? file.name}`);
-      await invalidateStorage();
+      invalidateStorage();
     } catch (err) {
       notify(err instanceof Error ? err.message : "Upload failed");
     } finally {
@@ -176,17 +186,17 @@ export function StorageApiUsagePanel() {
               <Pill tone="neutral">Live data</Pill>
               {writesEnabled ? (
                 <>
-                  <select
+                  <Select
                     value={uploadPurpose}
                     onChange={(e) =>
                       setUploadPurpose(e.target.value as "logo" | "general")
                     }
-                    className="h-8 rounded-md border border-border bg-background px-2 text-xs"
+                    className="h-8 min-w-[8rem] text-xs"
                     aria-label="Upload type"
                   >
                     <option value="logo">Logo</option>
                     <option value="general">General / Other</option>
-                  </select>
+                  </Select>
                   <input
                     ref={fileInputRef}
                     type="file"

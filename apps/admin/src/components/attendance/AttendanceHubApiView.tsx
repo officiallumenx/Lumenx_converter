@@ -15,7 +15,6 @@ import { AlertTriangle, CheckCircle2, ClipboardCheck } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import type { AttendanceHubView } from "@/routes/attendance";
 import { useInstituteContext } from "@/lib/institutes";
-import { listClassesCatalog } from "@/lib/classes/api";
 import { classLabelForSection } from "@/lib/classes/map";
 import type { ClassDto, SectionDto } from "@/lib/classes/types";
 import {
@@ -23,7 +22,7 @@ import {
   type AttendanceListStatus,
   type AttendanceRegisterListItem,
 } from "@/lib/attendance";
-import { useAttendanceRegistersQuery } from "@/lib/admin-queries";
+import { useAttendanceRegistersQuery, useCatalogClassesQuery } from "@/lib/admin-queries";
 import { loadAnalyticsSeries, type AnalyticsSeriesDto } from "@/lib/analytics";
 import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
 
@@ -74,6 +73,10 @@ function useAttendanceHubRegisters(dateFilter: string | undefined) {
     { attendanceDate: dateFilter },
     listEnabled,
   );
+  const catalogQuery = useCatalogClassesQuery(
+    instituteCtx.activeInstituteId,
+    listEnabled,
+  );
 
   const listView = resolveAttendanceRegistersListView({
     apiMode: true,
@@ -88,22 +91,17 @@ function useAttendanceHubRegisters(dateFilter: string | undefined) {
   });
 
   useEffect(() => {
-    if (instituteCtx.status !== "ready" || !instituteCtx.activeInstituteId) {
-      setSectionsById(new Map());
-      setClassesById(new Map());
+    if (!listEnabled || !catalogQuery.data) {
+      if (!listEnabled) {
+        setSectionsById(new Map());
+        setClassesById(new Map());
+      }
       return;
     }
-    const instituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    void listClassesCatalog({ instituteId }).then((catalog) => {
-      if (cancelled) return;
-      setClassesById(new Map(catalog.classes.map((cls) => [cls.id, cls])));
-      setSectionsById(new Map(catalog.sections.map((section) => [section.id, section])));
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [instituteCtx.status, instituteCtx.activeInstituteId]);
+    const catalog = catalogQuery.data;
+    setClassesById(new Map(catalog.classes.map((cls) => [cls.id, cls])));
+    setSectionsById(new Map(catalog.sections.map((section) => [section.id, section])));
+  }, [listEnabled, catalogQuery.data]);
 
   useEffect(() => {
     if (instituteCtx.status !== "ready" || !instituteCtx.activeInstituteId) {

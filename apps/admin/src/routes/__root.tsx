@@ -37,6 +37,7 @@ import { useRolePermission } from "@/lib/roles-access";
 import { LumenXNativeShell } from "@lumenx/capacitor/native-shell";
 import { OfflineSyncHost, TypographyProvider } from "@lumenx/ui";
 import { Toaster } from "@lumenx/ui/sonner";
+import { AdminOfflineFlushHost } from "@/components/AdminOfflineFlushHost";
 import { InAppAlertListener } from "@/components/InAppAlertListener";
 import { PushDeviceTokenRegistration } from "@/components/PushDeviceTokenRegistration";
 import { FirebaseClientServices } from "@/components/FirebaseClientServices";
@@ -347,6 +348,7 @@ function RootComponent() {
             <DemoProfileProvider>
               <AdminActionToastProvider>
                 <OfflineSyncHost app="admin" seedDemo={false} topStatus={false} className="min-h-screen-dvh">
+                  <AdminOfflineFlushHost />
                   <TypographyProvider>
                     <InAppAlertListener />
                     <FirebaseClientServices enabled />

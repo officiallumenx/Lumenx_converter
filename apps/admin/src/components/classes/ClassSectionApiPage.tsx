@@ -164,7 +164,7 @@ export function ClassSectionApiPage({ sectionId }: { sectionId: string }) {
   const displaySection = detailView.detailValid ? detailView.section : null;
 
   const saveSection = () => {
-    if (!writesEnabled || !displaySection) return;
+    if (!writesEnabled || !displaySection || saving) return;
     setSaving(true);
     const tasks: Promise<unknown>[] = [
       updateSection(sectionId, {
@@ -191,7 +191,7 @@ export function ClassSectionApiPage({ sectionId }: { sectionId: string }) {
   };
 
   const removeSection = () => {
-    if (!writesEnabled) return;
+    if (!writesEnabled || deleting) return;
     setDeleting(true);
     void deleteSection(sectionId)
       .then(() => {

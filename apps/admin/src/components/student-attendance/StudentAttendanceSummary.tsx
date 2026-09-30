@@ -1,4 +1,4 @@
-import { Card, CardHeader, Kpi, Pill } from "@lumenx/ui-admin";
+import { Card, Pill } from "@lumenx/ui-admin";
 import type { StudentAttendanceSummaryModel } from "./types";
 
 export type StudentAttendanceSummaryProps = {
@@ -9,7 +9,19 @@ export type StudentAttendanceSummaryProps = {
   scopeLabel?: string;
 };
 
-/** Reusable attendance summary strip — data via props only. */
+const STATS: Array<{
+  key: keyof StudentAttendanceSummaryModel;
+  label: string;
+  tone: "neutral" | "success" | "danger" | "warning" | "info";
+}> = [
+  { key: "total", label: "Total", tone: "neutral" },
+  { key: "present", label: "Present", tone: "success" },
+  { key: "absent", label: "Absent", tone: "danger" },
+  { key: "leave", label: "Leave", tone: "warning" },
+  { key: "unmarked", label: "Unmarked", tone: "info" },
+];
+
+/** Compact attendance summary strip — sits above filters. */
 export function StudentAttendanceSummary({
   summary,
   placeholder = false,
@@ -20,23 +32,28 @@ export function StudentAttendanceSummary({
 
   return (
     <Card>
-      <CardHeader
-        title="Attendance summary"
-        hint={hintParts.length ? hintParts.join(" · ") : "Selected class & date"}
-        action={placeholder ? <Pill tone="neutral">UI only</Pill> : undefined}
-      />
-      <div className="px-4 pb-5 sm:px-5">
-        {placeholder ? (
-          <p className="mb-3 text-xs text-muted-foreground">
-            Summary counts will bind to attendance logic later. Layout is ready for live totals.
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2 sm:px-4">
+        <div className="min-w-0 shrink-0">
+          <div className="flex items-center gap-1.5">
+            <p className="text-xs font-semibold text-foreground">Attendance summary</p>
+            {placeholder ? <Pill tone="neutral">UI only</Pill> : null}
+          </div>
+          <p className="truncate text-[10px] text-muted-foreground">
+            {hintParts.length ? hintParts.join(" · ") : "Selected class & date"}
           </p>
-        ) : null}
-        <div className="lx-kpi-grid">
-          <Kpi label="Total" value={String(summary.total)} />
-          <Kpi label="Present" value={String(summary.present)} />
-          <Kpi label="Absent" value={String(summary.absent)} />
-          <Kpi label="Leave" value={String(summary.leave)} />
-          <Kpi label="Unmarked" value={String(summary.unmarked)} />
+        </div>
+        <div className="flex min-w-0 flex-1 flex-wrap justify-end gap-1.5">
+          {STATS.map(({ key, label, tone }) => (
+            <span
+              key={key}
+              className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-1"
+            >
+              <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                {label}
+              </span>
+              <Pill tone={tone}>{String(summary[key])}</Pill>
+            </span>
+          ))}
         </div>
       </div>
     </Card>

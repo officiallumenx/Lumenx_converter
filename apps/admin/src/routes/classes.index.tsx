@@ -28,6 +28,7 @@ import {
   updateTeacher,
   type TeacherDto,
 } from "@/lib/teachers";
+import { formatApiClientError, isConflictError } from "@/lib/api/errors";
 import { Button, Card, EmptyState, Field, Modal, Pill, Select, TextInput } from "@lumenx/ui-admin";
 import { useDemoProfile } from "@/lib/demo-profile-context";
 import {
@@ -89,6 +90,9 @@ function ClassesPage() {
     if (instituteCtx.activeInstituteId) {
       void queryClient.invalidateQueries({
         queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.classes),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.catalog),
       });
       void queryClient.invalidateQueries({
         queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.teachers),
@@ -189,6 +193,17 @@ function ClassesPage() {
       setListError(null);
       return;
     }
+    if (classesQuery.isError && !classesQuery.data) {
+      setApiItems([]);
+      setListStatus("error");
+      setListError(
+        classesQuery.error instanceof Error
+          ? classesQuery.error.message
+          : "Failed to load classes",
+      );
+      setResolvedForInstituteId(requestInstituteId);
+      return;
+    }
     if (!classesQuery.data) return;
 
     const next = classesQuery.data;
@@ -206,6 +221,9 @@ function ClassesPage() {
     instituteCtx.errorMessage,
     classesQuery.data,
     classesQuery.isLoading,
+    classesQuery.isError,
+    classesQuery.error,
+    classesQuery.dataUpdatedAt,
   ]);
 
   useEffect(() => {
@@ -258,7 +276,7 @@ function ClassesPage() {
   }, [college, customClassName, customSectionName, level, section, displayItems]);
 
   const addClass = () => {
-    if (!writesEnabled) return;
+    if (!writesEnabled || creating) return;
     const cap = Number(capacity) || 50;
     const studentCount = Number(students) || 0;
     const typedClass = normalizeSchoolClassName(customClassName || level);
@@ -394,12 +412,10 @@ function ClassesPage() {
           bumpClassesReload();
           notify("Class section created");
         } catch (err) {
-          const message =
-            err instanceof Error ? err.message : "Failed to create class section";
           notify(
-            /already exists/i.test(message)
+            isConflictError(err) || /already exists/i.test(err instanceof Error ? err.message : "")
               ? "This class and section already exists — change the name"
-              : message,
+              : formatApiClientError(err, "Failed to create class section"),
           );
         } finally {
           setCreating(false);

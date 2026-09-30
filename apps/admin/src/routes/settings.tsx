@@ -309,9 +309,6 @@ function ProfileTabDemo() {
       <Card>
         <CardHeader title="Account" hint="Session details for the signed-in user" />
         <div className="px-5 pb-5">
-          <Row label="Account ID" hint="Read-only">
-            <span className="text-xs font-mono text-muted-foreground">{user?.id ?? "—"}</span>
-          </Row>
           <Row label="Institute">
             <span className="text-xs text-muted-foreground">{institute}</span>
           </Row>

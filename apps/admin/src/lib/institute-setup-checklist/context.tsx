@@ -138,7 +138,19 @@ export function SetupChecklistProvider({ children }: { children: ReactNode }) {
     refreshGenRef.current = dataRefreshGeneration;
     void loadSetupChecklist(requestId, { force: shouldForce }).then((next) => {
       if (cancelled || activeIdRef.current !== requestId) return;
-      setState(next);
+      // Never replace a known-complete checklist with a transient load error
+      // (that was flashing /setup and “setup academic year” after network flaps).
+      setState((prev) => {
+        if (
+          next.status === "error" &&
+          prev.status === "ready" &&
+          prev.coreComplete &&
+          activeIdRef.current === requestId
+        ) {
+          return prev;
+        }
+        return next;
+      });
     });
 
     return () => {
@@ -152,8 +164,20 @@ export function SetupChecklistProvider({ children }: { children: ReactNode }) {
   ]);
 
   useEffect(() => {
-    setSetupNavGate(buildSetupNavGate(state.status === "loading" ? null : state));
+    // While loading, keep the previous gate so we don't bounce users to /setup.
+    if (state.status === "loading") return;
+    setSetupNavGate(buildSetupNavGate(state));
   }, [state]);
+
+  useEffect(() => {
+    if (!apiMode || typeof window === "undefined") return;
+    const onOnline = () => {
+      invalidateSetupChecklistCache(activeIdRef.current ?? undefined);
+      void reload({ force: true });
+    };
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, [apiMode, reload]);
 
   const value = useMemo(
     () => ({

@@ -270,6 +270,14 @@ export async function loadInstituteContext(): Promise<InstituteContextState> {
         isPlatformOperator: false,
       };
     }
+    // Transient network failure: keep stored institute so modules can paint from cache.
+    const optimistic = createOptimisticApiInstituteState();
+    if (optimistic.status === "ready" && optimistic.activeInstituteId) {
+      return {
+        ...optimistic,
+        errorMessage: null,
+      };
+    }
     const message =
       err instanceof Error ? err.message : "Failed to load institutes";
     return {
@@ -351,7 +359,21 @@ function useInstituteContextController(): InstituteContextValue {
       };
     });
     const next = await loadInstituteContext();
-    setState(next);
+    setState((prev) => {
+      // Never wipe a working institute session on transient network loss.
+      if (
+        next.status === "error" &&
+        prev.status === "ready" &&
+        prev.activeInstituteId &&
+        next.errorMessage !== "Authentication required"
+      ) {
+        return {
+          ...prev,
+          errorMessage: null,
+        };
+      }
+      return next;
+    });
     return next;
   }, []);
 

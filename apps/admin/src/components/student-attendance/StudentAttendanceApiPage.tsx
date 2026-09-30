@@ -1,22 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useAttendanceRegistersQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
+import { useAttendanceRegistersQuery, useCatalogClassesQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { Link } from "@tanstack/react-router";
 import {
   Button,
   Card,
   CardHeader,
-  DataTable,
   EmptyState,
+  Modal,
   PageStack,
   Pill,
-  Select,
-  Td,
-  Th,
-  Tr,
 } from "@lumenx/ui-admin";
-import { Check, ClipboardList, Plus, Save } from "lucide-react";
+import { cn } from "@lumenx/ui";
+import { Check, ClipboardList, Save } from "lucide-react";
+import { AttendanceMarkRoster } from "./AttendanceMarkRoster";
 import { StudentAttendanceFilters } from "./StudentAttendanceFilters";
 import { StudentAttendanceSummary } from "./StudentAttendanceSummary";
 import {
@@ -27,7 +25,7 @@ import {
 import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import { useAdminToast } from "@/components/AdminActionToast";
-import { listClassesCatalog, type ClassDto, type SectionDto } from "@/lib/classes";
+import { type ClassDto, type SectionDto } from "@/lib/classes";
 import {
   buildStudentAttendanceApiClassOptions,
   buildStudentAttendanceApiSectionOptions,
@@ -60,8 +58,6 @@ import {
 import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
 import { attendancePeriodsFromTimetableSlots } from "@/lib/attendance-timetable-periods";
 import { listTeacherAssignments, listTimetableSlots } from "@/lib/timetable";
-
-const MARK_OPTIONS: AttendanceMarkStatus[] = ["present", "absent", "leave"];
 
 function attendanceHint(
   status: AttendanceListStatus | EnrollmentListStatus,
@@ -141,6 +137,10 @@ export function StudentAttendanceApiPage() {
     },
     registersEnabled,
   );
+  const catalogQuery = useCatalogClassesQuery(
+    instituteCtx.activeInstituteId,
+    instituteCtx.status === "ready" && Boolean(instituteCtx.activeInstituteId),
+  );
   const bumpRegistersReload = () => {
     invalidateAdminCache("admin:attendance");
     if (instituteCtx.activeInstituteId) {
@@ -171,6 +171,7 @@ export function StudentAttendanceApiPage() {
   const [detail, setDetail] = useState<AttendanceRegisterDetail | null>(null);
   const [detailStatus, setDetailStatus] = useState<AttendanceListStatus>("loading");
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<"create" | "submit" | null>(null);
 
   const queryKey = `${state.sectionId}|${state.date}`;
 
@@ -236,8 +237,6 @@ export function StudentAttendanceApiPage() {
       return;
     }
 
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
     setState(defaultStudentAttendanceWorkspaceState());
     setActiveRegisterId("");
     setDetail(null);
@@ -253,33 +252,45 @@ export function StudentAttendanceApiPage() {
     setRegistersError(null);
     setRegistersResolvedKey(null);
     setCatalogReady(false);
-    void listClassesCatalog({ instituteId: requestInstituteId }).then(
-      (catalog) => {
-        if (cancelled) return;
-        if (activeInstituteIdRef.current !== requestInstituteId) return;
-        setClassOptions(buildStudentAttendanceApiClassOptions(catalog.classes));
-        const byClass = new Map(catalog.classes.map((cls) => [cls.id, cls]));
-        const bySection = new Map(catalog.sections.map((sec) => [sec.id, sec]));
-        setClassesById(byClass);
-        setSectionsById(bySection);
-        setSectionOptions(
-          buildStudentAttendanceApiSectionOptions(state.classId, catalog.sections, byClass),
-        );
-        setCatalogReady(true);
-        setCatalogError(null);
-      },
-      (err) => {
-        if (cancelled) return;
-        if (activeInstituteIdRef.current !== requestInstituteId) return;
-        setCatalogReady(false);
-        setCatalogError(err instanceof Error ? err.message : "Failed to load classes.");
-      },
-    );
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- rebuild sections when classId changes via separate effect below
+    setCatalogError(null);
   }, [instituteCtx.status, instituteCtx.activeInstituteId]);
+
+  useEffect(() => {
+    if (instituteCtx.status !== "ready" || !instituteCtx.activeInstituteId) return;
+    if (catalogQuery.isError) {
+      setCatalogReady(false);
+      setCatalogError(
+        catalogQuery.error instanceof Error
+          ? catalogQuery.error.message
+          : "Failed to load classes.",
+      );
+      return;
+    }
+    const catalog = catalogQuery.data;
+    if (!catalog) {
+      if (catalogQuery.isLoading || catalogQuery.isFetching) setCatalogReady(false);
+      return;
+    }
+    setClassOptions(buildStudentAttendanceApiClassOptions(catalog.classes));
+    const byClass = new Map(catalog.classes.map((cls) => [cls.id, cls]));
+    const bySection = new Map(catalog.sections.map((sec) => [sec.id, sec]));
+    setClassesById(byClass);
+    setSectionsById(bySection);
+    setSectionOptions(
+      buildStudentAttendanceApiSectionOptions(state.classId, catalog.sections, byClass),
+    );
+    setCatalogReady(true);
+    setCatalogError(null);
+  }, [
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    catalogQuery.data,
+    catalogQuery.isError,
+    catalogQuery.isLoading,
+    catalogQuery.isFetching,
+    catalogQuery.error,
+    state.classId,
+  ]);
 
   useEffect(() => {
     if (!catalogReady) return;
@@ -528,10 +539,6 @@ export function StudentAttendanceApiPage() {
     };
   }, [activeRegisterId, instituteCtx.activeInstituteId, detailReloadKey]);
 
-  const setEnrollmentMark = (enrollmentId: string, status: AttendanceMarkStatus) => {
-    setDraftMarks((prev) => ({ ...prev, [enrollmentId]: status }));
-  };
-
   const markedSlotCodes = useMemo(
     () => new Set(registersView.items.map((row) => row.slotCode)),
     [registersView.items],
@@ -551,7 +558,7 @@ export function StudentAttendanceApiPage() {
     );
   }, [unmarkedSlots, activeCreateSlotCode, creatingSlotCode]);
 
-  const createRegister = () => {
+  const createRegister = (andSubmit = false) => {
     if (!writesEnabled || saving || !instituteCtx.activeInstituteId) return;
     if (!state.classId || !state.sectionId || !state.date) return;
     if (enrollmentsView.items.length === 0) {
@@ -600,15 +607,27 @@ export function StudentAttendanceApiPage() {
         status: draftMarks[row.id]!,
       })),
     })
-      .then((created) => {
+      .then(async (created) => {
         if (activeInstituteIdRef.current !== requestInstituteId) return;
-        notify("Attendance register created");
+        if (andSubmit) {
+          await submitAttendanceRegister(created.id);
+          if (activeInstituteIdRef.current !== requestInstituteId) return;
+          notify("Attendance submitted");
+        } else {
+          notify("Attendance draft saved");
+        }
         bumpRegistersReload();
         setActiveRegisterId(created.id);
         setCreatingSlotCode(null);
       })
       .catch((err) => {
-        notify(err instanceof Error ? err.message : "Failed to create attendance register");
+        notify(
+          err instanceof Error
+            ? err.message
+            : andSubmit
+              ? "Failed to submit attendance"
+              : "Failed to create attendance register",
+        );
       })
       .finally(() => {
         setSaving(false);
@@ -759,6 +778,75 @@ export function StudentAttendanceApiPage() {
   const canWrite =
     writesEnabled && !saving && !submitting && (!markConfig || adminMarkingAllowed);
 
+  const rollByEnrollmentId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const row of enrollmentsView.items) {
+      map.set(row.id, row.rollNo);
+    }
+    return map;
+  }, [enrollmentsView.items]);
+
+  const toggleEnrollmentMark = (enrollmentId: string) => {
+    setDraftMarks((prev) => {
+      const current =
+        prev[enrollmentId] ??
+        detail?.marks.find((mark) => mark.enrollmentId === enrollmentId)?.status ??
+        "present";
+      if (current === "leave") return prev;
+      return { ...prev, [enrollmentId]: current === "absent" ? "present" : "absent" };
+    });
+  };
+
+  const applyBulkMarks = (status: "present" | "absent") => {
+    setDraftMarks((prev) => {
+      const next = { ...prev };
+      if (createMode) {
+        for (const row of enrollmentsView.items) {
+          if ((next[row.id] ?? "present") === "leave") continue;
+          next[row.id] = status;
+        }
+        return next;
+      }
+      if (!detail) return prev;
+      for (const mark of detail.marks) {
+        const current = next[mark.enrollmentId] ?? mark.status;
+        if (current === "leave") continue;
+        next[mark.enrollmentId] = status;
+      }
+      return next;
+    });
+  };
+
+  const clearEnrollmentMarks = () => {
+    applyBulkMarks("present");
+    notify("Cleared — all students marked present");
+  };
+
+  const createRosterItems = useMemo(
+    () =>
+      filteredCreateRoster.map((row) => ({
+        id: row.id,
+        name: row.studentName,
+        roll: row.rollNo,
+        status: (draftMarks[row.id] ?? "present") as "present" | "absent" | "leave",
+      })),
+    [filteredCreateRoster, draftMarks],
+  );
+
+  const editRosterItems = useMemo(
+    () =>
+      filteredMarks.map((mark) => ({
+        id: mark.enrollmentId,
+        name: mark.studentName,
+        roll: rollByEnrollmentId.get(mark.enrollmentId) ?? "",
+        status: (draftMarks[mark.enrollmentId] ?? mark.status) as
+          | "present"
+          | "absent"
+          | "leave",
+      })),
+    [filteredMarks, draftMarks, rollByEnrollmentId],
+  );
+
   return (
     <PageStack>
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -792,18 +880,18 @@ export function StudentAttendanceApiPage() {
         </Card>
       ) : null}
 
+      <StudentAttendanceSummary
+        summary={summary}
+        dateLabel={state.date || undefined}
+        scopeLabel={scopeLabel}
+      />
+
       <StudentAttendanceFilters
         state={state}
         classOptions={classOptions}
         sectionOptions={sectionOptions}
         onChange={(patch) => setState((prev) => ({ ...prev, ...patch }))}
         disabled={!catalogReady}
-      />
-
-      <StudentAttendanceSummary
-        summary={summary}
-        dateLabel={state.date || undefined}
-        scopeLabel={scopeLabel}
       />
 
       {blocked ? (
@@ -832,13 +920,6 @@ export function StudentAttendanceApiPage() {
                 ? enrollmentsHint ?? "Loading enrollments…"
                 : `${enrollmentsView.items.length} enrolled · ${activeCreateSlot?.slotLabel ?? "slot"}`
             }
-            action={
-              canWrite && enrollmentsView.rowsValid && enrollmentsView.items.length > 0 ? (
-                <Button variant="primary" disabled={saving || !activeCreateSlot} onClick={createRegister}>
-                  <Plus className="size-3.5" /> Create register
-                </Button>
-              ) : null
-            }
           />
           {creatingSlotCode ? (
             <div className="px-4 pb-3 sm:px-5">
@@ -854,11 +935,12 @@ export function StudentAttendanceApiPage() {
                   key={slot.slotCode}
                   type="button"
                   onClick={() => setActiveCreateSlotCode(slot.slotCode)}
-                  className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  className={cn(
+                    "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
                     activeCreateSlot?.slotCode === slot.slotCode
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border bg-background text-muted-foreground hover:bg-surface-hover"
-                  }`}
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-foreground",
+                  )}
                 >
                   {slot.slotLabel}
                 </button>
@@ -887,51 +969,41 @@ export function StudentAttendanceApiPage() {
               title="No enrollments"
               hint={enrollmentsHint ?? "Enroll students in this section before marking attendance."}
             />
-          ) : filteredCreateRoster.length === 0 ? (
-            <div className="px-4 pb-8 text-center text-sm text-muted-foreground sm:px-5">
-              No students match your filters.
-            </div>
           ) : (
-            <DataTable>
-              <thead>
-                <tr>
-                  <Th>Student</Th>
-                  <Th>Roll</Th>
-                  <Th>Status</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredCreateRoster.map((row) => (
-                  <Tr key={row.id}>
-                    <Td>
-                      <div className="font-medium">{row.studentName}</div>
-                      <div className="text-[10px] text-muted-foreground font-mono">
-                        {row.studentId.slice(0, 8)}…
-                      </div>
-                    </Td>
-                    <Td>{row.rollNo}</Td>
-                    <Td>
-                      <Select
-                        value={draftMarks[row.id] ?? ""}
-                        disabled={!canWrite}
-                        onChange={(e) =>
-                          setEnrollmentMark(row.id, e.target.value as AttendanceMarkStatus)
-                        }
-                      >
-                        <option value="" disabled>
-                          Mark…
-                        </option>
-                        {MARK_OPTIONS.map((status) => (
-                          <option key={status} value={status}>
-                            {status}
-                          </option>
-                        ))}
-                      </Select>
-                    </Td>
-                  </Tr>
-                ))}
-              </tbody>
-            </DataTable>
+            <AttendanceMarkRoster
+              title={scopeLabel ?? "Roster"}
+              items={createRosterItems}
+              canMark={Boolean(canWrite)}
+              onToggle={toggleEnrollmentMark}
+              onAllPresent={() => applyBulkMarks("present")}
+              onAllAbsent={() => applyBulkMarks("absent")}
+              onClear={clearEnrollmentMarks}
+              emptyHint="No students match your filters."
+              footer={
+                canWrite ? (
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      variant="primary"
+                      className="h-11 w-full rounded-xl"
+                      disabled={saving || !activeCreateSlot || enrollmentsView.items.length === 0}
+                      onClick={() => setConfirmAction("create")}
+                    >
+                      <Check className="mr-1.5 size-4" />
+                      {saving ? "Submitting…" : "Submit attendance"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="h-11 w-full rounded-xl"
+                      disabled={saving || !activeCreateSlot || enrollmentsView.items.length === 0}
+                      onClick={() => createRegister(false)}
+                    >
+                      <Save className="mr-1.5 size-3.5" />
+                      {saving ? "Saving…" : "Save draft"}
+                    </Button>
+                  </div>
+                ) : null
+              }
+            />
           )}
         </Card>
       ) : (
@@ -941,21 +1013,9 @@ export function StudentAttendanceApiPage() {
             hint={`${registersView.items.length} slot${registersView.items.length === 1 ? "" : "s"}`}
             action={
               detail ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <Pill tone={detail.status === "submitted" ? "success" : "warning"}>
-                    {detail.status}
-                  </Pill>
-                  {canWrite && detail.status === "draft" ? (
-                    <>
-                      <Button variant="outline" disabled={saving} onClick={saveDraftMarks}>
-                        <Save className="size-3.5" /> Save marks
-                      </Button>
-                      <Button variant="primary" disabled={submitting} onClick={submitDraft}>
-                        <Check className="size-3.5" /> Submit draft
-                      </Button>
-                    </>
-                  ) : null}
-                </div>
+                <Pill tone={detail.status === "submitted" ? "success" : "warning"}>
+                  {detail.status}
+                </Pill>
               ) : null
             }
           />
@@ -970,11 +1030,12 @@ export function StudentAttendanceApiPage() {
                     setCreatingSlotCode(null);
                     setActiveRegisterId(register.id);
                   }}
-                  className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  className={cn(
+                    "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
                     activeRegisterId === register.id
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border bg-background text-muted-foreground hover:bg-surface-hover"
-                  }`}
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-foreground",
+                  )}
                 >
                   {register.slotLabel}
                 </button>
@@ -997,7 +1058,7 @@ export function StudentAttendanceApiPage() {
                     }
                     setDraftMarks(initial);
                   }}
-                  className="rounded-lg border border-dashed border-primary/40 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/5"
+                  className="rounded-full border border-dashed border-primary/40 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/5"
                 >
                   + {slot.slotLabel}
                 </button>
@@ -1013,65 +1074,83 @@ export function StudentAttendanceApiPage() {
             <div className="px-4 pb-8 text-center text-sm text-destructive sm:px-5">
               {detailError}
             </div>
-          ) : filteredMarks.length === 0 ? (
+          ) : !detail ? (
             <div className="px-4 pb-8 text-center text-sm text-muted-foreground sm:px-5">
-              No marks match your filters.
+              Select a register to view marks.
             </div>
           ) : (
-            <DataTable>
-              <thead>
-                <tr>
-                  <Th>Student</Th>
-                  <Th>Status</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredMarks.map((mark) => (
-                  <Tr key={mark.id}>
-                    <Td>
-                      <div className="font-medium">{mark.studentName}</div>
-                      <div className="text-[10px] text-muted-foreground font-mono">
-                        {mark.studentId.slice(0, 8)}…
-                      </div>
-                    </Td>
-                    <Td>
-                      {detail?.status === "draft" && canWrite ? (
-                        <Select
-                          value={draftMarks[mark.enrollmentId] ?? mark.status}
-                          onChange={(e) =>
-                            setEnrollmentMark(
-                              mark.enrollmentId,
-                              e.target.value as AttendanceMarkStatus,
-                            )
-                          }
-                        >
-                          {MARK_OPTIONS.map((status) => (
-                            <option key={status} value={status}>
-                              {status}
-                            </option>
-                          ))}
-                        </Select>
-                      ) : (
-                        <Pill
-                          tone={
-                            mark.status === "present"
-                              ? "success"
-                              : mark.status === "absent"
-                                ? "danger"
-                                : "warning"
-                          }
-                        >
-                          {draftMarks[mark.enrollmentId] ?? mark.status}
-                        </Pill>
-                      )}
-                    </Td>
-                  </Tr>
-                ))}
-              </tbody>
-            </DataTable>
+            <AttendanceMarkRoster
+              title={detail.slotLabel || scopeLabel || "Roster"}
+              items={editRosterItems}
+              canMark={Boolean(canWrite && detail.status === "draft")}
+              onToggle={toggleEnrollmentMark}
+              onAllPresent={() => applyBulkMarks("present")}
+              onAllAbsent={() => applyBulkMarks("absent")}
+              onClear={clearEnrollmentMarks}
+              emptyHint="No marks match your filters."
+              footer={
+                canWrite && detail.status === "draft" ? (
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      variant="primary"
+                      className="h-11 w-full rounded-xl"
+                      disabled={submitting}
+                      onClick={() => setConfirmAction("submit")}
+                    >
+                      <Check className="mr-1.5 size-4" />
+                      {submitting ? "Submitting…" : "Submit attendance"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="h-11 w-full rounded-xl"
+                      disabled={saving}
+                      onClick={saveDraftMarks}
+                    >
+                      <Save className="mr-1.5 size-3.5" />
+                      {saving ? "Saving…" : "Save draft"}
+                    </Button>
+                  </div>
+                ) : null
+              }
+            />
           )}
         </Card>
       )}
+
+      <Modal
+        open={confirmAction !== null}
+        onClose={() => setConfirmAction(null)}
+        title={confirmAction === "create" ? "Submit attendance?" : "Submit draft?"}
+        subtitle={
+          confirmAction === "create"
+            ? `Create and submit the register for ${activeCreateSlot?.slotLabel ?? "this slot"}.`
+            : "Submit this draft register. Marks cannot be edited after submit."
+        }
+        size="sm"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setConfirmAction(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              disabled={saving || submitting}
+              onClick={() => {
+                const action = confirmAction;
+                setConfirmAction(null);
+                if (action === "create") createRegister(true);
+                else if (action === "submit") submitDraft();
+              }}
+            >
+              Confirm
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-muted-foreground">
+          Tap Confirm to continue. Students marked absent will be recorded as absent.
+        </p>
+      </Modal>
     </PageStack>
   );
 }

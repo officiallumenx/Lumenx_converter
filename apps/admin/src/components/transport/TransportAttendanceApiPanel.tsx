@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Card, CardHeader, EmptyState, PageToolbar, Pill } from "@lumenx/ui-admin";
+import { Card, CardHeader, EmptyState, PageToolbar, Pill, Select } from "@lumenx/ui-admin";
 import { ClipboardList } from "lucide-react";
 import { subscribeTransportRealtime } from "@lumenx/utils";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
@@ -91,8 +91,7 @@ export function TransportAttendanceApiPanel({ instituteId }: Props) {
       </PageToolbar>
 
       {tripOptions.length > 1 ? (
-        <select
-          className="rounded-md border bg-background px-3 py-2 text-sm"
+        <Select
           value={tripFilter}
           onChange={(e) => setTripFilter(e.target.value)}
         >
@@ -102,7 +101,7 @@ export function TransportAttendanceApiPanel({ instituteId }: Props) {
               Trip {id.slice(0, 8)}
             </option>
           ))}
-        </select>
+        </Select>
       ) : null}
 
       {rows.length === 0 ? (

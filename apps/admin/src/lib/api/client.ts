@@ -8,6 +8,19 @@ export type ApiRequestOptions = {
   /** When true, omit Authorization even if a token exists. */
   skipAuth?: boolean;
   signal?: AbortSignal;
+  /** Override default request timeout (ms). */
+  timeoutMs?: number;
+  /**
+   * When true, never enqueue this write into the offline outbox
+   * (used while flushing the outbox itself).
+   */
+  skipOfflineQueue?: boolean;
+};
+
+export type QueueOfflineWriteInput = {
+  method: string;
+  path: string;
+  body?: unknown;
 };
 
 export type ApiClientConfig = {
@@ -16,14 +29,124 @@ export type ApiClientConfig = {
   /** Called on HTTP 401 after normalizing the error (session cleanup hook). */
   onUnauthorized?: () => void;
   fetchImpl?: typeof fetch;
+  /** Default fetch timeout — avoids hung requests after network flaps. */
+  defaultTimeoutMs?: number;
+  /** Optional online check (defaults to navigator.onLine). */
+  isOnline?: () => boolean;
+  /**
+   * When a JSON write cannot reach the network, store it for later flush.
+   * Multipart uploads are never queued.
+   */
+  queueOfflineWrite?: (input: QueueOfflineWriteInput) => void | Promise<void>;
 };
+
+/** Default so offline/reconnect hangs fail fast instead of spinning for minutes. */
+export const API_DEFAULT_TIMEOUT_MS = 15_000;
+
+/** Tighter timeout when the browser reports offline / flaky reconnect. */
+export const API_LOW_NETWORK_TIMEOUT_MS = 8_000;
 
 function resolveBaseUrl(raw: string): string {
   return raw.replace(/\/+$/, "");
 }
 
+function mergeTimeoutSignal(
+  external: AbortSignal | undefined,
+  timeoutMs: number,
+): { signal: AbortSignal; cleanup: () => void } {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  const onExternalAbort = () => controller.abort();
+  if (external) {
+    if (external.aborted) controller.abort();
+    else external.addEventListener("abort", onExternalAbort, { once: true });
+  }
+
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      clearTimeout(timer);
+      external?.removeEventListener("abort", onExternalAbort);
+    },
+  };
+}
+
+function networkFailureFromAbort(
+  err: unknown,
+  external?: AbortSignal,
+): ApiClientError {
+  const aborted =
+    (err instanceof DOMException && err.name === "AbortError") ||
+    (err instanceof Error && err.name === "AbortError");
+  if (aborted && external?.aborted) {
+    return new ApiClientError({
+      status: 0,
+      code: "NETWORK_ERROR",
+      message: "Request cancelled",
+    });
+  }
+  return new ApiClientError({
+    status: 0,
+    code: "NETWORK_ERROR",
+    message: aborted
+      ? "Request timed out — check your connection and try again"
+      : "Network request failed",
+  });
+}
+
+function isWriteMethod(method: string): boolean {
+  const m = method.toUpperCase();
+  return m !== "GET" && m !== "HEAD" && m !== "OPTIONS";
+}
+
+function canQueueBody(body: unknown): boolean {
+  if (body === undefined || body === null) return true;
+  if (typeof FormData !== "undefined" && body instanceof FormData) return false;
+  if (typeof Blob !== "undefined" && body instanceof Blob) return false;
+  try {
+    JSON.stringify(body);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function queuedOfflineError(): ApiClientError {
+  return new ApiClientError({
+    status: 0,
+    code: "QUEUED_OFFLINE",
+    message: "Saved offline — will sync when you are back online",
+    details: { queued: true },
+  });
+}
+
+function resolveIsOnline(config: ApiClientConfig): boolean {
+  if (config.isOnline) return config.isOnline();
+  if (typeof navigator === "undefined") return true;
+  return navigator.onLine;
+}
+
 export function createApiClient(config: ApiClientConfig) {
   const fetchImpl = config.fetchImpl ?? fetch;
+  const defaultTimeoutMs = config.defaultTimeoutMs ?? API_DEFAULT_TIMEOUT_MS;
+
+  async function maybeQueueWrite(
+    method: string,
+    path: string,
+    options: ApiRequestOptions,
+  ): Promise<boolean> {
+    if (options.skipOfflineQueue) return false;
+    if (!config.queueOfflineWrite) return false;
+    if (!isWriteMethod(method)) return false;
+    if (!canQueueBody(options.body)) return false;
+    await config.queueOfflineWrite({
+      method,
+      path,
+      body: options.body,
+    });
+    return true;
+  }
 
   async function request<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
     const base = resolveBaseUrl(config.getBaseUrl());
@@ -33,6 +156,15 @@ export function createApiClient(config: ApiClientConfig) {
         code: "UNKNOWN",
         message: "VITE_API_BASE_URL is not configured",
       });
+    }
+
+    const method =
+      options.method ?? (options.body !== undefined ? "POST" : "GET");
+
+    // Offline writes go straight to the outbox — no hung fetch.
+    if (!resolveIsOnline(config) && isWriteMethod(method)) {
+      const queued = await maybeQueueWrite(method, path, options);
+      if (queued) throw queuedOfflineError();
     }
 
     const url = path.startsWith("http")
@@ -62,20 +194,33 @@ export function createApiClient(config: ApiClientConfig) {
       headers.Authorization = `Bearer ${token}`;
     }
 
+    const online = resolveIsOnline(config);
+    const timeoutMs =
+      options.timeoutMs ??
+      (online
+        ? defaultTimeoutMs
+        : Math.min(defaultTimeoutMs, API_LOW_NETWORK_TIMEOUT_MS));
+    const { signal, cleanup } = mergeTimeoutSignal(options.signal, timeoutMs);
+
     let response: Response;
     try {
       response = await fetchImpl(url, {
-        method: options.method ?? (options.body !== undefined ? "POST" : "GET"),
+        method,
         headers,
         body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-        signal: options.signal,
+        signal,
       });
-    } catch {
-      throw new ApiClientError({
-        status: 0,
-        code: "NETWORK_ERROR",
-        message: "Network request failed",
-      });
+    } catch (err) {
+      const networkErr = networkFailureFromAbort(err, options.signal);
+      if (
+        networkErr.message !== "Request cancelled" &&
+        (await maybeQueueWrite(method, path, options))
+      ) {
+        throw queuedOfflineError();
+      }
+      throw networkErr;
+    } finally {
+      cleanup();
     }
 
     const text = await response.text();
@@ -151,20 +296,25 @@ export function createApiClient(config: ApiClientConfig) {
         }
         headers.Authorization = `Bearer ${token}`;
       }
+      const online = resolveIsOnline(config);
+      const timeoutMs =
+        options?.timeoutMs ??
+        (online
+          ? defaultTimeoutMs
+          : Math.min(defaultTimeoutMs, API_LOW_NETWORK_TIMEOUT_MS));
+      const { signal, cleanup } = mergeTimeoutSignal(options?.signal, timeoutMs);
       let response: Response;
       try {
         response = await fetchImpl(url, {
           method: "POST",
           headers,
           body: form,
-          signal: options?.signal,
+          signal,
         });
-      } catch {
-        throw new ApiClientError({
-          status: 0,
-          code: "NETWORK_ERROR",
-          message: "Network request failed",
-        });
+      } catch (err) {
+        throw networkFailureFromAbort(err, options?.signal);
+      } finally {
+        cleanup();
       }
       const text = await response.text();
       let json: unknown = null;
@@ -225,19 +375,24 @@ export function createApiClient(config: ApiClientConfig) {
         headers.Authorization = `Bearer ${token}`;
       }
 
+      const online = resolveIsOnline(config);
+      const timeoutMs =
+        options?.timeoutMs ??
+        (online
+          ? defaultTimeoutMs
+          : Math.min(defaultTimeoutMs, API_LOW_NETWORK_TIMEOUT_MS));
+      const { signal, cleanup } = mergeTimeoutSignal(options?.signal, timeoutMs);
       let response: Response;
       try {
         response = await fetchImpl(url, {
           method: "GET",
           headers,
-          signal: options?.signal,
+          signal,
         });
-      } catch {
-        throw new ApiClientError({
-          status: 0,
-          code: "NETWORK_ERROR",
-          message: "Network request failed",
-        });
+      } catch (err) {
+        throw networkFailureFromAbort(err, options?.signal);
+      } finally {
+        cleanup();
       }
 
       if (!response.ok) {

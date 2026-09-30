@@ -70,11 +70,27 @@ describe("evaluateSetupProgress", () => {
         sections: 1,
         subjects: 1,
         teachers: 1,
+        students: 0,
+        parents: 3,
+        parentsWithLinks: 0,
+      }),
+    );
+    expect(steps.find((s) => s.id === "parents")?.state).toBe("blocked");
+  });
+
+  it("marks parents done when students and parent rows exist without link payloads", () => {
+    const steps = evaluateSetupProgress(
+      counts({
+        activeYears: 1,
+        classes: 1,
+        sections: 1,
+        subjects: 1,
+        teachers: 1,
         students: 1,
         parents: 3,
         parentsWithLinks: 0,
       }),
     );
-    expect(steps.find((s) => s.id === "parents")?.state).toBe("todo");
+    expect(steps.find((s) => s.id === "parents")?.state).toBe("done");
   });
 });

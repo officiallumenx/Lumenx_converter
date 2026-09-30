@@ -128,7 +128,7 @@ function HomeApiPage() {
   return (
     <AppShell
       title="Home"
-      subtitle={`What should I do today? · ${instituteLabel} · ${todayLabel()}`}
+      subtitle={`${instituteLabel} · ${todayLabel()}`}
     >
       <PageStack>
         <HomeApiSummaryPanel />

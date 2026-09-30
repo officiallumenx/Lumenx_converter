@@ -2,6 +2,7 @@
  * Pure helpers for API-mode teachers directory list validity.
  * Prevents painting institute A's rows under institute B before effects run.
  */
+import { resolveInstituteScopedListView } from "@/lib/admin-queries/institute-list-gate";
 import type { TeacherListItem } from "./types";
 import type { TeachersListStatus } from "./load";
 
@@ -35,55 +36,21 @@ export type TeachersListView = {
 export function resolveTeachersListView(
   input: ResolveTeachersListViewInput,
 ): TeachersListView {
-  if (!input.apiMode) {
-    return {
-      status: "demo",
-      items: input.storedItems,
-      errorMessage: null,
-      rowsValid: true,
-    };
-  }
+  const gated = resolveInstituteScopedListView<TeachersListStatus, TeacherListItem>({
+    ...input,
+    demoStatus: "demo",
+    needsInstituteStatus: "needs_institute",
+    loadingStatus: "loading",
+    errorStatus: "error",
+    forbiddenStatus: "forbidden",
+  });
 
-  if (input.instituteStatus === "loading") {
+  if (!gated.passThrough) {
     return {
-      status: "loading",
-      items: [],
-      errorMessage: null,
-      rowsValid: false,
-    };
-  }
-
-  if (
-    input.instituteStatus === "error" ||
-    input.instituteStatus === "forbidden"
-  ) {
-    return {
-      status: input.instituteStatus === "forbidden" ? "forbidden" : "error",
-      items: [],
-      errorMessage: input.instituteErrorMessage,
-      rowsValid: false,
-    };
-  }
-
-  if (
-    input.instituteStatus === "needs_selection" ||
-    input.instituteStatus === "empty" ||
-    !input.activeInstituteId
-  ) {
-    return {
-      status: "needs_institute",
-      items: [],
-      errorMessage: null,
-      rowsValid: false,
-    };
-  }
-
-  if (input.resolvedForInstituteId !== input.activeInstituteId) {
-    return {
-      status: "loading",
-      items: [],
-      errorMessage: null,
-      rowsValid: false,
+      status: gated.status,
+      items: gated.items,
+      errorMessage: gated.errorMessage,
+      rowsValid: gated.rowsValid,
     };
   }
 

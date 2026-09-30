@@ -51,6 +51,34 @@ describe("resolveSidebarNavTarget", () => {
     const gate = buildSetupNavGate(readyState({ coreComplete: true }));
     expect(resolveSidebarNavTarget("/students", gate)).toBe("/students");
   });
+
+  it("does not lock navigation while checklist is loading or errored", () => {
+    const loading = buildSetupNavGate({
+      status: "loading",
+      errorMessage: null,
+      counts: null,
+      steps: [],
+      coreDone: 0,
+      coreTotal: 0,
+      extendedDone: 0,
+      extendedTotal: 0,
+      coreComplete: false,
+    });
+    expect(resolveSidebarNavTarget("/classes", loading)).toBe("/classes");
+
+    const errored = buildSetupNavGate({
+      status: "error",
+      errorMessage: "network",
+      counts: null,
+      steps: [],
+      coreDone: 0,
+      coreTotal: 0,
+      extendedDone: 0,
+      extendedTotal: 0,
+      coreComplete: false,
+    });
+    expect(resolveSidebarNavTarget("/classes", errored)).toBe("/classes");
+  });
 });
 
 describe("isPathAllowedDuringSetup", () => {

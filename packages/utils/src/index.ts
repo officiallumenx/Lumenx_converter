@@ -112,6 +112,8 @@ export {
   retryFailedOfflineSync,
   ensureOfflineQueueDemoSeed,
   startAutomaticOfflineSync,
+  registerOfflineFlushHandler,
+  type OfflineFlushHandler,
   type OfflineQueueItem,
   type OfflineQueueItemStatus,
   type OfflineQueueOp,

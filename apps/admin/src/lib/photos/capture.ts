@@ -79,18 +79,20 @@ function pickFileViaInput(opts: {
   });
 }
 
-export async function pickGalleryPhoto(): Promise<File> {
-  const file = await pickFileViaInput({
-    accept: "image/jpeg,image/jpg,image/png,image/webp,.jpg,.jpeg,.png,.webp",
-  });
-  return prepareProfilePhotoFile(file);
-}
-
 async function takeNativeCameraPhoto(): Promise<File> {
   try {
     const { Camera, CameraResultType, CameraSource } = await import(
       "@capacitor/camera"
     );
+    const current = await Camera.checkPermissions();
+    if (current.camera !== "granted") {
+      const requested = await Camera.requestPermissions({
+        permissions: ["camera"],
+      });
+      if (requested.camera !== "granted") {
+        throw new PhotoPermissionDeniedError();
+      }
+    }
     const photo = await Camera.getPhoto({
       quality: 90,
       allowEditing: false,
@@ -104,6 +106,12 @@ async function takeNativeCameraPhoto(): Promise<File> {
     const raw = dataUrlToRawFile(photo.dataUrl, "camera.jpg");
     return prepareProfilePhotoFile(raw);
   } catch (err) {
+    if (
+      err instanceof PhotoCaptureCancelledError ||
+      err instanceof PhotoPermissionDeniedError
+    ) {
+      throw err;
+    }
     const message = err instanceof Error ? err.message : String(err);
     if (/cancel|dismissed/i.test(message)) {
       throw new PhotoCaptureCancelledError(message);
@@ -122,6 +130,65 @@ export async function takeDevicePhoto(): Promise<File> {
   const file = await pickFileViaInput({
     accept: "image/*",
     capture: true,
+  });
+  return prepareProfilePhotoFile(file);
+}
+
+export async function pickGalleryPhoto(): Promise<File> {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const { Camera, CameraResultType, CameraSource } = await import(
+        "@capacitor/camera"
+      );
+      const current = await Camera.checkPermissions();
+      if (current.photos !== "granted" && current.photos !== "limited") {
+        const requested = await Camera.requestPermissions({
+          permissions: ["photos"],
+        });
+        if (
+          requested.photos !== "granted" &&
+          requested.photos !== "limited"
+        ) {
+          // Fall back to system file picker (Photo Picker needs no broad storage grant).
+          const file = await pickFileViaInput({
+            accept:
+              "image/jpeg,image/jpg,image/png,image/webp,.jpg,.jpeg,.png,.webp",
+          });
+          return prepareProfilePhotoFile(file);
+        }
+      }
+      const photo = await Camera.getPhoto({
+        quality: 90,
+        allowEditing: false,
+        resultType: CameraResultType.DataUrl,
+        source: CameraSource.Photos,
+      });
+      if (!photo.dataUrl) {
+        throw new PhotoCaptureCancelledError();
+      }
+      const raw = dataUrlToRawFile(photo.dataUrl, "gallery.jpg");
+      return prepareProfilePhotoFile(raw);
+    } catch (err) {
+      if (
+        err instanceof PhotoCaptureCancelledError ||
+        err instanceof PhotoPermissionDeniedError
+      ) {
+        throw err;
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      if (/cancel|dismissed/i.test(message)) {
+        throw new PhotoCaptureCancelledError(message);
+      }
+      // Last resort: HTML file input / system picker
+      const file = await pickFileViaInput({
+        accept:
+          "image/jpeg,image/jpg,image/png,image/webp,.jpg,.jpeg,.png,.webp",
+      });
+      return prepareProfilePhotoFile(file);
+    }
+  }
+  const file = await pickFileViaInput({
+    accept: "image/jpeg,image/jpg,image/png,image/webp,.jpg,.jpeg,.png,.webp",
   });
   return prepareProfilePhotoFile(file);
 }

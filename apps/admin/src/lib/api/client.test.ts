@@ -112,6 +112,63 @@ describe("createApiClient", () => {
     await expect(api.get("/x")).rejects.toMatchObject({ code: "NETWORK_ERROR" });
   });
 
+  it("queues offline writes and throws QUEUED_OFFLINE", async () => {
+    const queueOfflineWrite = vi.fn();
+    const api = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => "tok",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+      isOnline: () => false,
+      queueOfflineWrite,
+    });
+    await expect(api.post("/api/v1/teachers", { name: "A" })).rejects.toMatchObject({
+      code: "QUEUED_OFFLINE",
+    });
+    expect(queueOfflineWrite).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/api/v1/teachers",
+      body: { name: "A" },
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("does not queue GET failures while offline", async () => {
+    const queueOfflineWrite = vi.fn();
+    fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
+    const api = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => "tok",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+      isOnline: () => false,
+      queueOfflineWrite,
+    });
+    await expect(api.get("/api/v1/teachers")).rejects.toMatchObject({
+      code: "NETWORK_ERROR",
+    });
+    expect(queueOfflineWrite).not.toHaveBeenCalled();
+  });
+
+  it("times out hung fetches", async () => {
+    fetchMock.mockImplementation(
+      (_url: string, init?: { signal?: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("Aborted", "AbortError"));
+          });
+        }),
+    );
+    const api = createApiClient({
+      getBaseUrl: () => "http://api.test",
+      getAccessToken: async () => "tok",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+      defaultTimeoutMs: 30,
+    });
+    await expect(api.get("/x")).rejects.toMatchObject({
+      code: "NETWORK_ERROR",
+      message: expect.stringContaining("timed out"),
+    });
+  });
+
   it("requires base URL", async () => {
     const api = createApiClient({
       getBaseUrl: () => "",

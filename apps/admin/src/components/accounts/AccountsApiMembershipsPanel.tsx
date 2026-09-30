@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Button,
@@ -10,7 +10,6 @@ import {
   Modal,
   Pill,
   Select,
-  TextInput,
   Th,
   Td,
   Tr,
@@ -19,22 +18,17 @@ import { useAdminToast } from "@/components/AdminActionToast";
 import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
 import {
-  collectMembershipCandidates,
-  createMembership,
   deleteMembership,
   loadRolesCatalog,
   resolveMembershipsListView,
   toggleRoleCode,
   updateMembership,
   type IdentityListStatus,
-  type MembershipCandidate,
   type MembershipListItem,
   type MembershipStatus,
   type RoleCatalogItem,
 } from "@/lib/identity";
-import { listStudents } from "@/lib/students/api";
-import { listTeachers } from "@/lib/teachers/api";
-import { KeyRound, Plus, ShieldOff, Users } from "lucide-react";
+import { Users } from "lucide-react";
 import {
   useAccountsMembershipsQuery,
   adminModulePrefix,
@@ -117,12 +111,6 @@ export function AccountsApiMembershipsPanel() {
   });
   const [statusFilter, setStatusFilter] = useState<MembershipStatus | "">("");
   const [roleCatalog, setRoleCatalog] = useState<RoleCatalogItem[]>([]);
-  const [candidates, setCandidates] = useState<MembershipCandidate[]>([]);
-  const [inviteOpen, setInviteOpen] = useState(false);
-  const [userId, setUserId] = useState("");
-  const [selectedRoles, setSelectedRoles] = useState<string[]>(["institute_admin"]);
-  const [inviteStatus, setInviteStatus] = useState<MembershipStatus>("invited");
-  const [inviteError, setInviteError] = useState("");
   const [editTarget, setEditTarget] = useState<MembershipListItem | null>(null);
   const [editStatus, setEditStatus] = useState<MembershipStatus>("active");
   const [editRoles, setEditRoles] = useState<string[]>([]);
@@ -167,32 +155,6 @@ export function AccountsApiMembershipsPanel() {
   }, []);
 
   useEffect(() => {
-    if (!listEnabled || !instituteCtx.activeInstituteId) {
-      setCandidates([]);
-      return;
-    }
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    void Promise.all([
-      listTeachers({ instituteId: requestInstituteId }).catch(() => []),
-      listStudents({ instituteId: requestInstituteId }).catch(() => []),
-    ]).then(([teachers, students]) => {
-      if (cancelled) return;
-      setCandidates(
-        collectMembershipCandidates({
-          teachers,
-          students,
-          existingUserIds: undefined,
-        }),
-      );
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [listEnabled, instituteCtx.activeInstituteId]);
-
-  useEffect(() => {
-    setInviteOpen(false);
     setEditTarget(null);
     setPendingDelete(null);
   }, [instituteCtx.activeInstituteId]);
@@ -210,11 +172,6 @@ export function AccountsApiMembershipsPanel() {
 
   const hint = listHint(view.status, view.errorMessage);
   const displayItems = view.rowsValid ? view.items : [];
-  const existingUserIds = useMemo(
-    () => new Set(displayItems.map((r) => r.userId)),
-    [displayItems],
-  );
-  const inviteCandidates = candidates.filter((c) => !existingUserIds.has(c.userId));
 
   const invalidateAccounts = () => {
     const id = instituteCtx.activeInstituteId;
@@ -222,40 +179,6 @@ export function AccountsApiMembershipsPanel() {
     void queryClient.invalidateQueries({
       queryKey: adminModulePrefix(id, adminQueryRoots.accounts),
     });
-  };
-
-  const submitInvite = () => {
-    const instituteId = instituteCtx.activeInstituteId;
-    if (!instituteId) {
-      notify("Select an institute before attaching a member");
-      return;
-    }
-    if (!userId.trim()) {
-      setInviteError("User profile ID is required.");
-      return;
-    }
-    if (selectedRoles.length === 0) {
-      setInviteError("Select at least one catalog role.");
-      return;
-    }
-    setInviteError("");
-    void createMembership({
-      instituteId,
-      userId: userId.trim(),
-      roles: selectedRoles,
-      status: inviteStatus,
-    })
-      .then(() => {
-        setInviteOpen(false);
-        setUserId("");
-        setSelectedRoles(["institute_admin"]);
-        setInviteStatus("invited");
-        invalidateAccounts();
-        notify("Membership created");
-      })
-      .catch((err) => {
-        notify(err instanceof Error ? err.message : "Failed to create membership");
-      });
   };
 
   const submitUpdate = () => {
@@ -293,56 +216,25 @@ export function AccountsApiMembershipsPanel() {
 
   return (
     <>
-      <div className="grid gap-4 lg:grid-cols-2 mb-4">
-        <Card>
-          <EmptyState
-            icon={<KeyRound className="size-5" />}
-            title="Auth account provisioning"
-            hint="Attach an existing login profile. Creating new logins is not available from this screen."
-          />
-        </Card>
-        <Card>
-          <EmptyState
-            icon={<ShieldOff className="size-5" />}
-            title="Email invite tokens"
-            hint="No invitation table or email delivery API. Status invited only marks membership state — it does not send mail."
-          />
-        </Card>
-      </div>
-
       <Card>
         <CardHeader
           title="Institute memberships"
           hint="Institute memberships and roles"
           action={
-            <div className="flex flex-wrap items-center gap-2">
-              <Select
-                value={statusFilter}
-                onChange={(e) =>
-                  setStatusFilter((e.target.value || "") as MembershipStatus | "")
-                }
-                className="h-8 min-w-[8rem] text-xs"
-              >
-                <option value="">All statuses</option>
-                {STATUS_OPTIONS.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
-              </Select>
-              {writesEnabled ? (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => {
-                    setInviteError("");
-                    setInviteOpen(true);
-                  }}
-                >
-                  <Plus className="size-3.5" /> Attach member
-                </Button>
-              ) : null}
-            </div>
+            <Select
+              value={statusFilter}
+              onChange={(e) =>
+                setStatusFilter((e.target.value || "") as MembershipStatus | "")
+              }
+              className="h-8 min-w-[8rem] text-xs"
+            >
+              <option value="">All statuses</option>
+              {STATUS_OPTIONS.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </Select>
           }
         />
         {hint && view.status !== "ready" ? (
@@ -416,75 +308,6 @@ export function AccountsApiMembershipsPanel() {
           </DataTable>
         )}
       </Card>
-
-      <Modal
-        open={writesEnabled && inviteOpen}
-        onClose={() => setInviteOpen(false)}
-        title="Attach existing user"
-        subtitle="Link someone who already has a login. This does not create new accounts."
-        footer={
-          <>
-            <Button onClick={() => setInviteOpen(false)}>Cancel</Button>
-            <Button variant="primary" onClick={submitInvite}>
-              Create membership
-            </Button>
-          </>
-        }
-      >
-        {inviteError ? (
-          <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
-            {inviteError}
-          </div>
-        ) : null}
-        <div className="grid gap-4">
-          {inviteCandidates.length > 0 ? (
-            <Field
-              label="Linked people"
-              hint="Teachers or students who already have a login"
-            >
-              <Select
-                value=""
-                onChange={(e) => {
-                  if (e.target.value) setUserId(e.target.value);
-                }}
-              >
-                <option value="">Select a linked profile…</option>
-                {inviteCandidates.map((c) => (
-                  <option key={c.userId} value={c.userId}>
-                    {c.label}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          ) : null}
-          <Field label="User profile ID" required hint="ID of an existing login profile">
-            <TextInput
-              value={userId}
-              onChange={(e) => setUserId(e.target.value)}
-              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-            />
-          </Field>
-          <Field label="Roles" required hint="Choose one or more roles">
-            <RoleChecklist
-              catalog={roleCatalog}
-              selected={selectedRoles}
-              onChange={setSelectedRoles}
-            />
-          </Field>
-          <Field label="Status">
-            <Select
-              value={inviteStatus}
-              onChange={(e) => setInviteStatus(e.target.value as MembershipStatus)}
-            >
-              {STATUS_OPTIONS.map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        </div>
-      </Modal>
 
       <Modal
         open={writesEnabled && editTarget !== null}

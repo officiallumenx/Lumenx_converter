@@ -1,22 +1,40 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Camera, Search, Upload } from "lucide-react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Camera, Upload } from "lucide-react";
+import {
+  Button,
+  Card,
+  PageStack,
+  Pill,
+  SearchInput,
+  Select,
+} from "@lumenx/ui-admin";
 import { AppShell } from "@/components/AppShell";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { useInstituteContext } from "@/lib/institutes";
 import { isApiAuthMode } from "@/auth/auth-mode";
-import { adminPageTitle } from "@/lib/admin-module-labels";
+import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-labels";
 import { adminModulePrefix, adminQueryKeys, adminQueryRoots } from "@/lib/admin-queries/keys";
-import { listSections, listClasses } from "@/lib/classes/api";
+import { useCatalogClassesQuery } from "@/lib/admin-queries";
+import {
+  buildStudentAttendanceApiClassOptions,
+  buildStudentAttendanceApiSectionOptions,
+} from "@/lib/attendance/class-section-options";
+import { normalizeSchoolClassName } from "@/lib/classes/name-format";
 import {
   listPhotoStudents,
   listPhotoTeachers,
   uploadStudentPhoto,
   uploadTeacherPhoto,
+  type PhotoSignedUrlDto,
   type PhotoStudentDto,
   type PhotoTeacherDto,
 } from "@/lib/photos/api";
+import {
+  isSignedPhotoUrlUsable,
+  photoListStaleTimeMs,
+} from "@/lib/photos/signed-url";
 import { invalidateTeachersListCache } from "@/lib/teachers/load";
 import { invalidateStudentsListCache } from "@/lib/students/load";
 import {
@@ -44,20 +62,25 @@ function initials(name: string): string {
 
 function PhotoThumb({
   url,
+  expiresAt,
   name,
   size = "md",
 }: {
   url: string | null;
+  expiresAt?: string | null;
   name: string;
   size?: "sm" | "md" | "lg";
 }) {
+  const src = isSignedPhotoUrlUsable(url, expiresAt) ? url : null;
   const dim =
     size === "lg" ? "h-28 w-28 text-2xl" : size === "sm" ? "h-10 w-10 text-xs" : "h-12 w-12 text-sm";
-  if (url) {
+  if (src) {
     return (
       <img
-        src={url}
+        src={src}
         alt={name}
+        loading="lazy"
+        decoding="async"
         className={`${dim} rounded-full object-cover border border-border bg-muted`}
       />
     );
@@ -71,6 +94,36 @@ function PhotoThumb({
   );
 }
 
+function FilterField({
+  id,
+  label,
+  children,
+}: {
+  id: string;
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <label className="block min-w-0 text-xs" htmlFor={id}>
+      <span className="mb-0.5 block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </span>
+      {children}
+    </label>
+  );
+}
+
+function formatStudentScope(classLabel: string | null, sectionLabel: string | null): string {
+  const cls = classLabel?.trim()
+    ? normalizeSchoolClassName(classLabel) || classLabel.trim()
+    : "";
+  const sec = sectionLabel?.trim() ? sectionLabel.trim().toUpperCase() : "";
+  if (cls && sec) return `${cls} · Sec ${sec}`;
+  if (cls) return cls;
+  if (sec) return `Sec ${sec}`;
+  return "";
+}
+
 function PersonPhotoActions({
   busy,
   onGallery,
@@ -82,30 +135,30 @@ function PersonPhotoActions({
 }) {
   return (
     <div className="grid grid-cols-2 gap-2 pt-1">
-      <button
-        type="button"
+      <Button
+        variant="primary"
         disabled={busy}
-        className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary text-primary-foreground px-3 py-2.5 text-sm font-medium disabled:opacity-50"
+        className="w-full gap-2"
         onClick={(e) => {
           e.stopPropagation();
           onGallery();
         }}
       >
-        <Upload className="h-4 w-4 shrink-0" />
+        <Upload className="size-3.5 shrink-0" />
         Upload photo
-      </button>
-      <button
-        type="button"
+      </Button>
+      <Button
+        variant="outline"
         disabled={busy}
-        className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-medium disabled:opacity-50"
+        className="w-full gap-2"
         onClick={(e) => {
           e.stopPropagation();
           onCamera();
         }}
       >
-        <Camera className="h-4 w-4 shrink-0" />
+        <Camera className="size-3.5 shrink-0" />
         Take photo
-      </button>
+      </Button>
     </div>
   );
 }
@@ -130,19 +183,15 @@ function PhotosPage() {
     queryKey: adminQueryKeys.photosTeachers(instituteId ?? "", q),
     enabled: apiMode && Boolean(instituteId) && mode === "staff",
     queryFn: () => listPhotoTeachers({ instituteId: instituteId!, q }),
+    staleTime: (query) => photoListStaleTimeMs(query.state.data),
+    placeholderData: keepPreviousData,
+    refetchOnMount: true,
   });
 
-  const classesQuery = useQuery({
-    queryKey: [...adminQueryKeys.classes(instituteId ?? ""), "for-photos"],
-    enabled: apiMode && Boolean(instituteId) && mode === "student",
-    queryFn: () => listClasses({ instituteId: instituteId! }),
-  });
-
-  const sectionsQuery = useQuery({
-    queryKey: [...adminQueryKeys.classes(instituteId ?? ""), "sections", classId],
-    enabled: apiMode && Boolean(instituteId) && mode === "student" && Boolean(classId),
-    queryFn: () => listSections({ instituteId: instituteId!, classId }),
-  });
+  const catalogQuery = useCatalogClassesQuery(
+    instituteId,
+    apiMode && Boolean(instituteId) && mode === "student",
+  );
 
   const studentsQuery = useQuery({
     queryKey: adminQueryKeys.photosStudents(
@@ -164,26 +213,61 @@ function PhotosPage() {
         sectionId,
         q,
       }),
+    staleTime: (query) => photoListStaleTimeMs(query.state.data),
+    placeholderData: keepPreviousData,
+    refetchOnMount: true,
   });
 
   const teachers = teachersQuery.data ?? [];
   const students = studentsQuery.data ?? [];
 
-  const classOptions = useMemo(() => classesQuery.data ?? [], [classesQuery.data]);
-  const sectionOptions = useMemo(
-    () => sectionsQuery.data ?? [],
-    [sectionsQuery.data],
-  );
+  // Seed per-person signed-url cache from list payloads so other screens reuse them.
+  useEffect(() => {
+    for (const t of teachers) {
+      if (!isSignedPhotoUrlUsable(t.photoSignedUrl, t.photoExpiresAt)) continue;
+      const payload: PhotoSignedUrlDto = {
+        kind: "teacher",
+        id: t.id,
+        photoAssetPath: t.photoAssetPath,
+        photoSignedUrl: t.photoSignedUrl,
+        photoExpiresAt: t.photoExpiresAt,
+      };
+      qc.setQueryData(adminQueryKeys.photosSignedUrl("teacher", t.id), payload);
+    }
+  }, [qc, teachers]);
 
-  async function invalidateAfterUpload() {
+  useEffect(() => {
+    for (const s of students) {
+      if (!isSignedPhotoUrlUsable(s.photoSignedUrl, s.photoExpiresAt)) continue;
+      const payload: PhotoSignedUrlDto = {
+        kind: "student",
+        id: s.id,
+        photoAssetPath: s.photoAssetPath,
+        photoSignedUrl: s.photoSignedUrl,
+        photoExpiresAt: s.photoExpiresAt,
+      };
+      qc.setQueryData(adminQueryKeys.photosSignedUrl("student", s.id), payload);
+    }
+  }, [qc, students]);
+
+  const classOptions = useMemo(
+    () => buildStudentAttendanceApiClassOptions(catalogQuery.data?.classes ?? []),
+    [catalogQuery.data],
+  );
+  const sectionOptions = useMemo(() => {
+    const classes = catalogQuery.data?.classes ?? [];
+    const sections = catalogQuery.data?.sections ?? [];
+    const classesById = new Map(classes.map((cls) => [cls.id, cls]));
+    return buildStudentAttendanceApiSectionOptions(classId, sections, classesById);
+  }, [catalogQuery.data, classId]);
+
+  function invalidateAfterUpload() {
     if (!instituteId) return;
     invalidateTeachersListCache(instituteId);
     invalidateStudentsListCache(instituteId);
-    await Promise.all([
-      qc.invalidateQueries({ queryKey: adminModulePrefix(instituteId, adminQueryRoots.photos) }),
-      qc.invalidateQueries({ queryKey: adminModulePrefix(instituteId, adminQueryRoots.teachers) }),
-      qc.invalidateQueries({ queryKey: adminModulePrefix(instituteId, adminQueryRoots.students) }),
-    ]);
+    void qc.invalidateQueries({ queryKey: adminModulePrefix(instituteId, adminQueryRoots.photos) });
+    void qc.invalidateQueries({ queryKey: adminModulePrefix(instituteId, adminQueryRoots.teachers) });
+    void qc.invalidateQueries({ queryKey: adminModulePrefix(instituteId, adminQueryRoots.students) });
   }
 
   async function runUpload(
@@ -202,12 +286,40 @@ function PhotosPage() {
           : await uploadStudentPhoto(target.row.id, raw);
       setStatusMsg("Photo saved");
       toast(`Photo updated for ${target.row.displayName}`, "success");
-      await invalidateAfterUpload();
       if (target.type === "teacher") {
         setSelectedTeacherId(result.person.id);
+        void qc.setQueryData(
+          adminQueryKeys.photosTeachers(instituteId ?? "", q),
+          (prev: PhotoTeacherDto[] | undefined) =>
+            (prev ?? []).map((row) =>
+              row.id === result.person.id
+                ? {
+                    ...row,
+                    photoAssetPath: result.photoAssetPath,
+                    photoSignedUrl: result.photoSignedUrl,
+                    photoExpiresAt: result.photoExpiresAt,
+                  }
+                : row,
+            ),
+        );
       } else {
         setSelectedStudentId(result.person.id);
+        void qc.setQueryData(
+          adminQueryKeys.photosStudents(instituteId ?? "", classId, sectionId, q),
+          (prev: PhotoStudentDto[] | undefined) =>
+            (prev ?? []).map((row) =>
+              row.id === result.person.id
+                ? {
+                    ...row,
+                    photoAssetPath: result.photoAssetPath,
+                    photoSignedUrl: result.photoSignedUrl,
+                    photoExpiresAt: result.photoExpiresAt,
+                  }
+                : row,
+            ),
+        );
       }
+      invalidateAfterUpload();
     } catch (err) {
       if (err instanceof PhotoCaptureCancelledError) {
         setStatusMsg(null);
@@ -243,237 +355,265 @@ function PhotosPage() {
 
   if (!apiMode) {
     return (
-      <AppShell title="Photos" subtitle="Profile photo management">
-        <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
-          Photos require API auth mode with a live institute.
-        </div>
+      <AppShell title={M.photos} subtitle="Profile photo management">
+        <Card>
+          <div className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-5">
+            Photos require API auth mode with a live institute.
+          </div>
+        </Card>
       </AppShell>
     );
   }
 
   if (!instituteId) {
     return (
-      <AppShell title="Photos" subtitle="Profile photo management">
-        <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
-          Select an institute to manage profile photos.
-        </div>
+      <AppShell title={M.photos} subtitle="Profile photo management">
+        <Card>
+          <div className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-5">
+            Select an institute to manage profile photos.
+          </div>
+        </Card>
       </AppShell>
     );
   }
 
   return (
     <AppShell
-      title="Photos"
+      title={M.photos}
       subtitle={`Assign staff and student profile photos · ${profilePhotoCompressLabel()}`}
     >
-      <div className="flex flex-wrap gap-2 mb-4">
-        <button
-          type="button"
-          className={`rounded-lg px-3 py-2 text-sm font-medium border ${
-            mode === "staff"
-              ? "bg-primary text-primary-foreground border-primary"
-              : "bg-card border-border"
-          }`}
-          onClick={() => {
-            setMode("staff");
-            setSelectedStudentId(null);
-            setStatusMsg(null);
-          }}
-        >
-          Staff / Teacher
-        </button>
-        <button
-          type="button"
-          className={`rounded-lg px-3 py-2 text-sm font-medium border ${
-            mode === "student"
-              ? "bg-primary text-primary-foreground border-primary"
-              : "bg-card border-border"
-          }`}
-          onClick={() => {
-            setMode("student");
-            setSelectedTeacherId(null);
-            setStatusMsg(null);
-          }}
-        >
-          Student
-        </button>
-      </div>
-
-      {mode === "student" && (
-        <div className="grid gap-3 sm:grid-cols-2 mb-4">
-          <label className="text-sm space-y-1">
-            <span className="text-muted-foreground">Class</span>
-            <select
-              className="w-full rounded-lg border border-border bg-background px-3 py-2"
-              value={classId}
-              onChange={(e) => {
-                setClassId(e.target.value);
-                setSectionId("");
-                setSelectedStudentId(null);
-              }}
-            >
-              <option value="">Select class</option>
-              {classOptions.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name || c.code || c.id}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-sm space-y-1">
-            <span className="text-muted-foreground">Section</span>
-            <select
-              className="w-full rounded-lg border border-border bg-background px-3 py-2"
-              value={sectionId}
-              disabled={!classId}
-              onChange={(e) => {
-                setSectionId(e.target.value);
-                setSelectedStudentId(null);
-              }}
-            >
-              <option value="">Select section</option>
-              {sectionOptions.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.code || s.name || s.id}
-                </option>
-              ))}
-            </select>
-          </label>
+      <PageStack>
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <Pill tone="neutral">{M.photos}</Pill>
+          <Pill tone="info">{mode === "staff" ? "Staff / Teacher" : "Student"}</Pill>
         </div>
-      )}
 
-      <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <input
-          className="w-full rounded-lg border border-border bg-background pl-9 pr-3 py-2 text-sm"
-          placeholder={mode === "staff" ? "Search staff…" : "Search students…"}
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-      </div>
-
-      {statusMsg && (
-        <p className="mb-3 text-sm text-muted-foreground">{statusMsg}</p>
-      )}
-
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
-        {mode === "staff" && teachersQuery.isLoading && (
-          <p className="p-4 text-sm text-muted-foreground">Loading staff…</p>
-        )}
-        {mode === "staff" && teachersQuery.isError && (
-          <p className="p-4 text-sm text-destructive">
-            {(teachersQuery.error as Error).message || "Failed to load staff"}
-          </p>
-        )}
-        {mode === "staff" && !teachersQuery.isLoading && teachers.length === 0 && (
-          <p className="p-4 text-sm text-muted-foreground">No staff found.</p>
-        )}
-        {mode === "staff" &&
-          teachers.map((t) => {
-            const selected = selectedTeacherId === t.id;
-            return (
-              <div
-                key={t.id}
-                className={`border-b border-border last:border-0 ${selected ? "bg-muted/50" : ""}`}
+        <Card>
+          <div className="lx-filter-bar space-y-2 px-3 py-2.5 sm:px-4">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant={mode === "staff" ? "primary" : "outline"}
+                onClick={() => {
+                  setMode("staff");
+                  setSelectedStudentId(null);
+                  setStatusMsg(null);
+                }}
               >
-                <button
-                  type="button"
-                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/40"
-                  onClick={() => toggleTeacher(t.id)}
-                  aria-expanded={selected}
-                >
-                  <PhotoThumb url={t.photoSignedUrl} name={t.displayName} />
-                  <div className="min-w-0 flex-1">
-                    <div className="font-medium truncate">{t.displayName}</div>
-                    <div className="text-xs text-muted-foreground truncate">
-                      {t.department}
-                      {t.phone ? ` · ${t.phone}` : ""}
-                    </div>
-                  </div>
-                  <span className="text-xs text-muted-foreground shrink-0">
-                    {selected ? "Hide" : "Photo"}
-                  </span>
-                </button>
-                {selected && (
-                  <div className="px-4 pb-3 space-y-2">
-                    <PersonPhotoActions
-                      busy={busy}
-                      onGallery={() =>
-                        void runUpload("gallery", { type: "teacher", row: t })
-                      }
-                      onCamera={() =>
-                        void runUpload("camera", { type: "teacher", row: t })
-                      }
-                    />
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                Staff / Teacher
+              </Button>
+              <Button
+                size="sm"
+                variant={mode === "student" ? "primary" : "outline"}
+                onClick={() => {
+                  setMode("student");
+                  setSelectedTeacherId(null);
+                  setStatusMsg(null);
+                }}
+              >
+                Student
+              </Button>
+            </div>
 
-        {mode === "student" && (!classId || !sectionId) && (
-          <p className="p-4 text-sm text-muted-foreground">
-            Select class and section to load students.
-          </p>
-        )}
-        {mode === "student" && classId && sectionId && studentsQuery.isLoading && (
-          <p className="p-4 text-sm text-muted-foreground">Loading students…</p>
-        )}
-        {mode === "student" && studentsQuery.isError && (
-          <p className="p-4 text-sm text-destructive">
-            {(studentsQuery.error as Error).message || "Failed to load students"}
-          </p>
-        )}
-        {mode === "student" &&
-          classId &&
-          sectionId &&
-          !studentsQuery.isLoading &&
-          students.length === 0 && (
-            <p className="p-4 text-sm text-muted-foreground">No students in this section.</p>
+            {mode === "student" ? (
+              <div className="grid grid-cols-2 gap-2">
+                <FilterField id="photos-class" label="Class">
+                  <Select
+                    id="photos-class"
+                    fieldSize="compact"
+                    className="lx-filter-field"
+                    value={classId}
+                    onChange={(e) => {
+                      setClassId(e.target.value);
+                      setSectionId("");
+                      setSelectedStudentId(null);
+                    }}
+                  >
+                    <option value="">Select class</option>
+                    {classOptions.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </Select>
+                </FilterField>
+                <FilterField id="photos-section" label="Section">
+                  <Select
+                    id="photos-section"
+                    fieldSize="compact"
+                    className="lx-filter-field"
+                    value={sectionId}
+                    disabled={!classId}
+                    onChange={(e) => {
+                      setSectionId(e.target.value);
+                      setSelectedStudentId(null);
+                    }}
+                  >
+                    <option value="">{classId ? "Select section" : "Select class first"}</option>
+                    {sectionOptions.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </Select>
+                </FilterField>
+              </div>
+            ) : null}
+
+            <FilterField id="photos-search" label="Search">
+              <SearchInput
+                id="photos-search"
+                fieldSize="compact"
+                inputClassName="lx-filter-field"
+                placeholder={mode === "staff" ? "Search staff…" : "Search students…"}
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                aria-label={mode === "staff" ? "Search staff" : "Search students"}
+              />
+            </FilterField>
+          </div>
+        </Card>
+
+        {statusMsg ? (
+          <p className="text-sm text-muted-foreground">{statusMsg}</p>
+        ) : null}
+
+        <Card>
+          {mode === "staff" && teachersQuery.isLoading && (
+            <p className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-5">
+              Loading staff…
+            </p>
           )}
-        {mode === "student" &&
-          students.map((s) => {
-            const selected = selectedStudentId === s.id;
-            return (
-              <div
-                key={s.id}
-                className={`border-b border-border last:border-0 ${selected ? "bg-muted/50" : ""}`}
-              >
-                <button
-                  type="button"
-                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/40"
-                  onClick={() => toggleStudent(s.id)}
-                  aria-expanded={selected}
+          {mode === "staff" && teachersQuery.isError && (
+            <p className="px-4 py-8 text-center text-sm text-destructive sm:px-5">
+              {(teachersQuery.error as Error).message || "Failed to load staff"}
+            </p>
+          )}
+          {mode === "staff" && !teachersQuery.isLoading && teachers.length === 0 && (
+            <p className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-5">
+              No staff found.
+            </p>
+          )}
+          {mode === "staff" &&
+            teachers.map((t) => {
+              const selected = selectedTeacherId === t.id;
+              return (
+                <div
+                  key={t.id}
+                  className={`border-b border-border last:border-0 ${selected ? "bg-muted/50" : ""}`}
                 >
-                  <PhotoThumb url={s.photoSignedUrl} name={s.displayName} />
-                  <div className="min-w-0 flex-1">
-                    <div className="font-medium truncate">{s.displayName}</div>
-                    <div className="text-xs text-muted-foreground truncate">
-                      {[s.classLabel, s.sectionLabel].filter(Boolean).join(" · ")}
-                      {s.rollNo ? ` · Roll ${s.rollNo}` : ""}
-                    </div>
-                  </div>
-                  <span className="text-xs text-muted-foreground shrink-0">
-                    {selected ? "Hide" : "Photo"}
-                  </span>
-                </button>
-                {selected && (
-                  <div className="px-4 pb-3 space-y-2">
-                    <PersonPhotoActions
-                      busy={busy}
-                      onGallery={() =>
-                        void runUpload("gallery", { type: "student", row: s })
-                      }
-                      onCamera={() =>
-                        void runUpload("camera", { type: "student", row: s })
-                      }
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 sm:px-5"
+                    onClick={() => toggleTeacher(t.id)}
+                    aria-expanded={selected}
+                  >
+                    <PhotoThumb
+                      url={t.photoSignedUrl}
+                      expiresAt={t.photoExpiresAt}
+                      name={t.displayName}
                     />
-                  </div>
-                )}
-              </div>
-            );
-          })}
-      </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium">{t.displayName}</div>
+                      <div className="truncate text-xs text-muted-foreground">
+                        {t.department}
+                        {t.phone ? ` · ${t.phone}` : ""}
+                      </div>
+                    </div>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {selected ? "Hide" : "Photo"}
+                    </span>
+                  </button>
+                  {selected ? (
+                    <div className="px-4 pb-3 sm:px-5">
+                      <PersonPhotoActions
+                        busy={busy}
+                        onGallery={() =>
+                          void runUpload("gallery", { type: "teacher", row: t })
+                        }
+                        onCamera={() =>
+                          void runUpload("camera", { type: "teacher", row: t })
+                        }
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+
+          {mode === "student" && (!classId || !sectionId) && (
+            <p className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-5">
+              Select class and section to load students.
+            </p>
+          )}
+          {mode === "student" && classId && sectionId && studentsQuery.isLoading && (
+            <p className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-5">
+              Loading students…
+            </p>
+          )}
+          {mode === "student" && studentsQuery.isError && (
+            <p className="px-4 py-8 text-center text-sm text-destructive sm:px-5">
+              {(studentsQuery.error as Error).message || "Failed to load students"}
+            </p>
+          )}
+          {mode === "student" &&
+            classId &&
+            sectionId &&
+            !studentsQuery.isLoading &&
+            students.length === 0 && (
+              <p className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-5">
+                No students in this section.
+              </p>
+            )}
+          {mode === "student" &&
+            students.map((s) => {
+              const selected = selectedStudentId === s.id;
+              const scope = formatStudentScope(s.classLabel, s.sectionLabel);
+              return (
+                <div
+                  key={s.id}
+                  className={`border-b border-border last:border-0 ${selected ? "bg-muted/50" : ""}`}
+                >
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 sm:px-5"
+                    onClick={() => toggleStudent(s.id)}
+                    aria-expanded={selected}
+                  >
+                    <PhotoThumb
+                      url={s.photoSignedUrl}
+                      expiresAt={s.photoExpiresAt}
+                      name={s.displayName}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium">{s.displayName}</div>
+                      <div className="truncate text-xs text-muted-foreground">
+                        {scope}
+                        {s.rollNo ? `${scope ? " · " : ""}Roll ${s.rollNo}` : ""}
+                      </div>
+                    </div>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {selected ? "Hide" : "Photo"}
+                    </span>
+                  </button>
+                  {selected ? (
+                    <div className="px-4 pb-3 sm:px-5">
+                      <PersonPhotoActions
+                        busy={busy}
+                        onGallery={() =>
+                          void runUpload("gallery", { type: "student", row: s })
+                        }
+                        onCamera={() =>
+                          void runUpload("camera", { type: "student", row: s })
+                        }
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+        </Card>
+      </PageStack>
     </AppShell>
   );
 }

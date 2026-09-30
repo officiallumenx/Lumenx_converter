@@ -63,20 +63,25 @@ export function TimetableAssignGrid({
   return (
     <Card>
       <CardHeader
-        title="Assign subjects for each period"
-        hint="Click an empty cell to assign a subject · Publish when draft periods are ready"
+        title="Weekly timetable"
+        hint="Table by period × day · swipe sideways on phone to see all days"
       />
       <CardBody noPadding>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs border-collapse">
+        <div className="lx-timetable-scroll" data-swipe-nav-ignore>
+          <table className="lx-timetable-grid w-full border-collapse text-sm">
             <thead>
-              <tr className="border-b border-border bg-muted/30">
-                <th className="px-3 py-2 text-left font-medium sticky left-0 bg-muted/30">
+              <tr>
+                <th className="lx-timetable-grid__time-col text-left font-semibold">
                   Period
                 </th>
                 {activeDays.map((day) => (
-                  <th key={day.name} className="px-3 py-2 text-left font-medium min-w-[7.5rem]">
-                    {day.name.slice(0, 3)}
+                  <th key={day.name} className="lx-timetable-grid__day-col">
+                    <span className="lx-timetable-grid__day-name">
+                      {day.name.slice(0, 3)}
+                    </span>
+                    <span className="lx-timetable-grid__day-meta hidden sm:block">
+                      {day.periods} periods
+                    </span>
                   </th>
                 ))}
               </tr>
@@ -85,23 +90,28 @@ export function TimetableAssignGrid({
               {teachingPeriods.map((period, idx) => {
                 const periodIndex = idx + 1;
                 return (
-                  <tr key={period.id} className="border-b border-border/70">
-                    <td className="px-3 py-2 sticky left-0 bg-background">
-                      <div className="font-medium">{period.label}</div>
-                      <div className="text-[10px] text-muted-foreground font-mono">
+                  <tr key={period.id}>
+                    <td className="lx-timetable-grid__time-col">
+                      <span className="lx-timetable-grid__period-id">
+                        {period.label || `P${periodIndex}`}
+                      </span>
+                      <span className="lx-timetable-grid__period-time">
                         {period.start}–{period.end}
-                      </div>
+                      </span>
                     </td>
                     {activeDays.map((day) => {
                       const dayOfWeek = weekdayNameToDayOfWeek(day.name);
-                      const cappedIndex = Math.min(periodIndex, day.periods || periodIndex);
+                      const cappedIndex = Math.min(
+                        periodIndex,
+                        day.periods || periodIndex,
+                      );
                       if (periodIndex > (day.periods || 0)) {
                         return (
                           <td
                             key={`${day.name}-${period.id}`}
-                            className="px-2 py-2 text-muted-foreground/40"
+                            className="lx-timetable-grid__na"
                           >
-                            —
+                            <span>—</span>
                           </td>
                         );
                       }
@@ -112,16 +122,23 @@ export function TimetableAssignGrid({
                             slot.status === "inactive" ? " · draft" : ""
                           }`
                         : null;
+                      const [subjectPart, teacherPart] = (label ?? "")
+                        .split("·")
+                        .map((part) => part.trim());
                       return (
-                        <td key={`${day.name}-${period.id}`} className="px-2 py-2 align-top">
+                        <td
+                          key={`${day.name}-${period.id}`}
+                          className="lx-timetable-grid__cell"
+                        >
                           {writesEnabled ? (
-                            <Button
-                              size="sm"
-                              variant={slot ? "outline" : "ghost"}
+                            <button
+                              type="button"
                               disabled={mutating}
-                              className={`w-full h-auto min-h-9 justify-start whitespace-normal text-left text-[11px] ${
-                                slot ? "" : "border border-dashed border-border"
-                              }`}
+                              className={
+                                slot
+                                  ? "lx-timetable-slot lx-timetable-slot--filled border-border bg-primary/8 text-left"
+                                  : "lx-timetable-slot lx-timetable-slot--empty"
+                              }
                               onClick={() =>
                                 onAssignCell({
                                   dayOfWeek,
@@ -132,12 +149,42 @@ export function TimetableAssignGrid({
                                 })
                               }
                             >
-                              {label ?? "Assign subject"}
-                            </Button>
+                              {slot ? (
+                                <>
+                                  <div className="lx-timetable-slot__subject">
+                                    {subjectPart || label}
+                                  </div>
+                                  {teacherPart ? (
+                                    <div className="lx-timetable-slot__teacher">
+                                      {teacherPart}
+                                    </div>
+                                  ) : null}
+                                </>
+                              ) : (
+                                "Assign"
+                              )}
+                            </button>
                           ) : (
-                            <div className="rounded-md border border-border px-2 py-1.5 text-[11px]">
-                              {label ?? (
-                                <span className="text-muted-foreground">Empty</span>
+                            <div
+                              className={
+                                slot
+                                  ? "lx-timetable-slot lx-timetable-slot--filled border-border bg-muted/40"
+                                  : "lx-timetable-slot lx-timetable-slot--empty pointer-events-none opacity-70"
+                              }
+                            >
+                              {slot ? (
+                                <>
+                                  <div className="lx-timetable-slot__subject">
+                                    {subjectPart || label}
+                                  </div>
+                                  {teacherPart ? (
+                                    <div className="lx-timetable-slot__teacher">
+                                      {teacherPart}
+                                    </div>
+                                  ) : null}
+                                </>
+                              ) : (
+                                "Empty"
                               )}
                             </div>
                           )}
@@ -151,8 +198,8 @@ export function TimetableAssignGrid({
           </table>
         </div>
         {config.periodRows.some((row) => row.isBreak) ? (
-          <div className="border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
-            Breaks in bell schedule:{" "}
+          <div className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
+            Breaks:{" "}
             {config.periodRows
               .filter((row) => row.isBreak)
               .map((row) => `${row.breakName || row.label} (${row.start}–${row.end})`)

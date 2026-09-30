@@ -32,13 +32,25 @@ export function resolveDashboardSummaryView(input: {
     };
   }
   if (input.instituteStatus === "loading") {
-    return { status: "loading", summary: null, errorMessage: null, rowsValid: false };
-  }
-  if (input.instituteStatus === "error" || input.instituteStatus === "forbidden") {
+    if (
+      input.storedSummary &&
+      input.activeInstituteId &&
+      input.resolvedForInstituteId === input.activeInstituteId
+    ) {
+      return {
+        status:
+          input.storedStatus === "loading" || input.storedStatus === "error"
+            ? "ready"
+            : input.storedStatus,
+        summary: input.storedSummary,
+        errorMessage: null,
+        rowsValid: true,
+      };
+    }
     return {
-      status: input.instituteStatus === "forbidden" ? "forbidden" : "error",
+      status: "loading",
       summary: null,
-      errorMessage: input.instituteErrorMessage,
+      errorMessage: null,
       rowsValid: false,
     };
   }

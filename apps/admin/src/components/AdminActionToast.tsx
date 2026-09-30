@@ -60,23 +60,27 @@ export function AdminActionToastProvider({ children }: { children: ReactNode }) 
               role={isError ? "alert" : "status"}
               className={
                 isError
-                  ? "pointer-events-auto flex items-start gap-2.5 rounded-xl border border-destructive/40 bg-card px-4 py-3.5 text-sm shadow-elevated animate-slide-up ring-1 ring-destructive/20"
-                  : "pointer-events-auto flex items-start gap-2.5 rounded-xl border border-success/35 bg-card px-4 py-3.5 text-sm shadow-elevated animate-slide-up ring-1 ring-success/15"
+                  ? "pointer-events-auto flex items-start gap-2.5 rounded-xl border border-destructive bg-destructive px-4 py-3.5 text-sm text-destructive-foreground shadow-elevated animate-slide-up"
+                  : "pointer-events-auto flex items-start gap-2.5 rounded-xl border border-success bg-success px-4 py-3.5 text-sm text-white shadow-elevated animate-slide-up"
               }
             >
               {isError ? (
-                <AlertCircle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
+                <AlertCircle className="mt-0.5 size-4 shrink-0 text-destructive-foreground" aria-hidden />
               ) : (
-                <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" aria-hidden />
+                <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-white" aria-hidden />
               )}
-              <span className="flex-1 font-medium leading-snug text-foreground">
+              <span className="flex-1 font-medium leading-snug">
                 {t.message}
               </span>
               <button
                 type="button"
                 aria-label="Dismiss notification"
                 onClick={() => setToasts((prev) => prev.filter((x) => x.id !== t.id))}
-                className="size-8 min-w-8 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className={
+                  isError
+                    ? "size-8 min-w-8 rounded-md flex items-center justify-center text-destructive-foreground/80 hover:text-destructive-foreground hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+                    : "size-8 min-w-8 rounded-md flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+                }
               >
                 <X className="size-3.5" />
               </button>

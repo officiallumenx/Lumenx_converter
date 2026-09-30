@@ -1,5 +1,7 @@
 /**
- * Load institute setup counts from existing Admin APIs (soft-fail per source).
+ * Load institute setup counts from existing Admin APIs.
+ * Critical sources (years, classes/sections) must succeed — soft-failing them to
+ * empty arrays was poisoning the checklist as “incomplete” after network flaps.
  */
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { isInstituteUuid } from "@/lib/active-institute";
@@ -28,74 +30,94 @@ import {
 import { evaluateSetupProgress, summarizeSetupProgress } from "./progress";
 import type { SetupChecklistState, SetupCounts } from "./types";
 
-function emptyCounts(): SetupCounts {
-  return {
-    activeYears: 0,
-    classes: 0,
-    sections: 0,
-    subjects: 0,
-    teachers: 0,
-    teachersWithLogin: 0,
-    students: 0,
-    studentsWithLogin: 0,
-    parents: 0,
-    parentsWithLinks: 0,
-    attendanceConfigs: 0,
-    publishedFeePlans: 0,
-    calendarEvents: 0,
-    vehicles: 0,
-    drivers: 0,
-    routes: 0,
-    approvedRoutes: 0,
-    enrollments: 0,
-    approvedEnrollments: 0,
-  };
-}
-
 function isCacheableSetupState(state: SetupChecklistState): boolean {
   return state.status === "ready";
+}
+
+function settledValue<T>(result: PromiseSettledResult<T>, fallback: T): T {
+  return result.status === "fulfilled" ? result.value : fallback;
+}
+
+function settledOk(result: PromiseSettledResult<unknown>): boolean {
+  return result.status === "fulfilled";
 }
 
 async function fetchSetupChecklist(
   instituteId: string,
 ): Promise<SetupChecklistState> {
-  const [
-    years,
-    catalog,
-    subjects,
-    teachers,
-    students,
-    parents,
-    attendanceConfigs,
-    feePlans,
-    calendarEvents,
-    vehicles,
-    drivers,
-    routes,
-    enrollments,
-  ] = await Promise.all([
-    listAcademicYears({ instituteId }).catch(() => []),
-    listClassesCatalog({ instituteId }).catch(() => ({
-      classes: [],
-      sections: [],
-    })),
-    listSubjects({ instituteId }).catch(() => []),
-    listTeachers({ instituteId }).catch(() => []),
-    listStudents({ instituteId }).catch(() => []),
-    listParents({ instituteId }).catch(() => []),
-    listAttendanceConfig({ instituteId }).catch(() => []),
-    listFeePlans({ instituteId }).catch(() => []),
-    listCalendarEvents({ instituteId }).catch(() => []),
-    listTransportVehicles({ instituteId }).catch(() => []),
-    listTransportDrivers({ instituteId }).catch(() => []),
-    listTransportRoutes({ instituteId }).catch(() => []),
-    listTransportEnrollments({ instituteId }).catch(() => []),
+  const results = await Promise.allSettled([
+    listAcademicYears({ instituteId }),
+    listClassesCatalog({ instituteId }),
+    listSubjects({ instituteId }),
+    listTeachers({ instituteId }),
+    listStudents({ instituteId }),
+    listParents({ instituteId }),
+    listAttendanceConfig({ instituteId }),
+    listFeePlans({ instituteId }),
+    listCalendarEvents({ instituteId }),
+    listTransportVehicles({ instituteId }),
+    listTransportDrivers({ instituteId }),
+    listTransportRoutes({ instituteId }),
+    listTransportEnrollments({ instituteId }),
   ]);
+
+  const [
+    yearsResult,
+    catalogResult,
+    subjectsResult,
+    teachersResult,
+    studentsResult,
+    parentsResult,
+    attendanceResult,
+    feePlansResult,
+    calendarResult,
+    vehiclesResult,
+    driversResult,
+    routesResult,
+    enrollmentsResult,
+  ] = results;
+
+  // Years + class catalog drive core gate — never invent "no years/classes".
+  if (!settledOk(yearsResult) || !settledOk(catalogResult)) {
+    const yearErr =
+      yearsResult.status === "rejected"
+        ? yearsResult.reason instanceof Error
+          ? yearsResult.reason.message
+          : "Failed to load academic years"
+        : null;
+    const catalogErr =
+      catalogResult.status === "rejected"
+        ? catalogResult.reason instanceof Error
+          ? catalogResult.reason.message
+          : "Failed to load classes"
+        : null;
+    throw new Error(yearErr ?? catalogErr ?? "Failed to load setup checklist");
+  }
+
+  const years = settledValue(yearsResult, []);
+  const catalog = settledValue(catalogResult, { classes: [], sections: [] });
+  const subjects = settledValue(subjectsResult, []);
+  const teachers = settledValue(teachersResult, []);
+  const students = settledValue(studentsResult, []);
+  const parents = settledValue(parentsResult, []);
+  const attendanceConfigs = settledValue(attendanceResult, []);
+  const feePlans = settledValue(feePlansResult, []);
+  const calendarEvents = settledValue(calendarResult, []);
+  const vehicles = settledValue(vehiclesResult, []);
+  const drivers = settledValue(driversResult, []);
+  const routes = settledValue(routesResult, []);
+  const enrollments = settledValue(enrollmentsResult, []);
 
   const parentItems = parentDtosToListItems(parents);
 
+  // Active or upcoming counts as configured (create often leaves first year active;
+  // older data may still be upcoming until activated).
+  const usableYears = years.filter(
+    (y) => y.status === "active" || y.status === "upcoming",
+  ).length;
+
   const counts: SetupCounts = {
-    activeYears: years.filter((y) => y.status === "active").length,
+    activeYears: usableYears,
     classes: catalog.classes.length,
     sections: catalog.sections.length,
     subjects: subjects.length,
@@ -198,9 +220,12 @@ export async function loadSetupChecklist(
       status: "error",
       errorMessage:
         err instanceof Error ? err.message : "Failed to load setup checklist",
-      counts: emptyCounts(),
-      steps: evaluateSetupProgress(emptyCounts()),
-      ...summarizeSetupProgress(evaluateSetupProgress(emptyCounts())),
+      counts: null,
+      steps: [],
+      coreDone: 0,
+      coreTotal: 0,
+      extendedDone: 0,
+      extendedTotal: 0,
       coreComplete: false,
     };
   }

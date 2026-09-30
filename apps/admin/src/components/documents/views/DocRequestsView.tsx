@@ -196,13 +196,32 @@ function NewRequestModal({ open, onClose }: { open: boolean; onClose: () => void
                 <option value="PKG-004">State Merit Scholarship Kit</option>
               </Select>
             </Field>
+          ) : type === "multiple" ? (
+            <Field label="Document types" hint="Select one or more" required>
+              <div className="max-h-48 overflow-y-auto rounded-lg border border-border bg-popover p-1">
+                {[
+                  ["bonafide", "Bonafide Certificate"],
+                  ["transfer", "Transfer Certificate"],
+                  ["conduct", "Conduct Certificate"],
+                  ["character", "Character Certificate"],
+                  ["marksheet", "Marksheet"],
+                  ["migration", "Migration Certificate"],
+                  ["custom", "Custom / Other"],
+                ].map(([value, label]) => (
+                  <label
+                    key={value}
+                    className="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-sm text-popover-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                  >
+                    <input type="checkbox" className="size-3.5 accent-primary" />
+                    <span>{label}</span>
+                  </label>
+                ))}
+              </div>
+            </Field>
           ) : (
-            <Field
-              label={type === "multiple" ? "Document types" : "Document type"}
-              hint={type === "multiple" ? "Hold Ctrl to select multiple" : ""}
-              required
-            >
-              <Select multiple={type === "multiple"} size={type === "multiple" ? 5 : 1}>
+            <Field label="Document type" required>
+              <Select>
+                <option value="">Select type…</option>
                 <option value="bonafide">Bonafide Certificate</option>
                 <option value="transfer">Transfer Certificate</option>
                 <option value="conduct">Conduct Certificate</option>

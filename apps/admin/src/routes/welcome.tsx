@@ -152,7 +152,7 @@ function WelcomePage() {
               </AuthButton>
             </Link>
             <p className="pt-1 text-center text-[10px] text-muted-foreground/80">
-              App version 1.0.3
+              App version 1.0.6
             </p>
           </div>
         </div>

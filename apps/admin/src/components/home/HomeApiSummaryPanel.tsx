@@ -274,43 +274,41 @@ export function HomeApiSummaryPanel() {
     });
   }
 
+  const instituteName =
+    instituteCtx.status === "ready" && instituteCtx.activeInstitute
+      ? instituteCtx.activeInstitute.name
+      : "your institute";
+  const todayHeading = new Date().toLocaleDateString(undefined, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+  const attentionTotal = attentionItems.reduce((sum, item) => sum + item.count, 0);
+
   return (
     <div className="space-y-4">
       <SetupChecklistBanner state={setupState} />
 
-      <Card>
-        <CardHeader
-          title="Institute overview"
-          hint="Live institute counts"
-          action={<Pill tone="neutral">Read-only</Pill>}
-        />
-        {hint ? (
-          <p className="px-4 pb-4 text-sm text-muted-foreground">{hint}</p>
-        ) : view.summary ? (
-          <div className="px-4 pb-4 lx-kpi-grid">
-            <Kpi label="Students" value={String(view.summary.students)} icon={<Users className="size-3.5" />} />
-            <Kpi label="Teachers" value={String(view.summary.teachers)} icon={<GraduationCap className="size-3.5" />} />
-            <Kpi label="Parents" value={String(view.summary.parents)} icon={<Heart className="size-3.5" />} />
-            <Kpi
-              label="Open complaints"
-              value={String(view.summary.openComplaints)}
-              icon={<MessageSquareWarning className="size-3.5" />}
-            />
-            <Kpi
-              label="Pending leave"
-              value={String(view.summary.pendingLeave)}
-              icon={<CalendarOff className="size-3.5" />}
-            />
-            <Kpi
-              label="Homework items"
-              value={String(view.summary.homeworkItems)}
-              icon={<BookOpen className="size-3.5" />}
-            />
+      <div className="relative overflow-hidden rounded-xl border border-primary/20 bg-gradient-to-br from-primary/15 via-primary/5 to-transparent px-4 py-3.5 sm:px-5">
+        <div className="pointer-events-none absolute -right-8 -top-10 size-32 rounded-full bg-primary/15" />
+        <div className="pointer-events-none absolute -bottom-10 right-16 size-24 rounded-full bg-primary/10" />
+        <p className="text-[11px] font-medium uppercase tracking-wide text-primary">
+          {todayHeading}
+        </p>
+        <p className="mt-0.5 text-base font-semibold tracking-tight text-foreground">
+          {instituteName}
+        </p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Here’s what needs attention today.
+        </p>
+        {attentionTotal > 0 ? (
+          <div className="mt-2">
+            <Pill tone="info">{attentionTotal} open</Pill>
           </div>
         ) : null}
-      </Card>
+      </div>
 
-      <Card>
+      <Card className="border-primary/15">
         <CardHeader
           title="Today's birthdays"
           hint="Students and teachers with a birthday today"
@@ -332,7 +330,7 @@ export function HomeApiSummaryPanel() {
           ) : widgets.birthdays.rows.length === 0 ? (
             <p className="text-sm text-muted-foreground px-1">No birthdays today.</p>
           ) : (
-            <ul className="divide-y divide-border rounded-lg border border-border">
+            <ul className="divide-y divide-border rounded-lg border border-primary/15 bg-primary/[0.03]">
               {widgets.birthdays.rows.map((person) => (
                 <li key={`${person.role}-${person.id}`} className="flex items-center gap-2.5 px-2.5 py-2">
                   <IconChip icon={Cake} size="sm" variant="brand" />
@@ -360,6 +358,37 @@ export function HomeApiSummaryPanel() {
             </ul>
           )}
         </div>
+      </Card>
+
+      <Card className="border-primary/20 bg-primary/[0.04]">
+        <CardHeader
+          title="Institute overview"
+          hint="Live counts for your institute"
+        />
+        {hint ? (
+          <p className="px-4 pb-4 text-sm text-muted-foreground">{hint}</p>
+        ) : view.summary ? (
+          <div className="px-4 pb-4 lx-kpi-grid">
+            <Kpi label="Students" value={String(view.summary.students)} icon={<Users className="size-3.5" />} />
+            <Kpi label="Teachers" value={String(view.summary.teachers)} icon={<GraduationCap className="size-3.5" />} />
+            <Kpi label="Parents" value={String(view.summary.parents)} icon={<Heart className="size-3.5" />} />
+            <Kpi
+              label="Open complaints"
+              value={String(view.summary.openComplaints)}
+              icon={<MessageSquareWarning className="size-3.5" />}
+            />
+            <Kpi
+              label="Pending leave"
+              value={String(view.summary.pendingLeave)}
+              icon={<CalendarOff className="size-3.5" />}
+            />
+            <Kpi
+              label="Homework items"
+              value={String(view.summary.homeworkItems)}
+              icon={<BookOpen className="size-3.5" />}
+            />
+          </div>
+        ) : null}
       </Card>
 
       <HomeQuickActionsCard />
@@ -435,7 +464,7 @@ export function HomeApiSummaryPanel() {
                 <Link
                   key={item.id}
                   to={item.to}
-                  className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm hover:bg-surface-hover"
+                  className="flex items-center justify-between rounded-lg border border-border border-l-2 border-l-primary/70 px-3 py-2 text-sm hover:bg-primary/[0.04] hover:border-primary/25"
                 >
                   <span>{item.label}</span>
                   <span className="flex items-center gap-2">

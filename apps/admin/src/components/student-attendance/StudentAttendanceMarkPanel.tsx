@@ -10,6 +10,7 @@ import {
   type AttendanceMarkStatus,
 } from "@lumenx/module-attendance";
 import { Check, ClipboardList } from "lucide-react";
+import { AttendanceMarkRoster } from "./AttendanceMarkRoster";
 
 import { useAuth } from "@/auth/AuthContext";
 import {
@@ -155,17 +156,54 @@ export function StudentAttendanceMarkPanel({
     access.canMark &&
     inScope;
 
-  const setMark = (studentId: string, kind: MarkKind) => {
+  const toggleMark = (studentId: string) => {
     if (!canMarkActive) return;
-    setMarks((prev) => ({ ...prev, [studentId]: kind }));
+    setMarks((prev) => {
+      const current = prev[studentId] ?? "present";
+      if (current === "leave") return prev;
+      return { ...prev, [studentId]: current === "absent" ? "present" : "absent" };
+    });
   };
 
   const markAllPresent = () => {
     if (!canMarkActive) return;
-    const next: Record<string, MarkKind> = {};
-    for (const student of students) next[student.id] = "present";
-    setMarks(next);
+    setMarks((prev) => {
+      const next = { ...prev };
+      for (const student of students) {
+        if (next[student.id] === "leave") continue;
+        next[student.id] = "present";
+      }
+      return next;
+    });
   };
+
+  const markAllAbsent = () => {
+    if (!canMarkActive) return;
+    setMarks((prev) => {
+      const next = { ...prev };
+      for (const student of students) {
+        if (next[student.id] === "leave") continue;
+        next[student.id] = "absent";
+      }
+      return next;
+    });
+  };
+
+  const clearMarks = () => {
+    markAllPresent();
+    setMessage({ tone: "ok", text: "Cleared — all students marked present" });
+  };
+
+  const rosterItems = useMemo(
+    () =>
+      filteredStudents.map((student) => ({
+        id: student.id,
+        name: student.name,
+        roll: student.roll,
+        status: (marks[student.id] ?? "present") as MarkKind,
+      })),
+    [filteredStudents, marks],
+  );
 
   const handleSave = (draft: boolean) => {
     if (!user || !actor || !workflow || !sectionRow || !activeSlotId) return;
@@ -317,12 +355,12 @@ export function StudentAttendanceMarkPanel({
                   type="button"
                   disabled={!markable}
                   onClick={() => setActiveSlotId(slot.id)}
-                  className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
                     activeSlotId === slot.id
-                      ? "border-primary bg-primary/10 text-primary"
+                      ? "bg-primary text-primary-foreground"
                       : markable
-                        ? "border-border bg-background text-muted-foreground hover:bg-surface-hover"
-                        : "cursor-not-allowed border-border/60 bg-muted/30 text-muted-foreground/60"
+                        ? "bg-muted text-foreground"
+                        : "cursor-not-allowed bg-muted/40 text-muted-foreground/60"
                   }`}
                 >
                   {slot.label}
@@ -331,28 +369,6 @@ export function StudentAttendanceMarkPanel({
             })}
           </div>
         ) : null}
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" variant="outline" disabled={!canMarkActive} onClick={markAllPresent}>
-            Mark all present
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={!canMarkActive || saving}
-            onClick={() => handleSave(true)}
-          >
-            Save draft
-          </Button>
-          <Button
-            size="sm"
-            variant="primary"
-            disabled={!canMarkActive || saving}
-            onClick={() => handleSave(false)}
-          >
-            <Check className="size-3.5" /> Submit attendance
-          </Button>
-        </div>
 
         {message ? (
           <p
@@ -363,68 +379,47 @@ export function StudentAttendanceMarkPanel({
             {message.text}
           </p>
         ) : null}
-
-        {filteredStudents.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
-            No students match this class · section and filters.
-          </p>
-        ) : (
-          <div className="overflow-x-auto rounded-lg border border-border">
-            <table className="w-full min-w-[32rem] text-left text-sm">
-              <thead className="border-b border-border bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2 font-medium">Roll</th>
-                  <th className="px-3 py-2 font-medium">Student</th>
-                  <th className="px-3 py-2 font-medium">Mark</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/70">
-                {filteredStudents.map((student) => {
-                  const kind = marks[student.id];
-                  return (
-                    <tr key={student.id} className="hover:bg-surface-hover/60">
-                      <td className="px-3 py-2 font-mono text-xs">{student.roll}</td>
-                      <td className="px-3 py-2">
-                        <div className="font-medium">{student.name}</div>
-                        <div className="text-[10px] text-muted-foreground">{student.id}</div>
-                      </td>
-                      <td className="px-3 py-2">
-                        <div className="flex flex-wrap gap-1">
-                          {(
-                            [
-                              ["present", "Present"],
-                              ["absent", "Absent"],
-                              ["leave", "Leave"],
-                            ] as const
-                          ).map(([value, label]) => (
-                            <button
-                              key={value}
-                              type="button"
-                              disabled={!canMarkActive}
-                              onClick={() => setMark(student.id, value)}
-                              className={`rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors ${
-                                kind === value
-                                  ? value === "present"
-                                    ? "border-emerald-600/40 bg-emerald-500/15 text-emerald-800 dark:text-emerald-200"
-                                    : value === "absent"
-                                      ? "border-destructive/40 bg-destructive/10 text-destructive"
-                                      : "border-amber-600/40 bg-amber-500/15 text-amber-900 dark:text-amber-100"
-                                  : "border-border bg-background text-muted-foreground hover:bg-surface-hover"
-                              } disabled:cursor-not-allowed disabled:opacity-50`}
-                            >
-                              {label}
-                            </button>
-                          ))}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
+
+      {students.length === 0 ? (
+        <p className="px-4 pb-8 text-center text-sm text-muted-foreground sm:px-5">
+          No students match this class · section and filters.
+        </p>
+      ) : (
+        <AttendanceMarkRoster
+          title={`${classLabel}${section ? ` · ${section}` : ""}`}
+          items={rosterItems}
+          canMark={canMarkActive}
+          onToggle={toggleMark}
+          onAllPresent={markAllPresent}
+          onAllAbsent={markAllAbsent}
+          onClear={clearMarks}
+          emptyHint="No students match this class · section and filters."
+          footer={
+            canMarkActive ? (
+              <div className="flex flex-col gap-2">
+                <Button
+                  variant="primary"
+                  className="h-11 w-full rounded-xl"
+                  disabled={saving}
+                  onClick={() => handleSave(false)}
+                >
+                  <Check className="mr-1.5 size-4" />
+                  {saving ? "Submitting…" : "Submit attendance"}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-11 w-full rounded-xl"
+                  disabled={saving}
+                  onClick={() => handleSave(true)}
+                >
+                  {saving ? "Saving…" : "Save draft"}
+                </Button>
+              </div>
+            ) : null
+          }
+        />
+      )}
     </Card>
   );
 }

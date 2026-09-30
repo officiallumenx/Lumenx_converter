@@ -5,7 +5,6 @@ import {
   CardBody,
   Button,
   Field,
-  Select,
   Pill,
   PageStack,
 } from "@lumenx/ui-admin";
@@ -106,24 +105,42 @@ export function TemplateImportsView() {
 
           {step === "map" && (
             <div className="space-y-4 max-w-lg">
-              <Field label="Map detected fields">
-                <Select
-                  multiple
-                  className="min-h-[120px]"
-                  value={mapped}
-                  onChange={(e) => {
-                    const opts = Array.from(e.target.selectedOptions).map((o) => o.value);
-                    setMapped(opts);
-                  }}
-                >
-                  {TEMPLATE_VARIABLES.map((v) => (
-                    <option key={v.key} value={v.key}>
-                      {v.label} — {`{{${v.key}}}`}
-                    </option>
-                  ))}
-                </Select>
+              <Field label="Map detected fields" hint="Select one or more variables">
+                <div className="max-h-[220px] overflow-y-auto rounded-lg border border-border bg-popover p-1">
+                  {TEMPLATE_VARIABLES.map((v) => {
+                    const checked = mapped.includes(v.key);
+                    return (
+                      <label
+                        key={v.key}
+                        className={`flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-sm transition-colors hover:bg-accent hover:text-accent-foreground ${
+                          checked
+                            ? "bg-primary/12 font-medium text-primary"
+                            : "text-popover-foreground"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="size-3.5 accent-primary"
+                          checked={checked}
+                          onChange={() => {
+                            setMapped((prev) =>
+                              checked
+                                ? prev.filter((key) => key !== v.key)
+                                : [...prev, v.key],
+                            );
+                          }}
+                        />
+                        <span className="min-w-0 flex-1 truncate">
+                          {v.label} — {`{{${v.key}}}`}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
               </Field>
-              <p className="text-xs text-muted-foreground">Hold Ctrl/Cmd to select multiple variables.</p>
+              <p className="text-xs text-muted-foreground">
+                {mapped.length} variable{mapped.length === 1 ? "" : "s"} selected
+              </p>
               <Button variant="primary" onClick={() => setStep("preview")}>
                 Preview mapped template
               </Button>

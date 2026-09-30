@@ -3,7 +3,8 @@
  *
  * Shared by Connect, Admin, and Transport.
  * Stores mutations in a local outbox while offline and flushes when online.
- * No backend — flush simulates successful sync with progress events.
+ * Apps register a flush handler to replay real API writes; without a handler,
+ * items succeed as a no-op (legacy demo).
  */
 
 export type OfflineSyncApp = "connect" | "admin" | "transport" | "careers";
@@ -62,7 +63,27 @@ type QueueState = {
 
 type Listener = () => void;
 
+/** Per-app flush: replay a queued item against the real backend. */
+export type OfflineFlushHandler = (item: OfflineQueueItem) => Promise<void>;
+
 const listeners = new Set<Listener>();
+const flushHandlers = new Map<OfflineSyncApp, OfflineFlushHandler>();
+
+/**
+ * Register how an app flushes its outbox. Returns an unregister function.
+ * Call from the app shell (e.g. Admin OfflineSyncHost mount).
+ */
+export function registerOfflineFlushHandler(
+  app: OfflineSyncApp,
+  handler: OfflineFlushHandler,
+): () => void {
+  flushHandlers.set(app, handler);
+  return () => {
+    if (flushHandlers.get(app) === handler) {
+      flushHandlers.delete(app);
+    }
+  };
+}
 
 /** Cached snapshots for useSyncExternalStore — rebuilt only on notify(). */
 const snapshotCache = new Map<string, OfflineSyncSnapshot>();
@@ -290,8 +311,8 @@ function delay(ms: number): Promise<void> {
 
 /**
  * Flush pending items with progress.
- * Demo: simulates per-item sync. Items with `payload.forceFail` fail unless retried.
- * Legacy demo items with `lastError` and `status: failed` stay failed until retry.
+ * Uses a registered flush handler when present; otherwise acknowledges items
+ * (except `payload.forceFail` demo failures).
  */
 export async function flushOfflineQueue(
   app?: OfflineSyncApp,
@@ -370,22 +391,35 @@ export async function flushOfflineQueue(
         total: toProcess.length,
         message: `Syncing ${i + 1} of ${toProcess.length}…`,
       });
-      await delay(260);
 
-      // Fail only when explicitly marked and this is not a retry pass.
-      const shouldFail = Boolean(target.payload?.forceFail) && !opts?.includeFailed;
+      const appKey = (target.app ?? "admin") as OfflineSyncApp;
+      const handler = flushHandlers.get(appKey);
+      const forceFail = Boolean(target.payload?.forceFail) && !opts?.includeFailed;
 
-      if (shouldFail) {
+      try {
+        if (forceFail) {
+          throw new Error("Sync failed");
+        }
+        if (handler) {
+          await handler(target);
+        } else {
+          // No handler registered — short delay then acknowledge (legacy demo).
+          await delay(160);
+        }
+        items = items.filter((r) => r.id !== target.id);
+        okCount += 1;
+      } catch (err) {
+        const message =
+          err instanceof Error && err.message.trim()
+            ? err.message.trim()
+            : "Sync failed";
         items[idx] = {
           ...items[idx]!,
           status: "failed",
           attempts: items[idx]!.attempts + 1,
-          lastError: "Sync failed",
+          lastError: message,
         };
         failCount += 1;
-      } else {
-        items = items.filter((r) => r.id !== target.id);
-        okCount += 1;
       }
       saveQueue({ items });
     }

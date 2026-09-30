@@ -4,3 +4,4 @@ export * from "./invalidate";
 export * from "./hooks";
 export * from "./query-client";
 export * from "./persist";
+export * from "./query-result";

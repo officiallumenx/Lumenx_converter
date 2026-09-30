@@ -32,6 +32,21 @@ export function resolveSubscriptionCurrentView(input: {
     };
   }
   if (input.instituteStatus === "loading") {
+    if (
+      input.storedSubscription &&
+      input.activeInstituteId &&
+      input.resolvedForInstituteId === input.activeInstituteId
+    ) {
+      return {
+        status:
+          input.storedStatus === "loading" || input.storedStatus === "error"
+            ? "ready"
+            : input.storedStatus,
+        subscription: input.storedSubscription,
+        errorMessage: null,
+        rowsValid: true,
+      };
+    }
     return {
       status: "loading",
       subscription: null,
@@ -39,9 +54,34 @@ export function resolveSubscriptionCurrentView(input: {
       rowsValid: false,
     };
   }
-  if (input.instituteStatus === "error" || input.instituteStatus === "forbidden") {
+  if (input.instituteStatus === "forbidden") {
     return {
-      status: input.instituteStatus === "forbidden" ? "forbidden" : "error",
+      status: "forbidden",
+      subscription: null,
+      errorMessage: input.instituteErrorMessage,
+      rowsValid: false,
+    };
+  }
+
+  if (input.instituteStatus === "error") {
+    if (
+      input.storedSubscription &&
+      input.resolvedForInstituteId &&
+      (!input.activeInstituteId ||
+        input.activeInstituteId === input.resolvedForInstituteId)
+    ) {
+      return {
+        status:
+          input.storedStatus === "loading" || input.storedStatus === "error"
+            ? "ready"
+            : input.storedStatus,
+        subscription: input.storedSubscription,
+        errorMessage: null,
+        rowsValid: true,
+      };
+    }
+    return {
+      status: "error",
       subscription: null,
       errorMessage: input.instituteErrorMessage,
       rowsValid: false,

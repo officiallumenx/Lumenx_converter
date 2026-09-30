@@ -2,6 +2,7 @@
  * Pure helpers for API-mode students directory list validity.
  * Prevents painting institute A's rows under institute B before effects run.
  */
+import { resolveInstituteScopedListView } from "@/lib/admin-queries/institute-list-gate";
 import type { StudentListItem } from "./types";
 import type { StudentsListStatus } from "./load";
 
@@ -35,63 +36,20 @@ export type StudentsListView = {
 export function resolveStudentsListView(
   input: ResolveStudentsListViewInput,
 ): StudentsListView {
-  if (!input.apiMode) {
-    return {
-      status: "demo",
-      items: input.storedItems,
-      errorMessage: null,
-      rowsValid: true,
-    };
-  }
-
-  if (input.instituteStatus === "loading") {
-    return {
-      status: "loading",
-      items: [],
-      errorMessage: null,
-      rowsValid: false,
-    };
-  }
-
-  if (
-    input.instituteStatus === "error" ||
-    input.instituteStatus === "forbidden"
-  ) {
-    return {
-      status: input.instituteStatus === "forbidden" ? "forbidden" : "error",
-      items: [],
-      errorMessage: input.instituteErrorMessage,
-      rowsValid: false,
-    };
-  }
-
-  if (
-    input.instituteStatus === "needs_selection" ||
-    input.instituteStatus === "empty" ||
-    !input.activeInstituteId
-  ) {
-    return {
-      status: "needs_institute",
-      items: [],
-      errorMessage: null,
-      rowsValid: false,
-    };
-  }
-
-  if (input.resolvedForInstituteId !== input.activeInstituteId) {
-    return {
-      status: "loading",
-      items: [],
-      errorMessage: null,
-      rowsValid: false,
-    };
-  }
+  const gated = resolveInstituteScopedListView<StudentsListStatus, StudentListItem>({
+    ...input,
+    demoStatus: "demo",
+    needsInstituteStatus: "needs_institute",
+    loadingStatus: "loading",
+    errorStatus: "error",
+    forbiddenStatus: "forbidden",
+  });
 
   return {
-    status: input.storedStatus,
-    items: input.storedItems,
-    errorMessage: input.storedErrorMessage,
-    rowsValid: true,
+    status: gated.status,
+    items: gated.items,
+    errorMessage: gated.errorMessage,
+    rowsValid: gated.rowsValid,
   };
 }
 

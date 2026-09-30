@@ -16,6 +16,7 @@ import {
   loadSectionTeacherAssignments,
 } from "@/lib/classes/section-teachers";
 import type { TeacherAssignmentListItem } from "@/lib/timetable/types";
+import { formatApiClientError } from "@/lib/api/errors";
 
 type Props = {
   section: SectionDetailItem;
@@ -71,6 +72,7 @@ export function SectionTeachersPanel({
   }, [open, section.instituteId]);
 
   async function handleAssign() {
+    if (saving) return;
     if (!teacherId || !subjectId) {
       notify("Choose a teacher and subject");
       return;
@@ -84,7 +86,7 @@ export function SectionTeachersPanel({
       onChanged();
       notify("Teacher assigned to section");
     } catch (err) {
-      notify(err instanceof Error ? err.message : "Failed to assign teacher");
+      notify(formatApiClientError(err, "Failed to assign teacher"));
     } finally {
       setSaving(false);
     }

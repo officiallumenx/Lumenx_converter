@@ -4,15 +4,11 @@ import {
   Card,
   CardBody,
   CardHeader,
-  DataTable,
   EmptyState,
   Field,
   PageStack,
   Pill,
   SearchInput,
-  Td,
-  Th,
-  Tr,
 } from "@lumenx/ui-admin";
 import { ArrowLeft, CalendarDays, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import { IconChip } from "@/components/IconChip";
@@ -375,60 +371,68 @@ function SlotsTable({
   onDeleteSlot?: (slotId: string) => void;
 }) {
   return (
-    <DataTable>
-      <thead>
-        <tr>
-          <Th>Day</Th>
-          <Th>Period</Th>
-          <Th>Time</Th>
-          <Th>Room</Th>
-          <Th>Teacher assignment</Th>
-          <Th>Status</Th>
-          {writesEnabled ? <Th className="text-right">Actions</Th> : null}
-        </tr>
-      </thead>
-      <tbody>
-        {slots.map((slot) => (
-          <Tr key={slot.id}>
-            <Td>{slot.dayLabel}</Td>
-            <Td>P{slot.periodIndex}</Td>
-            <Td className="font-mono text-[11px]">
-              {slot.startsAt.slice(0, 5)}–{slot.endsAt.slice(0, 5)}
-            </Td>
-            <Td>{slot.room?.trim() || "—"}</Td>
-            <Td className="font-mono text-[11px]">
-              {slot.teacherAssignmentId.slice(0, 8)}…
-            </Td>
-            <Td>
-              <Pill tone={slot.status === "active" ? "success" : "warning"}>
-                {slot.status === "active" ? "Published" : "Draft"}
-              </Pill>
-            </Td>
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[32rem] border-collapse text-sm">
+        <thead>
+          <tr className="border-b border-border bg-muted/40">
+            <th className="sticky left-0 z-[1] bg-muted/40 px-3 py-2.5 text-left text-xs font-semibold">
+              Day
+            </th>
+            <th className="px-3 py-2.5 text-left text-xs font-semibold">Period</th>
+            <th className="px-3 py-2.5 text-left text-xs font-semibold">Time</th>
+            <th className="px-3 py-2.5 text-left text-xs font-semibold">Room</th>
+            <th className="px-3 py-2.5 text-left text-xs font-semibold">Assignment</th>
+            <th className="px-3 py-2.5 text-left text-xs font-semibold">Status</th>
             {writesEnabled ? (
-              <Td className="text-right">
-                <div className="inline-flex gap-1">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={mutating}
-                    onClick={() => onEditSlot?.(slot)}
-                  >
-                    <Pencil className="size-3.5" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={mutating}
-                    onClick={() => onDeleteSlot?.(slot.id)}
-                  >
-                    <Trash2 className="size-3.5" />
-                  </Button>
-                </div>
-              </Td>
+              <th className="px-3 py-2.5 text-right text-xs font-semibold">Actions</th>
             ) : null}
-          </Tr>
-        ))}
-      </tbody>
-    </DataTable>
+          </tr>
+        </thead>
+        <tbody>
+          {slots.map((slot) => (
+            <tr key={slot.id} className="border-b border-border/70">
+              <td className="sticky left-0 z-[1] bg-background px-3 py-2.5 font-medium">
+                {slot.dayLabel}
+              </td>
+              <td className="px-3 py-2.5">P{slot.periodIndex}</td>
+              <td className="px-3 py-2.5 font-mono text-xs tabular-nums">
+                {slot.startsAt.slice(0, 5)}–{slot.endsAt.slice(0, 5)}
+              </td>
+              <td className="px-3 py-2.5">{slot.room?.trim() || "—"}</td>
+              <td className="px-3 py-2.5 text-xs text-muted-foreground">
+                {slot.teacherAssignmentId.slice(0, 8)}…
+              </td>
+              <td className="px-3 py-2.5">
+                <Pill tone={slot.status === "active" ? "success" : "warning"}>
+                  {slot.status === "active" ? "Published" : "Draft"}
+                </Pill>
+              </td>
+              {writesEnabled ? (
+                <td className="px-3 py-2.5 text-right">
+                  <div className="inline-flex gap-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={mutating}
+                      onClick={() => onEditSlot?.(slot)}
+                    >
+                      <Pencil className="size-3.5" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={mutating}
+                      onClick={() => onDeleteSlot?.(slot.id)}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </div>
+                </td>
+              ) : null}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

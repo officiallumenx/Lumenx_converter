@@ -17,7 +17,8 @@ const ALWAYS_ALLOWED = new Set(["/", "/setup"]);
 export function emptySetupNavGate(): SetupNavGateSnapshot {
   return {
     status: "unknown",
-    coreComplete: false,
+    // Optimistic until the first ready checklist arrives — avoids /setup bounce on launch.
+    coreComplete: true,
     allowedPathnames: ALWAYS_ALLOWED,
   };
 }
@@ -26,10 +27,19 @@ export function buildSetupNavGate(
   state: SetupChecklistState | null,
 ): SetupNavGateSnapshot {
   if (!state) return emptySetupNavGate();
+  // Load / institute errors must not lock the app into /setup.
+  if (state.status === "loading" || state.status === "error" || state.status === "needs_institute") {
+    return {
+      status: state.status === "loading" ? "unknown" : state.status,
+      // Preserve navigation while we recover — never treat unknown as incomplete setup.
+      coreComplete: true,
+      allowedPathnames: ALWAYS_ALLOWED,
+    };
+  }
   if (state.status !== "ready") {
     return {
       status: state.status,
-      coreComplete: false,
+      coreComplete: true,
       allowedPathnames: ALWAYS_ALLOWED,
     };
   }

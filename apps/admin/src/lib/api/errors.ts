@@ -9,6 +9,7 @@ export type ApiErrorCode =
   | "RATE_LIMITED"
   | "INTERNAL_ERROR"
   | "NETWORK_ERROR"
+  | "QUEUED_OFFLINE"
   | "UNKNOWN";
 
 export class ApiClientError extends Error {
@@ -93,8 +94,37 @@ export function formatApiClientError(err: unknown, fallback: string): string {
         ? `${err.message} (${fields})`
         : fields;
     }
-    return err.message || fallback;
+    return humanizeConflictMessage(err.message) || fallback;
   }
-  if (err instanceof Error && err.message.trim()) return err.message;
+  if (err instanceof Error && err.message.trim()) {
+    return humanizeConflictMessage(err.message);
+  }
   return fallback;
+}
+
+/** Map generic 409 / unique-violation copy to clearer UI messages. */
+export function humanizeConflictMessage(message: string): string {
+  const trimmed = message.trim();
+  if (!trimmed) return trimmed;
+  if (/^resource conflict$/i.test(trimmed)) {
+    return "That item already exists — try a different name";
+  }
+  if (/already exists/i.test(trimmed)) return trimmed;
+  return trimmed;
+}
+
+/** True when the API rejected a write as a duplicate / unique conflict. */
+export function isConflictError(err: unknown): boolean {
+  if (err instanceof ApiClientError) {
+    return err.code === "CONFLICT" || err.status === 409;
+  }
+  if (err instanceof Error) {
+    return /resource conflict|already exists/i.test(err.message);
+  }
+  return false;
+}
+
+/** True when a write was stored in the offline outbox instead of sent. */
+export function isQueuedOfflineError(err: unknown): boolean {
+  return err instanceof ApiClientError && err.code === "QUEUED_OFFLINE";
 }

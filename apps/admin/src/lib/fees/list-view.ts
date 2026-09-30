@@ -39,6 +39,21 @@ export function resolveFeesLoadView(input: ResolveFeesLoadViewInput): FeesLoadVi
   }
 
   if (input.instituteStatus === "loading") {
+    if (
+      input.storedSnapshot &&
+      input.activeInstituteId &&
+      input.resolvedForInstituteId === input.activeInstituteId
+    ) {
+      return {
+        status:
+          input.storedStatus === "loading" || input.storedStatus === "error"
+            ? "ready"
+            : input.storedStatus,
+        snapshot: input.storedSnapshot,
+        errorMessage: null,
+        rowsValid: true,
+      };
+    }
     return {
       status: "loading",
       snapshot: null,
@@ -47,12 +62,34 @@ export function resolveFeesLoadView(input: ResolveFeesLoadViewInput): FeesLoadVi
     };
   }
 
-  if (
-    input.instituteStatus === "error" ||
-    input.instituteStatus === "forbidden"
-  ) {
+  if (input.instituteStatus === "forbidden") {
     return {
-      status: input.instituteStatus === "forbidden" ? "forbidden" : "error",
+      status: "forbidden",
+      snapshot: null,
+      errorMessage: input.instituteErrorMessage,
+      rowsValid: false,
+    };
+  }
+
+  if (input.instituteStatus === "error") {
+    if (
+      input.storedSnapshot &&
+      input.resolvedForInstituteId &&
+      (!input.activeInstituteId ||
+        input.activeInstituteId === input.resolvedForInstituteId)
+    ) {
+      return {
+        status:
+          input.storedStatus === "loading" || input.storedStatus === "error"
+            ? "ready"
+            : input.storedStatus,
+        snapshot: input.storedSnapshot,
+        errorMessage: null,
+        rowsValid: true,
+      };
+    }
+    return {
+      status: "error",
       snapshot: null,
       errorMessage: input.instituteErrorMessage,
       rowsValid: false,

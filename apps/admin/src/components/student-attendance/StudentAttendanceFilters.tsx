@@ -20,7 +20,7 @@ export type StudentAttendanceFiltersProps = {
 };
 
 /**
- * Visible class · section · date · status fields + search.
+ * Filters: class · section | date · status | search — one row each.
  */
 export function StudentAttendanceFilters({
   state,
@@ -32,7 +32,7 @@ export function StudentAttendanceFilters({
   return (
     <Card>
       <div className="lx-filter-bar space-y-2 px-3 py-2.5 sm:px-4">
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2">
           <StudentAttendanceClassSelect
             value={state.classId}
             options={classOptions}
@@ -45,6 +45,9 @@ export function StudentAttendanceFilters({
             disabled={disabled || !state.classId}
             onChange={(sectionId) => onChange({ sectionId })}
           />
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
           <StudentAttendanceDateField
             value={state.date}
             disabled={disabled}
@@ -73,7 +76,8 @@ export function StudentAttendanceFilters({
             </Select>
           </label>
         </div>
-        <div className="min-w-0 sm:max-w-sm">
+
+        <div className="min-w-0">
           <StudentAttendanceSearchField
             value={state.search}
             disabled={disabled}

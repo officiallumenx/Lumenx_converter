@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { useTimetableReadQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
+import { useTimetableReadQuery, useCatalogClassesQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
 import { useAdminToast } from "@/components/AdminActionToast";
@@ -20,7 +20,6 @@ import {
 } from "@lumenx/ui-admin";
 import { Plus } from "lucide-react";
 import { classLabelForSection } from "@/lib/classes/map";
-import { listClassesCatalog } from "@/lib/classes/api";
 import type { ClassDto, SectionDto } from "@/lib/classes/types";
 import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
@@ -101,6 +100,10 @@ export function TimetableApiPage() {
     instituteCtx.status === "ready" &&
     Boolean(instituteCtx.activeInstituteId);
   const timetableQuery = useTimetableReadQuery(
+    instituteCtx.activeInstituteId,
+    listEnabled,
+  );
+  const catalogQuery = useCatalogClassesQuery(
     instituteCtx.activeInstituteId,
     listEnabled,
   );
@@ -214,19 +217,17 @@ export function TimetableApiPage() {
   ]);
 
   useEffect(() => {
-    if (!listEnabled || !instituteCtx.activeInstituteId) return;
-    const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    void listClassesCatalog({ instituteId: requestInstituteId }).then((catalog) => {
-      if (cancelled || activeInstituteIdRef.current !== requestInstituteId) return;
-      setSections(catalog.sections);
-      setClasses(catalog.classes);
-      setDraftedSectionIds(listSectionIdsWithSchedule(requestInstituteId));
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [listEnabled, instituteCtx.activeInstituteId]);
+    if (!listEnabled || !instituteCtx.activeInstituteId) {
+      setSections([]);
+      setClasses([]);
+      return;
+    }
+    const catalog = catalogQuery.data;
+    if (!catalog) return;
+    setSections(catalog.sections);
+    setClasses(catalog.classes);
+    setDraftedSectionIds(listSectionIdsWithSchedule(instituteCtx.activeInstituteId));
+  }, [listEnabled, instituteCtx.activeInstituteId, catalogQuery.data]);
 
   useEffect(() => {
     const instituteId = instituteCtx.activeInstituteId;

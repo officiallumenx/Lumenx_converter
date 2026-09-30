@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
+import { isOnline } from "@lumenx/utils";
 import {
   requestDataRefresh,
   subscribeDataRefresh,
@@ -14,6 +15,7 @@ const AUTO_MIN_INTERVAL_MS = 45_000;
 /**
  * Soft-refreshes page data when the app resumes or the tab becomes visible.
  * Invalidates Admin TanStack Query caches (does not remount chrome).
+ * Skips work while offline so we do not wipe or spin on network errors.
  */
 export function DataRefreshHost() {
   const queryClient = useQueryClient();
@@ -22,6 +24,7 @@ export function DataRefreshHost() {
 
   useEffect(() => {
     return subscribeDataRefresh(() => {
+      if (!isOnline()) return;
       const gen = getDataRefreshGeneration();
       if (gen === lastGen.current) return;
       lastGen.current = gen;
@@ -31,6 +34,7 @@ export function DataRefreshHost() {
 
   useEffect(() => {
     const maybeAutoRefresh = () => {
+      if (!isOnline()) return;
       const now = Date.now();
       if (now - lastAutoAt.current < AUTO_MIN_INTERVAL_MS) return;
       if (typeof document !== "undefined" && document.visibilityState === "hidden") {

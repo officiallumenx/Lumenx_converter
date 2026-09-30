@@ -63,27 +63,48 @@ describe("resolveEventsListView", () => {
     expect(view.items).toEqual([]);
   });
 
-  it.each([
-    "loading",
-    "needs_selection",
-    "empty",
-    "error",
-    "forbidden",
-  ] as const)(
+  it("keeps cached rows while institute context is loading for the same institute", () => {
+    const view = resolveEventsListView({
+      apiMode: true,
+      instituteStatus: "loading",
+      activeInstituteId: A,
+      resolvedForInstituteId: A,
+      storedItems: [rowA],
+      storedStatus: "ready",
+      storedErrorMessage: null,
+      instituteErrorMessage: null,
+    });
+    expect(view.rowsValid).toBe(true);
+    expect(view.items).toEqual([rowA]);
+  });
+
+  it("keeps cached rows when institute context errors offline", () => {
+    const view = resolveEventsListView({
+      apiMode: true,
+      instituteStatus: "error",
+      activeInstituteId: null,
+      resolvedForInstituteId: A,
+      storedItems: [rowA],
+      storedStatus: "ready",
+      storedErrorMessage: null,
+      instituteErrorMessage: "blocked",
+    });
+    expect(view.rowsValid).toBe(true);
+    expect(view.items).toEqual([rowA]);
+  });
+
+  it.each(["needs_selection", "empty", "forbidden"] as const)(
     "hides previously loaded rows when institute context is %s",
     (instituteStatus) => {
       const view = resolveEventsListView({
         apiMode: true,
         instituteStatus,
-        activeInstituteId: instituteStatus === "loading" ? A : null,
+        activeInstituteId: null,
         resolvedForInstituteId: A,
         storedItems: [rowA],
         storedStatus: "ready",
         storedErrorMessage: null,
-        instituteErrorMessage:
-          instituteStatus === "error" || instituteStatus === "forbidden"
-            ? "blocked"
-            : null,
+        instituteErrorMessage: instituteStatus === "forbidden" ? "blocked" : null,
       });
       expect(view.rowsValid).toBe(false);
       expect(view.items).toEqual([]);

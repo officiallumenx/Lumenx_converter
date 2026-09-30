@@ -1462,51 +1462,47 @@ function TeachersPage() {
                 hint="Select one or more classes from this institute"
               >
                 {apiMode ? (
-                  <details className="relative">
-                    <summary className="flex min-h-10 cursor-pointer list-none items-center rounded-md border border-border bg-background px-3 py-2 text-sm">
-                      {editForm.sectionsText?.trim()
-                        ? editForm.sectionsText
-                        : "Select classes"}
-                    </summary>
-                    <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-border bg-background p-2 shadow-lg">
-                      {apiClassOptions.length > 0 ? (
-                        apiClassOptions.map((option) => {
-                          const selectedLabels = (editForm.sectionsText ?? "")
-                            .split(",")
-                            .map((value) => value.trim())
-                            .filter(Boolean);
-                          const checked = selectedLabels.includes(option.value);
-                          return (
-                            <label
-                              key={option.value}
-                              className="flex cursor-pointer items-center gap-2 rounded px-2 py-2 text-sm hover:bg-surface-hover"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={() => {
-                                  const next = checked
-                                    ? selectedLabels.filter(
-                                        (value) => value !== option.value,
-                                      )
-                                    : [...selectedLabels, option.value];
-                                  setEditForm((current) => ({
-                                    ...current,
-                                    sectionsText: next.join(", "),
-                                  }));
-                                }}
-                              />
-                              <span>{option.label}</span>
-                            </label>
-                          );
-                        })
-                      ) : (
-                        <div className="px-2 py-3 text-xs text-muted-foreground">
-                          No active classes are available.
-                        </div>
-                      )}
-                    </div>
-                  </details>
+                  <div className="max-h-64 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-sm">
+                    {apiClassOptions.length > 0 ? (
+                      apiClassOptions.map((option) => {
+                        const selectedLabels = (editForm.sectionsText ?? "")
+                          .split(",")
+                          .map((value) => value.trim())
+                          .filter(Boolean);
+                        const checked = selectedLabels.includes(option.value);
+                        return (
+                          <label
+                            key={option.value}
+                            className={`flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-sm transition-colors hover:bg-accent hover:text-accent-foreground ${
+                              checked ? "bg-primary/12 font-medium text-primary" : "text-popover-foreground"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              className="size-3.5 accent-primary"
+                              checked={checked}
+                              onChange={() => {
+                                const next = checked
+                                  ? selectedLabels.filter(
+                                      (value) => value !== option.value,
+                                    )
+                                  : [...selectedLabels, option.value];
+                                setEditForm((current) => ({
+                                  ...current,
+                                  sectionsText: next.join(", "),
+                                }));
+                              }}
+                            />
+                            <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                          </label>
+                        );
+                      })
+                    ) : (
+                      <div className="px-2.5 py-3 text-xs text-muted-foreground">
+                        No active classes are available.
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <TextInput
                     value={editForm.sectionsText ?? ""}

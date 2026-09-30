@@ -634,7 +634,6 @@ function AccountsPage() {
                   >
                     <td className="px-5 py-3">
                       <div className="text-xs font-medium">{a.name}</div>
-                      <div className="text-[10px] text-muted-foreground font-mono">{a.id}</div>
                     </td>
                     <td className="px-5 py-3 text-xs">{a.role}</td>
                     <td className="px-5 py-3 text-xs text-muted-foreground max-w-[220px]">
@@ -721,11 +720,7 @@ function AccountsPage() {
           setShowPassword(false);
         }}
         title={selected ? `${selected.name}` : "Account details"}
-        subtitle={
-          selected
-            ? `${selected.role} portal account · ${selected.id}`
-            : undefined
-        }
+        subtitle={selected ? `${selected.role} portal account` : undefined}
         size="lg"
         footer={
           <Button
@@ -825,8 +820,7 @@ function AccountsPage() {
             {selected.role === "Student" && (
               <div className="rounded-lg border border-border p-4">
                 <div className="text-xs font-semibold mb-3">Student profile</div>
-                <div className="grid gap-4 sm:grid-cols-3">
-                  <DetailField label="Student ID" value={selected.studentId ?? "—"} />
+                <div className="grid gap-4 sm:grid-cols-2">
                   <DetailField
                     label="Class & section"
                     value={selected.classSection ? `Grade ${selected.classSection}` : "—"}
@@ -857,9 +851,6 @@ function AccountsPage() {
                           <div className="mb-3 flex items-start justify-between gap-3">
                             <div>
                               <div className="text-xs font-semibold">{child.name}</div>
-                              <div className="text-[10px] text-muted-foreground font-mono">
-                                {child.studentId}
-                              </div>
                             </div>
                             <Pill tone="neutral">Roll {child.rollNo}</Pill>
                           </div>

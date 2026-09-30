@@ -41,4 +41,10 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Photos: take profile photos -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Android 13+: notification permission prompt -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 </manifest>

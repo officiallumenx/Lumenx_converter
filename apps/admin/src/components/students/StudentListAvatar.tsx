@@ -24,6 +24,8 @@ export function StudentListAvatar({
       <img
         src={photo.data}
         alt=""
+        loading="lazy"
+        decoding="async"
         className="size-9 rounded-md object-cover bg-accent border border-border shrink-0"
       />
     );

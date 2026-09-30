@@ -4,6 +4,7 @@ import { SETUP_STEPS } from "./steps";
 function isSatisfied(id: SetupStepId, counts: SetupCounts): boolean {
   switch (id) {
     case "academic_year":
+      // activeYears includes upcoming (configured years) from the loader.
       return counts.activeYears > 0;
     case "classes":
       return counts.classes > 0;
@@ -16,7 +17,11 @@ function isSatisfied(id: SetupStepId, counts: SetupCounts): boolean {
     case "students":
       return counts.students > 0;
     case "parents":
-      return counts.parents > 0 && counts.parentsWithLinks > 0;
+      // Parents are created with students; don't require link payloads (often omitted on list).
+      return (
+        counts.parentsWithLinks > 0 ||
+        (counts.parents > 0 && counts.students > 0)
+      );
     case "attendance_config":
       return counts.attendanceConfigs > 0;
     case "fees":
@@ -38,8 +43,8 @@ function detailFor(id: SetupStepId, counts: SetupCounts): string {
   switch (id) {
     case "academic_year":
       return counts.activeYears > 0
-        ? `${counts.activeYears} active year${counts.activeYears === 1 ? "" : "s"}`
-        : "No active academic year";
+        ? `${counts.activeYears} academic year${counts.activeYears === 1 ? "" : "s"} configured`
+        : "No academic year yet";
     case "classes":
       return counts.classes > 0 ? `${counts.classes} classes` : "No classes yet";
     case "sections":
@@ -55,8 +60,14 @@ function detailFor(id: SetupStepId, counts: SetupCounts): string {
         ? `${counts.students} students · ${counts.studentsWithLogin} with login`
         : "No students yet";
     case "parents":
+      if (counts.parentsWithLinks > 0) {
+        return `${counts.parents} parents · ${counts.parentsWithLinks} with linked children`;
+      }
+      if (counts.parents > 0 && counts.students > 0) {
+        return `${counts.parents} parents on file`;
+      }
       return counts.parents > 0
-        ? `${counts.parents} parents · ${counts.parentsWithLinks} with linked children`
+        ? `${counts.parents} parents · link children to finish`
         : "No parents yet";
     case "attendance_config":
       return counts.attendanceConfigs > 0

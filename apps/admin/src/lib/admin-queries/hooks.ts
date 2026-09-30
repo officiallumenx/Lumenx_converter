@@ -1,9 +1,10 @@
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient, type UseQueryOptions, type QueryKey } from "@tanstack/react-query";
 import { isInstituteUuid } from "@/lib/active-institute";
 import {
   ADMIN_QUERY_CATALOG_STALE_TIME_MS,
   ADMIN_QUERY_VOLATILE_STALE_TIME_MS,
 } from "./constants";
+import { asAdminQueryResult } from "./query-result";
 import {
   adminModulePrefix,
   adminQueryKeys,
@@ -96,6 +97,28 @@ function instituteEnabled(
   );
 }
 
+/** useQuery wrapper: convert loader `{ status: "error" }` payloads into thrown errors. */
+function useAdminQuery<
+  TQueryFnData,
+  TError = Error,
+  TData = TQueryFnData,
+  TQueryKey extends QueryKey = QueryKey,
+>(
+  options: UseQueryOptions<TQueryFnData, TError, TData, TQueryKey>,
+) {
+  const { queryFn, ...rest } = options;
+  return useQuery({
+    ...rest,
+    queryFn: queryFn
+      ? async (ctx) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const raw = await (queryFn as any)(ctx);
+          return asAdminQueryResult(raw) as TQueryFnData;
+        }
+      : undefined,
+  });
+}
+
 function studentFiltersKey(
   filters: Omit<ListStudentsParams, "instituteId">,
 ) {
@@ -138,7 +161,7 @@ export function useStudentsListQuery(
 ) {
   const id = instituteId ?? "_";
   const filterKey = studentFiltersKey(filters);
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.students(id, filterKey),
     queryFn: () => loadStudentsList(instituteId!, filters),
     enabled: instituteEnabled(instituteId, enabled),
@@ -153,7 +176,7 @@ export function useStudentDetailQuery(
 ) {
   const id = instituteId ?? "_";
   const sid = studentId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.student(id, sid),
     queryFn: () => loadStudentDetail(studentId!, instituteId ?? null),
     enabled:
@@ -170,7 +193,7 @@ export function useStudentGuardiansQuery(
 ) {
   const id = instituteId ?? "_";
   const sid = studentId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.studentGuardians(id, sid),
     queryFn: () => loadStudentGuardians(studentId!),
     enabled:
@@ -187,7 +210,7 @@ export function useTeachersListQuery(
 ) {
   const id = instituteId ?? "_";
   const filterKey = teacherFiltersKey(filters);
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.teachers(id, filterKey),
     queryFn: () => loadTeachersList(instituteId!, filters),
     enabled: instituteEnabled(instituteId, enabled),
@@ -200,7 +223,7 @@ export function useClassesListQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.classes(id),
     queryFn: () => loadClassesList(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -213,7 +236,7 @@ export function useSubjectsListQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.subjects(id),
     queryFn: () => loadSubjectsList(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -227,7 +250,7 @@ export function useFeesSnapshotQuery(
 ) {
   const id = instituteId ?? "_";
   const yearKey = academicYearId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.fees(id, yearKey),
     queryFn: () => loadFeesSnapshot(instituteId!, academicYearId ?? undefined),
     enabled:
@@ -242,7 +265,7 @@ export function useAttendanceRegistersQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.attendance(id, scope),
     queryFn: () => loadAttendanceRegistersList(instituteId!, scope),
     enabled: instituteEnabled(instituteId, enabled),
@@ -255,7 +278,7 @@ export function useStaffAttendanceDayQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.teacherAttendance(id, {
       kind: "day",
       attendanceDate,
@@ -273,7 +296,7 @@ export function useStaffAttendanceRangeQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.teacherAttendance(id, {
       kind: "range",
       fromDate,
@@ -296,7 +319,7 @@ export function useTimetableReadQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.timetable(id),
     queryFn: () => loadTimetableReadBundle(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -308,7 +331,7 @@ export function useMarksListQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.marks(id),
     queryFn: () => loadMarksList(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -320,7 +343,7 @@ export function useExamsListQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.exams(id),
     queryFn: () => loadExamsList(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -332,7 +355,7 @@ export function useHomeworkListQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.homework(id),
     queryFn: () => loadHomeworkList(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -344,7 +367,7 @@ export function useParentsListQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.parents(id),
     queryFn: () => loadParentsList(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -356,7 +379,7 @@ export function useTransportVehiclesQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.transport(id, "vehicles"),
     queryFn: () => loadTransportVehiclesList(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -368,7 +391,7 @@ export function useTransportDriversQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.transport(id, "drivers"),
     queryFn: () => loadTransportDriversList(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -380,7 +403,7 @@ export function useTransportRoutesQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.transport(id, "routes"),
     queryFn: () => loadTransportRoutesList(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -392,7 +415,7 @@ export function useTransportEnrollmentsQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.transport(id, "enrollments"),
     queryFn: () => loadTransportEnrollmentsList(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -404,7 +427,7 @@ export function useTransportSettingsQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.transport(id, "settings"),
     queryFn: () => loadTransportSettings(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -416,7 +439,7 @@ export function useAnalyticsSummaryQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.analytics(id),
     queryFn: () => loadAnalyticsSummary(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -428,7 +451,7 @@ export function useDocumentsHubQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.documents(id, "hub"),
     queryFn: () => loadDocumentsHubSummary(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -440,7 +463,7 @@ export function useDocumentsTemplatesQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.documents(id, "templates"),
     queryFn: () => loadDocumentsTemplatesList(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -452,7 +475,7 @@ export function useDocumentsGeneratedQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.documents(id, "generated"),
     queryFn: () => loadDocumentsGeneratedList(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -464,7 +487,7 @@ export function useEventsListQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.events(id),
     queryFn: () => loadEventsList(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -476,7 +499,7 @@ export function useAnnouncementsListQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.announcements(id),
     queryFn: () => loadAnnouncementsList(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -488,7 +511,7 @@ export function useComplaintsListQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.complaints(id),
     queryFn: () => loadComplaintsList(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -500,7 +523,7 @@ export function useNotificationsListQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.notifications(id),
     queryFn: () => loadNotificationInboxList(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -513,7 +536,7 @@ export function useDiaryDaysQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.diary(id),
     queryFn: () => loadDiaryDaysList(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -525,7 +548,7 @@ export function useLeaveRequestsQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.leave(id),
     queryFn: () => loadLeaveRequestsList(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -538,7 +561,7 @@ export function useMessagesThreadsQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: [
       ...adminQueryKeys.messages(id),
       currentUserId ?? "_",
@@ -554,7 +577,7 @@ export function useCalendarListQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.calendar(id),
     queryFn: () => loadCalendarList(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -566,7 +589,7 @@ export function useAdmissionsListQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.admissions(id, "list"),
     queryFn: () => loadAdmissionsList(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -578,7 +601,7 @@ export function useAdmissionsProgramsQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.admissions(id, "programs"),
     queryFn: () => loadAdmissionsProgramsList(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -590,7 +613,7 @@ export function useAdmissionsOpeningsQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.admissions(id, "openings"),
     queryFn: () => loadAdmissionsOpeningsList(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -602,7 +625,7 @@ export function useCareersListQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.careers(id, "list"),
     queryFn: () => loadCareersList(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -614,7 +637,7 @@ export function useCareerJobsQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.careers(id, "jobs"),
     queryFn: () => loadCareerJobsList(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -626,7 +649,7 @@ export function useCatalogClassesQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.catalogClasses(id),
     queryFn: () => listClassesCatalog({ instituteId: instituteId! }),
     enabled: instituteEnabled(instituteId, enabled),
@@ -639,7 +662,7 @@ export function useCatalogSubjectsQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.catalogSubjects(id),
     queryFn: () => listSubjects({ instituteId: instituteId! }),
     enabled: instituteEnabled(instituteId, enabled),
@@ -652,7 +675,7 @@ export function useCatalogYearsQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.catalogYears(id),
     queryFn: () => listAcademicYears({ instituteId: instituteId! }),
     enabled: instituteEnabled(instituteId, enabled),
@@ -665,7 +688,7 @@ export function useAcademicYearsListQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.academicYears(id),
     queryFn: () => loadAcademicYearsList(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -678,7 +701,7 @@ export function useHomeSummaryQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.homeSummary(id),
     queryFn: () => loadDashboardSummary(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -690,7 +713,7 @@ export function useHomeWidgetsQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.homeWidgets(id),
     queryFn: () => loadDashboardWidgets(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -704,7 +727,7 @@ export function useClassSectionDetailQuery(
 ) {
   const id = instituteId ?? "_";
   const sid = sectionId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.classSection(id, sid),
     queryFn: () => loadSectionDetail(sectionId!, instituteId ?? null),
     enabled:
@@ -721,7 +744,7 @@ export function useSubjectDetailQuery(
 ) {
   const id = instituteId ?? "_";
   const sid = subjectId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.subject(id, sid),
     queryFn: () => loadSubjectDetail(subjectId!, instituteId ?? null),
     enabled:
@@ -757,7 +780,7 @@ export function useEnrollmentsListQuery(
 ) {
   const id = instituteId ?? "_";
   const filterKey = enrollmentFiltersKey(filters);
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.enrollments(id, filterKey),
     queryFn: () => loadEnrollmentsList(instituteId!, filters),
     enabled: instituteEnabled(instituteId, enabled),
@@ -772,7 +795,7 @@ export function useParentDetailQuery(
 ) {
   const id = instituteId ?? "_";
   const pid = parentId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.parent(id, pid),
     queryFn: () => loadParentDetail(parentId!, instituteId ?? null),
     enabled:
@@ -845,7 +868,7 @@ export function usePermissionsAccessQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.permissions(id),
     queryFn: () => loadPermissionsAccess(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -859,7 +882,7 @@ export function useAccountsMembershipsQuery(
 ) {
   const id = instituteId ?? "_";
   const filters = { status: statusFilter || null };
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.accounts(id, filters),
     queryFn: () =>
       loadMembershipsList(
@@ -876,7 +899,7 @@ export function useInstituteProfileQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.instituteProfile(id),
     queryFn: () => loadInstituteProfile(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -888,7 +911,7 @@ export function useStorageUsageQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.storage(id),
     queryFn: () => loadStorageUsage(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -900,7 +923,7 @@ export function useReportsCatalogQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.reports(id),
     queryFn: () => loadReportsCatalog(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
@@ -912,7 +935,7 @@ export function useAlertRulesQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
-  return useQuery({
+  return useAdminQuery({
     queryKey: adminQueryKeys.alerts(id),
     queryFn: () => loadAlertRules(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),

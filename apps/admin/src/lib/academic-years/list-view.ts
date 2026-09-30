@@ -44,6 +44,21 @@ export function resolveAcademicYearsListView(
   }
 
   if (input.instituteStatus === "loading") {
+    if (
+      input.storedItems.length > 0 &&
+      input.activeInstituteId &&
+      input.resolvedForInstituteId === input.activeInstituteId
+    ) {
+      return {
+        status:
+          input.storedStatus === "loading" || input.storedStatus === "error"
+            ? "ready"
+            : input.storedStatus,
+        items: input.storedItems,
+        errorMessage: null,
+        rowsValid: true,
+      };
+    }
     return {
       status: "loading",
       items: [],
@@ -52,12 +67,34 @@ export function resolveAcademicYearsListView(
     };
   }
 
-  if (
-    input.instituteStatus === "error" ||
-    input.instituteStatus === "forbidden"
-  ) {
+  if (input.instituteStatus === "forbidden") {
     return {
-      status: input.instituteStatus === "forbidden" ? "forbidden" : "error",
+      status: "forbidden",
+      items: [],
+      errorMessage: input.instituteErrorMessage,
+      rowsValid: false,
+    };
+  }
+
+  if (input.instituteStatus === "error") {
+    if (
+      input.storedItems.length > 0 &&
+      input.resolvedForInstituteId &&
+      (!input.activeInstituteId ||
+        input.activeInstituteId === input.resolvedForInstituteId)
+    ) {
+      return {
+        status:
+          input.storedStatus === "loading" || input.storedStatus === "error"
+            ? "ready"
+            : input.storedStatus,
+        items: input.storedItems,
+        errorMessage: null,
+        rowsValid: true,
+      };
+    }
+    return {
+      status: "error",
       items: [],
       errorMessage: input.instituteErrorMessage,
       rowsValid: false,
