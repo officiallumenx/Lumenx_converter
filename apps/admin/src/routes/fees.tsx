@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useFeesSnapshotQuery, useStudentsListQuery, useAcademicYearsListQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import { AdminPageTransition } from "@/components/AdminPageTransition";
 import { FeesHubNav } from "@/components/fees/FeesHubNav";
 import { useFeesStore } from "@/components/fees/useFeesStore";
@@ -478,19 +479,18 @@ function FeesPage() {
   const goToView = (v: FeesHubView) => navigate({ to: "/fees", search: { view: v } });
   const demoOnChange = apiMode ? () => undefined : setSnapshot;
 
+  const pageTitle = VIEW_TITLES[view];
+  const pageSubtitle = apiMode
+    ? `${writesEnabled ? "Editable" : "Read-only"} · ${
+        feesLoadView.rowsValid
+          ? feesLoadView.snapshot?.publish.status ?? "…"
+          : feesLoadView.status
+      } plan`
+    : VIEW_SUBTITLES[view];
+
   return (
-    <AppShell
-      title={VIEW_TITLES[view]}
-      subtitle={
-        apiMode
-          ? `${writesEnabled ? "Editable" : "Read-only"} · ${
-              feesLoadView.rowsValid
-                ? feesLoadView.snapshot?.publish.status ?? "…"
-                : feesLoadView.status
-            } plan`
-          : VIEW_SUBTITLES[view]
-      }
-    >
+    <AppShell title={pageTitle} subtitle={pageSubtitle}>
+      <ModuleHero eyebrow="Services" title={pageTitle} subtitle={pageSubtitle} />
       <FeesHubNav active={view} />
       {apiMode && instituteCtx.activeInstituteId ? (
         <div className="mb-4 max-w-sm">

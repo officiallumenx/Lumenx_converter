@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Pencil, Save, Trash2, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import { useAdminToast } from "@/components/AdminActionToast";
 import {
   Button,
@@ -314,6 +315,11 @@ export function ParentProfileApiPage({ parentId }: { parentId: string }) {
         </>
       }
     >
+      <ModuleHero
+        eyebrow="People"
+        title={displayParent?.name ?? "Parent profile"}
+        subtitle="Guardian directory record"
+      />
       <PageStack>
         {saveError ? (
           <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">

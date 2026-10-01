@@ -4,6 +4,8 @@ import { Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
+import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
@@ -507,6 +509,15 @@ function ClassesPage() {
         ) : undefined
       }
     >
+      <ModuleHero
+        eyebrow="Academics"
+        title={M.classes}
+        subtitle={
+          apiMode
+            ? `${countLabel(displayItems.length)} sections`
+            : academic.classPageSubtitle
+        }
+      />
       {college && writesEnabled && (
         <div className="mb-4 flex flex-wrap gap-2">
           {academic.departments.map((department) => (

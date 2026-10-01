@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCalendarListQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import {
   Card,
   CardHeader,
@@ -373,6 +374,15 @@ function CalendarPage() {
         ) : null
       }
     >
+      <ModuleHero
+        eyebrow="Institute"
+        title={M.calendar}
+        subtitle={
+          apiMode
+            ? "Create / update / delete events"
+            : `Session ${ACADEMIC_YEAR.label} · drives attendance holidays & exam windows`
+        }
+      />
       <div className="lx-kpi-grid">
         <Kpi
           label="Academic year"

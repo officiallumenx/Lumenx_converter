@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEventsListQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import {
   Card,
   CardHeader,
@@ -615,6 +616,15 @@ function EventsPage() {
         </>
       }
     >
+      <ModuleHero
+        eyebrow="Institute"
+        title={M.events}
+        subtitle={
+          apiMode
+            ? "Create / publish / cancel events"
+            : "Institute events owned by Admin · Activity events stay with Activity Teacher"
+        }
+      />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4">
           {apiMode && !listView.rowsValid ? (

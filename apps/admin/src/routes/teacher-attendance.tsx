@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import { TeacherAttendanceApiPage } from "@/components/teacher-attendance/TeacherAttendanceApiPage";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useAdminToast } from "@/components/AdminActionToast";
@@ -70,6 +71,11 @@ function TeacherAttendancePage() {
         title="Teacher Attendance"
         subtitle="Mark daily attendance · overview & submitted history"
       >
+        <ModuleHero
+          eyebrow="Academics"
+          title="Teacher Attendance"
+          subtitle="Mark daily attendance · overview & submitted history"
+        />
         <TeacherAttendanceApiPage />
       </AppShell>
     );
@@ -271,6 +277,11 @@ function TeacherAttendanceDemoPage() {
         ) : null
       }
     >
+      <ModuleHero
+        eyebrow="Academics"
+        title="Teacher Attendance"
+        subtitle={subtitle}
+      />
       <PageStack>
         {tab === "overview" ? (
           <div className="lx-kpi-grid">

@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useReloadKey } from "@/hooks/useReloadKey";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import { PublishedCertificateCatalogView } from "@/components/templates/views/PublishedCertificateCatalogView";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
@@ -277,6 +278,7 @@ function CertificatesPage() {
 
   return (
     <AppShell title="Certificates" subtitle={subtitle}>
+      <ModuleHero eyebrow="Institute" title="Certificates" subtitle={subtitle} />
       <PublishedCertificateCatalogView
         catalogTemplates={catalogTemplatesForView}
         catalogBlocked={apiMode && !catalogListView.rowsValid}

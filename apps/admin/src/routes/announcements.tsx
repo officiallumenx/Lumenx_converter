@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAnnouncementsListQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import { IconChip } from "@/components/IconChip";
 import { ClassSectionAudienceField } from "@/components/ClassSectionMultiPicker";
 import { DateTimePicker12h, formatDateTime12h } from "@/components/DateTimePicker12h";
@@ -523,6 +524,11 @@ function AnnouncementsPage() {
         ) : null
       }
     >
+      <ModuleHero
+        eyebrow="Communications"
+        title="Announcements"
+        subtitle="Long-form institute notices, pinnable to portals"
+      />
       <Card>
         <CardHeader title="Recent" hint={listHint} />
         <div className="divide-y divide-border">

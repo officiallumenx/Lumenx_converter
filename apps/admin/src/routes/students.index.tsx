@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import {
   Card,
   Button,
@@ -891,6 +892,15 @@ function StudentsPage() {
         ) : undefined
       }
     >
+      <ModuleHero
+        eyebrow="People"
+        title={M.students}
+        subtitle={
+          apiMode
+            ? `${countLabel(list.length)} students · ${scopeLabel}`
+            : `${list.length} students · ${scopeLabel}`
+        }
+      />
       {!listView.rowsValid ? (
         <Card className="p-5">
           <div className="py-12 text-sm text-muted-foreground text-center">

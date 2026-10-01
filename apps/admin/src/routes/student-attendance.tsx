@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import { StudentAttendanceWorkspace } from "@/components/student-attendance";
 import { StudentAttendanceApiPage } from "@/components/student-attendance/StudentAttendanceApiPage";
 import { isApiAuthMode } from "@/auth/auth-mode";
@@ -23,6 +24,15 @@ function StudentAttendancePage() {
           : "Select class · section · date · mark via Attendance Engine"
       }
     >
+      <ModuleHero
+        eyebrow="Academics"
+        title={M.attendance}
+        subtitle={
+          apiMode
+            ? "Enrollments roster · create / mark / submit registers by class · section · date"
+            : "Select class · section · date · mark via Attendance Engine"
+        }
+      />
       {apiMode ? <StudentAttendanceApiPage /> : <StudentAttendanceWorkspace />}
     </AppShell>
   );

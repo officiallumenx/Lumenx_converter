@@ -4,6 +4,7 @@ import { usePersonPhotoUrl } from "@/hooks/usePersonPhotoUrl";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Pencil, Save, Trash2, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import { useAdminToast } from "@/components/AdminActionToast";
 import {
   Button,
@@ -298,6 +299,11 @@ export function StudentProfileApiPage({ studentId }: { studentId: string }) {
         </>
       }
     >
+      <ModuleHero
+        eyebrow="People"
+        title={displayStudent?.name ?? "Student profile"}
+        subtitle="Student directory record"
+      />
       <PageStack>
         {saveError ? (
           <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">

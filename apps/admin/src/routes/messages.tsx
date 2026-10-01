@@ -4,6 +4,7 @@ import { useMessagesThreadsQuery, adminModulePrefix, adminQueryRoots } from "@/l
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import {
   Button,
   Card,
@@ -289,6 +290,7 @@ function MessagesPage() {
 
   return (
     <AppShell title="Messages">
+      <ModuleHero eyebrow="Communications" title="Messages" />
       <PageStack>
         <Card>
           <CardHeader

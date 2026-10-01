@@ -54,11 +54,40 @@ const CELLS: Array<{
   icon: typeof Users;
   accent: string;
   contextKey: "year" | "connected" | "none";
+  to: "/students" | "/teachers" | "/parents" | "/leave";
 }> = [
-  { key: "students", label: "Students", icon: Users, accent: "lx-home-kpi--students", contextKey: "year" },
-  { key: "teachers", label: "Teachers", icon: GraduationCap, accent: "lx-home-kpi--teachers", contextKey: "year" },
-  { key: "parents", label: "Parents", icon: Heart, accent: "lx-home-kpi--parents", contextKey: "connected" },
-  { key: "pendingLeave", label: "Pending leave", icon: CalendarOff, accent: "lx-home-kpi--leave", contextKey: "none" },
+  {
+    key: "students",
+    label: "Students",
+    icon: Users,
+    accent: "lx-home-kpi--students",
+    contextKey: "year",
+    to: "/students",
+  },
+  {
+    key: "teachers",
+    label: "Teachers",
+    icon: GraduationCap,
+    accent: "lx-home-kpi--teachers",
+    contextKey: "year",
+    to: "/teachers",
+  },
+  {
+    key: "parents",
+    label: "Parents",
+    icon: Heart,
+    accent: "lx-home-kpi--parents",
+    contextKey: "connected",
+    to: "/parents",
+  },
+  {
+    key: "pendingLeave",
+    label: "Pending leave",
+    icon: CalendarOff,
+    accent: "lx-home-kpi--leave",
+    contextKey: "none",
+    to: "/leave",
+  },
 ];
 
 export function HomeOverview({
@@ -78,9 +107,9 @@ export function HomeOverview({
 }) {
   if (loading && !summary) {
     return (
-      <section className="lx-home-section lx-home-panel" style={{ "--lx-home-i": 3 } as CSSProperties}>
+      <section className="lx-home-section lx-home-panel lx-home-overview" style={{ "--lx-home-i": 2 } as CSSProperties}>
         <div className="lx-home-panel__head">
-          <h2 className="lx-home-panel__title">Institute overview</h2>
+          <h2 className="lx-home-panel__title">Institute Overview</h2>
         </div>
         <div className="lx-home-kpi-grid">
           {[0, 1, 2, 3].map((i) => (
@@ -112,15 +141,18 @@ export function HomeOverview({
             context = "Connected";
           }
           return (
-            <div key={cell.key} className={`lx-home-kpi ${cell.accent}`}>
+            <Link
+              key={cell.key}
+              to={cell.to}
+              className={`lx-home-kpi ${cell.accent}`}
+              aria-label={`Open ${cell.label}`}
+            >
               <div className="lx-home-kpi__top">
                 <span className="lx-home-kpi__icon" aria-hidden>
                   <Icon className="size-3.5" />
                 </span>
                 <span className="lx-home-kpi__label">{cell.label}</span>
-                {cell.key === "pendingLeave" ? (
-                  <ChevronRight className="size-3.5 text-muted-foreground ml-auto shrink-0" aria-hidden />
-                ) : null}
+                <ChevronRight className="lx-home-kpi__chevron size-3.5 shrink-0" aria-hidden />
               </div>
               <p className="lx-home-kpi__value">
                 <AnimatedNumber value={value} />
@@ -131,7 +163,7 @@ export function HomeOverview({
                   {context}
                 </p>
               ) : null}
-            </div>
+            </Link>
           );
         })}
       </div>

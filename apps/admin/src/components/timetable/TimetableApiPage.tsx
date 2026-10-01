@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTimetableReadQuery, useCatalogClassesQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { TimetableApiReadView } from "@/components/timetable/TimetableApiReadView";
 import { TimetableCreateWizard } from "@/components/timetable/TimetableCreateWizard";
@@ -812,6 +813,11 @@ export function TimetableApiPage() {
         ) : null
       }
     >
+      <ModuleHero
+        eyebrow="Academics"
+        title={selectedSectionId ? "Timetable" : "Timetables"}
+        subtitle={subtitle}
+      />
       {!loadView.rowsValid || !loadView.bundle ? (
         <div className="py-12 text-center text-sm text-muted-foreground">
           {loadHint ?? "Loading timetable…"}

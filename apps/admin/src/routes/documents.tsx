@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useDocumentsTemplatesQuery, useDocumentsGeneratedQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import { AdminPageTransition } from "@/components/AdminPageTransition";
 import { DocHubNav } from "@/components/documents/DocHubNav";
 import { DocDashboardView } from "@/components/documents/views/DocDashboardView";
@@ -386,6 +387,7 @@ function DocumentsPage() {
 
   return (
     <AppShell title={VIEW_TITLES[view]} subtitle={subtitle}>
+      <ModuleHero eyebrow="Institute" title={VIEW_TITLES[view]} subtitle={subtitle} />
       <DocHubNav active={view} />
       <AdminPageTransition pageKey={view}>
         {view === "dashboard" ? (

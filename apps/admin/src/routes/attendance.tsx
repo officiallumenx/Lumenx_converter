@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import { AttendanceHubNav } from "@/components/attendance/AttendanceHubNav";
 import { AttendanceHubApiView } from "@/components/attendance/AttendanceHubApiView";
 import { AttendanceMonitorView } from "@/components/attendance/views/AttendanceMonitorView";
@@ -47,6 +48,11 @@ function AttendancePage() {
         title={VIEW_TITLES[view]}
         subtitle={`Read-only · ${VIEW_SUBTITLES[view]}`}
       >
+        <ModuleHero
+          eyebrow="Academics"
+          title={VIEW_TITLES[view]}
+          subtitle={`Read-only · ${VIEW_SUBTITLES[view]}`}
+        />
         <AttendanceHubNav active={view} />
         <AttendanceHubApiView view={view} />
       </AppShell>
@@ -55,6 +61,11 @@ function AttendancePage() {
 
   return (
     <AppShell title={VIEW_TITLES[view]} subtitle={VIEW_SUBTITLES[view]}>
+      <ModuleHero
+        eyebrow="Academics"
+        title={VIEW_TITLES[view]}
+        subtitle={VIEW_SUBTITLES[view]}
+      />
       <AttendanceHubNav active={view} />
       {view === "monitor" ? <AttendanceMonitorView /> : null}
       {view === "reports" ? <AttendanceReportsView /> : null}

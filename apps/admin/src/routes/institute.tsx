@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import {
   Card,
   CardHeader,
@@ -339,6 +340,11 @@ function InstituteDemoPage() {
         )
       }
     >
+      <ModuleHero
+        eyebrow="Institute"
+        title={M.institute}
+        subtitle={`${profile.label} · Connect login, verify pages, and certificates`}
+      />
       {saved && (
         <div className="mb-4 px-4 py-3 rounded-lg border border-success/30 bg-success/10 text-xs text-success flex items-center gap-2">
           <CheckCircle2 className="size-3.5" /> Profile saved successfully

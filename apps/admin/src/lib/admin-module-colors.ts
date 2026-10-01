@@ -33,9 +33,11 @@ const ADMIN_ROUTE_COLORS: Record<string, AdminHue> = {
   "/analytics": "indigo",
   "/students": "navy",
   "/teachers": "purple",
+  "/photos": "sky",
   "/parents": "rose",
   "/accounts": "slate",
   "/classes": "teal",
+  "/enrollments": "green",
   "/academic-management": "violet",
   "/subjects": "fuchsia",
   "/timetable": "sky",
@@ -47,6 +49,7 @@ const ADMIN_ROUTE_COLORS: Record<string, AdminHue> = {
   "/homework": "purple",
   "/diary": "violet",
   "/notifications": "crimson",
+  "/messages": "indigo",
   "/announcements": "gold",
   "/alerts": "rose",
   "/complaints": "scarlet",
@@ -62,10 +65,12 @@ const ADMIN_ROUTE_COLORS: Record<string, AdminHue> = {
   "/careers": "navy",
   "/institute": "blue",
   "/templates": "fuchsia",
+  "/documents": "cyan",
   "/calendar": "sky",
   "/events": "gold",
   "/reports": "cyan",
   "/teacher-performance": "amber",
+  "/setup": "blue",
 };
 
 function matchRouteColor(pathname: string): AdminHue {

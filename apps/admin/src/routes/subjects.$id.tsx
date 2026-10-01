@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import { useAdminToast } from "@/components/AdminActionToast";
 import {
   Button,
@@ -224,6 +225,7 @@ function SubjectDetailDemo({ id }: { id: string }) {
   if (!subject) {
     return (
       <AppShell title="Subject not found" subtitle={id}>
+        <ModuleHero eyebrow="Academics" title="Subject not found" subtitle={id} />
         <Card className="p-8 text-center">
           <p className="text-sm">This subject is not available.</p>
           <Link
@@ -275,6 +277,11 @@ function SubjectDetailDemo({ id }: { id: string }) {
         </>
       }
     >
+      <ModuleHero
+        eyebrow="Academics"
+        title={subject.name}
+        subtitle={`${subject.code} · ${subject.category}`}
+      />
       {editing && draft && (
         <Card className="mb-5">
           <CardHeader

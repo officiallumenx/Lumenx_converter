@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import { AdminPageTransition } from "@/components/AdminPageTransition";
 import { AcademicManagementHubNav } from "@/components/academic-management/AcademicManagementHubNav";
 import { AcademicYearsView } from "@/components/academic-management/views/AcademicYearsView";
@@ -56,6 +57,11 @@ function AcademicManagementPage() {
 
   return (
     <AppShell title={VIEW_TITLES[view]} subtitle={VIEW_SUBTITLES[view]}>
+      <ModuleHero
+        eyebrow="Academics"
+        title={VIEW_TITLES[view]}
+        subtitle={VIEW_SUBTITLES[view]}
+      />
       <AcademicManagementHubNav active={view} />
       <AdminPageTransition pageKey={view}>
         {view === "years" && <AcademicYearsView />}

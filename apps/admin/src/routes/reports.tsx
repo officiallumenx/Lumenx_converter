@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import { IconChip } from "@/components/IconChip";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { Card, CardHeader, Button, Pill, PageStack } from "@lumenx/ui-admin";
@@ -66,6 +67,11 @@ function ReportsDemoPage() {
       title={M.reports}
       subtitle="Download & export only · Excel, PDF, CSV · no charts or live dashboards"
     >
+      <ModuleHero
+        eyebrow="Insights"
+        title={M.reports}
+        subtitle="Download & export only · Excel, PDF, CSV · no charts or live dashboards"
+      />
       <PageStack>
         <Card className="p-4 border-primary/20 bg-primary/5">
           <div className="flex gap-3">
@@ -200,6 +206,11 @@ function ReportsPage() {
         title={M.reports}
         subtitle="Download & export only · CSV · no charts or live dashboards"
       >
+        <ModuleHero
+          eyebrow="Insights"
+          title={M.reports}
+          subtitle="Download & export only · CSV · no charts or live dashboards"
+        />
         <ReportsApiCatalogPanel />
       </AppShell>
     );

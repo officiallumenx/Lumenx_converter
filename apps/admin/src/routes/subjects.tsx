@@ -5,6 +5,8 @@ import {
   useRouterState,
 } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
+import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Card,
@@ -680,6 +682,15 @@ function SubjectsPage() {
         ) : null
       }
     >
+      <ModuleHero
+        eyebrow="Academics"
+        title={M.subjects}
+        subtitle={
+          apiMode
+            ? `${countLabel(displayItems.length)} subjects · institute catalog`
+            : `${catalog.length} subjects · create, edit, and assign teachers`
+        }
+      />
       <Card>
         <PageToolbar className="!flex-row flex-nowrap items-center gap-3">
           <div className="flex min-w-0 flex-1 items-center gap-3">

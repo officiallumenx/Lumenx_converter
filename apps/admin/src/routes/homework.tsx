@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useHomeworkListQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import { useAdminToast } from "@/components/AdminActionToast";
 import {
   Button,
@@ -280,6 +281,17 @@ function HomeworkLogsPage() {
           : "Teacher owns homework CRUD · Admin view logs only (no edit)"
       }
     >
+      <ModuleHero
+        eyebrow="Academics"
+        title={M.homework}
+        subtitle={
+          apiMode
+            ? writesEnabled
+              ? "Teacher-owned create/edit/publish · Admin can view, expire, or delete"
+              : "Read-only · select an institute to govern items"
+            : "Teacher owns homework CRUD · Admin view logs only (no edit)"
+        }
+      />
       <Card>
         {apiMode ? (
           !listView.rowsValid ? (

@@ -11,6 +11,7 @@ import {
   Select,
 } from "@lumenx/ui-admin";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { useInstituteContext } from "@/lib/institutes";
 import { isApiAuthMode } from "@/auth/auth-mode";
@@ -359,6 +360,11 @@ function PhotosPage() {
   if (!apiMode) {
     return (
       <AppShell title={M.photos} subtitle="Profile photo management">
+        <ModuleHero
+          eyebrow="People"
+          title={M.photos}
+          subtitle="Profile photo management"
+        />
         <Card>
           <div className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-5">
             Photos require API auth mode with a live institute.
@@ -371,6 +377,11 @@ function PhotosPage() {
   if (!instituteId) {
     return (
       <AppShell title={M.photos} subtitle="Profile photo management">
+        <ModuleHero
+          eyebrow="People"
+          title={M.photos}
+          subtitle="Profile photo management"
+        />
         <Card>
           <div className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-5">
             Select an institute to manage profile photos.
@@ -386,6 +397,11 @@ function PhotosPage() {
       subtitle={`Assign staff and student profile photos · ${profilePhotoCompressLabel()}`}
     >
       <PageStack>
+        <ModuleHero
+          eyebrow="People"
+          title={M.photos}
+          subtitle={`Assign staff and student profile photos · ${profilePhotoCompressLabel()}`}
+        />
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <Pill tone="neutral">{M.photos}</Pill>
           <Pill tone="info">{mode === "staff" ? "Staff / Teacher" : "Student"}</Pill>

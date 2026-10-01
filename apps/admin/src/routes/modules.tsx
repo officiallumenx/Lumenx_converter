@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import { IconChip } from "@/components/IconChip";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { useAuth } from "@/auth/AuthContext";
@@ -275,6 +276,11 @@ function ModulesDemoPage() {
         )
       }
     >
+      <ModuleHero
+        eyebrow="Operations"
+        title={M.modules}
+        subtitle="Turn off to disable in Admin · core modules stay on"
+      />
       <Card className="mb-6">
         <CardHeader
           title="Institute plan"
@@ -695,6 +701,11 @@ function ModulesPage() {
   if (isApiAuthMode()) {
     return (
       <AppShell title={adminPageTitle("/modules")} subtitle="Module subscription and billing">
+        <ModuleHero
+          eyebrow="Operations"
+          title={adminPageTitle("/modules")}
+          subtitle="Module subscription and billing"
+        />
         <ModulesApiSubscriptionPanel />
       </AppShell>
     );

@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { TimetableWeekGrid } from "@/components/timetable/TimetableViews";
 import { ADMIN_STORAGE_KEYS } from "@lumenx/config";
@@ -291,6 +292,7 @@ function ClassDetailDemo({ id }: { id: string }) {
   if (!classSection || !detail) {
     return (
       <AppShell title="Class not found" subtitle={id}>
+        <ModuleHero eyebrow="Academics" title="Class not found" subtitle={id} />
         <Card className="p-8 text-center">
           <p className="text-sm">This class or section is not available.</p>
           <Link
@@ -350,6 +352,11 @@ function ClassDetailDemo({ id }: { id: string }) {
         </>
       }
     >
+      <ModuleHero
+        eyebrow="Academics"
+        title={classSection.name}
+        subtitle={`${detail.levelLabel} · Section ${classSection.section}`}
+      />
       {editing && draft && (
         <Card className="mb-5">
           <CardHeader

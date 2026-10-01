@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import { Card, CardHeader, Kpi, PageStack, Pill } from "@lumenx/ui-admin";
 import {
   FolderOpen,
@@ -188,17 +189,16 @@ function StoragePage() {
     }));
   }, [rows, usedGb]);
 
+  const storageSubtitle =
+    view === "overview"
+      ? "Unlimited storage · usage by data type"
+      : view === "documents"
+        ? "Document registry · verification & expiry"
+        : "Soft delete · Recycle Bin · 90-day retention";
+
   return (
-    <AppShell
-      title={M.storage}
-      subtitle={
-        view === "overview"
-          ? "Unlimited storage · usage by data type"
-          : view === "documents"
-            ? "Document registry · verification & expiry"
-            : "Soft delete · Recycle Bin · 90-day retention"
-      }
-    >
+    <AppShell title={M.storage} subtitle={storageSubtitle}>
+      <ModuleHero eyebrow="Operations" title={M.storage} subtitle={storageSubtitle} />
       <div className="mb-4">
         <OfflineSyncStatusBar />
       </div>

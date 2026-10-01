@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
+import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
 import { ADMIN_STORAGE_KEYS } from "@lumenx/config";
 import {
   Card,
@@ -1152,6 +1154,15 @@ function TeachersPage() {
         ) : undefined
       }
     >
+      <ModuleHero
+        eyebrow="People"
+        title={M.teachers}
+        subtitle={
+          apiMode
+            ? `${countLabel(list.length)} teachers`
+            : `${list.length} teachers`
+        }
+      />
       <Card>
         <PageToolbar className="lx-people-toolbar">
           <SearchInput

@@ -2,11 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import {
   Card,
   CardHeader,
-  Kpi,
   Pill,
   SegmentedControl,
   EmptyState,
 } from "@lumenx/ui-admin";
+import { ApiClientError } from "@/lib/api";
 import { useInstituteContext } from "@/lib/institutes";
 import { useAnalyticsSummaryQuery } from "@/lib/admin-queries";
 import {
@@ -102,9 +102,7 @@ function statusHint(status: AnalyticsLoadStatus, error: string | null): string {
 }
 
 function ChartEmpty({ hint }: { hint: string }) {
-  return (
-    <p className="text-sm text-muted-foreground px-1 py-10 text-center">{hint}</p>
-  );
+  return <p className="lx-analytics-empty">{hint}</p>;
 }
 
 function AnalyticsCharts({
@@ -146,11 +144,11 @@ function AnalyticsCharts({
   }));
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <div className="lx-analytics-charts space-y-4">
+      <div className="lx-analytics-charts__toolbar">
         <div>
-          <h2 className="text-sm font-semibold">Charts & trends</h2>
-          <p className="text-[11px] text-muted-foreground">
+          <h2 className="lx-analytics-charts__title">Charts & trends</h2>
+          <p className="lx-analytics-charts__hint">
             Monthly trends · {series.fromMonth} → {series.toMonth}
           </p>
         </div>
@@ -389,7 +387,7 @@ function AnalyticsCharts({
         </ChartCard>
       </div>
 
-      <Card>
+      <Card className="lx-analytics-gated">
         <CardHeader
           title="Unavailable charts"
           hint="Not backed by durable product data — demo series are not shown"
@@ -399,7 +397,7 @@ function AnalyticsCharts({
           {GATED_CHARTS.map((item) => (
             <li
               key={item.title}
-              className="rounded-lg border border-border px-3 py-2 text-sm"
+              className="lx-analytics-gated__row"
             >
               <span className="font-medium">{item.title}</span>
               <span className="block text-[11px] text-muted-foreground mt-0.5">{item.reason}</span>
@@ -421,6 +419,9 @@ export function AnalyticsApiSummaryPanel() {
   const [seriesError, setSeriesError] = useState<string | null>(null);
   const [range, setRange] = useState<AnalyticsRange>("year");
   const [resolvedForInstituteId, setResolvedForInstituteId] = useState<string | null>(null);
+  const [seriesResolvedForInstituteId, setSeriesResolvedForInstituteId] = useState<
+    string | null
+  >(null);
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
@@ -440,6 +441,7 @@ export function AnalyticsApiSummaryPanel() {
       setLoadError(null);
       setSeriesError(null);
       setResolvedForInstituteId(null);
+      setSeriesResolvedForInstituteId(null);
       return;
     }
     if (instituteCtx.status === "error" || instituteCtx.status === "forbidden") {
@@ -450,6 +452,7 @@ export function AnalyticsApiSummaryPanel() {
       setLoadError(instituteCtx.errorMessage);
       setSeriesError(instituteCtx.errorMessage);
       setResolvedForInstituteId(null);
+      setSeriesResolvedForInstituteId(null);
       return;
     }
     if (
@@ -464,12 +467,26 @@ export function AnalyticsApiSummaryPanel() {
       setLoadError(null);
       setSeriesError(null);
       setResolvedForInstituteId(null);
+      setSeriesResolvedForInstituteId(null);
       return;
     }
+
+    const requestInstituteId = instituteCtx.activeInstituteId;
 
     if (summaryQuery.isLoading && !summaryQuery.data) {
       setLoadStatus("loading");
       setLoadError(null);
+      return;
+    }
+    if (summaryQuery.isError && !summaryQuery.data) {
+      const err = summaryQuery.error;
+      const forbidden = err instanceof ApiClientError && err.status === 403;
+      setSummary(null);
+      setLoadStatus(forbidden ? "forbidden" : "error");
+      setLoadError(
+        err instanceof Error ? err.message : "Failed to load analytics summary.",
+      );
+      setResolvedForInstituteId(requestInstituteId);
       return;
     }
     if (!summaryQuery.data) return;
@@ -478,13 +495,15 @@ export function AnalyticsApiSummaryPanel() {
     setSummary(summaryNext.summary);
     setLoadStatus(summaryNext.status);
     setLoadError(summaryNext.errorMessage);
-    setResolvedForInstituteId(instituteCtx.activeInstituteId);
+    setResolvedForInstituteId(requestInstituteId);
   }, [
     instituteCtx.status,
     instituteCtx.activeInstituteId,
     instituteCtx.errorMessage,
     summaryQuery.data,
     summaryQuery.isLoading,
+    summaryQuery.isError,
+    summaryQuery.error,
   ]);
 
   useEffect(() => {
@@ -503,6 +522,7 @@ export function AnalyticsApiSummaryPanel() {
       setSeries(seriesNext.series);
       setSeriesStatus(seriesNext.status);
       setSeriesError(seriesNext.errorMessage);
+      setSeriesResolvedForInstituteId(requestInstituteId);
     });
     return () => {
       cancelled = true;
@@ -525,59 +545,115 @@ export function AnalyticsApiSummaryPanel() {
     instituteErrorMessage: instituteCtx.errorMessage,
   });
 
+  const seriesSettledForActive =
+    seriesResolvedForInstituteId === instituteCtx.activeInstituteId;
   const seriesValid =
-    resolvedForInstituteId === instituteCtx.activeInstituteId &&
-    seriesStatus === "ready" &&
-    series != null;
+    seriesSettledForActive && seriesStatus === "ready" && series != null;
 
   const hint = statusHint(view.status, view.errorMessage);
 
+  const kpiItems = view.summary
+    ? [
+        {
+          key: "students",
+          label: "Students",
+          value: view.summary.students,
+          accent: "lx-analytics-kpi--students",
+          icon: Users,
+        },
+        {
+          key: "teachers",
+          label: "Teachers",
+          value: view.summary.teachers,
+          accent: "lx-analytics-kpi--teachers",
+          icon: GraduationCap,
+        },
+        {
+          key: "parents",
+          label: "Parents",
+          value: view.summary.parents,
+          accent: "lx-analytics-kpi--parents",
+          icon: Heart,
+        },
+        {
+          key: "complaints",
+          label: "Open complaints",
+          value: view.summary.openComplaints,
+          accent: "lx-analytics-kpi--complaints",
+          icon: MessageSquareWarning,
+        },
+        {
+          key: "leave",
+          label: "Pending leave",
+          value: view.summary.pendingLeave,
+          accent: "lx-analytics-kpi--leave",
+          icon: CalendarOff,
+        },
+        {
+          key: "homework",
+          label: "Homework",
+          value: view.summary.homeworkItems,
+          accent: "lx-analytics-kpi--homework",
+          icon: BookOpen,
+        },
+      ]
+    : [];
+
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader
-          title="Institute analytics"
-          hint="Live institute counts"
-          action={<Pill tone="neutral">View only</Pill>}
-        />
+    <div className="lx-analytics space-y-4">
+      <section className="lx-analytics-hero">
+        <div className="lx-analytics-hero__content">
+          <p className="lx-analytics-hero__eyebrow">Insights</p>
+          <h2 className="lx-analytics-hero__title">Institute analytics</h2>
+          <p className="lx-analytics-hero__sub">
+            Live institute counts and durable chart series — view only.
+          </p>
+        </div>
+        <div className="lx-analytics-hero__art" aria-hidden>
+          <span className="lx-analytics-hero__orb lx-analytics-hero__orb--a" />
+          <span className="lx-analytics-hero__orb lx-analytics-hero__orb--b" />
+          <span className="lx-analytics-hero__orb lx-analytics-hero__orb--c" />
+        </div>
+      </section>
+
+      <section className="lx-analytics-summary">
+        <div className="lx-analytics-summary__head">
+          <div>
+            <h3 className="lx-analytics-summary__title">Live overview</h3>
+            <p className="lx-analytics-summary__hint">Current institute totals</p>
+          </div>
+          <Pill tone="neutral">View only</Pill>
+        </div>
         {hint ? (
-          <p className="px-4 pb-4 text-sm text-muted-foreground">{hint}</p>
+          <p className="text-sm text-muted-foreground px-0.5">{hint}</p>
         ) : view.summary ? (
-          <div className="px-4 pb-4 lx-kpi-grid">
-            <Kpi label="Students" value={String(view.summary.students)} icon={<Users className="size-3.5" />} />
-            <Kpi
-              label="Teachers"
-              value={String(view.summary.teachers)}
-              icon={<GraduationCap className="size-3.5" />}
-            />
-            <Kpi label="Parents" value={String(view.summary.parents)} icon={<Heart className="size-3.5" />} />
-            <Kpi
-              label="Open complaints"
-              value={String(view.summary.openComplaints)}
-              icon={<MessageSquareWarning className="size-3.5" />}
-            />
-            <Kpi
-              label="Pending leave"
-              value={String(view.summary.pendingLeave)}
-              icon={<CalendarOff className="size-3.5" />}
-            />
-            <Kpi
-              label="Homework"
-              value={String(view.summary.homeworkItems)}
-              icon={<BookOpen className="size-3.5" />}
-            />
+          <div className="lx-analytics-kpi-grid">
+            {kpiItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <div key={item.key} className={`lx-analytics-kpi ${item.accent}`}>
+                  <div className="lx-analytics-kpi__top">
+                    <span className="lx-analytics-kpi__icon" aria-hidden>
+                      <Icon className="size-3.5" />
+                    </span>
+                    <span className="lx-analytics-kpi__label">{item.label}</span>
+                  </div>
+                  <p className="lx-analytics-kpi__value">{item.value.toLocaleString()}</p>
+                </div>
+              );
+            })}
           </div>
         ) : null}
-      </Card>
+      </section>
 
       {seriesValid && series ? (
         <AnalyticsCharts series={series} range={range} onRangeChange={setRange} />
       ) : seriesStatus === "loading" ||
-        (resolvedForInstituteId !== instituteCtx.activeInstituteId &&
-          instituteCtx.activeInstituteId) ? (
+        (!seriesSettledForActive && instituteCtx.activeInstituteId) ? (
         <p className="text-sm text-muted-foreground px-1">Loading chart series…</p>
-      ) : seriesStatus === "error" || seriesStatus === "forbidden" ? (
-        <Card>
+      ) : seriesSettledForActive &&
+        (seriesStatus === "error" || seriesStatus === "forbidden") ? (
+        <Card className="lx-analytics-gated">
           <EmptyState
             title="Charts unavailable"
             hint={seriesError ?? "Failed to load analytics series. Demo charts are not shown."}

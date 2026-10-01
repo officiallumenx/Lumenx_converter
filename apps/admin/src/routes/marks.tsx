@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
+import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
 import {
   Card,
   Button,
@@ -793,6 +795,17 @@ function MarksPage() {
         ) : undefined
       }
     >
+      <ModuleHero
+        eyebrow="Academics"
+        title={M.marks}
+        subtitle={
+          apiMode
+            ? writesEnabled
+              ? `Create / edit / submit / approve · ${countLabel(activeEntries.length)} entries`
+              : `Read-only · ${countLabel(activeEntries.length)} entries`
+            : "Teacher enter → edit → submit → Admin approve / reject / return → publish to students & parents (Admin cannot edit scores)"
+        }
+      />
       {/* Institute snapshot */}
       <div className="mb-3 grid grid-cols-4 gap-1.5 sm:gap-2">
         <Snapshot label="Classes" value={countLabel(summary.classes)} />

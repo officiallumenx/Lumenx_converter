@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { DemoInstituteProfile } from "@lumenx/types";
 import { compressInstituteLogoDataUrl, normalizeInstituteProfile } from "@lumenx/utils";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { useAuth } from "@/auth/AuthContext";
 import {
@@ -292,6 +293,11 @@ export function InstituteApiProfilePage() {
 
   return (
     <AppShell title="Institute" subtitle="Institute identity and settings">
+      <ModuleHero
+        eyebrow="Institute"
+        title="Institute"
+        subtitle="Institute identity and settings"
+      />
       <div className="space-y-4">
         <InstituteCreateApiPanel />
         {hint ? (

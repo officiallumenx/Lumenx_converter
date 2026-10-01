@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import { useAdminToast } from "@/components/AdminActionToast";
 import {
   Button,
@@ -152,6 +153,11 @@ export function SubjectProfileApiPage({ subjectId }: { subjectId: string }) {
         </Link>
       }
     >
+      <ModuleHero
+        eyebrow="Academics"
+        title={displaySubject?.name ?? "Subject"}
+        subtitle="Subject catalog record"
+      />
       <PageStack>
         {detailView.status !== "ready" || !displaySubject ? (
           <Card className="p-8 text-center text-sm text-muted-foreground">{hint ?? "Loading…"}</Card>

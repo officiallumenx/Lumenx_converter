@@ -3,6 +3,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useExamsListQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
+import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
 import {
   Card,
   CardHeader,
@@ -553,6 +555,11 @@ function ExamsPage() {
           </>
         }
       >
+        <ModuleHero
+          eyebrow="Academics"
+          title={selectedTt.examName}
+          subtitle={`${examTimetableRange(selectedTt.slots)} · ${selectedTt.slots.length} papers`}
+        />
         {selectedTtOutdated && (
           <div className="mb-4 rounded-lg border border-border bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
             This timetable is linked to an outdated exam — view only. You can delete it but not
@@ -709,6 +716,15 @@ function ExamsPage() {
         ) : undefined
       }
     >
+      <ModuleHero
+        eyebrow="Academics"
+        title={M.exams}
+        subtitle={
+          apiMode
+            ? `${countLabel(displayExams.length)} exams`
+            : "Exam pipeline, exam timetables, and grading · marks in Marks module"
+        }
+      />
       <div className="lx-kpi-grid">
         <Kpi label="Upcoming" value={countLabel(upcoming)} delta="Next 30 days" />
         <Kpi label="Exam timetables" value={countLabel(kpiTimetables.length)} delta={`${countLabel(ttPublished)} published`} />

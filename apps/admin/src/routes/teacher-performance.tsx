@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import { Card, CardHeader, Button, Pill, Kpi } from "@lumenx/ui-admin";
 import { TEACHER_PERFORMANCE } from "@/lib/admin-module-data";
 import { TrendingUp, Award, FileDown } from "lucide-react";
@@ -34,6 +35,11 @@ function TeacherPerformanceDemoPage() {
         </Link>
       }
     >
+      <ModuleHero
+        eyebrow="Insights"
+        title={M.performance}
+        subtitle={`Student feedback & trends · analytics only · exports are in ${M.reports}`}
+      />
       <div className="lx-kpi-grid">
         <Kpi
           label="Institute avg"
@@ -147,6 +153,11 @@ function TeacherPerformancePage() {
         title={M.performance}
         subtitle={`Operational faculty index · analytics only · exports are in ${M.reports}`}
       >
+        <ModuleHero
+          eyebrow="Insights"
+          title={M.performance}
+          subtitle={`Operational faculty index · analytics only · exports are in ${M.reports}`}
+        />
         <TeacherPerformanceApiPanel />
       </AppShell>
     );

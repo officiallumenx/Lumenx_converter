@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import { IconChip } from "@/components/IconChip";
 import { appendBroadcastInbox, postDemoSync } from "@lumenx/utils";
 import {
@@ -76,6 +77,11 @@ function AlertsPage() {
         title={M.alerts}
         subtitle="Broadcast holidays & emergencies · configure alert rules"
       >
+        <ModuleHero
+          eyebrow="Communications"
+          title={M.alerts}
+          subtitle="Broadcast holidays & emergencies · configure alert rules"
+        />
         <AlertsBroadcastPanel />
         <AlertsApiRulesPanel />
       </AppShell>
@@ -238,6 +244,11 @@ function AlertsDemoPage() {
         </>
       }
     >
+      <ModuleHero
+        eyebrow="Communications"
+        title={M.alerts}
+        subtitle="Configure operational, academic & emergency alert rules"
+      />
       <div className="lx-kpi-grid lx-kpi-grid--3 mb-3">
         {[
           { label: "Active rules", value: String(rules.filter((r) => r.active).length) },

@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import { Card, CardHeader, Button, Pill, PageStack, Modal, Field, TextInput, TextArea, Select } from "@lumenx/ui-admin";
 import { Lock, FileText, Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -269,6 +270,15 @@ function ComplaintsPage() {
         </div>
       }
     >
+      <ModuleHero
+        eyebrow="Communications"
+        title="Complaint Triage"
+        subtitle={
+          apiMode
+            ? "Create / transition / delete"
+            : "Destination required (Class Teacher or Principal/Admin) · Priority Low / Medium / High · No automatic routing"
+        }
+      />
       <PageStack>
         {displayStatus === "loading" ||
         displayStatus === "needs_institute" ||

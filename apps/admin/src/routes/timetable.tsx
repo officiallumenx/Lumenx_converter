@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import {
   Card,
   CardHeader,
@@ -949,6 +950,11 @@ function TimetableDemoPage() {
           </Button>
         }
       >
+        <ModuleHero
+          eyebrow="Academics"
+          title="Timetables"
+          subtitle="Overview → create draft → assign manually → review → publish"
+        />
         <PageStack>
           <div className="flex flex-wrap gap-2">
             {(Object.keys(readinessTotals) as TimetableReadiness[]).map((key) => (
@@ -1189,6 +1195,11 @@ function TimetableDemoPage() {
         </>
       }
     >
+      <ModuleHero
+        eyebrow="Academics"
+        title={currentClassKey}
+        subtitle={`${current.term} · ${scheduleSummary(currentSchedule)}`}
+      />
       <PageStack>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" onClick={backToList}>

@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useDiaryDaysQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import { useAdminToast } from "@/components/AdminActionToast";
 import {
   Button,
@@ -409,6 +410,17 @@ function DiaryViewPage() {
         ) : null
       }
     >
+      <ModuleHero
+        eyebrow="Academics"
+        title={M.diary}
+        subtitle={
+          apiMode
+            ? writesEnabled
+              ? "Create / edit / submit / delete diary days"
+              : "Read-only list"
+            : "Teacher submits · Admin view only (no edit)"
+        }
+      />
       <Card>
         {apiMode && !listView.rowsValid ? (
           <div className="px-5 py-12 text-center text-sm text-muted-foreground">

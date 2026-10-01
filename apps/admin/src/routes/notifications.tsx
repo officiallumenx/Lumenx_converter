@@ -4,6 +4,7 @@ import { useNotificationsListQuery, adminModulePrefix, adminQueryRoots } from "@
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import { NotificationBroadcastCompose } from "@/components/notifications/NotificationBroadcastCompose";
 import { NotificationApiEmitCompose } from "@/components/notifications/NotificationApiEmitCompose";
 import { NotificationCenterInbox } from "@/components/notifications/NotificationCenterInbox";
@@ -223,6 +224,19 @@ function NotificationsPage() {
             : "Targeted announcements & emergency alerts"
       }
     >
+      <ModuleHero
+        eyebrow="Communications"
+        title="Notification Center"
+        subtitle={
+          apiMode
+            ? tab === "inbox"
+              ? "Mark read / delete notifications"
+              : "Send broadcasts"
+            : tab === "inbox"
+              ? `${unreadLabel} unread · Read, search, filter, and open linked pages`
+              : "Targeted announcements & emergency alerts"
+        }
+      />
       <div className="mb-4">
         <SegmentedControl
           value={tab}

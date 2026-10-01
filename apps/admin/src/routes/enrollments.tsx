@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import { EnrollmentsApiPage } from "@/components/enrollments/EnrollmentsApiPage";
 import {
   Card,
@@ -28,7 +29,7 @@ import {
   type EnrollmentListItem,
   type EnrollmentStatus,
 } from "@/lib/enrollments";
-import { adminPageTitle } from "@/lib/admin-module-labels";
+import { ADMIN_MODULE_LABELS as M, adminPageTitle } from "@/lib/admin-module-labels";
 
 export const Route = createFileRoute("/enrollments")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -53,6 +54,11 @@ function EnrollmentsPage() {
         title="Enrollments"
         subtitle="Section rosters · enroll / transfer / status"
       >
+        <ModuleHero
+          eyebrow="Academics"
+          title={M.enrollments}
+          subtitle="Section rosters · enroll / transfer / status"
+        />
         <EnrollmentsApiPage
           initialSectionId={search.sectionId}
           initialAcademicYearId={search.academicYearId}
@@ -102,6 +108,11 @@ function EnrollmentsDemoPage() {
       title="Enrollments"
       subtitle="Academic year section rosters"
     >
+      <ModuleHero
+        eyebrow="Academics"
+        title={M.enrollments}
+        subtitle="Academic year section rosters"
+      />
       <div className="space-y-4">
         <PageToolbar>
           <SearchInput

@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import {
   Card,
   Button,
@@ -435,6 +436,11 @@ function AccountsPage() {
         title={M.accounts}
         subtitle="Staff Admin accounts · institute memberships · roles managed under Roles & Access"
       >
+        <ModuleHero
+          eyebrow="People"
+          title={M.accounts}
+          subtitle="Staff Admin accounts · institute memberships · roles managed under Roles & Access"
+        />
         <AccountsApiStaffPanel />
         <div className="mt-6">
           <AccountsApiMembershipsPanel />
@@ -457,6 +463,15 @@ function AccountsPage() {
         </Button>
       }
     >
+      <ModuleHero
+        eyebrow="People"
+        title={M.accounts}
+        subtitle={
+          scoped
+            ? `${list.length} accounts · ${scopeLabel}${rollNo.trim() ? ` · Roll ${rollNo.trim()}` : ""}`
+            : "Manage credentials, portal access and identity lifecycle"
+        }
+      />
       <AccountsKpiStrip total={rows.length} active={activeToday} suspended={suspended} />
 
       <Card>

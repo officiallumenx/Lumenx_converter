@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import {
   Button,
   Card,
@@ -213,6 +214,7 @@ function StudentProfileDemo({ id }: { id: string }) {
   if (!student) {
     return (
       <AppShell title="Student not found" subtitle={id}>
+        <ModuleHero eyebrow="People" title="Student not found" subtitle={id} />
         <Card className="p-8 text-center">
           <p className="text-sm">This student record is not available.</p>
           <Link
@@ -277,6 +279,11 @@ function StudentProfileDemo({ id }: { id: string }) {
         </>
       }
     >
+      <ModuleHero
+        eyebrow="People"
+        title={view.name || "Student"}
+        subtitle={`${view.name} · ${view.id}`}
+      />
       {errors.length > 0 && (
         <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
           {errors.map((error) => (

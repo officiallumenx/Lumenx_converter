@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useLeaveRequestsQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import {
   Card,
   CardHeader,
@@ -401,14 +402,14 @@ function LeavePage() {
     setDecision(null);
     setNote("");
   };
+  const pageSubtitle = apiMode
+    ? "Approve / reject / ignore"
+    : "Student leave: Parent apply → Class Teacher approve · Teacher leave: Teacher apply → Admin Approve / Reject / Ignore";
+
   return (
     <AppShell
       title={M.leave}
-      subtitle={
-        apiMode
-          ? "Approve / reject / ignore"
-          : "Student leave: Parent apply → Class Teacher approve · Teacher leave: Teacher apply → Admin Approve / Reject / Ignore"
-      }
+      subtitle={pageSubtitle}
       actions={
         <>
           <Button size="sm" onClick={() => setHistoryOpen(true)}>
@@ -422,6 +423,7 @@ function LeavePage() {
         </>
       }
     >
+      <ModuleHero eyebrow="Services" title={M.leave} subtitle={pageSubtitle} />
       <PageStack>
         <KpiGrid cols={4}>
           <Kpi

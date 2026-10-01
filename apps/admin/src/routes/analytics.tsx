@@ -90,7 +90,22 @@ function AnalyticsDemoPage() {
       title="Analytics"
       subtitle={`Live dashboard · charts & insights only · exports are in ${M.reports}`}
     >
-      <PageStack>
+      <PageStack className="lx-analytics">
+        <section className="lx-analytics-hero">
+          <div className="lx-analytics-hero__content">
+            <p className="lx-analytics-hero__eyebrow">Insights</p>
+            <h2 className="lx-analytics-hero__title">Analytics dashboard</h2>
+            <p className="lx-analytics-hero__sub">
+              Charts and insights for your institute · exports live in {M.reports}.
+            </p>
+          </div>
+          <div className="lx-analytics-hero__art" aria-hidden>
+            <span className="lx-analytics-hero__orb lx-analytics-hero__orb--a" />
+            <span className="lx-analytics-hero__orb lx-analytics-hero__orb--b" />
+            <span className="lx-analytics-hero__orb lx-analytics-hero__orb--c" />
+          </div>
+        </section>
+
         <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
           <SegmentedControl
             value={range}
@@ -102,7 +117,7 @@ function AnalyticsDemoPage() {
           />
         </div>
 
-        <KpiGrid cols={6}>
+        <KpiGrid cols={6} className="lx-analytics-demo-kpis">
           <Kpi
             label="Total students"
             value={totalStudents.toLocaleString()}
@@ -145,13 +160,7 @@ function AnalyticsDemoPage() {
           {ANALYTICS_INSIGHTS.map((insight) => (
             <div
               key={insight.title}
-              className={`rounded-xl border p-4 text-sm ${
-                insight.tone === "success"
-                  ? "border-success/25 bg-success/5"
-                  : insight.tone === "warning"
-                    ? "border-warning/25 bg-warning/5"
-                    : "border-primary/25 bg-primary/5"
-              }`}
+              className={`lx-analytics-insight lx-analytics-insight--${insight.tone}`}
             >
               <p className="font-semibold text-foreground">{insight.title}</p>
               <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{insight.body}</p>
@@ -159,12 +168,13 @@ function AnalyticsDemoPage() {
           ))}
         </div>
 
-        <div className="grid grid-cols-12 gap-4">
-          <ChartCard
-            className="col-span-12 lg:col-span-8"
-            title="Enrollment trend"
-            hint={range === "year" ? "Headcount & new admissions" : "Last 4 months"}
-          >
+        <div className="lx-analytics-charts space-y-4">
+          <div className="grid grid-cols-12 gap-4">
+            <ChartCard
+              className="col-span-12 lg:col-span-8"
+              title="Enrollment trend"
+              hint={range === "year" ? "Headcount & new admissions" : "Last 4 months"}
+            >
             <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
               <ComposedChart data={enrollment} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
@@ -647,6 +657,7 @@ function AnalyticsDemoPage() {
             </ResponsiveContainer>
           </ChartCard>
 
+          </div>
         </div>
       </PageStack>
     </AppShell>
@@ -657,7 +668,9 @@ function AnalyticsPage() {
   if (isApiAuthMode()) {
     return (
       <AppShell title="Analytics" subtitle="Institute analytics dashboards">
-        <AnalyticsApiSummaryPanel />
+        <PageStack>
+          <AnalyticsApiSummaryPanel />
+        </PageStack>
       </AppShell>
     );
   }

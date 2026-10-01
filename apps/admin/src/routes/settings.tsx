@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import { IconChip } from "@/components/IconChip";
 import { Card, CardHeader, Button, PageStack, Pill, Select } from "@lumenx/ui-admin";
 import { useTheme } from "@/components/theme-provider";
@@ -834,6 +835,11 @@ function SettingsPage() {
 
   return (
     <AppShell title="Settings" subtitle="Your profile, appearance, platform, and support">
+      <ModuleHero
+        eyebrow="Operations"
+        title="Settings"
+        subtitle="Your profile, appearance, platform, and support"
+      />
       <PageStack>
         <div className="flex gap-1 overflow-x-auto pb-1 -mb-1 lx-sidebar-scroll">
           {TABS.map(({ id, label, icon: Icon }) => (

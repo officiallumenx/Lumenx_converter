@@ -20,6 +20,8 @@ import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { Mail, MoreHorizontal, Phone, Plus, Users } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
+import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { useAuth } from "@/auth/AuthContext";
 import { softDeleteToRecycleBin } from "@lumenx/utils";
@@ -607,6 +609,15 @@ function ParentsPage() {
         ) : undefined
       }
     >
+      <ModuleHero
+        eyebrow="People"
+        title={M.parents}
+        subtitle={
+          apiMode
+            ? `${countLabel(list.length)} guardians`
+            : `${list.length} guardians · ${scopeLabel}`
+        }
+      />
       <Card>
         <PageToolbar className="lx-people-toolbar">
           <SearchInput

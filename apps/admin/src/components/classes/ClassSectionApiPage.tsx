@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import { useAdminToast } from "@/components/AdminActionToast";
 import {
   Button,
@@ -231,6 +232,15 @@ export function ClassSectionApiPage({ sectionId }: { sectionId: string }) {
         </div>
       }
     >
+      <ModuleHero
+        eyebrow="Academics"
+        title={displaySection?.name ?? "Class section"}
+        subtitle={
+          writesEnabled
+            ? "Section catalog record"
+            : "Read-only · select an institute to edit"
+        }
+      />
       <PageStack>
         {detailView.status !== "ready" || !displaySection ? (
           <Card className="p-8 text-center text-sm text-muted-foreground">{hint ?? "Loading…"}</Card>

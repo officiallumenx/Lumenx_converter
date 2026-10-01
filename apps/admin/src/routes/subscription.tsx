@@ -5,6 +5,7 @@
 
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import {
   Button,
   Card,
@@ -216,6 +217,11 @@ function SubscriptionRoutePage() {
   if (isApiAuthMode()) {
     return (
       <AppShell title={adminPageTitle("/subscription")} subtitle="Renewal & offline payment">
+        <ModuleHero
+          eyebrow="Operations"
+          title={adminPageTitle("/subscription")}
+          subtitle="Renewal & offline payment"
+        />
         <SubscriptionApiPage />
       </AppShell>
     );
@@ -398,6 +404,11 @@ function SubscriptionDemoPage() {
   if (!sub || !trialView || !selectedQuote) {
     return (
       <AppShell title={M.subscription} subtitle="Renewal and trial status">
+        <ModuleHero
+          eyebrow="Operations"
+          title={M.subscription}
+          subtitle="Renewal and trial status"
+        />
         <Card className="p-6 text-sm text-muted-foreground">
           No subscription is bound to this Admin session yet. After Nexus approves your
           institute, trial and renewal details appear here.
@@ -433,6 +444,11 @@ function SubscriptionDemoPage() {
         </Pill>
       }
     >
+      <ModuleHero
+        eyebrow="Operations"
+        title={M.subscription}
+        subtitle="Trial · renewal quote · offline payment"
+      />
       {error ? (
         <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
           {error}

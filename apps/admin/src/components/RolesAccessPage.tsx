@@ -26,6 +26,7 @@ import {
 } from "@lumenx/ui-admin";
 
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import { ClassSectionAudienceField } from "@/components/ClassSectionMultiPicker";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { AccessLevelToggle } from "@/components/permissions/AccessLevelToggle";
@@ -66,6 +67,11 @@ export function RolesAccessPage() {
         title={M.roles}
         subtitle="Create institute roles, assign teachers/staff, and control Admin module access"
       >
+        <ModuleHero
+          eyebrow="Operations"
+          title={M.roles}
+          subtitle="Create institute roles, assign teachers/staff, and control Admin module access"
+        />
         <RolesAccessApiPanel />
       </AppShell>
     );
@@ -131,6 +137,11 @@ function RolesAccessDemoPage() {
         </div>
       }
     >
+      <ModuleHero
+        eyebrow="Operations"
+        title={M.roles}
+        subtitle="Create institute roles, assign users, and control which Admin modules they can open"
+      />
       {message && (
         <div className="mb-5 flex items-center justify-between rounded-lg border border-primary/20 bg-primary/[0.04] px-4 py-3 text-xs">
           <span>{message}</span>

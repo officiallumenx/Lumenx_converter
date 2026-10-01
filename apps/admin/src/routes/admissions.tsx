@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAdmissionsListQuery, useAdmissionsProgramsQuery, useAdmissionsOpeningsQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import {
   Button,
   Pill,
@@ -737,14 +738,14 @@ function AdmissionsPage() {
     setConvertOpen(true);
   };
 
+  const pageSubtitle = apiMode
+    ? `${countLabel(activeApps.length)} applications · ${programsListView.rowsValid ? programsListView.items.length : "…"} programs · ${openingsListView.rowsValid ? openingsListView.items.length : "…"} openings · verified/total doc counts`
+    : "Review applications in Connect · add approved students here";
+
   return (
     <AppShell
       title="Admissions"
-      subtitle={
-        apiMode
-          ? `${countLabel(activeApps.length)} applications · ${programsListView.rowsValid ? programsListView.items.length : "…"} programs · ${openingsListView.rowsValid ? openingsListView.items.length : "…"} openings · verified/total doc counts`
-          : "Review applications in Connect · add approved students here"
-      }
+      subtitle={pageSubtitle}
       actions={
         writesEnabled ? (
           <>
@@ -763,6 +764,7 @@ function AdmissionsPage() {
         ) : undefined
       }
     >
+      <ModuleHero eyebrow="Services" title="Admissions" subtitle={pageSubtitle} />
       <div className="space-y-4">
         <Card className="overflow-hidden border-primary/20 bg-primary/[0.03]">
           <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">

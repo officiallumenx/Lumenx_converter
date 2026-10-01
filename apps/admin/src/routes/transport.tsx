@@ -12,6 +12,7 @@ import {
 } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import { AdminPageTransition } from "@/components/AdminPageTransition";
 import { TransportHubNav } from "@/components/transport/TransportHubNav";
 import { useTransportStore } from "@/components/transport/useTransportStore";
@@ -796,37 +797,37 @@ function TransportPage() {
   const goToView = (v: TransportHubView) =>
     navigate({ to: "/transport", search: { view: v } });
 
+  const pageTitle = VIEW_TITLES[view];
+  const pageSubtitle =
+    apiMode && view === "vehicles"
+      ? `${vehiclesListView.rowsValid ? vehiclesListView.items.length : "…"} vehicles`
+      : apiMode && view === "dashboard"
+        ? "Fleet overview"
+        : apiMode && view === "drivers"
+          ? `${driversListView.rowsValid ? driversListView.items.length : "…"} drivers`
+          : apiMode && view === "routes"
+            ? `${routesListView.rowsValid ? routesListView.items.length : "…"} routes`
+            : apiMode && view === "stops"
+              ? "Route stops"
+              : apiMode && view === "students"
+                ? `${enrollmentsListView.rowsValid ? enrollmentsListView.items.length : "…"} enrollments`
+                : apiMode && view === "settings"
+                  ? "Transport settings"
+                  : apiMode && view === "reviews"
+                    ? "Pending stop & assignment reviews"
+                    : apiMode && view === "trips"
+                      ? "Live and completed trips"
+                      : apiMode && view === "attendance"
+                        ? "Boarding and dropping"
+                        : apiMode && view === "emergencies"
+                          ? "SOS and emergencies"
+                          : apiMode && view === "analytics"
+                            ? "Transport analytics"
+                            : VIEW_SUBTITLES[view];
+
   return (
-    <AppShell
-      title={VIEW_TITLES[view]}
-      subtitle={
-        apiMode && view === "vehicles"
-          ? `${vehiclesListView.rowsValid ? vehiclesListView.items.length : "…"} vehicles`
-          : apiMode && view === "dashboard"
-            ? "Fleet overview"
-            : apiMode && view === "drivers"
-            ? `${driversListView.rowsValid ? driversListView.items.length : "…"} drivers`
-            : apiMode && view === "routes"
-              ? `${routesListView.rowsValid ? routesListView.items.length : "…"} routes`
-              : apiMode && view === "stops"
-                ? "Route stops"
-                : apiMode && view === "students"
-                  ? `${enrollmentsListView.rowsValid ? enrollmentsListView.items.length : "…"} enrollments`
-                  : apiMode && view === "settings"
-                ? "Transport settings"
-                : apiMode && view === "reviews"
-                  ? "Pending stop & assignment reviews"
-                  : apiMode && view === "trips"
-                    ? "Live and completed trips"
-                    : apiMode && view === "attendance"
-                      ? "Boarding and dropping"
-                      : apiMode && view === "emergencies"
-                        ? "SOS and emergencies"
-                        : apiMode && view === "analytics"
-                          ? "Transport analytics"
-                  : VIEW_SUBTITLES[view]
-      }
-    >
+    <AppShell title={pageTitle} subtitle={pageSubtitle}>
+      <ModuleHero eyebrow="Services" title={pageTitle} subtitle={pageSubtitle} />
       <TransportHubNav active={view} />
       <AdminPageTransition pageKey={view}>
         {view === "dashboard" ? (

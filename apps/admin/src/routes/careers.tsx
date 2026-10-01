@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCareersListQuery, useCareerJobsQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
 import { invalidateAdminCache } from "@/lib/admin-resource-cache";
 import { AppShell } from "@/components/AppShell";
+import { ModuleHero } from "@/components/module-shell";
 import { Button, Pill, Card, CardHeader, Kpi, KpiGrid } from "@lumenx/ui-admin";
 import { CAREER_CANDIDATES } from "@/lib/admin-module-data";
 import {
@@ -429,14 +430,14 @@ function CareersPage() {
     setConvertOpen(true);
   };
 
+  const pageSubtitle = apiMode
+    ? `${countLabel(activeApps.length)} applications · ${jobsListView.rowsValid ? jobsListView.items.length : "…"} jobs`
+    : "Review applicants in Connect · hire approved teachers here";
+
   return (
     <AppShell
       title="Careers"
-      subtitle={
-        apiMode
-          ? `${countLabel(activeApps.length)} applications · ${jobsListView.rowsValid ? jobsListView.items.length : "…"} jobs`
-          : "Review applicants in Connect · hire approved teachers here"
-      }
+      subtitle={pageSubtitle}
       actions={
         writesEnabled ? (
           <>
@@ -452,6 +453,7 @@ function CareersPage() {
         ) : undefined
       }
     >
+      <ModuleHero eyebrow="Services" title="Careers" subtitle={pageSubtitle} />
       <div className="space-y-4">
         <Card className="overflow-hidden border-primary/20 bg-primary/[0.03]">
           <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
