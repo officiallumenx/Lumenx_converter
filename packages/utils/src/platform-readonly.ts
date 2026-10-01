@@ -27,8 +27,8 @@ export const PLATFORM_READONLY_COPY: Record<
     body: "Your institute licence has expired. The platform is read-only until payment is completed. Viewing data is allowed; creating or editing is blocked.",
   },
   academic_year_locked: {
-    title: "Academic year locked",
-    body: "The active academic year is locked. Historical records are view-only. Unlock or activate a year in Academic Management to make changes.",
+    title: "Academic year required",
+    body: "No active academic year is set. Viewing is allowed; creating or editing is blocked until you activate a year in Academic Management.",
   },
 };
 

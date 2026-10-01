@@ -99,8 +99,26 @@ export function buildNeedsAttentionItems(input: AttentionInput): AttentionItem[]
   }
 
   pushIfPositive(items, seen, {
+    id: "diary-missing",
+    label: "Teachers missing yesterday's diary",
+    count: input.diaryMissingYesterdayCount ?? 0,
+    severity: "attention",
+    to: "/diary",
+    actionLabel: "Review",
+  });
+
+  pushIfPositive(items, seen, {
+    id: "attendance-drafts",
+    label: "Attendance drafts today",
+    count: input.attendanceDraftCount ?? 0,
+    severity: "attention",
+    to: "/attendance",
+    actionLabel: "Review",
+  });
+
+  pushIfPositive(items, seen, {
     id: "leave",
-    label: "Pending leave requests",
+    label: "Leave requests",
     count: input.pendingLeave ?? 0,
     severity: "attention",
     to: "/leave",
@@ -113,24 +131,6 @@ export function buildNeedsAttentionItems(input: AttentionInput): AttentionItem[]
     count: input.openComplaints ?? 0,
     severity: "attention",
     to: "/complaints",
-    actionLabel: "Review",
-  });
-
-  pushIfPositive(items, seen, {
-    id: "diary-missing",
-    label: "Teachers missing yesterday diary",
-    count: input.diaryMissingYesterdayCount ?? 0,
-    severity: "attention",
-    to: "/diary",
-    actionLabel: "Review",
-  });
-
-  pushIfPositive(items, seen, {
-    id: "attendance-drafts",
-    label: "Attendance drafts awaiting submit",
-    count: input.attendanceDraftCount ?? 0,
-    severity: "attention",
-    to: "/attendance",
     actionLabel: "Review",
   });
 

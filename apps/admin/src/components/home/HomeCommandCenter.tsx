@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
+import { syncAcademicYearLocked } from "@lumenx/utils";
 import { useInstituteContext } from "@/lib/institutes";
 import {
   resolveDashboardSummaryView,
@@ -241,6 +242,14 @@ export function HomeCommandCenter() {
       (yearsQuery.data?.status === "ready" && !activeYear) ||
       (yearItems.length === 0 && Boolean(yearsQuery.data)));
 
+  // Clear stale "academic year locked" banners when an active year is already loaded
+  // (mobile could keep a false lock from earlier institute-chrome flicker).
+  useEffect(() => {
+    if (!queriesEnabled || yearsLoading || yearsError) return;
+    if (!activeYear) return;
+    syncAcademicYearLocked({ locked: false, yearLabel: activeYear.label });
+  }, [queriesEnabled, yearsLoading, yearsError, activeYear]);
+
   const openUnreadNotification = async (id: string) => {
     if (markingReadId) return;
     setMarkingReadId(id);
@@ -269,12 +278,12 @@ export function HomeCommandCenter() {
 
   return (
     <div className="lx-home-command space-y-4">
+      <HomeHero attentionCount={attentionTotal} hasCritical={hasCritical} />
+
       <SetupChecklistBanner state={setupState} />
 
       {showSetAcademicYear ? <HomeYearCallout mode="missing" /> : null}
       {yearsError ? <HomeYearCallout mode="error" /> : null}
-
-      <HomeHero attentionCount={attentionTotal} hasCritical={hasCritical} />
 
       <div className="lx-home-band">
         <HomeNeedsAttention
@@ -293,6 +302,7 @@ export function HomeCommandCenter() {
               : null
           }
           loading={summaryLoading}
+          activeYearLabel={activeYear?.label ?? null}
         />
       </div>
 

@@ -134,7 +134,7 @@ function AdminNotificationBellButton({
       >
         <Bell className="size-5" />
         {notifUnread > 0 ? (
-          <span className="absolute -top-0.5 -right-0.5 flex h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-primary-foreground">
+          <span className="lx-admin-notif-badge absolute -top-0.5 -right-0.5 flex h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold leading-none text-destructive-foreground">
             {notifUnread > 99 ? "99+" : notifUnread > 9 ? "9+" : notifUnread}
           </span>
         ) : null}
@@ -159,24 +159,24 @@ function AcademicYearLockSync() {
   useEffect(() => {
     try {
       if (apiMode) {
-        if (instituteCtx.status === "loading") {
-          // Do not treat loading as "no academic year".
-          return;
-        }
+        // Never force academic-year lock from institute chrome flicker / resume.
+        // That falsely locked mobile while an active year already existed.
         if (instituteCtx.status !== "ready" || !instituteCtx.activeInstituteId) {
-          syncAcademicYearLocked({ locked: true, yearLabel: undefined });
           return;
         }
         void syncAdminSubscriptionAccessFromApi(instituteCtx.activeInstituteId);
         if (yearsQuery.isError) {
-          // Error is not "no year" — leave lock as-is (subscription may still apply).
+          // Error is not "no year" — leave academic lock unchanged.
           return;
         }
         if (yearsQuery.isLoading && !yearsQuery.data) {
           return;
         }
-        const items = yearsQuery.data?.items ?? [];
-        const active = items.find((y) => y.status === "active");
+        const list = yearsQuery.data;
+        if (!list) return;
+        // Only apply from authoritative list outcomes (ready / empty).
+        if (list.status !== "ready" && list.status !== "empty") return;
+        const active = (list.items ?? []).find((y) => y.status === "active");
         syncAcademicYearLocked({
           locked: !active,
           yearLabel: active?.label,
@@ -232,6 +232,12 @@ export function AdminChrome() {
 
   useEffect(() => {
     warnAdminNavContractIfNeeded();
+  }, []);
+
+  useEffect(() => {
+    const openNav = () => setMobileOpen(true);
+    window.addEventListener("lx-admin-open-nav", openNav);
+    return () => window.removeEventListener("lx-admin-open-nav", openNav);
   }, []);
 
   useEffect(() => {
@@ -662,8 +668,8 @@ export function AdminChrome() {
             className={`lx-nav-progress ${navBusy ? "lx-nav-progress--active" : ""}`}
             aria-hidden
           />
-          <div className="flex h-14 min-h-14 w-full items-center gap-2 px-3 touch-manipulation md:h-16 md:gap-3 md:px-8">
-            <div className="flex min-w-0 items-center gap-2 md:gap-3">
+          <div className="lx-admin-header__row relative flex h-14 min-h-14 w-full items-center gap-2 px-3 touch-manipulation md:h-16 md:gap-3 md:px-8">
+            <div className="relative z-10 flex min-w-0 items-center gap-2 md:gap-3">
               <Button
                 type="button"
                 variant="ghost"
@@ -674,10 +680,23 @@ export function AdminChrome() {
               >
                 <Menu className="size-5" />
               </Button>
-              {/* Branding (LumenX + institute) lives in the sidebar only — avoid duplicate header marks. */}
             </div>
 
-            <div className="ml-auto flex min-w-0 items-center gap-1 md:gap-2">
+            <div
+              className="lx-admin-header__brand lx-admin-header__brand--mobile pointer-events-none absolute inset-x-0 z-[1] flex justify-center lg:hidden"
+              aria-label="LumenX Admin"
+            >
+              <div className="lx-admin-header__brand-mark text-center leading-tight">
+                <span className="block text-[0.95rem] font-bold tracking-tight text-primary">
+                  LumenX
+                </span>
+                <span className="block text-[0.625rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                  Admin
+                </span>
+              </div>
+            </div>
+
+            <div className="relative z-10 ml-auto flex min-w-0 items-center gap-0.5 md:gap-2">
               <Button
                 type="button"
                 variant="ghost"

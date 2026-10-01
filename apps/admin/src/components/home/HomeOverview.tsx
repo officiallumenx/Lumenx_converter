@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { Link } from "@tanstack/react-router";
 import { Users, GraduationCap, Heart, CalendarOff } from "lucide-react";
 
 function usePrefersReducedMotion(): boolean {
@@ -52,16 +53,18 @@ const CELLS: Array<{
   label: string;
   icon: typeof Users;
   accent: string;
+  contextKey: "year" | "connected" | "none";
 }> = [
-  { key: "students", label: "Students", icon: Users, accent: "lx-home-kpi--students" },
-  { key: "teachers", label: "Teachers", icon: GraduationCap, accent: "lx-home-kpi--teachers" },
-  { key: "parents", label: "Parents", icon: Heart, accent: "lx-home-kpi--parents" },
-  { key: "pendingLeave", label: "Pending leave", icon: CalendarOff, accent: "lx-home-kpi--leave" },
+  { key: "students", label: "Students", icon: Users, accent: "lx-home-kpi--students", contextKey: "year" },
+  { key: "teachers", label: "Teachers", icon: GraduationCap, accent: "lx-home-kpi--teachers", contextKey: "year" },
+  { key: "parents", label: "Parents", icon: Heart, accent: "lx-home-kpi--parents", contextKey: "connected" },
+  { key: "pendingLeave", label: "Pending leave", icon: CalendarOff, accent: "lx-home-kpi--leave", contextKey: "none" },
 ];
 
 export function HomeOverview({
   summary,
   loading,
+  activeYearLabel,
 }: {
   summary: {
     students: number;
@@ -70,6 +73,8 @@ export function HomeOverview({
     pendingLeave: number;
   } | null;
   loading?: boolean;
+  /** Real active academic year label — only used when present. */
+  activeYearLabel?: string | null;
 }) {
   if (loading && !summary) {
     return (
@@ -79,7 +84,7 @@ export function HomeOverview({
         </div>
         <div className="lx-home-kpi-grid">
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="skeleton h-[4.5rem] rounded-xl" />
+            <div key={i} className="skeleton h-[4.75rem] rounded-xl" />
           ))}
         </div>
       </section>
@@ -92,23 +97,37 @@ export function HomeOverview({
     <section className="lx-home-section lx-home-panel" style={{ "--lx-home-i": 3 } as CSSProperties}>
       <div className="lx-home-panel__head">
         <h2 className="lx-home-panel__title">Institute overview</h2>
-        <p className="lx-home-panel__hint">Live operational counts</p>
+        <Link to="/students" className="lx-home-panel__link">
+          View all →
+        </Link>
       </div>
       <div className="lx-home-kpi-grid">
         {CELLS.map((cell) => {
           const Icon = cell.icon;
           const value = summary[cell.key];
+          let context: string | null = null;
+          if (cell.contextKey === "year" && activeYearLabel) {
+            context = "Active this year";
+          } else if (cell.contextKey === "connected" && value > 0) {
+            context = "Connected";
+          }
           return (
             <div key={cell.key} className={`lx-home-kpi ${cell.accent}`}>
               <div className="lx-home-kpi__top">
-                <span className="lx-home-kpi__label">{cell.label}</span>
                 <span className="lx-home-kpi__icon" aria-hidden>
                   <Icon className="size-3.5" />
                 </span>
+                <span className="lx-home-kpi__label">{cell.label}</span>
               </div>
               <p className="lx-home-kpi__value">
                 <AnimatedNumber value={value} />
               </p>
+              {context ? (
+                <p className="lx-home-kpi__context">
+                  <span className="lx-home-kpi__dot" aria-hidden />
+                  {context}
+                </p>
+              ) : null}
             </div>
           );
         })}

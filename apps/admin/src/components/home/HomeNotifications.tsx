@@ -38,10 +38,8 @@ export function HomeNotifications({
         </h2>
         <div className="flex items-center gap-2">
           <Pill tone="info">{unread.length}</Pill>
-          <Link to="/notifications" search={{ tab: "inbox" }}>
-            <Button size="sm" variant="outline">
-              Inbox
-            </Button>
+          <Link to="/notifications" search={{ tab: "inbox" }} className="lx-home-panel__link">
+            Inbox →
           </Link>
         </div>
       </div>
@@ -58,15 +56,15 @@ export function HomeNotifications({
                 </span>
               </span>
               <Pill tone={priorityTone(row.priority)}>
-                {row.priority === "high" ? "Urgent" : "Info"}
+                {row.priority === "high" ? "High" : row.priority === "low" ? "Low" : "Normal"}
               </Pill>
               <Button
                 size="sm"
                 variant="outline"
-                disabled={Boolean(markingReadId)}
+                disabled={busy}
                 onClick={() => onOpen(row.id)}
               >
-                {busy ? "Opening…" : "Open"}
+                Open
               </Button>
             </li>
           );

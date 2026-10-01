@@ -14,6 +14,7 @@
     "cap:open:android": "cap open android",
     "android:aab": "cd android && gradlew.bat bundleRelease",
     "cap:aab": "npm run build:capacitor && npx cap sync android && npm run android:aab",
+    "icons:android": "node scripts/generate-launcher-icons.mjs",
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",

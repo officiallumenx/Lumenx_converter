@@ -204,21 +204,36 @@ export function SetupChecklistBanner({
   if (state.status !== "ready" || state.coreComplete) return null;
 
   const next = state.steps.find((s) => s.state === "todo");
+  const pct =
+    state.coreTotal > 0
+      ? Math.min(100, Math.round((state.coreDone / state.coreTotal) * 100))
+      : 0;
 
   return (
-    <section className="lx-home-section lx-home-callout lx-home-callout--setup">
-      <div className="min-w-0 space-y-0.5">
-        <p className="lx-home-callout__title">
-          Complete your institute setup
-        </p>
+    <section className="lx-home-section lx-home-setup">
+      <div className="lx-home-setup__icon" aria-hidden>
+        <ListChecks className="size-4" />
+      </div>
+      <div className="lx-home-setup__body min-w-0 flex-1">
+        <p className="lx-home-callout__title">Complete your institute setup</p>
         <p className="lx-home-callout__hint">
           {state.coreDone} of {state.coreTotal} completed
           {next ? ` · Next: ${next.title}` : ""}
         </p>
+        <div
+          className="lx-home-setup__bar"
+          role="progressbar"
+          aria-valuenow={state.coreDone}
+          aria-valuemin={0}
+          aria-valuemax={state.coreTotal}
+          aria-label="Institute setup progress"
+        >
+          <span style={{ width: `${pct}%` }} />
+        </div>
       </div>
-      <Link to="/setup">
-        <Button variant="primary" size="sm" className="gap-1.5 shrink-0">
-          Continue setup
+      <Link to="/setup" className="shrink-0">
+        <Button variant="primary" size="sm" className="gap-1.5">
+          Continue
           <ArrowRight className="size-3.5" />
         </Button>
       </Link>

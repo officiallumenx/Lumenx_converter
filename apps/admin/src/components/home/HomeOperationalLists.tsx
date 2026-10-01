@@ -36,7 +36,8 @@ export function HomeOperationalLists({
   marksPending: MarksPendingRow[];
   transportEmergencies: TransportEmergencyDto[];
 }) {
-  const showDiary = diaryRows.length > 0 || diaryMissingYesterday > 0;
+  // Detail list only when there are submissions — missing-yesterday is covered by Needs Attention.
+  const showDiary = diaryRows.length > 0;
   const showAttendance = attendanceDrafts.length > 0;
   const showMarks = marksPending.length > 0;
   const showTransport = transportEmergencies.length > 0;
@@ -50,13 +51,12 @@ export function HomeOperationalLists({
       {showDiary ? (
         <section className="lx-home-section lx-home-panel" style={{ "--lx-home-i": 7 } as CSSProperties}>
           <div className="lx-home-panel__head">
-            <h2 className="lx-home-panel__title">Diary</h2>
+            <h2 className="lx-home-panel__title">Diary submissions</h2>
             <div className="flex items-center gap-1.5">
               {diaryMissingYesterday > 0 ? (
                 <Pill tone="warning">{diaryMissingYesterday} missing</Pill>
-              ) : diaryRows.length > 0 ? (
-                <Pill tone="info">{diaryRows.length} recent</Pill>
               ) : null}
+              <Pill tone="info">{diaryRows.length}</Pill>
               <Link to="/diary">
                 <Button size="sm" variant="outline" className="gap-1">
                   Open <ArrowUpRight className="size-3.5" />
@@ -64,26 +64,20 @@ export function HomeOperationalLists({
               </Link>
             </div>
           </div>
-          {diaryRows.length === 0 ? (
-            <p className="text-sm text-muted-foreground px-1 pb-1">
-              {diaryMissingYesterday} teacher{diaryMissingYesterday === 1 ? "" : "s"} missing yesterday&apos;s diary.
-            </p>
-          ) : (
-            <ul className="lx-home-ops-list">
-              {diaryRows.slice(0, 6).map((row) => (
-                <li key={row.id} className="lx-home-ops-row">
-                  <BookMarked className="size-3.5 text-muted-foreground shrink-0" aria-hidden />
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-medium">{row.diaryDate}</span>
-                    <span className="block text-[11px] text-muted-foreground">
-                      {row.scope} · {row.rowCount} entr{row.rowCount === 1 ? "y" : "ies"} ·{" "}
-                      {formatSubmittedAt(row.submittedAt)}
-                    </span>
+          <ul className="lx-home-ops-list">
+            {diaryRows.slice(0, 6).map((row) => (
+              <li key={row.id} className="lx-home-ops-row">
+                <BookMarked className="size-3.5 text-muted-foreground shrink-0" aria-hidden />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium">{row.diaryDate}</span>
+                  <span className="block text-[11px] text-muted-foreground">
+                    {row.scope} · {row.rowCount} entr{row.rowCount === 1 ? "y" : "ies"} ·{" "}
+                    {formatSubmittedAt(row.submittedAt)}
                   </span>
-                </li>
-              ))}
-            </ul>
-          )}
+                </span>
+              </li>
+            ))}
+          </ul>
         </section>
       ) : null}
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Link } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Card, CardHeader } from "@lumenx/ui-admin";
+import { Card } from "@lumenx/ui-admin";
 import {
   adminMobileNavIconStyle,
   adminMoreTileStyle,
@@ -162,14 +162,27 @@ export function HomeQuickActionsCard() {
     return sectionModules(tab);
   }, [tab, usage]);
 
+  const moduleCount = allModules().length;
   const hint =
     tab === TOP_TAB
-      ? `${actions.length} most-used modules`
-      : `${actions.length} ${tab} modules`;
+      ? `${actions.length} most-used`
+      : `${actions.length} ${tab}`;
 
   return (
     <Card className="lx-quick-actions-card lx-home-qa" data-swipe-nav-ignore>
-      <CardHeader title="Quick Actions" hint={hint} />
+      <div className="lx-home-qa__head px-3 pt-3 sm:px-4">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="lx-home-panel__title">Quick Actions</h2>
+          <button
+            type="button"
+            className="lx-home-panel__link"
+            onClick={() => window.dispatchEvent(new CustomEvent("lx-admin-open-nav"))}
+          >
+            {moduleCount} modules →
+          </button>
+        </div>
+        <p className="lx-home-panel__hint mt-0.5">{hint}</p>
+      </div>
       <div className="lx-quick-actions-body">
         <QuickActionSectionTabs value={tab} onChange={setTab} />
         <div
@@ -185,7 +198,7 @@ export function HomeQuickActionsCard() {
               <Link
                 key={action.to}
                 to={action.to}
-                className="lx-quick-action-tile group rounded-lg border bg-background/50 transition-colors hover:bg-surface-hover"
+                className="lx-quick-action-tile group rounded-xl border bg-background/50 transition-colors hover:bg-surface-hover"
                 style={adminMoreTileStyle(accent, false)}
                 onClick={() => {
                   recordQuickActionUse(action.to);
