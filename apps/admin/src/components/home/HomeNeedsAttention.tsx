@@ -14,13 +14,6 @@ import {
   UserPlus,
   type LucideIcon,
 } from "lucide-react";
-import { Pill } from "@lumenx/ui-admin";
-
-function severityTone(severity: AttentionSeverity): "danger" | "warning" | "info" | "neutral" {
-  if (severity === "critical" || severity === "urgent") return "danger";
-  if (severity === "attention") return "warning";
-  return "info";
-}
 
 function iconFor(id: string): LucideIcon {
   switch (id) {
@@ -47,10 +40,23 @@ function iconFor(id: string): LucideIcon {
   }
 }
 
-function chipClass(severity: AttentionSeverity): string {
+function chipClass(id: string, severity: AttentionSeverity): string {
+  if (id === "diary-missing") return "lx-home-att-chip lx-home-att-chip--orange";
+  if (id === "attendance-drafts") return "lx-home-att-chip lx-home-att-chip--info";
+  if (id === "marks-review") return "lx-home-att-chip lx-home-att-chip--purple";
+  if (id === "leave") return "lx-home-att-chip lx-home-att-chip--green";
   if (severity === "critical" || severity === "urgent") return "lx-home-att-chip lx-home-att-chip--critical";
   if (severity === "attention") return "lx-home-att-chip lx-home-att-chip--attention";
   return "lx-home-att-chip lx-home-att-chip--info";
+}
+
+function badgeClass(id: string, severity: AttentionSeverity): string {
+  if (id === "diary-missing") return "lx-home-att-badge lx-home-att-badge--orange";
+  if (id === "attendance-drafts") return "lx-home-att-badge lx-home-att-badge--blue";
+  if (id === "marks-review") return "lx-home-att-badge lx-home-att-badge--purple";
+  if (id === "leave") return "lx-home-att-badge lx-home-att-badge--green";
+  if (severity === "critical" || severity === "urgent") return "lx-home-att-badge lx-home-att-badge--red";
+  return "lx-home-att-badge lx-home-att-badge--amber";
 }
 
 export function HomeNeedsAttention({
@@ -62,7 +68,7 @@ export function HomeNeedsAttention({
 }) {
   if (loading && items.length === 0) {
     return (
-      <section className="lx-home-section lx-home-panel lx-home-attention" style={{ "--lx-home-i": 2 } as CSSProperties}>
+      <section className="lx-home-section lx-home-panel lx-home-attention" style={{ "--lx-home-i": 3 } as CSSProperties}>
         <div className="lx-home-attention__head">
           <div className="skeleton h-5 w-36 rounded-md" />
           <div className="skeleton h-5 w-8 rounded-full" />
@@ -80,7 +86,7 @@ export function HomeNeedsAttention({
     return (
       <section
         className="lx-home-section lx-home-healthy"
-        style={{ "--lx-home-i": 2 } as CSSProperties}
+        style={{ "--lx-home-i": 3 } as CSSProperties}
         aria-live="polite"
       >
         <CheckCircle2 className="size-4 text-success shrink-0" aria-hidden />
@@ -94,14 +100,19 @@ export function HomeNeedsAttention({
   const total = items.reduce((s, i) => s + i.count, 0);
 
   return (
-    <section className="lx-home-section lx-home-panel lx-home-attention" style={{ "--lx-home-i": 2 } as CSSProperties}>
+    <section className="lx-home-section lx-home-panel lx-home-attention" style={{ "--lx-home-i": 3 } as CSSProperties}>
       <div className="lx-home-attention__head">
         <div className="lx-home-attention__title-row">
           <span className="lx-home-attention__warn" aria-hidden>
             <AlertTriangle className="size-3.5" />
           </span>
-          <h2 className="lx-home-panel__title">Needs Attention</h2>
-          <Pill tone="warning">{total}</Pill>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h2 className="lx-home-panel__title">Needs Attention</h2>
+              <span className="lx-home-att-badge lx-home-att-badge--red">{total}</span>
+            </div>
+            <p className="lx-home-panel__hint mt-0.5">Items that need your action</p>
+          </div>
         </div>
       </div>
       <ul className="lx-home-attention-list">
@@ -114,7 +125,7 @@ export function HomeNeedsAttention({
                 search={item.search}
                 className="lx-home-attention-row"
               >
-                <span className={chipClass(item.severity)} aria-hidden>
+                <span className={chipClass(item.id, item.severity)} aria-hidden>
                   <Icon className="size-3.5" />
                 </span>
                 <span className="min-w-0 flex-1">
@@ -122,7 +133,7 @@ export function HomeNeedsAttention({
                     {item.label}
                   </span>
                 </span>
-                <Pill tone={severityTone(item.severity)}>{item.count}</Pill>
+                <span className={badgeClass(item.id, item.severity)}>{item.count}</span>
                 <span className="lx-home-attention-action" aria-hidden>
                   →
                 </span>

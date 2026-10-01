@@ -215,11 +215,12 @@ export function SetupChecklistBanner({
         <ListChecks className="size-4" />
       </div>
       <div className="lx-home-setup__body min-w-0 flex-1">
-        <p className="lx-home-callout__title">Complete your institute setup</p>
-        <p className="lx-home-callout__hint">
-          {state.coreDone} of {state.coreTotal} completed
-          {next ? ` · Next: ${next.title}` : ""}
-        </p>
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <p className="lx-home-callout__title">Complete your institute setup</p>
+          <p className="lx-home-callout__hint !mt-0">
+            {state.coreDone} of {state.coreTotal} completed
+          </p>
+        </div>
         <div
           className="lx-home-setup__bar"
           role="progressbar"
@@ -230,6 +231,12 @@ export function SetupChecklistBanner({
         >
           <span style={{ width: `${pct}%` }} />
         </div>
+        {next ? (
+          <p className="lx-home-setup__next">
+            Next: <strong>{next.title}</strong>
+            {next.description ? ` — ${next.description}` : ""}
+          </p>
+        ) : null}
       </div>
       <Link to="/setup" className="shrink-0">
         <Button variant="primary" size="sm" className="gap-1.5">

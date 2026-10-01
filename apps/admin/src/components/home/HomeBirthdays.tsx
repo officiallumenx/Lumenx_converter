@@ -9,14 +9,21 @@ export function HomeBirthdays({ rows }: { rows: BirthdayRow[] }) {
   if (rows.length === 0) return null;
 
   return (
-    <section className="lx-home-section lx-home-birthdays" style={{ "--lx-home-i": 5 } as CSSProperties}>
+    <section className="lx-home-section lx-home-birthdays" style={{ "--lx-home-i": 4 } as CSSProperties}>
       <div className="lx-home-birthdays__head">
         <div className="lx-home-birthdays__title-row">
           <span className="lx-home-birthdays__icon" aria-hidden>
             <Cake className="size-3.5" />
           </span>
-          <h2 className="lx-home-panel__title">Today&apos;s Birthdays</h2>
-          <span className="lx-home-birthdays__count">{rows.length}</span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h2 className="lx-home-panel__title">Today&apos;s Birthdays</h2>
+              <span className="lx-home-birthdays__count">{rows.length}</span>
+            </div>
+            <p className="lx-home-panel__hint mt-0.5">
+              Students and teachers with a birthday today
+            </p>
+          </div>
         </div>
         <ChevronRight className="size-4 text-muted-foreground shrink-0" aria-hidden />
       </div>
@@ -41,8 +48,8 @@ export function HomeBirthdays({ rows }: { rows: BirthdayRow[] }) {
                   {person.name}
                 </span>
                 <span className="block text-[11px] text-muted-foreground truncate">
+                  {person.detail ? `${person.detail} · ` : ""}
                   {person.role}
-                  {person.detail ? ` · ${person.detail}` : ""}
                 </span>
               </span>
             </>

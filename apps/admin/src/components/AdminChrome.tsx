@@ -680,19 +680,18 @@ export function AdminChrome() {
               >
                 <Menu className="size-5" />
               </Button>
-            </div>
-
-            <div
-              className="lx-admin-header__brand lx-admin-header__brand--mobile pointer-events-none absolute inset-x-0 z-[1] flex justify-center lg:hidden"
-              aria-label="LumenX Admin"
-            >
-              <div className="lx-admin-header__brand-mark text-center leading-tight">
-                <span className="block text-[0.95rem] font-bold tracking-tight text-primary">
-                  LumenX
-                </span>
-                <span className="block text-[0.625rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                  Admin
-                </span>
+              <div
+                className="lx-admin-header__brand lx-admin-header__brand--mobile lg:hidden"
+                aria-label="LumenX Admin"
+              >
+                <div className="lx-admin-header__brand-mark leading-tight">
+                  <span className="block text-[0.95rem] font-bold tracking-tight text-primary">
+                    LumenX
+                  </span>
+                  <span className="block text-[0.625rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                    Admin
+                  </span>
+                </div>
               </div>
             </div>
 

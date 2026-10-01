@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Link } from "@tanstack/react-router";
-import { Users, GraduationCap, Heart, CalendarOff } from "lucide-react";
+import { Users, GraduationCap, Heart, CalendarOff, ChevronRight } from "lucide-react";
 
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);
@@ -94,9 +94,9 @@ export function HomeOverview({
   if (!summary) return null;
 
   return (
-    <section className="lx-home-section lx-home-panel" style={{ "--lx-home-i": 3 } as CSSProperties}>
+    <section className="lx-home-section lx-home-panel lx-home-overview" style={{ "--lx-home-i": 2 } as CSSProperties}>
       <div className="lx-home-panel__head">
-        <h2 className="lx-home-panel__title">Institute overview</h2>
+        <h2 className="lx-home-panel__title">Institute Overview</h2>
         <Link to="/students" className="lx-home-panel__link">
           View all →
         </Link>
@@ -118,6 +118,9 @@ export function HomeOverview({
                   <Icon className="size-3.5" />
                 </span>
                 <span className="lx-home-kpi__label">{cell.label}</span>
+                {cell.key === "pendingLeave" ? (
+                  <ChevronRight className="size-3.5 text-muted-foreground ml-auto shrink-0" aria-hidden />
+                ) : null}
               </div>
               <p className="lx-home-kpi__value">
                 <AnimatedNumber value={value} />

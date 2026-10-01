@@ -36,7 +36,7 @@ import { HomeYearCallout } from "./HomeYearCallout";
 import { HomeNeedsAttention } from "./HomeNeedsAttention";
 import { HomeOverview } from "./HomeOverview";
 import { HomeBirthdays } from "./HomeBirthdays";
-import { HomeNotifications } from "./HomeNotifications";
+import { HomeRecentActivity } from "./HomeRecentActivity";
 import { HomeOperationalLists } from "./HomeOperationalLists";
 
 function emptyWidgets(): DashboardWidgetsState {
@@ -95,8 +95,6 @@ export function HomeCommandCenter() {
     Awaited<ReturnType<typeof listTransportEmergencies>>
   >([]);
   const [markingReadId, setMarkingReadId] = useState<string | null>(null);
-
-  const unreadNotifications = (inboxQuery.data?.items ?? []).filter((n) => n.unread);
 
   const summary = summaryQuery.data?.summary ?? null;
   const loadStatus =
@@ -276,47 +274,57 @@ export function HomeCommandCenter() {
       ? widgets.birthdays.rows
       : [];
 
+  const activityItems = inboxQuery.data?.items ?? [];
+  const instituteName = instituteCtx.activeInstitute?.name?.trim() || null;
+  const yearLabel = activeYear?.label ?? null;
+
   return (
     <div className="lx-home-command space-y-4">
-      <HomeHero attentionCount={attentionTotal} hasCritical={hasCritical} />
+      <HomeHero
+        attentionCount={attentionTotal}
+        hasCritical={hasCritical}
+        instituteName={instituteName}
+        academicYearLabel={yearLabel}
+      />
 
       <SetupChecklistBanner state={setupState} />
 
       {showSetAcademicYear ? <HomeYearCallout mode="missing" /> : null}
       {yearsError ? <HomeYearCallout mode="error" /> : null}
 
-      <div className="lx-home-band">
+      <HomeOverview
+        summary={
+          view.summary
+            ? {
+                students: view.summary.students,
+                teachers: view.summary.teachers,
+                parents: view.summary.parents,
+                pendingLeave: view.summary.pendingLeave,
+              }
+            : null
+        }
+        loading={summaryLoading}
+        activeYearLabel={yearLabel}
+      />
+
+      <div className="lx-home-mid-grid">
         <HomeNeedsAttention
           items={attentionItems}
           loading={summaryLoading || widgetsLoading}
         />
-        <HomeOverview
-          summary={
-            view.summary
-              ? {
-                  students: view.summary.students,
-                  teachers: view.summary.teachers,
-                  parents: view.summary.parents,
-                  pendingLeave: view.summary.pendingLeave,
-                }
-              : null
-          }
-          loading={summaryLoading}
-          activeYearLabel={activeYear?.label ?? null}
+        <HomeBirthdays rows={birthdayRows} />
+      </div>
+
+      <div className="lx-home-bottom-grid">
+        <div className="lx-home-section" style={{ "--lx-home-i": 5 } as CSSProperties}>
+          <HomeQuickActionsCard />
+        </div>
+        <HomeRecentActivity
+          items={activityItems}
+          markingReadId={markingReadId}
+          onOpen={(id) => void openUnreadNotification(id)}
         />
       </div>
-
-      <div className="lx-home-section" style={{ "--lx-home-i": 4 } as CSSProperties}>
-        <HomeQuickActionsCard />
-      </div>
-
-      <HomeBirthdays rows={birthdayRows} />
-
-      <HomeNotifications
-        unread={unreadNotifications}
-        markingReadId={markingReadId}
-        onOpen={(id) => void openUnreadNotification(id)}
-      />
 
       {widgetsValid ? (
         <HomeOperationalLists
