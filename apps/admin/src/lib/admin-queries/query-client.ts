@@ -1,7 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { ApiClientError } from "@/lib/api";
 import { isOnline } from "@lumenx/utils";
-import { invalidateSetupChecklistCache } from "./load";
+import { invalidateSetupChecklistCache } from "@/lib/institute-setup-checklist";
 import {
   ADMIN_QUERY_GC_TIME_MS,
   ADMIN_QUERY_STALE_TIME_MS,
