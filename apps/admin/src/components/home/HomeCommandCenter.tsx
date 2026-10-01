@@ -316,7 +316,7 @@ export function HomeCommandCenter() {
       </div>
 
       <div className="lx-home-bottom-grid">
-        <div className="lx-home-section" style={{ "--lx-home-i": 5 } as CSSProperties}>
+        <div className="lx-home-section lx-home-bottom-grid__qa" style={{ "--lx-home-i": 5 } as CSSProperties}>
           <HomeQuickActionsCard />
         </div>
         <HomeRecentActivity

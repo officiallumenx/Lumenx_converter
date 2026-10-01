@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import { Clock } from "lucide-react";
-import { Button, Pill } from "@lumenx/ui-admin";
+import { Pill } from "@lumenx/ui-admin";
 import { Link } from "@tanstack/react-router";
 import type { NotificationInboxListItem } from "@/lib/notification-inbox/types";
 
@@ -71,11 +71,9 @@ export function HomeRecentActivity({
           );
         })}
       </ul>
-      <div className="mt-2 flex justify-end">
-        <Link to="/notifications" search={{ tab: "inbox" }}>
-          <Button size="sm" variant="outline">
-            Open inbox
-          </Button>
+      <div className="lx-home-activity__footer">
+        <Link to="/notifications" search={{ tab: "inbox" }} className="lx-home-panel__link">
+          Open inbox →
         </Link>
       </div>
     </section>
