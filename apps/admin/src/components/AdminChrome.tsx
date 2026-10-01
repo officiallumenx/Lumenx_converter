@@ -30,7 +30,7 @@ import { RouteOutletErrorBoundary } from "@/components/RouteOutletErrorBoundary"
 import { PullToRefresh, DataRefreshStatusBar } from "@/components/PullToRefresh";
 import { DataRefreshHost } from "@/components/DataRefreshHost";
 import { loadAcademicYears } from "@/lib/academic-management-data";
-import { loadAcademicYearsList } from "@/lib/academic-years";
+import { useAcademicYearsListQuery } from "@/lib/admin-queries";
 import {
   adminWriteBlockReason,
   canAdminMutate,
@@ -147,28 +147,41 @@ function AcademicYearLockSync() {
   const { profile } = useDemoProfile();
   const instituteCtx = useInstituteContext();
   const apiMode = isApiAuthMode();
+  const yearsEnabled =
+    apiMode &&
+    instituteCtx.status === "ready" &&
+    Boolean(instituteCtx.activeInstituteId);
+  const yearsQuery = useAcademicYearsListQuery(
+    instituteCtx.activeInstituteId,
+    yearsEnabled,
+  );
 
   useEffect(() => {
     try {
       if (apiMode) {
+        if (instituteCtx.status === "loading") {
+          // Do not treat loading as "no academic year".
+          return;
+        }
         if (instituteCtx.status !== "ready" || !instituteCtx.activeInstituteId) {
           syncAcademicYearLocked({ locked: true, yearLabel: undefined });
           return;
         }
-        const instituteId = instituteCtx.activeInstituteId;
-        let cancelled = false;
-        void syncAdminSubscriptionAccessFromApi(instituteId);
-        void loadAcademicYearsList(instituteId).then((next) => {
-          if (cancelled) return;
-          const active = next.items.find((y) => y.status === "active");
-          syncAcademicYearLocked({
-            locked: !active,
-            yearLabel: active?.label,
-          });
+        void syncAdminSubscriptionAccessFromApi(instituteCtx.activeInstituteId);
+        if (yearsQuery.isError) {
+          // Error is not "no year" — leave lock as-is (subscription may still apply).
+          return;
+        }
+        if (yearsQuery.isLoading && !yearsQuery.data) {
+          return;
+        }
+        const items = yearsQuery.data?.items ?? [];
+        const active = items.find((y) => y.status === "active");
+        syncAcademicYearLocked({
+          locked: !active,
+          yearLabel: active?.label,
         });
-        return () => {
-          cancelled = true;
-        };
+        return;
       }
       syncAdminSubscriptionAccess();
       const active = loadAcademicYears().find((y) => y.status === "active");
@@ -179,7 +192,15 @@ function AcademicYearLockSync() {
     } catch {
       // Never let subscription sync freeze Admin chrome after unlock.
     }
-  }, [apiMode, instituteCtx.status, instituteCtx.activeInstituteId, profile]);
+  }, [
+    apiMode,
+    instituteCtx.status,
+    instituteCtx.activeInstituteId,
+    profile,
+    yearsQuery.isLoading,
+    yearsQuery.isError,
+    yearsQuery.data,
+  ]);
 
   return null;
 }

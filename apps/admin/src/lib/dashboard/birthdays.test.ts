@@ -45,6 +45,7 @@ describe("collectBirthdaysToday", () => {
           dateOfBirth: "2012-08-29",
           classLabel: "5",
           sectionLabel: "A",
+          photoAssetPath: "photos/s1.jpg",
         },
         {
           id: "s2",
@@ -60,6 +61,7 @@ describe("collectBirthdaysToday", () => {
           displayName: "Ms. Chen",
           dateOfBirth: "1985-08-29",
           department: "Math",
+          photoAssetPath: null,
         },
       ],
     });
@@ -67,6 +69,8 @@ describe("collectBirthdaysToday", () => {
     expect(rows.map((r) => r.name)).toEqual(["Ada", "Ms. Chen"]);
     expect(rows[0]?.role).toBe("Student");
     expect(rows[0]?.detail).toBe("5 · A");
+    expect(rows[0]?.photoAssetPath).toBe("photos/s1.jpg");
     expect(rows[1]?.role).toBe("Teacher");
+    expect(rows[1]?.photoAssetPath).toBeNull();
   });
 });

@@ -38,6 +38,7 @@ import { isApiAuthMode } from "@/auth/auth-mode";
 import { AlertsApiRulesPanel } from "@/components/alerts/AlertsApiRulesPanel";
 import { AlertsBroadcastPanel } from "@/components/alerts/AlertsBroadcastPanel";
 import { useAdminToast } from "@/components/AdminActionToast";
+import { enableAdminPushBootstrap } from "@/lib/push-bootstrap-gate";
 import {
   addAlertRule,
   resolveAlertFire,
@@ -65,6 +66,10 @@ const RULE_ICONS: Record<AlertRuleIconKey, typeof ClipboardCheck> = {
 };
 
 function AlertsPage() {
+  useEffect(() => {
+    enableAdminPushBootstrap();
+  }, []);
+
   if (isApiAuthMode()) {
     return (
       <AppShell

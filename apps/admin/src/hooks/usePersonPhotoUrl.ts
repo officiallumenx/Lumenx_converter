@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { adminQueryKeys } from "@/lib/admin-queries/keys";
 import { getPhotoSignedUrl } from "@/lib/photos/api";
@@ -9,17 +9,17 @@ import {
 
 /**
  * Resolves a short-lived signed URL for a student or teacher profile photo.
- * Looks up by person id — the API returns null when no photo is stored.
- * Expired persisted URLs are treated as stale so reopen refetches quickly.
+ * Skips the network when there is no stored photo asset path.
  */
 export function usePersonPhotoUrl(
   kind: "student" | "teacher",
   personId: string | null | undefined,
-  _photoAssetPath?: string | null | undefined,
+  photoAssetPath?: string | null | undefined,
 ) {
+  const hasPhoto = Boolean(photoAssetPath?.trim());
   return useQuery({
     queryKey: adminQueryKeys.photosSignedUrl(kind, personId ?? ""),
-    enabled: isApiAuthMode() && Boolean(personId?.trim()),
+    enabled: isApiAuthMode() && Boolean(personId?.trim()) && hasPhoto,
     queryFn: () => getPhotoSignedUrl(kind, personId!.trim()),
     select: (data) =>
       isSignedPhotoUrlUsable(data.photoSignedUrl, data.photoExpiresAt)
@@ -27,7 +27,8 @@ export function usePersonPhotoUrl(
         : null,
     staleTime: (query) =>
       signedPhotoStaleTimeMs(query.state.data?.photoExpiresAt ?? null),
-    refetchOnMount: true,
+    placeholderData: keepPreviousData,
+    refetchOnMount: false,
     refetchOnReconnect: true,
   });
 }

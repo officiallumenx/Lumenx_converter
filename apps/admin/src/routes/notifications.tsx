@@ -17,6 +17,7 @@ import { SegmentedControl } from "@lumenx/ui-admin";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
 import { resolveWritesEnabled } from "@/lib/security/writes-enabled";
+import { enableAdminPushBootstrap } from "@/lib/push-bootstrap-gate";
 import {
   resolveNotificationInboxListView,
   type NotificationInboxListItem,
@@ -42,6 +43,10 @@ function NotificationsPage() {
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
   const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
+
+  useEffect(() => {
+    enableAdminPushBootstrap();
+  }, []);
 
   const { tab: tabFromSearch } = Route.useSearch();
   const navigate = Route.useNavigate();

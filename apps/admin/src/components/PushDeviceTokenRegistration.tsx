@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { getAdminApiClient } from "@/lib/admin-api";
@@ -6,12 +6,25 @@ import { bootstrapPushDeviceToken } from "@lumenx/notifications";
 import { bootstrapWebFcm, logLumenXAnalyticsEventForContext } from "@lumenx/auth";
 import { dispatchInAppAlert } from "@lumenx/notifications";
 import { adminQueryRoots, ADMIN_QUERY_SCOPE } from "@/lib/admin-queries/keys";
+import {
+  isAdminPushBootstrapAllowed,
+  subscribeAdminPushBootstrap,
+} from "@/lib/push-bootstrap-gate";
 
+/**
+ * Registers FCM / native push after the user reaches Notifications or Alerts
+ * (contextual permission), not on cold Admin shell start.
+ */
 export function PushDeviceTokenRegistration({ enabled }: { enabled: boolean }): null {
   const queryClient = useQueryClient();
+  const pushAllowed = useSyncExternalStore(
+    subscribeAdminPushBootstrap,
+    isAdminPushBootstrapAllowed,
+    () => false,
+  );
 
   useEffect(() => {
-    if (!enabled || !isApiAuthMode()) return;
+    if (!enabled || !pushAllowed || !isApiAuthMode()) return;
     const invalidateInbox = () => {
       void queryClient.invalidateQueries({
         predicate: (q) =>
@@ -66,8 +79,10 @@ export function PushDeviceTokenRegistration({ enabled }: { enabled: boolean }): 
         }),
     }).then((dispose) => {
       cleanup = dispose;
+    }).catch(() => {
+      // Permission unavailable / plugin missing — never crash Admin shell.
     });
     return () => cleanup?.();
-  }, [enabled, queryClient]);
+  }, [enabled, pushAllowed, queryClient]);
   return null;
 }

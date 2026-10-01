@@ -168,7 +168,7 @@ export function HomeQuickActionsCard() {
       : `${actions.length} ${tab} modules`;
 
   return (
-    <Card className="lx-quick-actions-card" data-swipe-nav-ignore>
+    <Card className="lx-quick-actions-card lx-home-qa" data-swipe-nav-ignore>
       <CardHeader title="Quick Actions" hint={hint} />
       <div className="lx-quick-actions-body">
         <QuickActionSectionTabs value={tab} onChange={setTab} />

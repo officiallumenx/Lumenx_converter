@@ -6,12 +6,31 @@ import {
   type AdminQueryEntity,
 } from "./keys";
 
-/** Soft refresh: invalidate all Admin TanStack Query caches (not clear). */
+function queryKeyLooksLikeSignedUrl(queryKey: readonly unknown[]): boolean {
+  return queryKey.some(
+    (part) => typeof part === "string" && part.toLowerCase().includes("signed-url"),
+  );
+}
+
+/**
+ * Soft refresh: invalidate active Admin queries for the institute (or whole
+ * Admin scope when institute unknown). Skips signed-url photo keys so resume
+ * does not force mass re-sign + image re-download.
+ */
 export function invalidateAdminSoftRefresh(
   queryClient: QueryClient,
+  instituteId?: string | null,
 ): Promise<void> {
+  const baseKey = instituteId?.trim()
+    ? adminInstitutePrefix(instituteId.trim())
+    : adminScopePrefix();
+
   return queryClient
-    .invalidateQueries({ queryKey: adminScopePrefix() })
+    .invalidateQueries({
+      queryKey: baseKey,
+      refetchType: "active",
+      predicate: (query) => !queryKeyLooksLikeSignedUrl(query.queryKey),
+    })
     .then(() => undefined);
 }
 

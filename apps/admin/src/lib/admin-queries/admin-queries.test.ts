@@ -88,6 +88,52 @@ describe("persist helpers", () => {
         state: { status: "success" },
       }),
     ).toBe(false);
+    expect(
+      shouldDehydrateAdminQuery({
+        queryKey: adminQueryKeys.photosSignedUrl("student", "stu-1"),
+        state: { status: "success" },
+      }),
+    ).toBe(false);
+    expect(
+      shouldDehydrateAdminQuery({
+        queryKey: [ADMIN_QUERY_SCOPE, "i1", "photos", "students", {}],
+        state: { status: "success" },
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("soft refresh", () => {
+  it("skips signed-url keys when soft-refreshing an institute", async () => {
+    const { QueryClient } = await import("@tanstack/react-query");
+    const { invalidateAdminSoftRefresh } = await import("./invalidate");
+    const qc = new QueryClient();
+    const seen: Array<{ key: unknown; refetchType?: string }> = [];
+    const original = qc.invalidateQueries.bind(qc);
+    qc.invalidateQueries = ((filters: Parameters<typeof original>[0]) => {
+      seen.push({
+        key: filters?.queryKey,
+        refetchType: filters?.refetchType as string | undefined,
+      });
+      const predicate = filters?.predicate;
+      if (predicate) {
+        expect(
+          predicate({
+            queryKey: adminQueryKeys.photosSignedUrl("teacher", "t1"),
+          } as never),
+        ).toBe(false);
+        expect(
+          predicate({
+            queryKey: adminQueryKeys.students("i1", {}),
+          } as never),
+        ).toBe(true);
+      }
+      return Promise.resolve();
+    }) as typeof qc.invalidateQueries;
+
+    await invalidateAdminSoftRefresh(qc, "i1");
+    expect(seen[0]?.key).toEqual(adminInstitutePrefix("i1"));
+    expect(seen[0]?.refetchType).toBe("active");
   });
 });
 

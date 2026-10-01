@@ -67,9 +67,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      { rel: "icon", href: "/favicon.png", type: "image/png" },
-      { rel: "icon", href: "/brand/lumenx-logo.png", type: "image/png", sizes: "any" },
-      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
+      // Google Search uses one crawlable square favicon from the homepage (≥48px recommended).
+      { rel: "icon", href: "/favicon.png", type: "image/png", sizes: "192x192" },
+      { rel: "icon", href: "/favicon-48.png", type: "image/png", sizes: "48x48" },
+      { rel: "shortcut icon", href: "/favicon.png", type: "image/png" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png", sizes: "180x180" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "" },
       {

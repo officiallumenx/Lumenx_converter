@@ -13,9 +13,9 @@ export const Route = createFileRoute("/setup")({
 function SetupPage() {
   const { state, reload } = useSetupChecklist();
 
-  // Quiet refresh: keep last checklist on screen while recounting progress.
+  // Soft recount on visit — keep last checklist on screen; do not force-poison.
   useEffect(() => {
-    void reload({ force: true });
+    void reload({ force: false });
   }, [reload]);
 
   return (
@@ -23,7 +23,7 @@ function SetupPage() {
       title="Setup"
       subtitle="Finish institute setup so Admin, Connect, and Transport share live data"
     >
-      <SetupChecklistPanel state={state} />
+      <SetupChecklistPanel state={state} onRefresh={() => void reload({ force: true })} />
     </AppShell>
   );
 }

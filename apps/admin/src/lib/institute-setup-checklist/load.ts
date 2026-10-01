@@ -1,7 +1,9 @@
 /**
  * Load institute setup counts from existing Admin APIs.
- * Critical sources (years, classes/sections) must succeed — soft-failing them to
- * empty arrays was poisoning the checklist as “incomplete” after network flaps.
+ * Core sources (years, classes/sections, subjects, teachers, students, parents)
+ * must succeed — soft-failing them to empty arrays poisons the checklist as
+ * “incomplete” after network flaps and re-locks Admin.
+ * Extended sources (attendance, fees, calendar, transport) may soft-fail.
  */
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { isInstituteUuid } from "@/lib/active-institute";
@@ -30,6 +32,8 @@ import {
 import { evaluateSetupProgress, summarizeSetupProgress } from "./progress";
 import type { SetupChecklistState, SetupCounts } from "./types";
 
+const COMPLETE_SNAPSHOT_PREFIX = "lumenx.admin.setup-core-complete.v1:";
+
 function isCacheableSetupState(state: SetupChecklistState): boolean {
   return state.status === "ready";
 }
@@ -40,6 +44,60 @@ function settledValue<T>(result: PromiseSettledResult<T>, fallback: T): T {
 
 function settledOk(result: PromiseSettledResult<unknown>): boolean {
   return result.status === "fulfilled";
+}
+
+function rejectMessage(
+  result: PromiseSettledResult<unknown>,
+  fallback: string,
+): string {
+  if (result.status !== "rejected") return fallback;
+  return result.reason instanceof Error ? result.reason.message : fallback;
+}
+
+function completeSnapshotKey(instituteId: string): string {
+  return `${COMPLETE_SNAPSHOT_PREFIX}${instituteId}`;
+}
+
+/** Last verified core-complete flag (institute-scoped). Not auth secrets. */
+export function readVerifiedSetupCoreComplete(instituteId: string): boolean {
+  if (typeof localStorage === "undefined") return false;
+  try {
+    return localStorage.getItem(completeSnapshotKey(instituteId)) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function writeVerifiedSetupCoreComplete(
+  instituteId: string,
+  complete: boolean,
+): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    const key = completeSnapshotKey(instituteId);
+    if (complete) localStorage.setItem(key, "1");
+    else localStorage.removeItem(key);
+  } catch {
+    // Ignore quota / private mode.
+  }
+}
+
+export function clearVerifiedSetupCoreComplete(instituteId?: string): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    if (instituteId) {
+      localStorage.removeItem(completeSnapshotKey(instituteId));
+      return;
+    }
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k?.startsWith(COMPLETE_SNAPSHOT_PREFIX)) keys.push(k);
+    }
+    for (const k of keys) localStorage.removeItem(k);
+  } catch {
+    // ignore
+  }
 }
 
 async function fetchSetupChecklist(
@@ -77,21 +135,36 @@ async function fetchSetupChecklist(
     enrollmentsResult,
   ] = results;
 
-  // Years + class catalog drive core gate — never invent "no years/classes".
-  if (!settledOk(yearsResult) || !settledOk(catalogResult)) {
-    const yearErr =
-      yearsResult.status === "rejected"
-        ? yearsResult.reason instanceof Error
-          ? yearsResult.reason.message
-          : "Failed to load academic years"
-        : null;
-    const catalogErr =
-      catalogResult.status === "rejected"
-        ? catalogResult.reason instanceof Error
-          ? catalogResult.reason.message
-          : "Failed to load classes"
-        : null;
-    throw new Error(yearErr ?? catalogErr ?? "Failed to load setup checklist");
+  // All core gate sources must succeed — never invent empty core counts.
+  const coreResults: Array<{ ok: boolean; message: string }> = [
+    {
+      ok: settledOk(yearsResult),
+      message: rejectMessage(yearsResult, "Failed to load academic years"),
+    },
+    {
+      ok: settledOk(catalogResult),
+      message: rejectMessage(catalogResult, "Failed to load classes"),
+    },
+    {
+      ok: settledOk(subjectsResult),
+      message: rejectMessage(subjectsResult, "Failed to load subjects"),
+    },
+    {
+      ok: settledOk(teachersResult),
+      message: rejectMessage(teachersResult, "Failed to load teachers"),
+    },
+    {
+      ok: settledOk(studentsResult),
+      message: rejectMessage(studentsResult, "Failed to load students"),
+    },
+    {
+      ok: settledOk(parentsResult),
+      message: rejectMessage(parentsResult, "Failed to load parents"),
+    },
+  ];
+  const coreFailure = coreResults.find((r) => !r.ok);
+  if (coreFailure) {
+    throw new Error(coreFailure.message);
   }
 
   const years = settledValue(yearsResult, []);
@@ -100,6 +173,7 @@ async function fetchSetupChecklist(
   const teachers = settledValue(teachersResult, []);
   const students = settledValue(studentsResult, []);
   const parents = settledValue(parentsResult, []);
+  // Extended steps may soft-fail to empty without locking Admin.
   const attendanceConfigs = settledValue(attendanceResult, []);
   const feePlans = settledValue(feePlansResult, []);
   const calendarEvents = settledValue(calendarResult, []);
@@ -143,6 +217,8 @@ async function fetchSetupChecklist(
 
   const steps = evaluateSetupProgress(counts);
   const summary = summarizeSetupProgress(steps);
+
+  writeVerifiedSetupCoreComplete(instituteId, summary.coreComplete);
 
   return {
     status: "ready",

@@ -141,6 +141,14 @@ export function shouldDehydrateAdminQuery(query: {
   if (joined.includes("signed-url")) {
     return false;
   }
+  // Photos directory list payloads embed short-lived signed URLs — skip dehydrate
+  // (photoAssetPath alone is enough; signed URLs re-seed after list refetch).
+  if (
+    key.includes("photos") &&
+    (key.includes("teachers") || key.includes("students"))
+  ) {
+    return false;
+  }
   return true;
 }
 

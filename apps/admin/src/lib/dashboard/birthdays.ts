@@ -12,6 +12,7 @@ export type BirthdayRow = {
   detail: string;
   turningAge: number | null;
   href: string | null;
+  photoAssetPath: string | null;
 };
 
 /** Local calendar YYYY-MM-DD (not UTC). */
@@ -54,12 +55,14 @@ export function collectBirthdaysToday(input: {
     dateOfBirth: string | null;
     classLabel: string | null;
     sectionLabel: string | null;
+    photoAssetPath?: string | null;
   }>;
   teachers: Array<{
     id: string;
     displayName: string;
     dateOfBirth: string | null;
     department: string;
+    photoAssetPath?: string | null;
   }>;
   onDate?: Date;
 }): BirthdayRow[] {
@@ -76,6 +79,7 @@ export function collectBirthdaysToday(input: {
       detail: classPart,
       turningAge: turningAgeOnDate(s.dateOfBirth, onDate),
       href: `/students/${s.id}`,
+      photoAssetPath: s.photoAssetPath?.trim() || null,
     });
   }
 
@@ -88,6 +92,7 @@ export function collectBirthdaysToday(input: {
       detail: t.department || "Teacher",
       turningAge: turningAgeOnDate(t.dateOfBirth, onDate),
       href: "/teachers",
+      photoAssetPath: t.photoAssetPath?.trim() || null,
     });
   }
 

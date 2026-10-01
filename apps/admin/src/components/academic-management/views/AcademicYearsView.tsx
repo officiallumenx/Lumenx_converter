@@ -68,6 +68,7 @@ import {
   type YearEnrollmentRecord,
   type YearRecordUiStatus,
 } from "@/lib/enrollments/year-records-load";
+import { invalidateSetupChecklistCache } from "@/lib/institute-setup-checklist";
 
 function statusPill(status: AcademicYearStatus) {
   if (status === "active") return <Pill tone="success">Active</Pill>;
@@ -118,13 +119,19 @@ export function AcademicYearsView() {
               instituteCtx.status === "empty" ||
               !instituteCtx.activeInstituteId
             ? "needs_institute"
-            : yearsQuery.isLoading && !yearsQuery.data
-              ? "loading"
-              : (yearsQuery.data?.status ?? "loading");
+            : yearsQuery.isError
+              ? "error"
+              : yearsQuery.isLoading && !yearsQuery.data
+                ? "loading"
+                : (yearsQuery.data?.status ?? "loading");
   const listError =
     instituteCtx.status === "error" || instituteCtx.status === "forbidden"
       ? instituteCtx.errorMessage
-      : (yearsQuery.data?.errorMessage ?? null);
+      : yearsQuery.isError
+        ? yearsQuery.error instanceof Error
+          ? yearsQuery.error.message
+          : "Failed to load academic years."
+        : (yearsQuery.data?.errorMessage ?? null);
   const resolvedForInstituteId =
     yearsQuery.data && listEnabled ? instituteCtx.activeInstituteId : null;
 
@@ -137,6 +144,7 @@ export function AcademicYearsView() {
     void queryClient.invalidateQueries({
       queryKey: adminModulePrefix(id, adminQueryRoots.catalog),
     });
+    invalidateSetupChecklistCache(id);
   };
 
   const listView = resolveAcademicYearsListView({
@@ -431,11 +439,22 @@ export function AcademicYearsView() {
               status: shouldActivateOnCreate ? "active" : "upcoming",
             });
       void request
-        .then(() => {
+        .then((saved) => {
           setModal(null);
           setEditing(null);
           setForm(EMPTY_FORM);
           invalidateAcademicYearsCaches();
+          if (saved && typeof saved === "object" && "status" in saved) {
+            const row = saved as { status?: string; label?: string; name?: string };
+            if (row.status === "active") {
+              syncAcademicYearLocked({
+                locked: false,
+                yearLabel: row.label ?? row.name,
+              });
+            }
+          } else if (shouldActivateOnCreate) {
+            syncAcademicYearLocked({ locked: false, yearLabel: label });
+          }
           notify(
             modal === "edit"
               ? "Academic year updated"
@@ -515,6 +534,10 @@ export function AcademicYearsView() {
           setActivateTarget(null);
           setConfirmText("");
           invalidateAcademicYearsCaches();
+          syncAcademicYearLocked({
+            locked: false,
+            yearLabel: activateTarget.label,
+          });
         } catch (err) {
           notify(err instanceof Error ? err.message : "Failed to activate academic year");
         }

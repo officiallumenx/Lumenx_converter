@@ -9,16 +9,20 @@ import {
   getDataRefreshGeneration,
 } from "@/lib/data-refresh";
 import { invalidateAdminSoftRefresh } from "@/lib/admin-queries/invalidate";
+import { useInstituteContext } from "@/lib/institutes";
 
 const AUTO_MIN_INTERVAL_MS = 45_000;
 
 /**
  * Soft-refreshes page data when the app resumes or the tab becomes visible.
- * Invalidates Admin TanStack Query caches (does not remount chrome).
- * Skips work while offline so we do not wipe or spin on network errors.
+ * Invalidates Admin TanStack Query caches for the active institute only
+ * (does not remount chrome). Skips work while offline.
  */
 export function DataRefreshHost() {
   const queryClient = useQueryClient();
+  const instituteCtx = useInstituteContext();
+  const instituteIdRef = useRef(instituteCtx.activeInstituteId);
+  instituteIdRef.current = instituteCtx.activeInstituteId;
   const lastAutoAt = useRef(0);
   const lastGen = useRef(getDataRefreshGeneration());
 
@@ -28,7 +32,7 @@ export function DataRefreshHost() {
       const gen = getDataRefreshGeneration();
       if (gen === lastGen.current) return;
       lastGen.current = gen;
-      void invalidateAdminSoftRefresh(queryClient);
+      void invalidateAdminSoftRefresh(queryClient, instituteIdRef.current);
     });
   }, [queryClient]);
 

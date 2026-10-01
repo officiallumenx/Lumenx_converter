@@ -7,9 +7,25 @@ export function mapDbError(error: { code?: string; message?: string; details?: s
   const code = error?.code ?? "";
   const message = error?.message ?? "";
 
-  // unique_violation / exclusion
+  // unique_violation / exclusion — prefer actionable copy over generic "Resource conflict"
   if (code === "23505" || code === "23P01") {
-    throw AppError.conflict("Resource conflict");
+    const hay = `${message} ${error?.details ?? ""} ${error?.hint ?? ""}`.toLowerCase();
+    if (/class|section|classes|sections/.test(hay)) {
+      throw AppError.conflict("This class or section already exists — change the name");
+    }
+    if (/subject/.test(hay)) {
+      throw AppError.conflict("This subject already exists — change the name or code");
+    }
+    if (/membership|user_profile|email|auth/.test(hay)) {
+      throw AppError.conflict("This account or membership already exists");
+    }
+    if (/enrollment|student/.test(hay)) {
+      throw AppError.conflict("This student is already enrolled");
+    }
+    if (/assignment|teacher/.test(hay)) {
+      throw AppError.conflict("This teacher assignment already exists");
+    }
+    throw AppError.conflict("That item already exists — try a different name");
   }
 
   // foreign_key_violation

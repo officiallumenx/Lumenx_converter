@@ -440,24 +440,20 @@ function TeachersPage() {
       : null;
 
   const [detailReload, setDetailReload] = useState(0);
-  const bumpTeachersReload = () => {
+  const bumpTeachersReload = (opts?: { includeClasses?: boolean }) => {
     const instituteId = instituteCtx.activeInstituteId ?? undefined;
     invalidateTeachersListCache(instituteId);
-    invalidateClassesListCache(instituteId);
     setDetailReload((k) => k + 1);
     if (instituteCtx.activeInstituteId) {
       void queryClient.invalidateQueries({
         queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.teachers),
       });
-      void queryClient.invalidateQueries({
-        queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.classes),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: adminQueryKeys.catalogClasses(instituteCtx.activeInstituteId),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: adminQueryKeys.catalogSubjects(instituteCtx.activeInstituteId),
-      });
+      if (opts?.includeClasses) {
+        invalidateClassesListCache(instituteId);
+        void queryClient.invalidateQueries({
+          queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.classes),
+        });
+      }
     }
   };
 
@@ -747,8 +743,32 @@ function TeachersPage() {
           setEditing(false);
           setEditForm({});
           setEditClassTeacherSectionId("");
-          bumpTeachersReload();
+          if (instituteCtx.activeInstituteId) {
+            const id = instituteCtx.activeInstituteId;
+            queryClient.setQueriesData(
+              { queryKey: adminModulePrefix(id, adminQueryRoots.teachers) },
+              (prev: unknown) => {
+                if (!prev || typeof prev !== "object" || !("items" in prev)) return prev;
+                const items = (prev as { items: unknown[] }).items;
+                if (!Array.isArray(items)) return prev;
+                return {
+                  ...prev,
+                  items: items.map((item) =>
+                    item &&
+                    typeof item === "object" &&
+                    "id" in item &&
+                    (item as { id: string }).id === updated.id
+                      ? { ...item, ...updated }
+                      : item,
+                  ),
+                };
+              },
+            );
+          }
           notify(`${updated.displayName} updated successfully`);
+          bumpTeachersReload({
+            includeClasses: Boolean(editClassTeacherSectionId) || assignedSections.length > 0,
+          });
         })
         .catch((err) => {
           notify(formatApiClientError(err, "Failed to update teacher"));
@@ -828,8 +848,8 @@ function TeachersPage() {
         .then(() => {
           setPendingDelete(null);
           closeDetail();
-          bumpTeachersReload();
           notify("Teacher deleted");
+          bumpTeachersReload();
         })
         .catch((err) => {
           notify(formatApiClientError(err, "Failed to delete teacher"));
@@ -949,11 +969,26 @@ function TeachersPage() {
         .then((created) => {
           resetCreateForm();
           setCreateDialogOpen(false);
-          bumpTeachersReload();
+          if (instituteCtx.activeInstituteId) {
+            const id = instituteCtx.activeInstituteId;
+            queryClient.setQueriesData(
+              { queryKey: adminModulePrefix(id, adminQueryRoots.teachers) },
+              (prev: unknown) => {
+                if (!prev || typeof prev !== "object" || !("items" in prev)) return prev;
+                const items = (prev as { items: unknown[] }).items;
+                if (!Array.isArray(items)) return prev;
+                return { ...prev, items: [created, ...items], status: "ready" };
+              },
+            );
+          }
           const linkCount = created.assignmentIds?.length ?? assignments.length;
           notify(
             `${created.displayName} onboarded · ${linkCount} class link${linkCount === 1 ? "" : "s"} ready for Connect`,
           );
+          bumpTeachersReload({
+            includeClasses:
+              classTeacherSectionIds.length > 0 || assignedSectionLabels.length > 0,
+          });
         })
         .catch((err) => {
           notify(formatApiClientError(err, "Failed to create teacher"));

@@ -261,7 +261,6 @@ function StudentsPage() {
       void import("@/lib/students").then(({ updateStudent }) =>
         updateStudent(id, { accessStatus })
           .then(() => {
-            bumpStudentsReload();
             const label =
               accessStatus === "hold"
                 ? "held"
@@ -269,6 +268,7 @@ function StudentsPage() {
                   ? "suspended"
                   : "reactivated";
             notify(`Student ${label}`);
+            bumpStudentsReload();
           })
           .catch((err) => {
             notify(err instanceof Error ? err.message : "Failed to update student");
@@ -411,8 +411,8 @@ function StudentsPage() {
       void deleteStudentApi(id)
         .then(() => {
           setPendingDelete(null);
-          bumpStudentsReload();
           notify("Student deleted");
+          bumpStudentsReload();
         })
         .catch((err) => {
           notify(err instanceof Error ? err.message : "Failed to delete student");
@@ -495,12 +495,24 @@ function StudentsPage() {
               enrolledOn: new Date().toISOString().slice(0, 10),
               status: "active",
             });
-            bumpStudentsReload();
             notify(
               created.parentId
                 ? `${created.displayName || created.firstName} created · assigned to ${classLabel} ${sectionLabel} · parent linked`
                 : `${created.displayName || created.firstName} created · assigned to ${classLabel} ${sectionLabel}`,
             );
+            bumpStudentsReload();
+            if (instituteCtx.activeInstituteId) {
+              const id = instituteCtx.activeInstituteId;
+              queryClient.setQueriesData(
+                { queryKey: adminModulePrefix(id, adminQueryRoots.students) },
+                (prev: unknown) => {
+                  if (!prev || typeof prev !== "object" || !("items" in prev)) return prev;
+                  const items = (prev as { items: unknown[] }).items;
+                  if (!Array.isArray(items)) return prev;
+                  return { ...prev, items: [created, ...items], status: "ready" };
+                },
+              );
+            }
           } catch (enrollErr) {
             try {
               await deleteStudentApi(created.id);

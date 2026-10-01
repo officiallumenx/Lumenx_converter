@@ -326,8 +326,11 @@ function PhotosPage() {
         return;
       }
       if (err instanceof PhotoPermissionDeniedError) {
-        toast("Camera permission denied", "error");
-        setStatusMsg("Camera permission denied");
+        toast(
+          "Camera permission denied. Enable Camera for LumenX Admin in device Settings, then try again.",
+          "error",
+        );
+        setStatusMsg("Camera permission denied — open device Settings to enable");
         return;
       }
       const message =

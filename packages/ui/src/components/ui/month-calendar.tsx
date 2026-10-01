@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { cn } from "../../lib/utils";
 
@@ -43,8 +43,104 @@ export function resolveCalendarMonthBounds(min?: string, max?: string) {
   };
 }
 
-const selectClass =
-  "h-9 min-h-9 min-w-0 flex-1 rounded-md border border-border bg-background px-2 text-sm font-medium text-foreground touch-manipulation focus:outline-none focus:ring-2 focus:ring-ring/40";
+type MiniOption = { value: string; label: string };
+
+/** Themed dropdown (no native OS chrome) for month/year headers. */
+function CalendarMiniSelect({
+  "aria-label": ariaLabel,
+  value,
+  options,
+  onChange,
+  className,
+}: {
+  "aria-label": string;
+  value: string;
+  options: MiniOption[];
+  onChange: (next: string) => void;
+  className?: string;
+}) {
+  const id = useId();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const selected = options.find((o) => o.value === value);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    const onPointer = (e: PointerEvent) => {
+      if (rootRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onPointer, true);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onPointer, true);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className={cn("relative min-w-0", className)}>
+      <button
+        type="button"
+        id={id}
+        aria-label={ariaLabel}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
+        className="flex h-9 w-full min-w-0 items-center justify-between gap-1 rounded-md border border-border bg-background px-2 text-sm font-medium text-foreground touch-manipulation transition-colors hover:border-border-strong focus:outline-none focus:ring-2 focus:ring-ring/40"
+      >
+        <span className="min-w-0 truncate">{selected?.label ?? "Select…"}</span>
+        <ChevronDown
+          className={cn(
+            "size-3.5 shrink-0 text-muted-foreground transition-transform",
+            open && "rotate-180",
+          )}
+          aria-hidden
+        />
+      </button>
+      {open ? (
+        <div
+          role="listbox"
+          aria-labelledby={id}
+          className="lx-themed-menu absolute left-0 right-0 top-[calc(100%+4px)] z-[60] max-h-56 overflow-y-auto rounded-lg border border-border bg-popover py-1 text-popover-foreground shadow-md"
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          {options.map((opt) => {
+            const active = opt.value === value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                role="option"
+                aria-selected={active}
+                onClick={() => {
+                  onChange(opt.value);
+                  setOpen(false);
+                }}
+                className={cn(
+                  "flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-sm transition-colors",
+                  active
+                    ? "bg-primary/12 font-medium text-primary"
+                    : "text-popover-foreground hover:bg-accent hover:text-accent-foreground",
+                )}
+              >
+                <span className="min-w-0 flex-1 truncate">{opt.label}</span>
+                {active ? <Check className="size-3.5 shrink-0 text-primary" aria-hidden /> : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export type MonthCalendarProps = {
   month: Date;
@@ -70,9 +166,16 @@ export function MonthCalendar({
   const todayIso = toIsoDateLocal(new Date());
   const { startYear, endYear } = useMemo(() => resolveCalendarYearRange(min, max), [min, max]);
   const years = useMemo(
-    () =>
-      Array.from({ length: endYear - startYear + 1 }, (_, i) => endYear - i),
+    () => Array.from({ length: endYear - startYear + 1 }, (_, i) => endYear - i),
     [startYear, endYear],
+  );
+  const monthOptions = useMemo(
+    () => MONTH_LABELS.map((label, i) => ({ value: String(i), label })),
+    [],
+  );
+  const yearOptions = useMemo(
+    () => years.map((y) => ({ value: String(y), label: String(y) })),
+    [years],
   );
 
   const cells = useMemo(() => {
@@ -107,32 +210,20 @@ export function MonthCalendar({
           <ChevronLeft className="size-4" />
         </button>
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
-          <select
+          <CalendarMiniSelect
             aria-label="Month"
-            value={monthIndex}
-            onChange={(e) => onMonthChange(new Date(year, Number(e.target.value), 1))}
-            onPointerDown={(e) => e.stopPropagation()}
-            className={selectClass}
-          >
-            {MONTH_LABELS.map((label, i) => (
-              <option key={label} value={i}>
-                {label}
-              </option>
-            ))}
-          </select>
-          <select
+            value={String(monthIndex)}
+            options={monthOptions}
+            onChange={(next) => onMonthChange(new Date(year, Number(next), 1))}
+            className="flex-1"
+          />
+          <CalendarMiniSelect
             aria-label="Year"
-            value={year}
-            onChange={(e) => onMonthChange(new Date(Number(e.target.value), monthIndex, 1))}
-            onPointerDown={(e) => e.stopPropagation()}
-            className={cn(selectClass, "max-w-[5.75rem] flex-none tabular-nums")}
-          >
-            {years.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
+            value={String(year)}
+            options={yearOptions}
+            onChange={(next) => onMonthChange(new Date(Number(next), monthIndex, 1))}
+            className="max-w-[5.75rem] flex-none tabular-nums"
+          />
         </div>
         <button
           type="button"

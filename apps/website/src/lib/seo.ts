@@ -228,15 +228,27 @@ export const PRODUCT_SEO: Record<ProductId, PageSeoInput> = {
 
 export function organizationJsonLd() {
   const origin = getSiteOrigin();
+  const logoUrl = origin ? `${origin}/brand/lumenx-logo.png` : undefined;
   return {
     "@context": "https://schema.org",
     "@type": "Organization",
     name: SITE_NAME,
+    alternateName: ["lumenxtech", "LumenX Tech", "lumenxtech.in"],
     description: SITE_DESCRIPTION,
     ...(origin
       ? {
           url: `${origin}/`,
-          logo: `${origin}/brand/lumenx-logo.png`,
+          logo: logoUrl
+            ? {
+                "@type": "ImageObject",
+                url: logoUrl,
+                contentUrl: logoUrl,
+                width: 1024,
+                height: 1024,
+                caption: SITE_NAME,
+              }
+            : undefined,
+          image: logoUrl,
         }
       : {}),
   };
@@ -248,9 +260,21 @@ export function websiteJsonLd() {
     "@context": "https://schema.org",
     "@type": "WebSite",
     name: SITE_NAME,
+    alternateName: ["lumenxtech", "lumenxtech.in"],
     description: SITE_DESCRIPTION,
     ...(origin ? { url: `${origin}/` } : {}),
-    publisher: { "@type": "Organization", name: SITE_NAME },
+    publisher: {
+      "@type": "Organization",
+      name: SITE_NAME,
+      ...(origin ? { logo: `${origin}/brand/lumenx-logo.png` } : {}),
+    },
+    potentialAction: origin
+      ? {
+          "@type": "SearchAction",
+          target: `${origin}/?q={search_term_string}`,
+          "query-input": "required name=search_term_string",
+        }
+      : undefined,
   };
 }
 

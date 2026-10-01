@@ -70,8 +70,10 @@ function StepRow({ step, current }: { step: SetupStepProgress; current: boolean 
 
 export function SetupChecklistPanel({
   state,
+  onRefresh,
 }: {
   state: SetupChecklistState;
+  onRefresh?: () => void;
 }) {
   if (state.status === "needs_institute") {
     return (
@@ -88,7 +90,9 @@ export function SetupChecklistPanel({
     return (
       <Card>
         <CardHeader title="Institute setup" hint="Checking progress…" />
-        <p className="px-5 pb-5 text-sm text-muted-foreground">Loading setup checklist…</p>
+        <p className="px-5 pb-5 text-sm text-muted-foreground">
+          Loading setup checklist… Admin modules stay available while this loads.
+        </p>
       </Card>
     );
   }
@@ -96,9 +100,19 @@ export function SetupChecklistPanel({
   if (state.status === "error") {
     return (
       <Card>
-        <CardHeader title="Institute setup" hint="Could not load progress" />
+        <CardHeader
+          title="Institute setup"
+          hint="Could not load progress"
+          action={
+            onRefresh ? (
+              <Button size="sm" variant="outline" onClick={onRefresh}>
+                Retry
+              </Button>
+            ) : null
+          }
+        />
         <p className="px-5 pb-5 text-sm text-muted-foreground">
-          {state.errorMessage ?? "Failed to load setup checklist."}
+          {state.errorMessage ?? "Failed to load setup checklist. This does not block Admin — try again when your connection is stable."}
         </p>
       </Card>
     );
@@ -119,9 +133,16 @@ export function SetupChecklistPanel({
               : `Finish core setup · ${state.coreDone}/${state.coreTotal}`
           }
           action={
-            <Pill tone={state.coreComplete ? "success" : "info"}>
-              {state.coreDone}/{state.coreTotal} core
-            </Pill>
+            <div className="flex items-center gap-2">
+              <Pill tone={state.coreComplete ? "success" : "info"}>
+                {state.coreDone}/{state.coreTotal} core
+              </Pill>
+              {onRefresh ? (
+                <Button size="sm" variant="outline" onClick={onRefresh}>
+                  Refresh
+                </Button>
+              ) : null}
+            </div>
           }
         />
         <div className="px-5 pb-5 space-y-3">
@@ -185,25 +206,22 @@ export function SetupChecklistBanner({
   const next = state.steps.find((s) => s.state === "todo");
 
   return (
-    <Card>
-      <div className="px-4 py-3 flex flex-wrap items-center gap-3 justify-between">
-        <div className="min-w-0 space-y-0.5">
-          <p className="text-sm font-semibold text-foreground">
-            Finish institute setup ({state.coreDone}/{state.coreTotal})
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {next
-              ? `Next: ${next.title} — ${next.description}`
-              : "Continue setup so Connect and Transport can share live data."}
-          </p>
-        </div>
-        <Link to="/setup">
-          <Button variant="primary" size="sm">
-            Open checklist
-            <ArrowRight className="size-3.5" />
-          </Button>
-        </Link>
+    <section className="lx-home-section lx-home-callout lx-home-callout--setup">
+      <div className="min-w-0 space-y-0.5">
+        <p className="lx-home-callout__title">
+          Complete your institute setup
+        </p>
+        <p className="lx-home-callout__hint">
+          {state.coreDone} of {state.coreTotal} completed
+          {next ? ` · Next: ${next.title}` : ""}
+        </p>
       </div>
-    </Card>
+      <Link to="/setup">
+        <Button variant="primary" size="sm" className="gap-1.5 shrink-0">
+          Continue setup
+          <ArrowRight className="size-3.5" />
+        </Button>
+      </Link>
+    </section>
   );
 }

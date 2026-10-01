@@ -65,7 +65,6 @@ import {
   loadAdmissionsOpeningsList,
 } from "@/lib/admissions";
 import { loadCareersList, loadCareerJobsList } from "@/lib/careers";
-import { listAcademicYears } from "@/lib/academic-years/api";
 import { loadAcademicYearsList } from "@/lib/academic-years";
 import { loadDashboardSummary, loadDashboardWidgets } from "@/lib/dashboard";
 import { loadSectionDetail } from "@/lib/classes";
@@ -675,9 +674,11 @@ export function useCatalogYearsQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
+  // Share the academic-years list cache — one GET for Home, lock sync, and catalogs.
   return useAdminQuery({
-    queryKey: adminQueryKeys.catalogYears(id),
-    queryFn: () => listAcademicYears({ instituteId: instituteId! }),
+    queryKey: adminQueryKeys.academicYears(id),
+    queryFn: () => loadAcademicYearsList(instituteId!),
+    select: (data) => data.items,
     enabled: instituteEnabled(instituteId, enabled),
     staleTime: ADMIN_QUERY_CATALOG_STALE_TIME_MS,
   });

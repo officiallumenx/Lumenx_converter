@@ -16,6 +16,14 @@ export {
   type BirthdayRow,
 } from "./birthdays";
 export {
+  buildNeedsAttentionItems,
+  attentionTotalCount,
+  attentionSeverityClass,
+  type AttentionItem,
+  type AttentionSeverity,
+  type AttentionInput,
+} from "./attention";
+export {
   loadDashboardWidgets,
   type DashboardWidgetsState,
   type AttendanceDraftRow,
