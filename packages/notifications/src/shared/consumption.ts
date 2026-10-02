@@ -66,6 +66,7 @@ export {
 } from "./priority-presentation";
 export {
   playAlertChime,
+  playAlarmChime,
   playNotificationChime,
   playChimeForVariant,
   setAlertChimesEnabled,
