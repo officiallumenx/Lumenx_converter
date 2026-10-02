@@ -1,6 +1,7 @@
 import {
   LOCATION_FIX_ATTEMPTS,
   getNativeCurrentPosition,
+  hasNativeLocationPermission,
   isLocationPermissionDeniedError,
   isLocationServicesDisabledError,
   isNativeLocationServiceEnabled,
@@ -99,9 +100,9 @@ function tryWebPosition(options: PositionOptions): Promise<boolean> {
  * Coarse-first so Android 12+ approximate location grants still succeed.
  */
 async function probeFreshFix(): Promise<ProbeResult> {
-  const serviceEnabled = await isNativeLocationServiceEnabled();
-  if (serviceEnabled === false) return "service-off";
-
+  // Do not trust isEnabled===false alone — Cap/OEM checks false-negative.
+  // Always attempt a position; only report service-off if acquire fails AND
+  // LocationManager still says off.
   let denied = false;
   let sawServiceDisabled = false;
 
@@ -124,12 +125,18 @@ async function probeFreshFix(): Promise<ProbeResult> {
     }
   }
 
-  if (denied) return "denied";
+  // Cap may label settings dialogs as "permission denied" — confirm with PackageManager.
+  if (denied) {
+    const pkg = await hasNativeLocationPermission();
+    if (pkg === false) return "denied";
+  }
 
-  // Cap may claim services are off while LocationManager says on — trust ours.
-  if (sawServiceDisabled && serviceEnabled !== true) {
-    const enabledNow = await isNativeLocationServiceEnabled();
-    if (enabledNow === false) return "service-off";
+  const serviceEnabled = await isNativeLocationServiceEnabled();
+  if (sawServiceDisabled && serviceEnabled === false) {
+    return "service-off";
+  }
+  if (serviceEnabled === false && !denied) {
+    return "service-off";
   }
 
   return "no-fix";
@@ -224,13 +231,7 @@ async function checkLocationServiceNow() {
   checkingService = true;
 
   try {
-    const enabled = await isNativeLocationServiceEnabled();
-    if (enabled === false) {
-      softMissStreak = 0;
-      markOff("Location is off. Turn it on to continue marking attendance.");
-      return;
-    }
-
+    // Probe first — isEnabled alone can false-negative on some OEMs.
     const result = await probeFreshFix();
     await applyProbeResult(result);
   } finally {
@@ -294,14 +295,17 @@ function markOff(message: string) {
 async function handlePositionError(code?: number | string) {
   const serviceEnabled = await isNativeLocationServiceEnabled();
   const permission = await isLocationPermissionGranted();
+  const pkg = await hasNativeLocationPermission();
 
   const permissionDenied =
-    code === 1 ||
-    code === "1" ||
-    code === "OS-PLUG-GLOC-0003" ||
-    permission === false;
+    (code === 1 ||
+      code === "1" ||
+      code === "OS-PLUG-GLOC-0003" ||
+      code === "PERMISSION_DENIED" ||
+      permission === false) &&
+    pkg !== true;
 
-  if (permissionDenied) {
+  if (permissionDenied && pkg === false) {
     markOff("Location permission is off. Turn it on to continue the trip.");
     return;
   }

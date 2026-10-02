@@ -211,7 +211,12 @@ export function StartTripReadinessDialog({
       (nextChecks) => {
         if (runId === runIdRef.current) setChecks(nextChecks);
       },
-      { requestNotifications: requestPermissions, requestLocation: requestPermissions },
+      {
+        requestNotifications: requestPermissions,
+        // Always attempt location on open — Cap getCurrentPosition prompts when needed.
+        // Notifications stay quiet until the driver taps Check again.
+        requestLocation: true,
+      },
     );
     if (runId !== runIdRef.current) return;
 

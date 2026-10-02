@@ -1,6 +1,7 @@
 import {
   LOCATION_FIX_ATTEMPTS,
   getNativeCurrentPosition,
+  hasNativeLocationPermission,
   isLocationPermissionDeniedError,
   isLocationServicesDisabledError,
   isNativeLocationServiceEnabled,
@@ -424,74 +425,79 @@ async function checkGps(options?: { request?: boolean }): Promise<Omit<Readiness
     };
   }
 
-  // Prefer our LocationManager plugin — Cap checkPermissions can throw even when GPS is on.
-  const serviceEnabled = await isNativeLocationServiceEnabled();
-  if (serviceEnabled === false) {
-    return {
-      key: "gps",
-      status: "off",
-      message: "Turn on GPS/location services, then check again.",
-    };
-  }
-
+  // Position-first: do NOT early-exit OFF on Cap/plugin service or permission
+  // guesses. Cap Geolocation often claims services/permission are off while
+  // Android LocationManager and PackageManager disagree. Always try a fix.
   let permission = await readLocationPermission();
 
-  if (permission === "prompt" && request) {
+  if ((permission === "prompt" || permission === "unsupported") && request) {
     permission = await requestLocationPermission();
-  }
-
-  if (permission === "denied") {
-    return {
-      key: "gps",
-      status: "off",
-      message: locationErrorMessage("denied"),
-    };
-  }
-
-  if (permission === "prompt") {
-    return {
-      key: "gps",
-      status: "off",
-      message: isNativePlatform()
-        ? "Tap Check again, then allow location when Android asks."
-        : "Tap Check again, then allow location when prompted.",
-    };
   }
 
   try {
     await acquireLocationFix();
     return { key: "gps", status: "on", message: "GPS location is available." };
   } catch (error) {
+    // Confirm hard permission deny with PackageManager — Cap false-negatives.
     if (isLocationPermissionDeniedError(error)) {
-      return {
-        key: "gps",
-        status: "off",
-        message: locationErrorMessage("denied", error),
-      };
+      const pkg = await hasNativeLocationPermission();
+      if (pkg === false) {
+        return {
+          key: "gps",
+          status: "off",
+          message: locationErrorMessage("denied", error),
+        };
+      }
     }
 
-    // Permission granted / unknown + system location on ≠ "location off".
-    // Weak/indoor GPS or approximate-only mode should not block starting a trip.
     const enabledNow = await isNativeLocationServiceEnabled();
-    if (enabledNow === false) {
+    if (enabledNow === false && isLocationServicesDisabledError(error)) {
       return {
         key: "gps",
         status: "off",
-        message: isLocationServicesDisabledError(error)
-          ? locationErrorMessage(permission, error)
-          : "Turn on GPS/location services, then check again.",
+        message: "Turn on GPS/location services, then check again.",
+      };
+    }
+    if (enabledNow === false) {
+      // Plugin says off but error wasn't a services-disabled code — still try
+      // soft-on when permission is granted (OEM LocationManager lag).
+      const pkg = await hasNativeLocationPermission();
+      if (pkg !== true && permission !== "granted") {
+        return {
+          key: "gps",
+          status: "off",
+          message: "Turn on GPS/location services, then check again.",
+        };
+      }
+    }
+
+    // Native: location on / unknown + not a hard permission deny ⇒ Ready.
+    // Indoor/timeout/Cap services mismatch must not block starting a trip.
+    if (isNativePlatform()) {
+      return {
+        key: "gps",
+        status: "on",
+        message: "Location is on. GPS will strengthen outdoors.",
       };
     }
 
     if (
       enabledNow === true ||
       permission === "granted" ||
-      (permission === "unsupported" && isNativePlatform())
+      permission === "unsupported"
     ) {
       return {
         key: "gps",
         status: "on",
         message: "Location is on. GPS will strengthen outdoors.",
+      };
+    }
+
+    if (permission === "prompt") {
+      return {
+        key: "gps",
+        status: "off",
+        message: "Tap Check again, then allow location when prompted.",
       };
     }
 
