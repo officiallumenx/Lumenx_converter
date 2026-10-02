@@ -51,7 +51,9 @@ export function studentDtoToListItem(dto: StudentDto): StudentListItem {
     status: safeStatus(dto.status),
     accessStatus: dto.accessStatus ?? "active",
     gender: dto.gender ?? "prefer_not_to_say",
-    dateOfBirth: dto.dateOfBirth ?? null,
+    dateOfBirth:
+      (dto.dateOfBirth ??
+        (dto as { date_of_birth?: string | null }).date_of_birth) ?? null,
     attendance: 0,
     gpa: 0,
     parent: "",

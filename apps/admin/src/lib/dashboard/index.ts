@@ -10,11 +10,16 @@ export {
 } from "./list-view";
 export {
   collectBirthdaysToday,
+  extractMonthDay,
   isBirthdayOnDate,
   localYmd,
   turningAgeOnDate,
   type BirthdayRow,
 } from "./birthdays";
+export {
+  loadHomeBirthdaysToday,
+  type HomeBirthdaysState,
+} from "./load-home-birthdays";
 export {
   buildNeedsAttentionItems,
   attentionTotalCount,

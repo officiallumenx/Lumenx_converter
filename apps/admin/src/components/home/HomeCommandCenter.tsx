@@ -15,6 +15,7 @@ import {
   adminQueryRoots,
   invalidateAdminModule,
   useAcademicYearsListQuery,
+  useHomeBirthdaysQuery,
   useHomeSummaryQuery,
   useHomeWidgetsQuery,
   useNotificationsListQuery,
@@ -82,6 +83,10 @@ export function HomeCommandCenter() {
     queriesEnabled,
   );
   const inboxQuery = useNotificationsListQuery(
+    instituteCtx.activeInstituteId,
+    queriesEnabled,
+  );
+  const birthdaysQuery = useHomeBirthdaysQuery(
     instituteCtx.activeInstituteId,
     queriesEnabled,
   );
@@ -280,10 +285,9 @@ export function HomeCommandCenter() {
     void navigate({ to: "/notifications", search: { tab: "inbox" } });
   };
 
-  const birthdayRows =
-    widgetsValid && widgets.birthdays.status !== "error"
-      ? widgets.birthdays.rows
-      : [];
+  const birthdayRows = birthdaysQuery.data?.rows ?? [];
+  const birthdaysLoading =
+    birthdaysQuery.isLoading && !birthdaysQuery.data;
 
   const activityItems = inboxQuery.data?.items ?? [];
   const instituteName = instituteCtx.activeInstitute?.name?.trim() || null;
@@ -318,12 +322,13 @@ export function HomeCommandCenter() {
         activeYearLabel={yearLabel}
       />
 
+      <HomeBirthdays rows={birthdayRows} loading={birthdaysLoading} />
+
       <div className="lx-home-mid-grid">
         <HomeNeedsAttention
           items={attentionItems}
           loading={summaryLoading || widgetsLoading}
         />
-        <HomeBirthdays rows={birthdayRows} />
       </div>
 
       <div className="lx-home-bottom-grid">

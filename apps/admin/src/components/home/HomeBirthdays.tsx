@@ -4,8 +4,39 @@ import type { BirthdayRow } from "@/lib/dashboard";
 import { HomePersonAvatar } from "./HomePersonAvatar";
 import { Cake, ChevronRight } from "lucide-react";
 
-/** Renders only when there is at least one birthday today. */
-export function HomeBirthdays({ rows }: { rows: BirthdayRow[] }) {
+/** Today's student/teacher birthdays (month + day match; year ignored). */
+export function HomeBirthdays({
+  rows,
+  loading = false,
+}: {
+  rows: BirthdayRow[];
+  loading?: boolean;
+}) {
+  if (loading && rows.length === 0) {
+    return (
+      <section
+        className="lx-home-section lx-home-birthdays"
+        style={{ "--lx-home-i": 4 } as CSSProperties}
+      >
+        <div className="lx-home-birthdays__head">
+          <div className="lx-home-birthdays__title-row">
+            <span className="lx-home-birthdays__icon" aria-hidden>
+              <Cake className="size-3.5" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="lx-home-panel__title">Today&apos;s Birthdays</h2>
+              <p className="lx-home-panel__hint mt-0.5">Checking student and teacher birthdays…</p>
+            </div>
+          </div>
+        </div>
+        <div className="space-y-2">
+          <div className="skeleton h-12 rounded-xl" />
+          <div className="skeleton h-12 rounded-xl" />
+        </div>
+      </section>
+    );
+  }
+
   if (rows.length === 0) return null;
 
   return (
@@ -50,6 +81,7 @@ export function HomeBirthdays({ rows }: { rows: BirthdayRow[] }) {
                 <span className="block text-[11px] text-muted-foreground truncate">
                   {person.detail ? `${person.detail} · ` : ""}
                   {person.role}
+                  {person.turningAge != null ? ` · Turning ${person.turningAge}` : ""}
                 </span>
               </span>
             </>

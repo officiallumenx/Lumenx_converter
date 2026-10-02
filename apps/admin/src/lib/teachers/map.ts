@@ -1,4 +1,5 @@
 import type { TeacherRole, TeacherStatus } from "@lumenx/types";
+import { normalizeDateOnlyInput } from "@/lib/date-only";
 import type {
   ApiTeacherStatus,
   PortalAccessLevel,
@@ -84,7 +85,13 @@ export function teacherDtoToListItem(dto: TeacherDto): TeacherListItem {
     password: "",
     employeeId: dto.employeeId?.trim() || dto.legacyCode?.trim() || "—",
     joined: formatJoinedLabel(dto.joinedOn),
-    dateOfBirth: dto.dateOfBirth?.trim() || undefined,
+    dateOfBirth: (() => {
+      const raw =
+        dto.dateOfBirth ??
+        (dto as { date_of_birth?: string | null }).date_of_birth;
+      if (raw == null || !String(raw).trim()) return undefined;
+      return normalizeDateOnlyInput(String(raw)) ?? String(raw).trim();
+    })(),
     classes: assignedSections.length,
     assignedSections,
     status: apiStatusToTeacherStatus(dto.status as ApiTeacherStatus),

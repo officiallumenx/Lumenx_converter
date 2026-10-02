@@ -66,7 +66,7 @@ import {
 } from "@/lib/admissions";
 import { loadCareersList, loadCareerJobsList } from "@/lib/careers";
 import { loadAcademicYearsList } from "@/lib/academic-years";
-import { loadDashboardSummary, loadDashboardWidgets, localYmd } from "@/lib/dashboard";
+import { loadDashboardSummary, loadDashboardWidgets, loadHomeBirthdaysToday, localYmd } from "@/lib/dashboard";
 import { loadSectionDetail } from "@/lib/classes";
 import { loadSubjectDetail } from "@/lib/subjects";
 import { loadEnrollmentsList } from "@/lib/enrollments";
@@ -724,6 +724,22 @@ export function useHomeWidgetsQuery(
     queryFn: () => loadDashboardWidgets(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
     staleTime: ADMIN_QUERY_VOLATILE_STALE_TIME_MS,
+  });
+}
+
+/** Today's student/teacher birthdays — month+day match, fresh each calendar day. */
+export function useHomeBirthdaysQuery(
+  instituteId: string | null | undefined,
+  enabled = true,
+) {
+  const id = instituteId ?? "_";
+  const dayYmd = localYmd();
+  return useAdminQuery({
+    queryKey: adminQueryKeys.homeBirthdays(id, dayYmd),
+    queryFn: () => loadHomeBirthdaysToday(instituteId!),
+    enabled: instituteEnabled(instituteId, enabled),
+    staleTime: ADMIN_QUERY_VOLATILE_STALE_TIME_MS,
+    refetchOnMount: "always",
   });
 }
 

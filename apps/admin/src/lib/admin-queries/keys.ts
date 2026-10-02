@@ -184,6 +184,9 @@ export const adminQueryKeys = {
   /** `dayYmd` (local YYYY-MM-DD) keeps birthday widgets from sticking across midnight. */
   homeWidgets: (instituteId: string, dayYmd: string) =>
     [ADMIN_QUERY_SCOPE, instituteId, adminQueryRoots.home, "widgets", dayYmd] as const,
+  /** Dedicated today-birthdays query (month+day match; keyed by local calendar day). */
+  homeBirthdays: (instituteId: string, dayYmd: string) =>
+    [ADMIN_QUERY_SCOPE, instituteId, adminQueryRoots.home, "birthdays", dayYmd] as const,
   enrollments: (instituteId: string, filters: unknown = {}) =>
     [ADMIN_QUERY_SCOPE, instituteId, adminQueryRoots.enrollments, filters] as const,
   academicYears: (instituteId: string) =>

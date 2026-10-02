@@ -1,7 +1,9 @@
 /**
  * Pure birthday matching for the admin home widget.
- * Uses date_of_birth from students/teachers — no demo wish workflow.
+ * Matches on month + day only (year ignored).
  */
+
+import { normalizeDateOnlyInput } from "@/lib/date-only";
 
 export type BirthdayRole = "Student" | "Teacher";
 
@@ -23,102 +25,186 @@ export function localYmd(date: Date = new Date()): string {
   return `${y}-${m}-${d}`;
 }
 
-type ParsedDob = { year: number; month: number; day: number };
+export type MonthDay = { month: number; day: number };
 
-/** Accept ISO YYYY-MM-DD (optionally with time) and common DMY forms. */
-export function parseDobParts(dateOfBirth: string | null | undefined): ParsedDob | null {
-  if (!dateOfBirth || typeof dateOfBirth !== "string") return null;
-  const trimmed = dateOfBirth.trim();
-  if (!trimmed) return null;
+function validMonthDay(month: number, day: number): MonthDay | null {
+  if (
+    !Number.isFinite(month) ||
+    !Number.isFinite(day) ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31
+  ) {
+    return null;
+  }
+  return { month, day };
+}
 
-  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(trimmed);
-  if (iso) {
-    const year = Number(iso[1]);
-    const month = Number(iso[2]);
-    const day = Number(iso[3]);
-    if (!year || month < 1 || month > 12 || day < 1 || day > 31) return null;
-    return { year, month, day };
+/**
+ * Extract month + day from any common DOB wire value.
+ * Year is parsed when present but never used for "is today" matching.
+ */
+export function extractMonthDay(
+  dateOfBirth: string | number | Date | null | undefined,
+): MonthDay | null {
+  if (dateOfBirth == null || dateOfBirth === "") return null;
+
+  if (dateOfBirth instanceof Date) {
+    if (Number.isNaN(dateOfBirth.getTime())) return null;
+    return validMonthDay(dateOfBirth.getMonth() + 1, dateOfBirth.getDate());
   }
 
-  const dmy = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(trimmed);
-  if (dmy) {
-    const day = Number(dmy[1]);
-    const month = Number(dmy[2]);
-    const year = Number(dmy[3]);
-    if (!year || month < 1 || month > 12 || day < 1 || day > 31) return null;
-    return { year, month, day };
+  if (typeof dateOfBirth === "number") {
+    const normalized = normalizeDateOnlyInput(String(dateOfBirth));
+    if (!normalized) return null;
+    const [, m, d] = normalized.split("-").map(Number);
+    return validMonthDay(m!, d!);
+  }
+
+  const trimmed = String(dateOfBirth).trim();
+  if (!trimmed) return null;
+
+  // Pure calendar date — use month/day digits as-is (no timezone shift).
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  if (dateOnly) {
+    return validMonthDay(Number(dateOnly[2]), Number(dateOnly[3]));
+  }
+
+  // ISO datetime — prefer local calendar day (handles IST midnight shift).
+  if (/^\d{4}-\d{2}-\d{2}[T\s]/.test(trimmed)) {
+    const parsed = new Date(trimmed);
+    if (!Number.isNaN(parsed.getTime())) {
+      return validMonthDay(parsed.getMonth() + 1, parsed.getDate());
+    }
+    const prefix = /^(\d{4})-(\d{2})-(\d{2})/.exec(trimmed);
+    if (prefix) return validMonthDay(Number(prefix[2]), Number(prefix[3]));
+  }
+
+  // DMY / MDY slash forms — India-first (DD/MM) when ambiguous.
+  const slash = /^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})$/.exec(trimmed);
+  if (slash) {
+    const a = Number(slash[1]);
+    const b = Number(slash[2]);
+    if (a > 12) return validMonthDay(b, a);
+    if (b > 12) return validMonthDay(a, b);
+    return validMonthDay(b, a); // DD/MM
+  }
+
+  const normalized = normalizeDateOnlyInput(trimmed);
+  if (normalized) {
+    const [, m, d] = normalized.split("-").map(Number);
+    return validMonthDay(m!, d!);
   }
 
   return null;
 }
 
+/** @deprecated Prefer extractMonthDay — kept for call sites/tests. */
+export function parseDobParts(
+  dateOfBirth: string | null | undefined,
+): { year: number; month: number; day: number } | null {
+  if (dateOfBirth == null) return null;
+  const trimmed = String(dateOfBirth).trim();
+  if (!trimmed) return null;
+  const md = extractMonthDay(trimmed);
+  if (!md) return null;
+  const iso = /^(\d{4})/.exec(trimmed);
+  const year = iso ? Number(iso[1]) : 0;
+  return { year, month: md.month, day: md.day };
+}
+
 /** True when DOB month-day matches the given calendar day (year ignored). */
 export function isBirthdayOnDate(
-  dateOfBirth: string | null | undefined,
+  dateOfBirth: string | number | Date | null | undefined,
   onDate: Date = new Date(),
 ): boolean {
-  const dob = parseDobParts(dateOfBirth);
-  if (!dob) return false;
-  return dob.month === onDate.getMonth() + 1 && dob.day === onDate.getDate();
+  const md = extractMonthDay(dateOfBirth);
+  if (!md) return false;
+  return md.month === onDate.getMonth() + 1 && md.day === onDate.getDate();
 }
 
 export function turningAgeOnDate(
   dateOfBirth: string,
   onDate: Date = new Date(),
 ): number | null {
-  const dob = parseDobParts(dateOfBirth);
-  if (!dob?.year) return null;
-  return onDate.getFullYear() - dob.year;
+  const trimmed = String(dateOfBirth).trim();
+  const yearMatch = /^(\d{4})/.exec(trimmed);
+  if (!yearMatch) {
+    const normalized = normalizeDateOnlyInput(trimmed);
+    if (!normalized) return null;
+    const birthYear = Number(normalized.slice(0, 4));
+    if (!birthYear) return null;
+    return onDate.getFullYear() - birthYear;
+  }
+  const birthYear = Number(yearMatch[1]);
+  if (!birthYear) return null;
+  return onDate.getFullYear() - birthYear;
+}
+
+function readDob(row: Record<string, unknown>): unknown {
+  return row.dateOfBirth ?? row.date_of_birth ?? null;
+}
+
+function readName(row: Record<string, unknown>): string {
+  const value =
+    row.displayName ?? row.display_name ?? row.name ?? "";
+  const name = String(value).trim();
+  return name || "Unknown";
+}
+
+function readPhoto(row: Record<string, unknown>): string | null {
+  const value = row.photoAssetPath ?? row.photo_asset_path ?? null;
+  if (value == null) return null;
+  const trimmed = String(value).trim();
+  return trimmed || null;
 }
 
 export function collectBirthdaysToday(input: {
-  students: Array<{
-    id: string;
-    displayName: string;
-    dateOfBirth: string | null;
-    classLabel: string | null;
-    sectionLabel: string | null;
-    photoAssetPath?: string | null;
-  }>;
-  teachers: Array<{
-    id: string;
-    displayName: string;
-    dateOfBirth: string | null;
-    department: string;
-    photoAssetPath?: string | null;
-  }>;
+  students: Array<Record<string, unknown>>;
+  teachers: Array<Record<string, unknown>>;
   onDate?: Date;
 }): BirthdayRow[] {
   const onDate = input.onDate ?? new Date();
   const rows: BirthdayRow[] = [];
 
   for (const s of input.students) {
-    if (!isBirthdayOnDate(s.dateOfBirth, onDate) || !s.dateOfBirth) continue;
-    const classPart = [s.classLabel, s.sectionLabel].filter(Boolean).join(" · ") || "Student";
+    const dob = readDob(s);
+    if (!isBirthdayOnDate(dob as string | null, onDate)) continue;
+    const dobStr = dob == null ? "" : String(dob);
+    const classLabel = s.classLabel ?? s.class_label ?? null;
+    const sectionLabel = s.sectionLabel ?? s.section_label ?? null;
+    const classPart =
+      [classLabel, sectionLabel].filter((v) => v != null && String(v).trim()).join(" · ") ||
+      "Student";
     rows.push({
-      id: s.id,
-      name: s.displayName,
+      id: String(s.id ?? ""),
+      name: readName(s) === "Unknown" ? "Student" : readName(s),
       role: "Student",
       detail: classPart,
-      turningAge: turningAgeOnDate(s.dateOfBirth, onDate),
-      href: `/students/${s.id}`,
-      photoAssetPath: s.photoAssetPath?.trim() || null,
+      turningAge: dobStr ? turningAgeOnDate(dobStr, onDate) : null,
+      href: s.id ? `/students/${String(s.id)}` : null,
+      photoAssetPath: readPhoto(s),
     });
   }
 
   for (const t of input.teachers) {
-    if (!isBirthdayOnDate(t.dateOfBirth, onDate) || !t.dateOfBirth) continue;
+    const dob = readDob(t);
+    if (!isBirthdayOnDate(dob as string | null, onDate)) continue;
+    const dobStr = dob == null ? "" : String(dob);
+    const department = String(t.department ?? t.dept ?? "").trim() || "Teacher";
+    const name = readName(t);
     rows.push({
-      id: t.id,
-      name: t.displayName,
+      id: String(t.id ?? ""),
+      name: name === "Unknown" ? "Teacher" : name,
       role: "Teacher",
-      detail: t.department || "Teacher",
-      turningAge: turningAgeOnDate(t.dateOfBirth, onDate),
+      detail: department,
+      turningAge: dobStr ? turningAgeOnDate(dobStr, onDate) : null,
       href: "/teachers",
-      photoAssetPath: t.photoAssetPath?.trim() || null,
+      photoAssetPath: readPhoto(t),
     });
   }
 
   rows.sort((a, b) => a.name.localeCompare(b.name));
-  return rows;
+  return rows.filter((r) => Boolean(r.id));
 }

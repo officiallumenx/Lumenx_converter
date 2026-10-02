@@ -142,7 +142,7 @@ export function shouldDehydrateAdminQuery(query: {
     return false;
   }
   // Home widgets include "birthdays today" — never restore a prior calendar day's board.
-  if (key[2] === "home" && key[3] === "widgets") {
+  if (key[2] === "home" && (key[3] === "widgets" || key[3] === "birthdays")) {
     return false;
   }
   // Signed photo URLs expire (~1h). Persisting them causes broken/slow photos on reopen.

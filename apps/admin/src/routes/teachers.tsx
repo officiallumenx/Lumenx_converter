@@ -2136,7 +2136,30 @@ function ApiTeacherProfileSummary({
         <TeacherDetailRow label="Joined" value={teacher.joined} />
         <TeacherDetailRow
           label="Date of birth"
-          value={teacher.dateOfBirth || "—"}
+          value={
+            teacher.dateOfBirth
+              ? (() => {
+                  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(teacher.dateOfBirth);
+                  if (!match) return teacher.dateOfBirth;
+                  const months = [
+                    "Jan",
+                    "Feb",
+                    "Mar",
+                    "Apr",
+                    "May",
+                    "Jun",
+                    "Jul",
+                    "Aug",
+                    "Sep",
+                    "Oct",
+                    "Nov",
+                    "Dec",
+                  ];
+                  const month = months[Number(match[2]) - 1] ?? match[2];
+                  return `${Number(match[3])} ${month} ${match[1]}`;
+                })()
+              : "—"
+          }
         />
         <TeacherDetailRow label="Portal access" value={teacher.portalAccess} />
         <TeacherDetailRow
