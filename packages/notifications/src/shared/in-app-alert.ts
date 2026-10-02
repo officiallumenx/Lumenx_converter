@@ -1,4 +1,4 @@
-import { playAlertChime, playNotificationChime } from "./alert-chime";
+import { playAlarmChime, playAlertChime, playNotificationChime } from "./alert-chime";
 import { scheduleNativeAlertNotification } from "./native-alert-push";
 
 export type InAppAlertEventDetail = {
@@ -13,8 +13,12 @@ export const IN_APP_ALERT_EVENT = "lumenx:in-app-alert";
 
 export function dispatchInAppAlert(detail: InAppAlertEventDetail): void {
   if (typeof window === "undefined") return;
-  if (detail.variant === "alert") playAlertChime();
-  else playNotificationChime();
+  if (detail.variant === "alert") {
+    if (detail.severity === "emergency") playAlarmChime();
+    else playAlertChime();
+  } else {
+    playNotificationChime();
+  }
   void scheduleNativeAlertNotification(detail);
   window.dispatchEvent(new CustomEvent(IN_APP_ALERT_EVENT, { detail }));
 }

@@ -534,6 +534,35 @@ export function notifyConnectBusApproach(input: {
   });
 }
 
+/** Bus entered the student's pickup-stop geofence (Connect parents). */
+export function notifyConnectBusArrived(input: {
+  tripId: string;
+  studentId: string;
+  studentName: string;
+  stopName: string;
+  vehicleNumber: string;
+  routeCode?: string;
+}): TransportWorkflowNotification {
+  return pushTransportNotification({
+    id: `connect-arrived-${input.tripId}-${input.studentId}`,
+    audience: "connect",
+    category: "approach",
+    title: "Bus arrived at your stop",
+    message: `${input.vehicleNumber} has reached ${input.stopName}. Please bring ${input.studentName} to the pickup point.`,
+    href: "/transport",
+    priority: "critical",
+    templateId: "transport.parent.bus_arrived",
+    meta: {
+      tripId: input.tripId,
+      studentId: input.studentId,
+      stopName: input.stopName,
+      vehicleNumber: input.vehicleNumber,
+      routeCode: input.routeCode ?? "",
+      kind: "arrived_stop",
+    },
+  });
+}
+
 export function notifyConnectStudentBoarded(input: {
   tripId: string;
   studentId: string;

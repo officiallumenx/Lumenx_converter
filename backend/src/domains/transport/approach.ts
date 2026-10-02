@@ -55,9 +55,26 @@ export function approachBandForEta(
   return band;
 }
 
+/** Resolve stop approach geofence meters (default 150). */
+export function resolveStopGeofenceM(notificationRadiusM: unknown): number {
+  const radius = Number(notificationRadiusM);
+  return Number.isFinite(radius) && radius > 0 ? radius : 150;
+}
+
+/** True when bus distance is inside the stop notification radius. */
+export function isBusWithinStopRadius(
+  distanceM: number,
+  notificationRadiusM: unknown,
+): boolean {
+  if (!Number.isFinite(distanceM) || distanceM < 0) return false;
+  return distanceM <= resolveStopGeofenceM(notificationRadiusM);
+}
+
 /**
- * On each GPS ping: evaluate 30 / 15 / 5 minute approach bands to the
- * learner's pickup stop and notify guardians once per trip×student×band.
+ * On each GPS ping:
+ * - evaluate 30 / 15 / 5 minute approach bands (unchanged)
+ * - when the bus first enters the pickup-stop geofence, notify "Bus arrived"
+ *   once per trip×student (critical — Connect alert/alarm channel)
  */
 export async function evaluateApproachAlertsOnPing(
   admin: SupabaseClient,
@@ -88,7 +105,11 @@ export async function evaluateApproachAlertsOnPing(
     });
     const etaMinutes = etaMinutesFromDistance(distanceM, location.speedKmh);
     const crossed = APPROACH_THRESHOLDS_MIN.filter((t) => etaMinutes <= t);
-    if (crossed.length === 0) continue;
+    const withinRadius = isBusWithinStopRadius(
+      distanceM,
+      stop.notification_radius_m,
+    );
+    if (crossed.length === 0 && !withinRadius) continue;
 
     const recipients = await guardianUserIdsForStudent(
       admin,
@@ -120,6 +141,33 @@ export async function evaluateApproachAlertsOnPing(
             etaMinutes,
             kind,
             thresholdMin: threshold,
+          },
+        });
+      } catch {
+        // Non-fatal — location ping already persisted
+      }
+    }
+
+    if (withinRadius) {
+      try {
+        await emitNotificationForInstituteSystem(admin, createdByUserId, {
+          instituteId: trip.institute_id,
+          category: "transport",
+          priority: "critical",
+          title: "Bus arrived at your stop",
+          body: `The bus has reached ${stop.name}. Please bring your child to the pickup point.`,
+          deepLink: "/transport",
+          dedupeKey: `transport:arrived_stop:${trip.id}:${enrollment.student_id}`,
+          recipientUserIds: recipients,
+          payload: {
+            tripId: trip.id,
+            studentId: enrollment.student_id,
+            stopId: stop.id,
+            distanceM: Math.round(distanceM),
+            etaMinutes,
+            kind: "arrived_stop",
+            withinRadius: true,
+            geofenceM: resolveStopGeofenceM(stop.notification_radius_m),
           },
         });
       } catch {
@@ -165,9 +213,7 @@ export async function computeApproachForStudent(
       longitude: Number(stop.longitude),
     },
   );
-  const radius = Number(stop.notification_radius_m);
-  const geofenceM =
-    Number.isFinite(radius) && radius > 0 ? radius : 150;
+  const geofenceM = resolveStopGeofenceM(stop.notification_radius_m);
   const etaMinutes = etaMinutesFromDistance(distanceM, input.speedKmh);
   return {
     stopId: stop.id,

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { approachBandForEta } from "./approach.js";
+import {
+  approachBandForEta,
+  isBusWithinStopRadius,
+  resolveStopGeofenceM,
+} from "./approach.js";
 
 describe("approach withinRadius radius handling", () => {
   it("keeps ETA bands unchanged", () => {
@@ -10,22 +14,23 @@ describe("approach withinRadius radius handling", () => {
   });
 });
 
-/** Pure helper mirroring computeApproachForStudent geofence resolution. */
-function resolveGeofenceM(notificationRadiusM: unknown): number {
-  const radius = Number(notificationRadiusM);
-  return Number.isFinite(radius) && radius > 0 ? radius : 150;
-}
-
 describe("notification radius geofence (no 50m floor)", () => {
   it("uses stored radius below the old 50m floor", () => {
-    expect(resolveGeofenceM(30)).toBe(30);
-    expect(30 <= resolveGeofenceM(30)).toBe(true);
+    expect(resolveStopGeofenceM(30)).toBe(30);
+    expect(isBusWithinStopRadius(30, 30)).toBe(true);
+    expect(isBusWithinStopRadius(31, 30)).toBe(false);
   });
 
   it("falls back to 150 when missing/invalid", () => {
-    expect(resolveGeofenceM(null)).toBe(150);
-    expect(resolveGeofenceM(0)).toBe(150);
-    expect(resolveGeofenceM(-10)).toBe(150);
-    expect(resolveGeofenceM("x")).toBe(150);
+    expect(resolveStopGeofenceM(null)).toBe(150);
+    expect(resolveStopGeofenceM(0)).toBe(150);
+    expect(resolveStopGeofenceM(-10)).toBe(150);
+    expect(resolveStopGeofenceM("x")).toBe(150);
+  });
+
+  it("treats bus inside default 150m as arrived geofence", () => {
+    expect(isBusWithinStopRadius(149, null)).toBe(true);
+    expect(isBusWithinStopRadius(150, null)).toBe(true);
+    expect(isBusWithinStopRadius(151, null)).toBe(false);
   });
 });

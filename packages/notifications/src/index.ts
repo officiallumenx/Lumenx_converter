@@ -160,6 +160,7 @@ export {
   ALERT_ICON_CHIP_CLASS,
   ALERT_BADGE_CLASS,
   playAlertChime,
+  playAlarmChime,
   playNotificationChime,
   playChimeForVariant,
   setAlertChimesEnabled,

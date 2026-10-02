@@ -86,6 +86,19 @@ export function playAlertChime(): void {
   });
 }
 
+/** Stronger repeating tone for bus-arrived / emergency critical alerts. */
+export function playAlarmChime(): void {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+  void ctx.resume().then(() => {
+    const t = ctx.currentTime;
+    playTone(ctx, 880, t, 0.12, 0.18);
+    playTone(ctx, 1046, t + 0.16, 0.12, 0.2);
+    playTone(ctx, 880, t + 0.34, 0.12, 0.18);
+    playTone(ctx, 1175, t + 0.5, 0.16, 0.22);
+  });
+}
+
 export function playChimeForVariant(variant: AlertChimeVariant): void {
   if (variant === "alert") playAlertChime();
   else playNotificationChime();

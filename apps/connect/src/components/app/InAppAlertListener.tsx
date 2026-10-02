@@ -4,9 +4,10 @@ import { subscribeInAppAlerts, bootstrapAlertChimesPreference, type InAppAlertEv
 
 function showAlertToast(detail: InAppAlertEventDetail): void {
   const isAlert = detail.variant === "alert";
-  toast(isAlert ? "Important alert" : "Notification", {
+  const isEmergency = detail.severity === "emergency";
+  toast(isEmergency ? "Bus alert" : isAlert ? "Important alert" : "Notification", {
     description: detail.title,
-    duration: isAlert ? 12000 : 5000,
+    duration: isEmergency ? 16000 : isAlert ? 12000 : 5000,
     className: isAlert ? "border-destructive/50 bg-destructive/10 text-destructive" : undefined,
     action: detail.href
       ? {

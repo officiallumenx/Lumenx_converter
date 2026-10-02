@@ -166,6 +166,20 @@ export const TRANSPORT_TEMPLATES: RegisteredNotificationTemplate[] = [
     updatedAt: daysAgo(1),
   }),
   tpl({
+    templateId: IDS.transport.parent.busArrived,
+    category: "transport",
+    audience: "parent",
+    title: "Bus arrived at your stop",
+    message:
+      "{{vehicleNumber}} has reached {{stopName}}. Please bring {{studentName}} to the pickup point.",
+    priority: "critical",
+    status: "published",
+    version: "1.0.0",
+    deepLink: "/transport",
+    whereUsed: ["Transport approach geofence", "Connect"],
+    updatedAt: daysAgo(1),
+  }),
+  tpl({
     templateId: IDS.transport.parent.studentBoarded,
     category: "transport",
     audience: "parent",

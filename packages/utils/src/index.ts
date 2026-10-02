@@ -354,6 +354,7 @@ export {
   notifyConnectEmergency,
   notifyConnectStopAssigned,
   notifyConnectBusApproach,
+  notifyConnectBusArrived,
   notifyConnectStudentBoarded,
   notifyConnectStudentNotBoarded,
   notifyConnectReachedSchool,

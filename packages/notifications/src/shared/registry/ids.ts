@@ -70,6 +70,7 @@ export const NOTIFICATION_TEMPLATE_IDS = {
       approach30: "transport.parent.approach_30",
       approach15: "transport.parent.approach_15",
       approach5: "transport.parent.approach_5",
+      busArrived: "transport.parent.bus_arrived",
       studentBoarded: "transport.parent.student_boarded",
       studentNotBoarded: "transport.parent.student_not_boarded",
       reachedSchool: "transport.parent.reached_school",

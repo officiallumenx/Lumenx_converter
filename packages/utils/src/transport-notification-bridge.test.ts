@@ -131,6 +131,14 @@ describe("transport notification bridge", () => {
       minutes: 5,
       busStatus: "en route",
     });
+    n.notifyConnectBusArrived({
+      tripId: "t1",
+      studentId: "S1",
+      studentName: "Asha",
+      stopName: "Lake View",
+      vehicleNumber: "BUS-01",
+      routeCode: "NCL",
+    });
     n.notifyConnectStudentBoarded({
       tripId: "t1",
       studentId: "S1",
@@ -192,7 +200,11 @@ describe("transport notification bridge", () => {
     });
 
     const connect = n.listTransportNotifications("connect");
-    expect(connect.filter((x) => x.category === "approach")).toHaveLength(3);
+    expect(connect.filter((x) => x.category === "approach")).toHaveLength(4);
+    expect(connect.some((x) => x.title === "Bus arrived at your stop")).toBe(true);
+    expect(connect.find((x) => x.title === "Bus arrived at your stop")?.priority).toBe(
+      "critical",
+    );
     expect(connect.some((x) => x.title === "Student boarded")).toBe(true);
     expect(connect.some((x) => x.title === "Student not boarded")).toBe(true);
     expect(connect.some((x) => x.title === "Reached school")).toBe(true);
