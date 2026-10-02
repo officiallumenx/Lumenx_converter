@@ -15,7 +15,6 @@ import {
   buildLiveTracking,
   loadLearnerTransportLive,
   mapLearnerSummaryToAssignment,
-  subscribeLearnerLiveTrip,
   summaryStopsToTimeline,
 } from "@/lib/transport/learner-live";
 import { formatEtaMinutes } from "@/lib/transport-utils";
@@ -42,7 +41,6 @@ export function LearnerTransportApiView({
   } = useLearnerTransportQuery(instituteId, studentId, true);
 
   const [live, setLive] = useState<Awaited<ReturnType<typeof loadLearnerTransportLive>>>(null);
-  const [liveTick, setLiveTick] = useState(0);
 
   const summary =
     transportState?.status === "ready" ? transportState.summary : null;
@@ -52,17 +50,36 @@ export function LearnerTransportApiView({
     transportState?.status === "empty" ? transportState.message : null;
   const loading = isLoading && !transportState;
 
+  const refreshLive = useMemo(
+    () => () => {
+      if (!summary) {
+        setLive(null);
+        return;
+      }
+      void loadLearnerTransportLive({ instituteId, studentId }).then((liveData) => {
+        setLive(liveData);
+      });
+    },
+    [summary, instituteId, studentId],
+  );
+
   useEffect(() => {
     if (!summary) {
       setLive(null);
       return;
     }
     let cancelled = false;
-    void loadLearnerTransportLive({ instituteId, studentId }).then((liveData) => {
-      if (!cancelled) setLive(liveData);
-    });
+    const pull = () => {
+      void loadLearnerTransportLive({ instituteId, studentId }).then((liveData) => {
+        if (!cancelled) setLive(liveData);
+      });
+    };
+    pull();
+    // Driver GPS pings about every 30s — poll a bit faster so parents see fresh ETA/coords.
+    const timer = window.setInterval(pull, 15_000);
     return () => {
       cancelled = true;
+      window.clearInterval(timer);
     };
   }, [summary, instituteId, studentId]);
 
@@ -71,14 +88,15 @@ export function LearnerTransportApiView({
       const supabase = getSupabaseBrowserClient();
       return subscribeTransportRealtime(supabase, {
         instituteId,
-        onChange: refresh,
+        onChange: () => {
+          refresh();
+          refreshLive();
+        },
       });
     } catch {
       return undefined;
     }
-  }, [instituteId, refresh]);
-
-  useEffect(() => subscribeLearnerLiveTrip(() => setLiveTick((t) => t + 1)), []);
+  }, [instituteId, refresh, refreshLive]);
 
   const assignment = useMemo(
     () => (summary ? mapLearnerSummaryToAssignment(summary) : null),
@@ -86,7 +104,7 @@ export function LearnerTransportApiView({
   );
   const tracking = useMemo(
     () => (summary && assignment ? buildLiveTracking(summary, assignment, live) : null),
-    [summary, assignment, live, liveTick],
+    [summary, assignment, live],
   );
 
   if (loading) {
@@ -152,17 +170,23 @@ export function LearnerTransportApiView({
             tracking.learnerStatus === "awaiting_pickup" ? "Time to your stop" : "Journey status"
           }
           value={
-            tracking.sharedTripActive
-              ? formatEtaMinutes(tracking.etaMinutes)
-              : tracking.learnerStatus === "reached_school"
-                ? "Reached school"
-                : tracking.learnerStatus === "picked_up"
-                  ? "Picked up"
+            tracking.learnerStatus === "reached_school"
+              ? "Reached school"
+              : tracking.learnerStatus === "picked_up"
+                ? "Picked up"
+                : tracking.sharedTripActive
+                  ? tracking.lat !== 0 || tracking.lng !== 0
+                    ? formatEtaMinutes(tracking.etaMinutes)
+                    : "Locating…"
                   : "Scheduled"
           }
           hint={
             tracking.sharedTripActive
-              ? tracking.nextStopName
+              ? tracking.distanceM != null
+                ? tracking.distanceM < 1000
+                  ? `${Math.round(tracking.distanceM)} m · ${tracking.nextStopName}`
+                  : `${(tracking.distanceM / 1000).toFixed(1)} km · ${tracking.nextStopName}`
+                : tracking.nextStopName
               : summary.driverName ?? "Contact school transport office"
           }
           tone={tracking.sharedTripActive ? "primary" : "default"}

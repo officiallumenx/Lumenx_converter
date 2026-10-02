@@ -24,7 +24,7 @@ export function startTripGpsPing() {
   void pingOnce();
   pingTimer = setInterval(() => {
     void pingOnce();
-  }, 30_000);
+  }, 15_000);
 }
 
 export function stopTripGpsPing() {

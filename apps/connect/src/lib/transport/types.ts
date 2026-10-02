@@ -79,6 +79,8 @@ export interface TransportTracking {
   delayMinutes: number;
   lat: number;
   lng: number;
+  /** Meters to the learner pickup stop when GPS + stop coords exist. */
+  distanceM?: number | null;
   /** True when progress comes from shared Driver trip meta */
   sharedTripActive?: boolean;
   /** Open SOS on this learner's bus */

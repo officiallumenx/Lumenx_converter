@@ -21,7 +21,13 @@ export function TransportEtaBanner({
   const pickedUp = tracking.learnerStatus === "picked_up";
   const reachedSchool = tracking.learnerStatus === "reached_school";
   const emergency = Boolean(tracking.emergencyActive);
-  const urgent = !emergency && awaitingPickup && tracking.etaMinutes <= 5;
+  const hasGps =
+    Number.isFinite(tracking.lat) &&
+    Number.isFinite(tracking.lng) &&
+    !(tracking.lat === 0 && tracking.lng === 0);
+  const locating = Boolean(tracking.sharedTripActive) && awaitingPickup && !hasGps;
+  const urgent =
+    !emergency && !locating && awaitingPickup && hasGps && tracking.etaMinutes <= 5;
   const stopOwner =
     viewer === "student"
       ? "your stop"
@@ -36,7 +42,9 @@ export function TransportEtaBanner({
         ? "Picked up"
         : tracking.runStatus === "scheduled"
           ? "Trip not started"
-          : formatEtaMinutes(tracking.etaMinutes);
+          : locating
+            ? "Locating bus…"
+            : formatEtaMinutes(tracking.etaMinutes);
   const detail = emergency
     ? assignment
       ? `${assignment.bus.busNumber} · ${assignment.bus.routeCode} · Admin is handling this SOS.`
@@ -53,9 +61,19 @@ export function TransportEtaBanner({
           ? assignment
             ? `Waiting for ${assignment.bus.busNumber} to start · ${assignment.pickupStop.name}`
             : "Waiting for the driver to start the trip."
-          : assignment
-            ? `${formatEtaMinutes(tracking.etaMinutes)} to ${stopOwner} · ${assignment.pickupStop.name} · scheduled ${assignment.pickupStop.scheduledTime}`
-            : `Next: ${tracking.nextStopName}`;
+          : locating
+            ? assignment
+              ? `Driver trip is active · waiting for live GPS near ${assignment.pickupStop.name}`
+              : "Driver trip is active · waiting for live GPS."
+            : assignment
+              ? `${formatEtaMinutes(tracking.etaMinutes)} to ${stopOwner} · ${assignment.pickupStop.name}${
+                  tracking.distanceM != null
+                    ? tracking.distanceM < 1000
+                      ? ` · ${Math.round(tracking.distanceM)} m`
+                      : ` · ${(tracking.distanceM / 1000).toFixed(1)} km`
+                    : ""
+                }`
+              : `Next: ${tracking.nextStopName}`;
 
   return (
     <div
@@ -174,11 +192,22 @@ export function TransportRouteTimeline({
 }
 
 export function TransportTrackingPanel({ tracking }: { tracking: TransportTracking }) {
+  const hasGps = Number.isFinite(tracking.lat) && Number.isFinite(tracking.lng)
+    && !(tracking.lat === 0 && tracking.lng === 0);
   const sourceLabel = tracking.emergencyActive
     ? "Emergency overlay"
     : tracking.sharedTripActive
-      ? "Driver trip"
-      : "Simulated GPS";
+      ? hasGps
+        ? "Live bus GPS"
+        : "Driver trip · locating…"
+      : "Trip not started";
+
+  const distanceLabel =
+    tracking.distanceM != null && Number.isFinite(tracking.distanceM)
+      ? tracking.distanceM < 1000
+        ? `${Math.round(tracking.distanceM)} m away`
+        : `${(tracking.distanceM / 1000).toFixed(1)} km away`
+      : null;
 
   return (
     <SectionCard title="Live tracking">
@@ -200,6 +229,9 @@ export function TransportTrackingPanel({ tracking }: { tracking: TransportTracki
             <div>
               <p className="text-[10px] uppercase tracking-wide text-white/60">{sourceLabel}</p>
               <p className="font-semibold">{tracking.nextStopName}</p>
+              {distanceLabel ? (
+                <p className="mt-0.5 text-xs text-white/70">{distanceLabel}</p>
+              ) : null}
             </div>
             <Badge className="border-0 bg-white/15 text-white">{tracking.lastUpdated}</Badge>
           </div>
@@ -215,8 +247,11 @@ export function TransportTrackingPanel({ tracking }: { tracking: TransportTracki
               />
             </div>
             <p className="mt-2 text-xs text-white/60">
-              Lat {tracking.lat.toFixed(4)}, Lng {tracking.lng.toFixed(4)}
-              {tracking.sharedTripActive ? " · Shared trip" : " · Demo tracking"}
+              {hasGps
+                ? `Lat ${tracking.lat.toFixed(4)}, Lng ${tracking.lng.toFixed(4)} · Live GPS`
+                : tracking.sharedTripActive
+                  ? "Waiting for driver GPS ping…"
+                  : "No live trip yet"}
             </p>
           </div>
         </div>

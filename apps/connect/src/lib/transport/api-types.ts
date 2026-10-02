@@ -131,6 +131,15 @@ export type LearnerTransportLiveDto = {
     longitude: number;
     capturedAt: string;
   } | null;
+  /** Distance / ETA to the learner's pickup stop when live GPS exists. */
+  approach: {
+    stopId: string;
+    stopName: string;
+    distanceM: number;
+    withinRadius: boolean;
+    etaMinutes: number;
+    band: 30 | 15 | 5 | null;
+  } | null;
 };
 
 export type LearnerTransportLiveParams = {
