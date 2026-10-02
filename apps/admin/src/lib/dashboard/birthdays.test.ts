@@ -96,6 +96,7 @@ describe("collectBirthdaysToday", () => {
     expect(rows[0]?.photoAssetPath).toBe("photos/s1.jpg");
     expect(rows[1]?.role).toBe("Teacher");
     expect(rows[1]?.photoAssetPath).toBeNull();
+    expect(rows[1]?.phone).toBeNull();
   });
 
   it("accepts teacher list shape with name/dept aliases", () => {
@@ -134,5 +135,33 @@ describe("collectBirthdaysToday", () => {
     });
     expect(rows).toHaveLength(1);
     expect(rows[0]?.name).toBe("Mr. Ali");
+  });
+
+  it("matches Oct 2 teacher and student DOBs by month+day only", () => {
+    const onDate = new Date(2026, 9, 2);
+    const rows = collectBirthdaysToday({
+      onDate,
+      students: [
+        {
+          id: "stu-sai",
+          displayName: "Sai Vella",
+          dateOfBirth: "2002-10-02",
+          classLabel: "8",
+          sectionLabel: "A",
+        },
+      ],
+      teachers: [
+        {
+          id: "tch-siva",
+          displayName: "P. Siva Sai",
+          dateOfBirth: "2000-10-02",
+          department: "Staff",
+        },
+      ],
+    });
+    expect(rows.map((r) => r.name).sort()).toEqual([
+      "P. Siva Sai",
+      "Sai Vella",
+    ]);
   });
 });

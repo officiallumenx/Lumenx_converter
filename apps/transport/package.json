@@ -14,6 +14,7 @@
     "preview": "vite preview",
     "cap:sync": "cap sync",
     "cap:open:android": "cap open android",
+    "icons:android": "node scripts/generate-launcher-icons.mjs",
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run"

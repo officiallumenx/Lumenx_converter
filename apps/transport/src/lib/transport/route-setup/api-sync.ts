@@ -3,10 +3,16 @@ import {
   listTransportStops,
   submitTransportEnrollment,
   submitTransportStop,
+  updateTransportEnrollment,
+  updateTransportStop,
   type DriverRouteRoster,
   type StopDto,
 } from "@/lib/transport-api";
-import { setApiDriverRoster, listApprovedAttendanceRosterStudents } from "../api-roster";
+import {
+  listApiEnrollmentsForVehicle,
+  setApiDriverRoster,
+  listApprovedAttendanceRosterStudents,
+} from "../api-roster";
 import {
   applyApiApprovedHydration,
   type RouteSetupDriverScope,
@@ -23,8 +29,26 @@ function isUuid(value: string): boolean {
 async function resolveDropStopId(routeId: string, pickupStopId: string): Promise<string> {
   const stops = await listTransportStops({ routeId });
   if (stops.length === 0) return pickupStopId;
+  const school = stops.find((s) => s.kind === "school");
+  if (school?.id) return school.id;
   const sorted = [...stops].sort((a, b) => b.routeOrder - a.routeOrder);
   return sorted[0]?.id ?? pickupStopId;
+}
+
+function resolveExistingEnrollmentId(
+  scope: RouteSetupDriverScope,
+  assignment: StudentStopAssignment,
+): string | null {
+  if (assignment.apiEnrollmentId && isUuid(assignment.apiEnrollmentId)) {
+    return assignment.apiEnrollmentId;
+  }
+  const fromRoster = listApiEnrollmentsForVehicle(scope.vehicleId).find(
+    (row) => row.studentId === assignment.studentId,
+  );
+  if (fromRoster?.id && isUuid(fromRoster.id)) {
+    return fromRoster.id;
+  }
+  return null;
 }
 
 /** Pull stops + enrollments from the API into the in-memory route-setup store (API is SoT). */
@@ -46,6 +70,30 @@ export async function hydrateRouteSetupFromApi(
     stops: data.stops,
     students: data.students,
   });
+}
+
+/** Push or refresh the driver parking / start endpoint for this route. */
+export async function syncParkingStopToApi(
+  scope: RouteSetupDriverScope,
+  gps: { latitude: number; longitude: number; accuracyM?: number | null },
+): Promise<StopDto> {
+  if (!scope.instituteId || !isUuid(scope.routeId)) {
+    throw new Error("Route is not ready for parking location");
+  }
+  const label =
+    gps.accuracyM != null
+      ? `Bus park · ±${Math.round(gps.accuracyM)}m`
+      : "Bus park";
+  return (await submitTransportStop({
+    instituteId: scope.instituteId,
+    routeId: scope.routeId,
+    name: "Bus park",
+    locationLabel: label,
+    latitude: gps.latitude,
+    longitude: gps.longitude,
+    routeOrder: 0,
+    kind: "parking",
+  })) as StopDto;
 }
 
 /** Push a pending stop and its student enrollments to the transport API. */
@@ -76,6 +124,14 @@ export async function syncStopAndEnrollmentsToApi(
       routeOrder: Math.max(0, stop.routeOrder - 1),
     })) as StopDto;
     apiStopId = created.id;
+  } else if (isUuid(apiStopId)) {
+    await updateTransportStop(apiStopId, {
+      name: stop.name,
+      locationLabel: stop.locationLabel,
+      latitude: stop.latitude,
+      longitude: stop.longitude,
+      routeOrder: Math.max(0, stop.routeOrder - 1),
+    });
   }
 
   const dropStopId = await resolveDropStopId(scope.routeId, apiStopId);
@@ -83,22 +139,28 @@ export async function syncStopAndEnrollmentsToApi(
   const syncedEnrollmentIds: string[] = [];
   for (const assignment of assignments) {
     if (assignment.stopId !== stop.id || assignment.status !== "pending") continue;
-    if (assignment.apiEnrollmentId) continue;
     if (!isUuid(assignment.studentId)) continue;
 
-    try {
-      const enrollment = (await submitTransportEnrollment({
-        instituteId: scope.instituteId,
-        studentId: assignment.studentId,
-        routeId: scope.routeId,
+    const existingEnrollmentId = resolveExistingEnrollmentId(scope, assignment);
+    if (existingEnrollmentId) {
+      await updateTransportEnrollment(existingEnrollmentId, {
         pickupStopId: apiStopId,
         dropStopId,
-      })) as { id: string };
+      });
+      assignment.apiEnrollmentId = existingEnrollmentId;
       syncedEnrollmentIds.push(assignment.id);
-      assignment.apiEnrollmentId = enrollment.id;
-    } catch {
-      // Leave local pending — driver can retry on next save.
+      continue;
     }
+
+    const enrollment = (await submitTransportEnrollment({
+      instituteId: scope.instituteId,
+      studentId: assignment.studentId,
+      routeId: scope.routeId,
+      pickupStopId: apiStopId,
+      dropStopId,
+    })) as { id: string };
+    syncedEnrollmentIds.push(assignment.id);
+    assignment.apiEnrollmentId = enrollment.id;
   }
 
   return { apiStopId, syncedEnrollmentIds };

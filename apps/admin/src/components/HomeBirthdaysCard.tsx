@@ -19,10 +19,12 @@ function BirthdayRow({
   person,
   wished,
   instituteName,
+  principalName,
 }: {
   person: BirthdayPerson;
   wished: boolean;
   instituteName: string;
+  principalName: string;
 }) {
   const canWish = Boolean(whatsAppRecipientId(person.phone));
   const nameClass = wished
@@ -65,7 +67,9 @@ function BirthdayRow({
           size="sm"
           variant={wished ? "outline" : "default"}
           className="gap-1.5 shrink-0"
-          onClick={() => openBirthdayWhatsApp(person, instituteName)}
+          onClick={() =>
+            openBirthdayWhatsApp(person, { instituteName, principalName })
+          }
         >
           <MessageCircle className="size-3.5" />
           {wished ? "Wished" : "Wish"}
@@ -81,7 +85,7 @@ function BirthdayRow({
 }
 
 export function HomeBirthdaysCard() {
-  const { instituteSummary } = useDemoProfile();
+  const { instituteSummary, instituteProfile } = useDemoProfile();
   const wishCount = useSyncExternalStore(
     subscribeBirthdayWishes,
     () => loadWishedBirthdayIds().size,
@@ -139,6 +143,7 @@ export function HomeBirthdaysCard() {
                 person={person}
                 wished={wishedIds.has(person.id)}
                 instituteName={instituteSummary.name}
+                principalName={instituteProfile.principal}
               />
             ))}
           </ul>

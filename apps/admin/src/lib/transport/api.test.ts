@@ -62,6 +62,7 @@ describe("transport vehicles api repository", () => {
         notes: null,
         assignedVehicleId: null,
         hasAppPin: false,
+        photoAssetPath: null,
         createdAt: "2026-06-01T10:00:00Z",
         updatedAt: "2026-06-01T10:00:00Z",
       },

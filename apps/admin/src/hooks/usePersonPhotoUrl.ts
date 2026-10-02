@@ -8,11 +8,11 @@ import {
 } from "@/lib/photos/signed-url";
 
 /**
- * Resolves a short-lived signed URL for a student or teacher profile photo.
+ * Resolves a short-lived signed URL for a student, teacher, or driver profile photo.
  * Skips the network when there is no stored photo asset path.
  */
 export function usePersonPhotoUrl(
-  kind: "student" | "teacher",
+  kind: "student" | "teacher" | "driver",
   personId: string | null | undefined,
   photoAssetPath?: string | null | undefined,
 ) {

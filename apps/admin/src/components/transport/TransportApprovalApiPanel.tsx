@@ -149,7 +149,7 @@ export function TransportApprovalApiPanel({
   if (sorted.length === 0) {
     return (
       <EmptyState
-        icon={ClipboardList}
+        icon={<ClipboardList className="size-5" />}
         title="Nothing to publish"
         hint="Driver-submitted routes, stops, and enrollments awaiting approval will appear here."
       />
@@ -166,7 +166,7 @@ export function TransportApprovalApiPanel({
             <CardHeader
               title={itemLabel(item)}
               action={
-                <Pill tone="warning" size="sm">
+                <Pill tone="warning">
                   {item.kind}
                 </Pill>
               }

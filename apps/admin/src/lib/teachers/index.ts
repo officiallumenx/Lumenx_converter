@@ -32,6 +32,10 @@ export {
   teachingScopeToRole,
 } from "./map";
 export {
+  hydrateTeacherDateOfBirthInput,
+  resolveTeacherEditDateOfBirth,
+} from "./dob-edit";
+export {
   loadTeacherDetail,
   loadTeachersList,
   peekTeachersListCache,

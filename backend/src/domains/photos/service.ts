@@ -1,5 +1,5 @@
 /**
- * Canonical profile photos for students and teachers.
+ * Canonical profile photos for students, teachers, and drivers.
  * Storage: student-media via assets upload; DB: photo_asset_path object keys.
  */
 
@@ -40,6 +40,15 @@ import {
   updateTeacherForActor,
 } from "../teachers/service.js";
 import type { TeacherDto } from "../teachers/types.js";
+import { findDriverById } from "../transport/repository.js";
+import {
+  getDriverForActor,
+  listDriversForActor,
+  TRANSPORT_STAFF_READ_ROLES,
+  TRANSPORT_WRITE_ROLES,
+  updateDriverForActor,
+} from "../transport/service.js";
+import type { DriverDto } from "../transport/types.js";
 
 export const PROFILE_PHOTO_MAX_BYTES = 1.5 * 1024 * 1024;
 export const PROFILE_PHOTO_BUCKET = "student-media" as const;
@@ -56,7 +65,7 @@ const ALLOWED_MIME = new Set([
   "image/webp",
 ]);
 
-export type PhotoPersonKind = "student" | "teacher";
+export type PhotoPersonKind = "student" | "teacher" | "driver";
 
 export type PhotoListTeacherDto = TeacherDto & {
   photoSignedUrl: string | null;
@@ -71,9 +80,14 @@ export type PhotoListStudentDto = StudentDto & {
   sectionId: string | null;
 };
 
+export type PhotoListDriverDto = DriverDto & {
+  photoSignedUrl: string | null;
+  photoExpiresAt: string | null;
+};
+
 export type PhotoUploadResultDto = {
   kind: PhotoPersonKind;
-  person: StudentDto | TeacherDto;
+  person: StudentDto | TeacherDto | DriverDto;
   photoAssetPath: string;
   photoSignedUrl: string;
   photoExpiresAt: string;
@@ -83,14 +97,22 @@ export type PhotoUploadResultDto = {
 function assertPhotoWriter(actor: Actor, instituteId: string): void {
   requireInstituteId(actor, instituteId);
   assertInstituteRoles(actor, instituteId, [
-    ...new Set([...STUDENT_STAFF_WRITE_ROLES, ...TEACHER_STAFF_WRITE_ROLES]),
+    ...new Set([
+      ...STUDENT_STAFF_WRITE_ROLES,
+      ...TEACHER_STAFF_WRITE_ROLES,
+      ...TRANSPORT_WRITE_ROLES,
+    ]),
   ]);
 }
 
 function assertPhotoReader(actor: Actor, instituteId: string): void {
   requireInstituteId(actor, instituteId);
   assertInstituteRoles(actor, instituteId, [
-    ...new Set([...STUDENT_STAFF_READ_ROLES, ...TEACHER_STAFF_READ_ROLES]),
+    ...new Set([
+      ...STUDENT_STAFF_READ_ROLES,
+      ...TEACHER_STAFF_READ_ROLES,
+      ...TRANSPORT_STAFF_READ_ROLES,
+    ]),
   ]);
 }
 
@@ -190,6 +212,27 @@ export async function listPhotoTeachersForActor(
     q: input.q,
   });
   return Promise.all(teachers.map(async (t) => withSignedPhoto(admin, t)));
+}
+
+export async function listPhotoDriversForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  input: { instituteId: string; q?: string },
+): Promise<PhotoListDriverDto[]> {
+  const instituteId = requireInstituteId(actor, input.instituteId);
+  assertPhotoReader(actor, instituteId);
+  let drivers = await listDriversForActor(admin, actor, instituteId);
+  if (input.q?.trim()) {
+    const q = input.q.trim().toLowerCase();
+    drivers = drivers.filter((d) => {
+      const hay = [d.displayName, d.phone, d.licenseNumber]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }
+  return Promise.all(drivers.map(async (d) => withSignedPhoto(admin, d)));
 }
 
 export async function listPhotoStudentsForActor(
@@ -363,6 +406,67 @@ export async function uploadTeacherPhotoForActor(
   };
 }
 
+export async function uploadDriverPhotoForActor(
+  admin: SupabaseClient,
+  actor: Actor,
+  driverId: string,
+  file: {
+    fileName: string;
+    contentType: string;
+    byteSize: number;
+    body: ArrayBuffer;
+  },
+): Promise<PhotoUploadResultDto> {
+  assertImageFile(file);
+  const existing = await findDriverById(admin, driverId);
+  if (!existing) throw AppError.notFound("Driver not found");
+
+  assertPhotoWriter(actor, existing.institute_id);
+
+  const previousPath = existing.photo_asset_path;
+  const asset = await uploadAssetForActor(admin, actor, {
+    instituteId: existing.institute_id,
+    bucket: PROFILE_PHOTO_BUCKET,
+    category: "avatar",
+    fileName: file.fileName,
+    contentType: file.contentType,
+    byteSize: file.byteSize,
+    body: file.body,
+    visibility: "institute",
+    linkedEntityKind: "driver",
+    linkedEntityId: driverId,
+  });
+
+  const updated = await updateDriverForActor(admin, actor, driverId, {
+    photoAssetPath: asset.objectPath,
+  });
+
+  await cleanupPreviousPhoto(
+    admin,
+    existing.institute_id,
+    "driver",
+    driverId,
+    previousPath,
+    asset.objectPath,
+  );
+
+  const signed = await createStorageSignedUrl(
+    admin,
+    asset.bucket,
+    asset.objectPath,
+    DEFAULT_SIGNED_URL_TTL_SEC,
+  );
+
+  return {
+    kind: "driver",
+    person: updated,
+    photoAssetPath: asset.objectPath,
+    photoSignedUrl: signed.signedUrl,
+    photoExpiresAt: signed.expiresAt,
+    assetId: asset.id,
+  };
+}
+
 export async function uploadStudentPhotoForActor(
   admin: SupabaseClient,
   actor: Actor,
@@ -444,6 +548,22 @@ export async function getPhotoSignedUrlForActor(
     );
     return {
       kind: "teacher",
+      id: dto.id,
+      photoAssetPath: dto.photoAssetPath,
+      photoSignedUrl: signed?.signedUrl ?? null,
+      photoExpiresAt: signed?.expiresAt ?? null,
+    };
+  }
+
+  if (input.kind === "driver") {
+    const dto = await getDriverForActor(admin, actor, input.id);
+    const signed = await resolvePhotoSignedUrl(
+      admin,
+      dto.instituteId,
+      dto.photoAssetPath,
+    );
+    return {
+      kind: "driver",
       id: dto.id,
       photoAssetPath: dto.photoAssetPath,
       photoSignedUrl: signed?.signedUrl ?? null,

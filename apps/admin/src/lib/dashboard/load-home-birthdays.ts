@@ -3,8 +3,10 @@
  */
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { isInstituteUuid } from "@/lib/active-institute";
-import { listStudents } from "@/lib/students/api";
-import { listTeachers } from "@/lib/teachers/api";
+import {
+  listStudentsCached,
+  listTeachersCached,
+} from "@/lib/directory-lists-cache";
 import {
   collectBirthdaysToday,
   localYmd,
@@ -16,7 +18,13 @@ export type HomeBirthdaysState = {
   dayYmd: string;
   rows: BirthdayRow[];
   errorMessage: string | null;
+  /** Soft warning when one directory failed but the other succeeded. */
+  warningMessage: string | null;
 };
+
+function errorText(err: unknown, fallback: string): string {
+  return err instanceof Error && err.message.trim() ? err.message : fallback;
+}
 
 export async function loadHomeBirthdaysToday(
   instituteId: string | null,
@@ -25,36 +33,74 @@ export async function loadHomeBirthdaysToday(
   const dayYmd = localYmd(onDate);
 
   if (!isApiAuthMode()) {
-    return { status: "demo", dayYmd, rows: [], errorMessage: null };
+    return {
+      status: "demo",
+      dayYmd,
+      rows: [],
+      errorMessage: null,
+      warningMessage: null,
+    };
   }
   if (!instituteId || !isInstituteUuid(instituteId)) {
-    return { status: "needs_institute", dayYmd, rows: [], errorMessage: null };
+    return {
+      status: "needs_institute",
+      dayYmd,
+      rows: [],
+      errorMessage: null,
+      warningMessage: null,
+    };
   }
 
-  try {
-    const [students, teachers] = await Promise.all([
-      listStudents({ instituteId }).catch(() => []),
-      listTeachers({ instituteId }).catch(() => []),
-    ]);
+  const [studentsResult, teachersResult] = await Promise.allSettled([
+    listStudentsCached(instituteId),
+    listTeachersCached(instituteId),
+  ]);
 
-    const rows = collectBirthdaysToday({
-      students: students as unknown as Array<Record<string, unknown>>,
-      teachers: teachers as unknown as Array<Record<string, unknown>>,
-      onDate,
-    });
-
-    return {
-      status: rows.length === 0 ? "empty" : "ready",
-      dayYmd,
-      rows,
-      errorMessage: null,
-    };
-  } catch (err) {
+  if (
+    studentsResult.status === "rejected" &&
+    teachersResult.status === "rejected"
+  ) {
     return {
       status: "error",
       dayYmd,
       rows: [],
-      errorMessage: err instanceof Error ? err.message : "Failed to load birthdays",
+      errorMessage: errorText(
+        studentsResult.reason,
+        "Failed to load birthdays",
+      ),
+      warningMessage: null,
     };
   }
+
+  const students =
+    studentsResult.status === "fulfilled" ? studentsResult.value : [];
+  const teachers =
+    teachersResult.status === "fulfilled" ? teachersResult.value : [];
+
+  let warningMessage: string | null = null;
+  if (teachersResult.status === "rejected") {
+    warningMessage = errorText(
+      teachersResult.reason,
+      "Could not load teacher birthdays",
+    );
+  } else if (studentsResult.status === "rejected") {
+    warningMessage = errorText(
+      studentsResult.reason,
+      "Could not load student birthdays",
+    );
+  }
+
+  const rows = collectBirthdaysToday({
+    students: students as unknown as Array<Record<string, unknown>>,
+    teachers: teachers as unknown as Array<Record<string, unknown>>,
+    onDate,
+  });
+
+  return {
+    status: rows.length === 0 ? "empty" : "ready",
+    dayYmd,
+    rows,
+    errorMessage: null,
+    warningMessage,
+  };
 }

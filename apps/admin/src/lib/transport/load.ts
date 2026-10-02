@@ -151,9 +151,14 @@ export async function loadTransportRoutesList(
   }
 
   try {
-    const rows = await listTransportRoutes({ instituteId: activeInstituteId });
-    const items = await routeDtosToTransportRoutes(rows, (routeId) =>
-      listTransportStops({ routeId }),
+    const [rows, enrollments] = await Promise.all([
+      listTransportRoutes({ instituteId: activeInstituteId }),
+      listTransportEnrollments({ instituteId: activeInstituteId }),
+    ]);
+    const items = await routeDtosToTransportRoutes(
+      rows,
+      (routeId) => listTransportStops({ routeId }),
+      enrollments,
     );
     return {
       status: items.length === 0 ? "empty" : "ready",
@@ -191,9 +196,14 @@ export async function loadTransportRoutesList(
 async function loadTransportRoutesForInstitute(
   activeInstituteId: string,
 ): Promise<TransportRoute[]> {
-  const rows = await listTransportRoutes({ instituteId: activeInstituteId });
-  return routeDtosToTransportRoutes(rows, (routeId) =>
-    listTransportStops({ routeId }),
+  const [rows, enrollments] = await Promise.all([
+    listTransportRoutes({ instituteId: activeInstituteId }),
+    listTransportEnrollments({ instituteId: activeInstituteId }),
+  ]);
+  return routeDtosToTransportRoutes(
+    rows,
+    (routeId) => listTransportStops({ routeId }),
+    enrollments,
   );
 }
 

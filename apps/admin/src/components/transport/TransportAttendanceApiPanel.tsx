@@ -106,7 +106,7 @@ export function TransportAttendanceApiPanel({ instituteId }: Props) {
 
       {rows.length === 0 ? (
         <EmptyState
-          icon={ClipboardList}
+          icon={<ClipboardList className="size-5" />}
           title="No attendance marks"
           hint="Marks appear when drivers record boarding during active trips."
         />
@@ -116,7 +116,7 @@ export function TransportAttendanceApiPanel({ instituteId }: Props) {
             <Card key={mark.id}>
               <CardHeader
                 title={mark.studentName ?? mark.studentId}
-                subtitle={`${mark.stopName ?? "Stop"} · Trip ${mark.tripId.slice(0, 8)}`}
+                hint={`${mark.stopName ?? "Stop"} · Trip ${mark.tripId.slice(0, 8)}`}
                 action={
                   <div className="flex gap-2">
                     <Pill

@@ -12,10 +12,12 @@ import {
 } from "../students/repository.js";
 import {
   findDriverById,
+  findDriverByUserProfileId,
   findEnrollmentById,
   findRouteById,
   findRouteByVehicleId,
   findStopById,
+  findStopByKindOnRoute,
   findTransportSettings,
   findVehicleById,
   clearDriverVehicleAssignment,
@@ -135,6 +137,7 @@ export function toDriverDto(row: DriverRow): DriverDto {
     notes: row.notes,
     assignedVehicleId: row.assigned_vehicle_id ?? null,
     hasAppPin: Boolean(row.app_pin_hash && row.app_pin_salt),
+    photoAssetPath: row.photo_asset_path ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -173,6 +176,7 @@ export function toStopDto(row: StopRow): StopDto {
     longitude: row.longitude,
     routeOrder: row.route_order,
     notificationRadiusM: row.notification_radius_m,
+    kind: row.kind ?? "waypoint",
     approvalStatus: row.approval_status,
     submittedByUserId: row.submitted_by_user_id,
     reviewedByUserId: row.reviewed_by_user_id,
@@ -215,6 +219,9 @@ export function toTransportSettingsDto(
     defaultPickupTime: row.default_pickup_time
       ? String(row.default_pickup_time).slice(0, 5)
       : null,
+    schoolLocationLabel: row.school_location_label ?? null,
+    schoolLatitude: row.school_latitude ?? null,
+    schoolLongitude: row.school_longitude ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -807,6 +814,10 @@ export async function createRouteForActor(
     approvalStatus,
     submittedByUserId: writer ? null : actor.userId,
   });
+  const settings = await findTransportSettings(admin, instituteId);
+  if (settings) {
+    await upsertSchoolStopOnRoute(admin, row, settings);
+  }
   return toRouteDto(row);
 }
 
@@ -903,6 +914,7 @@ export async function createStopForActor(
 ): Promise<StopDto> {
   const instituteId = requireInstituteId(actor, input.instituteId);
   // Flowchart note: routes/stops are created by the driver; admin only approves.
+  // School endpoint stops are synced from transport_settings (Admin), not POST /stops.
   if (
     isTransportWriter(actor, instituteId) &&
     !isDriverForInstitute(actor, instituteId)
@@ -916,6 +928,13 @@ export async function createStopForActor(
   const approvalStatus = approvalStatusForCreate(actor, instituteId);
 
   await assertRouteInInstitute(admin, input.routeId, instituteId);
+
+  const kind = input.kind ?? "waypoint";
+  if (kind === "school") {
+    throw AppError.forbidden(
+      "School stop is set by Admin in Transport Settings",
+    );
+  }
 
   const name = input.name.trim();
   const locationLabel = input.locationLabel.trim();
@@ -932,11 +951,70 @@ export async function createStopForActor(
     throw AppError.validation("longitude must be between -180 and 180");
   }
 
+  let notificationRadiusM = input.notificationRadiusM;
+  if (notificationRadiusM === undefined) {
+    const settings = await findTransportSettings(admin, instituteId);
+    notificationRadiusM = settings?.default_notification_radius_m ?? 150;
+  }
+
+  if (kind === "parking") {
+    const existingParking = await findStopByKindOnRoute(
+      admin,
+      input.routeId,
+      "parking",
+    );
+    if (existingParking) {
+      // Drivers may refresh parking GPS even after Admin approval.
+      if (!isTransportWriter(actor, instituteId)) {
+        const driver = await findDriverByUserProfileId(
+          admin,
+          actor.userId,
+          instituteId,
+        );
+        const route = await findRouteById(admin, input.routeId);
+        if (!driver || !route || route.driver_id !== driver.id) {
+          throw AppError.forbidden("Insufficient permissions");
+        }
+      }
+      const updated = await updateStopFields(admin, existingParking.id, {
+        name,
+        location_label: locationLabel,
+        latitude: input.latitude,
+        longitude: input.longitude,
+        notification_radius_m: notificationRadiusM,
+        route_order: 0,
+        approval_status: approvalStatus,
+        submitted_by_user_id: writer ? null : actor.userId,
+      });
+      if (!updated) throw AppError.notFound("Stop not found");
+      return toStopDto(updated);
+    }
+
+    // Reserve route_order 0 for parking — shift waypoints that occupy 0.
+    const routeStops = await listStopsForRoute(admin, input.routeId);
+    const occupant = routeStops.find(
+      (s) => s.route_order === 0 && s.kind !== "parking",
+    );
+    if (occupant) {
+      const maxOrder = Math.max(
+        ...routeStops.map((s) => s.route_order),
+        0,
+      );
+      // Move occupant out of 0 first (temp high order), then compact later not required.
+      await updateStopFields(admin, occupant.id, {
+        route_order: maxOrder + 1,
+      });
+    }
+  }
+
   const row = await insertStop(admin, {
     ...input,
     instituteId,
     name,
     locationLabel,
+    notificationRadiusM,
+    kind,
+    routeOrder: kind === "parking" ? 0 : input.routeOrder,
     approvalStatus,
     submittedByUserId: writer ? null : actor.userId,
   });
@@ -1073,7 +1151,37 @@ export async function updateEnrollmentForActor(
 ): Promise<TransportEnrollmentDto> {
   const existing = await findEnrollmentById(admin, enrollmentId);
   if (!existing) throw AppError.notFound("Enrollment not found");
-  assertTransportWriter(actor, existing.institute_id);
+
+  const writer = isTransportWriter(actor, existing.institute_id);
+  if (!writer) {
+    // Drivers may only set pickup/drop on enrollments for their assigned route
+    // (Admin enrolls to bus with null stops; driver attaches stops).
+    if (!isDriverForInstitute(actor, existing.institute_id)) {
+      throw AppError.forbidden("Insufficient permissions");
+    }
+    if (patch.routeId !== undefined || patch.status !== undefined) {
+      throw AppError.forbidden(
+        "Drivers may only update pickup and drop stops on an enrollment",
+      );
+    }
+    if (patch.pickupStopId === undefined && patch.dropStopId === undefined) {
+      throw AppError.forbidden("Insufficient permissions");
+    }
+    const driver = await findDriverByUserProfileId(
+      admin,
+      actor.userId,
+      existing.institute_id,
+    );
+    if (!driver) {
+      throw AppError.forbidden("Driver profile not linked");
+    }
+    const route = await findRouteById(admin, existing.route_id);
+    if (!route || route.driver_id !== driver.id) {
+      throw AppError.forbidden(
+        "Enrollment is not on your assigned route",
+      );
+    }
+  }
 
   const routeId = patch.routeId ?? existing.route_id;
   if (patch.routeId) {
@@ -1151,11 +1259,76 @@ export async function getTransportSettingsForActor(
       notificationsEnabled: true,
       rememberEnabled: true,
       defaultPickupTime: null,
+      schoolLocationLabel: null,
+      schoolLatitude: null,
+      schoolLongitude: null,
       createdAt: new Date(0).toISOString(),
       updatedAt: new Date(0).toISOString(),
     };
   }
   return toTransportSettingsDto(row);
+}
+
+const SCHOOL_STOP_ORDER = 10_000;
+
+async function upsertSchoolStopOnRoute(
+  admin: SupabaseClient,
+  route: RouteRow,
+  settings: TransportSettingsRow,
+): Promise<void> {
+  if (
+    settings.school_latitude == null ||
+    settings.school_longitude == null ||
+    !Number.isFinite(settings.school_latitude) ||
+    !Number.isFinite(settings.school_longitude)
+  ) {
+    return;
+  }
+  const label =
+    settings.school_location_label?.trim() ||
+    `${settings.school_latitude.toFixed(5)}, ${settings.school_longitude.toFixed(5)}`;
+  const radius = settings.default_notification_radius_m ?? 150;
+  const existing = await findStopByKindOnRoute(admin, route.id, "school");
+  if (existing) {
+    await updateStopFields(admin, existing.id, {
+      name: "School",
+      location_label: label,
+      latitude: settings.school_latitude,
+      longitude: settings.school_longitude,
+      notification_radius_m: radius,
+      approval_status: "approved",
+    });
+    return;
+  }
+  await insertStop(admin, {
+    instituteId: route.institute_id,
+    routeId: route.id,
+    name: "School",
+    locationLabel: label,
+    latitude: settings.school_latitude,
+    longitude: settings.school_longitude,
+    routeOrder: SCHOOL_STOP_ORDER,
+    notificationRadiusM: radius,
+    kind: "school",
+    approvalStatus: "approved",
+    submittedByUserId: null,
+  });
+}
+
+/** Push Admin school endpoint onto every live route as stop.kind=school. */
+export async function syncSchoolStopsForInstitute(
+  admin: SupabaseClient,
+  instituteId: string,
+  settings?: TransportSettingsRow | null,
+): Promise<void> {
+  const row = settings ?? (await findTransportSettings(admin, instituteId));
+  if (!row) return;
+  if (row.school_latitude == null || row.school_longitude == null) return;
+  const routes = await listRoutes(admin, instituteId);
+  for (const route of routes) {
+    if (route.deleted_at) continue;
+    await upsertSchoolStopOnRoute(admin, route, row);
+  }
 }
 
 export async function upsertTransportSettingsForActor(
@@ -1202,6 +1375,46 @@ export async function upsertTransportSettingsForActor(
     throw AppError.validation("default_pickup_time must be HH:MM");
   }
 
+  const schoolLat = input.schoolLatitude;
+  const schoolLng = input.schoolLongitude;
+  if (schoolLat !== undefined && schoolLat !== null) {
+    if (!Number.isFinite(schoolLat) || schoolLat < -90 || schoolLat > 90) {
+      throw AppError.validation("school_latitude must be between -90 and 90");
+    }
+  }
+  if (schoolLng !== undefined && schoolLng !== null) {
+    if (!Number.isFinite(schoolLng) || schoolLng < -180 || schoolLng > 180) {
+      throw AppError.validation("school_longitude must be between -180 and 180");
+    }
+  }
+  if (
+    (schoolLat === null && schoolLng !== null && schoolLng !== undefined) ||
+    (schoolLng === null && schoolLat !== null && schoolLat !== undefined)
+  ) {
+    throw AppError.validation(
+      "school_latitude and school_longitude must both be set or both cleared",
+    );
+  }
+  if (
+    schoolLat !== undefined &&
+    schoolLat !== null &&
+    (schoolLng === undefined || schoolLng === null)
+  ) {
+    throw AppError.validation(
+      "school_latitude and school_longitude must both be set",
+    );
+  }
+  if (
+    schoolLng !== undefined &&
+    schoolLng !== null &&
+    (schoolLat === undefined || schoolLat === null)
+  ) {
+    throw AppError.validation(
+      "school_latitude and school_longitude must both be set",
+    );
+  }
+
   const row = await upsertTransportSettings(admin, { ...input, instituteId });
+  await syncSchoolStopsForInstitute(admin, instituteId, row);
   return toTransportSettingsDto(row);
 }

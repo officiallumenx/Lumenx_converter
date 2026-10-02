@@ -4,6 +4,8 @@ export type TransportAssetStatus = "active" | "inactive" | "maintenance";
 export type RouteConfigStatus = "not_configured" | "configured" | "locked";
 export type EnrollmentStatus = "active" | "inactive" | "ended";
 export type TransportApprovalStatus = "pending" | "approved" | "rejected";
+/** Route endpoint roles: school = Admin boarding end; parking = Driver start/park end. */
+export type StopKind = "waypoint" | "school" | "parking";
 
 export type VehicleRow = {
   id: string;
@@ -31,6 +33,7 @@ export type DriverRow = {
   assigned_vehicle_id: string | null;
   app_pin_hash: string | null;
   app_pin_salt: string | null;
+  photo_asset_path: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -67,6 +70,7 @@ export type StopRow = {
   longitude: number;
   route_order: number;
   notification_radius_m: number;
+  kind: StopKind;
   approval_status: TransportApprovalStatus;
   submitted_by_user_id: string | null;
   reviewed_by_user_id: string | null;
@@ -103,6 +107,9 @@ export type TransportSettingsRow = {
   notifications_enabled: boolean;
   remember_enabled: boolean;
   default_pickup_time: string | null;
+  school_location_label: string | null;
+  school_latitude: number | null;
+  school_longitude: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -134,6 +141,8 @@ export type DriverDto = {
   assignedVehicleId: string | null;
   /** True when an app account PIN is set (plaintext never returned). */
   hasAppPin: boolean;
+  /** Private storage object key for profile photo (student-media). Null when unset. */
+  photoAssetPath: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -168,6 +177,7 @@ export type StopDto = {
   longitude: number;
   routeOrder: number;
   notificationRadiusM: number;
+  kind: StopKind;
   approvalStatus: TransportApprovalStatus;
   submittedByUserId: string | null;
   reviewedByUserId: string | null;
@@ -202,6 +212,9 @@ export type TransportSettingsDto = {
   notificationsEnabled: boolean;
   rememberEnabled: boolean;
   defaultPickupTime: string | null;
+  schoolLocationLabel: string | null;
+  schoolLatitude: number | null;
+  schoolLongitude: number | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -249,6 +262,8 @@ export type UpdateDriverInput = {
   notes?: string | null;
   assignedVehicleId?: string | null;
   appAccountPin?: string | null;
+  /** Private storage object key; empty string clears. */
+  photoAssetPath?: string | null;
 };
 
 export type CreateRouteInput = {
@@ -279,6 +294,7 @@ export type CreateStopInput = {
   longitude: number;
   routeOrder: number;
   notificationRadiusM?: number;
+  kind?: StopKind;
   approvalStatus?: TransportApprovalStatus;
   submittedByUserId?: string | null;
 };
@@ -290,6 +306,7 @@ export type UpdateStopInput = {
   longitude?: number;
   routeOrder?: number;
   notificationRadiusM?: number;
+  kind?: StopKind;
 };
 
 export type CreateEnrollmentInput = {
@@ -318,4 +335,7 @@ export type UpsertTransportSettingsInput = {
   notificationsEnabled?: boolean;
   rememberEnabled?: boolean;
   defaultPickupTime?: string | null;
+  schoolLocationLabel?: string | null;
+  schoolLatitude?: number | null;
+  schoolLongitude?: number | null;
 };

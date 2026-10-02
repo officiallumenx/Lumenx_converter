@@ -53,6 +53,7 @@ describe("driverDtoToTransportDriver", () => {
     notes: "Experienced",
     assignedVehicleId: "vv111111-1111-4111-8111-111111111111",
     hasAppPin: true,
+    photoAssetPath: null,
     createdAt: "2026-06-01T10:00:00Z",
     updatedAt: "2026-06-01T10:00:00Z",
   };
@@ -66,6 +67,7 @@ describe("driverDtoToTransportDriver", () => {
       licenseExpiry: "2027-06-15",
       assignedVehicleId: "vv111111-1111-4111-8111-111111111111",
       hasAppPin: true,
+      photoAssetPath: null,
       status: "active",
       notes: "Experienced",
     });
@@ -138,6 +140,7 @@ describe("routeDtoToTransportRoute", () => {
     expect(mapped.setupStops).toHaveLength(2);
     expect(mapped.setupStops[0]?.name).toBe("Stop A");
     expect(mapped.setupStops[0]?.notificationRadiusM).toBe(200);
+    expect(mapped.setupStops[0]?.studentIds).toEqual([]);
     expect(mapped.setupStops[1]?.name).toBe("Stop B");
     expect(mapped.setupStops[1]?.notificationRadiusM).toBe(150);
     expect(mapped.stopIds).toEqual([
@@ -145,6 +148,37 @@ describe("routeDtoToTransportRoute", () => {
       "ss222222-2222-4222-8222-222222222222",
     ]);
     expect(mapped.lockedBy).toBe(route.lockedByUserId);
+  });
+
+  it("joins active enrollment studentIds onto pickup stops", () => {
+    const mapped = routeDtoToTransportRoute(route, stops, [
+      {
+        routeId: route.id,
+        pickupStopId: "ss111111-1111-4111-8111-111111111111",
+        studentId: "stu-1",
+        status: "active",
+      },
+      {
+        routeId: route.id,
+        pickupStopId: "ss111111-1111-4111-8111-111111111111",
+        studentId: "stu-2",
+        status: "active",
+      },
+      {
+        routeId: route.id,
+        pickupStopId: "ss222222-2222-4222-8222-222222222222",
+        studentId: "stu-inactive",
+        status: "inactive",
+      },
+      {
+        routeId: "other-route",
+        pickupStopId: "ss111111-1111-4111-8111-111111111111",
+        studentId: "stu-other-route",
+        status: "active",
+      },
+    ]);
+    expect(mapped.setupStops[0]?.studentIds).toEqual(["stu-1", "stu-2"]);
+    expect(mapped.setupStops[1]?.studentIds).toEqual([]);
   });
 });
 
@@ -157,6 +191,9 @@ describe("transportSettingsDtoToTransportSettings", () => {
     notificationsEnabled: true,
     rememberEnabled: false,
     defaultPickupTime: "07:30:00",
+    schoolLocationLabel: null,
+    schoolLatitude: null,
+    schoolLongitude: null,
     createdAt: "2026-06-01T10:00:00Z",
     updatedAt: "2026-06-01T10:00:00Z",
   };
@@ -169,6 +206,9 @@ describe("transportSettingsDtoToTransportSettings", () => {
       notificationsEnabled: true,
       rememberEnabled: false,
       defaultPickupTime: "07:30",
+      schoolLocationLabel: null,
+      schoolLatitude: null,
+      schoolLongitude: null,
     });
   });
 });

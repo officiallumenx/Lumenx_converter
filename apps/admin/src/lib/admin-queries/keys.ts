@@ -94,6 +94,8 @@ export const adminQueryKeys = {
     [ADMIN_QUERY_SCOPE, instituteId, adminQueryRoots.teacher, teacherId] as const,
   photosTeachers: (instituteId: string, q = "") =>
     [ADMIN_QUERY_SCOPE, instituteId, adminQueryRoots.photos, "teachers", q] as const,
+  photosDrivers: (instituteId: string, q = "") =>
+    [ADMIN_QUERY_SCOPE, instituteId, adminQueryRoots.photos, "drivers", q] as const,
   photosStudents: (
     instituteId: string,
     classId: string,
@@ -109,7 +111,7 @@ export const adminQueryKeys = {
       sectionId,
       q,
     ] as const,
-  photosSignedUrl: (kind: "student" | "teacher", id: string) =>
+  photosSignedUrl: (kind: "student" | "teacher" | "driver", id: string) =>
     [ADMIN_QUERY_SCOPE, adminQueryRoots.photos, "signed-url", kind, id] as const,
   classes: (instituteId: string) =>
     [ADMIN_QUERY_SCOPE, instituteId, adminQueryRoots.classes] as const,

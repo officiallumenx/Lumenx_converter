@@ -164,7 +164,7 @@ export function TransportEmergenciesApiPanel({
 
       {rows.length === 0 ? (
         <EmptyState
-          icon={Siren}
+          icon={<Siren className="size-5" />}
           title={tab === "active" ? "No active emergencies" : "No resolved cases"}
           hint={
             tab === "active"
@@ -187,7 +187,7 @@ export function TransportEmergenciesApiPanel({
                 <Card className="border-0 shadow-none">
                   <CardHeader
                     title={`${item.vehicleNumber ?? "Vehicle"} · ${item.driverName ?? "Driver"}`}
-                    subtitle={`${item.routeName ?? "Route"} · ${formatWhen(item.createdAt)}`}
+                    hint={`${item.routeName ?? "Route"} · ${formatWhen(item.createdAt)}`}
                     action={<Pill tone={statusTone(item.status)}>{item.status}</Pill>}
                   />
                 </Card>
@@ -199,7 +199,7 @@ export function TransportEmergenciesApiPanel({
             <Card>
               <CardHeader
                 title="Case detail"
-                subtitle={selected.note ?? "No driver note"}
+                hint={selected.note ?? "No driver note"}
                 action={<Pill tone={statusTone(selected.status)}>{selected.status}</Pill>}
               />
               <div className="space-y-3 px-4 pb-4">

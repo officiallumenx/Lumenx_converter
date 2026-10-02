@@ -61,6 +61,7 @@ const statusSchema = z.enum(["active", "pending", "archived"]);
 const linkedKindSchema = z.enum([
   "student",
   "teacher",
+  "driver",
   "parent",
   "admission_document",
   "career_application",

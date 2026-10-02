@@ -14,9 +14,11 @@ import { listCalendarEvents } from "@/lib/calendar/api";
 import { listFeePlans } from "@/lib/fees/api";
 import { listParents } from "@/lib/parents/api";
 import { parentDtosToListItems } from "@/lib/parents/map";
-import { listStudents } from "@/lib/students/api";
+import {
+  listStudentsCached,
+  listTeachersCached,
+} from "@/lib/directory-lists-cache";
 import { listSubjects } from "@/lib/subjects/api";
-import { listTeachers } from "@/lib/teachers/api";
 import {
   listTransportDrivers,
   listTransportEnrollments,
@@ -107,8 +109,8 @@ async function fetchSetupChecklist(
     listAcademicYears({ instituteId }),
     listClassesCatalog({ instituteId }),
     listSubjects({ instituteId }),
-    listTeachers({ instituteId }),
-    listStudents({ instituteId }),
+    listTeachersCached(instituteId),
+    listStudentsCached(instituteId),
     listParents({ instituteId }),
     listAttendanceConfig({ instituteId }),
     listFeePlans({ instituteId }),

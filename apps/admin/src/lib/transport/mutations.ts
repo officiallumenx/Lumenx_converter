@@ -101,6 +101,9 @@ export type UpsertTransportSettingsInput = {
   notificationsEnabled?: boolean;
   rememberEnabled?: boolean;
   defaultPickupTime?: string | null;
+  schoolLocationLabel?: string | null;
+  schoolLatitude?: number | null;
+  schoolLongitude?: number | null;
 };
 
 export async function createVehicle(
@@ -441,6 +444,15 @@ export async function upsertTransportSettings(
   }
   if (input.defaultPickupTime !== undefined) {
     body.default_pickup_time = input.defaultPickupTime;
+  }
+  if (input.schoolLocationLabel !== undefined) {
+    body.school_location_label = input.schoolLocationLabel;
+  }
+  if (input.schoolLatitude !== undefined) {
+    body.school_latitude = input.schoolLatitude;
+  }
+  if (input.schoolLongitude !== undefined) {
+    body.school_longitude = input.schoolLongitude;
   }
   return client.put<TransportSettingsDto>(
     `/api/v1/transport/settings?${query.toString()}`,

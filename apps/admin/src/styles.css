@@ -3304,6 +3304,9 @@ main table th {
   align-items: center;
   gap: 0.65rem;
   padding: 0.5rem 0.45rem;
+  border: none;
+  background: transparent;
+  cursor: pointer;
   border-radius: 0.85rem;
   transition: background-color 0.15s ease, transform 0.12s ease;
 }

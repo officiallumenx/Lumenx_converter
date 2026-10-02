@@ -51,6 +51,7 @@ export function driverDtoToTransportDriver(dto: DriverDto): TransportDriver {
     licenseExpiry: formatLicenseExpiry(dto.licenseExpiry),
     assignedVehicleId: dto.assignedVehicleId ?? null,
     hasAppPin: Boolean(dto.hasAppPin),
+    photoAssetPath: dto.photoAssetPath ?? null,
     status: dto.status,
     notes: dto.notes ?? "",
   };
@@ -63,7 +64,10 @@ export function driverDtosToTransportDrivers(rows: DriverDto[]): TransportDriver
   return rows.map(driverDtoToTransportDriver);
 }
 
-export function stopDtoToAdminRouteStop(dto: StopDto): AdminRouteStop {
+export function stopDtoToAdminRouteStop(
+  dto: StopDto,
+  studentIds: string[] = [],
+): AdminRouteStop {
   return {
     id: dto.id,
     name: dto.name,
@@ -73,27 +77,48 @@ export function stopDtoToAdminRouteStop(dto: StopDto): AdminRouteStop {
     timestampCreated: dto.createdAt,
     createdBy: "",
     createdByName: "—",
-    studentIds: [],
+    studentIds,
     routeOrder: dto.routeOrder,
     notificationRadiusM: dto.notificationRadiusM,
     approvalStatus: dto.approvalStatus,
   };
 }
 
-export function stopDtosToAdminRouteStops(rows: StopDto[]): AdminRouteStop[] {
+export function stopDtosToAdminRouteStops(
+  rows: StopDto[],
+  enrollments: Array<Pick<TransportEnrollmentDto, "pickupStopId" | "studentId" | "status">> = [],
+): AdminRouteStop[] {
   if (!Array.isArray(rows)) {
     throw new TypeError("Transport stops API response must be an array");
   }
+  const studentIdsByStop = new Map<string, string[]>();
+  for (const enrollment of enrollments) {
+    if (!enrollment.pickupStopId) continue;
+    if (enrollment.status && enrollment.status !== "active") continue;
+    const list = studentIdsByStop.get(enrollment.pickupStopId) ?? [];
+    list.push(enrollment.studentId);
+    studentIdsByStop.set(enrollment.pickupStopId, list);
+  }
   return rows
-    .map(stopDtoToAdminRouteStop)
+    .map((dto) =>
+      stopDtoToAdminRouteStop(dto, studentIdsByStop.get(dto.id) ?? []),
+    )
     .sort((a, b) => a.routeOrder - b.routeOrder);
 }
 
 export function routeDtoToTransportRoute(
   dto: RouteDto,
   stops: StopDto[],
+  enrollments: Array<
+    Pick<TransportEnrollmentDto, "routeId" | "pickupStopId" | "studentId" | "status">
+  > = [],
 ): TransportRoute {
-  const setupStops = stopDtosToAdminRouteStops(stops);
+  const routeEnrollments = enrollments.filter(
+    (enrollment) =>
+      enrollment.routeId === dto.id &&
+      (!enrollment.status || enrollment.status === "active"),
+  );
+  const setupStops = stopDtosToAdminRouteStops(stops, routeEnrollments);
   return {
     id: dto.id,
     name: dto.name,
@@ -112,12 +137,17 @@ export function routeDtoToTransportRoute(
 export async function routeDtosToTransportRoutes(
   rows: RouteDto[],
   fetchStops: (routeId: string) => Promise<StopDto[]>,
+  enrollments: Array<
+    Pick<TransportEnrollmentDto, "routeId" | "pickupStopId" | "studentId" | "status">
+  > = [],
 ): Promise<TransportRoute[]> {
   if (!Array.isArray(rows)) {
     throw new TypeError("Transport routes API response must be an array");
   }
   return Promise.all(
-    rows.map(async (route) => routeDtoToTransportRoute(route, await fetchStops(route.id))),
+    rows.map(async (route) =>
+      routeDtoToTransportRoute(route, await fetchStops(route.id), enrollments),
+    ),
   );
 }
 
@@ -131,6 +161,9 @@ export function transportSettingsDtoToTransportSettings(
     notificationsEnabled: dto.notificationsEnabled ?? true,
     rememberEnabled: dto.rememberEnabled ?? true,
     defaultPickupTime: dto.defaultPickupTime?.slice(0, 5) || "07:30",
+    schoolLocationLabel: dto.schoolLocationLabel ?? null,
+    schoolLatitude: dto.schoolLatitude ?? null,
+    schoolLongitude: dto.schoolLongitude ?? null,
   };
 }
 

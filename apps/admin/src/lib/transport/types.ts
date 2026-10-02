@@ -35,6 +35,8 @@ export type DriverDto = {
   assignedVehicleId: string | null;
   /** True when an app account PIN is set (plaintext never returned). */
   hasAppPin: boolean;
+  /** Private storage object key for profile photo (student-media). Null when unset. */
+  photoAssetPath: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -75,6 +77,7 @@ export type StopDto = {
   longitude: number;
   routeOrder: number;
   notificationRadiusM: number;
+  kind?: "waypoint" | "school" | "parking";
   approvalStatus: TransportApprovalStatus;
   submittedByUserId: string | null;
   reviewedByUserId: string | null;
@@ -101,6 +104,9 @@ export type TransportSettingsDto = {
   rememberEnabled: boolean;
   /** HH:MM or null when unset. */
   defaultPickupTime: string | null;
+  schoolLocationLabel: string | null;
+  schoolLatitude: number | null;
+  schoolLongitude: number | null;
   createdAt: string;
   updatedAt: string;
 };

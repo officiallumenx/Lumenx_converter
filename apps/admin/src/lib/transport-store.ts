@@ -49,6 +49,8 @@ export type TransportDriver = {
   assignedVehicleId: string | null;
   /** True when API reports an app PIN is set (plaintext never stored locally). */
   hasAppPin?: boolean;
+  /** Private storage object key for profile photo when loaded from API. */
+  photoAssetPath?: string | null;
   status: EntityStatus;
   notes: string;
 };
@@ -173,6 +175,10 @@ export type TransportSettings = {
   rememberEnabled?: boolean;
   /** HH:MM, default "07:30". */
   defaultPickupTime?: string;
+  /** Admin-set school endpoint (boarding end for all routes). */
+  schoolLocationLabel?: string | null;
+  schoolLatitude?: number | null;
+  schoolLongitude?: number | null;
 };
 
 export type TransportSnapshot = {

@@ -116,6 +116,7 @@ export async function submitTransportStop(input: {
   latitude: number;
   longitude: number;
   routeOrder: number;
+  kind?: "waypoint" | "parking";
 }) {
   return transportFetch<{
     id: string;
@@ -123,6 +124,7 @@ export async function submitTransportStop(input: {
     routeId: string;
     name: string;
     approvalStatus: string;
+    kind?: string;
   }>(`/api/v1/transport/stops`, {
     method: "POST",
     body: {
@@ -133,7 +135,36 @@ export async function submitTransportStop(input: {
       latitude: input.latitude,
       longitude: input.longitude,
       route_order: input.routeOrder,
+      ...(input.kind ? { kind: input.kind } : {}),
     },
+  });
+}
+
+export async function updateTransportStop(
+  stopId: string,
+  input: {
+    name?: string;
+    locationLabel?: string;
+    latitude?: number;
+    longitude?: number;
+    routeOrder?: number;
+  },
+) {
+  const body: Record<string, unknown> = {};
+  if (input.name !== undefined) body.name = input.name;
+  if (input.locationLabel !== undefined) body.location_label = input.locationLabel;
+  if (input.latitude !== undefined) body.latitude = input.latitude;
+  if (input.longitude !== undefined) body.longitude = input.longitude;
+  if (input.routeOrder !== undefined) body.route_order = input.routeOrder;
+  return transportFetch<{
+    id: string;
+    instituteId: string;
+    routeId: string;
+    name: string;
+    approvalStatus: string;
+  }>(`/api/v1/transport/stops/${stopId}`, {
+    method: "PATCH",
+    body,
   });
 }
 
@@ -147,6 +178,7 @@ export type StopDto = {
   longitude: number;
   routeOrder: number;
   approvalStatus: string;
+  kind?: "waypoint" | "school" | "parking";
 };
 
 export async function listTransportStops(input: {
@@ -176,6 +208,26 @@ export async function submitTransportEnrollment(input: {
       pickup_stop_id: input.pickupStopId,
       drop_stop_id: input.dropStopId,
     },
+  });
+}
+
+export async function updateTransportEnrollment(
+  enrollmentId: string,
+  input: {
+    pickupStopId?: string | null;
+    dropStopId?: string | null;
+  },
+) {
+  const body: Record<string, unknown> = {};
+  if (input.pickupStopId !== undefined) body.pickup_stop_id = input.pickupStopId;
+  if (input.dropStopId !== undefined) body.drop_stop_id = input.dropStopId;
+  return transportFetch<{
+    id: string;
+    studentId: string;
+    approvalStatus: string;
+  }>(`/api/v1/transport/enrollments/${enrollmentId}`, {
+    method: "PATCH",
+    body,
   });
 }
 

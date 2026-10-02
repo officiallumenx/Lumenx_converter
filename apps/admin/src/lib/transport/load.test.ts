@@ -94,6 +94,7 @@ describe("loadTransportRoutesList", () => {
       listTransportDrivers: vi.fn(),
       listTransportRoutes,
       listTransportStops: vi.fn(),
+      listTransportEnrollments: vi.fn().mockResolvedValue([]),
       getTransportSettings: vi.fn(),
     }));
     const { loadTransportRoutesList } = await import("./load");

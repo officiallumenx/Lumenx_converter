@@ -15,16 +15,18 @@ import type { CreateDriverInput, CreateEnrollmentInput, CreateVehicleInput, Upse
  * Stops are submitted by drivers and approved via Reviews (`allowCreate={false}`).
  */
 describe("transport flowchart contract", () => {
-  it("DriverDto exposes assignedVehicleId and hasAppPin (never plaintext pin)", () => {
+  it("DriverDto exposes assignedVehicleId, hasAppPin, and photoAssetPath (never plaintext pin)", () => {
     const keys: Array<keyof DriverDto> = [
       "assignedVehicleId",
       "hasAppPin",
+      "photoAssetPath",
       "displayName",
       "phone",
       "licenseNumber",
     ];
     expect(keys).toContain("assignedVehicleId");
     expect(keys).toContain("hasAppPin");
+    expect(keys).toContain("photoAssetPath");
     expect(keys).not.toContain("appAccountPin" as keyof DriverDto);
     expect(keys).not.toContain("appPin" as keyof DriverDto);
   });

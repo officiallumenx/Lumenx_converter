@@ -5,8 +5,10 @@
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/active-institute";
-import { listStudents } from "@/lib/students/api";
-import { listTeachers } from "@/lib/teachers/api";
+import {
+  listStudentsCached,
+  listTeachersCached,
+} from "@/lib/directory-lists-cache";
 import { listDiaryDays } from "@/lib/diary/api";
 import { listAttendanceRegisters } from "@/lib/attendance/api";
 import { listMarkEntries } from "@/lib/marks/api";
@@ -132,8 +134,8 @@ async function loadBirthdaysSlice(
 ): Promise<SliceResult<BirthdayRow[]>> {
   // Load directories independently so a students list failure still shows teacher birthdays.
   const [studentsResult, teachersResult] = await Promise.allSettled([
-    listStudents({ instituteId }),
-    listTeachers({ instituteId }),
+    listStudentsCached(instituteId),
+    listTeachersCached(instituteId),
   ]);
 
   if (studentsResult.status === "rejected" && teachersResult.status === "rejected") {
@@ -169,7 +171,7 @@ async function loadDiarySlice(
         dateFrom: daysAgoYmd(6, onDate),
         dateTo: today,
       }),
-      listTeachers({ instituteId }),
+      listTeachersCached(instituteId),
       listDiaryDays({
         instituteId,
         diaryDate: yesterday,

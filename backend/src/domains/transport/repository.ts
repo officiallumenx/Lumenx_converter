@@ -24,19 +24,19 @@ const VEHICLE_COLS =
   "id, institute_id, vehicle_number, registration_number, capacity, status, notes, created_at, updated_at, deleted_at";
 
 const DRIVER_COLS =
-  "id, institute_id, user_profile_id, display_name, phone, license_number, license_expiry, status, notes, assigned_vehicle_id, app_pin_hash, app_pin_salt, created_at, updated_at, deleted_at";
+  "id, institute_id, user_profile_id, display_name, phone, license_number, license_expiry, status, notes, assigned_vehicle_id, app_pin_hash, app_pin_salt, photo_asset_path, created_at, updated_at, deleted_at";
 
 const ROUTE_COLS =
   "id, institute_id, name, vehicle_id, driver_id, status, config_status, locked_at, locked_by_user_id, setup_finished_at, approval_status, submitted_by_user_id, reviewed_by_user_id, reviewed_at, rejection_reason, created_at, updated_at, deleted_at";
 
 const STOP_COLS =
-  "id, institute_id, route_id, name, location_label, latitude, longitude, route_order, notification_radius_m, approval_status, submitted_by_user_id, reviewed_by_user_id, reviewed_at, rejection_reason, created_at, updated_at, deleted_at";
+  "id, institute_id, route_id, name, location_label, latitude, longitude, route_order, notification_radius_m, kind, approval_status, submitted_by_user_id, reviewed_by_user_id, reviewed_at, rejection_reason, created_at, updated_at, deleted_at";
 
 const ENROLLMENT_COLS =
   "id, institute_id, student_id, route_id, pickup_stop_id, drop_stop_id, status, approval_status, submitted_by_user_id, reviewed_by_user_id, reviewed_at, rejection_reason, created_at, updated_at, deleted_at";
 
 const SETTINGS_COLS =
-  "institute_id, default_notification_radius_m, default_pickup_buffer_mins, working_days, notifications_enabled, remember_enabled, default_pickup_time, created_at, updated_at";
+  "institute_id, default_notification_radius_m, default_pickup_buffer_mins, working_days, notifications_enabled, remember_enabled, default_pickup_time, school_location_label, school_latitude, school_longitude, created_at, updated_at";
 
 // ── Vehicles ─────────────────────────────────────────────────────
 
@@ -266,6 +266,11 @@ export function toDriverUpdatePatch(
   if (input.assignedVehicleId !== undefined) {
     patch.assigned_vehicle_id = input.assignedVehicleId;
   }
+  if (input.photoAssetPath !== undefined) {
+    const raw = input.photoAssetPath;
+    patch.photo_asset_path =
+      raw == null || String(raw).trim() === "" ? null : String(raw).trim();
+  }
   return patch;
 }
 
@@ -372,7 +377,7 @@ export async function listStopsForRoute(
     .select(STOP_COLS)
     .eq("route_id", routeId)
     .is("deleted_at", null);
-  return ensureDbOk(result) as StopRow[];
+  return (ensureDbOk(result) as StopRow[]).map(normalizeStopRow);
 }
 
 export async function findStopById(
@@ -386,7 +391,8 @@ export async function findStopById(
     .is("deleted_at", null)
     .maybeSingle();
   if (result.error) ensureDbOk(result);
-  return (result.data as StopRow | null) ?? null;
+  const row = result.data as StopRow | null;
+  return row ? normalizeStopRow(row) : null;
 }
 
 export async function insertStop(
@@ -404,12 +410,37 @@ export async function insertStop(
       longitude: input.longitude,
       route_order: input.routeOrder,
       notification_radius_m: input.notificationRadiusM ?? 150,
+      kind: input.kind ?? "waypoint",
       approval_status: input.approvalStatus ?? "approved",
       submitted_by_user_id: input.submittedByUserId ?? null,
     })
     .select(STOP_COLS)
     .single();
-  return ensureDbOk(result) as StopRow;
+  return normalizeStopRow(ensureDbOk(result) as StopRow);
+}
+
+function normalizeStopRow(row: StopRow): StopRow {
+  return {
+    ...row,
+    kind: row.kind ?? "waypoint",
+  };
+}
+
+export async function findStopByKindOnRoute(
+  admin: SupabaseClient,
+  routeId: string,
+  kind: "school" | "parking",
+): Promise<StopRow | null> {
+  const result = await admin
+    .from("stop")
+    .select(STOP_COLS)
+    .eq("route_id", routeId)
+    .eq("kind", kind)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (result.error) ensureDbOk(result);
+  const row = result.data as StopRow | null;
+  return row ? normalizeStopRow(row) : null;
 }
 
 export async function updateStopFields(
@@ -425,7 +456,8 @@ export async function updateStopFields(
     .select(STOP_COLS)
     .maybeSingle();
   if (result.error) ensureDbOk(result);
-  return (result.data as StopRow | null) ?? null;
+  const row = result.data as StopRow | null;
+  return row ? normalizeStopRow(row) : null;
 }
 
 export async function softDeleteStop(
@@ -455,6 +487,7 @@ export function toStopUpdatePatch(
   if (input.notificationRadiusM !== undefined) {
     patch.notification_radius_m = input.notificationRadiusM;
   }
+  if (input.kind !== undefined) patch.kind = input.kind;
   return patch;
 }
 
@@ -575,6 +608,9 @@ export async function findTransportSettings(
     notifications_enabled: row.notifications_enabled ?? true,
     remember_enabled: row.remember_enabled ?? true,
     default_pickup_time: row.default_pickup_time ?? null,
+    school_location_label: row.school_location_label ?? null,
+    school_latitude: row.school_latitude ?? null,
+    school_longitude: row.school_longitude ?? null,
   };
 }
 
@@ -603,6 +639,15 @@ export async function upsertTransportSettings(
     if (input.defaultPickupTime !== undefined) {
       patch.default_pickup_time = input.defaultPickupTime;
     }
+    if (input.schoolLocationLabel !== undefined) {
+      patch.school_location_label = input.schoolLocationLabel;
+    }
+    if (input.schoolLatitude !== undefined) {
+      patch.school_latitude = input.schoolLatitude;
+    }
+    if (input.schoolLongitude !== undefined) {
+      patch.school_longitude = input.schoolLongitude;
+    }
     if (Object.keys(patch).length === 0) return existing;
     const result = await admin
       .from("transport_settings")
@@ -617,6 +662,9 @@ export async function upsertTransportSettings(
       notifications_enabled: row.notifications_enabled ?? true,
       remember_enabled: row.remember_enabled ?? true,
       default_pickup_time: row.default_pickup_time ?? null,
+      school_location_label: row.school_location_label ?? null,
+      school_latitude: row.school_latitude ?? null,
+      school_longitude: row.school_longitude ?? null,
     };
   }
 
@@ -630,6 +678,9 @@ export async function upsertTransportSettings(
       notifications_enabled: input.notificationsEnabled ?? true,
       remember_enabled: input.rememberEnabled ?? true,
       default_pickup_time: input.defaultPickupTime ?? null,
+      school_location_label: input.schoolLocationLabel ?? null,
+      school_latitude: input.schoolLatitude ?? null,
+      school_longitude: input.schoolLongitude ?? null,
     })
     .select(SETTINGS_COLS)
     .single();
@@ -640,6 +691,9 @@ export async function upsertTransportSettings(
     notifications_enabled: row.notifications_enabled ?? true,
     remember_enabled: row.remember_enabled ?? true,
     default_pickup_time: row.default_pickup_time ?? null,
+    school_location_label: row.school_location_label ?? null,
+    school_latitude: row.school_latitude ?? null,
+    school_longitude: row.school_longitude ?? null,
   };
 }
 

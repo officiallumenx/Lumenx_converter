@@ -44,6 +44,8 @@ import {
   portalAccessLabelToLevel,
   teacherStatusToApi,
   invalidateTeachersListCache,
+  hydrateTeacherDateOfBirthInput,
+  resolveTeacherEditDateOfBirth,
   type TeacherListItem,
 } from "@/lib/teachers";
 import {
@@ -380,6 +382,8 @@ function TeachersPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState<TeacherEditForm>({});
+  /** DOB value loaded into the edit form at startEdit — used to detect intentional clear. */
+  const [editDobBaseline, setEditDobBaseline] = useState("");
   const [resetTarget, setResetTarget] = useState<Teacher | null>(null);
   const [messageTarget, setMessageTarget] = useState<Teacher | null>(null);
   const [messageSubject, setMessageSubject] = useState("");
@@ -566,6 +570,7 @@ function TeachersPage() {
     setSelectedId(null);
     setEditing(false);
     setEditForm({});
+    setEditDobBaseline("");
     setResetTarget(null);
     setMessageTarget(null);
     setCreateDialogOpen(false);
@@ -582,6 +587,7 @@ function TeachersPage() {
       setSelectedId(null);
       setEditing(false);
       setEditForm({});
+      setEditDobBaseline("");
       setShowProfilePassword(false);
       setShowEditPassword(false);
     }
@@ -632,6 +638,7 @@ function TeachersPage() {
       setSelectedId(t.id);
       setEditing(false);
       setEditForm({});
+      setEditDobBaseline("");
       if (!apiMode) return;
       const instituteId = instituteCtx.activeInstituteId;
       if (!instituteId) return;
@@ -651,6 +658,7 @@ function TeachersPage() {
     setSelectedId(null);
     setEditing(false);
     setEditForm({});
+    setEditDobBaseline("");
     setShowProfilePassword(false);
     setShowEditPassword(false);
   };
@@ -664,6 +672,7 @@ function TeachersPage() {
     setSelectedId(null);
     setEditing(false);
     setEditForm({});
+    setEditDobBaseline("");
     setShowProfilePassword(false);
     setShowEditPassword(false);
     setMessageTarget(teacher);
@@ -697,8 +706,11 @@ function TeachersPage() {
   const startEdit = () => {
     if (!guardWrite()) return;
     if (!selected) return;
+    const hydratedDob = hydrateTeacherDateOfBirthInput(selected.dateOfBirth);
+    setEditDobBaseline(hydratedDob);
     setEditForm({
       ...selected,
+      dateOfBirth: hydratedDob,
       subjectIds: apiMode ? [] : getAssignedSubjectIdsForTeacher(selected.id),
       subjects: selected.subjects,
       sectionsText: selected.assignedSections.join(", "),
@@ -723,6 +735,10 @@ function TeachersPage() {
           .map((s) => s.trim())
           .filter(Boolean)
       : selected.assignedSections;
+    const resolvedDob = resolveTeacherEditDateOfBirth({
+      formValue: editForm.dateOfBirth,
+      baselineValue: editDobBaseline,
+    });
 
     if (apiMode) {
       void updateTeacherApi(selected.id, {
@@ -735,7 +751,7 @@ function TeachersPage() {
         email: (editForm.email ?? selected.email) || null,
         phone: (editForm.phone ?? selected.phone) || null,
         qualification: (editForm.qualification ?? selected.qualification) || null,
-        dateOfBirth: editForm.dateOfBirth?.trim() || null,
+        ...(resolvedDob !== undefined ? { dateOfBirth: resolvedDob } : {}),
         assignedSectionLabels: assignedSections,
         classTeacherSectionIds: editClassTeacherSectionId
           ? [editClassTeacherSectionId]
@@ -748,6 +764,7 @@ function TeachersPage() {
         .then((updated) => {
           setEditing(false);
           setEditForm({});
+          setEditDobBaseline("");
           setEditClassTeacherSectionId("");
           if (instituteCtx.activeInstituteId) {
             const id = instituteCtx.activeInstituteId;
@@ -802,7 +819,10 @@ function TeachersPage() {
               status: editForm.status ?? t.status,
               portalAccess: editForm.portalAccess ?? t.portalAccess,
               qualification: editForm.qualification ?? t.qualification,
-              dateOfBirth: editForm.dateOfBirth?.trim() || undefined,
+              dateOfBirth:
+                resolvedDob === undefined
+                  ? selected.dateOfBirth
+                  : resolvedDob ?? undefined,
               subjects,
               assignedSections,
               classes: assignedSections.length || t.classes,
@@ -812,6 +832,7 @@ function TeachersPage() {
     );
     setEditing(false);
     setEditForm({});
+    setEditDobBaseline("");
     notify(`${editForm.name.trim()} updated successfully`);
   };
 
@@ -1260,6 +1281,7 @@ function TeachersPage() {
                 onClick={() => {
                   setEditing(false);
                   setEditForm({});
+                  setEditDobBaseline("");
                   setEditClassTeacherSectionId("");
                 }}
               >

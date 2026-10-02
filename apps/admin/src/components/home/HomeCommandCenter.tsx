@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState, useSyncExternalStore, type CSSProperties 
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { syncAcademicYearLocked } from "@lumenx/utils";
+import { useAuth } from "@/auth/AuthContext";
+import { isApiAuthMode } from "@/auth/auth-mode";
 import { useInstituteContext } from "@/lib/institutes";
 import {
   resolveDashboardSummaryView,
@@ -18,11 +20,11 @@ import {
   useHomeBirthdaysQuery,
   useHomeSummaryQuery,
   useHomeWidgetsQuery,
+  useInstituteProfileQuery,
   useNotificationsListQuery,
 } from "@/lib/admin-queries";
 import { updateInboxItem } from "@/lib/notification-inbox/mutations";
 import { optimisticMarkNotificationRead } from "@/lib/notification-inbox";
-import { isApiAuthMode } from "@/auth/auth-mode";
 import { listTransportEmergencies } from "@/lib/transport/ops-api";
 import {
   loadPendingReviews,
@@ -33,6 +35,9 @@ import { getPendingReviewsApiCounts } from "@/lib/pending-reviews-api-store";
 import { getAdminComplaintsPendingCount } from "@/lib/complaints/pending-count-store";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { HomeQuickActionsCard } from "@/components/HomeQuickActionsCard";
+import { useDemoProfile } from "@/lib/demo-profile-context";
+import { readRegisteredAdminTenant } from "@/lib/admin-tenant";
+import { resolveBirthdayPrincipalName } from "@/lib/dashboard/resolve-birthday-principal";
 import { HomeHero } from "./HomeHero";
 import { HomeYearCallout } from "./HomeYearCallout";
 import { HomeNeedsAttention } from "./HomeNeedsAttention";
@@ -60,6 +65,8 @@ function emptyWidgets(): DashboardWidgetsState {
 
 export function HomeCommandCenter() {
   const instituteCtx = useInstituteContext();
+  const { instituteProfile } = useDemoProfile();
+  const { user } = useAuth();
   const { state: setupState } = useSetupChecklist();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -87,6 +94,10 @@ export function HomeCommandCenter() {
     queriesEnabled,
   );
   const birthdaysQuery = useHomeBirthdaysQuery(
+    instituteCtx.activeInstituteId,
+    queriesEnabled,
+  );
+  const profileQuery = useInstituteProfileQuery(
     instituteCtx.activeInstituteId,
     queriesEnabled,
   );
@@ -288,9 +299,29 @@ export function HomeCommandCenter() {
   const birthdayRows = birthdaysQuery.data?.rows ?? [];
   const birthdaysLoading =
     birthdaysQuery.isLoading && !birthdaysQuery.data;
+  const birthdayStatus = birthdaysQuery.isError
+    ? "error"
+    : birthdaysQuery.data?.status;
+  const birthdayErrorMessage = birthdaysQuery.isError
+    ? birthdaysQuery.error instanceof Error
+      ? birthdaysQuery.error.message
+      : "Failed to load birthdays"
+    : (birthdaysQuery.data?.errorMessage ?? null);
+  const birthdayWarningMessage = birthdaysQuery.data?.warningMessage ?? null;
 
   const activityItems = inboxQuery.data?.items ?? [];
-  const instituteName = instituteCtx.activeInstitute?.name?.trim() || null;
+  const instituteName =
+    profileQuery.data?.institute?.name?.trim() ||
+    instituteCtx.activeInstitute?.name?.trim() ||
+    null;
+  const principalName = resolveBirthdayPrincipalName({
+    institute: profileQuery.data?.institute,
+    settings: profileQuery.data?.settings,
+    registeredPrincipalName: readRegisteredAdminTenant()?.principalName,
+    sessionUserName: user?.name,
+    demoPrincipalName: instituteProfile.principal,
+    apiMode,
+  });
   const yearLabel = activeYear?.label ?? null;
 
   return (
@@ -322,7 +353,15 @@ export function HomeCommandCenter() {
         activeYearLabel={yearLabel}
       />
 
-      <HomeBirthdays rows={birthdayRows} loading={birthdaysLoading} />
+      <HomeBirthdays
+        rows={birthdayRows}
+        loading={birthdaysLoading}
+        status={birthdayStatus}
+        errorMessage={birthdayErrorMessage}
+        warningMessage={birthdayWarningMessage}
+        instituteName={instituteName}
+        principalName={principalName}
+      />
 
       <div className="lx-home-mid-grid">
         <HomeNeedsAttention

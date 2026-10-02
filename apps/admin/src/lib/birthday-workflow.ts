@@ -109,42 +109,117 @@ export function turningAgeOnBirthday(dob: ParsedDob, from: Date): number {
 }
 
 export function whatsAppRecipientId(phone: string): string | null {
-  const digits = phone.replace(/\D/g, "");
+  const raw = String(phone ?? "").trim();
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, "");
   if (digits.length < 10) return null;
-  if (digits.length === 10) return `91${digits}`;
-  const local = normalizePhoneDigits(phone);
-  if (local.length === 10 && digits.length <= 12) {
-    return digits.length === 12 && digits.startsWith("91") ? digits : `91${local}`;
-  }
-  return digits;
+  // Prefer last-10 / strip India 91 so wa.me always gets a stable E.164-ish id.
+  const local = normalizePhoneDigits(raw);
+  if (local.length === 10) return `91${local}`;
+  if (digits.length >= 10 && digits.length <= 15) return digits;
+  return null;
 }
 
-export function birthdayWishMessage(person: BirthdayPerson, instituteName: string): string {
-  const first = person.name.split(/\s+/)[0] ?? person.name;
+export type BirthdayWishBranding = {
+  instituteName: string;
+  principalName?: string | null;
+};
+
+function resolveWishBranding(
+  branding: string | BirthdayWishBranding,
+): { instituteName: string; principalName: string } {
+  if (typeof branding === "string") {
+    return {
+      instituteName: branding.trim() || "our school",
+      principalName: "Principal",
+    };
+  }
+  return {
+    instituteName: branding.instituteName?.trim() || "our school",
+    principalName: branding.principalName?.trim() || "Principal",
+  };
+}
+
+const PARTY = String.fromCodePoint(0x1f389); // 🎉
+const CAKE = String.fromCodePoint(0x1f382); // 🎂
+const STAR = String.fromCodePoint(0x1f31f); // 🌟
+
+export function birthdayWishMessage(
+  person: Pick<BirthdayPerson, "name" | "role">,
+  branding: string | BirthdayWishBranding,
+): string {
+  const { instituteName, principalName } = resolveWishBranding(branding);
   if (person.role === "Student") {
     return [
-      `Happy Birthday to ${person.name}! \u{1F382}`,
+      `${PARTY} Happy Birthday, ${person.name}!`,
+      `Wishing you a day filled with happiness, laughter, and wonderful memories. Keep learning, keep growing, and keep shining! ${STAR} ${CAKE}`,
       "",
-      `Wishing ${first} a wonderful year ahead from all of us at ${instituteName}.`,
-      "",
-      `Please share our wishes with ${first}.`,
-      "",
-      `\u2014 ${instituteName}`,
+      `Warm wishes from ${instituteName}`,
+      `Principal: ${principalName}`,
     ].join("\n");
   }
   return [
-    `Happy Birthday, ${person.name}! \u{1F382}`,
+    `${CAKE} Happy Birthday, ${person.name}!`,
+    `Wishing you happiness, success, and a wonderful year ahead. Thank you for inspiring our students every day! ${STAR}`,
     "",
-    `Wishing you a wonderful year ahead from all of us at ${instituteName}.`,
-    "",
-    `\u2014 ${instituteName}`,
+    `Warm wishes from ${instituteName}`,
+    `Principal: ${principalName}`,
   ].join("\n");
 }
 
-export function birthdayWhatsAppUrl(person: BirthdayPerson, instituteName: string): string | null {
+function birthdayWhatsAppHref(recipient: string, text: string): string {
+  // api.whatsapp.com preserves UTF-8 emoji better than some wa.me handoffs.
+  return `https://api.whatsapp.com/send?phone=${recipient}&text=${text}`;
+}
+
+export function birthdayWhatsAppUrl(
+  person: BirthdayPerson,
+  branding: string | BirthdayWishBranding,
+): string | null {
   const recipient = whatsAppRecipientId(person.phone);
   if (!recipient) return null;
-  return `https://wa.me/${recipient}?text=${encodeURIComponent(birthdayWishMessage(person, instituteName))}`;
+  return birthdayWhatsAppHref(
+    recipient,
+    encodeURIComponent(birthdayWishMessage(person, branding)),
+  );
+}
+
+/**
+ * WhatsApp wish URL.
+ * Requires a resolvable phone so the chat opens directly to the linked number.
+ */
+export function birthdayWhatsAppComposeUrl(
+  person: Pick<BirthdayPerson, "name" | "role" | "phone">,
+  branding: string | BirthdayWishBranding,
+): string | null {
+  const recipient = whatsAppRecipientId(person.phone);
+  if (!recipient) return null;
+  return birthdayWhatsAppHref(
+    recipient,
+    encodeURIComponent(birthdayWishMessage(person, branding)),
+  );
+}
+
+function openWhatsAppUrl(url: string): void {
+  // Prefer an anchor click so mobile browsers hand off emoji text cleanly.
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.target = "_blank";
+  anchor.rel = "noopener noreferrer";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+}
+
+export function openBirthdayWhatsAppCompose(
+  person: Pick<BirthdayPerson, "id" | "name" | "role" | "phone">,
+  branding: string | BirthdayWishBranding,
+): boolean {
+  const url = birthdayWhatsAppComposeUrl(person, branding);
+  if (!url) return false;
+  openWhatsAppUrl(url);
+  if (person.id) markBirthdayWished(person.id);
+  return true;
 }
 
 function wishKey(personId: string, day: Date): string {
@@ -275,10 +350,13 @@ export function loadBirthdayBoard(now = new Date()): BirthdayBoard {
   });
 }
 
-export function openBirthdayWhatsApp(person: BirthdayPerson, instituteName: string): boolean {
-  const url = birthdayWhatsAppUrl(person, instituteName);
+export function openBirthdayWhatsApp(
+  person: BirthdayPerson,
+  branding: string | BirthdayWishBranding,
+): boolean {
+  const url = birthdayWhatsAppUrl(person, branding);
   if (!url) return false;
-  window.open(url, "_blank", "noopener,noreferrer");
+  openWhatsAppUrl(url);
   markBirthdayWished(person.id);
   return true;
 }

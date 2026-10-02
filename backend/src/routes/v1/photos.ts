@@ -9,8 +9,10 @@ import {
 } from "../../validation/validate.js";
 import {
   getPhotoSignedUrlForActor,
+  listPhotoDriversForActor,
   listPhotoStudentsForActor,
   listPhotoTeachersForActor,
+  uploadDriverPhotoForActor,
   uploadStudentPhotoForActor,
   uploadTeacherPhotoForActor,
 } from "../../domains/photos/service.js";
@@ -47,6 +49,23 @@ photos.get("/teachers", async (c) => {
   return c.json({ data });
 });
 
+photos.get("/drivers", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const query = validateQuery(
+    z.object({
+      institute_id: uuid,
+      q: z.string().max(200).optional(),
+    }),
+    c.req.query(),
+  );
+  const data = await listPhotoDriversForActor(admin, actor, {
+    instituteId: query.institute_id,
+    q: query.q,
+  });
+  return c.json({ data });
+});
+
 photos.get("/students", async (c) => {
   const actor = assertAuthenticated(c);
   const admin = requireAdmin(c);
@@ -73,7 +92,7 @@ photos.get("/signed-url", async (c) => {
   const admin = requireAdmin(c);
   const query = validateQuery(
     z.object({
-      kind: z.enum(["student", "teacher"]),
+      kind: z.enum(["student", "teacher", "driver"]),
       id: uuid,
     }),
     c.req.query(),
@@ -120,6 +139,23 @@ photos.post("/teachers/:teacherId", async (c) => {
     admin,
     actor,
     params.teacherId,
+    file,
+  );
+  return c.json({ data }, 201);
+});
+
+photos.post("/drivers/:driverId", async (c) => {
+  const actor = assertAuthenticated(c);
+  const admin = requireAdmin(c);
+  const params = validateParams(
+    z.object({ driverId: uuid }),
+    c.req.param(),
+  );
+  const file = await readMultipartFile(c);
+  const data = await uploadDriverPhotoForActor(
+    admin,
+    actor,
+    params.driverId,
     file,
   );
   return c.json({ data }, 201);

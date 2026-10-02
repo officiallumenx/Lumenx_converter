@@ -76,32 +76,33 @@ function persist() {
   persistMemory();
 }
 
-function queueApiStopSync(stop: RouteSetupStop): void {
+async function awaitApiStopSync(stop: RouteSetupStop): Promise<void> {
   if (!scope) return;
   const pendingAssignments = record.assignments.filter(
     (a) => a.stopId === stop.id && a.status === "pending",
   );
-  void syncStopAndEnrollmentsToApi(scope, stop, pendingAssignments)
-    .then(({ apiStopId, syncedEnrollmentIds }) => {
-      if (!apiStopId && syncedEnrollmentIds.length === 0) return;
-      record = {
-        ...record,
-        stops: record.stops.map((s) =>
-          s.id === stop.id && apiStopId ? { ...s, apiStopId } : s,
-        ),
-        assignments: record.assignments.map((a) => {
-          if (!syncedEnrollmentIds.includes(a.id)) return a;
-          const source = pendingAssignments.find((p) => p.id === a.id);
-          return source?.apiEnrollmentId
-            ? { ...a, apiEnrollmentId: source.apiEnrollmentId }
-            : a;
-        }),
-      };
-      if (scope) byRoute[scope.routeId] = record;
-      persistMemory();
-      emit();
-    })
-    .catch(() => undefined);
+  const { apiStopId, syncedEnrollmentIds } = await syncStopAndEnrollmentsToApi(
+    scope,
+    stop,
+    pendingAssignments,
+  );
+  if (!apiStopId && syncedEnrollmentIds.length === 0) return;
+  record = {
+    ...record,
+    stops: record.stops.map((s) =>
+      s.id === stop.id && apiStopId ? { ...s, apiStopId } : s,
+    ),
+    assignments: record.assignments.map((a) => {
+      if (!syncedEnrollmentIds.includes(a.id)) return a;
+      const source = pendingAssignments.find((p) => p.id === a.id);
+      return source?.apiEnrollmentId
+        ? { ...a, apiEnrollmentId: source.apiEnrollmentId }
+        : a;
+    }),
+  };
+  if (scope) byRoute[scope.routeId] = record;
+  persistMemory();
+  emit();
 }
 
 /** Switch route-setup + sync context to the logged-in driver's bus/route. */
@@ -363,6 +364,9 @@ function syncAssignmentsForStop(stop: RouteSetupStop): StudentStopAssignment[] {
       continue;
     }
 
+    const rosterEnrollment = listApiEnrollmentsForVehicle(scope?.vehicleId).find(
+      (e) => e.studentId === studentId,
+    );
     next.push({
       id: uid("asn"),
       studentId,
@@ -373,6 +377,7 @@ function syncAssignmentsForStop(stop: RouteSetupStop): StudentStopAssignment[] {
       status: "pending",
       createdAt: now,
       updatedAt: now,
+      apiEnrollmentId: rosterEnrollment?.id,
     });
   }
 
@@ -414,10 +419,10 @@ export function startRouteSetupSession(createdBy: string): RouteSetupRecord {
   return record;
 }
 
-export function upsertRouteSetupStop(
+export async function upsertRouteSetupStop(
   input: UpsertStopInput,
   createdBy: string,
-): RouteSetupRecord {
+): Promise<RouteSetupRecord> {
   if (record.lockedByAdmin) return record;
 
   const dup = findDuplicateRouteStop({
@@ -463,7 +468,7 @@ export function upsertRouteSetupStop(
       };
       record = { ...record, assignments: syncAssignmentsForStop(changeRequest) };
       persist();
-      queueApiStopSync(changeRequest);
+      await awaitApiStopSync(changeRequest);
       return record;
     }
 
@@ -501,7 +506,7 @@ export function upsertRouteSetupStop(
     };
     record = { ...record, assignments: syncAssignmentsForStop(updated) };
     persist();
-    queueApiStopSync(updated);
+    await awaitApiStopSync(updated);
     return record;
   }
 
@@ -540,7 +545,7 @@ export function upsertRouteSetupStop(
   };
   record = { ...record, assignments: syncAssignmentsForStop(next) };
   persist();
-  queueApiStopSync(next);
+  await awaitApiStopSync(next);
   return record;
 }
 

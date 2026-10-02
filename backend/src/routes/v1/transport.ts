@@ -403,6 +403,7 @@ transport.post("/stops", async (c) => {
       longitude: z.number().min(-180).max(180),
       route_order: z.number().int().min(0),
       notification_radius_m: z.number().int().positive().optional(),
+      kind: z.enum(["waypoint", "parking"]).optional(),
     }),
     await c.req.json(),
   );
@@ -415,6 +416,7 @@ transport.post("/stops", async (c) => {
     longitude: body.longitude,
     routeOrder: body.route_order,
     notificationRadiusM: body.notification_radius_m,
+    kind: body.kind,
   });
   return c.json({ data }, 201);
 });
@@ -581,6 +583,9 @@ transport.put("/settings", async (c) => {
         .regex(/^\d{2}:\d{2}(:\d{2})?$/)
         .nullable()
         .optional(),
+      school_location_label: z.string().max(500).nullable().optional(),
+      school_latitude: z.number().min(-90).max(90).nullable().optional(),
+      school_longitude: z.number().min(-180).max(180).nullable().optional(),
     }),
     await c.req.json(),
   );
@@ -592,6 +597,9 @@ transport.put("/settings", async (c) => {
     notificationsEnabled: body.notifications_enabled,
     rememberEnabled: body.remember_enabled,
     defaultPickupTime: body.default_pickup_time,
+    schoolLocationLabel: body.school_location_label,
+    schoolLatitude: body.school_latitude,
+    schoolLongitude: body.school_longitude,
   });
   return c.json({ data });
 });

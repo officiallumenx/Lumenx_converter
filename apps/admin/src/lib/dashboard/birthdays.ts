@@ -15,6 +15,8 @@ export type BirthdayRow = {
   turningAge: number | null;
   href: string | null;
   photoAssetPath: string | null;
+  /** Best available phone for WhatsApp wish (teacher phone / student emergency). */
+  phone: string | null;
 };
 
 /** Local calendar YYYY-MM-DD (not UTC). */
@@ -160,6 +162,25 @@ function readPhoto(row: Record<string, unknown>): string | null {
   return trimmed || null;
 }
 
+function readPhone(row: Record<string, unknown>): string | null {
+  const candidates = [
+    row.phone,
+    row.parentPhone,
+    row.parent_phone,
+    row.emergencyContact,
+    row.emergency_contact,
+    row.mobile,
+    row.mobileNumber,
+    row.mobile_number,
+  ];
+  for (const value of candidates) {
+    if (value == null) continue;
+    const trimmed = String(value).trim();
+    if (trimmed) return trimmed;
+  }
+  return null;
+}
+
 export function collectBirthdaysToday(input: {
   students: Array<Record<string, unknown>>;
   teachers: Array<Record<string, unknown>>;
@@ -185,6 +206,7 @@ export function collectBirthdaysToday(input: {
       turningAge: dobStr ? turningAgeOnDate(dobStr, onDate) : null,
       href: s.id ? `/students/${String(s.id)}` : null,
       photoAssetPath: readPhoto(s),
+      phone: readPhone(s),
     });
   }
 
@@ -202,6 +224,7 @@ export function collectBirthdaysToday(input: {
       turningAge: dobStr ? turningAgeOnDate(dobStr, onDate) : null,
       href: "/teachers",
       photoAssetPath: readPhoto(t),
+      phone: readPhone(t),
     });
   }
 

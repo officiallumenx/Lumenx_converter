@@ -899,4 +899,189 @@ describe("transport api", () => {
     expect(keys.some((k) => k.startsWith(`transport:approach15:`))).toBe(true);
     expect(keys.some((k) => k.startsWith(`transport:approach5:`))).toBe(false);
   });
+
+  it("create stop without radius uses transport_settings default", async () => {
+    const db = baseDb();
+    db.route[0] = { ...db.route[0], driver_id: DRIVER_A, vehicle_id: VEHICLE_A };
+    db.transport_settings = [
+      {
+        institute_id: INST_A,
+        default_notification_radius_m: 250,
+        default_pickup_buffer_mins: 5,
+        working_days: [1, 2, 3, 4, 5],
+        notifications_enabled: true,
+        remember_enabled: true,
+        default_pickup_time: null,
+        created_at: "2026-08-01T00:00:00.000Z",
+        updated_at: "2026-08-01T00:00:00.000Z",
+      },
+    ];
+    const app = appWithDb(db);
+
+    const stop = await app.request("/api/v1/transport/stops", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-driver",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        route_id: ROUTE_A,
+        name: "New Stop",
+        location_label: "Corner",
+        latitude: 12.9,
+        longitude: 77.5,
+        route_order: 2,
+      }),
+    });
+    expect(stop.status).toBe(201);
+    const body = await json(stop);
+    expect(body.data.notificationRadiusM).toBe(250);
+  });
+
+  it("admin can PATCH stop radius and GET returns same value", async () => {
+    const db = baseDb();
+    const app = appWithDb(db);
+
+    const patch = await app.request(`/api/v1/transport/stops/${STOP_PICKUP}`, {
+      method: "PATCH",
+      headers: {
+        Authorization: "Bearer token-admin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ notification_radius_m: 75 }),
+    });
+    expect(patch.status).toBe(200);
+    expect((await json(patch)).data.notificationRadiusM).toBe(75);
+
+    const get = await app.request(`/api/v1/transport/stops/${STOP_PICKUP}`, {
+      headers: { Authorization: "Bearer token-admin" },
+    });
+    expect(get.status).toBe(200);
+    expect((await json(get)).data.notificationRadiusM).toBe(75);
+  });
+
+  it("driver can PATCH pickup/drop on Admin enrollment for assigned route", async () => {
+    const db = baseDb();
+    db.route[0] = { ...db.route[0], driver_id: DRIVER_A, vehicle_id: VEHICLE_A };
+    db.transport_enrollment = [
+      {
+        id: ENROLL_A,
+        institute_id: INST_A,
+        student_id: STUDENT_A,
+        route_id: ROUTE_A,
+        pickup_stop_id: null,
+        drop_stop_id: null,
+        status: "active",
+        approval_status: "approved",
+        submitted_by_user_id: null,
+        reviewed_by_user_id: null,
+        reviewed_at: null,
+        rejection_reason: null,
+        created_at: "2026-08-01T00:00:00.000Z",
+        updated_at: "2026-08-01T00:00:00.000Z",
+        deleted_at: null,
+      },
+    ];
+    const app = appWithDb(db);
+
+    const forbiddenRoute = await app.request(`/api/v1/transport/enrollments/${ENROLL_A}`, {
+      method: "PATCH",
+      headers: {
+        Authorization: "Bearer token-driver",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ route_id: ROUTE_A }),
+    });
+    expect(forbiddenRoute.status).toBe(403);
+
+    const patch = await app.request(`/api/v1/transport/enrollments/${ENROLL_A}`, {
+      method: "PATCH",
+      headers: {
+        Authorization: "Bearer token-driver",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        pickup_stop_id: STOP_PICKUP,
+        drop_stop_id: STOP_DROP,
+      }),
+    });
+    expect(patch.status).toBe(200);
+    const body = await json(patch);
+    expect(body.data.pickupStopId).toBe(STOP_PICKUP);
+    expect(body.data.dropStopId).toBe(STOP_DROP);
+
+    const roster = await app.request(
+      `/api/v1/transport/portal/driver-route-roster?institute_id=${INST_A}`,
+      { headers: { Authorization: "Bearer token-driver" } },
+    );
+    expect(roster.status).toBe(200);
+    const rosterBody = await json(roster);
+    const student = (rosterBody.data.students as Array<{
+      studentId: string;
+      pickupStopId: string;
+    }>).find((s) => s.studentId === STUDENT_A);
+    expect(student?.pickupStopId).toBe(STOP_PICKUP);
+  });
+
+  it("Admin school settings syncs school stop onto routes", async () => {
+    const db = baseDb();
+    db.route[0] = { ...db.route[0], driver_id: DRIVER_A, vehicle_id: VEHICLE_A };
+    const app = appWithDb(db);
+
+    const put = await app.request(
+      `/api/v1/transport/settings?institute_id=${INST_A}`,
+      {
+        method: "PUT",
+        headers: {
+          Authorization: "Bearer token-admin",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          school_location_label: "Main campus gate",
+          school_latitude: 12.9716,
+          school_longitude: 77.5946,
+        }),
+      },
+    );
+    expect(put.status).toBe(200);
+    const putBody = await json(put);
+    expect(putBody.data.schoolLatitude).toBe(12.9716);
+    expect(putBody.data.schoolLongitude).toBe(77.5946);
+
+    const schoolStops = db.stop.filter(
+      (s) => s.route_id === ROUTE_A && s.kind === "school" && !s.deleted_at,
+    );
+    expect(schoolStops).toHaveLength(1);
+    expect(schoolStops[0]?.name).toBe("School");
+    expect(schoolStops[0]?.latitude).toBe(12.9716);
+  });
+
+  it("driver can set parking stop as start end", async () => {
+    const db = baseDb();
+    db.route[0] = { ...db.route[0], driver_id: DRIVER_A, vehicle_id: VEHICLE_A };
+    const app = appWithDb(db);
+
+    const parking = await app.request("/api/v1/transport/stops", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-driver",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        institute_id: INST_A,
+        route_id: ROUTE_A,
+        name: "Bus park",
+        location_label: "Depot",
+        latitude: 12.95,
+        longitude: 77.55,
+        route_order: 0,
+        kind: "parking",
+      }),
+    });
+    expect(parking.status).toBe(201);
+    const body = await json(parking);
+    expect(body.data.kind).toBe("parking");
+    expect(body.data.routeOrder).toBe(0);
+  });
 });

@@ -1,5 +1,5 @@
 /**
- * Admin Photos API — staff/teacher + student profile photo management.
+ * Admin Photos API — staff/teacher, student, and driver profile photo management.
  */
 import { getAdminApiClient } from "@/lib/admin-api";
 import type { AdminApiClient } from "@/lib/api";
@@ -26,6 +26,18 @@ export type PhotoTeacherDto = {
   photoExpiresAt: string | null;
 };
 
+export type PhotoDriverDto = {
+  id: string;
+  instituteId: string;
+  displayName: string;
+  phone: string;
+  licenseNumber: string;
+  status: string;
+  photoAssetPath: string | null;
+  photoSignedUrl: string | null;
+  photoExpiresAt: string | null;
+};
+
 export type PhotoStudentDto = {
   id: string;
   instituteId: string;
@@ -45,7 +57,7 @@ export type PhotoStudentDto = {
 };
 
 export type PhotoUploadResultDto = {
-  kind: "student" | "teacher";
+  kind: "student" | "teacher" | "driver";
   person: { id: string; displayName?: string; photoAssetPath?: string | null };
   photoAssetPath: string;
   photoSignedUrl: string;
@@ -65,6 +77,20 @@ export async function listPhotoTeachers(
   query.set("institute_id", params.instituteId.trim());
   if (params.q?.trim()) query.set("q", params.q.trim());
   return client.get<PhotoTeacherDto[]>(`/api/v1/photos/teachers?${query}`);
+}
+
+export async function listPhotoDrivers(
+  params: { instituteId: string; q?: string },
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<PhotoDriverDto[]> {
+  assertApiMode();
+  if (!isInstituteUuid(params.instituteId)) {
+    throw new Error("institute_id must be a valid UUID");
+  }
+  const query = new URLSearchParams();
+  query.set("institute_id", params.instituteId.trim());
+  if (params.q?.trim()) query.set("q", params.q.trim());
+  return client.get<PhotoDriverDto[]>(`/api/v1/photos/drivers?${query}`);
 }
 
 export async function listPhotoStudents(
@@ -102,6 +128,20 @@ export async function uploadTeacherPhoto(
   );
 }
 
+export async function uploadDriverPhoto(
+  driverId: string,
+  file: File,
+  client: AdminApiClient = getAdminApiClient(),
+): Promise<PhotoUploadResultDto> {
+  assertApiMode();
+  const form = new FormData();
+  form.append("file", file);
+  return client.uploadForm<PhotoUploadResultDto>(
+    `/api/v1/photos/drivers/${driverId.trim()}`,
+    form,
+  );
+}
+
 export async function uploadStudentPhoto(
   studentId: string,
   file: File,
@@ -117,7 +157,7 @@ export async function uploadStudentPhoto(
 }
 
 export type PhotoSignedUrlDto = {
-  kind: "student" | "teacher";
+  kind: "student" | "teacher" | "driver";
   id: string;
   photoAssetPath: string | null;
   photoSignedUrl: string | null;
@@ -125,7 +165,7 @@ export type PhotoSignedUrlDto = {
 };
 
 export async function getPhotoSignedUrl(
-  kind: "student" | "teacher",
+  kind: "student" | "teacher" | "driver",
   id: string,
   client: AdminApiClient = getAdminApiClient(),
 ): Promise<PhotoSignedUrlDto> {

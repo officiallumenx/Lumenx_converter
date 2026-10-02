@@ -1177,6 +1177,9 @@ function TransportPage() {
                       notificationsEnabled: settings.notificationsEnabled !== false,
                       rememberEnabled: settings.rememberEnabled !== false,
                       defaultPickupTime: settings.defaultPickupTime?.trim() || "07:30",
+                      schoolLocationLabel: settings.schoolLocationLabel ?? null,
+                      schoolLatitude: settings.schoolLatitude ?? null,
+                      schoolLongitude: settings.schoolLongitude ?? null,
                     });
                     bumpTransportReload();
                   }

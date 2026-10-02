@@ -739,7 +739,20 @@ export function useHomeBirthdaysQuery(
     queryFn: () => loadHomeBirthdaysToday(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
     staleTime: ADMIN_QUERY_VOLATILE_STALE_TIME_MS,
-    refetchOnMount: "always",
+    // Share directory cache with widgets/setup — don't force a second burst on every mount.
+    refetchOnMount: true,
+    retry: (failureCount, error) => {
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        (error as { code: string }).code === "RATE_LIMITED"
+      ) {
+        return failureCount < 2;
+      }
+      return failureCount < 1;
+    },
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
   });
 }
 

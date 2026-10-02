@@ -6,6 +6,7 @@ import {
   type TransportSnapshot,
 } from "@/lib/transport-store";
 import { useAdminToast } from "@/components/AdminActionToast";
+import { LocationPastePicker } from "@/components/transport/LocationPastePicker";
 
 type Props = {
   snapshot: TransportSnapshot;
@@ -96,12 +97,23 @@ export function TransportSettingsView({
               min={20}
               disabled={!writesEnabled}
               value={draft.defaultNotificationRadiusM}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  defaultNotificationRadiusM: Number(e.target.value) || 100,
-                })
-              }
+              onChange={(e) => {
+                const raw = e.target.value.trim();
+                if (raw === "") {
+                  setDraft({
+                    ...draft,
+                    defaultNotificationRadiusM: 150,
+                  });
+                  return;
+                }
+                const parsed = Number.parseInt(raw, 10);
+                if (Number.isFinite(parsed) && parsed > 0) {
+                  setDraft({
+                    ...draft,
+                    defaultNotificationRadiusM: parsed,
+                  });
+                }
+              }}
             />
           </Field>
           <Field label="Pickup buffer (minutes)" hint="Lead time before scheduled pickup">
@@ -130,6 +142,42 @@ export function TransportSettingsView({
                 })
               }
             />
+          </Field>
+          <Field
+            label="School endpoint"
+            hint="Shared boarding end for every bus. Drivers set the parking/start end separately."
+          >
+            {writesEnabled ? (
+              <LocationPastePicker
+                value={
+                  draft.schoolLatitude != null && draft.schoolLongitude != null
+                    ? {
+                        lat: draft.schoolLatitude,
+                        lng: draft.schoolLongitude,
+                        locationLabel:
+                          draft.schoolLocationLabel?.trim() ||
+                          `${draft.schoolLatitude.toFixed(5)}, ${draft.schoolLongitude.toFixed(5)}`,
+                      }
+                    : null
+                }
+                onChange={(next) =>
+                  setDraft({
+                    ...draft,
+                    schoolLatitude: next?.lat ?? null,
+                    schoolLongitude: next?.lng ?? null,
+                    schoolLocationLabel: next?.locationLabel ?? null,
+                  })
+                }
+                searchHint="school"
+              />
+            ) : draft.schoolLatitude != null && draft.schoolLongitude != null ? (
+              <p className="text-sm text-foreground">
+                {draft.schoolLocationLabel?.trim() ||
+                  `${draft.schoolLatitude.toFixed(5)}, ${draft.schoolLongitude.toFixed(5)}`}
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">Not set</p>
+            )}
           </Field>
           <Field label="Notifications">
             <label

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ageOnDate,
   birthdayWishMessage,
+  birthdayWhatsAppComposeUrl,
   birthdayWhatsAppUrl,
   buildBirthdayBoard,
   daysUntilNextBirthday,
@@ -177,11 +178,59 @@ describe("birthday workflow", () => {
       daysUntil: 0,
     };
     expect(whatsAppRecipientId(person.phone)).toBe("919876512345");
-    const url = birthdayWhatsAppUrl(person, "Test1School");
-    expect(url).toContain("https://wa.me/919876512345?text=");
-    expect(birthdayWishMessage(person, "Test1School")).toContain("Aanya Sharma");
-    expect(birthdayWishMessage(person, "Test1School")).toContain(
-      "Test1School",
+    const url = birthdayWhatsAppUrl(person, {
+      instituteName: "Test1School",
+      principalName: "Dr. Alistair Vance",
+    });
+    expect(url).toContain("https://api.whatsapp.com/send?phone=919876512345&text=");
+    const message = birthdayWishMessage(person, {
+      instituteName: "Test1School",
+      principalName: "Dr. Alistair Vance",
+    });
+    expect(message).toContain("🎉 Happy Birthday, Aanya Sharma!");
+    expect(message).toContain("🌟");
+    expect(message).toContain("🎂");
+    expect(message).toContain("Warm wishes from Test1School");
+    expect(message).toContain("Principal: Dr. Alistair Vance");
+  });
+
+  it("builds the teacher birthday template with institute and principal", () => {
+    const message = birthdayWishMessage(
+      { name: "P. Siva Sai", role: "Teacher" },
+      { instituteName: "LumenX School", principalName: "Dr. Priya Menon" },
+    );
+    expect(message).toBe(
+      [
+        "🎂 Happy Birthday, P. Siva Sai!",
+        "Wishing you happiness, success, and a wonderful year ahead. Thank you for inspiring our students every day! 🌟",
+        "",
+        "Warm wishes from LumenX School",
+        "Principal: Dr. Priya Menon",
+      ].join("\n"),
+    );
+  });
+
+  it("builds a compose WhatsApp URL only when a phone can be resolved", () => {
+    expect(
+      birthdayWhatsAppComposeUrl(
+        { name: "P. Siva Sai", role: "Teacher", phone: "" },
+        { instituteName: "LumenX School", principalName: "Dr. Priya Menon" },
+      ),
+    ).toBeNull();
+
+    const url = birthdayWhatsAppComposeUrl(
+      { name: "P. Siva Sai", role: "Teacher", phone: "9000128765" },
+      { instituteName: "LumenX School", principalName: "Dr. Priya Menon" },
+    );
+    expect(url).toContain(
+      "https://api.whatsapp.com/send?phone=919000128765&text=",
+    );
+    expect(url).toContain(encodeURIComponent("🎂"));
+    expect(decodeURIComponent(url!.split("text=")[1] ?? "")).toContain(
+      "Happy Birthday, P. Siva Sai",
+    );
+    expect(decodeURIComponent(url!.split("text=")[1] ?? "")).toContain(
+      "Principal: Dr. Priya Menon",
     );
   });
 });

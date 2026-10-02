@@ -192,7 +192,11 @@ export function TransportStopsView({
           locationLabel: location.locationLabel,
           lat: location.lat,
           lng: location.lng,
-          notificationRadiusM: radius || snapshot.settings.defaultNotificationRadiusM || 100,
+          notificationRadiusM: (() => {
+            const parsed = Number.parseInt(String(radius), 10);
+            if (Number.isFinite(parsed) && parsed > 0) return parsed;
+            return snapshot.settings.defaultNotificationRadiusM;
+          })(),
         }),
       )
         .then(() => {
@@ -211,7 +215,11 @@ export function TransportStopsView({
         locationLabel: location.locationLabel,
         lat: location.lat,
         lng: location.lng,
-        notificationRadiusM: radius || snapshot.settings.defaultNotificationRadiusM || 100,
+        notificationRadiusM: (() => {
+          const parsed = Number.parseInt(String(radius), 10);
+          if (Number.isFinite(parsed) && parsed > 0) return parsed;
+          return snapshot.settings.defaultNotificationRadiusM;
+        })(),
       }),
     );
     setOpen(false);
@@ -404,19 +412,23 @@ export function TransportStopsView({
               </Field>
               <Field
                 label="Notification radius (m)"
-                hint={`Default ${snapshot.settings.defaultNotificationRadiusM || 100}m`}
+                hint={`Default ${snapshot.settings.defaultNotificationRadiusM}m`}
               >
                 <TextInput
                   type="number"
                   min={20}
                   value={radius}
-                  onChange={(e) =>
-                    setRadius(
-                      Number(e.target.value) ||
-                        snapshot.settings.defaultNotificationRadiusM ||
-                        100,
-                    )
-                  }
+                  onChange={(e) => {
+                    const raw = e.target.value.trim();
+                    if (raw === "") {
+                      setRadius(snapshot.settings.defaultNotificationRadiusM);
+                      return;
+                    }
+                    const parsed = Number.parseInt(raw, 10);
+                    if (Number.isFinite(parsed) && parsed > 0) {
+                      setRadius(parsed);
+                    }
+                  }}
                 />
               </Field>
             </div>

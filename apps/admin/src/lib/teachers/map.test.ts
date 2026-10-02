@@ -108,6 +108,16 @@ describe("teachers DTO mapping", () => {
     expect(item.credentialsSentAt).toBeNull();
   });
 
+  it("hydrates dateOfBirth to YYYY-MM-DD for edit date inputs", () => {
+    expect(teacherDtoToListItem(dto()).dateOfBirth).toBe("1985-08-18");
+    expect(
+      teacherDtoToListItem(dto({ dateOfBirth: "18/08/1985" })).dateOfBirth,
+    ).toBe("1985-08-18");
+    expect(
+      teacherDtoToListItem(dto({ dateOfBirth: null })).dateOfBirth,
+    ).toBeUndefined();
+  });
+
   it("formatJoinedLabel handles invalid dates safely", () => {
     expect(formatJoinedLabel("2019-08-01")).toMatch(/2019/);
     expect(formatJoinedLabel("not-a-date")).toBe("not-a-date");

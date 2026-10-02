@@ -14,6 +14,8 @@ import { useTransportRealtimeRefresh } from "@/hooks/use-transport-realtime";
 import { useTransportAuth } from "@/lib/auth/transport-auth";
 import { captureCurrentGps } from "@/lib/transport/capture-gps";
 import { routeSetupRepository } from "@/lib/transport/route-setup";
+import { syncParkingStopToApi } from "@/lib/transport/route-setup/api-sync";
+import { getRouteSetupDriverScope } from "@/lib/transport/route-setup/store";
 import type { GpsFix, RouteSetupStop, SubmissionStatus } from "@/lib/transport/route-setup/types";
 import { canEditStop, canRequestChangeStop, SUBMISSION_STATUS_LABEL } from "@/lib/transport/route-setup/types";
 import {
@@ -119,6 +121,41 @@ export function RouteSetupPage() {
           ? err.message
           : "Could not get GPS. Turn on location and try again.";
       toast.error("Location needed", { description: message });
+    } finally {
+      setCapturing(false);
+    }
+  };
+
+  const saveBusParkLocation = async () => {
+    if (locked) {
+      toast.message("Route is locked", {
+        description: "Admin locked this route. You cannot edit the bus park end.",
+      });
+      return;
+    }
+    const scope = getRouteSetupDriverScope();
+    if (!scope?.instituteId) {
+      toast.error("Open Route Setup after signing in to set bus park.");
+      return;
+    }
+    setCapturing(true);
+    try {
+      const fix = await captureCurrentGps({ allowDemo: false });
+      await syncParkingStopToApi(scope, fix);
+      toast.success("Bus park saved", {
+        description: "This is your start / evening end. School end is set by Admin.",
+      });
+      if (user?.instituteId) {
+        void queryClient.invalidateQueries({
+          queryKey: transportQueryKeys.roster(user.instituteId),
+        });
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Could not save bus park location.";
+      toast.error("Bus park not saved", { description: message });
     } finally {
       setCapturing(false);
     }
@@ -344,6 +381,17 @@ export function RouteSetupPage() {
               >
                 <Plus className="size-5" aria-hidden />
                 Add Stop
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                expanded
+                loading={capturing}
+                onClick={() => void saveBusParkLocation()}
+              >
+                <MapPinned className="size-5" aria-hidden />
+                Set bus park (start end)
               </Button>
               {record.stops.length > 0 ? (
                 <Button

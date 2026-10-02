@@ -90,6 +90,7 @@ export function teacherDtoToListItem(dto: TeacherDto): TeacherListItem {
         dto.dateOfBirth ??
         (dto as { date_of_birth?: string | null }).date_of_birth;
       if (raw == null || !String(raw).trim()) return undefined;
+      // Prefer YYYY-MM-DD so edit `<input type="date">` hydrates correctly.
       return normalizeDateOnlyInput(String(raw)) ?? String(raw).trim();
     })(),
     classes: assignedSections.length,

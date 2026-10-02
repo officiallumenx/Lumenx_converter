@@ -12,6 +12,8 @@ describe("setup checklist load", () => {
       isDemoAuthMode: () => false,
     }));
     vi.doMock("@/lib/admin-resource-cache", () => ({
+      ADMIN_CACHE_TTL_MS: 90_000,
+      ADMIN_CACHE_SOFT_TTL_MS: 5 * 60_000,
       adminCacheKey: (entity: string, id: string) => `admin:${entity}:${id}`,
       cachedAdminFetch: (_key: string, fn: () => Promise<unknown>) => fn(),
       invalidateAdminCache: vi.fn(),

@@ -71,6 +71,31 @@ describe("teachers mutations", () => {
     expect(body).not.toHaveProperty("email", null);
   });
 
+  it("includes date_of_birth on create when provided", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const post = vi.fn().mockResolvedValue({ id: TEACHER });
+    const client = { post } as never;
+    const { createTeacher } = await import("./mutations");
+    await createTeacher(
+      {
+        instituteId: INST,
+        displayName: "Sarah Jenkins",
+        department: "Mathematics",
+        teachingScope: "subject_teacher",
+        portalAccessLevel: "faculty_grading",
+        phone: "9876501234",
+        dateOfBirth: "1990-10-02",
+      },
+      client,
+    );
+    expect(post).toHaveBeenCalledWith(
+      "/api/v1/teachers",
+      expect.objectContaining({
+        date_of_birth: "1990-10-02",
+      }),
+    );
+  });
+
   it("patches update payload in API mode", async () => {
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     const patch = vi.fn().mockResolvedValue({ id: TEACHER });
@@ -84,6 +109,27 @@ describe("teachers mutations", () => {
     expect(patch).toHaveBeenCalledWith(`/api/v1/teachers/${TEACHER}`, {
       display_name: "Sarah J.",
       status: "on_leave",
+    });
+  });
+
+  it("does not send date_of_birth null when update omits the field", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const patch = vi.fn().mockResolvedValue({ id: TEACHER });
+    const client = { patch } as never;
+    const { updateTeacher } = await import("./mutations");
+    await updateTeacher(TEACHER, { displayName: "Sarah J." }, client);
+    const body = patch.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(body).not.toHaveProperty("date_of_birth");
+  });
+
+  it("sends date_of_birth null only when update explicitly clears it", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    const patch = vi.fn().mockResolvedValue({ id: TEACHER });
+    const client = { patch } as never;
+    const { updateTeacher } = await import("./mutations");
+    await updateTeacher(TEACHER, { dateOfBirth: null }, client);
+    expect(patch).toHaveBeenCalledWith(`/api/v1/teachers/${TEACHER}`, {
+      date_of_birth: null,
     });
   });
 });

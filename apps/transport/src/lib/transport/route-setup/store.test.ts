@@ -36,7 +36,7 @@ describe("route setup API memory store", () => {
   it("creates stops and assignments as pending in memory", async () => {
     const { upsertRouteSetupStop, getRouteSetupSnapshot } = await scopedStore();
 
-    upsertRouteSetupStop(
+    await upsertRouteSetupStop(
       {
         name: "Lakeview Gate",
         locationLabel: "Lakeview Apartments",
@@ -57,7 +57,7 @@ describe("route setup API memory store", () => {
     const { upsertRouteSetupStop, applyApiApprovedHydration, getRouteSetupSnapshot } =
       await scopedStore();
 
-    upsertRouteSetupStop(
+    await upsertRouteSetupStop(
       {
         name: "Local Only",
         latitude: 1,
@@ -100,22 +100,28 @@ describe("route setup API memory store", () => {
     expect(snap.assignments.some((a) => a.studentId === "STU-API")).toBe(true);
   });
 
-  it("removes pending assignments", async () => {
-    const { upsertRouteSetupStop, removePendingAssignment, getRouteSetupSnapshot } =
-      await scopedStore();
+  it("surfaces sync failures to the caller", async () => {
+    const sync = vi.fn(async () => {
+      throw new Error("sync failed");
+    });
+    vi.doMock("./api-sync", () => ({
+      syncStopAndEnrollmentsToApi: sync,
+    }));
+    const { upsertRouteSetupStop, resetRouteSetupStore, setRouteSetupDriverScope } =
+      await import("./store");
+    resetRouteSetupStore();
+    setRouteSetupDriverScope(TEST_SCOPE);
 
-    upsertRouteSetupStop(
-      {
-        name: "Stop 1",
-        latitude: 1,
-        longitude: 2,
-        studentIds: ["STU-1"],
-      },
-      "drv-1",
-    );
-    const assignmentId = getRouteSetupSnapshot().assignments[0]!.id;
-    removePendingAssignment(assignmentId);
-    expect(getRouteSetupSnapshot().assignments).toHaveLength(0);
-    expect(getRouteSetupSnapshot().stops[0]?.studentIds).toHaveLength(0);
+    await expect(
+      upsertRouteSetupStop(
+        {
+          name: "Fail Stop",
+          latitude: 1,
+          longitude: 2,
+          studentIds: ["STU-1"],
+        },
+        "drv-1",
+      ),
+    ).rejects.toThrow("sync failed");
   });
 });

@@ -165,13 +165,15 @@ export async function computeApproachForStudent(
       longitude: Number(stop.longitude),
     },
   );
-  const radius = Math.max(50, Number(stop.notification_radius_m) || 150);
+  const radius = Number(stop.notification_radius_m);
+  const geofenceM =
+    Number.isFinite(radius) && radius > 0 ? radius : 150;
   const etaMinutes = etaMinutesFromDistance(distanceM, input.speedKmh);
   return {
     stopId: stop.id,
     stopName: stop.name,
     distanceM: Math.round(distanceM),
-    withinRadius: distanceM <= radius,
+    withinRadius: distanceM <= geofenceM,
     etaMinutes,
     band: approachBandForEta(etaMinutes),
   };

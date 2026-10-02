@@ -25,10 +25,13 @@ import {
 } from "@/lib/attendance/class-section-options";
 import { normalizeSchoolClassName } from "@/lib/classes/name-format";
 import {
+  listPhotoDrivers,
   listPhotoStudents,
   listPhotoTeachers,
+  uploadDriverPhoto,
   uploadStudentPhoto,
   uploadTeacherPhoto,
+  type PhotoDriverDto,
   type PhotoSignedUrlDto,
   type PhotoStudentDto,
   type PhotoTeacherDto,
@@ -46,14 +49,13 @@ import {
   takeDevicePhoto,
 } from "@/lib/photos/capture";
 import { ApiClientError } from "@/lib/api/errors";
-import { profilePhotoCompressLabel } from "@lumenx/utils";
 
 export const Route = createFileRoute("/photos")({
   head: () => ({ meta: [{ title: adminPageTitle("/photos") }] }),
   component: PhotosPage,
 });
 
-type Mode = "staff" | "student";
+type Mode = "staff" | "student" | "driver";
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -180,6 +182,7 @@ function PhotosPage() {
   const [sectionId, setSectionId] = useState("");
   const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
@@ -187,6 +190,15 @@ function PhotosPage() {
     queryKey: adminQueryKeys.photosTeachers(instituteId ?? "", q),
     enabled: apiMode && Boolean(instituteId) && mode === "staff",
     queryFn: () => listPhotoTeachers({ instituteId: instituteId!, q }),
+    staleTime: (query) => photoListStaleTimeMs(query.state.data),
+    placeholderData: keepPreviousData,
+    refetchOnMount: true,
+  });
+
+  const driversQuery = useQuery({
+    queryKey: adminQueryKeys.photosDrivers(instituteId ?? "", q),
+    enabled: apiMode && Boolean(instituteId) && mode === "driver",
+    queryFn: () => listPhotoDrivers({ instituteId: instituteId!, q }),
     staleTime: (query) => photoListStaleTimeMs(query.state.data),
     placeholderData: keepPreviousData,
     refetchOnMount: true,
@@ -223,6 +235,7 @@ function PhotosPage() {
   });
 
   const teachers = teachersQuery.data ?? [];
+  const drivers = driversQuery.data ?? [];
   const students = studentsQuery.data ?? [];
 
   // Seed per-person signed-url cache from list payloads so other screens reuse them.
@@ -239,6 +252,20 @@ function PhotosPage() {
       qc.setQueryData(adminQueryKeys.photosSignedUrl("teacher", t.id), payload);
     }
   }, [qc, teachers]);
+
+  useEffect(() => {
+    for (const d of drivers) {
+      if (!isSignedPhotoUrlUsable(d.photoSignedUrl, d.photoExpiresAt)) continue;
+      const payload: PhotoSignedUrlDto = {
+        kind: "driver",
+        id: d.id,
+        photoAssetPath: d.photoAssetPath,
+        photoSignedUrl: d.photoSignedUrl,
+        photoExpiresAt: d.photoExpiresAt,
+      };
+      qc.setQueryData(adminQueryKeys.photosSignedUrl("driver", d.id), payload);
+    }
+  }, [qc, drivers]);
 
   useEffect(() => {
     for (const s of students) {
@@ -272,11 +299,15 @@ function PhotosPage() {
     void qc.invalidateQueries({ queryKey: adminModulePrefix(instituteId, adminQueryRoots.photos) });
     void qc.invalidateQueries({ queryKey: adminModulePrefix(instituteId, adminQueryRoots.teachers) });
     void qc.invalidateQueries({ queryKey: adminModulePrefix(instituteId, adminQueryRoots.students) });
+    void qc.invalidateQueries({ queryKey: adminModulePrefix(instituteId, adminQueryRoots.transport) });
   }
 
   async function runUpload(
     kind: "gallery" | "camera",
-    target: { type: "teacher"; row: PhotoTeacherDto } | { type: "student"; row: PhotoStudentDto },
+    target:
+      | { type: "teacher"; row: PhotoTeacherDto }
+      | { type: "student"; row: PhotoStudentDto }
+      | { type: "driver"; row: PhotoDriverDto },
   ) {
     setBusy(true);
     setStatusMsg(kind === "camera" ? "Opening camera…" : "Opening gallery…");
@@ -287,7 +318,9 @@ function PhotosPage() {
       const result =
         target.type === "teacher"
           ? await uploadTeacherPhoto(target.row.id, raw)
-          : await uploadStudentPhoto(target.row.id, raw);
+          : target.type === "driver"
+            ? await uploadDriverPhoto(target.row.id, raw)
+            : await uploadStudentPhoto(target.row.id, raw);
       setStatusMsg("Photo saved");
       toast(`Photo updated for ${target.row.displayName}`, "success");
       if (target.type === "teacher") {
@@ -295,6 +328,22 @@ function PhotosPage() {
         void qc.setQueryData(
           adminQueryKeys.photosTeachers(instituteId ?? "", q),
           (prev: PhotoTeacherDto[] | undefined) =>
+            (prev ?? []).map((row) =>
+              row.id === result.person.id
+                ? {
+                    ...row,
+                    photoAssetPath: result.photoAssetPath,
+                    photoSignedUrl: result.photoSignedUrl,
+                    photoExpiresAt: result.photoExpiresAt,
+                  }
+                : row,
+            ),
+        );
+      } else if (target.type === "driver") {
+        setSelectedDriverId(result.person.id);
+        void qc.setQueryData(
+          adminQueryKeys.photosDrivers(instituteId ?? "", q),
+          (prev: PhotoDriverDto[] | undefined) =>
             (prev ?? []).map((row) =>
               row.id === result.person.id
                 ? {
@@ -360,6 +409,11 @@ function PhotosPage() {
     setStatusMsg(null);
   }
 
+  function toggleDriver(id: string) {
+    setSelectedDriverId((prev) => (prev === id ? null : id));
+    setStatusMsg(null);
+  }
+
   if (!apiMode) {
     return (
       <AppShell title={M.photos} subtitle="Profile photo management">
@@ -397,17 +451,19 @@ function PhotosPage() {
   return (
     <AppShell
       title={M.photos}
-      subtitle={`Assign staff and student profile photos · ${profilePhotoCompressLabel()}`}
+      subtitle="Assign staff, student, and driver profile photos"
     >
       <PageStack>
         <ModuleHero
           eyebrow="People"
           title={M.photos}
-          subtitle={`Assign staff and student profile photos · ${profilePhotoCompressLabel()}`}
+          subtitle="Assign staff, student, and driver profile photos"
         />
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <Pill tone="neutral">{M.photos}</Pill>
-          <Pill tone="info">{mode === "staff" ? "Staff / Teacher" : "Student"}</Pill>
+          <Pill tone="info">
+            {mode === "staff" ? "Staff / Teacher" : mode === "driver" ? "Driver" : "Student"}
+          </Pill>
         </div>
 
         <Card>
@@ -419,6 +475,7 @@ function PhotosPage() {
                 onClick={() => {
                   setMode("staff");
                   setSelectedStudentId(null);
+                  setSelectedDriverId(null);
                   setStatusMsg(null);
                 }}
               >
@@ -430,10 +487,23 @@ function PhotosPage() {
                 onClick={() => {
                   setMode("student");
                   setSelectedTeacherId(null);
+                  setSelectedDriverId(null);
                   setStatusMsg(null);
                 }}
               >
                 Student
+              </Button>
+              <Button
+                size="sm"
+                variant={mode === "driver" ? "primary" : "outline"}
+                onClick={() => {
+                  setMode("driver");
+                  setSelectedTeacherId(null);
+                  setSelectedStudentId(null);
+                  setStatusMsg(null);
+                }}
+              >
+                Drivers
               </Button>
             </div>
 
@@ -487,10 +557,22 @@ function PhotosPage() {
                 id="photos-search"
                 fieldSize="compact"
                 inputClassName="lx-filter-field"
-                placeholder={mode === "staff" ? "Search staff…" : "Search students…"}
+                placeholder={
+                  mode === "staff"
+                    ? "Search staff…"
+                    : mode === "driver"
+                      ? "Search drivers…"
+                      : "Search students…"
+                }
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                aria-label={mode === "staff" ? "Search staff" : "Search students"}
+                aria-label={
+                  mode === "staff"
+                    ? "Search staff"
+                    : mode === "driver"
+                      ? "Search drivers"
+                      : "Search students"
+                }
               />
             </FilterField>
           </div>
@@ -555,6 +637,68 @@ function PhotosPage() {
                         }
                         onCamera={() =>
                           void runUpload("camera", { type: "teacher", row: t })
+                        }
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+
+          {mode === "driver" && driversQuery.isLoading && (
+            <p className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-5">
+              Loading drivers…
+            </p>
+          )}
+          {mode === "driver" && driversQuery.isError && (
+            <p className="px-4 py-8 text-center text-sm text-destructive sm:px-5">
+              {(driversQuery.error as Error).message || "Failed to load drivers"}
+            </p>
+          )}
+          {mode === "driver" && !driversQuery.isLoading && drivers.length === 0 && (
+            <p className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-5">
+              No drivers found.
+            </p>
+          )}
+          {mode === "driver" &&
+            drivers.map((d) => {
+              const selected = selectedDriverId === d.id;
+              return (
+                <div
+                  key={d.id}
+                  className={`border-b border-border last:border-0 ${selected ? "bg-muted/50" : ""}`}
+                >
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 sm:px-5"
+                    onClick={() => toggleDriver(d.id)}
+                    aria-expanded={selected}
+                  >
+                    <PhotoThumb
+                      url={d.photoSignedUrl}
+                      expiresAt={d.photoExpiresAt}
+                      name={d.displayName}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium">{d.displayName}</div>
+                      <div className="truncate text-xs text-muted-foreground">
+                        {d.licenseNumber}
+                        {d.phone ? ` · ${d.phone}` : ""}
+                      </div>
+                    </div>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {selected ? "Hide" : "Photo"}
+                    </span>
+                  </button>
+                  {selected ? (
+                    <div className="px-4 pb-3 sm:px-5">
+                      <PersonPhotoActions
+                        busy={busy}
+                        onGallery={() =>
+                          void runUpload("gallery", { type: "driver", row: d })
+                        }
+                        onCamera={() =>
+                          void runUpload("camera", { type: "driver", row: d })
                         }
                       />
                     </div>

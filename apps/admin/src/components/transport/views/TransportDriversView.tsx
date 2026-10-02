@@ -32,6 +32,7 @@ import {
 } from "@/lib/transport-store";
 import { useAdminToast } from "@/components/AdminActionToast";
 import { isApiAuthMode } from "@/auth/auth-mode";
+import { DriverListAvatar } from "@/components/transport/DriverListAvatar";
 
 type DriverDraft = Omit<TransportDriver, "id"> & {
   id?: string;
@@ -278,7 +279,16 @@ export function TransportDriversView({
               <tbody>
                 {rows.map((d) => (
                   <tr key={d.id} className="border-b border-border last:border-0">
-                    <td className="py-2.5 pr-3 font-medium">{d.name}</td>
+                    <td className="py-2.5 pr-3 font-medium">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <DriverListAvatar
+                          driverId={d.id}
+                          name={d.name}
+                          photoAssetPath={d.photoAssetPath}
+                        />
+                        <span className="truncate">{d.name}</span>
+                      </div>
+                    </td>
                     <td className="py-2.5 pr-3">{d.phone}</td>
                     <td className="py-2.5 pr-3 font-mono">{d.licenseNumber}</td>
                     <td className="py-2.5 pr-3">{vehicleLabel(d.assignedVehicleId)}</td>

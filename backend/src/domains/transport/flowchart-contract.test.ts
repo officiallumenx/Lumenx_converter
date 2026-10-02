@@ -25,6 +25,9 @@ describe("admin transport flowchart contract", () => {
     expect(types).toContain("defaultPickupTime");
     expect(types).toContain("defaultNotificationRadiusM");
     expect(types).toContain("workingDays");
+    expect(types).toContain("schoolLatitude");
+    expect(types).toContain("schoolLongitude");
+    expect(types).toContain("StopKind");
   });
 
   it("forbids admin stop creation; driver creates, admin approves", () => {

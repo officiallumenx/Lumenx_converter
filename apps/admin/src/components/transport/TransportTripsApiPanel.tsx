@@ -94,7 +94,7 @@ export function TransportTripsApiPanel({ instituteId }: Props) {
 
       {trips.length === 0 ? (
         <EmptyState
-          icon={Navigation}
+          icon={<Navigation className="size-5" />}
           title="No trips yet"
           hint="Trips appear here when drivers start runs in the Transport app."
         />
@@ -107,7 +107,7 @@ export function TransportTripsApiPanel({ instituteId }: Props) {
                 <Card key={trip.id}>
                   <CardHeader
                     title={`${trip.routeName ?? "Route"} · ${trip.vehicleNumber ?? "Bus"}`}
-                    subtitle={`Driver: ${trip.driverName ?? "—"} · Started ${formatWhen(trip.startedAt)}`}
+                    hint={`Driver: ${trip.driverName ?? "—"} · Started ${formatWhen(trip.startedAt)}`}
                     action={
                       <Pill tone={PHASE_TONE[trip.phase] ?? "neutral"}>
                         {trip.phase.replace("_", " ")}
@@ -126,7 +126,7 @@ export function TransportTripsApiPanel({ instituteId }: Props) {
                 <Card key={trip.id}>
                   <CardHeader
                     title={`${trip.routeName ?? "Route"} · ${trip.vehicleNumber ?? "Bus"}`}
-                    subtitle={`Ended ${formatWhen(trip.completedAt)}`}
+                    hint={`Ended ${formatWhen(trip.completedAt)}`}
                     action={<Pill tone="success">completed</Pill>}
                   />
                 </Card>

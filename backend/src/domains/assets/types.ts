@@ -26,6 +26,7 @@ export type AssetStatus = "active" | "pending" | "archived";
 export type AssetLinkedEntityKind =
   | "student"
   | "teacher"
+  | "driver"
   | "parent"
   | "admission_document"
   | "career_application"
