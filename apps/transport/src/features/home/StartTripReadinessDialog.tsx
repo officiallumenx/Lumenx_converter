@@ -213,9 +213,9 @@ export function StartTripReadinessDialog({
       },
       {
         requestNotifications: requestPermissions,
-        // Always attempt location on open — Cap getCurrentPosition prompts when needed.
-        // Notifications stay quiet until the driver taps Check again.
-        requestLocation: true,
+        // Web geolocation needs a user gesture to show the allow dialog.
+        // Only request location when the driver taps Fix & check again.
+        requestLocation: requestPermissions,
       },
     );
     if (runId !== runIdRef.current) return;

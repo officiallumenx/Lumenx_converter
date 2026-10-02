@@ -425,10 +425,39 @@ async function checkGps(options?: { request?: boolean }): Promise<Omit<Readiness
     };
   }
 
-  // Position-first: do NOT early-exit OFF on Cap/plugin service or permission
-  // guesses. Cap Geolocation often claims services/permission are off while
-  // Android LocationManager and PackageManager disagree. Always try a fix.
+  if (!isNativePlatform() && typeof navigator !== "undefined" && !navigator.geolocation) {
+    return {
+      key: "gps",
+      status: "off",
+      message: "GPS is not available in this browser.",
+    };
+  }
+
   let permission = await readLocationPermission();
+
+  // Web Permissions API "denied" is trustworthy (unlike Cap on native).
+  if (!isNativePlatform() && permission === "denied") {
+    return {
+      key: "gps",
+      status: "off",
+      message: locationErrorMessage("denied"),
+    };
+  }
+
+  // Browser geolocation requires a user gesture to show the allow prompt.
+  // Auto-check on sheet open must NOT call getCurrentPosition while still
+  // "prompt" — Chrome often silent-denies and GPS stays stuck Not Ready.
+  if (
+    !isNativePlatform() &&
+    !request &&
+    (permission === "prompt" || permission === "unsupported")
+  ) {
+    return {
+      key: "gps",
+      status: "off",
+      message: "Tap Fix & check again, then allow location when prompted.",
+    };
+  }
 
   if ((permission === "prompt" || permission === "unsupported") && request) {
     permission = await requestLocationPermission();
@@ -438,10 +467,26 @@ async function checkGps(options?: { request?: boolean }): Promise<Omit<Readiness
     await acquireLocationFix();
     return { key: "gps", status: "on", message: "GPS location is available." };
   } catch (error) {
-    // Confirm hard permission deny with PackageManager — Cap false-negatives.
-    if (isLocationPermissionDeniedError(error)) {
+    const hardPermissionDenied =
+      isLocationPermissionDeniedError(error) ||
+      (typeof GeolocationPositionError !== "undefined" &&
+        error instanceof GeolocationPositionError &&
+        error.code === error.PERMISSION_DENIED);
+
+    if (hardPermissionDenied) {
       const pkg = await hasNativeLocationPermission();
-      if (pkg === false) {
+      // Native: Cap often false-labels settings dialogs as denied — trust PackageManager.
+      if (isNativePlatform()) {
+        if (pkg === false) {
+          return {
+            key: "gps",
+            status: "off",
+            message: locationErrorMessage("denied", error),
+          };
+        }
+        // pkg granted/unknown → soft miss below
+      } else {
+        // Web: position error code 1 is authoritative.
         return {
           key: "gps",
           status: "off",
@@ -459,8 +504,6 @@ async function checkGps(options?: { request?: boolean }): Promise<Omit<Readiness
       };
     }
     if (enabledNow === false) {
-      // Plugin says off but error wasn't a services-disabled code — still try
-      // soft-on when permission is granted (OEM LocationManager lag).
       const pkg = await hasNativeLocationPermission();
       if (pkg !== true && permission !== "granted") {
         return {
@@ -471,18 +514,23 @@ async function checkGps(options?: { request?: boolean }): Promise<Omit<Readiness
       }
     }
 
-    // Native: location on / unknown + not a hard permission deny ⇒ Ready.
-    // Indoor/timeout/Cap services mismatch must not block starting a trip.
-    if (isNativePlatform()) {
+    // Re-read after the fix attempt — Permissions API can lag behind the prompt.
+    const permissionAfter = await readLocationPermission();
+    if (!isNativePlatform() && permissionAfter === "denied") {
       return {
         key: "gps",
-        status: "on",
-        message: "Location is on. GPS will strengthen outdoors.",
+        status: "off",
+        message: locationErrorMessage("denied", error),
       };
     }
 
+    // Not a hard deny: indoor/timeout/prompt lag must not block starting.
+    // Applies to native and to the HTTPS web/PWA driver app.
     if (
-      enabledNow === true ||
+      isNativePlatform() ||
+      permissionAfter === "granted" ||
+      permissionAfter === "prompt" ||
+      permissionAfter === "unsupported" ||
       permission === "granted" ||
       permission === "unsupported"
     ) {
@@ -493,18 +541,10 @@ async function checkGps(options?: { request?: boolean }): Promise<Omit<Readiness
       };
     }
 
-    if (permission === "prompt") {
-      return {
-        key: "gps",
-        status: "off",
-        message: "Tap Check again, then allow location when prompted.",
-      };
-    }
-
     return {
       key: "gps",
       status: "off",
-      message: locationErrorMessage(permission, error),
+      message: locationErrorMessage(permissionAfter, error),
     };
   }
 }

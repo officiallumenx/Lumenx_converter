@@ -110,6 +110,14 @@ export function isLocationServicesDisabledError(err: unknown): boolean {
 export function isLocationPermissionDeniedError(err: unknown): boolean {
   if (!err || typeof err !== "object") return false;
 
+  if (
+    typeof GeolocationPositionError !== "undefined" &&
+    err instanceof GeolocationPositionError &&
+    err.code === err.PERMISSION_DENIED
+  ) {
+    return true;
+  }
+
   const code = errorCode(err);
   if (
     code === 1 ||
