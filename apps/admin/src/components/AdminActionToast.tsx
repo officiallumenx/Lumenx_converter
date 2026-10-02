@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2, X } from "lucide-react";
+import { AlertCircle, CheckCircle2, Info, X } from "lucide-react";
 import {
   createContext,
   useCallback,
@@ -19,17 +19,55 @@ export function useAdminToast() {
   return useContext(AdminToastContext);
 }
 
+/** Green only for clear success; red for failures; orange for everything else. */
 function inferTone(message: string): AdminToastTone {
   const m = message.toLowerCase();
   if (
-    /\b(fail|error|could not|invalid|required|denied|forbidden|exists|already)\b/.test(
+    /\b(fail|failed|error|could not|couldn't|unable|invalid|required|denied|forbidden|unauthorized|not found|out of date|schema|migration|timeout|unavailable|rejected|conflict|exists|already|missing|blocked|unsupported)\b/.test(
       m,
     )
   ) {
     return "error";
   }
-  return "success";
+  if (
+    /\b(saved|updated|created|deleted|added|removed|success|successful|approved|published|synced|detected|uploaded|sent|copied|restored|resolved)\b/.test(
+      m,
+    )
+  ) {
+    return "success";
+  }
+  return "info";
 }
+
+const TONE_STYLES: Record<
+  AdminToastTone,
+  { panel: string; dismiss: string; Icon: typeof CheckCircle2; iconClass: string }
+> = {
+  success: {
+    panel:
+      "pointer-events-auto flex items-start gap-2.5 rounded-xl border border-success bg-success px-4 py-3.5 text-sm text-white shadow-elevated animate-slide-up",
+    dismiss:
+      "size-8 min-w-8 rounded-md flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50",
+    Icon: CheckCircle2,
+    iconClass: "mt-0.5 size-4 shrink-0 text-white",
+  },
+  error: {
+    panel:
+      "pointer-events-auto flex items-start gap-2.5 rounded-xl border border-destructive bg-destructive px-4 py-3.5 text-sm text-destructive-foreground shadow-elevated animate-slide-up",
+    dismiss:
+      "size-8 min-w-8 rounded-md flex items-center justify-center text-destructive-foreground/80 hover:text-destructive-foreground hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50",
+    Icon: AlertCircle,
+    iconClass: "mt-0.5 size-4 shrink-0 text-destructive-foreground",
+  },
+  info: {
+    panel:
+      "pointer-events-auto flex items-start gap-2.5 rounded-xl border border-orange-500 bg-orange-500 px-4 py-3.5 text-sm text-white shadow-elevated animate-slide-up",
+    dismiss:
+      "size-8 min-w-8 rounded-md flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50",
+    Icon: Info,
+    iconClass: "mt-0.5 size-4 shrink-0 text-white",
+  },
+};
 
 export function AdminActionToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -53,34 +91,21 @@ export function AdminActionToastProvider({ children }: { children: ReactNode }) 
         aria-relevant="additions"
       >
         {toasts.map((t) => {
-          const isError = t.tone === "error";
+          const style = TONE_STYLES[t.tone];
+          const Icon = style.Icon;
           return (
             <div
               key={t.id}
-              role={isError ? "alert" : "status"}
-              className={
-                isError
-                  ? "pointer-events-auto flex items-start gap-2.5 rounded-xl border border-destructive bg-destructive px-4 py-3.5 text-sm text-destructive-foreground shadow-elevated animate-slide-up"
-                  : "pointer-events-auto flex items-start gap-2.5 rounded-xl border border-success bg-success px-4 py-3.5 text-sm text-white shadow-elevated animate-slide-up"
-              }
+              role={t.tone === "error" ? "alert" : "status"}
+              className={style.panel}
             >
-              {isError ? (
-                <AlertCircle className="mt-0.5 size-4 shrink-0 text-destructive-foreground" aria-hidden />
-              ) : (
-                <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-white" aria-hidden />
-              )}
-              <span className="flex-1 font-medium leading-snug">
-                {t.message}
-              </span>
+              <Icon className={style.iconClass} aria-hidden />
+              <span className="flex-1 font-medium leading-snug">{t.message}</span>
               <button
                 type="button"
                 aria-label="Dismiss notification"
                 onClick={() => setToasts((prev) => prev.filter((x) => x.id !== t.id))}
-                className={
-                  isError
-                    ? "size-8 min-w-8 rounded-md flex items-center justify-center text-destructive-foreground/80 hover:text-destructive-foreground hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
-                    : "size-8 min-w-8 rounded-md flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
-                }
+                className={style.dismiss}
               >
                 <X className="size-3.5" />
               </button>

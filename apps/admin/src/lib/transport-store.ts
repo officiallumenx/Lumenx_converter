@@ -179,6 +179,8 @@ export type TransportSettings = {
   schoolLocationLabel?: string | null;
   schoolLatitude?: number | null;
   schoolLongitude?: number | null;
+  /** Approach radius for school endpoint stop (independent of normal stops). */
+  schoolNotificationRadiusM?: number;
 };
 
 export type TransportSnapshot = {
@@ -248,7 +250,7 @@ function normalizeSnapshot(raw: TransportSnapshot): TransportSnapshot {
     })),
     routes: asList<TransportRoute>(raw.routes).map((r) => normalizeRoute(r)),
     settings: {
-      defaultNotificationRadiusM: raw.settings?.defaultNotificationRadiusM ?? 100,
+      defaultNotificationRadiusM: raw.settings?.defaultNotificationRadiusM ?? 150,
       defaultPickupBufferMins: raw.settings?.defaultPickupBufferMins ?? 5,
       workingDays: Array.isArray(raw.settings?.workingDays)
         ? raw.settings.workingDays
@@ -256,6 +258,10 @@ function normalizeSnapshot(raw: TransportSnapshot): TransportSnapshot {
       notificationsEnabled: raw.settings?.notificationsEnabled ?? true,
       rememberEnabled: raw.settings?.rememberEnabled ?? true,
       defaultPickupTime: raw.settings?.defaultPickupTime?.trim() || "07:30",
+      schoolLocationLabel: raw.settings?.schoolLocationLabel ?? null,
+      schoolLatitude: raw.settings?.schoolLatitude ?? null,
+      schoolLongitude: raw.settings?.schoolLongitude ?? null,
+      schoolNotificationRadiusM: raw.settings?.schoolNotificationRadiusM ?? 150,
     },
   };
 }
@@ -616,12 +622,13 @@ function seedSnapshot(): TransportSnapshot {
     assignments,
     trips,
     settings: {
-      defaultNotificationRadiusM: 100,
+      defaultNotificationRadiusM: 150,
       defaultPickupBufferMins: 5,
       workingDays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
       notificationsEnabled: true,
       rememberEnabled: true,
       defaultPickupTime: "07:30",
+      schoolNotificationRadiusM: 150,
     },
   };
 }
@@ -635,12 +642,13 @@ function emptyTransportSnapshot(): TransportSnapshot {
     assignments: [],
     trips: [],
     settings: {
-      defaultNotificationRadiusM: 100,
+      defaultNotificationRadiusM: 150,
       defaultPickupBufferMins: 5,
       workingDays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
       notificationsEnabled: true,
       rememberEnabled: true,
       defaultPickupTime: "07:30",
+      schoolNotificationRadiusM: 150,
     },
   };
 }

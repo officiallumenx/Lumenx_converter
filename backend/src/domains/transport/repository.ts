@@ -36,7 +36,7 @@ const ENROLLMENT_COLS =
   "id, institute_id, student_id, route_id, pickup_stop_id, drop_stop_id, status, approval_status, submitted_by_user_id, reviewed_by_user_id, reviewed_at, rejection_reason, created_at, updated_at, deleted_at";
 
 const SETTINGS_COLS =
-  "institute_id, default_notification_radius_m, default_pickup_buffer_mins, working_days, notifications_enabled, remember_enabled, default_pickup_time, school_location_label, school_latitude, school_longitude, created_at, updated_at";
+  "institute_id, default_notification_radius_m, default_pickup_buffer_mins, working_days, notifications_enabled, remember_enabled, default_pickup_time, school_location_label, school_latitude, school_longitude, school_notification_radius_m, created_at, updated_at";
 
 // ── Vehicles ─────────────────────────────────────────────────────
 
@@ -611,6 +611,7 @@ export async function findTransportSettings(
     school_location_label: row.school_location_label ?? null,
     school_latitude: row.school_latitude ?? null,
     school_longitude: row.school_longitude ?? null,
+    school_notification_radius_m: row.school_notification_radius_m ?? 150,
   };
 }
 
@@ -648,6 +649,9 @@ export async function upsertTransportSettings(
     if (input.schoolLongitude !== undefined) {
       patch.school_longitude = input.schoolLongitude;
     }
+    if (input.schoolNotificationRadiusM !== undefined) {
+      patch.school_notification_radius_m = input.schoolNotificationRadiusM;
+    }
     if (Object.keys(patch).length === 0) return existing;
     const result = await admin
       .from("transport_settings")
@@ -665,6 +669,7 @@ export async function upsertTransportSettings(
       school_location_label: row.school_location_label ?? null,
       school_latitude: row.school_latitude ?? null,
       school_longitude: row.school_longitude ?? null,
+      school_notification_radius_m: row.school_notification_radius_m ?? 150,
     };
   }
 
@@ -681,6 +686,7 @@ export async function upsertTransportSettings(
       school_location_label: input.schoolLocationLabel ?? null,
       school_latitude: input.schoolLatitude ?? null,
       school_longitude: input.schoolLongitude ?? null,
+      school_notification_radius_m: input.schoolNotificationRadiusM ?? 150,
     })
     .select(SETTINGS_COLS)
     .single();
@@ -694,6 +700,7 @@ export async function upsertTransportSettings(
     school_location_label: row.school_location_label ?? null,
     school_latitude: row.school_latitude ?? null,
     school_longitude: row.school_longitude ?? null,
+    school_notification_radius_m: row.school_notification_radius_m ?? 150,
   };
 }
 

@@ -107,6 +107,7 @@ export type TransportSettingsDto = {
   schoolLocationLabel: string | null;
   schoolLatitude: number | null;
   schoolLongitude: number | null;
+  schoolNotificationRadiusM: number;
   createdAt: string;
   updatedAt: string;
 };

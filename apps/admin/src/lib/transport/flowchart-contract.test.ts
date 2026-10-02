@@ -65,12 +65,14 @@ describe("transport flowchart contract", () => {
       "defaultNotificationRadiusM",
       "defaultPickupBufferMins",
       "workingDays",
+      "schoolNotificationRadiusM",
     ];
     expect(keys).toEqual(
       expect.arrayContaining([
         "notificationsEnabled",
         "rememberEnabled",
         "defaultPickupTime",
+        "schoolNotificationRadiusM",
       ]),
     );
     const upsert: UpsertTransportSettingsInput = {

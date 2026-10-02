@@ -85,6 +85,7 @@ import { studentDtosToListItems } from "@/lib/students/map";
 import { buildStudentClassOptions } from "@/lib/students/class-options";
 import type { StudentListItem } from "@/lib/students/types";
 import { useAdminToast } from "@/components/AdminActionToast";
+import { ApiClientError } from "@/lib/api";
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
@@ -184,6 +185,15 @@ function transportListHint(
   if (status === "error") return errorMessage ?? `Failed to load ${entityLabel}.`;
   if (status === "empty") return `No ${entityLabel} found for this institute.`;
   return null;
+}
+
+function transportQueryFailureStatus(error: Error | null): TransportListStatus {
+  if (error instanceof ApiClientError && error.status === 403) return "forbidden";
+  return "error";
+}
+
+function transportQueryFailureMessage(error: Error | null, fallback: string): string {
+  return error instanceof Error && error.message.trim() ? error.message : fallback;
 }
 
 function TransportPage() {
@@ -383,7 +393,7 @@ function TransportPage() {
             : null;
 
   useEffect(() => {
-    if (!apiMode || (view !== "vehicles" && view !== "dashboard" && view !== "students" && view !== "drivers")) return;
+    if (!apiMode) return;
 
     if (instituteCtx.status === "loading") {
       setApiVehicles([]);
@@ -423,13 +433,25 @@ function TransportPage() {
       setVehiclesListError(null);
       return;
     }
-    if (!vehiclesQuery.data) return;
-
-    const next = vehiclesQuery.data;
-    setApiVehicles(next.items);
-    setVehiclesListStatus(next.status);
-    setVehiclesListError(next.errorMessage);
-    setVehiclesResolvedForInstituteId(instituteCtx.activeInstituteId);
+    if (vehiclesQuery.data) {
+      const next = vehiclesQuery.data;
+      setApiVehicles(next.items);
+      setVehiclesListStatus(next.status);
+      setVehiclesListError(next.errorMessage);
+      setVehiclesResolvedForInstituteId(instituteCtx.activeInstituteId);
+      return;
+    }
+    if (vehiclesQuery.isError && instituteCtx.activeInstituteId) {
+      setApiVehicles([]);
+      setVehiclesListStatus(transportQueryFailureStatus(vehiclesQuery.error));
+      setVehiclesListError(
+        transportQueryFailureMessage(
+          vehiclesQuery.error,
+          "Failed to load transport vehicles",
+        ),
+      );
+      setVehiclesResolvedForInstituteId(instituteCtx.activeInstituteId);
+    }
   }, [
     apiMode,
     instituteCtx.status,
@@ -437,10 +459,12 @@ function TransportPage() {
     instituteCtx.errorMessage,
     vehiclesQuery.data,
     vehiclesQuery.isLoading,
+    vehiclesQuery.isError,
+    vehiclesQuery.error,
   ]);
 
   useEffect(() => {
-    if (!apiMode || (view !== "drivers" && view !== "dashboard" && view !== "vehicles")) return;
+    if (!apiMode) return;
 
     if (instituteCtx.status === "loading") {
       setApiDrivers([]);
@@ -480,13 +504,25 @@ function TransportPage() {
       setDriversListError(null);
       return;
     }
-    if (!driversQuery.data) return;
-
-    const next = driversQuery.data;
-    setApiDrivers(next.items);
-    setDriversListStatus(next.status);
-    setDriversListError(next.errorMessage);
-    setDriversResolvedForInstituteId(instituteCtx.activeInstituteId);
+    if (driversQuery.data) {
+      const next = driversQuery.data;
+      setApiDrivers(next.items);
+      setDriversListStatus(next.status);
+      setDriversListError(next.errorMessage);
+      setDriversResolvedForInstituteId(instituteCtx.activeInstituteId);
+      return;
+    }
+    if (driversQuery.isError && instituteCtx.activeInstituteId) {
+      setApiDrivers([]);
+      setDriversListStatus(transportQueryFailureStatus(driversQuery.error));
+      setDriversListError(
+        transportQueryFailureMessage(
+          driversQuery.error,
+          "Failed to load transport drivers",
+        ),
+      );
+      setDriversResolvedForInstituteId(instituteCtx.activeInstituteId);
+    }
   }, [
     apiMode,
     instituteCtx.status,
@@ -494,10 +530,12 @@ function TransportPage() {
     instituteCtx.errorMessage,
     driversQuery.data,
     driversQuery.isLoading,
+    driversQuery.isError,
+    driversQuery.error,
   ]);
 
   useEffect(() => {
-    if (!apiMode || (view !== "routes" && view !== "stops" && view !== "dashboard" && view !== "students")) return;
+    if (!apiMode) return;
 
     if (instituteCtx.status === "loading") {
       setApiRoutes([]);
@@ -537,13 +575,25 @@ function TransportPage() {
       setRoutesListError(null);
       return;
     }
-    if (!routesQuery.data) return;
-
-    const next = routesQuery.data;
-    setApiRoutes(next.items);
-    setRoutesListStatus(next.status);
-    setRoutesListError(next.errorMessage);
-    setRoutesResolvedForInstituteId(instituteCtx.activeInstituteId);
+    if (routesQuery.data) {
+      const next = routesQuery.data;
+      setApiRoutes(next.items);
+      setRoutesListStatus(next.status);
+      setRoutesListError(next.errorMessage);
+      setRoutesResolvedForInstituteId(instituteCtx.activeInstituteId);
+      return;
+    }
+    if (routesQuery.isError && instituteCtx.activeInstituteId) {
+      setApiRoutes([]);
+      setRoutesListStatus(transportQueryFailureStatus(routesQuery.error));
+      setRoutesListError(
+        transportQueryFailureMessage(
+          routesQuery.error,
+          "Failed to load transport routes",
+        ),
+      );
+      setRoutesResolvedForInstituteId(instituteCtx.activeInstituteId);
+    }
   }, [
     apiMode,
     instituteCtx.status,
@@ -551,10 +601,12 @@ function TransportPage() {
     instituteCtx.errorMessage,
     routesQuery.data,
     routesQuery.isLoading,
+    routesQuery.isError,
+    routesQuery.error,
   ]);
 
   useEffect(() => {
-    if (!apiMode || (view !== "students" && view !== "dashboard")) return;
+    if (!apiMode) return;
 
     if (instituteCtx.status === "loading") {
       setApiEnrollments([]);
@@ -594,13 +646,25 @@ function TransportPage() {
       setEnrollmentsListError(null);
       return;
     }
-    if (!enrollmentsQuery.data) return;
-
-    const next = enrollmentsQuery.data;
-    setApiEnrollments(next.items);
-    setEnrollmentsListStatus(next.status);
-    setEnrollmentsListError(next.errorMessage);
-    setEnrollmentsResolvedForInstituteId(instituteCtx.activeInstituteId);
+    if (enrollmentsQuery.data) {
+      const next = enrollmentsQuery.data;
+      setApiEnrollments(next.items);
+      setEnrollmentsListStatus(next.status);
+      setEnrollmentsListError(next.errorMessage);
+      setEnrollmentsResolvedForInstituteId(instituteCtx.activeInstituteId);
+      return;
+    }
+    if (enrollmentsQuery.isError && instituteCtx.activeInstituteId) {
+      setApiEnrollments([]);
+      setEnrollmentsListStatus(transportQueryFailureStatus(enrollmentsQuery.error));
+      setEnrollmentsListError(
+        transportQueryFailureMessage(
+          enrollmentsQuery.error,
+          "Failed to load transport enrollments",
+        ),
+      );
+      setEnrollmentsResolvedForInstituteId(instituteCtx.activeInstituteId);
+    }
   }, [
     apiMode,
     instituteCtx.status,
@@ -608,6 +672,8 @@ function TransportPage() {
     instituteCtx.errorMessage,
     enrollmentsQuery.data,
     enrollmentsQuery.isLoading,
+    enrollmentsQuery.isError,
+    enrollmentsQuery.error,
   ]);
 
   useEffect(() => {
@@ -649,7 +715,7 @@ function TransportPage() {
   ]);
 
   useEffect(() => {
-    if (!apiMode || view !== "settings") return;
+    if (!apiMode) return;
 
     if (instituteCtx.status === "loading") {
       setApiSettings(null);
@@ -689,13 +755,25 @@ function TransportPage() {
       setSettingsLoadError(null);
       return;
     }
-    if (!settingsQuery.data) return;
-
-    const next = settingsQuery.data;
-    setApiSettings(next.settings);
-    setSettingsLoadStatus(next.status);
-    setSettingsLoadError(next.errorMessage);
-    setSettingsResolvedForInstituteId(instituteCtx.activeInstituteId);
+    if (settingsQuery.data) {
+      const next = settingsQuery.data;
+      setApiSettings(next.settings);
+      setSettingsLoadStatus(next.status);
+      setSettingsLoadError(next.errorMessage);
+      setSettingsResolvedForInstituteId(instituteCtx.activeInstituteId);
+      return;
+    }
+    if (settingsQuery.isError && instituteCtx.activeInstituteId) {
+      setApiSettings(null);
+      setSettingsLoadStatus(transportQueryFailureStatus(settingsQuery.error));
+      setSettingsLoadError(
+        transportQueryFailureMessage(
+          settingsQuery.error,
+          "Failed to load transport settings",
+        ),
+      );
+      setSettingsResolvedForInstituteId(instituteCtx.activeInstituteId);
+    }
   }, [
     apiMode,
     instituteCtx.status,
@@ -703,6 +781,8 @@ function TransportPage() {
     instituteCtx.errorMessage,
     settingsQuery.data,
     settingsQuery.isLoading,
+    settingsQuery.isError,
+    settingsQuery.error,
   ]);
 
   const vehiclesSnapshot = useMemo(() => {
@@ -1180,6 +1260,8 @@ function TransportPage() {
                       schoolLocationLabel: settings.schoolLocationLabel ?? null,
                       schoolLatitude: settings.schoolLatitude ?? null,
                       schoolLongitude: settings.schoolLongitude ?? null,
+                      schoolNotificationRadiusM:
+                        settings.schoolNotificationRadiusM ?? 150,
                     });
                     bumpTransportReload();
                   }

@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { Card, CardHeader, Button, Field, TextInput } from "@lumenx/ui-admin";
+import { Crosshair, MapPin, Loader2 } from "lucide-react";
 import {
   saveTransportSettings,
   type TransportSettings,
   type TransportSnapshot,
 } from "@/lib/transport-store";
 import { useAdminToast } from "@/components/AdminActionToast";
-import { LocationPastePicker } from "@/components/transport/LocationPastePicker";
 
 type Props = {
   snapshot: TransportSnapshot;
@@ -27,6 +27,26 @@ const WEEKDAYS = [
   { key: "Sun", label: "Sun" },
 ] as const;
 
+const DEFAULT_STOP_RADIUS_M = 150;
+const DEFAULT_SCHOOL_RADIUS_M = 150;
+
+function geolocationErrorMessage(err: GeolocationPositionError): string {
+  if (err.code === err.PERMISSION_DENIED) {
+    return "Location permission denied. Allow location for this site, then try again.";
+  }
+  if (err.code === err.POSITION_UNAVAILABLE) {
+    return "Location unavailable. Move outdoors or check device GPS.";
+  }
+  if (err.code === err.TIMEOUT) {
+    return "Location timed out. Try again.";
+  }
+  return "Could not detect location.";
+}
+
+function normalizeRadius(value: number | null | undefined, fallback: number): number {
+  return value != null && Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
 export function TransportSettingsView({
   snapshot,
   onChange,
@@ -36,10 +56,31 @@ export function TransportSettingsView({
   onSaveSettings,
 }: Props) {
   const notify = useAdminToast();
-  const [draft, setDraft] = useState<TransportSettings>(() => ({ ...snapshot.settings }));
+  const [draft, setDraft] = useState<TransportSettings>(() => ({
+    ...snapshot.settings,
+    defaultNotificationRadiusM: normalizeRadius(
+      snapshot.settings.defaultNotificationRadiusM,
+      DEFAULT_STOP_RADIUS_M,
+    ),
+    schoolNotificationRadiusM: normalizeRadius(
+      snapshot.settings.schoolNotificationRadiusM,
+      DEFAULT_SCHOOL_RADIUS_M,
+    ),
+  }));
+  const [detecting, setDetecting] = useState(false);
 
   useEffect(() => {
-    setDraft({ ...snapshot.settings });
+    setDraft({
+      ...snapshot.settings,
+      defaultNotificationRadiusM: normalizeRadius(
+        snapshot.settings.defaultNotificationRadiusM,
+        DEFAULT_STOP_RADIUS_M,
+      ),
+      schoolNotificationRadiusM: normalizeRadius(
+        snapshot.settings.schoolNotificationRadiusM,
+        DEFAULT_SCHOOL_RADIUS_M,
+      ),
+    });
   }, [snapshot.settings]);
 
   const toggleDay = (key: string) => {
@@ -53,17 +94,60 @@ export function TransportSettingsView({
     });
   };
 
+  const detectSchoolLocation = () => {
+    if (!writesEnabled || detecting) return;
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      notify("Location is not supported in this browser", "error");
+      return;
+    }
+    setDetecting(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setDraft((prev) => ({
+          ...prev,
+          schoolLatitude: lat,
+          schoolLongitude: lng,
+          schoolLocationLabel: `School · ${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+          schoolNotificationRadiusM: normalizeRadius(
+            prev.schoolNotificationRadiusM,
+            DEFAULT_SCHOOL_RADIUS_M,
+          ),
+        }));
+        setDetecting(false);
+        notify("School location detected from your device", "success");
+      },
+      (err) => {
+        setDetecting(false);
+        notify(geolocationErrorMessage(err), "error");
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 20_000,
+        maximumAge: 0,
+      },
+    );
+  };
+
   const save = () => {
     if (!writesEnabled) return;
     if (draft.defaultNotificationRadiusM < 20) {
-      notify("Notification radius should be at least 20m");
+      notify("Normal stop radius should be at least 20m");
+      return;
+    }
+    if ((draft.schoolNotificationRadiusM ?? DEFAULT_SCHOOL_RADIUS_M) < 20) {
+      notify("School stop radius should be at least 20m");
       return;
     }
     if (onSaveSettings) {
       void Promise.resolve(onSaveSettings(draft))
         .then(() => notify("Transport settings saved"))
         .catch((err) => {
-          notify(err instanceof Error ? err.message : "Failed to save settings");
+          notify(
+            err instanceof Error ? err.message : "Failed to save settings",
+            "error",
+          );
         });
       return;
     }
@@ -79,6 +163,12 @@ export function TransportSettingsView({
     );
   }
 
+  const hasSchool =
+    draft.schoolLatitude != null &&
+    draft.schoolLongitude != null &&
+    Number.isFinite(draft.schoolLatitude) &&
+    Number.isFinite(draft.schoolLongitude);
+
   return (
     <div className="space-y-4 max-w-xl">
       <Card>
@@ -91,7 +181,114 @@ export function TransportSettingsView({
           }
         />
         <div className="px-5 pb-5 space-y-4">
-          <Field label="Default notification radius (m)" hint="Used when creating new stops">
+          <Field
+            label="School endpoint"
+            hint="Stand at the school gate and detect your location. Used as the boarding end for every bus."
+          >
+            {writesEnabled ? (
+              <div className="space-y-3">
+                <Button
+                  size="sm"
+                  variant="primary"
+                  disabled={detecting}
+                  onClick={detectSchoolLocation}
+                  className="gap-2"
+                >
+                  {detecting ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <Crosshair className="size-3.5" />
+                  )}
+                  {detecting
+                    ? "Detecting…"
+                    : hasSchool
+                      ? "Update from my location"
+                      : "Detect my location"}
+                </Button>
+                {hasSchool ? (
+                  <div className="rounded-lg border border-border bg-muted/30 px-3 py-2.5 flex gap-2">
+                    <MapPin className="size-3.5 mt-0.5 text-teal-700 shrink-0" />
+                    <div className="min-w-0 space-y-1 flex-1">
+                      <p className="text-[10px] font-mono text-muted-foreground">
+                        {draft.schoolLatitude!.toFixed(5)},{" "}
+                        {draft.schoolLongitude!.toFixed(5)}
+                      </p>
+                      <TextInput
+                        className="h-7 text-xs"
+                        value={draft.schoolLocationLabel ?? ""}
+                        onChange={(e) =>
+                          setDraft({
+                            ...draft,
+                            schoolLocationLabel: e.target.value,
+                          })
+                        }
+                        placeholder="Label (optional)"
+                      />
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() =>
+                          setDraft({
+                            ...draft,
+                            schoolLatitude: null,
+                            schoolLongitude: null,
+                            schoolLocationLabel: null,
+                          })
+                        }
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Not set — use Detect my location while on campus.
+                  </p>
+                )}
+              </div>
+            ) : hasSchool ? (
+              <p className="text-sm text-foreground">
+                {draft.schoolLocationLabel?.trim() ||
+                  `${draft.schoolLatitude!.toFixed(5)}, ${draft.schoolLongitude!.toFixed(5)}`}
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">Not set</p>
+            )}
+          </Field>
+
+          <Field
+            label="School stop radius (m)"
+            hint={`Approach radius for the school endpoint only. Default ${DEFAULT_SCHOOL_RADIUS_M}m.`}
+          >
+            <TextInput
+              type="number"
+              min={20}
+              disabled={!writesEnabled}
+              value={draft.schoolNotificationRadiusM ?? DEFAULT_SCHOOL_RADIUS_M}
+              onChange={(e) => {
+                const raw = e.target.value.trim();
+                if (raw === "") {
+                  setDraft({
+                    ...draft,
+                    schoolNotificationRadiusM: DEFAULT_SCHOOL_RADIUS_M,
+                  });
+                  return;
+                }
+                const parsed = Number.parseInt(raw, 10);
+                if (Number.isFinite(parsed) && parsed > 0) {
+                  setDraft({
+                    ...draft,
+                    schoolNotificationRadiusM: parsed,
+                  });
+                }
+              }}
+            />
+          </Field>
+
+          <Field
+            label="Normal stop radius (m)"
+            hint={`Default for student pickup/drop stops. Default ${DEFAULT_STOP_RADIUS_M}m.`}
+          >
             <TextInput
               type="number"
               min={20}
@@ -102,7 +299,7 @@ export function TransportSettingsView({
                 if (raw === "") {
                   setDraft({
                     ...draft,
-                    defaultNotificationRadiusM: 150,
+                    defaultNotificationRadiusM: DEFAULT_STOP_RADIUS_M,
                   });
                   return;
                 }
@@ -116,6 +313,7 @@ export function TransportSettingsView({
               }}
             />
           </Field>
+
           <Field label="Pickup buffer (minutes)" hint="Lead time before scheduled pickup">
             <TextInput
               type="number"
@@ -142,42 +340,6 @@ export function TransportSettingsView({
                 })
               }
             />
-          </Field>
-          <Field
-            label="School endpoint"
-            hint="Shared boarding end for every bus. Drivers set the parking/start end separately."
-          >
-            {writesEnabled ? (
-              <LocationPastePicker
-                value={
-                  draft.schoolLatitude != null && draft.schoolLongitude != null
-                    ? {
-                        lat: draft.schoolLatitude,
-                        lng: draft.schoolLongitude,
-                        locationLabel:
-                          draft.schoolLocationLabel?.trim() ||
-                          `${draft.schoolLatitude.toFixed(5)}, ${draft.schoolLongitude.toFixed(5)}`,
-                      }
-                    : null
-                }
-                onChange={(next) =>
-                  setDraft({
-                    ...draft,
-                    schoolLatitude: next?.lat ?? null,
-                    schoolLongitude: next?.lng ?? null,
-                    schoolLocationLabel: next?.locationLabel ?? null,
-                  })
-                }
-                searchHint="school"
-              />
-            ) : draft.schoolLatitude != null && draft.schoolLongitude != null ? (
-              <p className="text-sm text-foreground">
-                {draft.schoolLocationLabel?.trim() ||
-                  `${draft.schoolLatitude.toFixed(5)}, ${draft.schoolLongitude.toFixed(5)}`}
-              </p>
-            ) : (
-              <p className="text-sm text-muted-foreground">Not set</p>
-            )}
           </Field>
           <Field label="Notifications">
             <label
@@ -244,11 +406,11 @@ export function TransportSettingsView({
             </div>
           </Field>
           {writesEnabled ? (
-          <div className="pt-1">
-            <Button variant="primary" size="sm" onClick={save}>
-              Save settings
-            </Button>
-          </div>
+            <div className="pt-1">
+              <Button variant="primary" size="sm" onClick={save}>
+                Save settings
+              </Button>
+            </div>
           ) : null}
         </div>
       </Card>

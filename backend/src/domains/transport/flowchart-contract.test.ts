@@ -27,6 +27,7 @@ describe("admin transport flowchart contract", () => {
     expect(types).toContain("workingDays");
     expect(types).toContain("schoolLatitude");
     expect(types).toContain("schoolLongitude");
+    expect(types).toContain("schoolNotificationRadiusM");
     expect(types).toContain("StopKind");
   });
 

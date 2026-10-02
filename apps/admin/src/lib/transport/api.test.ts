@@ -177,6 +177,10 @@ describe("transport vehicles api repository", () => {
       notificationsEnabled: true,
       rememberEnabled: true,
       defaultPickupTime: "07:30",
+      schoolLocationLabel: null,
+      schoolLatitude: null,
+      schoolLongitude: null,
+      schoolNotificationRadiusM: 150,
       createdAt: "2026-06-01T10:00:00Z",
       updatedAt: "2026-06-01T10:00:00Z",
     };

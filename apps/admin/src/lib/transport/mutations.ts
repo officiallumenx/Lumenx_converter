@@ -104,6 +104,7 @@ export type UpsertTransportSettingsInput = {
   schoolLocationLabel?: string | null;
   schoolLatitude?: number | null;
   schoolLongitude?: number | null;
+  schoolNotificationRadiusM?: number;
 };
 
 export async function createVehicle(
@@ -453,6 +454,9 @@ export async function upsertTransportSettings(
   }
   if (input.schoolLongitude !== undefined) {
     body.school_longitude = input.schoolLongitude;
+  }
+  if (input.schoolNotificationRadiusM !== undefined) {
+    body.school_notification_radius_m = input.schoolNotificationRadiusM;
   }
   return client.put<TransportSettingsDto>(
     `/api/v1/transport/settings?${query.toString()}`,

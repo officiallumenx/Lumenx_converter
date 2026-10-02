@@ -164,6 +164,7 @@ export function transportSettingsDtoToTransportSettings(
     schoolLocationLabel: dto.schoolLocationLabel ?? null,
     schoolLatitude: dto.schoolLatitude ?? null,
     schoolLongitude: dto.schoolLongitude ?? null,
+    schoolNotificationRadiusM: dto.schoolNotificationRadiusM ?? 150,
   };
 }
 

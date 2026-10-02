@@ -222,6 +222,7 @@ export function toTransportSettingsDto(
     schoolLocationLabel: row.school_location_label ?? null,
     schoolLatitude: row.school_latitude ?? null,
     schoolLongitude: row.school_longitude ?? null,
+    schoolNotificationRadiusM: row.school_notification_radius_m ?? 150,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -1262,6 +1263,7 @@ export async function getTransportSettingsForActor(
       schoolLocationLabel: null,
       schoolLatitude: null,
       schoolLongitude: null,
+      schoolNotificationRadiusM: 150,
       createdAt: new Date(0).toISOString(),
       updatedAt: new Date(0).toISOString(),
     };
@@ -1287,7 +1289,7 @@ async function upsertSchoolStopOnRoute(
   const label =
     settings.school_location_label?.trim() ||
     `${settings.school_latitude.toFixed(5)}, ${settings.school_longitude.toFixed(5)}`;
-  const radius = settings.default_notification_radius_m ?? 150;
+  const radius = settings.school_notification_radius_m ?? 150;
   const existing = await findStopByKindOnRoute(admin, route.id, "school");
   if (existing) {
     await updateStopFields(admin, existing.id, {
@@ -1346,6 +1348,15 @@ export async function upsertTransportSettingsForActor(
   ) {
     throw AppError.validation(
       "default_notification_radius_m must be a positive integer",
+    );
+  }
+  if (
+    input.schoolNotificationRadiusM !== undefined &&
+    (!Number.isInteger(input.schoolNotificationRadiusM) ||
+      input.schoolNotificationRadiusM <= 0)
+  ) {
+    throw AppError.validation(
+      "school_notification_radius_m must be a positive integer",
     );
   }
   if (

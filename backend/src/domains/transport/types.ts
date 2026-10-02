@@ -110,6 +110,7 @@ export type TransportSettingsRow = {
   school_location_label: string | null;
   school_latitude: number | null;
   school_longitude: number | null;
+  school_notification_radius_m: number;
   created_at: string;
   updated_at: string;
 };
@@ -215,6 +216,7 @@ export type TransportSettingsDto = {
   schoolLocationLabel: string | null;
   schoolLatitude: number | null;
   schoolLongitude: number | null;
+  schoolNotificationRadiusM: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -338,4 +340,5 @@ export type UpsertTransportSettingsInput = {
   schoolLocationLabel?: string | null;
   schoolLatitude?: number | null;
   schoolLongitude?: number | null;
+  schoolNotificationRadiusM?: number;
 };

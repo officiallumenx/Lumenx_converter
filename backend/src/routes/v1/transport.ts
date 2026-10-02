@@ -586,6 +586,7 @@ transport.put("/settings", async (c) => {
       school_location_label: z.string().max(500).nullable().optional(),
       school_latitude: z.number().min(-90).max(90).nullable().optional(),
       school_longitude: z.number().min(-180).max(180).nullable().optional(),
+      school_notification_radius_m: z.number().int().positive().optional(),
     }),
     await c.req.json(),
   );
@@ -600,6 +601,7 @@ transport.put("/settings", async (c) => {
     schoolLocationLabel: body.school_location_label,
     schoolLatitude: body.school_latitude,
     schoolLongitude: body.school_longitude,
+    schoolNotificationRadiusM: body.school_notification_radius_m,
   });
   return c.json({ data });
 });
