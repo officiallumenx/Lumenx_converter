@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { DriverAssignmentGate } from "@/components/app/driver-assignment-state";
 import { APP_NAME } from "@/constants";
 import { EmergencyPage } from "@/features/emergency";
+import { useDriverAssignmentQuery } from "@/lib/transport-queries";
 
 export const Route = createFileRoute("/_app/emergency")({
   head: () => ({ meta: [{ title: `Emergency — ${APP_NAME}` }] }),
@@ -17,8 +18,10 @@ export const Route = createFileRoute("/_app/emergency")({
 
 function EmergencyRoute() {
   const { confirm } = Route.useSearch();
+  const assignment = useDriverAssignmentQuery();
+
   return (
-    <DriverAssignmentGate allowEmptyStudents>
+    <DriverAssignmentGate assignment={assignment} allowEmptyStudents>
       <EmergencyPage autoConfirm={Boolean(confirm)} />
     </DriverAssignmentGate>
   );

@@ -26,6 +26,9 @@ export {
   canEditStop,
   canEditAssignment,
   canRequestChangeStop,
+  isRouteEndpointStop,
+  isSchoolStop,
+  isParkingStop,
 } from "./types";
 export { findDuplicateRouteStop, TRANSPORT_APPROVAL_CHANGED_EVENT } from "./store";
 

@@ -437,6 +437,8 @@ export async function findStopByKindOnRoute(
     .eq("route_id", routeId)
     .eq("kind", kind)
     .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
   if (result.error) ensureDbOk(result);
   const row = result.data as StopRow | null;

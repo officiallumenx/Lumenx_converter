@@ -14,8 +14,42 @@ let apiOpenEmergencyCache: TransportEmergency | null = null;
 let apiEmergencyListCache: TransportEmergency[] = [];
 const apiListeners = new Set<() => void>();
 
+type EmergencySnapshot = {
+  emergencies: TransportEmergency[];
+  open: TransportEmergency | null;
+  rev: number;
+};
+
+let snapshotRev = 0;
+let snapshotCache: EmergencySnapshot = {
+  emergencies: apiEmergencyListCache,
+  open: apiOpenEmergencyCache,
+  rev: snapshotRev,
+};
+
+function rebuildSnapshot() {
+  snapshotRev += 1;
+  snapshotCache = {
+    emergencies: apiEmergencyListCache,
+    open: apiOpenEmergencyCache,
+    rev: snapshotRev,
+  };
+}
+
 function emitApi() {
+  rebuildSnapshot();
   apiListeners.forEach((listener) => listener());
+}
+
+export function getEmergencySnapshot(): EmergencySnapshot {
+  return snapshotCache;
+}
+
+function isUuid(value: string | null | undefined): value is string {
+  if (!value) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
+  );
 }
 
 function mapApiEmergencyToLocal(
@@ -58,8 +92,11 @@ export function subscribeApiEmergencies(listener: () => void): () => void {
 
 export async function refreshApiOpenEmergency(): Promise<void> {
   const session = getTripSessionSnapshot();
-  const vehicleId = session.assignment.bus.vehicleId;
   const scope = getRouteSetupDriverScope();
+  const vehicleId =
+    (isUuid(scope?.vehicleId) ? scope!.vehicleId : null) ||
+    (isUuid(session.assignment.bus.vehicleId) ? session.assignment.bus.vehicleId : null) ||
+    (isUuid(session.vehicleId) ? session.vehicleId : null);
 
   if (scope?.instituteId) {
     try {
@@ -67,9 +104,12 @@ export async function refreshApiOpenEmergency(): Promise<void> {
       apiEmergencyListCache = rows.map((row) =>
         mapApiEmergencyToLocal(
           row,
-          session.assignment.driver.name,
-          session.assignment.bus.vehicleNumber,
-          session.assignment.route,
+          scope.driverName ?? session.assignment.driver.name,
+          scope.vehicleNumber ?? session.assignment.bus.vehicleNumber,
+          {
+            code: scope.routeCode ?? session.assignment.route.code,
+            name: scope.routeName ?? session.assignment.route.name,
+          },
         ),
       );
     } catch {
@@ -82,13 +122,17 @@ export async function refreshApiOpenEmergency(): Promise<void> {
     emitApi();
     return;
   }
+
   const open = await getOpenEmergencyForVehicleApi(vehicleId).catch(() => null);
   apiOpenEmergencyCache = open
     ? mapApiEmergencyToLocal(
         open,
-        session.assignment.driver.name,
-        session.assignment.bus.vehicleNumber,
-        session.assignment.route,
+        scope?.driverName ?? session.assignment.driver.name,
+        scope?.vehicleNumber ?? session.assignment.bus.vehicleNumber,
+        {
+          code: scope?.routeCode ?? session.assignment.route.code,
+          name: scope?.routeName ?? session.assignment.route.name,
+        },
       )
     : null;
   emitApi();
@@ -136,8 +180,23 @@ export const emergencyRepository = {
   async triggerEmergency(): Promise<EmergencyTriggerResult> {
     await repositoryDelay(80);
     const session = getTripSessionSnapshot();
+    const scope = getRouteSetupDriverScope();
     const { driver, bus, route } = session.assignment;
-    const driverId = driver.employeeId || driver.id;
+
+    const instituteId = scope?.instituteId ?? null;
+    const driverId = (isUuid(scope?.driverId) ? scope!.driverId : null) ||
+      (isUuid(driver.id) ? driver.id : null) ||
+      (isUuid(driver.employeeId) ? driver.employeeId : null);
+    const vehicleId =
+      (isUuid(scope?.vehicleId) ? scope!.vehicleId : null) ||
+      (isUuid(bus.vehicleId) ? bus.vehicleId : null);
+    const tripId = isUuid(session.tripId) ? session.tripId : null;
+    const driverName = scope?.driverName ?? driver.name;
+    const vehicleNumber = scope?.vehicleNumber ?? bus.vehicleNumber;
+    const routeMeta = {
+      code: scope?.routeCode ?? route.code,
+      name: scope?.routeName ?? route.name,
+    };
 
     let latitude: number | null = null;
     let longitude: number | null = null;
@@ -149,35 +208,51 @@ export const emergencyRepository = {
       // Location optional for SOS — still create emergency without coords
     }
 
-    const scope = getRouteSetupDriverScope();
-    if (!scope?.instituteId) {
-      return {
-        ok: false,
-        created: false,
-        message: "Institute context missing",
-        emergency: mapApiEmergencyToLocal({
+    const placeholder = (): TransportEmergency =>
+      mapApiEmergencyToLocal(
+        {
           id: "pending",
           status: "active",
           emergencyType: "general",
           note: null,
           latitude,
           longitude,
-          vehicleId: bus.vehicleId,
-          driverId,
-        }),
+          vehicleId: vehicleId ?? "unknown",
+          driverId: driverId ?? "unknown",
+        },
+        driverName,
+        vehicleNumber,
+        routeMeta,
+      );
+
+    if (!instituteId) {
+      return {
+        ok: false,
+        created: false,
+        message: "Institute context missing. Sign in again, then retry SOS.",
+        emergency: placeholder(),
       };
     }
+    if (!driverId || !vehicleId) {
+      return {
+        ok: false,
+        created: false,
+        message: "Bus assignment incomplete. Ask Admin to assign your vehicle, then retry.",
+        emergency: placeholder(),
+      };
+    }
+
     try {
       const created = await createTransportEmergencyApi({
-        instituteId: scope.instituteId,
-        tripId: session.tripId,
-        driverId: scope.driverId ?? driverId,
-        vehicleId: bus.vehicleId,
+        instituteId,
+        tripId,
+        driverId,
+        vehicleId,
         note: "SOS triggered by driver",
         latitude,
         longitude,
       });
-      const emergency = mapApiEmergencyToLocal(created, driver.name, bus.vehicleNumber, route);
+      const emergency = mapApiEmergencyToLocal(created, driverName, vehicleNumber, routeMeta);
       apiOpenEmergencyCache = emergency;
       apiEmergencyListCache = [
         emergency,
@@ -192,20 +267,15 @@ export const emergencyRepository = {
         emergency,
       };
     } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to trigger SOS";
+      // Refresh open state so a conflict ("already open") surfaces correctly.
+      await refreshApiOpenEmergency().catch(() => undefined);
+      const open = apiOpenEmergencyCache;
       return {
         ok: false,
         created: false,
-        message: err instanceof Error ? err.message : "Failed to trigger SOS",
-        emergency: mapApiEmergencyToLocal({
-          id: "failed",
-          status: "active",
-          emergencyType: "general",
-          note: null,
-          latitude,
-          longitude,
-          vehicleId: bus.vehicleId,
-          driverId,
-        }),
+        message,
+        emergency: open ?? placeholder(),
       };
     }
   },

@@ -327,6 +327,7 @@ export type DriverRouteRosterStop = {
   routeOrder: number;
   approvalStatus: TransportApprovalStatus;
   createdAt: string;
+  kind: "waypoint" | "school" | "parking";
 };
 
 export type DriverRouteRosterStudent = {
@@ -425,6 +426,7 @@ export async function getDriverRouteRosterForActor(
         routeOrder: s.route_order,
         approvalStatus: s.approval_status,
         createdAt: s.created_at,
+        kind: (s.kind ?? "waypoint") as "waypoint" | "school" | "parking",
       })),
     students: enrollments.map((e) => {
       const student = studentById.get(e.student_id);

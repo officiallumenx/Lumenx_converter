@@ -59,6 +59,7 @@ export type DriverRouteRosterStop = {
   routeOrder: number;
   approvalStatus: string;
   createdAt: string;
+  kind?: "waypoint" | "school" | "parking";
 };
 
 export type DriverRouteRosterStudent = {

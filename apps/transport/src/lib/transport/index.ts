@@ -21,6 +21,7 @@ export { settingsRepository } from "./settings";
 export { supportRepository } from "./support";
 export {
   emergencyRepository,
+  getEmergencySnapshot,
   refreshApiOpenEmergency,
   subscribeApiEmergencies,
 } from "./emergency";

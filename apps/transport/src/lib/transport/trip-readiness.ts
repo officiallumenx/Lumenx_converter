@@ -1,4 +1,14 @@
-import { Capacitor, registerPlugin } from "@capacitor/core";
+import {
+  LOCATION_FIX_ATTEMPTS,
+  getNativeCurrentPosition,
+  isLocationPermissionDeniedError,
+  isLocationServicesDisabledError,
+  isNativeLocationServiceEnabled,
+  isNativePlatform,
+  readNativeLocationPermission,
+  requestNativeLocationPermission,
+  type NativeLocationPermission,
+} from "./native-location";
 
 export type ReadinessKey = "internet" | "notifications" | "gps";
 
@@ -28,8 +38,6 @@ export type TripReadinessOptions = {
 const MIN_STATUS_VISIBLE_MS = 650;
 const NOTIFICATION_PERMISSION_TIMEOUT_MS = 45_000;
 const NOTIFICATION_PERMISSION_POLL_MS = 200;
-const LOCATION_PERMISSION_TIMEOUT_MS = 45_000;
-const LOCATION_PERMISSION_POLL_MS = 250;
 
 type NotificationPermissionState = "granted" | "denied" | "prompt" | "unsupported";
 
@@ -37,10 +45,6 @@ function sleep(ms: number) {
   return new Promise<void>((resolve) => {
     window.setTimeout(resolve, ms);
   });
-}
-
-function isNativePlatform() {
-  return typeof window !== "undefined" && Capacitor.isNativePlatform();
 }
 
 /** Native Android POST_NOTIFICATIONS — uses Local Notifications (no Firebase / FCM). */
@@ -305,51 +309,17 @@ function readGeoPermission(): Promise<PermissionState | "unsupported"> {
 
 type LocationPermissionState = "granted" | "denied" | "prompt" | "unsupported";
 
-async function getCapacitorLocationPermission(): Promise<LocationPermissionState | null> {
-  if (!isNativePlatform()) return null;
-
-  try {
-    const { Geolocation } = await import("@capacitor/geolocation");
-    const result = await Geolocation.checkPermissions();
-    if (result.location === "granted" || result.coarseLocation === "granted") return "granted";
-    if (result.location === "denied") return "denied";
-    return "prompt";
-  } catch {
-    return null;
-  }
-}
-
-async function requestCapacitorLocationPermission(): Promise<LocationPermissionState | null> {
-  if (!isNativePlatform()) return null;
-
-  try {
-    const { Geolocation } = await import("@capacitor/geolocation");
-    const initial = await Geolocation.checkPermissions();
-    if (initial.location === "granted" || initial.coarseLocation === "granted") return "granted";
-    if (initial.location === "denied") return "denied";
-
-    const result = await Geolocation.requestPermissions();
-    if (result.location === "granted" || result.coarseLocation === "granted") return "granted";
-    if (result.location === "denied") return "denied";
-
-    const deadline = Date.now() + LOCATION_PERMISSION_TIMEOUT_MS;
-    while (Date.now() < deadline) {
-      const next = await Geolocation.checkPermissions();
-      if (next.location === "granted" || next.coarseLocation === "granted") return "granted";
-      if (next.location === "denied") return "denied";
-      await sleep(LOCATION_PERMISSION_POLL_MS);
-    }
-
-    return (await getCapacitorLocationPermission()) ?? "prompt";
-  } catch {
-    return null;
-  }
+function mapNativePermission(state: NativeLocationPermission): LocationPermissionState | null {
+  if (state === "granted" || state === "denied" || state === "prompt") return state;
+  return null;
 }
 
 async function readLocationPermission(): Promise<LocationPermissionState> {
-  const fromCapacitor = await getCapacitorLocationPermission();
-  if (fromCapacitor === "granted" || fromCapacitor === "denied") return fromCapacitor;
-  if (fromCapacitor === "prompt" && isNativePlatform()) return "prompt";
+  if (isNativePlatform()) {
+    const native = mapNativePermission(await readNativeLocationPermission());
+    // Never use WebView permissions on Capacitor — they falsely report denied.
+    return native ?? "unsupported";
+  }
 
   const fromApi = await readGeoPermission();
   if (fromApi === "granted" || fromApi === "denied") return fromApi;
@@ -359,12 +329,13 @@ async function readLocationPermission(): Promise<LocationPermissionState> {
 }
 
 async function requestLocationPermission(): Promise<LocationPermissionState> {
+  if (isNativePlatform()) {
+    const native = mapNativePermission(await requestNativeLocationPermission());
+    return native ?? "unsupported";
+  }
+
   const initial = await readLocationPermission();
   if (initial === "granted" || initial === "denied") return initial;
-
-  const fromCapacitor = await requestCapacitorLocationPermission();
-  if (fromCapacitor === "granted" || fromCapacitor === "denied") return fromCapacitor;
-
   return readLocationPermission();
 }
 
@@ -379,47 +350,18 @@ function getWebPosition(options: PositionOptions): Promise<GeolocationPosition> 
   });
 }
 
-const LOCATION_FIX_ATTEMPTS: PositionOptions[] = [
-  { enableHighAccuracy: true, timeout: 8_000, maximumAge: 60_000 },
-  { enableHighAccuracy: false, timeout: 12_000, maximumAge: 120_000 },
-  { enableHighAccuracy: true, timeout: 18_000, maximumAge: 0 },
-];
-
-async function getCapacitorPosition(options: PositionOptions): Promise<void> {
-  const { Geolocation } = await import("@capacitor/geolocation");
-  await Geolocation.getCurrentPosition({
-    enableHighAccuracy: options.enableHighAccuracy ?? true,
-    timeout: options.timeout ?? 12_000,
-    maximumAge: options.maximumAge ?? 60_000,
-  });
-}
-
-type LocationSettingsPlugin = {
-  isEnabled: () => Promise<{ enabled: boolean }>;
-};
-
-const locationSettings = registerPlugin<LocationSettingsPlugin>("LocationSettings");
-
-async function isNativeLocationServiceEnabled(): Promise<boolean | null> {
-  if (!isNativePlatform()) return null;
-  try {
-    return (await locationSettings.isEnabled()).enabled;
-  } catch {
-    return null;
-  }
-}
-
 async function acquireLocationFix(): Promise<void> {
-  let lastError: GeolocationPositionError | Error | null = null;
+  let lastError: unknown = null;
 
   if (isNativePlatform()) {
     for (const options of LOCATION_FIX_ATTEMPTS) {
       try {
-        await getCapacitorPosition(options);
+        await getNativeCurrentPosition(options);
         return;
       } catch (error) {
-        lastError =
-          error instanceof GeolocationPositionError ? error : new Error("Location failed");
+        lastError = error;
+        // Permission truly denied — stop early.
+        if (isLocationPermissionDeniedError(error)) throw error;
       }
     }
   }
@@ -433,7 +375,8 @@ async function acquireLocationFix(): Promise<void> {
       await getWebPosition(options);
       return;
     } catch (error) {
-      lastError = error instanceof GeolocationPositionError ? error : new Error("Location failed");
+      lastError = error;
+      if (isLocationPermissionDeniedError(error)) throw error;
     }
   }
 
@@ -442,12 +385,16 @@ async function acquireLocationFix(): Promise<void> {
 
 function locationErrorMessage(
   permission: LocationPermissionState,
-  error?: GeolocationPositionError | Error | null,
+  error?: unknown,
 ): string {
-  if (permission === "denied") {
+  if (permission === "denied" || isLocationPermissionDeniedError(error)) {
     return isNativePlatform()
       ? "Turn on location permission in Android app settings, then check again."
       : "Turn on location/GPS permission, then check again.";
+  }
+
+  if (isLocationServicesDisabledError(error)) {
+    return "Turn on GPS/location services, then check again.";
   }
 
   if (error instanceof GeolocationPositionError) {
@@ -474,6 +421,16 @@ async function checkGps(options?: { request?: boolean }): Promise<Omit<Readiness
       key: "gps",
       status: "off",
       message: "GPS is not available on this device.",
+    };
+  }
+
+  // Prefer our LocationManager plugin — Cap checkPermissions can throw even when GPS is on.
+  const serviceEnabled = await isNativeLocationServiceEnabled();
+  if (serviceEnabled === false) {
+    return {
+      key: "gps",
+      status: "off",
+      message: "Turn on GPS/location services, then check again.",
     };
   }
 
@@ -505,32 +462,43 @@ async function checkGps(options?: { request?: boolean }): Promise<Omit<Readiness
     await acquireLocationFix();
     return { key: "gps", status: "on", message: "GPS location is available." };
   } catch (error) {
-    const geoError = error instanceof GeolocationPositionError ? error : null;
+    if (isLocationPermissionDeniedError(error)) {
+      return {
+        key: "gps",
+        status: "off",
+        message: locationErrorMessage("denied", error),
+      };
+    }
 
-    // Permission granted + system location on ≠ "location off". Weak/indoor
-    // GPS should not block starting a trip.
+    // Permission granted / unknown + system location on ≠ "location off".
+    // Weak/indoor GPS or approximate-only mode should not block starting a trip.
+    const enabledNow = await isNativeLocationServiceEnabled();
+    if (enabledNow === false) {
+      return {
+        key: "gps",
+        status: "off",
+        message: isLocationServicesDisabledError(error)
+          ? locationErrorMessage(permission, error)
+          : "Turn on GPS/location services, then check again.",
+      };
+    }
+
     if (
-      geoError == null ||
-      geoError.code === geoError.TIMEOUT ||
-      geoError.code === geoError.POSITION_UNAVAILABLE
+      enabledNow === true ||
+      permission === "granted" ||
+      (permission === "unsupported" && isNativePlatform())
     ) {
-      const serviceEnabled = await isNativeLocationServiceEnabled();
-      if (
-        serviceEnabled === true ||
-        (permission === "granted" && serviceEnabled !== false)
-      ) {
-        return {
-          key: "gps",
-          status: "on",
-          message: "Location is on. GPS will strengthen outdoors.",
-        };
-      }
+      return {
+        key: "gps",
+        status: "on",
+        message: "Location is on. GPS will strengthen outdoors.",
+      };
     }
 
     return {
       key: "gps",
       status: "off",
-      message: locationErrorMessage(permission, geoError),
+      message: locationErrorMessage(permission, error),
     };
   }
 }

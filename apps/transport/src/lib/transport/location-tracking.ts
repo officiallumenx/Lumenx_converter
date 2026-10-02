@@ -1,4 +1,13 @@
-import { Capacitor, registerPlugin } from "@capacitor/core";
+import {
+  LOCATION_FIX_ATTEMPTS,
+  getNativeCurrentPosition,
+  isLocationPermissionDeniedError,
+  isLocationServicesDisabledError,
+  isNativeLocationServiceEnabled,
+  isNativePlatform,
+  readNativeLocationPermission,
+  requestNativeLocationEnable,
+} from "./native-location";
 
 export type LocationTrackStatus = "unknown" | "on" | "off" | "checking";
 
@@ -29,13 +38,6 @@ let softMissStreak = 0;
 const RECENT_FIX_MS = 120_000;
 const SOFT_MISS_BEFORE_WARN = 3;
 
-type LocationSettingsPlugin = {
-  isEnabled: () => Promise<{ enabled: boolean }>;
-  requestEnable: () => Promise<{ enabled: boolean }>;
-};
-
-const locationSettings = registerPlugin<LocationSettingsPlugin>("LocationSettings");
-
 type ProbeResult = "ok" | "no-fix" | "denied" | "service-off";
 
 function emit() {
@@ -47,10 +49,6 @@ function setState(next: LocationTrackState) {
   emit();
 }
 
-function isNativePlatform() {
-  return typeof window !== "undefined" && Capacitor.isNativePlatform();
-}
-
 function isRecentFix(iso: string | null, now = Date.now()): boolean {
   if (!iso) return false;
   const at = Date.parse(iso);
@@ -58,28 +56,12 @@ function isRecentFix(iso: string | null, now = Date.now()): boolean {
   return now - at <= RECENT_FIX_MS;
 }
 
-async function isNativeLocationEnabled(): Promise<boolean | null> {
-  if (!isNativePlatform()) return null;
-  try {
-    return (await locationSettings.isEnabled()).enabled;
-  } catch {
-    return null;
-  }
-}
-
 async function isLocationPermissionGranted(): Promise<boolean | null> {
   if (isNativePlatform()) {
-    try {
-      const { Geolocation } = await import("@capacitor/geolocation");
-      const result = await Geolocation.checkPermissions();
-      if (result.location === "granted" || result.coarseLocation === "granted") {
-        return true;
-      }
-      if (result.location === "denied") return false;
-      return null;
-    } catch {
-      return null;
-    }
+    const permission = await readNativeLocationPermission();
+    if (permission === "granted") return true;
+    if (permission === "denied") return false;
+    return null;
   }
 
   if (typeof navigator === "undefined" || !navigator.permissions?.query) {
@@ -95,24 +77,6 @@ async function isLocationPermissionGranted(): Promise<boolean | null> {
   } catch {
     return null;
   }
-}
-
-function isPermissionDeniedError(err: unknown): boolean {
-  if (!err || typeof err !== "object") return false;
-  const code = "code" in err ? Number((err as { code?: number }).code) : NaN;
-  if (code === 1) return true;
-  const message = "message" in err ? String((err as { message?: string }).message) : "";
-  return /denied|permission/i.test(message);
-}
-
-async function tryNativePosition(options: {
-  enableHighAccuracy: boolean;
-  timeout: number;
-  maximumAge: number;
-}): Promise<boolean> {
-  const { Geolocation } = await import("@capacitor/geolocation");
-  await Geolocation.getCurrentPosition(options);
-  return true;
 }
 
 function tryWebPosition(options: PositionOptions): Promise<boolean> {
@@ -132,42 +96,42 @@ function tryWebPosition(options: PositionOptions): Promise<boolean> {
 /**
  * Probe for a usable fix. Accepts a recent cached reading — requiring
  * maximumAge:0 + high accuracy was falsely reporting "location off" indoors.
+ * Coarse-first so Android 12+ approximate location grants still succeed.
  */
 async function probeFreshFix(): Promise<ProbeResult> {
-  const serviceEnabled = await isNativeLocationEnabled();
+  const serviceEnabled = await isNativeLocationServiceEnabled();
   if (serviceEnabled === false) return "service-off";
 
-  const attempts: Array<{
-    enableHighAccuracy: boolean;
-    timeout: number;
-    maximumAge: number;
-  }> = [
-    { enableHighAccuracy: true, timeout: 8_000, maximumAge: 60_000 },
-    { enableHighAccuracy: false, timeout: 10_000, maximumAge: 120_000 },
-    { enableHighAccuracy: true, timeout: 12_000, maximumAge: 0 },
-  ];
-
   let denied = false;
+  let sawServiceDisabled = false;
 
   if (isNativePlatform()) {
-    for (const options of attempts) {
+    for (const options of LOCATION_FIX_ATTEMPTS) {
       try {
-        await tryNativePosition(options);
+        await getNativeCurrentPosition(options);
         return "ok";
       } catch (err) {
-        if (isPermissionDeniedError(err)) denied = true;
+        if (isLocationPermissionDeniedError(err)) denied = true;
+        if (isLocationServicesDisabledError(err)) sawServiceDisabled = true;
       }
     }
   }
 
   if (typeof navigator !== "undefined" && navigator.geolocation) {
-    for (const options of attempts) {
+    for (const options of LOCATION_FIX_ATTEMPTS) {
       const ok = await tryWebPosition(options);
       if (ok) return "ok";
     }
   }
 
   if (denied) return "denied";
+
+  // Cap may claim services are off while LocationManager says on — trust ours.
+  if (sawServiceDisabled && serviceEnabled !== true) {
+    const enabledNow = await isNativeLocationServiceEnabled();
+    if (enabledNow === false) return "service-off";
+  }
+
   return "no-fix";
 }
 
@@ -202,7 +166,7 @@ async function applyProbeResult(result: ProbeResult): Promise<void> {
     return;
   }
 
-  const serviceEnabled = await isNativeLocationEnabled();
+  const serviceEnabled = await isNativeLocationServiceEnabled();
   const permission = await isLocationPermissionGranted();
   if (serviceEnabled === true && permission !== false) {
     softMissStreak = 0;
@@ -218,6 +182,17 @@ async function applyProbeResult(result: ProbeResult): Promise<void> {
     markOff(
       "Location permission is off. Allow location for Transport, then try again.",
     );
+    return;
+  }
+
+  // Native + unknown permission: do not block the trip on a soft miss.
+  if (isNativePlatform() && serviceEnabled !== false) {
+    softMissStreak = 0;
+    setState({
+      status: "on",
+      message: "Location is on. Waiting for a stronger GPS signal…",
+      lastFixAt: state.lastFixAt,
+    });
     return;
   }
 
@@ -249,7 +224,7 @@ async function checkLocationServiceNow() {
   checkingService = true;
 
   try {
-    const enabled = await isNativeLocationEnabled();
+    const enabled = await isNativeLocationServiceEnabled();
     if (enabled === false) {
       softMissStreak = 0;
       markOff("Location is off. Turn it on to continue marking attendance.");
@@ -270,8 +245,8 @@ async function checkLocationServiceNow() {
 export async function requestEnableLocation(): Promise<boolean> {
   if (isNativePlatform()) {
     try {
-      const result = await locationSettings.requestEnable();
-      if (!result.enabled) {
+      const enabled = await requestNativeLocationEnable();
+      if (enabled === false) {
         markOff("Location is still off. Turn it on to continue marking attendance.");
         return false;
       }
@@ -316,11 +291,17 @@ function markOff(message: string) {
   });
 }
 
-async function handlePositionError(code?: number) {
-  const serviceEnabled = await isNativeLocationEnabled();
+async function handlePositionError(code?: number | string) {
+  const serviceEnabled = await isNativeLocationServiceEnabled();
   const permission = await isLocationPermissionGranted();
 
-  if (code === 1 || permission === false) {
+  const permissionDenied =
+    code === 1 ||
+    code === "1" ||
+    code === "OS-PLUG-GLOC-0003" ||
+    permission === false;
+
+  if (permissionDenied) {
     markOff("Location permission is off. Turn it on to continue the trip.");
     return;
   }
@@ -331,27 +312,18 @@ async function handlePositionError(code?: number) {
   }
 
   // Service is on (or unknown) — timeout / unavailable is a weak signal, not "off".
-  if (code === 2 || code === 3 || code == null) {
-    softMissStreak += 1;
-    if (state.status === "on" || isRecentFix(state.lastFixAt)) {
-      return;
-    }
-    if (softMissStreak < SOFT_MISS_BEFORE_WARN) {
-      setState({
-        status: "checking",
-        message: "Waiting for GPS signal…",
-        lastFixAt: state.lastFixAt,
-      });
-      return;
-    }
+  softMissStreak += 1;
+  if (state.status === "on" || isRecentFix(state.lastFixAt)) {
+    return;
+  }
+  if (softMissStreak < SOFT_MISS_BEFORE_WARN) {
     setState({
-      status: "on",
-      message: "Location is on. Waiting for a stronger GPS signal…",
+      status: "checking",
+      message: "Waiting for GPS signal…",
       lastFixAt: state.lastFixAt,
     });
     return;
   }
-
   setState({
     status: "on",
     message: "Location is on. Waiting for a stronger GPS signal…",
@@ -363,14 +335,17 @@ async function startNativeWatch() {
   const { Geolocation } = await import("@capacitor/geolocation");
   watchId = await Geolocation.watchPosition(
     {
-      enableHighAccuracy: true,
+      // Coarse-friendly watch; high accuracy alone fails on approximate grants.
+      enableHighAccuracy: false,
       timeout: 20_000,
       maximumAge: 15_000,
     },
     (position, error) => {
       if (error || !position) {
         void handlePositionError(
-          typeof error?.code === "number" ? error.code : undefined,
+          error && typeof error === "object" && "code" in error
+            ? (error as { code?: number | string }).code
+            : undefined,
         );
         return;
       }
@@ -391,7 +366,7 @@ function startWebWatch() {
       void handlePositionError(error.code);
     },
     {
-      enableHighAccuracy: true,
+      enableHighAccuracy: false,
       timeout: 20_000,
       maximumAge: 15_000,
     },

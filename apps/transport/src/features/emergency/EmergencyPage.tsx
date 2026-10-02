@@ -12,7 +12,7 @@ import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { SectionHeader } from "@/components/ui/section-header";
 import { useTransportAuth } from "@/lib/auth/transport-auth";
-import { emergencyRepository, subscribeApiEmergencies } from "@/lib/transport";
+import { emergencyRepository, getEmergencySnapshot, subscribeApiEmergencies } from "@/lib/transport";
 import { useDriverAssignmentQuery, useEmergenciesQuery } from "@/lib/transport-queries";
 
 function formatWhen(iso: string): string {
@@ -34,13 +34,17 @@ function useEmergencies() {
   const vehicleId = assignment.bus?.vehicleId ?? null;
   const { refresh } = useEmergenciesQuery(user?.instituteId, vehicleId);
 
-  const emergencies = useSyncExternalStore(
+  const snapshot = useSyncExternalStore(
     subscribeApiEmergencies,
-    () => emergencyRepository.list(),
-    () => emergencyRepository.list(),
+    getEmergencySnapshot,
+    getEmergencySnapshot,
   );
 
-  return { emergencies, refresh };
+  return {
+    emergencies: snapshot.emergencies,
+    openForDriver: snapshot.open,
+    refresh,
+  };
 }
 
 export function EmergencyPage({
@@ -49,7 +53,7 @@ export function EmergencyPage({
   /** When true (e.g. deep-link from active trip), open confirm sheet if no open SOS. */
   autoConfirm?: boolean;
 }) {
-  const { emergencies, refresh } = useEmergencies();
+  const { emergencies, openForDriver, refresh } = useEmergencies();
   const open = useMemo(
     () => emergencies.filter((e) => isEmergencyOpen(e.status)),
     [emergencies],
@@ -58,8 +62,6 @@ export function EmergencyPage({
     () => emergencies.filter((e) => e.status === "resolved"),
     [emergencies],
   );
-
-  const openForDriver = emergencyRepository.getOpenForCurrentDriver();
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [triggering, setTriggering] = useState(false);
@@ -121,11 +123,14 @@ export function EmergencyPage({
       setTab("active");
       refresh();
       if (!result.ok) {
-        toast.error("SOS already active", { description: result.message });
+        const alreadyOpen = /already open|already active/i.test(result.message);
+        toast.error(alreadyOpen ? "SOS already active" : "Could not send SOS", {
+          description: result.message,
+        });
         return;
       }
       toast.success("SOS sent to Admin", {
-        description: `${result.message} · No SMS, push, or calls in this demo`,
+        description: result.message,
       });
     });
   };

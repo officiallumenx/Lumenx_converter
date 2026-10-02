@@ -1060,6 +1060,11 @@ export async function deleteStopForActor(
 ): Promise<void> {
   const existing = await findStopById(admin, stopId);
   if (!existing) throw AppError.notFound("Stop not found");
+  if (existing.kind === "school") {
+    throw AppError.forbidden(
+      "School stop is managed in Transport Settings. Update it there instead of deleting.",
+    );
+  }
   if (isTransportWriter(actor, existing.institute_id)) {
     const deleted = await softDeleteStop(admin, stopId);
     if (!deleted) throw AppError.conflict("Stop was already deleted");
@@ -1298,6 +1303,7 @@ async function upsertSchoolStopOnRoute(
       latitude: settings.school_latitude,
       longitude: settings.school_longitude,
       notification_radius_m: radius,
+      route_order: SCHOOL_STOP_ORDER,
       approval_status: "approved",
     });
     return;

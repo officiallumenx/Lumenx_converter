@@ -148,6 +148,7 @@ export function applyApiApprovedHydration(input: {
     routeOrder: number;
     approvalStatus: string;
     createdAt: string;
+    kind?: "waypoint" | "school" | "parking";
   }>;
   students: Array<{
     enrollmentId: string;
@@ -167,26 +168,43 @@ export function applyApiApprovedHydration(input: {
     return "pending";
   };
 
+  const inferKind = (
+    s: (typeof input.stops)[number],
+  ): "waypoint" | "school" | "parking" => {
+    if (s.kind === "school" || s.kind === "parking" || s.kind === "waypoint") {
+      return s.kind;
+    }
+    const name = s.name.trim().toLowerCase();
+    if (name === "school" || s.routeOrder >= 10_000) return "school";
+    if (name === "bus park" || s.routeOrder === 0) return "parking";
+    return "waypoint";
+  };
+
   const apiStops: RouteSetupStop[] = input.stops
     .slice()
     .sort((a, b) => a.routeOrder - b.routeOrder)
-    .map((s) => ({
-      id: s.id,
-      apiStopId: s.id,
-      name: s.name,
-      locationLabel: s.locationLabel || defaultLocationLabel(s.latitude, s.longitude),
-      latitude: s.latitude,
-      longitude: s.longitude,
-      timestampCreated: s.createdAt,
-      updatedAt: s.createdAt,
-      createdBy: "api",
-      studentIds: input.students
-        .filter((st) => st.pickupStopId === s.id)
-        .map((st) => st.studentId),
-      routeOrder: s.routeOrder + 1,
-      status: mapStatus(s.approvalStatus),
-      submittedAt: s.createdAt,
-    }));
+    .map((s) => {
+      const kind = inferKind(s);
+      return {
+        id: s.id,
+        apiStopId: s.id,
+        name: s.name,
+        locationLabel: s.locationLabel || defaultLocationLabel(s.latitude, s.longitude),
+        latitude: s.latitude,
+        longitude: s.longitude,
+        timestampCreated: s.createdAt,
+        updatedAt: s.createdAt,
+        createdBy: "api",
+        studentIds: input.students
+          .filter((st) => st.pickupStopId === s.id)
+          .map((st) => st.studentId),
+        // Keep API orders for endpoints; waypoints are renumbered below.
+        routeOrder: kind === "school" ? 10_000 : kind === "parking" ? 0 : s.routeOrder + 1,
+        status: mapStatus(s.approvalStatus),
+        submittedAt: s.createdAt,
+        kind,
+      };
+    });
 
   // Session-only: keep pending stops that have not been pushed to the API yet.
   const apiIds = new Set(input.stops.map((s) => s.id));
@@ -263,7 +281,26 @@ function emitApprovalChanged() {
 }
 
 function renumber(stops: RouteSetupStop[]): RouteSetupStop[] {
-  return stops.map((s, i) => ({ ...s, routeOrder: i + 1 }));
+  const parking = stops.filter((s) => s.kind === "parking" || s.name.trim().toLowerCase() === "bus park");
+  const school = stops.filter(
+    (s) =>
+      s.kind === "school" ||
+      s.name.trim().toLowerCase() === "school" ||
+      s.routeOrder >= 10_000,
+  );
+  const waypoints = stops.filter(
+    (s) => !parking.includes(s) && !school.includes(s),
+  );
+  const numbered = waypoints.map((s, i) => ({
+    ...s,
+    kind: s.kind ?? ("waypoint" as const),
+    routeOrder: i + 1,
+  }));
+  return [
+    ...parking.map((s) => ({ ...s, kind: "parking" as const, routeOrder: 0 })),
+    ...numbered,
+    ...school.map((s) => ({ ...s, kind: "school" as const, routeOrder: 10_000 })),
+  ];
 }
 
 function enrollmentMeta(studentId: string) {
@@ -572,16 +609,23 @@ export function reorderRouteSetupStop(stopId: string, direction: "up" | "down"):
   if (record.lockedByAdmin) return record;
   const stop = record.stops.find((s) => s.id === stopId);
   if (!stop || stop.status !== "approved") return record;
+  if (stop.kind === "school" || stop.kind === "parking") return record;
 
-  const index = record.stops.findIndex((s) => s.id === stopId);
+  const waypoints = record.stops.filter(
+    (s) => s.kind !== "school" && s.kind !== "parking",
+  );
+  const index = waypoints.findIndex((s) => s.id === stopId);
   if (index < 0) return record;
   const target = direction === "up" ? index - 1 : index + 1;
-  if (target < 0 || target >= record.stops.length) return record;
-  const next = [...record.stops];
-  const [moved] = next.splice(index, 1);
+  if (target < 0 || target >= waypoints.length) return record;
+  const nextWaypoints = [...waypoints];
+  const [moved] = nextWaypoints.splice(index, 1);
   if (!moved) return record;
-  next.splice(target, 0, moved);
-  record = { ...record, stops: renumber(next) };
+  nextWaypoints.splice(target, 0, moved);
+  const endpoints = record.stops.filter(
+    (s) => s.kind === "school" || s.kind === "parking",
+  );
+  record = { ...record, stops: renumber([...endpoints, ...nextWaypoints]) };
   persist();
   return record;
 }

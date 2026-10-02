@@ -73,7 +73,7 @@ export function AppShell() {
   });
 
   const items = BOTTOM_NAV_BASE.map((item) =>
-    item.id === "notifications" && unreadAlerts > 0
+    item.id === "alerts" && unreadAlerts > 0
       ? { ...item, badge: unreadAlerts }
       : item,
   );

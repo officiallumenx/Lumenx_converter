@@ -30,6 +30,8 @@ export type RouteSetupStop = {
   rejectionReason?: string;
   /** API stop id after driver submission in API auth mode */
   apiStopId?: string;
+  /** Endpoint role from API — school/parking are Admin/driver ends, not pickup waypoints. */
+  kind?: "waypoint" | "school" | "parking";
 };
 
 /** Student ↔ stop link tracked separately for approval workflow. */
@@ -110,6 +112,7 @@ export const SUBMISSION_STATUS_HINT: Record<SubmissionStatus, string> = {
 
 /** Pending and declined stops can be edited and (re)submitted. */
 export function canEditStop(stop: RouteSetupStop): boolean {
+  if (isRouteEndpointStop(stop)) return false;
   return stop.status === "draft" || stop.status === "pending" || stop.status === "rejected";
 }
 
@@ -122,5 +125,26 @@ export function canEditAssignment(assignment: StudentStopAssignment): boolean {
 }
 
 export function canRequestChangeStop(stop: RouteSetupStop): boolean {
+  if (isRouteEndpointStop(stop)) return false;
   return stop.status === "approved";
+}
+
+/** School (Admin) and bus park (driver) ends — not normal pickup stops. */
+export function isRouteEndpointStop(stop: Pick<RouteSetupStop, "kind" | "name" | "routeOrder">): boolean {
+  if (stop.kind === "school" || stop.kind === "parking") return true;
+  const name = stop.name.trim().toLowerCase();
+  if (name === "school" || name === "bus park") return true;
+  // Legacy school stop before kind was returned by roster.
+  if (stop.routeOrder >= 10_000) return true;
+  return false;
+}
+
+export function isSchoolStop(stop: Pick<RouteSetupStop, "kind" | "name" | "routeOrder">): boolean {
+  if (stop.kind === "school") return true;
+  return stop.name.trim().toLowerCase() === "school" || stop.routeOrder >= 10_000;
+}
+
+export function isParkingStop(stop: Pick<RouteSetupStop, "kind" | "name">): boolean {
+  if (stop.kind === "parking") return true;
+  return stop.name.trim().toLowerCase() === "bus park";
 }

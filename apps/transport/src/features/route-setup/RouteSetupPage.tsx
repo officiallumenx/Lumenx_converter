@@ -17,7 +17,14 @@ import { routeSetupRepository } from "@/lib/transport/route-setup";
 import { syncParkingStopToApi } from "@/lib/transport/route-setup/api-sync";
 import { getRouteSetupDriverScope } from "@/lib/transport/route-setup/store";
 import type { GpsFix, RouteSetupStop, SubmissionStatus } from "@/lib/transport/route-setup/types";
-import { canEditStop, canRequestChangeStop, SUBMISSION_STATUS_LABEL } from "@/lib/transport/route-setup/types";
+import {
+  canEditStop,
+  canRequestChangeStop,
+  isParkingStop,
+  isRouteEndpointStop,
+  isSchoolStop,
+  SUBMISSION_STATUS_LABEL,
+} from "@/lib/transport/route-setup/types";
 import {
   useDriverAssignmentQuery,
   useDriverRosterQuery,
@@ -68,9 +75,17 @@ export function RouteSetupPage() {
 
   const locked = record.lockedByAdmin;
   const configured = record.status === "configured" && !record.setupInProgress;
-  const nextStopNumber = record.stops.length + 1;
-  const progressOf = Math.max(record.targetStopCount, record.stops.length, 1);
+  const nextStopNumber =
+    record.stops.filter((s) => !isRouteEndpointStop(s)).length + 1;
+  const progressOf = Math.max(
+    record.targetStopCount,
+    record.stops.filter((s) => !isRouteEndpointStop(s)).length,
+    1,
+  );
   const pendingStops = record.stops.filter((s) => canEditStop(s));
+  const waypointStops = record.stops.filter((s) => !isRouteEndpointStop(s));
+  const schoolStop = record.stops.find((s) => isSchoolStop(s)) ?? null;
+  const parkingStop = record.stops.find((s) => isParkingStop(s)) ?? null;
 
   const openStopForm = (stop: RouteSetupStop | null, changeRequest: boolean) => {
     if (locked) return;
@@ -211,8 +226,8 @@ export function RouteSetupPage() {
 
   const finishSetup = async () => {
     if (locked) return;
-    if (record.stops.length === 0) {
-      toast.error("Add at least one stop before finishing");
+    if (waypointStops.length === 0) {
+      toast.error("Add at least one pickup stop before finishing");
       return;
     }
     await routeSetupRepository.finishSetup();
@@ -354,17 +369,36 @@ export function RouteSetupPage() {
             <SectionHeader
               title="Progress"
               subtitle={
-                record.stops.length === 0
+                waypointStops.length === 0
                   ? `Aim for about ${record.targetStopCount} stops`
-                  : `${record.stops.length} stop(s) · ${record.assignments.filter((a) => a.status === "pending").length} waiting for Admin`
+                  : `${waypointStops.length} pickup stop(s) · ${record.assignments.filter((a) => a.status === "pending").length} waiting for Admin`
               }
             />
             <div className="h-2 overflow-hidden rounded-full bg-muted">
               <div
                 className="h-full rounded-full bg-transport transition-all"
                 style={{
-                  width: `${Math.min(100, (record.stops.length / progressOf) * 100)}%`,
+                  width: `${Math.min(100, (waypointStops.length / progressOf) * 100)}%`,
                 }}
+              />
+            </div>
+          </section>
+
+          <section className="space-y-3">
+            <SectionHeader
+              title="Route ends"
+              subtitle="School is set by Admin. Bus park is your start / evening end."
+            />
+            <div className="grid gap-2 sm:grid-cols-2">
+              <EndpointCard
+                title="School (boarding end)"
+                stop={schoolStop}
+                emptyHint="Ask Admin to set School location in Transport Settings."
+              />
+              <EndpointCard
+                title="Bus park (start end)"
+                stop={parkingStop}
+                emptyHint="Tap Set bus park below to save your depot GPS."
               />
             </div>
           </section>
@@ -393,7 +427,7 @@ export function RouteSetupPage() {
                 <MapPinned className="size-5" aria-hidden />
                 Set bus park (start end)
               </Button>
-              {record.stops.length > 0 ? (
+              {waypointStops.length > 0 ? (
                 <Button
                   type="button"
                   variant="outline"
@@ -410,11 +444,11 @@ export function RouteSetupPage() {
 
           <section className="space-y-3">
             <SectionHeader
-              title="All stops on this route"
+              title="Pickup stops on this route"
               subtitle="Waiting, active, and declined stay here"
             />
             <RouteSetupStopList
-              stops={record.stops}
+              stops={waypointStops}
               locked={locked}
               onEdit={openEdit}
               onRequestChange={openRequestChange}
@@ -448,7 +482,7 @@ export function RouteSetupPage() {
             ))}
           </div>
           <MyStopsPanel
-            stops={record.stops}
+            stops={waypointStops}
             filter={stopsTab}
             locked={locked}
             routeCode={record.routeCode}
@@ -501,5 +535,36 @@ export function RouteSetupPage() {
       ) : null}
     </div>
     </DriverAssignmentGate>
+  );
+}
+
+function EndpointCard({
+  title,
+  stop,
+  emptyHint,
+}: {
+  title: string;
+  stop: RouteSetupStop | null;
+  emptyHint: string;
+}) {
+  return (
+    <Card className={stop ? "border-transport/30 bg-transport/5" : "border-dashed"}>
+      <CardContent className="space-y-1 p-3.5">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {title}
+        </p>
+        {stop ? (
+          <>
+            <p className="text-sm font-semibold text-foreground">{stop.name}</p>
+            <p className="text-xs text-muted-foreground">{stop.locationLabel}</p>
+            <p className="font-mono text-[10px] text-muted-foreground">
+              {stop.latitude.toFixed(5)}, {stop.longitude.toFixed(5)}
+            </p>
+          </>
+        ) : (
+          <p className="text-xs text-muted-foreground">{emptyHint}</p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
