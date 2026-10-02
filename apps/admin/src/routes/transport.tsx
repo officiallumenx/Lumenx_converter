@@ -124,7 +124,7 @@ const VIEW_TITLES: Record<TransportHubView, string> = {
 };
 
 const VIEW_SUBTITLES: Record<TransportHubView, string> = {
-  dashboard: "Route setup status · fleet and student coverage",
+  dashboard: "Route setup status · vehicles and student coverage",
   vehicles: "Manage buses and vans · capacity, status, assigned drivers",
   drivers: "Driver roster · licenses, vehicles, and status",
   stops: "Driver stops · publish pending submissions for Connect & trips",
@@ -802,7 +802,7 @@ function TransportPage() {
     apiMode && view === "vehicles"
       ? `${vehiclesListView.rowsValid ? vehiclesListView.items.length : "…"} vehicles`
       : apiMode && view === "dashboard"
-        ? "Fleet overview"
+        ? "Vehicles overview"
         : apiMode && view === "drivers"
           ? `${driversListView.rowsValid ? driversListView.items.length : "…"} drivers`
           : apiMode && view === "routes"

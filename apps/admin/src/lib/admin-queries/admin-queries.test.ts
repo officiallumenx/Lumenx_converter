@@ -100,6 +100,18 @@ describe("persist helpers", () => {
         state: { status: "success" },
       }),
     ).toBe(false);
+    expect(
+      shouldDehydrateAdminQuery({
+        queryKey: [ADMIN_QUERY_SCOPE, "i1", "notifications"],
+        state: { status: "success" },
+      }),
+    ).toBe(false);
+    expect(
+      shouldDehydrateAdminQuery({
+        queryKey: [ADMIN_QUERY_SCOPE, "i1", "home", "widgets", "2026-10-02"],
+        state: { status: "success" },
+      }),
+    ).toBe(false);
   });
 });
 

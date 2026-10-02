@@ -23,29 +23,52 @@ export function localYmd(date: Date = new Date()): string {
   return `${y}-${m}-${d}`;
 }
 
+type ParsedDob = { year: number; month: number; day: number };
+
+/** Accept ISO YYYY-MM-DD (optionally with time) and common DMY forms. */
+export function parseDobParts(dateOfBirth: string | null | undefined): ParsedDob | null {
+  if (!dateOfBirth || typeof dateOfBirth !== "string") return null;
+  const trimmed = dateOfBirth.trim();
+  if (!trimmed) return null;
+
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(trimmed);
+  if (iso) {
+    const year = Number(iso[1]);
+    const month = Number(iso[2]);
+    const day = Number(iso[3]);
+    if (!year || month < 1 || month > 12 || day < 1 || day > 31) return null;
+    return { year, month, day };
+  }
+
+  const dmy = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(trimmed);
+  if (dmy) {
+    const day = Number(dmy[1]);
+    const month = Number(dmy[2]);
+    const year = Number(dmy[3]);
+    if (!year || month < 1 || month > 12 || day < 1 || day > 31) return null;
+    return { year, month, day };
+  }
+
+  return null;
+}
+
 /** True when DOB month-day matches the given calendar day (year ignored). */
 export function isBirthdayOnDate(
   dateOfBirth: string | null | undefined,
   onDate: Date = new Date(),
 ): boolean {
-  if (!dateOfBirth || typeof dateOfBirth !== "string") return false;
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateOfBirth.trim());
-  if (!match) return false;
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  if (!month || !day) return false;
-  return month === onDate.getMonth() + 1 && day === onDate.getDate();
+  const dob = parseDobParts(dateOfBirth);
+  if (!dob) return false;
+  return dob.month === onDate.getMonth() + 1 && dob.day === onDate.getDate();
 }
 
 export function turningAgeOnDate(
   dateOfBirth: string,
   onDate: Date = new Date(),
 ): number | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateOfBirth.trim());
-  if (!match) return null;
-  const birthYear = Number(match[1]);
-  if (!birthYear) return null;
-  return onDate.getFullYear() - birthYear;
+  const dob = parseDobParts(dateOfBirth);
+  if (!dob?.year) return null;
+  return onDate.getFullYear() - dob.year;
 }
 
 export function collectBirthdaysToday(input: {

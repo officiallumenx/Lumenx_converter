@@ -23,7 +23,7 @@ const NAV: {
   icon: typeof LayoutDashboard;
 }[] = [
   { view: "dashboard", label: "Dashboard", short: "Home", icon: LayoutDashboard },
-  { view: "vehicles", label: "Vehicles", short: "Fleet", icon: Bus },
+  { view: "vehicles", label: "Vehicles", short: "Vehicles", icon: Bus },
   { view: "drivers", label: "Drivers", short: "Drivers", icon: UserRound },
   { view: "stops", label: "Stops", short: "Stops", icon: MapPin },
   { view: "routes", label: "Routes", short: "Routes", icon: Route },

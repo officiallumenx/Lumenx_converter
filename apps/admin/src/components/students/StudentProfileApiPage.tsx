@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { PersonPhotoPreview } from "@lumenx/ui";
 import { usePersonPhotoUrl } from "@/hooks/usePersonPhotoUrl";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Pencil, Save, Trash2, X } from "lucide-react";
@@ -453,11 +454,18 @@ export function StudentProfileApiPage({ studentId }: { studentId: string }) {
               />
               <div className="flex flex-col gap-4 px-4 pb-5 sm:flex-row sm:items-start sm:px-5">
                 {photo.data ? (
-                  <img
+                  <PersonPhotoPreview
                     src={photo.data}
-                    alt=""
-                    className="size-24 shrink-0 rounded-2xl object-cover ring-2 ring-border bg-primary/10 sm:size-28"
-                  />
+                    title={displayStudent.name}
+                    alt={displayStudent.name}
+                    className="shrink-0"
+                  >
+                    <img
+                      src={photo.data}
+                      alt=""
+                      className="size-24 shrink-0 rounded-2xl object-cover ring-2 ring-border bg-primary/10 sm:size-28 pointer-events-none"
+                    />
+                  </PersonPhotoPreview>
                 ) : (
                   <div className="flex size-24 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-lg font-semibold text-primary ring-2 ring-border sm:size-28">
                     {displayStudent.name

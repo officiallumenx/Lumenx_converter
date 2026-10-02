@@ -130,21 +130,29 @@ async function loadBirthdaysSlice(
   instituteId: string,
   onDate: Date,
 ): Promise<SliceResult<BirthdayRow[]>> {
-  try {
-    const [students, teachers] = await Promise.all([
-      listStudents({ instituteId }),
-      listTeachers({ instituteId }),
-    ]);
-    const rows = collectBirthdaysToday({ students, teachers, onDate });
-    return {
-      status: rows.length === 0 ? "empty" : "ready",
-      rows,
-      errorMessage: null,
-    };
-  } catch (err) {
+  // Load directories independently so a students list failure still shows teacher birthdays.
+  const [studentsResult, teachersResult] = await Promise.allSettled([
+    listStudents({ instituteId }),
+    listTeachers({ instituteId }),
+  ]);
+
+  if (studentsResult.status === "rejected" && teachersResult.status === "rejected") {
+    const err = studentsResult.reason;
     const { message, forbidden } = apiErrorMessage(err, "Failed to load birthdays");
     return { status: "error", rows: [], errorMessage: message, forbidden };
   }
+
+  const students =
+    studentsResult.status === "fulfilled" ? studentsResult.value : [];
+  const teachers =
+    teachersResult.status === "fulfilled" ? teachersResult.value : [];
+
+  const rows = collectBirthdaysToday({ students, teachers, onDate });
+  return {
+    status: rows.length === 0 ? "empty" : "ready",
+    rows,
+    errorMessage: null,
+  };
 }
 
 async function loadDiarySlice(

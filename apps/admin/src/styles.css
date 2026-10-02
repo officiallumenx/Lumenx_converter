@@ -3000,6 +3000,27 @@ main table th {
   flex-shrink: 0;
   box-shadow: 0 4px 10px rgb(15 23 42 / 0.08);
 }
+.lx-home-activity__chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.15rem;
+  height: 2.15rem;
+  border-radius: 0.65rem;
+  flex-shrink: 0;
+}
+.lx-home-activity--inbox {
+  background:
+    radial-gradient(80% 70% at 100% 0%, rgb(96 165 250 / 0.16), transparent 55%),
+    linear-gradient(180deg, #eff6ff, #fff 45%);
+  border-color: color-mix(in oklab, #3b82f6 32%, var(--color-border));
+}
+.lx-home-notif {
+  background:
+    radial-gradient(80% 70% at 100% 0%, rgb(251 113 133 / 0.14), transparent 55%),
+    linear-gradient(180deg, #fff1f2, #fff 45%);
+  border-color: color-mix(in oklab, #fb7185 28%, var(--color-border));
+}
 .lx-home-activity__icon--info {
   background: linear-gradient(145deg, #38bdf8, #2563eb);
   color: #fff;
@@ -3325,10 +3346,11 @@ main table th {
   outline-offset: 2px;
 }
 .lx-home-notif-row {
-  border: 1px solid var(--color-border);
-  padding: 0.5rem 0.55rem;
+  border: 1px solid color-mix(in oklab, var(--color-primary) 12%, var(--color-border));
+  padding: 0.55rem 0.6rem;
   margin-bottom: 0.3rem;
-  background: color-mix(in oklab, var(--color-muted) 25%, transparent);
+  background: linear-gradient(180deg, #fff, color-mix(in oklab, #eff6ff 55%, #fff));
+  border-radius: 0.85rem;
 }
 .lx-home-ops-grid {
   display: grid;

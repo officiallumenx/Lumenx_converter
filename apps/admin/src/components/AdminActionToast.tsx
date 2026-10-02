@@ -48,7 +48,7 @@ export function AdminActionToastProvider({ children }: { children: ReactNode }) 
       {children}
       {/* Above lx-modal-overlay (z-index 9990) so create/action feedback is visible */}
       <div
-        className="fixed top-3 inset-x-3 sm:top-4 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-[10050] flex flex-col gap-2 pointer-events-none max-w-[min(100vw-1.5rem,28rem)] sm:w-[28rem]"
+        className="fixed top-[calc(max(env(safe-area-inset-top,0px),var(--lx-safe-top,0px))+0.75rem)] inset-x-3 sm:top-4 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-[10050] flex flex-col gap-2 pointer-events-none max-w-[min(100vw-1.5rem,28rem)] sm:w-[28rem]"
         aria-live="polite"
         aria-relevant="additions"
       >

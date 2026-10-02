@@ -12,6 +12,7 @@ import {
   AvatarImage,
   Badge,
   Button,
+  PersonPhotoPreview,
   Switch,
   Input,
   Textarea,
@@ -169,18 +170,26 @@ export function TeacherProfilePage({
       <SettingsCard>
         <div className="flex min-w-0 items-start gap-3 sm:gap-4">
           <div className="relative shrink-0">
-            <Avatar className="size-14 shrink-0 ring-2 ring-primary/10 sm:size-16">
-              {avatarPreview || profile.avatar || user.avatar ? (
-                <AvatarImage
-                  src={avatarPreview || profile.avatar || user.avatar}
-                  alt=""
-                  className="object-cover"
-                />
-              ) : null}
-              <AvatarFallback className="bg-gradient-to-br from-violet-600 to-indigo-700 font-display text-lg text-white sm:text-xl">
-                {getInitials(profile.name, 2)}
-              </AvatarFallback>
-            </Avatar>
+            <PersonPhotoPreview
+              src={avatarPreview || profile.avatar || user.avatar}
+              title={profile.name}
+              alt={profile.name}
+              className="rounded-full"
+              stopPropagation={!editing}
+            >
+              <Avatar className="size-14 shrink-0 ring-2 ring-primary/10 sm:size-16 pointer-events-none">
+                {avatarPreview || profile.avatar || user.avatar ? (
+                  <AvatarImage
+                    src={avatarPreview || profile.avatar || user.avatar}
+                    alt=""
+                    className="object-cover"
+                  />
+                ) : null}
+                <AvatarFallback className="bg-gradient-to-br from-violet-600 to-indigo-700 font-display text-lg text-white sm:text-xl">
+                  {getInitials(profile.name, 2)}
+                </AvatarFallback>
+              </Avatar>
+            </PersonPhotoPreview>
             {editing ? (
               <>
                 <button

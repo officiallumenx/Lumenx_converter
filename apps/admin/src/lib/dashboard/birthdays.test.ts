@@ -25,6 +25,11 @@ describe("isBirthdayOnDate", () => {
     expect(isBirthdayOnDate("2010-08-28", today)).toBe(false);
     expect(isBirthdayOnDate("not-a-date", today)).toBe(false);
   });
+
+  it("matches common DMY forms", () => {
+    expect(isBirthdayOnDate("29/08/2010", today)).toBe(true);
+    expect(isBirthdayOnDate("29-08-2010", today)).toBe(true);
+  });
 });
 
 describe("turningAgeOnDate", () => {

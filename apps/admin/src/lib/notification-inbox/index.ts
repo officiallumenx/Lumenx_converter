@@ -32,3 +32,9 @@ export {
   type EmitNotificationInput,
   type NotificationAudience,
 } from "./mutations";
+export {
+  patchAdminNotificationsQuery,
+  optimisticMarkNotificationRead,
+  optimisticMarkAllNotificationsRead,
+  refreshAdminNotificationsQuery,
+} from "./cache";

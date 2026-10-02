@@ -5,6 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
   Badge,
+  PersonPhotoPreview,
   cn,
 } from "@lumenx/ui";
 import { Crown, Mail, Phone } from "lucide-react";
@@ -26,7 +27,11 @@ function TeacherAvatar({
       : undefined;
 
   if (photoUrl) {
-    return <img src={photoUrl} alt="" className={cn("object-cover", className)} />;
+    return (
+      <PersonPhotoPreview src={photoUrl} title={teacher.name} alt={teacher.name} className="shrink-0">
+        <img src={photoUrl} alt="" className={cn("object-cover pointer-events-none", className)} />
+      </PersonPhotoPreview>
+    );
   }
 
   return (

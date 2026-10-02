@@ -78,7 +78,7 @@ export function TransportAnalyticsApiPanel({
           value={String(analytics.approvedEnrollments)}
           icon={<Users className="size-3.5" />}
         />
-        <Kpi label="Fleet buses" value={String(analytics.totalVehicles)} icon={<Bus className="size-3.5" />} />
+        <Kpi label="Vehicles" value={String(analytics.totalVehicles)} icon={<Bus className="size-3.5" />} />
         <Kpi label="Approved stops" value={String(analytics.approvedStops)} icon={<MapPin className="size-3.5" />} />
         <Kpi label="Trips today" value={String(analytics.tripsToday)} />
         <Kpi label="Active trips" value={String(analytics.activeTrips)} />
@@ -93,7 +93,7 @@ export function TransportAnalyticsApiPanel({
       <Card>
         <CardHeader
           title={`${M.transport} snapshot`}
-          hint="Live fleet overview"
+          hint="Live vehicles overview"
         />
         <p className="px-5 pb-5 text-sm text-muted-foreground">
           Showing route configuration, enrollments, trips, and emergencies for {analytics.tripDate}.

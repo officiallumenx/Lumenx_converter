@@ -181,8 +181,9 @@ export const adminQueryKeys = {
     [ADMIN_QUERY_SCOPE, instituteId, adminQueryRoots.catalog, "years"] as const,
   homeSummary: (instituteId: string) =>
     [ADMIN_QUERY_SCOPE, instituteId, adminQueryRoots.home, "summary"] as const,
-  homeWidgets: (instituteId: string) =>
-    [ADMIN_QUERY_SCOPE, instituteId, adminQueryRoots.home, "widgets"] as const,
+  /** `dayYmd` (local YYYY-MM-DD) keeps birthday widgets from sticking across midnight. */
+  homeWidgets: (instituteId: string, dayYmd: string) =>
+    [ADMIN_QUERY_SCOPE, instituteId, adminQueryRoots.home, "widgets", dayYmd] as const,
   enrollments: (instituteId: string, filters: unknown = {}) =>
     [ADMIN_QUERY_SCOPE, instituteId, adminQueryRoots.enrollments, filters] as const,
   academicYears: (instituteId: string) =>

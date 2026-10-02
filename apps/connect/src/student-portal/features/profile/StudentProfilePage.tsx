@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/app/PageHeader";
 import { SecuritySettings } from "@/components/app/SecuritySettings";
 import { useApp } from "@/lib/app-state";
 import { useStudentPortal } from "@/context/StudentPortalContext";
-import { Avatar, AvatarFallback, AvatarImage, Badge, Button, Switch, Textarea, TextSizeControl } from "@lumenx/ui";
+import { Avatar, AvatarFallback, AvatarImage, Badge, Button, PersonPhotoPreview, Switch, Textarea, TextSizeControl } from "@lumenx/ui";
 import { PageSkeleton } from "@/student-portal/shared/ui";
 import { SUPPORT_EMAIL } from "./support-content";
 import {
@@ -99,18 +99,25 @@ export function StudentProfilePage({ initialSection }: { initialSection?: Profil
 
       <SettingsCard>
         <div className="flex min-w-0 items-start gap-3 sm:gap-4">
-          <Avatar className="size-14 shrink-0 ring-2 ring-primary/10 sm:size-16">
-            {profile.photoUrl || user.avatar ? (
-              <AvatarImage
-                src={profile.photoUrl || user.avatar}
-                alt=""
-                className="object-cover"
-              />
-            ) : null}
-            <AvatarFallback className="bg-gradient-to-br from-emerald-600 to-teal-700 font-display text-lg text-white sm:text-xl">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
+          <PersonPhotoPreview
+            src={profile.photoUrl || user.avatar}
+            title={user.name}
+            alt={user.name}
+            className="shrink-0 rounded-full"
+          >
+            <Avatar className="size-14 shrink-0 ring-2 ring-primary/10 sm:size-16 pointer-events-none">
+              {profile.photoUrl || user.avatar ? (
+                <AvatarImage
+                  src={profile.photoUrl || user.avatar}
+                  alt=""
+                  className="object-cover"
+                />
+              ) : null}
+              <AvatarFallback className="bg-gradient-to-br from-emerald-600 to-teal-700 font-display text-lg text-white sm:text-xl">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+          </PersonPhotoPreview>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-start justify-between gap-2">
               <div className="min-w-0">

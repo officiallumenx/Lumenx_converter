@@ -240,8 +240,8 @@ export function TransportVehiclesView({
           title="Vehicles"
           hint={
             writesEnabled
-              ? `${rows.length} in fleet`
-              : `${rows.length} in fleet · read-only`
+              ? `${rows.length} vehicles`
+              : `${rows.length} vehicles · read-only`
           }
         />
         {rows.length === 0 ? (
@@ -349,7 +349,7 @@ export function TransportVehiclesView({
         }
       >
         <p className="text-xs text-muted-foreground">
-          Remove this vehicle from the fleet? Routes using it will be unassigned.
+          Remove this vehicle? Routes using it will be unassigned.
         </p>
       </Modal>
       </>

@@ -1,6 +1,5 @@
 import { GraduationCap, MapPin, ShieldCheck } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@lumenx/ui";
-import { cn } from "@lumenx/ui";
+import { Avatar, AvatarFallback, AvatarImage, PersonPhotoPreview, cn } from "@lumenx/ui";
 import { StudentQrCode } from "@/components/app/student/StudentQrCode";
 
 export type IdCardVisualProps = {
@@ -86,25 +85,32 @@ export function IdCardVisual({
                 aria-hidden
                 className="absolute -inset-1 rounded-[1.35rem] bg-gradient-to-br from-amber-400/70 via-primary/40 to-indigo-500/50 blur-[2px]"
               />
-              <Avatar className="relative size-[7.5rem] rounded-[1.25rem] ring-[3px] ring-white shadow-lg sm:size-32">
-                {photoUrl ? (
-                  <AvatarImage
-                    src={photoUrl}
-                    alt={name}
-                    className="rounded-[1.15rem] object-cover"
-                  />
-                ) : null}
-                <AvatarFallback
-                  className={cn(
-                    "rounded-[1.15rem] font-display text-3xl text-white sm:text-4xl",
-                    photoUrl
-                      ? "bg-slate-200"
-                      : "bg-gradient-to-br from-slate-300 to-slate-400 text-slate-600",
-                  )}
-                >
-                  {photoUrl ? initials : empty(initials) ? "—" : initials}
-                </AvatarFallback>
-              </Avatar>
+              <PersonPhotoPreview
+                src={photoUrl}
+                title={name}
+                alt={name}
+                className="relative rounded-[1.25rem]"
+              >
+                <Avatar className="relative size-[7.5rem] rounded-[1.25rem] ring-[3px] ring-white shadow-lg sm:size-32 pointer-events-none">
+                  {photoUrl ? (
+                    <AvatarImage
+                      src={photoUrl}
+                      alt={name}
+                      className="rounded-[1.15rem] object-cover"
+                    />
+                  ) : null}
+                  <AvatarFallback
+                    className={cn(
+                      "rounded-[1.15rem] font-display text-3xl text-white sm:text-4xl",
+                      photoUrl
+                        ? "bg-slate-200"
+                        : "bg-gradient-to-br from-slate-300 to-slate-400 text-slate-600",
+                    )}
+                  >
+                    {photoUrl ? initials : empty(initials) ? "—" : initials}
+                  </AvatarFallback>
+                </Avatar>
+              </PersonPhotoPreview>
               {!photoUrl ? (
                 <p className="absolute -bottom-5 left-1/2 w-max -translate-x-1/2 text-[9px] font-medium uppercase tracking-wide text-slate-400">
                   Photo not added

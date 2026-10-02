@@ -137,6 +137,14 @@ export function shouldDehydrateAdminQuery(query: {
   ) {
     return false;
   }
+  // Volatile inbox — never restore stale unread from IndexedDB.
+  if (key[2] === "notifications") {
+    return false;
+  }
+  // Home widgets include "birthdays today" — never restore a prior calendar day's board.
+  if (key[2] === "home" && key[3] === "widgets") {
+    return false;
+  }
   // Signed photo URLs expire (~1h). Persisting them causes broken/slow photos on reopen.
   if (joined.includes("signed-url")) {
     return false;

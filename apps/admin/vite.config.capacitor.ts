@@ -6,7 +6,7 @@ import { createViteCapacitorConfig } from "@lumenx/capacitor/vite";
  */
 export default createViteCapacitorConfig({
   appKey: "admin",
-  optimizeDepsInclude: ["recharts", "xlsx"],
+  optimizeDepsInclude: ["recharts", "xlsx", "sonner"],
   vite: {
     server: {
       port: 8081,

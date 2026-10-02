@@ -1,8 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { useNotificationsListQuery, adminModulePrefix, adminQueryRoots } from "@/lib/admin-queries";
-import { invalidateAdminCache } from "@/lib/admin-resource-cache";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useNotificationsListQuery,
+  adminModulePrefix,
+  adminQueryRoots,
+} from "@/lib/admin-queries";
+import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { ModuleHero } from "@/components/module-shell";
 import { NotificationBroadcastCompose } from "@/components/notifications/NotificationBroadcastCompose";
@@ -24,6 +27,7 @@ import {
   type NotificationInboxListItem,
   type NotificationInboxListStatus,
 } from "@/lib/notification-inbox";
+import { ApiClientError } from "@/lib/api";
 
 type Tab = "inbox" | "broadcast";
 
@@ -43,7 +47,10 @@ export const Route = createFileRoute("/notifications")({
 function NotificationsPage() {
   const apiMode = isApiAuthMode();
   const instituteCtx = useInstituteContext();
-  const writesEnabled = resolveWritesEnabled(apiMode, { status: instituteCtx.status, activeInstituteId: instituteCtx.activeInstituteId });
+  const writesEnabled = resolveWritesEnabled(apiMode, {
+    status: instituteCtx.status,
+    activeInstituteId: instituteCtx.activeInstituteId,
+  });
 
   useEffect(() => {
     enableAdminPushBootstrap();
@@ -59,14 +66,6 @@ function NotificationsPage() {
     apiMode ? [] : getAdminNotifications(),
   );
 
-  const [apiItems, setApiItems] = useState<NotificationInboxListItem[]>([]);
-  const [listStatus, setListStatus] = useState<NotificationInboxListStatus>(() =>
-    apiMode ? "loading" : "demo",
-  );
-  const [listError, setListError] = useState<string | null>(null);
-  const [resolvedForInstituteId, setResolvedForInstituteId] = useState<
-    string | null
-  >(null);
   const queryClient = useQueryClient();
   const listEnabled =
     apiMode &&
@@ -76,28 +75,60 @@ function NotificationsPage() {
     instituteCtx.activeInstituteId,
     listEnabled,
   );
-  const bumpNotificationsReload = () => {
-    invalidateAdminCache("admin:notifications");
+
+  const bumpNotificationsReload = useCallback(() => {
     if (instituteCtx.activeInstituteId) {
       void queryClient.invalidateQueries({
-        queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.notifications),
+        queryKey: adminModulePrefix(
+          instituteCtx.activeInstituteId,
+          adminQueryRoots.notifications,
+        ),
       });
     }
-  };
-  const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
-  activeInstituteIdRef.current = instituteCtx.activeInstituteId;
+  }, [instituteCtx.activeInstituteId, queryClient]);
+
+  const queryState = notificationsQuery.data;
+  const queryError = notificationsQuery.isError
+    ? notificationsQuery.error instanceof ApiClientError &&
+      notificationsQuery.error.status === 403
+      ? ("forbidden" as const)
+      : ("error" as const)
+    : null;
+
+  const resolvedForInstituteId =
+    instituteCtx.status === "ready" &&
+    instituteCtx.activeInstituteId &&
+    (queryState != null || queryError != null)
+      ? instituteCtx.activeInstituteId
+      : null;
+
+  let storedStatus: NotificationInboxListStatus = "loading";
+  if (!apiMode) {
+    storedStatus = "demo";
+  } else if (queryError) {
+    storedStatus = queryError;
+  } else if (queryState) {
+    storedStatus = queryState.status;
+  } else if (notificationsQuery.isLoading) {
+    storedStatus = "loading";
+  }
 
   const listView = resolveNotificationInboxListView({
     apiMode,
     instituteStatus: instituteCtx.status,
     activeInstituteId: instituteCtx.activeInstituteId,
     resolvedForInstituteId,
-    storedItems: apiItems,
-    storedStatus:
-      notificationsQuery.isLoading && !notificationsQuery.data ? "loading" : listStatus,
-    storedErrorMessage: listError,
+    storedItems: queryState?.items ?? [],
+    storedStatus,
+    storedErrorMessage:
+      queryError != null
+        ? notificationsQuery.error instanceof Error
+          ? notificationsQuery.error.message
+          : "Failed to load notifications"
+        : (queryState?.errorMessage ?? null),
     instituteErrorMessage: instituteCtx.errorMessage,
   });
+
   const displayItems: InboxRow[] = apiMode ? listView.items : demoItems;
   const displayUnread = displayItems.filter((n) => n.unread).length;
 
@@ -121,63 +152,6 @@ function NotificationsPage() {
     }
   }, [tabFromSearch]);
 
-  useEffect(() => {
-    if (!apiMode) return;
-
-    if (instituteCtx.status === "loading") {
-      setApiItems([]);
-      setListStatus("loading");
-      setListError(null);
-      setResolvedForInstituteId(null);
-      return;
-    }
-
-    if (
-      instituteCtx.status === "error" ||
-      instituteCtx.status === "forbidden"
-    ) {
-      setApiItems([]);
-      setListStatus(
-        instituteCtx.status === "forbidden" ? "forbidden" : "error",
-      );
-      setListError(instituteCtx.errorMessage);
-      setResolvedForInstituteId(null);
-      return;
-    }
-
-    if (
-      instituteCtx.status === "needs_selection" ||
-      instituteCtx.status === "empty" ||
-      !instituteCtx.activeInstituteId
-    ) {
-      setApiItems([]);
-      setListStatus("needs_institute");
-      setListError(null);
-      setResolvedForInstituteId(null);
-      return;
-    }
-
-    if (notificationsQuery.isLoading && !notificationsQuery.data) {
-      setListStatus("loading");
-      setListError(null);
-      return;
-    }
-    if (!notificationsQuery.data) return;
-
-    const next = notificationsQuery.data;
-    setApiItems(next.items);
-    setListStatus(next.status);
-    setListError(next.errorMessage);
-    setResolvedForInstituteId(instituteCtx.activeInstituteId);
-  }, [
-    apiMode,
-    instituteCtx.status,
-    instituteCtx.activeInstituteId,
-    instituteCtx.errorMessage,
-    notificationsQuery.data,
-    notificationsQuery.isLoading,
-  ]);
-
   const onTabChange = (next: Tab) => {
     setTab(next);
     void navigate({ search: { tab: next } });
@@ -189,7 +163,7 @@ function NotificationsPage() {
       return;
     }
     refreshDemo();
-  }, [apiMode, refreshDemo]);
+  }, [apiMode, bumpNotificationsReload, refreshDemo]);
 
   const unreadLabel =
     apiMode && !listView.rowsValid

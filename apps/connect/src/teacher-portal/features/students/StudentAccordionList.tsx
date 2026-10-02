@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { ChevronDown } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage, Badge, cn } from "@lumenx/ui";
+import { Avatar, AvatarFallback, AvatarImage, Badge, PersonPhotoPreview, cn } from "@lumenx/ui";
 import { useApp } from "@/lib/app-state";
 import { loadTeacherStudentDetail } from "@/lib/students";
 import { teacherRepository } from "@/lib/teacher/repositories";
@@ -87,12 +87,20 @@ export function StudentAccordionList({
               aria-expanded={open}
               className="flex w-full min-w-0 items-center gap-3 p-3 text-left transition-colors hover:bg-muted/30 sm:p-4"
             >
-              <Avatar className="size-11 shrink-0">
-                {s.photoUrl ? (
-                  <AvatarImage src={s.photoUrl} alt="" className="object-cover" />
-                ) : null}
-                <AvatarFallback className="text-xs font-medium">{s.avatarInitials}</AvatarFallback>
-              </Avatar>
+              <PersonPhotoPreview
+                src={s.photoUrl}
+                title={s.name}
+                alt={s.name}
+                as="span"
+                className="shrink-0 rounded-full"
+              >
+                <Avatar className="size-11 shrink-0 pointer-events-none">
+                  {s.photoUrl ? (
+                    <AvatarImage src={s.photoUrl} alt="" className="object-cover" />
+                  ) : null}
+                  <AvatarFallback className="text-xs font-medium">{s.avatarInitials}</AvatarFallback>
+                </Avatar>
+              </PersonPhotoPreview>
               <div className="min-w-0 flex-1">
                 <div className="truncate font-medium">{s.name}</div>
                 <div className="text-xs text-muted-foreground">

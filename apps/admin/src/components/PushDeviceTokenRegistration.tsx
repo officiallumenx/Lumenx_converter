@@ -1,4 +1,5 @@
 import { useEffect, useSyncExternalStore } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { getAdminApiClient } from "@/lib/admin-api";
@@ -17,6 +18,7 @@ import {
  */
 export function PushDeviceTokenRegistration({ enabled }: { enabled: boolean }): null {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const pushAllowed = useSyncExternalStore(
     subscribeAdminPushBootstrap,
     isAdminPushBootstrapAllowed,
@@ -56,8 +58,12 @@ export function PushDeviceTokenRegistration({ enabled }: { enabled: boolean }): 
       },
       onForegroundPush: () => invalidateInbox(),
       onNotificationOpened: (href) => {
-        if (typeof window === "undefined") return;
-        window.location.assign(href);
+        if (!href) return;
+        if (href.startsWith("http://") || href.startsWith("https://")) {
+          window.location.assign(href);
+          return;
+        }
+        void navigate({ to: href as "/" });
       },
       bootstrapWeb: async ({ register }) =>
         bootstrapWebFcm({
@@ -83,6 +89,6 @@ export function PushDeviceTokenRegistration({ enabled }: { enabled: boolean }): 
       // Permission unavailable / plugin missing — never crash Admin shell.
     });
     return () => cleanup?.();
-  }, [enabled, pushAllowed, queryClient]);
+  }, [enabled, pushAllowed, queryClient, navigate]);
   return null;
 }

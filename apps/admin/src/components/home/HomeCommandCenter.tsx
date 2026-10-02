@@ -20,6 +20,7 @@ import {
   useNotificationsListQuery,
 } from "@/lib/admin-queries";
 import { updateInboxItem } from "@/lib/notification-inbox/mutations";
+import { optimisticMarkNotificationRead } from "@/lib/notification-inbox";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { listTransportEmergencies } from "@/lib/transport/ops-api";
 import {
@@ -251,9 +252,12 @@ export function HomeCommandCenter() {
   const openUnreadNotification = async (id: string) => {
     if (markingReadId) return;
     setMarkingReadId(id);
+    const instituteId = instituteCtx.activeInstituteId;
+    if (instituteId) {
+      optimisticMarkNotificationRead(queryClient, instituteId, id);
+    }
     try {
       await updateInboxItem(id, { read: true });
-      const instituteId = instituteCtx.activeInstituteId;
       if (instituteId) {
         await invalidateAdminModule(
           queryClient,
@@ -262,6 +266,13 @@ export function HomeCommandCenter() {
         );
       }
     } catch (err) {
+      if (instituteId) {
+        await invalidateAdminModule(
+          queryClient,
+          instituteId,
+          adminQueryRoots.notifications,
+        );
+      }
       notify(err instanceof Error ? err.message : "Failed to mark read");
     } finally {
       setMarkingReadId(null);

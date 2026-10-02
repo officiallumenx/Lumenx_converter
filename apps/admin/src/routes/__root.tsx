@@ -356,7 +356,12 @@ function RootComponent() {
                     <AuthGate />
                   </TypographyProvider>
                 </OfflineSyncHost>
-                <Toaster position="top-center" richColors />
+                <Toaster
+                  position="top-center"
+                  richColors
+                  offset="calc(max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top-measured, 0px), var(--safe-area-top-fallback, 0px), var(--lx-safe-top, 0px)) + 3.75rem)"
+                  mobileOffset="calc(max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top-measured, 0px), var(--safe-area-top-fallback, 0px), var(--lx-safe-top, 0px)) + 3.75rem)"
+                />
               </AdminActionToastProvider>
             </DemoProfileProvider>
           </AdminPersistQueryProvider>

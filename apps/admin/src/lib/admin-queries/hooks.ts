@@ -66,7 +66,7 @@ import {
 } from "@/lib/admissions";
 import { loadCareersList, loadCareerJobsList } from "@/lib/careers";
 import { loadAcademicYearsList } from "@/lib/academic-years";
-import { loadDashboardSummary, loadDashboardWidgets } from "@/lib/dashboard";
+import { loadDashboardSummary, loadDashboardWidgets, localYmd } from "@/lib/dashboard";
 import { loadSectionDetail } from "@/lib/classes";
 import { loadSubjectDetail } from "@/lib/subjects";
 import { loadEnrollmentsList } from "@/lib/enrollments";
@@ -527,6 +527,8 @@ export function useNotificationsListQuery(
     queryFn: () => loadNotificationInboxList(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
     staleTime: ADMIN_QUERY_VOLATILE_STALE_TIME_MS,
+    refetchOnWindowFocus: true,
+    refetchInterval: ADMIN_QUERY_VOLATILE_STALE_TIME_MS,
   });
 }
 
@@ -714,10 +716,14 @@ export function useHomeWidgetsQuery(
   enabled = true,
 ) {
   const id = instituteId ?? "_";
+  // Local calendar day in the key so yesterday's empty birthday board cannot
+  // stick under the 7-day default stale window / IndexedDB restore.
+  const dayYmd = localYmd();
   return useAdminQuery({
-    queryKey: adminQueryKeys.homeWidgets(id),
+    queryKey: adminQueryKeys.homeWidgets(id, dayYmd),
     queryFn: () => loadDashboardWidgets(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
+    staleTime: ADMIN_QUERY_VOLATILE_STALE_TIME_MS,
   });
 }
 

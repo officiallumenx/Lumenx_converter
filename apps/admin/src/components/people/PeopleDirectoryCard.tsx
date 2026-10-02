@@ -1,4 +1,5 @@
 import type { KeyboardEvent, ReactNode } from "react";
+import { PersonPhotoPreview } from "@lumenx/ui";
 import { usePersonPhotoUrl } from "@/hooks/usePersonPhotoUrl";
 
 function initialsFrom(name: string) {
@@ -52,15 +53,22 @@ export function PeopleDirectoryCard({
       onKeyDown={onKeyDown}
       className="lx-people-card"
     >
-      <div className="lx-people-card__avatar overflow-hidden" aria-hidden>
+      <div className="lx-people-card__avatar overflow-hidden">
         {photo.data ? (
-          <img
+          <PersonPhotoPreview
             src={photo.data}
-            alt=""
-            className="size-full object-cover"
-          />
+            title={name}
+            alt={name}
+            className="size-full"
+          >
+            <img
+              src={photo.data}
+              alt=""
+              className="size-full object-cover pointer-events-none"
+            />
+          </PersonPhotoPreview>
         ) : (
-          initialsFrom(name)
+          <span aria-hidden>{initialsFrom(name)}</span>
         )}
       </div>
       <div className="lx-people-card__body min-w-0">

@@ -92,6 +92,7 @@ import {
   isRouteActive,
 } from "@/lib/admin-section-nav";
 import { AdminAlertsNavBadgeSync } from "@/components/AdminAlertsNavBadgeSync";
+import { AdminInboxRefreshSync } from "@/components/AdminInboxRefreshSync";
 import { useAdminAlertsNavBadge } from "@/lib/use-admin-alerts-nav-badge";
 import { useNotificationsListQuery } from "@/lib/admin-queries";
 
@@ -629,6 +630,7 @@ export function AdminChrome() {
     <AdminFeedbackTransportBridge />
     <AcademicYearLockSync />
     <AdminAlertsNavBadgeSync />
+    <AdminInboxRefreshSync />
     <AdminWriteAccessProvider writesAllowed={writesAllowed} reason={writeBlockReason}>
       <div
       className="flex h-screen-svh max-h-screen-svh w-full overflow-hidden bg-background text-foreground"

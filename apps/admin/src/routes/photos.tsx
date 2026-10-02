@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Camera, Upload } from "lucide-react";
+import { PersonPhotoPreview } from "@lumenx/ui";
 import {
   Button,
   Card,
@@ -77,13 +78,15 @@ function PhotoThumb({
     size === "lg" ? "h-28 w-28 text-2xl" : size === "sm" ? "h-10 w-10 text-xs" : "h-12 w-12 text-sm";
   if (src) {
     return (
-      <img
-        src={src}
-        alt={name}
-        loading="lazy"
-        decoding="async"
-        className={`${dim} rounded-full object-cover border border-border bg-muted`}
-      />
+      <PersonPhotoPreview src={src} title={name} alt={name} className="shrink-0 rounded-full">
+        <img
+          src={src}
+          alt={name}
+          loading="lazy"
+          decoding="async"
+          className={`${dim} rounded-full object-cover border border-border bg-muted pointer-events-none`}
+        />
+      </PersonPhotoPreview>
     );
   }
   return (

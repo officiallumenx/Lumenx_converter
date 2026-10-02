@@ -34,9 +34,13 @@ import {
   deleteInboxItem,
   updateInboxItem,
   markAllInboxRead,
-} from "@/lib/notification-inbox/mutations";
+  optimisticMarkNotificationRead,
+  optimisticMarkAllNotificationsRead,
+  refreshAdminNotificationsQuery,
+} from "@/lib/notification-inbox";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useAdminToast } from "@/components/AdminActionToast";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   Bell,
@@ -96,6 +100,7 @@ export function NotificationCenterInbox({
 }) {
   const notify = useAdminToast();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const apiMode = isApiAuthMode();
   const [read, setRead] = useState<NotificationReadFilter>("all");
   const [date, setDate] = useState<NotificationDateFilter>("all");
@@ -130,13 +135,23 @@ export function NotificationCenterInbox({
   const countLabel = (count: number) =>
     !rowsValid ? "…" : String(count);
 
-  const markRead = (id: string) => {
+  const markRead = async (id: string) => {
     if (apiMode) {
-      return updateInboxItem(id, { read: true }).then(() => onChange());
+      if (instituteId) {
+        optimisticMarkNotificationRead(queryClient, instituteId, id);
+      }
+      try {
+        await updateInboxItem(id, { read: true });
+      } catch (err) {
+        if (instituteId) {
+          await refreshAdminNotificationsQuery(queryClient, instituteId);
+        }
+        throw err;
+      }
+      return;
     }
     markAdminNotificationRead(id);
     onChange();
-    return Promise.resolve();
   };
 
   const openDetails = (n: InboxRow) => {
@@ -196,6 +211,9 @@ export function NotificationCenterInbox({
                   disabled={unreadCount === 0}
                   onClick={() => {
                     if (apiMode) {
+                      if (instituteId) {
+                        optimisticMarkAllNotificationsRead(queryClient, instituteId);
+                      }
                       const run = instituteId
                         ? markAllInboxRead(instituteId)
                         : Promise.all(
@@ -203,10 +221,14 @@ export function NotificationCenterInbox({
                           );
                       void run
                         .then(() => {
-                          onChange();
                           notify("All notifications marked read");
                         })
-                        .catch((err) => {
+                        .catch(async (err) => {
+                          if (instituteId) {
+                            await refreshAdminNotificationsQuery(queryClient, instituteId);
+                          } else {
+                            onChange();
+                          }
                           notify(
                             err instanceof Error
                               ? err.message
@@ -235,7 +257,12 @@ export function NotificationCenterInbox({
                           onChange();
                           notify("All notifications deleted");
                         })
-                        .catch((err) => {
+                        .catch(async (err) => {
+                          if (instituteId) {
+                            await refreshAdminNotificationsQuery(queryClient, instituteId);
+                          } else {
+                            onChange();
+                          }
                           notify(
                             err instanceof Error
                               ? err.message
@@ -405,7 +432,10 @@ export function NotificationCenterInbox({
                           onChange();
                           notify("Notification deleted");
                         })
-                        .catch((err) => {
+                        .catch(async (err) => {
+                          if (instituteId) {
+                            await refreshAdminNotificationsQuery(queryClient, instituteId);
+                          }
                           notify(
                             err instanceof Error
                               ? err.message

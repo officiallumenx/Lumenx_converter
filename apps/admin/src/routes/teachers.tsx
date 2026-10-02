@@ -450,6 +450,10 @@ function TeachersPage() {
       void queryClient.invalidateQueries({
         queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.teachers),
       });
+      // Birthday board on Home is derived from teacher DOB.
+      void queryClient.invalidateQueries({
+        queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.home),
+      });
       if (opts?.includeClasses) {
         invalidateClassesListCache(instituteId);
         void queryClient.invalidateQueries({

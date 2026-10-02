@@ -1,23 +1,18 @@
 import type { CSSProperties } from "react";
-import { Clock } from "lucide-react";
 import { Pill } from "@lumenx/ui-admin";
 import { Link } from "@tanstack/react-router";
 import type { NotificationInboxListItem } from "@/lib/notification-inbox/types";
-
-function priorityTone(
-  priority: NotificationInboxListItem["priority"],
-): "info" | "warning" | "danger" {
-  if (priority === "high") return "danger";
-  return "info";
-}
-
-function iconClass(priority: NotificationInboxListItem["priority"]): string {
-  if (priority === "high") return "lx-home-activity__icon lx-home-activity__icon--urgent";
-  return "lx-home-activity__icon lx-home-activity__icon--info";
-}
+import {
+  isNotificationAlertRow,
+  notificationCategoryLabel,
+  notificationIconChipClass,
+  notificationPillTone,
+  notificationRowSurfaceClass,
+  notificationTypeIcon,
+} from "@/lib/notification-presentation";
 
 /**
- * Recent Activity — real inbox items only.
+ * Recent inbox activity on Home — colors/categories match Notification Center.
  * Hidden when there is nothing to show (no demo/fake feed).
  */
 export function HomeRecentActivity({
@@ -32,40 +27,74 @@ export function HomeRecentActivity({
   if (items.length === 0) return null;
 
   return (
-    <section className="lx-home-section lx-home-panel lx-home-activity" style={{ "--lx-home-i": 6 } as CSSProperties}>
+    <section
+      className="lx-home-section lx-home-panel lx-home-activity lx-home-activity--inbox"
+      style={{ "--lx-home-i": 6 } as CSSProperties}
+    >
       <div className="lx-home-panel__head">
-        <h2 className="lx-home-panel__title flex items-center gap-2">
-          <Clock className="size-4 text-primary" aria-hidden />
-          Recent Activity
-        </h2>
-        <Link to="/notifications" search={{ tab: "inbox" }} className="lx-home-panel__link">
-          View all →
-        </Link>
+        <h2 className="lx-home-panel__title">Notifications</h2>
+        <div className="flex items-center gap-2">
+          {items.some((n) => n.unread) ? (
+            <Pill tone="info">{items.filter((n) => n.unread).length} unread</Pill>
+          ) : null}
+          <Link to="/notifications" search={{ tab: "inbox" }} className="lx-home-panel__link">
+            View all →
+          </Link>
+        </div>
       </div>
       <ul className="lx-home-activity__list">
         {items.slice(0, 5).map((row) => {
           const busy = markingReadId === row.id;
+          const isAlert = isNotificationAlertRow(row);
+          const Icon = notificationTypeIcon(row.type);
           return (
             <li key={row.id}>
               <button
                 type="button"
-                className="lx-home-activity__row"
+                className={`lx-home-activity__row ${notificationRowSurfaceClass(row)}`.trim()}
                 disabled={busy}
                 onClick={() => onOpen(row.id)}
               >
-                <span className={iconClass(row.priority)} aria-hidden>
-                  <Clock className="size-3.5" />
+                <span
+                  className={`lx-home-activity__chip border ${notificationIconChipClass(row)}`}
+                  aria-hidden
+                >
+                  <Icon className="size-3.5" />
                 </span>
                 <span className="min-w-0 flex-1 text-left">
-                  <span className="block text-sm font-medium text-foreground truncate">
-                    {row.title}
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    {row.unread ? (
+                      <span
+                        className={`size-1.5 rounded-full shrink-0 ${
+                          isAlert ? "bg-destructive" : "bg-primary"
+                        }`}
+                        aria-label="Unread"
+                      />
+                    ) : null}
+                    <span
+                      className={`block text-sm truncate ${
+                        row.unread ? "font-semibold" : "font-medium"
+                      } ${isAlert ? "text-destructive" : "text-foreground"}`}
+                    >
+                      {row.title}
+                    </span>
                   </span>
-                  <span className="block text-[11px] text-muted-foreground truncate">
-                    {row.desc}
+                  <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                    <Pill tone={notificationPillTone(row)}>
+                      {isAlert ? "Alert" : notificationCategoryLabel(row.category)}
+                    </Pill>
+                    {row.priority === "high" && !isAlert ? (
+                      <Pill tone="warning">High</Pill>
+                    ) : null}
+                    <span className="text-[11px] text-muted-foreground truncate">
+                      {row.desc}
+                    </span>
                   </span>
                 </span>
                 <span className="lx-home-activity__time">{row.time}</span>
-                {row.unread ? <Pill tone={priorityTone(row.priority)}>New</Pill> : null}
+                {row.unread ? (
+                  <Pill tone={isAlert ? "danger" : "info"}>New</Pill>
+                ) : null}
               </button>
             </li>
           );

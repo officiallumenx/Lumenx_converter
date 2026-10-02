@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { PersonPhotoPreview } from "@lumenx/ui";
 import { Pill } from "@lumenx/ui-admin";
 import type { TeacherRecord, TeacherRole, TeacherStatus } from "@lumenx/types";
 
@@ -53,11 +54,13 @@ export function TeacherAvatar({
   const sizeClass = size === "lg" ? "size-16 text-sm" : "size-11 text-xs";
   if (photoUrl) {
     return (
-      <img
-        src={photoUrl}
-        alt=""
-        className={`${sizeClass} rounded-full object-cover ring-2 ring-border shrink-0 bg-primary/10`}
-      />
+      <PersonPhotoPreview src={photoUrl} title={name} alt={name} className="shrink-0">
+        <img
+          src={photoUrl}
+          alt=""
+          className={`${sizeClass} rounded-full object-cover ring-2 ring-border shrink-0 bg-primary/10 pointer-events-none`}
+        />
+      </PersonPhotoPreview>
     );
   }
   return (

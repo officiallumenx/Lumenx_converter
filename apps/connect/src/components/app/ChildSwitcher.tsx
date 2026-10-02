@@ -1,8 +1,7 @@
 import { memo } from "react";
 import { Check, TrendingUp, TrendingDown, Minus } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@lumenx/ui";
+import { Avatar, AvatarFallback, AvatarImage, PersonPhotoPreview, cn } from "@lumenx/ui";
 import { useApp } from "@/lib/app-state";
-import { cn } from "@lumenx/ui";
 
 const TREND_ICON = { up: TrendingUp, down: TrendingDown, flat: Minus } as const;
 
@@ -53,21 +52,29 @@ export const ChildSwitcher = memo(function ChildSwitcher() {
               )}
             >
               <div className="flex items-center gap-2">
-                <Avatar className={cn("size-9 shrink-0", active && "ring-1 ring-primary/35")}>
-                  {c.photoUrl ? (
-                    <AvatarImage src={c.photoUrl} alt="" className="object-cover" />
-                  ) : null}
-                  <AvatarFallback
-                    className={cn(
-                      "text-xs font-semibold",
-                      c.accent === "primary" && "bg-primary/12 text-primary",
-                      c.accent === "success" && "bg-success/12 text-success",
-                      c.accent === "warning" && "bg-warning/12 text-warning-foreground",
-                    )}
-                  >
-                    {c.initials}
-                  </AvatarFallback>
-                </Avatar>
+                <PersonPhotoPreview
+                  src={c.photoUrl}
+                  title={c.name}
+                  alt={c.name}
+                  as="span"
+                  className="shrink-0 rounded-full"
+                >
+                  <Avatar className={cn("size-9 shrink-0 pointer-events-none", active && "ring-1 ring-primary/35")}>
+                    {c.photoUrl ? (
+                      <AvatarImage src={c.photoUrl} alt="" className="object-cover" />
+                    ) : null}
+                    <AvatarFallback
+                      className={cn(
+                        "text-xs font-semibold",
+                        c.accent === "primary" && "bg-primary/12 text-primary",
+                        c.accent === "success" && "bg-success/12 text-success",
+                        c.accent === "warning" && "bg-warning/12 text-warning-foreground",
+                      )}
+                    >
+                      {c.initials}
+                    </AvatarFallback>
+                  </Avatar>
+                </PersonPhotoPreview>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1">
                     <span className="truncate text-sm font-semibold leading-tight">

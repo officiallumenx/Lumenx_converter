@@ -204,6 +204,10 @@ function StudentsPage() {
       void queryClient.invalidateQueries({
         queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.students),
       });
+      // Birthday board on Home is derived from student DOB.
+      void queryClient.invalidateQueries({
+        queryKey: adminModulePrefix(instituteCtx.activeInstituteId, adminQueryRoots.home),
+      });
     }
   };
 

@@ -1,3 +1,4 @@
+import { PersonPhotoPreview } from "@lumenx/ui";
 import { usePersonPhotoUrl } from "@/hooks/usePersonPhotoUrl";
 
 function initialsFrom(name: string): string {
@@ -30,13 +31,15 @@ export function HomePersonAvatar({
 
   if (photo.data) {
     return (
-      <img
-        src={photo.data}
-        alt=""
-        loading="lazy"
-        decoding="async"
-        className={`${dim} rounded-full object-cover bg-muted border border-border shrink-0`}
-      />
+      <PersonPhotoPreview src={photo.data} title={name} alt={name} className="shrink-0">
+        <img
+          src={photo.data}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className={`${dim} rounded-full object-cover bg-muted border border-border shrink-0 pointer-events-none`}
+        />
+      </PersonPhotoPreview>
     );
   }
 
