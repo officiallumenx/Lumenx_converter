@@ -573,6 +573,42 @@ function StudentsPage() {
         const failures: string[] = [];
         try {
           let { classes, sections } = await listClassesCatalog({ instituteId });
+          const years = yearsCatalogQuery.data ?? [];
+          const activeYearId =
+            years.find((item) => item.status === "active")?.id ??
+            years[0]?.id ??
+            classes.find((c) => c.academicYearId)?.academicYearId ??
+            sections.find((s) => s.academicYearId)?.academicYearId ??
+            null;
+          if (!activeYearId) {
+            notify(
+              "Create an active academic year in Academics before importing students",
+            );
+            setBulkImporting(false);
+            return;
+          }
+
+          // Ensure every class/section pair exists before creating students.
+          const neededPairs = new Map<string, { className: string; section: string }>();
+          for (const row of importRows) {
+            const className = row.className.trim();
+            const section = (row.section ?? "").trim() || "A";
+            if (!className) continue;
+            neededPairs.set(`${className}::${section}`, { className, section });
+          }
+          for (const pair of neededPairs.values()) {
+            const ensured = await resolveOrCreateStudentImportPlacement({
+              classes,
+              sections,
+              className: pair.className,
+              sectionName: pair.section,
+              instituteId,
+              academicYearId: activeYearId,
+            });
+            classes = ensured.classes;
+            sections = ensured.sections;
+          }
+
           const existingKeys = new Set(
             (apiItems as StudentListItem[]).flatMap((item) => {
               const keys: string[] = [];
@@ -617,6 +653,7 @@ function StudentsPage() {
                   className: imported.className,
                   sectionName: imported.section ?? "",
                   instituteId,
+                  academicYearId: activeYearId,
                 });
                 classes = ensured.classes;
                 sections = ensured.sections;
@@ -699,6 +736,14 @@ function StudentsPage() {
         setBulkImporting(false);
         setBulkImportOpen(false);
         bumpStudentsReload();
+        if (instituteCtx.activeInstituteId) {
+          void queryClient.invalidateQueries({
+            queryKey: adminModulePrefix(
+              instituteCtx.activeInstituteId,
+              adminQueryRoots.classes,
+            ),
+          });
+        }
         void syncSubscriptionHeadcountAfterStudentChange();
         const summary = `${created} created · ${enrolled} enrolled${failed ? ` · ${failed} failed` : ""}`;
         notify(

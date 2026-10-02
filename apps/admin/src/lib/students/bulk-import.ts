@@ -201,7 +201,9 @@ export async function resolveOrCreateStudentImportPlacement(input: {
     sections.find((s) => s.academicYearId)?.academicYearId ||
     "";
   if (!academicYearId) {
-    return { placement: null, classes, sections, createdClass, createdSection };
+    throw new Error(
+      "No academic year available. Create an active academic year in Academics, then retry import.",
+    );
   }
 
   const classLabel =
@@ -213,7 +215,12 @@ export async function resolveOrCreateStudentImportPlacement(input: {
     input.sectionName.trim().toUpperCase() ||
     "A";
 
-  let cls = findClass(classes, classLabel);
+  // Prefer the class row for the target academic year (avoids attaching to a stale year).
+  let cls =
+    findClass(
+      classes.filter((c) => c.academicYearId === academicYearId),
+      classLabel,
+    ) ?? findClass(classes, classLabel);
   if (!cls) {
     cls = await createClass({
       instituteId: input.instituteId,
@@ -249,6 +256,11 @@ export async function resolveOrCreateStudentImportPlacement(input: {
     classLabel,
     sectionCode,
   );
+  if (!placement) {
+    throw new Error(
+      `Could not resolve ${classLabel} / ${sectionCode} after create.`,
+    );
+  }
   return { placement, classes, sections, createdClass, createdSection };
 }
 
