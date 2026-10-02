@@ -44,10 +44,21 @@ describe("student bulk import placement", () => {
     expect(placement?.sectionId).toBe("s1");
   });
 
+  it("resolves Class/Grade aliases and Sec prefixes", () => {
+    const placement = resolveStudentImportPlacement(
+      classes,
+      sections,
+      "Class 10",
+      "Sec A",
+    );
+    expect(placement?.classId).toBe("c1");
+    expect(placement?.sectionId).toBe("s1");
+  });
+
   it("builds catalog options for Excel dropdowns", () => {
     const options = studentImportCatalogOptions(classes, sections);
     expect(options).toEqual([
-      { classLabel: "Grade 10", sectionLabels: ["Section A"] },
+      { classLabel: "Grade 10", sectionLabels: ["A"] },
     ]);
   });
 

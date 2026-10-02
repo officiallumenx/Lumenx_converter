@@ -81,6 +81,7 @@ import { listClassesCatalog } from "@/lib/classes";
 import { createEnrollment } from "@/lib/enrollments";
 import {
   mapImportGender,
+  resolveOrCreateStudentImportPlacement,
   resolveStudentImportPlacement,
 } from "@/lib/students/bulk-import";
 import {
@@ -571,7 +572,7 @@ function StudentsPage() {
         let failed = 0;
         const failures: string[] = [];
         try {
-          const { classes, sections } = await listClassesCatalog({ instituteId });
+          let { classes, sections } = await listClassesCatalog({ instituteId });
           const existingKeys = new Set(
             (apiItems as StudentListItem[]).flatMap((item) => {
               const keys: string[] = [];
@@ -602,12 +603,32 @@ function StudentsPage() {
               continue;
             }
 
-            const placement = resolveStudentImportPlacement(
+            let placement = resolveStudentImportPlacement(
               classes,
               sections,
               imported.className,
               imported.section ?? "",
             );
+            if (!placement) {
+              try {
+                const ensured = await resolveOrCreateStudentImportPlacement({
+                  classes,
+                  sections,
+                  className: imported.className,
+                  sectionName: imported.section ?? "",
+                  instituteId,
+                });
+                classes = ensured.classes;
+                sections = ensured.sections;
+                placement = ensured.placement;
+              } catch (ensureErr) {
+                failed += 1;
+                failures.push(
+                  `${imported.firstName} ${imported.surname}: could not create class/section (${imported.className}${imported.section ? ` / ${imported.section}` : ""}) — ${ensureErr instanceof Error ? ensureErr.message : "unknown error"}`,
+                );
+                continue;
+              }
+            }
             if (!placement) {
               failed += 1;
               failures.push(
