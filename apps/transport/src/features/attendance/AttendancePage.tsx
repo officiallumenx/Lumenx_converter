@@ -1,14 +1,11 @@
 import { useMemo, useState } from "react";
 import {
-  ArrowLeft,
-  Bus,
   ChevronRight,
   Flag,
   LogIn,
   LogOut,
   Play,
   SearchX,
-  Users,
 } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { Tabs, TabsContent, TabsList, TabsTrigger, cn } from "@lumenx/ui";
@@ -19,11 +16,8 @@ import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { FeatureHero } from "@/components/ui/feature-hero";
 import { SearchBar } from "@/components/ui/search-bar";
 import { SectionHeader } from "@/components/ui/section-header";
-import { StatusChip } from "@/components/ui/status-chip";
-import { LocationTrackingBanner } from "@/components/app/location-tracking-banner";
 import { OfflineTripBanner } from "@/components/app/offline-trip-banner";
 import { ROUTES } from "@/constants";
 import { useAttendanceStudents } from "@/hooks/use-attendance-students";
@@ -39,13 +33,11 @@ import {
 import {
   buildTripEndSummary,
   isTripActive,
-  tripPhaseLabel,
   tripRepository,
 } from "@/lib/transport/trip";
-import { MODULE_COLORS } from "@/theme/colors";
 
 import { StudentAttendanceCard } from "./StudentAttendanceCard";
-import { ActiveTripPanel, EndTripSummaryGrid } from "../home/ActiveTripPanel";
+import { EndTripSummaryGrid } from "../home/ActiveTripPanel";
 import { StartTripReadinessDialog } from "../home/StartTripReadinessDialog";
 
 type TabId = "boarding" | "dropping";
@@ -523,9 +515,6 @@ export function AttendancePage() {
 
   const renderEndTripSection = () => (
     <div className="space-y-2 border-t border-border/80 pt-3">
-      <p className="text-sm text-muted-foreground">
-        Review the end-of-trip summary before confirming. Marks sync to Admin and Connect.
-      </p>
       <Button
         type="button"
         variant="transport"
@@ -583,78 +572,50 @@ export function AttendancePage() {
 
   const stops = session.assignment.route.stops;
   const canAdvance = session.currentStopIndex < Math.max(stops.length - 1, 0) && stops.length > 1;
+  const stopLabel =
+    tab === "boarding"
+      ? (currentStop?.name ?? "Current stop")
+      : (destinationStop?.name ?? "Destination");
+  const stopHint =
+    tab === "boarding"
+      ? "Tap = Boarded · Hold = Not boarded"
+      : "Tap = Dropped · Hold = Not dropped";
 
   return (
     <DriverAssignmentGate assignment={assignment} allowEmptyStudents={false}>
-      <div className="min-w-0 space-y-4">
+      <div className="min-w-0 space-y-3">
         <div className="sr-only" aria-live="polite" aria-atomic="true">
           {liveMessage}
         </div>
 
         <div className="flex items-start justify-between gap-3">
-          <SectionHeader
-            as="h1"
-            size="page"
-            title="Attendance"
-            subtitle={`${session.assignment.route.code} · ${session.assignment.bus.label}`}
-          />
-          <StatusChip label={tripPhaseLabel(session.phase)} tone="success" className="mt-1 shrink-0" />
+          <div className="min-w-0">
+            <h1 className="font-display text-xl font-semibold tracking-tight text-foreground">
+              Attendance
+            </h1>
+            <p className="mt-0.5 truncate text-sm text-muted-foreground">
+              {stopLabel}
+              <span className="text-muted-foreground/80"> · {stopHint}</span>
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {canAdvance ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                loading={advancing}
+                disabled={advancing}
+                onClick={handleAdvanceStop}
+              >
+                Next stop
+                <ChevronRight className="size-4" aria-hidden />
+              </Button>
+            ) : null}
+          </div>
         </div>
 
         <OfflineTripBanner />
-        <LocationTrackingBanner />
-
-        <ActiveTripPanel
-          session={session}
-          boarded={countBoarding(students, "boarded")}
-          dropped={countDropping(students, "dropped")}
-          totalStudents={students.length}
-          endingTrip={endingTrip}
-          onEndTrip={() => setEndTripOpen(true)}
-        />
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="-ml-2"
-            onClick={() => void navigate({ to: ROUTES.home })}
-          >
-            <ArrowLeft aria-hidden />
-            Back to Home
-          </Button>
-          {canAdvance ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              loading={advancing}
-              disabled={advancing}
-              onClick={handleAdvanceStop}
-            >
-              Next stop
-              <ChevronRight className="size-4" aria-hidden />
-            </Button>
-          ) : null}
-        </div>
-
-        <FeatureHero
-          icon={Bus}
-          moduleColor={MODULE_COLORS.success}
-          title={tab === "boarding" ? currentStop?.name ?? "Current stop" : destinationStop?.name ?? "Destination"}
-          subtitle={
-            tab === "boarding"
-              ? "Tap student = Boarded · Hold = Not boarded"
-              : "Tap student = Dropped · Hold = Not dropped"
-          }
-          action={
-            <div className="flex shrink-0 items-center gap-1.5 rounded-xl bg-card/90 px-2.5 py-1.5 text-xs font-semibold text-foreground shadow-soft">
-              <Users className="size-3.5 text-muted-foreground" aria-hidden />
-              <span aria-label={`${filtered.length} students`}>{filtered.length}</span>
-            </div>
-          }
-        />
 
         <Tabs
           value={tab}
@@ -664,7 +625,7 @@ export function AttendancePage() {
               syncPhaseFromTab(value);
             }
           }}
-          className="min-w-0 space-y-4"
+          className="min-w-0 space-y-3"
         >
           <TabsList className="h-12 w-full rounded-2xl border border-border bg-muted/60 p-1">
             <TabsTrigger
@@ -711,7 +672,7 @@ export function AttendancePage() {
             value={query}
             onChange={setQuery}
             label="Search students"
-            placeholder="Search students, stop, or roll…"
+            placeholder="Search name or roll…"
           />
 
           <TabsContent value="boarding" className="mt-0 space-y-3 outline-none">

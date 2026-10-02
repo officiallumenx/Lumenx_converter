@@ -39,6 +39,18 @@ function emit() {
   listeners.forEach((listener) => listener());
 }
 
+function replaceStudent(
+  id: string,
+  updater: (current: AttendanceStudentState) => AttendanceStudentState,
+): AttendanceStudentState | null {
+  const index = students.findIndex((s) => s.id === id);
+  if (index < 0) return null;
+  const next = updater(students[index]!);
+  students = students.map((s, i) => (i === index ? next : s));
+  emit();
+  return next;
+}
+
 /** Bind attendance roster to the logged-in driver's vehicle. */
 export function setAttendanceVehicleScope(vehicleId: string | null): void {
   if (activeVehicleId === vehicleId) return;
@@ -81,36 +93,103 @@ export function resetAttendanceStore() {
 export type AttendanceActionResult = {
   ok: boolean;
   reason?: string;
-  code?: "not_found" | "invalid" | "confirm_required";
+  code?: "not_found" | "invalid" | "confirm_required" | "finalized";
   student?: AttendanceStudentState | null;
 };
 
-/** @deprecated Local shared-bridge marks removed — use API hydrate. */
-export function markBoardingInStore(
-  _id: string,
-  _status: BoardingStatus,
-  _options?: { confirmChange?: boolean },
+/** Instant local boarding mark — UI updates before the API round-trip. */
+export function applyLocalBoarding(
+  id: string,
+  status: BoardingStatus,
 ): AttendanceActionResult {
-  return {
-    ok: false,
-    reason: "Use attendance API mark path.",
-    code: "invalid",
-    student: null,
-  };
+  const now = new Date().toISOString();
+  const student = replaceStudent(id, (current) => {
+    if (status === "boarded") {
+      return {
+        ...current,
+        boarding: "boarded",
+        boardedAt: now,
+      };
+    }
+    if (status === "not_boarded") {
+      return {
+        ...current,
+        boarding: "not_boarded",
+        boardedAt: null,
+        dropping: "pending",
+        droppedAt: null,
+      };
+    }
+    return {
+      ...current,
+      boarding: "pending",
+      boardedAt: null,
+      dropping: "pending",
+      droppedAt: null,
+    };
+  });
+
+  if (!student) {
+    return { ok: false, reason: "Student not found.", code: "not_found", student: null };
+  }
+  return { ok: true, student };
 }
 
-/** @deprecated Local shared-bridge marks removed — use API hydrate. */
-export function markDroppingInStore(
-  _id: string,
-  _status: DroppingStatus,
+/** Instant local dropping mark — UI updates before the API round-trip. */
+export function applyLocalDropping(
+  id: string,
+  status: DroppingStatus,
+): AttendanceActionResult {
+  const now = new Date().toISOString();
+  const student = replaceStudent(id, (current) => {
+    if (status === "dropped") {
+      return {
+        ...current,
+        dropping: "dropped",
+        droppedAt: now,
+      };
+    }
+    if (status === "not_dropped") {
+      return {
+        ...current,
+        dropping: "not_dropped",
+        droppedAt: null,
+      };
+    }
+    return {
+      ...current,
+      dropping: "pending",
+      droppedAt: null,
+    };
+  });
+
+  if (!student) {
+    return { ok: false, reason: "Student not found.", code: "not_found", student: null };
+  }
+  return { ok: true, student };
+}
+
+/** Restore a prior student row after a failed API sync. */
+export function restoreAttendanceStudent(previous: AttendanceStudentState): void {
+  replaceStudent(previous.id, () => ({ ...previous }));
+}
+
+/** @deprecated Prefer applyLocalBoarding. */
+export function markBoardingInStore(
+  id: string,
+  status: BoardingStatus,
   _options?: { confirmChange?: boolean },
 ): AttendanceActionResult {
-  return {
-    ok: false,
-    reason: "Use attendance API mark path.",
-    code: "invalid",
-    student: null,
-  };
+  return applyLocalBoarding(id, status);
+}
+
+/** @deprecated Prefer applyLocalDropping. */
+export function markDroppingInStore(
+  id: string,
+  status: DroppingStatus,
+  _options?: { confirmChange?: boolean },
+): AttendanceActionResult {
+  return applyLocalDropping(id, status);
 }
 
 /** No shared localStorage finalize — boarding events live on the API. */
@@ -144,8 +223,6 @@ export async function hydrateAttendanceFromApi(): Promise<void> {
     });
     emit();
   } catch {
-    // Keep the seeded roster visible even if boarding events fail to load.
-    students = createRosterBase();
-    emit();
+    // Keep whatever is already on screen (including optimistic marks).
   }
 }

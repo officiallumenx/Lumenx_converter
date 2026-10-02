@@ -3,23 +3,75 @@ import {
   markDroppingViaApi,
 } from "../trip/api-ops";
 import type { BoardingStatus, DroppingStatus } from "../types";
-import { repositoryDelay } from "../utils";
 import { getTripSessionSnapshot } from "../trip/store";
 import {
-  finalizeAttendanceForActiveTrip,
+  applyLocalBoarding,
+  applyLocalDropping,
   getAttendanceSnapshot,
   hydrateAttendanceFromApi,
   resetAttendanceStore,
+  restoreAttendanceStudent,
+  finalizeAttendanceForActiveTrip,
   subscribeAttendanceStore,
   type AttendanceActionResult,
 } from "./store";
+
+function notifySyncFailed() {
+  if (typeof window === "undefined") return;
+  void import("sonner").then(({ toast }) => {
+    toast.error("Could not save mark", {
+      description: "Check internet and tap the student again.",
+    });
+  });
+}
+
+function syncBoardingInBackground(
+  tripId: string,
+  studentId: string,
+  stopId: string,
+  status: BoardingStatus,
+  previous: NonNullable<ReturnType<typeof getAttendanceSnapshot>[number]>,
+) {
+  void markBoardingViaApi(tripId, {
+    studentId,
+    stopId,
+    boardingStatus: status,
+  })
+    .then(() => {
+      void hydrateAttendanceFromApi();
+    })
+    .catch(() => {
+      restoreAttendanceStudent(previous);
+      notifySyncFailed();
+    });
+}
+
+function syncDroppingInBackground(
+  tripId: string,
+  studentId: string,
+  stopId: string,
+  status: DroppingStatus,
+  previous: NonNullable<ReturnType<typeof getAttendanceSnapshot>[number]>,
+) {
+  void markDroppingViaApi(tripId, {
+    studentId,
+    stopId,
+    droppingStatus: status,
+  })
+    .then(() => {
+      void hydrateAttendanceFromApi();
+    })
+    .catch(() => {
+      restoreAttendanceStudent(previous);
+      notifySyncFailed();
+    });
+}
 
 export const attendanceRepository = {
   subscribe: subscribeAttendanceStore,
   getSnapshot: getAttendanceSnapshot,
 
   async list() {
-    await repositoryDelay();
     return getAttendanceSnapshot();
   },
 
@@ -28,10 +80,9 @@ export const attendanceRepository = {
     status: BoardingStatus,
     _options?: { confirmChange?: boolean },
   ): Promise<AttendanceActionResult> {
-    await repositoryDelay(40);
     const trip = getTripSessionSnapshot();
-    const student = getAttendanceSnapshot().find((s) => s.id === id);
-    if (!trip.tripId || !student) {
+    const previous = getAttendanceSnapshot().find((s) => s.id === id) ?? null;
+    if (!trip.tripId || !previous) {
       return { ok: false, reason: "No active trip or student.", code: "invalid" };
     }
     const stops = trip.assignment.route.stops;
@@ -39,16 +90,18 @@ export const attendanceRepository = {
     if (!stop) {
       return { ok: false, reason: "No stop context.", code: "invalid" };
     }
-    await markBoardingViaApi(trip.tripId, {
-      studentId: id,
-      stopId: student.stopId ?? stop.id,
-      boardingStatus: status,
-    });
-    await hydrateAttendanceFromApi();
-    return {
-      ok: true,
-      student: getAttendanceSnapshot().find((s) => s.id === id) ?? null,
-    };
+
+    const local = applyLocalBoarding(id, status);
+    if (!local.ok) return local;
+
+    syncBoardingInBackground(
+      trip.tripId,
+      id,
+      previous.stopId ?? stop.id,
+      status,
+      previous,
+    );
+    return local;
   },
 
   async markDropping(
@@ -56,26 +109,27 @@ export const attendanceRepository = {
     status: DroppingStatus,
     _options?: { confirmChange?: boolean },
   ): Promise<AttendanceActionResult> {
-    await repositoryDelay(40);
     const trip = getTripSessionSnapshot();
-    const student = getAttendanceSnapshot().find((s) => s.id === id);
-    if (!trip.tripId || !student) {
+    const previous = getAttendanceSnapshot().find((s) => s.id === id) ?? null;
+    if (!trip.tripId || !previous) {
       return { ok: false, reason: "No active trip or student.", code: "invalid" };
     }
     const stops = trip.assignment.route.stops;
     const destination =
-      (student.stopId ? stops.find((s) => s.id === student.stopId) : null) ??
+      (previous.stopId ? stops.find((s) => s.id === previous.stopId) : null) ??
       stops[stops.length - 1];
-    await markDroppingViaApi(trip.tripId, {
-      studentId: id,
-      stopId: destination?.id ?? student.stopId ?? "",
-      droppingStatus: status,
-    });
-    await hydrateAttendanceFromApi();
-    return {
-      ok: true,
-      student: getAttendanceSnapshot().find((s) => s.id === id) ?? null,
-    };
+
+    const local = applyLocalDropping(id, status);
+    if (!local.ok) return local;
+
+    syncDroppingInBackground(
+      trip.tripId,
+      id,
+      destination?.id ?? previous.stopId ?? "",
+      status,
+      previous,
+    );
+    return local;
   },
 
   async hydrateFromApi() {
