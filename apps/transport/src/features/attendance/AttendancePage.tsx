@@ -576,43 +576,37 @@ export function AttendancePage() {
     tab === "boarding"
       ? (currentStop?.name ?? "Current stop")
       : (destinationStop?.name ?? "Destination");
-  const stopHint =
-    tab === "boarding"
-      ? "Tap = Boarded · Hold = Not boarded"
-      : "Tap = Dropped · Hold = Not dropped";
 
+  // Marking-only layout: no Active trip / SOS / FeatureHero / GPS-on banner.
+  // Those stay on Home. This screen is Boarding → Dropping → students.
   return (
     <DriverAssignmentGate assignment={assignment} allowEmptyStudents={false}>
-      <div className="min-w-0 space-y-3">
+      <div className="min-w-0 space-y-3" data-attendance-layout="marking-only">
         <div className="sr-only" aria-live="polite" aria-atomic="true">
           {liveMessage}
         </div>
 
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <h1 className="font-display text-xl font-semibold tracking-tight text-foreground">
               Attendance
             </h1>
-            <p className="mt-0.5 truncate text-sm text-muted-foreground">
-              {stopLabel}
-              <span className="text-muted-foreground/80"> · {stopHint}</span>
-            </p>
+            <p className="truncate text-sm text-muted-foreground">{stopLabel}</p>
           </div>
-          <div className="flex shrink-0 items-center gap-1.5">
-            {canAdvance ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                loading={advancing}
-                disabled={advancing}
-                onClick={handleAdvanceStop}
-              >
-                Next stop
-                <ChevronRight className="size-4" aria-hidden />
-              </Button>
-            ) : null}
-          </div>
+          {canAdvance ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              loading={advancing}
+              disabled={advancing}
+              onClick={handleAdvanceStop}
+            >
+              Next stop
+              <ChevronRight className="size-4" aria-hidden />
+            </Button>
+          ) : null}
         </div>
 
         <OfflineTripBanner />
