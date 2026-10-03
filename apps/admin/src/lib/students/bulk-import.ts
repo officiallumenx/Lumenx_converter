@@ -31,36 +31,79 @@ export type StudentImportClassOption = {
   sectionLabels: string[];
 };
 
-function findClass(
+function classMatchesLabel(cls: ClassDto, className: string): boolean {
+  const key = classIdentityKey(className);
+  if (key) {
+    const left =
+      classIdentityKey(cls.name ?? "") || classIdentityKey(cls.code ?? "");
+    if (left === key) return true;
+  }
+  const n = norm(className);
+  if ([cls.name, cls.code].some((v) => v && norm(v) === n)) return true;
+  return (
+    norm(cls.name).includes(n) ||
+    norm(cls.code).includes(n) ||
+    n.includes(norm(cls.name)) ||
+    n.includes(norm(cls.code))
+  );
+}
+
+/** All active catalog rows that match a class label (duplicate Grade 8 / Class 8 siblings). */
+function findClassCandidates(
   classes: ClassDto[],
   className: string,
-): ClassDto | undefined {
+): ClassDto[] {
   const active = classes.filter((c) => c.status === "active");
   const key = classIdentityKey(className);
   if (key) {
-    const byIdentity = active.find((c) => {
+    const byIdentity = active.filter((c) => {
       const left =
         classIdentityKey(c.name ?? "") || classIdentityKey(c.code ?? "");
       return left === key;
     });
-    if (byIdentity) return byIdentity;
+    if (byIdentity.length > 0) return byIdentity;
   }
+  return active.filter((c) => classMatchesLabel(c, className));
+}
 
-  return (
-    active.find((c) => {
-      const n = norm(className);
-      return [c.name, c.code].some((v) => v && norm(v) === n);
-    }) ??
-    active.find((c) => {
-      const n = norm(className);
-      return (
-        norm(c.name).includes(n) ||
-        norm(c.code).includes(n) ||
-        n.includes(norm(c.name)) ||
-        n.includes(norm(c.code))
-      );
-    })
+function findClass(
+  classes: ClassDto[],
+  className: string,
+): ClassDto | undefined {
+  return findClassCandidates(classes, className)[0];
+}
+
+/**
+ * Prefer the sibling class that already owns the section; otherwise the row
+ * with the most sections (same preference as Admin class-option merge).
+ */
+function pickPreferredClass(
+  candidates: ClassDto[],
+  sections: SectionDto[],
+  sectionName: string,
+  academicYearId?: string | null,
+): ClassDto | undefined {
+  if (candidates.length === 0) return undefined;
+  const yearFiltered = academicYearId
+    ? candidates.filter((c) => c.academicYearId === academicYearId)
+    : [];
+  const pool = yearFiltered.length > 0 ? yearFiltered : candidates;
+
+  const withSection = pool.find((cls) =>
+    Boolean(findSection(sections, cls.id, sectionName)),
   );
+  if (withSection) return withSection;
+
+  return pool.slice().sort((a, b) => {
+    const aCount = sections.filter(
+      (s) => s.classId === a.id && s.status === "active",
+    ).length;
+    const bCount = sections.filter(
+      (s) => s.classId === b.id && s.status === "active",
+    ).length;
+    if (bCount !== aCount) return bCount - aCount;
+    return (a.name || a.code).localeCompare(b.name || b.code);
+  })[0];
 }
 
 function findSection(
@@ -143,7 +186,11 @@ export function resolveStudentImportPlacement(
   className: string,
   sectionName: string,
 ): StudentImportPlacement | null {
-  const cls = findClass(classes, className);
+  const candidates = findClassCandidates(classes, className);
+  if (candidates.length === 0) return null;
+
+  // Search every sibling Class 8 / Grade 8 row — UI merges them; import must too.
+  const cls = pickPreferredClass(candidates, sections, sectionName);
   if (!cls) return null;
 
   const section = findSection(sections, cls.id, sectionName);
@@ -215,12 +262,15 @@ export async function resolveOrCreateStudentImportPlacement(input: {
     input.sectionName.trim().toUpperCase() ||
     "A";
 
-  // Prefer the class row for the target academic year (avoids attaching to a stale year).
+  // Prefer sibling that already has the section, else richest class in the active year.
   let cls =
-    findClass(
-      classes.filter((c) => c.academicYearId === academicYearId),
-      classLabel,
-    ) ?? findClass(classes, classLabel);
+    pickPreferredClass(
+      findClassCandidates(classes, classLabel),
+      sections,
+      sectionCode,
+      academicYearId,
+    ) ?? undefined;
+
   if (!cls) {
     cls = await createClass({
       instituteId: input.instituteId,

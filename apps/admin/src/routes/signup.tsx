@@ -655,7 +655,6 @@ function SignUpPage() {
   const [maskedOtpDest, setMaskedOtpDest] = useState("");
   const [devSignupOtp, setDevSignupOtp] = useState<string | undefined>();
   const [mobileGrant, setMobileGrant] = useState("");
-  const [emailGrant, setEmailGrant] = useState("");
   const [verifyError, setVerifyError] = useState<string | null>(null);
 
   /* ─ form state ─ */
@@ -746,6 +745,14 @@ function SignUpPage() {
     }
   };
 
+  const proceedToSecurityAfterMobile = () => {
+    setSignupOtp("");
+    setDevSignupOtp(undefined);
+    setVerifyChannel("mobile");
+    setStep(securityStep);
+    scrollTop();
+  };
+
   const handleVerifyOtpContinue = async (code?: string) => {
     const otpValue = (code ?? signupOtp).replace(/\D/g, "").slice(0, 6);
     if (otpValue.length !== 6) {
@@ -764,25 +771,43 @@ function SignUpPage() {
           apiBaseUrl,
         });
         setMobileGrant(verified.grant);
-        const emailSent = await requestSignupOtp({
-          subjectKey,
-          channel: "email",
-          destination: s2.email.trim().toLowerCase(),
-          apiBaseUrl,
-        });
-        setMaskedOtpDest(emailSent.maskedDestination);
-        setDevSignupOtp(emailSent.devOtp);
-        setSignupOtp("");
-        setVerifyChannel("email");
-        return;
+        // Email OTP is optional until OTP_EMAIL_PROVIDER=resend|webhook is live.
+        try {
+          const emailSent = await requestSignupOtp({
+            subjectKey,
+            channel: "email",
+            destination: s2.email.trim().toLowerCase(),
+            apiBaseUrl,
+          });
+          if (emailSent.skipped) {
+            proceedToSecurityAfterMobile();
+            return;
+          }
+          setMaskedOtpDest(emailSent.maskedDestination);
+          setDevSignupOtp(emailSent.devOtp);
+          setSignupOtp("");
+          setVerifyChannel("email");
+          return;
+        } catch (emailErr) {
+          const msg =
+            emailErr instanceof Error ? emailErr.message : String(emailErr);
+          if (
+            /OTP_EMAIL_PROVIDER|Email OTP is not configured|Live OTP email/i.test(
+              msg,
+            )
+          ) {
+            proceedToSecurityAfterMobile();
+            return;
+          }
+          throw emailErr;
+        }
       }
-      const verified = await verifySignupOtp({
+      await verifySignupOtp({
         subjectKey,
         channel: "email",
         otp: otpValue,
         apiBaseUrl,
       });
-      setEmailGrant(verified.grant);
       setStep(securityStep);
       scrollTop();
     } catch (reason) {
@@ -802,11 +827,6 @@ function SignUpPage() {
     if (submittingRef.current) return;
     if (apiMode && !mobileGrant) {
       setVerifyError("Verify mobile OTP before creating the account.");
-      setStep(verifyStep);
-      return;
-    }
-    if (apiMode && !emailGrant) {
-      setVerifyError("Verify mobile and email OTP before creating the account.");
       setStep(verifyStep);
       return;
     }

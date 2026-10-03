@@ -7,7 +7,13 @@ export async function requestSignupOtp(input: {
   channel: "email" | "mobile";
   destination: string;
   apiBaseUrl: string;
-}): Promise<{ maskedDestination: string; channel: "email" | "mobile"; devOtp?: string }> {
+}): Promise<{
+  maskedDestination: string;
+  channel: "email" | "mobile";
+  skipped?: boolean;
+  reason?: string;
+  devOtp?: string;
+}> {
   const res = await fetch(`${input.apiBaseUrl.replace(/\/$/, "")}/api/v1/auth/signup/request-otp`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -18,7 +24,13 @@ export async function requestSignupOtp(input: {
     }),
   });
   const json = (await res.json().catch(() => ({}))) as {
-    data?: { maskedDestination: string; channel: "email" | "mobile"; devOtp?: string };
+    data?: {
+      maskedDestination: string;
+      channel: "email" | "mobile";
+      skipped?: boolean;
+      reason?: string;
+      devOtp?: string;
+    };
     error?: { message?: string };
   };
   if (!res.ok || !json.data) {

@@ -5,13 +5,18 @@
 
 import { createHash, randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { loadEnv } from "../../config/env.js";
 import { AppError } from "../../errors/app-error.js";
-import { deliverLoginOtp } from "../otp-delivery/index.js";
+import { deliverLoginOtp, isOtpDemoMode } from "../otp-delivery/index.js";
 import {
   assertValidPin,
   upsertUserAuthCredential,
 } from "./repository.js";
-import { storeWorkflowOtp, verifyWorkflowOtp } from "./workflow-otp.js";
+import {
+  maskWorkflowDestination,
+  storeWorkflowOtp,
+  verifyWorkflowOtp,
+} from "./workflow-otp.js";
 
 function normalizePhoneDigits(value: string): string {
   return value.replace(/\D/g, "").slice(-10);
@@ -53,6 +58,20 @@ export async function requestSignupVerifyOtp(
     });
   }
 
+  // Live email OTP needs Resend/webhook. Skip cleanly so signup can continue
+  // with mobile verification only (same policy as staff login).
+  if (input.channel === "email") {
+    const env = loadEnv();
+    if (!isOtpDemoMode(env) && env.OTP_EMAIL_PROVIDER === "none") {
+      return {
+        maskedDestination: maskWorkflowDestination(destination, "email"),
+        channel: "email" as const,
+        skipped: true as const,
+        reason: "email_provider_unconfigured" as const,
+      };
+    }
+  }
+
   const stored = await storeWorkflowOtp(admin, {
     purpose: "signup_verify",
     challengeKey: `signup:${input.channel}:${subjectId}`,
@@ -74,6 +93,7 @@ export async function requestSignupVerifyOtp(
   return {
     maskedDestination: stored.maskedDestination,
     channel: input.channel,
+    skipped: false as const,
     devOtp: stored.devOtp,
   };
 }
