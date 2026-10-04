@@ -28,8 +28,13 @@ export function StudentIdCardPage() {
   const sync = useStudentIdCardSync();
   const [qrOpen, setQrOpen] = useState(false);
 
-  if (!portal.isStudent) return <PageSkeleton rows={5} />;
-  if (portal.isLoading || !portal.snapshot) return <PageSkeleton rows={5} />;
+  if (!portal.isStudent) return null;
+  if (portal.isLoading && !portal.snapshot) return <PageSkeleton rows={5} />;
+  if (!portal.snapshot) {
+    return (
+      <p className="text-sm text-muted-foreground">ID card unavailable.</p>
+    );
+  }
 
   const profile = portal.snapshot.profile;
   const lookupId = resolveCanonicalStudentId(profile.id);

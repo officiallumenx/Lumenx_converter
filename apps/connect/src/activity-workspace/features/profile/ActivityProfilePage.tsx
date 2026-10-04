@@ -63,13 +63,19 @@ export function ActivityProfilePage({ initialSection }: { initialSection?: Profi
   }, [initialSection]);
 
   if (!portal.isTeacher || !user) {
+    return null;
+  }
+  const cachedProfile = "profile" in portal ? portal.profile : null;
+  if (portal.isLoading && !cachedProfile) {
     return <PageSkeleton variant="page" rows={4} />;
   }
-  if (portal.isLoading || !("profile" in portal) || !portal.profile) {
-    return <PageSkeleton variant="page" rows={4} />;
+  if (!cachedProfile) {
+    return (
+      <p className="text-sm text-muted-foreground">Profile unavailable.</p>
+    );
   }
 
-  const profile = portal.profile;
+  const profile = cachedProfile;
 
   const savePrefs = async () => {
     if (!prefs) return;

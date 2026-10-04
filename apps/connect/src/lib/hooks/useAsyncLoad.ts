@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
   type DependencyList,
 } from "react";
@@ -19,6 +20,7 @@ type UseAsyncLoadOptions<T> = {
 
 /**
  * Cancel-safe async load with loading flag. Re-runs when `deps` change.
+ * Soft-refresh / remount reloads keep prior data visible (no skeleton flash).
  */
 export function useAsyncLoad<T>(
   loader: () => Promise<T>,
@@ -35,6 +37,7 @@ export function useAsyncLoad<T>(
   const [data, setData] = useState<T>(initial);
   const [loading, setLoading] = useState(initialLoading);
   const [reloadToken, setReloadToken] = useReloadKey();
+  const hasLoadedRef = useRef(false);
 
   const reload = useCallback(() => {
     setReloadToken((n) => n + 1);
@@ -46,16 +49,21 @@ export function useAsyncLoad<T>(
       return;
     }
     let cancelled = false;
-    setLoading(true);
+    // Skeleton only on first load — background refresh when we already have data.
+    if (!hasLoadedRef.current) {
+      setLoading(true);
+    }
     void loader()
       .then((value) => {
         if (!cancelled) {
+          hasLoadedRef.current = true;
           setData(value);
           setLoading(false);
         }
       })
       .catch(() => {
         if (!cancelled) {
+          hasLoadedRef.current = true;
           setData(fallbackOnError);
           setLoading(false);
         }

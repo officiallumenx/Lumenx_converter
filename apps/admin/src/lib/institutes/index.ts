@@ -23,6 +23,7 @@ export {
   chooseActiveInstitute,
   createOptimisticApiInstituteState,
   useInstituteContext,
+  useActiveInstituteId,
   InstituteContextProvider,
   type InstituteContextState,
   type InstituteContextStatus,

@@ -13,6 +13,7 @@ import { isInstituteUuid } from "@/lib/institute-id";
 import { loadStudentPortalSnapshot } from "@/lib/students";
 import { studentRepository } from "@/lib/student/repositories";
 import { connectQueryKeys } from "@/lib/connect-queries";
+import { prefetchStudentModuleQueries } from "@/lib/connect-queries/prefetch-student";
 import type { StudentSnapshot } from "@/lib/student/types";
 
 /** Flat shape so consumers can read fields without brittle discriminant narrowing. */
@@ -64,6 +65,13 @@ export function StudentPortalRegistry({ children }: { children: ReactNode }) {
 
   const snapshot = query.data ?? null;
   const isLoading = isStudent && canRun && query.isLoading && !snapshot;
+
+  useEffect(() => {
+    if (!isStudent || !snapshot || !activeInstituteId) return;
+    const studentId = snapshot.profile.id;
+    if (!isInstituteUuid(activeInstituteId) || !isInstituteUuid(studentId)) return;
+    prefetchStudentModuleQueries(queryClient, activeInstituteId, studentId);
+  }, [isStudent, snapshot, activeInstituteId, queryClient]);
 
   const value = useMemo<StudentPortalState>(() => {
     if (!isStudent) {

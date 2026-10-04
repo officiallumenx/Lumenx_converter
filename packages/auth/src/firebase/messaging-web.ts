@@ -95,7 +95,14 @@ export async function bootstrapWebFcm(input: {
   if (typeof window === "undefined") return () => undefined;
 
   const vapidKey = readVapidKey();
-  if (!vapidKey) return () => undefined;
+  if (!vapidKey) {
+    if (typeof console !== "undefined" && typeof console.info === "function") {
+      console.info(
+        "[lumenx] Web FCM skipped: VITE_FIREBASE_VAPID_KEY is not set",
+      );
+    }
+    return () => undefined;
+  }
 
   const messaging = await getFirebaseMessaging(input.source);
   if (!messaging) return () => undefined;

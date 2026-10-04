@@ -31,4 +31,16 @@ describe("data-refresh", () => {
     expect(getDataRefreshGeneration()).toBe(before + 1);
     expect(getDataRefreshSnapshot().phase).toBe("idle");
   });
+
+  it("auto refresh does not bump generation (background RQ only)", async () => {
+    const before = getDataRefreshGeneration();
+    const p = requestDataRefresh("auto");
+    expect(getDataRefreshGeneration()).toBe(before);
+    expect(getDataRefreshSnapshot().phase).toBe("refreshing");
+    await vi.runAllTimersAsync();
+    await p;
+    expect(getDataRefreshGeneration()).toBe(before);
+    expect(getDataRefreshSnapshot().phase).toBe("idle");
+  });
 });
+

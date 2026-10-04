@@ -10,7 +10,7 @@ describe("data-refresh", () => {
     vi.useFakeTimers();
   });
 
-  it("bumps generation without clearing idle after settle", async () => {
+  it("bumps generation on manual refresh without clearing idle after settle", async () => {
     const before = getDataRefreshGeneration();
     const p = requestDataRefresh("manual");
     expect(getDataRefreshSnapshot().phase).toBe("refreshing");
@@ -21,7 +21,18 @@ describe("data-refresh", () => {
     expect(getDataRefreshGeneration()).toBe(before + 1);
   });
 
-  it("coalesces concurrent refresh calls into one generation bump", async () => {
+  it("does not bump generation on auto refresh", async () => {
+    const before = getDataRefreshGeneration();
+    const p = requestDataRefresh("auto");
+    expect(getDataRefreshSnapshot().phase).toBe("refreshing");
+    expect(getDataRefreshGeneration()).toBe(before);
+    await vi.runAllTimersAsync();
+    await p;
+    expect(getDataRefreshSnapshot().phase).toBe("idle");
+    expect(getDataRefreshGeneration()).toBe(before);
+  });
+
+  it("coalesces concurrent refresh calls into one cycle", async () => {
     const before = getDataRefreshGeneration();
     const a = requestDataRefresh("manual");
     const b = requestDataRefresh("auto");

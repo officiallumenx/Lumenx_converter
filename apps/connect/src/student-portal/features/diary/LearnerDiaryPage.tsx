@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { BookOpen } from "lucide-react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { SectionCard } from "@/components/app/SectionCard";
@@ -7,7 +7,7 @@ import { useApp } from "@/lib/app-state";
 import { useStudentPortal } from "@/context/StudentPortalContext";
 import { useParentPortal } from "@/context/ParentPortalContext";
 import { isApiAuthMode } from "@/auth/auth-mode";
-import { listDiaryDays } from "@/lib/diary/api";
+import { useLearnerDiaryQuery } from "@/lib/connect-queries/hooks";
 import type { DiaryDayDto } from "@/lib/diary/types";
 import { Badge } from "@lumenx/ui";
 
@@ -44,9 +44,7 @@ export function LearnerDiaryPage({ readOnlyParent = false }: LearnerDiaryPagePro
   const { activeInstituteId, role } = useApp();
   const studentPortal = useStudentPortal();
   const parentPortal = useParentPortal();
-  const [days, setDays] = useState<DiaryDayDto[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const apiMode = isApiAuthMode();
 
   const childName = useMemo(() => {
     if (readOnlyParent && parentPortal.snapshot) return parentPortal.snapshot.child.name;
@@ -58,58 +56,25 @@ export function LearnerDiaryPage({ readOnlyParent = false }: LearnerDiaryPagePro
     ? parentPortal.instituteId ?? activeInstituteId
     : activeInstituteId;
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      setLoading(true);
-      setError(null);
-      if (!isApiAuthMode()) {
-        if (!cancelled) {
-          setDays(DEMO_DAYS);
-          setLoading(false);
-        }
-        return;
-      }
-      if (!instituteId) {
-        if (!cancelled) {
-          setDays([]);
-          setError("Select an institute to view class diary.");
-          setLoading(false);
-        }
-        return;
-      }
-      try {
-        const rows = await listDiaryDays({
-          instituteId,
-          submitted: true,
-        });
-        if (!cancelled) {
-          setDays(
-            rows
-              .slice()
-              .sort((a, b) => b.diaryDate.localeCompare(a.diaryDate)),
-          );
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setDays([]);
-          setError(err instanceof Error ? err.message : "Failed to load diary");
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [instituteId]);
+  const diaryQuery = useLearnerDiaryQuery(instituteId, apiMode);
+  const days = apiMode ? (diaryQuery.data ?? []) : DEMO_DAYS;
+  const error =
+    apiMode && diaryQuery.isError
+      ? diaryQuery.error instanceof Error
+        ? diaryQuery.error.message
+        : "Failed to load diary"
+      : apiMode && !instituteId
+        ? "Select an institute to view class diary."
+        : null;
+
+  const portalLoading = readOnlyParent
+    ? parentPortal.isLoading && !parentPortal.snapshot
+    : studentPortal.isLoading && !studentPortal.snapshot;
+  const loading =
+    portalLoading || (apiMode && Boolean(instituteId) && diaryQuery.isLoading && !diaryQuery.data);
 
   if (readOnlyParent && role !== "parent") return null;
   if (!readOnlyParent && role !== "student") return null;
-  if (readOnlyParent && parentPortal.isLoading && !parentPortal.snapshot) {
-    return <PageSkeleton rows={5} />;
-  }
   if (loading) return <PageSkeleton rows={5} />;
 
   return (

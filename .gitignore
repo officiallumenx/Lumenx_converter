@@ -27,6 +27,9 @@ build/
 !.env.example
 *.local
 
+# Firebase Android client configs (drop in locally / CI secrets — do not commit)
+apps/*/android/app/google-services.json
+
 # ─── Logs ───────────────────────────────────────────────────────────────────
 logs/
 *.log

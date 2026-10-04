@@ -49,25 +49,50 @@ function apiStudentToTeacherStudent(row: {
   };
 }
 
+type RosterCacheEntry = {
+  key: string;
+  roster: TeacherStudent[];
+  classNames: string[];
+};
+
+/** Survives remount so class picker does not flash "Loading…" on every open. */
+let rosterCache: RosterCacheEntry | null = null;
+
 /** Add students to a Sports team or ECA group — institute roster filtered by class and section. */
 export function StudentRosterEditor({ students, onChange, unitLabel = "unit" }: Props) {
   const { activeInstituteId } = useApp();
   const apiMode = isApiAuthMode();
+  const cacheKey = apiMode ? `api:${activeInstituteId ?? ""}` : "demo";
+  const cached = rosterCache?.key === cacheKey ? rosterCache : null;
   const [classFilter, setClassFilter] = useState("");
   const [sectionFilter, setSectionFilter] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [classNames, setClassNames] = useState<string[]>([]);
+  const [classNames, setClassNames] = useState<string[]>(() => cached?.classNames ?? []);
   const [sections, setSections] = useState<string[]>([]);
-  const [instituteRoster, setInstituteRoster] = useState<TeacherStudent[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [instituteRoster, setInstituteRoster] = useState<TeacherStudent[]>(
+    () => cached?.roster ?? [],
+  );
+  const [loading, setLoading] = useState(() => !cached);
   const [search, setSearch] = useState("");
 
   useEffect(() => {
+    let cancelled = false;
+    const hit = rosterCache?.key === cacheKey ? rosterCache : null;
+    if (hit) {
+      setClassNames(hit.classNames);
+      setInstituteRoster(hit.roster);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
     void (async () => {
       if (apiMode && activeInstituteId) {
         const rows = await listStudents({ instituteId: activeInstituteId, status: "active" });
+        if (cancelled) return;
         const roster = rows.map(apiStudentToTeacherStudent);
         const classes = [...new Set(roster.map((s) => s.className))].sort();
+        rosterCache = { key: cacheKey, roster, classNames: classes };
         setClassNames(classes);
         setInstituteRoster(roster);
         setLoading(false);
@@ -77,11 +102,17 @@ export function StudentRosterEditor({ students, onChange, unitLabel = "unit" }: 
         teacherRepository.getInstituteClassNames(),
         teacherRepository.getStudents(),
       ]);
+      if (cancelled) return;
+      rosterCache = { key: cacheKey, roster, classNames: classes };
       setClassNames(classes);
       setInstituteRoster(roster);
       setLoading(false);
     })();
-  }, [apiMode, activeInstituteId]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiMode, activeInstituteId, cacheKey]);
 
   useEffect(() => {
     if (!classFilter) {

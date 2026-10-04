@@ -50,7 +50,11 @@ export function getDataRefreshGeneration(): number {
 
 /**
  * Request a soft data refresh. Concurrent calls share one in-flight cycle.
- * UI chrome must not remount — only loaders keyed on generation re-run.
+ * UI chrome must not remount.
+ *
+ * - `"manual"` (pull-to-refresh): bumps generation so imperative loaders re-run.
+ * - `"auto"` (resume/focus): does **not** bump generation — React Query invalidate
+ *   handles background refetch without forcing local loading skeletons.
  */
 export async function requestDataRefresh(
   source: "manual" | "auto" = "manual",
@@ -62,9 +66,12 @@ export async function requestDataRefresh(
     refreshDoneTimer = null;
   }
 
+  const nextGeneration =
+    source === "manual" ? snapshot.generation + 1 : snapshot.generation;
+
   setSnapshot({
     ...snapshot,
-    generation: snapshot.generation + 1,
+    generation: nextGeneration,
     phase: "refreshing",
     source,
   });

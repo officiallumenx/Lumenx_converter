@@ -90,8 +90,8 @@ export function StudentNotificationsPage() {
   }, [all]);
 
   if (!portal.isStudent && !apiMode) return null;
-  if (!apiMode && portal.isLoading) return <PageSkeleton rows={6} />;
-  if (apiMode && apiInbox.loading) return <PageSkeleton rows={6} />;
+  if (!apiMode && portal.isLoading && !portal.snapshot) return <PageSkeleton rows={6} />;
+  if (apiMode && apiInbox.loading && all.length === 0) return <PageSkeleton rows={6} />;
 
   const unread = all.filter((n) => n.unread).length;
   const list = filterStudentNotifications(all, filter);

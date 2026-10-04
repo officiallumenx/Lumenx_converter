@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Button,
   Card,
@@ -8,8 +8,9 @@ import {
   TextArea,
 } from "@lumenx/ui-admin";
 import { Check, ClipboardList, X } from "lucide-react";
-import { subscribeTransportRealtime } from "@lumenx/utils";
-import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { useQueryClient } from "@tanstack/react-query";
+import { useTransportReviewQueueQuery } from "@/lib/admin-queries";
+import { adminQueryKeys } from "@/lib/admin-queries/keys";
 import {
   approveTransportEnrollment,
   approveTransportRoute,
@@ -18,7 +19,7 @@ import {
   rejectTransportRoute,
   rejectTransportStop,
 } from "@/lib/transport/approval-mutations";
-import { listTransportReviewQueue } from "@/lib/transport/approval-api";
+import { useTransportRealtimeInvalidate } from "@/lib/transport/use-transport-realtime-invalidate";
 import type { TransportReviewQueueItem } from "@/lib/transport/types";
 
 type Props = {
@@ -42,45 +43,15 @@ export function TransportApprovalApiPanel({
   writesEnabled = true,
   onNotify,
 }: Props) {
-  const [items, setItems] = useState<TransportReviewQueueItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const queueQuery = useTransportReviewQueueQuery(instituteId);
+  useTransportRealtimeInvalidate(instituteId);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rejectReasonById, setRejectReasonById] = useState<Record<string, string>>(
     {},
   );
 
-  const reload = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await listTransportReviewQueue({ instituteId });
-      setItems(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load review queue");
-    } finally {
-      setLoading(false);
-    }
-  }, [instituteId]);
-
-  useEffect(() => {
-    void reload();
-  }, [reload]);
-
-  useEffect(() => {
-    try {
-      const supabase = getSupabaseBrowserClient();
-      return subscribeTransportRealtime(supabase, {
-        instituteId,
-        onChange: () => {
-          void reload();
-        },
-      });
-    } catch {
-      return undefined;
-    }
-  }, [instituteId, reload]);
-
+  const items = queueQuery.data ?? [];
   const sorted = useMemo(
     () =>
       [...items].sort((a, b) =>
@@ -88,6 +59,11 @@ export function TransportApprovalApiPanel({
       ),
     [items],
   );
+
+  const refresh = () =>
+    queryClient.invalidateQueries({
+      queryKey: adminQueryKeys.transport(instituteId, "review-queue"),
+    });
 
   async function handleApprove(item: TransportReviewQueueItem) {
     if (!writesEnabled) return;
@@ -98,7 +74,7 @@ export function TransportApprovalApiPanel({
       else if (item.kind === "stop") await approveTransportStop(id);
       else await approveTransportEnrollment(id);
       onNotify?.(item.kind === "stop" ? "Stop published" : "Approved");
-      await reload();
+      await refresh();
     } catch (err) {
       onNotify?.(err instanceof Error ? err.message : "Approve failed");
     } finally {
@@ -120,7 +96,7 @@ export function TransportApprovalApiPanel({
       else if (item.kind === "stop") await rejectTransportStop(id, reason);
       else await rejectTransportEnrollment(id, reason);
       onNotify?.("Rejected");
-      await reload();
+      await refresh();
     } catch (err) {
       onNotify?.(err instanceof Error ? err.message : "Reject failed");
     } finally {
@@ -128,7 +104,7 @@ export function TransportApprovalApiPanel({
     }
   }
 
-  if (loading) {
+  if (queueQuery.isLoading && items.length === 0) {
     return (
       <Card>
         <CardHeader title="Publish queue" />
@@ -137,11 +113,15 @@ export function TransportApprovalApiPanel({
     );
   }
 
-  if (error) {
+  if (queueQuery.isError && items.length === 0) {
     return (
       <Card>
         <CardHeader title="Publish queue" />
-        <p className="px-4 pb-4 text-sm text-destructive">{error}</p>
+        <p className="px-4 pb-4 text-sm text-destructive">
+          {queueQuery.error instanceof Error
+            ? queueQuery.error.message
+            : "Failed to load review queue"}
+        </p>
       </Card>
     );
   }

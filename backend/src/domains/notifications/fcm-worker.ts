@@ -34,7 +34,11 @@ function buildFcmData(notification: {
     instituteId: notification.institute_id,
     priority: notification.priority,
   };
-  if (notification.deep_link) data.href = notification.deep_link;
+  const deepLink = notification.deep_link?.trim() ?? "";
+  // Only fan out relative in-app paths (never absolute / scheme URLs).
+  if (deepLink.startsWith("/") && !deepLink.startsWith("//")) {
+    data.href = deepLink;
+  }
   if (notification.payload?.presentation === "alert") {
     data.presentation = "alert";
     data.variant = "alert";

@@ -13,6 +13,8 @@ export function ParentTransportPage() {
   const { activeChildId, activeInstituteId } = useApp();
   const portal = useParentPortal();
   const apiMode = isApiAuthMode();
+  const snap = portal.isParent ? portal.snapshot : null;
+  const studentId = snap?.child.id ?? null;
 
   useEffect(() => {
     if (portal.isParent && !apiMode) {
@@ -20,20 +22,24 @@ export function ParentTransportPage() {
     }
   }, [portal.isParent, activeChildId, apiMode]);
 
-  if (!portal.isParent) {
-    return <PageSkeleton rows={5} />;
-  }
+  if (!portal.isParent) return null;
+  if (portal.isLoading && !snap) return <PageSkeleton rows={5} />;
 
   const activeChild = children.find((c) => c.id === activeChildId) ?? children[0];
-  const snap = portal.snapshot;
   const childName = snap?.child.name ?? activeChild?.name ?? "Your child";
   const classTag =
     snap?.classTag ??
     (activeChild ? `${activeChild.className.replace("Class ", "")}-${activeChild.section}` : "");
-  const studentId = snap?.child.id ?? activeChildId;
   const subtitle = `Track ${childName}'s bus · ${classTag} · pickup alerts & live route`;
 
-  if (apiMode && activeInstituteId && studentId) {
+  if (apiMode) {
+    if (!activeInstituteId || !studentId) {
+      return (
+        <p className="text-sm text-muted-foreground">
+          Transport is unavailable until a child is linked for this institute.
+        </p>
+      );
+    }
     return (
       <LearnerTransportApiView
         instituteId={activeInstituteId}

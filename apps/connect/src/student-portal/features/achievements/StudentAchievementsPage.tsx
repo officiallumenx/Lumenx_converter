@@ -66,7 +66,18 @@ export function StudentAchievementsPage({ readOnlyParent = false }: { readOnlyPa
       />
     );
   }
-  if (!readOnlyParent && (portal.isLoading || !portal.snapshot)) return <PageSkeleton rows={6} />;
+  if (!readOnlyParent && portal.isLoading && !portal.snapshot) {
+    return <PageSkeleton rows={6} />;
+  }
+  if (!readOnlyParent && !portal.snapshot) {
+    return (
+      <EmptyState
+        icon={Trophy}
+        title="Achievements unavailable"
+        description="Student profile is not available yet."
+      />
+    );
+  }
 
   return (
     <div className="min-w-0 space-y-5">

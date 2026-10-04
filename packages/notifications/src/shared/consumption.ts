@@ -89,4 +89,10 @@ export {
   type DevicePlatform,
   type RegisterDeviceTokenFn,
   type InvalidateDeviceTokensFn,
+  type PushBootstrapDiagnostic,
 } from "./push-device-token";
+export {
+  isSafeAppDeepLink,
+  normalizeSafeAppDeepLink,
+  openSafeAppDeepLink,
+} from "./safe-deep-link";

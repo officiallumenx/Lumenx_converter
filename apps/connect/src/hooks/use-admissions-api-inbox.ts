@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useReloadKey } from "@/hooks/useReloadKey";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import type { AdmissionsNotification } from "@/lib/admissions/types";
@@ -47,6 +47,7 @@ export function useAdmissionsApiInbox(applicantId: string | null) {
   const [loading, setLoading] = useState(isApiAuthMode());
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useReloadKey();
+  const itemsLenRef = useRef(0);
 
   const reload = useCallback(() => {
     setReloadKey((k) => k + 1);
@@ -58,13 +59,15 @@ export function useAdmissionsApiInbox(applicantId: string | null) {
       return;
     }
     if (!applicantId) {
+      itemsLenRef.current = 0;
       setItems([]);
       setLoading(false);
       return;
     }
 
     let cancelled = false;
-    setLoading(true);
+    // Keep prior inbox visible while soft-refresh refetches.
+    if (itemsLenRef.current === 0) setLoading(true);
     void listInboxNotifications()
       .then((rows) => {
         if (!cancelled) {
@@ -72,17 +75,18 @@ export function useAdmissionsApiInbox(applicantId: string | null) {
             .filter((row) => row.notification.category === "admissions")
             .map((row) => inboxToAdmissionsNotification(row, applicantId));
           const transient = getTransientParentConfirmationReminders(applicantId);
-          setItems(
-            [...transient, ...admissionsRows].sort((a, b) =>
-              b.createdAt.localeCompare(a.createdAt),
-            ),
+          const next = [...transient, ...admissionsRows].sort((a, b) =>
+            b.createdAt.localeCompare(a.createdAt),
           );
+          itemsLenRef.current = next.length;
+          setItems(next);
           setError(null);
         }
       })
       .catch((err) => {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Failed to load notifications");
+          itemsLenRef.current = 0;
           setItems([]);
         }
       })
@@ -112,5 +116,12 @@ export function useAdmissionsApiInbox(applicantId: string | null) {
     await Promise.all(unread.map((n) => markInboxItemRead(n.id).catch(() => undefined)));
   }, [items]);
 
-  return { items, loading, error, markRead, markAllRead, reload };
+  return {
+    items,
+    loading: loading && items.length === 0,
+    error,
+    markRead,
+    markAllRead,
+    reload,
+  };
 }

@@ -1,5 +1,4 @@
 import { Link } from "@tanstack/react-router";
-import { useEffect } from "react";
 import {
   ClipboardCheck,
   GraduationCap,
@@ -24,7 +23,6 @@ import {
   Badge,
   cn,
 } from "@lumenx/ui";
-import { useApp } from "@/lib/app-state";
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
 import { PageSkeleton } from "@/teacher-portal/shared/ui/PageSkeleton";
 import { EmptyState } from "@/teacher-portal/shared/ui/EmptyState";
@@ -54,34 +52,24 @@ function teacherModuleColor(to: string) {
 
 export function TeacherDashboardPage() {
   const portal = useTeacherPortal();
-  const { activeInstituteId } = useApp();
-
-  const refresh = portal.isTeacher ? portal.refresh : undefined;
-  // Recompute the dashboard from live stores whenever it is (re)entered, so mutations made
-  // on other teacher screens (assignments, exams, messages, complaints) are reflected.
-  useEffect(() => {
-    refresh?.();
-  }, [refresh]);
 
   if (!portal.isTeacher) return null;
 
-  if (portal.isLoading) {
+  // First load only — keep showing cached dashboard while soft-refresh refetches.
+  if (portal.isLoading && !portal.dashboard) {
     return <PageSkeleton rows={5} />;
   }
 
   if (!portal.dashboard) {
-    if (portal.errorMessage) {
-      return (
-        <div className="min-w-0 space-y-4 p-1">
-          <EmptyState
-            icon={AlertCircle}
-            title="Unable to load teacher home"
-            description={portal.errorMessage}
-          />
-        </div>
-      );
-    }
-    return <PageSkeleton rows={5} />;
+    return (
+      <div className="min-w-0 space-y-4 p-1">
+        <EmptyState
+          icon={AlertCircle}
+          title="Unable to load teacher home"
+          description={portal.errorMessage ?? "Teacher dashboard is not available yet."}
+        />
+      </div>
+    );
   }
 
   const { dashboard, profile } = portal;

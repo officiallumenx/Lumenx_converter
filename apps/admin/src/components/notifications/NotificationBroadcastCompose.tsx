@@ -21,6 +21,10 @@ import {
 import { CalendarClock, Send } from "lucide-react";
 import { publishBroadcastNotification } from "@lumenx/notifications";
 import { prependAdminNotification } from "@/lib/notification-center-store";
+import {
+  isSafeAppDeepLink,
+  normalizeSafeAppDeepLink,
+} from "@/lib/notifications/safe-deep-link";
 
 function audienceKindFrom(
   v: BroadcastAudienceValue,
@@ -99,6 +103,13 @@ export function NotificationBroadcastCompose() {
 
   const send = () => {
     if (!canSend) return;
+    const trimmedDeepLink = deepLink.trim();
+    if (trimmedDeepLink && !isSafeAppDeepLink(trimmedDeepLink)) {
+      notify("Deep link must be an in-app path starting with /");
+      return;
+    }
+    const safeHref =
+      normalizeSafeAppDeepLink(trimmedDeepLink, "/notifications") ?? "/notifications";
     const audienceLabel = formatBroadcastAudience(audience);
     const entry: Broadcast = {
       id: String(Date.now()),
@@ -117,7 +128,7 @@ export function NotificationBroadcastCompose() {
       section: audience.section || undefined,
       priority,
       sender: "Admin",
-      href: deepLink.trim() || "/notifications",
+      href: safeHref,
       attachmentName: attachmentName.trim() || null,
       time: entry.time,
     });

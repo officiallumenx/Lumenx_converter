@@ -63,13 +63,10 @@ export function TeacherTimetableApiPanel() {
 
   const schedule = timetableQuery.data?.schedule ?? {};
   const weekdays = timetableQuery.data?.weekdays ?? [];
+  const isFirstLoad = timetableQuery.isLoading && !timetableQuery.data;
   const status =
     timetableQuery.data?.status ??
-    (timetableQuery.isLoading && !timetableQuery.data
-      ? "loading"
-      : timetableQuery.isError
-        ? "error"
-        : "loading");
+    (isFirstLoad ? "loading" : timetableQuery.isError ? "error" : "empty");
   const error =
     timetableQuery.data?.errorMessage ??
     (timetableQuery.isError ? "Failed to load timetable." : null);
@@ -140,7 +137,7 @@ export function TeacherTimetableApiPanel() {
     });
   };
 
-  if (status === "loading" || (timetableQuery.isLoading && !timetableQuery.data)) {
+  if (isFirstLoad) {
     return (
       <div className="min-w-0 space-y-5">
         <PageHeader title="Timetable" subtitle="Your teaching periods across assigned classes" />

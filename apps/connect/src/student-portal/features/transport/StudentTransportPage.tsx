@@ -12,24 +12,33 @@ export function StudentTransportPage() {
   const { activeInstituteId } = useApp();
   const portal = useStudentPortal();
   const apiMode = isApiAuthMode();
-  const learnerId = portal.isStudent
-    ? (portal.snapshot?.profile.id ?? studentProfile.id)
-    : studentProfile.id;
+  const learnerId =
+    portal.isStudent && portal.snapshot
+      ? portal.snapshot.profile.id
+      : apiMode
+        ? null
+        : studentProfile.id;
 
   useEffect(() => {
-    if (portal.isStudent && !apiMode) {
+    if (portal.isStudent && !apiMode && learnerId) {
       transportStore.init(learnerId, "student");
     }
   }, [portal.isStudent, learnerId, apiMode]);
 
-  if (!portal.isStudent) {
-    return <PageSkeleton rows={5} />;
-  }
+  if (!portal.isStudent) return null;
+  if (portal.isLoading && !portal.snapshot) return <PageSkeleton rows={5} />;
 
   const name = portal.snapshot?.profile.name ?? studentProfile.name;
   const subtitle = `${name} · Live bus tracking, route & pickup alerts`;
 
-  if (apiMode && activeInstituteId && learnerId) {
+  if (apiMode) {
+    if (!activeInstituteId || !learnerId) {
+      return (
+        <p className="text-sm text-muted-foreground">
+          Transport is unavailable until a student is linked for this institute.
+        </p>
+      );
+    }
     return (
       <LearnerTransportApiView
         instituteId={activeInstituteId}

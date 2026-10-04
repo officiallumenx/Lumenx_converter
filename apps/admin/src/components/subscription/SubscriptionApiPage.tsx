@@ -205,15 +205,26 @@ export function SubscriptionApiPage() {
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
 
+  const hasDetailRef = useRef(false);
+  const loadedForInstituteRef = useRef<string | null>(null);
+
   const reload = useCallback(async (instituteId: string) => {
-    setLoadStatus("loading");
-    setLoadError(null);
+    if (loadedForInstituteRef.current !== instituteId) {
+      hasDetailRef.current = false;
+      loadedForInstituteRef.current = instituteId;
+    }
+    // Keep prior subscription detail visible while soft-refresh refetches.
+    if (!hasDetailRef.current) {
+      setLoadStatus("loading");
+      setLoadError(null);
+    }
     try {
       const [detailState, quoteRows] = await Promise.all([
         loadSubscriptionDetail(instituteId),
         getSubscriptionQuotes(instituteId),
       ]);
       if (activeInstituteIdRef.current !== instituteId) return;
+      hasDetailRef.current = Boolean(detailState.detail);
       setDetail(detailState.detail);
       setQuotes(quoteRows);
       setLoadStatus(detailState.status);
@@ -230,6 +241,7 @@ export function SubscriptionApiPage() {
       instituteCtx.status !== "ready" ||
       !instituteCtx.activeInstituteId
     ) {
+      hasDetailRef.current = false;
       setDetail(null);
       setQuotes([]);
       setLoadStatus(
@@ -270,7 +282,7 @@ export function SubscriptionApiPage() {
     void reload(instituteCtx.activeInstituteId);
   };
 
-  if (loadStatus === "loading") {
+  if (loadStatus === "loading" && !detail) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground px-1 py-8">
         <Loader2 className="size-4 animate-spin" /> Loading subscription…

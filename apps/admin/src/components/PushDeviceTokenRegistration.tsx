@@ -3,9 +3,12 @@ import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { getAdminApiClient } from "@/lib/admin-api";
-import { bootstrapPushDeviceToken } from "@lumenx/notifications";
+import {
+  bootstrapPushDeviceToken,
+  dispatchInAppAlert,
+  openSafeAppDeepLink,
+} from "@lumenx/notifications";
 import { bootstrapWebFcm, logLumenXAnalyticsEventForContext } from "@lumenx/auth";
-import { dispatchInAppAlert } from "@lumenx/notifications";
 import { adminQueryRoots, ADMIN_QUERY_SCOPE } from "@/lib/admin-queries/keys";
 import {
   isAdminPushBootstrapAllowed,
@@ -13,8 +16,7 @@ import {
 } from "@/lib/push-bootstrap-gate";
 
 /**
- * Registers FCM / native push after the user reaches Notifications or Alerts
- * (contextual permission), not on cold Admin shell start.
+ * Registers FCM / native push after authenticated shell enables the bootstrap gate.
  */
 export function PushDeviceTokenRegistration({ enabled }: { enabled: boolean }): null {
   const queryClient = useQueryClient();
@@ -56,14 +58,17 @@ export function PushDeviceTokenRegistration({ enabled }: { enabled: boolean }): 
           params: { platform },
         });
       },
+      onDiagnostic: (code) => {
+        void logLumenXAnalyticsEventForContext({
+          name: "push_bootstrap_diagnostic",
+          params: { code },
+        });
+      },
       onForegroundPush: () => invalidateInbox(),
       onNotificationOpened: (href) => {
-        if (!href) return;
-        if (href.startsWith("http://") || href.startsWith("https://")) {
-          window.location.assign(href);
-          return;
-        }
-        void navigate({ to: href as "/" });
+        openSafeAppDeepLink(href, (path) => {
+          void navigate({ to: path as "/" });
+        });
       },
       bootstrapWeb: async ({ register }) =>
         bootstrapWebFcm({

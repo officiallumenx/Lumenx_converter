@@ -1,3 +1,5 @@
+import { normalizeSafeAppDeepLink } from "./safe-deep-link.js";
+
 export type DeviceApp =
   | "connect"
   | "admin"
@@ -17,6 +19,15 @@ export type InvalidateDeviceTokensFn = (input: {
   app: DeviceApp;
 }) => Promise<void>;
 
+export type PushBootstrapDiagnostic =
+  | "plugin_missing"
+  | "permission_denied"
+  | "registration_error"
+  | "channels_failed";
+
+const ALERT_CHANNEL = "lumenx_alerts";
+const NOTIFICATION_CHANNEL = "lumenx_notifications";
+
 function detectPlatform(): DevicePlatform {
   if (typeof navigator === "undefined") return "web";
   const ua = navigator.userAgent.toLowerCase();
@@ -30,6 +41,50 @@ function isNativeCapacitor(): boolean {
   const cap = (window as Window & { Capacitor?: { isNativePlatform?: () => boolean } })
     .Capacitor;
   return Boolean(cap?.isNativePlatform?.());
+}
+
+type PushNotificationsApi = {
+  checkPermissions: () => Promise<{ receive: string }>;
+  requestPermissions: () => Promise<{ receive: string }>;
+  register: () => Promise<void>;
+  createChannel?: (opts: {
+    id: string;
+    name: string;
+    description?: string;
+    importance: number;
+    visibility?: number;
+  }) => Promise<void>;
+  addListener: (
+    event: string,
+    cb: (event: unknown) => void,
+  ) => Promise<{ remove: () => Promise<void> }>;
+};
+
+async function ensureAndroidPushChannels(
+  PushNotifications: PushNotificationsApi,
+): Promise<boolean> {
+  if (typeof PushNotifications.createChannel !== "function") return true;
+  try {
+    await Promise.all([
+      PushNotifications.createChannel({
+        id: ALERT_CHANNEL,
+        name: "LumenX Alerts",
+        description: "Critical institute alerts",
+        importance: 5,
+        visibility: 1,
+      }),
+      PushNotifications.createChannel({
+        id: NOTIFICATION_CHANNEL,
+        name: "LumenX Notifications",
+        description: "General institute notifications",
+        importance: 4,
+        visibility: 1,
+      }),
+    ]);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -49,6 +104,8 @@ export async function bootstrapPushDeviceToken(input: {
   onForegroundPush?: (data: { href?: string }) => void;
   /** Native notification tap. */
   onNotificationOpened?: (href: string) => void;
+  /** Non-throwing diagnostics for missing plugin / denied permission / channel failures. */
+  onDiagnostic?: (code: PushBootstrapDiagnostic, detail?: string) => void;
 }): Promise<() => void> {
   if (typeof window === "undefined") return () => undefined;
 
@@ -87,26 +144,41 @@ async function bootstrapNativePush(input: {
   onTokenRegistered?: (platform: DevicePlatform) => void;
   onForegroundPush?: (data: { href?: string }) => void;
   onNotificationOpened?: (href: string) => void;
+  onDiagnostic?: (code: PushBootstrapDiagnostic, detail?: string) => void;
 }): Promise<() => void> {
   try {
     const mod = await import(/* @vite-ignore */ "@capacitor/push-notifications").catch(
       () => null,
     );
-    if (!mod?.PushNotifications) return () => undefined;
+    if (!mod?.PushNotifications) {
+      input.onDiagnostic?.(
+        "plugin_missing",
+        "@capacitor/push-notifications not available",
+      );
+      return () => undefined;
+    }
 
-    const { PushNotifications } = mod;
+    const PushNotifications = mod.PushNotifications as PushNotificationsApi;
     const perm = await PushNotifications.checkPermissions();
     const granted =
       perm.receive === "granted"
         ? true
         : (await PushNotifications.requestPermissions()).receive === "granted";
     input.onPermission?.(granted);
-    if (!granted) return () => undefined;
+    if (!granted) {
+      input.onDiagnostic?.("permission_denied");
+      return () => undefined;
+    }
+
+    const channelsOk = await ensureAndroidPushChannels(PushNotifications);
+    if (!channelsOk) {
+      input.onDiagnostic?.("channels_failed");
+    }
 
     const registrationHandler = await PushNotifications.addListener(
       "registration",
-      (event: { value: string }) => {
-        const token = event.value?.trim();
+      (event: unknown) => {
+        const token = (event as { value?: string }).value?.trim();
         if (!token) return;
         const platform = detectPlatform();
         void input
@@ -122,21 +194,23 @@ async function bootstrapNativePush(input: {
 
     const receivedHandler = await PushNotifications.addListener(
       "pushNotificationReceived",
-      (event: {
-        title?: string;
-        body?: string;
-        data?: Record<string, string>;
-      }) => {
-        const data = event.data ?? {};
+      (event: unknown) => {
+        const ev = event as {
+          title?: string;
+          body?: string;
+          data?: Record<string, string>;
+        };
+        const data = ev.data ?? {};
         const isAlert =
           data.presentation === "alert" ||
           data.variant === "alert" ||
           data.priority === "critical";
+        const safeHref = normalizeSafeAppDeepLink(data.href) ?? undefined;
         void import("./in-app-alert.js").then(({ dispatchInAppAlert }) => {
           dispatchInAppAlert({
-            title: event.title ?? data.title ?? "Notification",
-            body: event.body ?? data.body ?? "",
-            href: data.href,
+            title: ev.title ?? data.title ?? "Notification",
+            body: ev.body ?? data.body ?? "",
+            href: safeHref,
             variant: isAlert ? "alert" : "notification",
             severity:
               data.alertSeverity === "emergency" || data.priority === "critical"
@@ -144,21 +218,30 @@ async function bootstrapNativePush(input: {
                 : "mandatory",
           });
         });
-        input.onForegroundPush?.({ href: data.href });
+        input.onForegroundPush?.({ href: safeHref });
       },
     );
 
     const openedHandler = await PushNotifications.addListener(
       "pushNotificationActionPerformed",
-      (event: { notification?: { data?: Record<string, string> } }) => {
-        const href = event.notification?.data?.href?.trim();
-        if (href) input.onNotificationOpened?.(href);
+      (event: unknown) => {
+        const href = (
+          event as { notification?: { data?: Record<string, string> } }
+        ).notification?.data?.href?.trim();
+        const safe = normalizeSafeAppDeepLink(href);
+        if (safe) input.onNotificationOpened?.(safe);
       },
     );
 
     const errorHandler = await PushNotifications.addListener(
       "registrationError",
-      () => undefined,
+      (event: unknown) => {
+        const detail =
+          event && typeof event === "object" && "error" in event
+            ? String((event as { error?: unknown }).error ?? "unknown")
+            : "unknown";
+        input.onDiagnostic?.("registration_error", detail);
+      },
     );
 
     await PushNotifications.register();
@@ -170,6 +253,7 @@ async function bootstrapNativePush(input: {
       void errorHandler.remove();
     };
   } catch {
+    input.onDiagnostic?.("plugin_missing", "native bootstrap threw");
     return () => undefined;
   }
 }

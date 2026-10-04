@@ -42,6 +42,9 @@ function LearnerTimetablePage() {
   const studentSnap = role === "student" && studentPortal.isStudent ? studentPortal.snapshot : null;
 
   const apiStudentId = parentSnap?.child.id ?? studentSnap?.profile.id ?? null;
+  const portalLoading =
+    (role === "parent" && parentPortal.isLoading && !parentSnap) ||
+    (role === "student" && studentPortal.isLoading && !studentSnap);
   const subtitle = parentSnap
     ? `${parentSnap.child.name} · ${parentSnap.classTag}`
     : studentSnap
@@ -49,6 +52,14 @@ function LearnerTimetablePage() {
       : "Your weekly schedule at a glance";
 
   if (isApiAuthMode()) {
+    if (portalLoading) {
+      return (
+        <div className="min-w-0 max-w-full space-y-4">
+          <PageHeader title="Timetable" subtitle={subtitle} />
+          <p className="text-sm text-muted-foreground">Loading timetable…</p>
+        </div>
+      );
+    }
     if (!apiStudentId) {
       return (
         <div className="min-w-0 max-w-full space-y-4">

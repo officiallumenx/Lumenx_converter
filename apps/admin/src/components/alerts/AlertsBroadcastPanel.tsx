@@ -182,6 +182,7 @@ export function AlertsBroadcastPanel() {
   const [reloadKey, setReloadKey] = useReloadKey();
   const activeInstituteIdRef = useRef(instituteCtx.activeInstituteId);
   activeInstituteIdRef.current = instituteCtx.activeInstituteId;
+  const recentLenRef = useRef(0);
 
   const preset = useMemo(
     () => PRESETS.find((p) => p.id === presetId) ?? PRESETS[0],
@@ -210,16 +211,19 @@ export function AlertsBroadcastPanel() {
     }
     const requestInstituteId = instituteCtx.activeInstituteId;
     let cancelled = false;
-    setRecentLoading(true);
+    // Keep prior broadcasts visible while soft-refresh refetches.
+    if (recentLenRef.current === 0) setRecentLoading(true);
     void listRecentSchoolAlerts(requestInstituteId)
       .then((rows) => {
         if (!cancelled && activeInstituteIdRef.current === requestInstituteId) {
+          recentLenRef.current = rows.length;
           setRecent(rows);
         }
       })
       .catch((err) => {
         if (!cancelled) {
           notify(err instanceof Error ? err.message : "Failed to load recent broadcasts");
+          recentLenRef.current = 0;
           setRecent([]);
         }
       })
@@ -234,7 +238,7 @@ export function AlertsBroadcastPanel() {
   useEffect(() => {
     if (!open || !instituteCtx.activeInstituteId) return;
     let cancelled = false;
-    setStudentsLoading(true);
+    if (students.length === 0) setStudentsLoading(true);
     void listStudents({ instituteId: instituteCtx.activeInstituteId, status: "active" })
       .then((rows) => {
         if (!cancelled) setStudents(rows);
@@ -248,6 +252,7 @@ export function AlertsBroadcastPanel() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- students length only gates skeleton
   }, [open, instituteCtx.activeInstituteId]);
 
   const canSend =

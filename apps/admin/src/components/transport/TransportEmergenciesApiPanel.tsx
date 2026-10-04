@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Button,
   Card,
@@ -9,13 +9,14 @@ import {
   Textarea,
 } from "@lumenx/ui-admin";
 import { CheckCircle2, Siren } from "lucide-react";
-import { subscribeTransportRealtime } from "@lumenx/utils";
-import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { useQueryClient } from "@tanstack/react-query";
+import { useTransportEmergenciesQuery } from "@/lib/admin-queries";
+import { adminQueryKeys } from "@/lib/admin-queries/keys";
 import {
   acknowledgeTransportEmergencyApi,
-  listTransportEmergencies,
   resolveTransportEmergencyApi,
 } from "@/lib/transport/ops-api";
+import { useTransportRealtimeInvalidate } from "@/lib/transport/use-transport-realtime-invalidate";
 import type { TransportEmergencyDto } from "@/lib/transport/types";
 
 type Props = {
@@ -50,44 +51,19 @@ export function TransportEmergenciesApiPanel({
   writesEnabled = true,
   onNotify,
 }: Props) {
-  const [emergencies, setEmergencies] = useState<TransportEmergencyDto[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const emergenciesQuery = useTransportEmergenciesQuery(instituteId);
+  useTransportRealtimeInvalidate(instituteId);
   const [tab, setTab] = useState<Tab>("active");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [resolveNote, setResolveNote] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const reload = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await listTransportEmergencies({ instituteId });
-      setEmergencies(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load emergencies");
-    } finally {
-      setLoading(false);
-    }
-  }, [instituteId]);
-
-  useEffect(() => {
-    void reload();
-  }, [reload]);
-
-  useEffect(() => {
-    try {
-      const supabase = getSupabaseBrowserClient();
-      return subscribeTransportRealtime(supabase, {
-        instituteId,
-        onChange: () => {
-          void reload();
-        },
-      });
-    } catch {
-      return undefined;
-    }
-  }, [instituteId, reload]);
+  const emergencies = emergenciesQuery.data ?? [];
+  const refresh = () =>
+    queryClient.invalidateQueries({
+      queryKey: adminQueryKeys.transport(instituteId, "emergencies"),
+    });
 
   const active = useMemo(
     () => emergencies.filter((e) => e.status === "active" || e.status === "acknowledged"),
@@ -107,7 +83,7 @@ export function TransportEmergenciesApiPanel({
     try {
       await acknowledgeTransportEmergencyApi(selected.id);
       onNotify?.("Emergency acknowledged");
-      await reload();
+      await refresh();
     } catch (err) {
       onNotify?.(err instanceof Error ? err.message : "Acknowledge failed");
     } finally {
@@ -122,7 +98,7 @@ export function TransportEmergenciesApiPanel({
       await resolveTransportEmergencyApi(selected.id, resolveNote.trim() || null);
       onNotify?.("Emergency resolved");
       setResolveNote("");
-      await reload();
+      await refresh();
     } catch (err) {
       onNotify?.(err instanceof Error ? err.message : "Resolve failed");
     } finally {
@@ -130,12 +106,18 @@ export function TransportEmergenciesApiPanel({
     }
   };
 
-  if (loading) {
+  if (emergenciesQuery.isLoading && emergencies.length === 0) {
     return <p className="text-sm text-muted-foreground">Loading emergencies…</p>;
   }
 
-  if (error) {
-    return <p className="text-sm text-destructive">{error}</p>;
+  if (emergenciesQuery.isError && emergencies.length === 0) {
+    return (
+      <p className="text-sm text-destructive">
+        {emergenciesQuery.error instanceof Error
+          ? emergenciesQuery.error.message
+          : "Failed to load emergencies"}
+      </p>
+    );
   }
 
   return (

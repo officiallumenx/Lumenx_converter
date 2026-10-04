@@ -31,6 +31,7 @@ export const LUMENX_ANALYTICS_EVENTS = [
   "push_permission_granted",
   "push_permission_denied",
   "push_token_registered",
+  "push_bootstrap_diagnostic",
   "screen_view",
   "feature_used",
 ] as const;

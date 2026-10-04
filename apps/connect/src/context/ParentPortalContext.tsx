@@ -5,6 +5,7 @@ import { isApiAuthMode } from "@/auth/auth-mode";
 import { isInstituteUuid } from "@/lib/institute-id";
 import { fetchParentPortalSnapshot, parentPortalQueryKeys } from "@/api/parent-portal";
 import { connectQueryKeys } from "@/lib/connect-queries";
+import { prefetchParentModuleQueries } from "@/lib/connect-queries/prefetch-parent";
 import type { ParentPortalSnapshot } from "@/lib/parent-portal-data";
 
 /** Flat shape so consumers can read fields without brittle discriminant narrowing. */
@@ -75,6 +76,13 @@ export function ParentPortalRegistry({ children }: { children: ReactNode }) {
     isParent &&
     canRun &&
     ((query.isLoading && !snapshot) || isFetchingNewChild);
+
+  // Warm common parent modules once the active child snapshot is ready.
+  useEffect(() => {
+    if (!isParent || !snapshot || !activeInstituteId || !activeChildId) return;
+    if (!isInstituteUuid(activeInstituteId) || !isInstituteUuid(activeChildId)) return;
+    prefetchParentModuleQueries(queryClient, activeInstituteId, activeChildId);
+  }, [isParent, snapshot, activeInstituteId, activeChildId, queryClient]);
 
   const value = useMemo<ParentPortalState>(() => {
     if (!isParent) {

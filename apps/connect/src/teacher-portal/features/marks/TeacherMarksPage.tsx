@@ -84,11 +84,13 @@ function DemoTeacherMarksPage() {
 
   useEffect(() => {
     if (!examId || !portal.isTeacher) return;
-    setLoading(true);
+    // Keep prior sheet visible while exam/class soft-refresh refetches.
+    if (rows.length === 0) setLoading(true);
     teacherRepository.getMarkEntries(examId, classId).then((r) => {
       setRows(r);
       setLoading(false);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rows length only gates skeleton
   }, [examId, classId, portal.isTeacher]);
 
   const update = (studentId: string, key: "internal" | "exam", v: number | null) => {

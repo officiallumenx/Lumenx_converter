@@ -2,7 +2,7 @@
  * Settings profile — API mode. Loads/saves via GET/PATCH /api/v1/profiles/:id.
  * Never uses localStorage as source of truth.
  */
-import { useEffect, useState, type ComponentProps, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { Button, Card, CardHeader, Pill } from "@lumenx/ui-admin";
 import { Check } from "lucide-react";
 import { useAuth } from "@/auth/AuthContext";
@@ -51,6 +51,7 @@ export function SettingsProfileApiPanel() {
   const [email, setEmail] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const readyRef = useRef(false);
 
   const profileId = user?.id ?? "";
 
@@ -61,11 +62,15 @@ export function SettingsProfileApiPanel() {
       return;
     }
     let cancelled = false;
-    setLoadStatus("loading");
-    setLoadError(null);
+    // Keep prior profile fields visible while soft-refresh refetches.
+    if (!readyRef.current) {
+      setLoadStatus("loading");
+      setLoadError(null);
+    }
     void getProfile(profileId)
       .then((profile) => {
         if (cancelled) return;
+        readyRef.current = true;
         setName(profile.displayName);
         setPhone(profile.phone ?? "");
         setEmail(profile.email ?? user?.email ?? "");
@@ -146,7 +151,7 @@ export function SettingsProfileApiPanel() {
           action={<Pill tone="neutral">Live data</Pill>}
         />
         <div className="px-5 pb-5">
-          {loadStatus === "loading" ? (
+          {loadStatus === "loading" && !readyRef.current ? (
             <p className="py-4 text-sm text-muted-foreground">Loading profile…</p>
           ) : loadStatus === "error" ? (
             <p className="py-4 text-sm text-destructive">

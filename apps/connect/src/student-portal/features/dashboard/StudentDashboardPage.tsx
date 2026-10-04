@@ -133,7 +133,12 @@ export function StudentDashboardPage() {
   );
 
   if (!portal.isStudent) return null;
-  if (portal.isLoading || !portal.snapshot) return <PageSkeleton rows={5} />;
+  if (portal.isLoading && !portal.snapshot) return <PageSkeleton rows={5} />;
+  if (!portal.snapshot) {
+    return (
+      <p className="text-sm text-muted-foreground">Student dashboard unavailable.</p>
+    );
+  }
 
   const snap = portal.snapshot;
   const notifications = isApiAuthMode() ? snap.notifications ?? [] : storeNotifications;

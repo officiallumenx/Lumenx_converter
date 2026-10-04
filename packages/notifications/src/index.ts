@@ -174,10 +174,14 @@ export {
   bootstrapPushDeviceToken,
   invalidatePushDeviceTokens,
   invalidatePushDeviceTokensBeforeSignOut,
+  isSafeAppDeepLink,
+  normalizeSafeAppDeepLink,
+  openSafeAppDeepLink,
   type DeviceApp,
   type DevicePlatform,
   type RegisterDeviceTokenFn,
   type InvalidateDeviceTokensFn,
+  type PushBootstrapDiagnostic,
   type InAppAlertEventDetail,
 } from "./shared/consumption";
 export { NOTIFICATION_CATEGORY as SYSTEM_NOTIFICATION_CATEGORY } from "./system";

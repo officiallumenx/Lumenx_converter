@@ -36,7 +36,7 @@ export function TeacherClassesPage({ selectedId }: { selectedId?: string }) {
   }, [selectedId, loadStudents]);
 
   if (!portal.isTeacher) return null;
-  if (portal.isLoading) return <PageSkeleton />;
+  if (portal.isLoading && portal.classes.length === 0) return <PageSkeleton />;
 
   if (selectedId && selected) {
     return <ClassDetailView cls={selected} students={students} loading={loadingStudents} />;

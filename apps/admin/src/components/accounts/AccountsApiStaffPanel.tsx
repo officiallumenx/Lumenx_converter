@@ -23,7 +23,8 @@ export function AccountsApiStaffPanel() {
       return;
     }
     let cancelled = false;
-    setLoading(true);
+    // Keep prior staff list visible while institute soft-refresh refetches.
+    if (assignees.length === 0) setLoading(true);
     setError(null);
     void listAccessAssignees(instituteId)
       .then((rows) => {
@@ -41,6 +42,7 @@ export function AccountsApiStaffPanel() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- assignees length only gates skeleton
   }, [instituteId, instituteCtx.status]);
 
   const activeCount = assignees.filter((a) => a.membershipStatus === "active").length;

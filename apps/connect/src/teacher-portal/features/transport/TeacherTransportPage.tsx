@@ -85,8 +85,13 @@ export function TeacherTransportPage() {
     return routeStudents.filter((s) => portal.profile!.classes.includes(s.className));
   }, [portal.isTeacher, portal.profile, routeStudents]);
 
-  if (!portal.isTeacher) return <PageSkeleton rows={5} />;
-  if (portal.isLoading || !portal.profile) return <PageSkeleton rows={6} />;
+  if (!portal.isTeacher) return null;
+  if (portal.isLoading && !portal.profile) return <PageSkeleton rows={6} />;
+  if (!portal.profile) {
+    return (
+      <p className="text-sm text-muted-foreground">Transport unavailable — teacher profile not loaded.</p>
+    );
+  }
 
   if (!hasTransport) {
     return (

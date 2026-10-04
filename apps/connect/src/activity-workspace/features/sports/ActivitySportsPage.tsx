@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Trophy } from "lucide-react";
@@ -12,6 +12,7 @@ import { ActivitySectionHeader } from "@/activity-workspace/shared/ui/ActivitySe
 import { ActivityPageShell } from "@/activity-workspace/shared/ui/ActivityPageShell";
 import { HierarchyBackBar } from "@/activity-workspace/shared/components/HierarchyBackBar";
 import { StudentRosterEditor } from "@/activity-workspace/shared/components/StudentRosterEditor";
+import { useActivityCachedLoad } from "@/activity-workspace/shared/hooks/useActivityCachedLoad";
 import {
   activityHierarchyRepository,
   SPORTS_CATEGORY_LABELS,
@@ -81,47 +82,14 @@ function SportsLandingView({
 }: {
   onOpenSport: (category: SportsCategory, sportId: string) => void;
 }) {
-  const [sports, setSports] = useState<HierarchySport[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: sports, loading, refresh } = useActivityCachedLoad({
+    key: "sports:all",
+    load: () => activityHierarchyRepository.listSports(),
+    initial: [] as HierarchySport[],
+  });
   const [query, setQuery] = useState("");
   const [addingFor, setAddingFor] = useState<SportsCategory | null>(null);
   const [name, setName] = useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    void activityHierarchyRepository
-      .listSports()
-      .then((list) => {
-        if (!cancelled) {
-          setSports(list);
-          setLoading(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setSports([]);
-          setLoading(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const refresh = () => {
-    setLoading(true);
-    void activityHierarchyRepository
-      .listSports()
-      .then((list) => {
-        setSports(list);
-        setLoading(false);
-      })
-      .catch(() => {
-        setSports([]);
-        setLoading(false);
-      });
-  };
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -220,46 +188,13 @@ function SportsListView({
   onBack: () => void;
   onOpenSport: (id: string) => void;
 }) {
-  const [sports, setSports] = useState<HierarchySport[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: sports, loading, refresh } = useActivityCachedLoad({
+    key: `sports:cat:${category}`,
+    load: () => activityHierarchyRepository.listSportsByCategory(category),
+    initial: [] as HierarchySport[],
+  });
   const [query, setQuery] = useState("");
   const [name, setName] = useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    void activityHierarchyRepository
-      .listSportsByCategory(category)
-      .then((list) => {
-        if (!cancelled) {
-          setSports(list);
-          setLoading(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setSports([]);
-          setLoading(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [category]);
-
-  const refresh = () => {
-    setLoading(true);
-    void activityHierarchyRepository
-      .listSportsByCategory(category)
-      .then((list) => {
-        setSports(list);
-        setLoading(false);
-      })
-      .catch(() => {
-        setSports([]);
-        setLoading(false);
-      });
-  };
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -330,55 +265,20 @@ function SportsTeamsListView({
   onBack: () => void;
   onOpenTeam: (id: string) => void;
 }) {
-  const [sport, setSport] = useState<HierarchySport | null>(null);
-  const [teams, setTeams] = useState<HierarchyTeam[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data, loading, refresh } = useActivityCachedLoad({
+    key: `sports:teams:${sportId}`,
+    load: async () => {
+      const [sport, teams] = await Promise.all([
+        activityHierarchyRepository.getSport(sportId),
+        activityHierarchyRepository.listTeamsBySport(sportId),
+      ]);
+      return { sport, teams };
+    },
+    initial: { sport: null as HierarchySport | null, teams: [] as HierarchyTeam[] },
+  });
+  const { sport, teams } = data;
   const [query, setQuery] = useState("");
   const [name, setName] = useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    void Promise.all([
-      activityHierarchyRepository.getSport(sportId),
-      activityHierarchyRepository.listTeamsBySport(sportId),
-    ])
-      .then(([s, t]) => {
-        if (!cancelled) {
-          setSport(s);
-          setTeams(t);
-          setLoading(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setSport(null);
-          setTeams([]);
-          setLoading(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [sportId]);
-
-  const refresh = () => {
-    setLoading(true);
-    void Promise.all([
-      activityHierarchyRepository.getSport(sportId),
-      activityHierarchyRepository.listTeamsBySport(sportId),
-    ])
-      .then(([s, t]) => {
-        setSport(s);
-        setTeams(t);
-        setLoading(false);
-      })
-      .catch(() => {
-        setSport(null);
-        setTeams([]);
-        setLoading(false);
-      });
-  };
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -474,40 +374,23 @@ function SportsTeamStudentsView({
   teamId: string;
   onBack: () => void;
 }) {
-  const [team, setTeam] = useState<HierarchyTeam | null>(null);
-  const [sport, setSport] = useState<HierarchySport | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    void Promise.all([
-      activityHierarchyRepository.getTeam(teamId),
-      activityHierarchyRepository.getSport(sportId),
-    ])
-      .then(([t, s]) => {
-        if (!cancelled) {
-          setTeam(t);
-          setSport(s);
-          setLoading(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setTeam(null);
-          setSport(null);
-          setLoading(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [teamId, sportId]);
+  const { data, loading, setData } = useActivityCachedLoad({
+    key: `sports:team:${teamId}:${sportId}`,
+    load: async () => {
+      const [team, sport] = await Promise.all([
+        activityHierarchyRepository.getTeam(teamId),
+        activityHierarchyRepository.getSport(sportId),
+      ]);
+      return { team, sport };
+    },
+    initial: { team: null as HierarchyTeam | null, sport: null as HierarchySport | null },
+  });
+  const { team, sport } = data;
 
   const saveStudents = async (students: HierarchyStudent[]) => {
     const updated = await activityHierarchyRepository.setTeamStudents(teamId, students);
     if (updated) {
-      setTeam(updated);
+      setData((prev) => ({ ...prev, team: updated }));
       toast.success("Roster updated");
     }
   };

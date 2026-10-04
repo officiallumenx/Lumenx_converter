@@ -25,8 +25,8 @@ function TeachersPage() {
     role === "student" && studentPortal.isStudent ? studentPortal.snapshot : null;
   const apiStudentId = snap?.child.id ?? studentSnap?.profile.id ?? null;
   const portalLoading =
-    (role === "parent" && portal.isLoading) ||
-    (role === "student" && studentPortal.isLoading);
+    (role === "parent" && portal.isLoading && !snap) ||
+    (role === "student" && studentPortal.isLoading && !studentSnap);
   const subtitle = snap
     ? `Faculty for ${snap.child.name} (${snap.classTag}) — tap a card for full profile`
     : studentSnap

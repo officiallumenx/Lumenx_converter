@@ -276,7 +276,8 @@ function ApiByClassView({
       return;
     }
     let cancelled = false;
-    setLoading(true);
+    // Keep prior overview visible while soft-refresh / filter changes refetch.
+    if (rows.length === 0) setLoading(true);
     void loadTeacherHomeworkClassOverview({
       instituteId,
       sectionId: selectedClass.id,
@@ -291,6 +292,7 @@ function ApiByClassView({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rows length only gates skeleton
   }, [instituteId, selectedClass, categoryType, homeworkRows, reloadKey]);
 
   const filtered = useMemo(() => {

@@ -34,7 +34,6 @@ export function TeacherNotificationsPage() {
 
   const load = () => {
     if (apiMode) return;
-    setLoading(true);
     teacherRepository.getNotifications().then((n) => {
       setItems(n);
       setLoading(false);
@@ -114,7 +113,7 @@ export function TeacherNotificationsPage() {
         ))}
       </div>
 
-      {resolvedLoading ? (
+      {resolvedLoading && resolvedItems.length === 0 ? (
         <PageSkeleton rows={5} />
       ) : filtered.length ? (
         <div className="space-y-2">

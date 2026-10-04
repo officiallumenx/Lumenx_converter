@@ -72,7 +72,8 @@ function TeacherExamsDemoPage({
 
   useEffect(() => {
     if (!portal.isTeacher) return;
-    setLoading(true);
+    // Keep prior exam cards visible while filters / soft-refresh refetch.
+    if (exams.length === 0) setLoading(true);
     teacherRepository.getExams().then((all) => {
       const filtered = all.filter((exam) => {
         const cls = portal.classes.find((c) => c.id === exam.classId);
@@ -84,6 +85,7 @@ function TeacherExamsDemoPage({
       setExams(filtered);
       setLoading(false);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- exams length only gates skeleton
   }, [portal.isTeacher, portal.classes, classFilter, sectionFilter]);
 
   const displayed = statusFilter === "all" ? exams : exams.filter((e) => e.status === statusFilter);

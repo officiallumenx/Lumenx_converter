@@ -1,12 +1,12 @@
 /**
  * Email verification policy for API-mode institute registration.
  *
- * CURRENT STATE (Phase 8 audit):
+ * CURRENT STATE:
  * - Supabase Auth stores passwords; they are never persisted in institute_registration.payload.
- * - Backend provisionAuthUser uses email_confirm: true (auto-confirms) until SMTP is configured.
- * - Supabase config.toml has enable_confirmations = false locally.
+ * - Dev/local may auto-confirm until SMTP is configured.
+ * - Production builds enforce verification unless explicitly overridden.
  *
- * STILL MISSING (requires infrastructure):
+ * STILL MISSING (requires infrastructure when flipping prod):
  * 1. Production SMTP on Supabase (SendGrid/SES/etc.)
  * 2. enable_confirmations = true in Supabase project settings
  * 3. Set REGISTRATION_EMAIL_AUTO_CONFIRM=false on backend in production
@@ -18,12 +18,31 @@
  * - Registration status = GET /api/v1/registrations/me (Nexus review gate)
  */
 
-/** When true, backend auto-confirms email at signup (dev/local default). */
-export function isRegistrationEmailAutoConfirmEnabled(): boolean {
-  return true;
+function envFlag(name: string): string | undefined {
+  const raw = (import.meta.env as Record<string, string | undefined>)[name];
+  return typeof raw === "string" ? raw.trim().toLowerCase() : undefined;
 }
 
-/** Real Supabase email confirmation is not enforced until infra + code toggles above are live. */
+/**
+ * When true, backend/UI expect auto-confirmed email at signup (dev/local default).
+ * Override with VITE_REGISTRATION_EMAIL_AUTO_CONFIRM=true|false.
+ * Production defaults to false.
+ */
+export function isRegistrationEmailAutoConfirmEnabled(): boolean {
+  const flag = envFlag("VITE_REGISTRATION_EMAIL_AUTO_CONFIRM");
+  if (flag === "true" || flag === "1") return true;
+  if (flag === "false" || flag === "0") return false;
+  return !import.meta.env.PROD;
+}
+
+/**
+ * When true, login/signup UX treats unconfirmed email as a hard gate.
+ * Override with VITE_ENFORCE_EMAIL_VERIFICATION=true|false.
+ * Production defaults to true.
+ */
 export function isSupabaseEmailVerificationEnforced(): boolean {
-  return false;
+  const flag = envFlag("VITE_ENFORCE_EMAIL_VERIFICATION");
+  if (flag === "true" || flag === "1") return true;
+  if (flag === "false" || flag === "0") return false;
+  return Boolean(import.meta.env.PROD);
 }

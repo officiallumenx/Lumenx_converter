@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { useReloadKey } from "@/hooks/useReloadKey";
 import { PageHeader } from "@/components/app/PageHeader";
 import { TimetableDayPicker } from "@/components/app/timetable/TimetableDayPicker";
 import { buildStudentPeriodRows, PeriodTimeline } from "@/components/app/timetable/PeriodTimeline";
 import { useApp } from "@/lib/app-state";
-import { loadLearnerTimetable } from "@/lib/timetable";
+import { useLearnerTimetableQuery } from "@/lib/connect-queries/hooks";
 import {
   getCurrentAndNextPeriod,
   getDefaultTimetableDay,
@@ -22,28 +21,17 @@ type LearnerTimetableApiPanelProps = {
 
 export function LearnerTimetableApiPanel({ studentId, subtitle }: LearnerTimetableApiPanelProps) {
   const { activeInstituteId } = useApp();
-  const [status, setStatus] = useState<string>("loading");
-  const [error, setError] = useState<string | null>(null);
-  const [schedule, setSchedule] = useState<
-    Record<string, Array<{ time: string; subject: string; teacher: string }>>
-  >({});
-  const [weekdays, setWeekdays] = useState<string[]>([]);
-  const [reloadKey, setReloadKey] = useReloadKey();
+  const timetableQuery = useLearnerTimetableQuery(activeInstituteId, studentId);
+  const isFirstLoad = timetableQuery.isLoading && !timetableQuery.data;
 
-  useEffect(() => {
-    let cancelled = false;
-    setStatus("loading");
-    void loadLearnerTimetable({ instituteId: activeInstituteId, studentId }).then((result) => {
-      if (cancelled) return;
-      setSchedule(result.schedule);
-      setWeekdays(result.weekdays);
-      setStatus(result.status);
-      setError(result.errorMessage);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeInstituteId, studentId, reloadKey]);
+  const schedule = timetableQuery.data?.schedule ?? {};
+  const weekdays = timetableQuery.data?.weekdays ?? [];
+  const status =
+    timetableQuery.data?.status ??
+    (isFirstLoad ? "loading" : timetableQuery.isError ? "error" : "empty");
+  const error =
+    timetableQuery.data?.errorMessage ??
+    (timetableQuery.isError ? "Failed to load timetable." : null);
 
   const days = weekdays.length > 0 ? weekdays : Object.keys(schedule);
   const todayName = getTodayDayName();
@@ -74,7 +62,7 @@ export function LearnerTimetableApiPanel({ studentId, subtitle }: LearnerTimetab
     [dayPeriods, isToday, current, next],
   );
 
-  if (status === "loading") {
+  if (isFirstLoad) {
     return (
       <div className="min-w-0 max-w-full space-y-4">
         <PageHeader title="Timetable" subtitle={subtitle} />
@@ -102,7 +90,7 @@ export function LearnerTimetableApiPanel({ studentId, subtitle }: LearnerTimetab
             <button
               type="button"
               className="text-sm text-primary underline"
-              onClick={() => setReloadKey((k) => k + 1)}
+              onClick={() => timetableQuery.refresh()}
             >
               Retry
             </button>

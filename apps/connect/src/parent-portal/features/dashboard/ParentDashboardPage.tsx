@@ -255,6 +255,20 @@ export const ParentDashboardPage = memo(function ParentDashboardPage() {
     );
   }
 
+  // First load only — keep home visible while soft-refresh refetches the same child.
+  if (portal.isLoading && !snap) {
+    return (
+      <div className="min-w-0 max-w-full space-y-4 md:space-y-6">
+        <ChildSwitcher />
+        <div className="rounded-3xl border border-border bg-card p-6 space-y-4">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-32 w-full rounded-2xl" />
+          <Skeleton className="h-24 w-full rounded-2xl" />
+        </div>
+      </div>
+    );
+  }
+
   if (!child || !snap || !attendanceToday || !attendanceHistory) {
     return (
       <div className="min-w-0 max-w-full space-y-4 md:space-y-6">

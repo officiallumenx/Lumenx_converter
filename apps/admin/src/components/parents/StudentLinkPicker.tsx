@@ -25,7 +25,8 @@ export function StudentLinkPicker({
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
+    // Keep prior picker options visible while institute soft-refresh refetches.
+    if (students.length === 0) setLoading(true);
     void listStudents({ instituteId })
       .then((dtos) => studentDtosToListItems(dtos))
       .then((rows) => {
@@ -40,6 +41,7 @@ export function StudentLinkPicker({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- students length only gates skeleton
   }, [instituteId]);
 
   const excluded = useMemo(() => new Set(excludeIds), [excludeIds]);
@@ -70,17 +72,25 @@ export function StudentLinkPicker({
         <SearchInput
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder={loading ? "Loading students…" : "Search name, class, admission #…"}
-          disabled={disabled || loading}
+          placeholder={
+            loading && students.length === 0
+              ? "Loading students…"
+              : "Search name, class, admission #…"
+          }
+          disabled={disabled || (loading && students.length === 0)}
         />
       </Field>
       <Select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        disabled={disabled || loading || options.length === 0}
+        disabled={disabled || (loading && students.length === 0) || options.length === 0}
       >
         <option value="">
-          {loading ? "Loading students…" : options.length === 0 ? "No students found" : "Select student…"}
+          {loading && students.length === 0
+            ? "Loading students…"
+            : options.length === 0
+              ? "No students found"
+              : "Select student…"}
         </option>
         {options.map((student) => (
           <option key={student.id} value={student.id}>

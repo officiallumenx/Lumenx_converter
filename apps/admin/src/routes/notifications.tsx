@@ -109,7 +109,7 @@ function NotificationsPage() {
     storedStatus = queryError;
   } else if (queryState) {
     storedStatus = queryState.status;
-  } else if (notificationsQuery.isLoading) {
+  } else if (notificationsQuery.isLoading && !queryState) {
     storedStatus = "loading";
   }
 

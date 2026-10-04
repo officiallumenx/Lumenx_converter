@@ -349,8 +349,11 @@ function StudentStatusApiView() {
 
     const requestInstituteId = instituteCtx.activeInstituteId;
     let cancelled = false;
-    setLoadStatus("loading");
-    setLoadError(null);
+    // Keep prior status rows visible while soft-refresh refetches.
+    if (rows.length === 0) {
+      setLoadStatus("loading");
+      setLoadError(null);
+    }
 
     void Promise.all([
       listClassesCatalog({ instituteId: requestInstituteId }),
@@ -394,6 +397,7 @@ function StudentStatusApiView() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rows length only gates skeleton
   }, [
     instituteCtx.status,
     instituteCtx.activeInstituteId,

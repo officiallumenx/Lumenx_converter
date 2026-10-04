@@ -950,7 +950,7 @@ function HistoryPanel({
   hint: string | null;
   loading: boolean;
 }) {
-  if (loading) {
+  if (loading && history.length === 0) {
     return (
       <Card className="p-8 text-center text-sm text-muted-foreground">
         Loading submitted days…

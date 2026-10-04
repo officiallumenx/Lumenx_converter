@@ -67,90 +67,11 @@ export interface DemoCredential {
   user: AuthUser;
 }
 
-export const DEMO_USERS: DemoCredential[] = [
-  {
-    email:    "principal@lumenx.edu",
-    password: "Admin@1234",
-    label:    "Principal",
-    user: {
-      id:            "LX-ADM-001",
-      email:         "principal@lumenx.edu",
-      name:          "Dr. Ananya Verma",
-      initials:      "AV",
-      role:          "super_admin",
-      title:         "Principal",
-      accessRoleId:  "ROL-001",
-      phone:         "+91 98765 43210",
-      instituteId:   "ins-test1school",
-      instituteName: "Test1School",
-      isVerified:    true,
-      mfaEnabled:    false,
-      createdAt:     "2023-06-01T08:00:00Z",
-      lastLoginAt:   new Date().toISOString(),
-    },
-  },
-  {
-    email:    "vp@lumenx.edu",
-    password: "Admin@1234",
-    label:    "Vice Principal",
-    user: {
-      id:            "LX-ADM-002",
-      email:         "vp@lumenx.edu",
-      name:          "Mr. Rohan Kapoor",
-      initials:      "RK",
-      role:          "vice_principal",
-      title:         "Vice Principal",
-      accessRoleId:  "ROL-ATT-ADMIN",
-      phone:         "+91 98765 43211",
-      instituteId:   "ins-test1school",
-      instituteName: "Test1School",
-      isVerified:    true,
-      mfaEnabled:    false,
-      createdAt:     "2023-06-01T08:00:00Z",
-      lastLoginAt:   new Date().toISOString(),
-    },
-  },
-  {
-    email:    "admissions@lumenx.edu",
-    password: "Admin@1234",
-    label:    "Admissions Officer",
-    user: {
-      id:            "LX-ADM-003",
-      email:         "admissions@lumenx.edu",
-      name:          "Ms. Priya Nair",
-      initials:      "PN",
-      role:          "admissions_officer",
-      title:         "Admissions Officer",
-      phone:         "+91 98765 43212",
-      instituteId:   "ins-test1school",
-      instituteName: "Test1School",
-      isVerified:    true,
-      mfaEnabled:    false,
-      createdAt:     "2023-08-15T08:00:00Z",
-      lastLoginAt:   new Date().toISOString(),
-    },
-  },
-  {
-    email:    "coordinator@lumenx.edu",
-    password: "Admin@1234",
-    label:    "Attendance Coordinator",
-    user: {
-      id:            "LX-ADM-004",
-      email:         "coordinator@lumenx.edu",
-      name:          "Mr. Aditya Sharma",
-      initials:      "AS",
-      role:          "coordinator",
-      title:         "Attendance Coordinator",
-      accessRoleId:  "ROL-ATT-COORD",
-      phone:         "+91 98765 43213",
-      instituteId:   "ins-test1school",
-      instituteName: "Test1School",
-      isVerified:    true,
-      mfaEnabled:    false,
-      createdAt:     "2024-01-10T08:00:00Z",
-    },
-  },
-];
+/**
+ * Demo credentials must never ship in production bundles.
+ * Kept empty so accidental imports cannot expose passwords.
+ */
+export const DEMO_USERS: DemoCredential[] = [];
 
 // ── Validation rules ──────────────────────────────────────────
 

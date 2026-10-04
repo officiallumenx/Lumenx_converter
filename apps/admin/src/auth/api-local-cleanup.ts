@@ -9,6 +9,8 @@ import { clearStoredActiveInstituteId } from "@/lib/active-institute";
 import { clearApiRegistrationSnapshot } from "./api-registration-state";
 import { clearAdminQueryClient } from "@/lib/admin-queries/query-client";
 import { clearAllPersistedAdminCaches } from "@/lib/admin-queries/persist";
+import { invalidateAdminCache } from "@/lib/admin-resource-cache";
+import { invalidateMeCache } from "./me-bridge";
 
 export type ClearApiModeSessionOptions = {
   /** When true (logout), also drop stored active institute preference. */
@@ -27,15 +29,14 @@ export function clearApiModeSessionIdentity(
   if (opts?.clearActiveInstitute) {
     clearStoredActiveInstituteId();
   }
-  void import("./me-bridge").then((m) => m.invalidateMeCache()).catch(() => undefined);
-  void import("@/lib/admin-resource-cache").then((m) => {
-    m.invalidateAdminCache("admin:");
-  }).catch(() => undefined);
+  // Synchronous clears — avoid cross-account leaks while dynamic import is in flight.
+  invalidateMeCache();
+  invalidateAdminCache("admin:");
 }
 
 /** Logout: session cleanup + wipe in-memory and persisted query caches. */
-export function clearApiModeLocalIdentity(): void {
+export async function clearApiModeLocalIdentity(): Promise<void> {
   clearApiModeSessionIdentity({ clearActiveInstitute: true });
   clearAdminQueryClient();
-  void clearAllPersistedAdminCaches().catch(() => undefined);
+  await clearAllPersistedAdminCaches();
 }

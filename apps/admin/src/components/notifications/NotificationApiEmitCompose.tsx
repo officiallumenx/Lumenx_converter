@@ -19,6 +19,7 @@ import {
   type BackendNotificationPriority,
   type NotificationAudience,
 } from "@/lib/notification-inbox";
+import { isSafeAppDeepLink } from "@/lib/notifications/safe-deep-link";
 
 const CATEGORIES: BackendNotificationCategory[] = [
   "announcements",
@@ -89,6 +90,11 @@ export function NotificationApiEmitCompose({
       notify("Title and body are required");
       return;
     }
+    const trimmedDeepLink = deepLink.trim();
+    if (trimmedDeepLink && !isSafeAppDeepLink(trimmedDeepLink)) {
+      notify("Deep link must be an in-app path starting with /");
+      return;
+    }
 
     const base = {
       instituteId,
@@ -96,7 +102,7 @@ export function NotificationApiEmitCompose({
       priority,
       title: title.trim(),
       body: body.trim(),
-      deepLink: deepLink.trim() || null,
+      deepLink: trimmedDeepLink || null,
     };
 
     let emitInput:

@@ -19,6 +19,7 @@ import { LumenXAdminLogo } from "@/components/LumenXAdminLogo";
 import { useDemoProfile } from "@/lib/demo-profile-context";
 import { useSignOut } from "@/auth/hooks/useSignOut";
 import { useAuth } from "@/auth/AuthContext";
+import { enableAdminPushBootstrap } from "@/lib/push-bootstrap-gate";
 import { getRolePermission, useRolesAccessRevision } from "@/lib/roles-access";
 import { attachScrollChain } from "@/lib/scroll-chain";
 import { AdminSubscriptionLifecycleBanner } from "@/components/AdminSubscriptionLifecycleBanner";
@@ -223,6 +224,12 @@ export function AdminChrome() {
     startTransportAdminNotificationSync();
   }, []);
 
+  // After authenticated chrome is ready, request push permission (not on login/welcome).
+  useEffect(() => {
+    if (!isApiAuthMode() || !user) return;
+    enableAdminPushBootstrap();
+  }, [user]);
+
   const [openSearch, setOpenSearch] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -425,7 +432,7 @@ export function AdminChrome() {
 
   const handleLogout = () => {
     setProfileOpen(false);
-    signOut();
+    void signOut();
   };
 
   useEffect(() => {

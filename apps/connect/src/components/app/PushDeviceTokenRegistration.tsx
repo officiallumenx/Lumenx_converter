@@ -2,7 +2,11 @@ import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { getConnectApiClient } from "@/lib/connect-api";
-import { bootstrapPushDeviceToken, dispatchInAppAlert } from "@lumenx/notifications";
+import {
+  bootstrapPushDeviceToken,
+  dispatchInAppAlert,
+  openSafeAppDeepLink,
+} from "@lumenx/notifications";
 import { bootstrapWebFcm, logLumenXAnalyticsEventForContext } from "@lumenx/auth";
 import { connectQueryRoots } from "@/lib/connect-queries/keys";
 
@@ -36,11 +40,15 @@ export function PushDeviceTokenRegistration({ enabled }: { enabled: boolean }): 
           params: { platform },
         });
       },
+      onDiagnostic: (code) => {
+        void logLumenXAnalyticsEventForContext({
+          name: "push_bootstrap_diagnostic",
+          params: { code },
+        });
+      },
       onForegroundPush: () => invalidateInbox(),
       onNotificationOpened: (href) => {
-        if (typeof window === "undefined") return;
-        if (href.startsWith("http")) window.location.assign(href);
-        else window.location.assign(href);
+        openSafeAppDeepLink(href);
       },
       bootstrapWeb: async ({ register }) =>
         bootstrapWebFcm({

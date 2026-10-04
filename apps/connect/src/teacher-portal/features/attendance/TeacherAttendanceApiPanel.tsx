@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/app/PageHeader";
 import { ConnectDatePicker } from "@/components/app/attendance/AttendanceDatePicker";
@@ -147,6 +147,8 @@ export function TeacherAttendanceApiPanel() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [students, setStudents] = useState<RosterStudent[]>([]);
   const [rosterReloadKey, setRosterReloadKey] = useState(0);
+  const hasMarksRef = useRef(false);
+  const hasHistoryRef = useRef(false);
 
   const portalEnabled =
     Boolean(activeInstituteId) && Boolean(sectionId) && Boolean(date) && !portal.isLoading;
@@ -165,13 +167,15 @@ export function TeacherAttendanceApiPanel() {
     selfEnabled,
   );
 
-  const portalStatus =
-    portal.isLoading || (portalQuery.isLoading && !portalQuery.data)
-      ? "loading"
-      : !activeInstituteId || !sectionId
-        ? "empty"
-        : (portalQuery.data?.status ??
-          (portalQuery.isError ? "error" : "loading"));
+  const portalFirstLoad =
+    (portal.isLoading && teacherClasses.length === 0) ||
+    (portalQuery.isLoading && !portalQuery.data);
+  const portalStatus = portalFirstLoad
+    ? "loading"
+    : !activeInstituteId || !sectionId
+      ? "empty"
+      : (portalQuery.data?.status ??
+        (portalQuery.isError ? "error" : "empty"));
   const portalError =
     portalQuery.data?.errorMessage ??
     (portalQuery.isError ? "Failed to load attendance." : null);
@@ -287,7 +291,7 @@ export function TeacherAttendanceApiPanel() {
     if (!activeSlot || !activeInstituteId) return;
     if (activeSlot.registerId) {
       let cancelled = false;
-      setDetailLoading(true);
+      if (!hasMarksRef.current) setDetailLoading(true);
       void getAttendanceRegister(activeSlot.registerId).then((register) => {
         if (cancelled) return;
         const next: Record<string, AttendanceMarkStatus> = {};
@@ -298,6 +302,7 @@ export function TeacherAttendanceApiPanel() {
         for (const s of students) {
           if (!next[s.enrollmentId]) next[s.enrollmentId] = "present";
         }
+        hasMarksRef.current = true;
         setMarks(next);
         setRegisterId(register.id);
         setRegisterStatus(register.status);
@@ -320,13 +325,14 @@ export function TeacherAttendanceApiPanel() {
       return;
     }
     let cancelled = false;
-    setHistoryLoading(true);
+    if (!hasHistoryRef.current) setHistoryLoading(true);
     void listAttendanceRegisters({
       instituteId: activeInstituteId,
       sectionId,
     })
       .then((rows) => {
         if (cancelled) return;
+        hasHistoryRef.current = true;
         setHistoryRows(
           [...rows].sort((a, b) => b.attendanceDate.localeCompare(a.attendanceDate)),
         );
@@ -505,7 +511,7 @@ export function TeacherAttendanceApiPanel() {
     toast.info("Cleared — all students marked present");
   };
 
-  if (portal.isLoading || portalStatus === "loading") {
+  if (portalFirstLoad) {
     return (
       <div className="space-y-5">
         <PageHeader

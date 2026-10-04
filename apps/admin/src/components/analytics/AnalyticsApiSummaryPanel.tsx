@@ -8,9 +8,11 @@ import {
 } from "@lumenx/ui-admin";
 import { ApiClientError } from "@/lib/api";
 import { useInstituteContext } from "@/lib/institutes";
-import { useAnalyticsSummaryQuery } from "@/lib/admin-queries";
 import {
-  loadAnalyticsSeries,
+  useAnalyticsSeriesQuery,
+  useAnalyticsSummaryQuery,
+} from "@/lib/admin-queries";
+import {
   resolveAnalyticsSummaryView,
   chartHasAttendanceData,
   chartHasEnrollmentData,
@@ -431,6 +433,11 @@ export function AnalyticsApiSummaryPanel() {
     instituteCtx.activeInstituteId,
     listEnabled,
   );
+  const seriesQuery = useAnalyticsSeriesQuery(
+    instituteCtx.activeInstituteId,
+    range,
+    listEnabled,
+  );
 
   useEffect(() => {
     if (instituteCtx.status === "loading") {
@@ -514,23 +521,39 @@ export function AnalyticsApiSummaryPanel() {
       return;
     }
     const requestInstituteId = instituteCtx.activeInstituteId;
-    let cancelled = false;
-    setSeriesStatus("loading");
-    setSeriesError(null);
-    void loadAnalyticsSeries(requestInstituteId, range).then((seriesNext) => {
-      if (cancelled || activeInstituteIdRef.current !== requestInstituteId) return;
-      setSeries(seriesNext.series);
-      setSeriesStatus(seriesNext.status);
-      setSeriesError(seriesNext.errorMessage);
+    if (seriesQuery.isLoading && !seriesQuery.data) {
+      // Keep prior series visible while soft-refresh / range prefetch settles.
+      if (!series) {
+        setSeriesStatus("loading");
+        setSeriesError(null);
+      }
+      return;
+    }
+    if (seriesQuery.isError && !seriesQuery.data) {
+      setSeries(null);
+      setSeriesStatus("error");
+      setSeriesError(
+        seriesQuery.error instanceof Error
+          ? seriesQuery.error.message
+          : "Failed to load analytics series.",
+      );
       setSeriesResolvedForInstituteId(requestInstituteId);
-    });
-    return () => {
-      cancelled = true;
-    };
+      return;
+    }
+    if (!seriesQuery.data) return;
+    const seriesNext = seriesQuery.data;
+    setSeries(seriesNext.series);
+    setSeriesStatus(seriesNext.status);
+    setSeriesError(seriesNext.errorMessage);
+    setSeriesResolvedForInstituteId(requestInstituteId);
   }, [
     instituteCtx.status,
     instituteCtx.activeInstituteId,
-    range,
+    seriesQuery.data,
+    seriesQuery.isLoading,
+    seriesQuery.isError,
+    seriesQuery.error,
+    series,
   ]);
 
   const view = resolveAnalyticsSummaryView({

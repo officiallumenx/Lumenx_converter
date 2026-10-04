@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, type ReactNode } from "react";
+import { useMemo, useState, useEffect, useRef, type ReactNode } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { SectionCard } from "@/components/app/SectionCard";
 import { useApp } from "@/lib/app-state";
@@ -498,13 +498,17 @@ function ApiParentFeesContent() {
   const [childFilter, setChildFilter] = useState<string>("all");
   const [feeTypeFilter, setFeeTypeFilter] = useState<"all" | FeeCategory>("all");
 
+  const loadedInstituteRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!activeInstituteId) {
       setLoading(false);
       return;
     }
     let cancelled = false;
-    setLoading(true);
+    const sameInstitute = loadedInstituteRef.current === activeInstituteId;
+    // Keep prior fees visible when revisiting the same institute.
+    if (!sameInstitute && childrenRows.length === 0) setLoading(true);
     void loadParentFeesPortals({ instituteId: activeInstituteId }).then((result) => {
       if (cancelled) return;
       const kids = result.students.map(studentToChild);
@@ -515,17 +519,21 @@ function ApiParentFeesContent() {
       }
       setAccountsByChild(map);
       setLoadError(result.errorMessage);
+      loadedInstituteRef.current = activeInstituteId;
       setLoading(false);
-      if (kids.length > 0) {
-        const valid = activeChildId && kids.some((c) => c.id === activeChildId);
-        const next = valid ? activeChildId : kids[0]!.id;
-        if (next !== activeChildId) setActiveChildId(next);
-      }
     });
     return () => {
       cancelled = true;
     };
-  }, [activeInstituteId, activeChildId, setActiveChildId]);
+    // Re-load only when institute changes — not on every child switch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- childrenRows length only gates skeleton
+  }, [activeInstituteId]);
+
+  useEffect(() => {
+    if (childrenRows.length === 0) return;
+    const valid = activeChildId && childrenRows.some((c) => c.id === activeChildId);
+    if (!valid) setActiveChildId(childrenRows[0]!.id);
+  }, [childrenRows, activeChildId, setActiveChildId]);
 
   const duesByChild = useMemo(() => {
     const map: Record<string, ReturnType<typeof linesToDueRows>> = {};

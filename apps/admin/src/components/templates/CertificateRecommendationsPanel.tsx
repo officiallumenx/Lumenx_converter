@@ -31,7 +31,8 @@ export function CertificateRecommendationsPanel({
   useEffect(() => {
     if (!apiMode || !instituteId) return;
     let cancelled = false;
-    setLoading(true);
+    // Keep prior recommendations visible while soft-refresh refetches.
+    if (apiRows.length === 0) setLoading(true);
     void listCertificateRecommendations({ instituteId, status: "pending" })
       .then((rows) => {
         if (!cancelled) setApiRows(rows);
@@ -45,6 +46,7 @@ export function CertificateRecommendationsPanel({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- apiRows length only gates skeleton
   }, [apiMode, instituteId]);
 
   const rows = apiMode

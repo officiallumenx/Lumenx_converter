@@ -1,10 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardHeader, EmptyState, PageToolbar, Pill, Select } from "@lumenx/ui-admin";
 import { ClipboardList } from "lucide-react";
-import { subscribeTransportRealtime } from "@lumenx/utils";
-import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
-import { listTransportBoardingMarks } from "@/lib/transport/ops-api";
-import type { TransportBoardingEventDto } from "@/lib/transport/types";
+import { useTransportBoardingMarksQuery } from "@/lib/admin-queries";
+import { useTransportRealtimeInvalidate } from "@/lib/transport/use-transport-realtime-invalidate";
 
 type Props = {
   instituteId: string;
@@ -25,42 +23,12 @@ function formatWhen(iso: string | null): string {
 }
 
 export function TransportAttendanceApiPanel({ instituteId }: Props) {
-  const [marks, setMarks] = useState<TransportBoardingEventDto[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [tripFilter, setTripFilter] = useState<string>("all");
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const marksQuery = useTransportBoardingMarksQuery(instituteId, today);
+  useTransportRealtimeInvalidate(instituteId);
 
-  const reload = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await listTransportBoardingMarks({ instituteId, tripDate: today });
-      setMarks(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load attendance");
-    } finally {
-      setLoading(false);
-    }
-  }, [instituteId, today]);
-
-  useEffect(() => {
-    void reload();
-  }, [reload]);
-
-  useEffect(() => {
-    try {
-      const supabase = getSupabaseBrowserClient();
-      return subscribeTransportRealtime(supabase, {
-        instituteId,
-        onChange: () => {
-          void reload();
-        },
-      });
-    } catch {
-      return undefined;
-    }
-  }, [instituteId, reload]);
+  const marks = marksQuery.data ?? [];
 
   const tripOptions = useMemo(
     () => [...new Set(marks.map((m) => m.tripId))],
@@ -73,12 +41,18 @@ export function TransportAttendanceApiPanel({ instituteId }: Props) {
     return [...filtered].sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
   }, [marks, tripFilter]);
 
-  if (loading) {
+  if (marksQuery.isLoading && marks.length === 0) {
     return <p className="text-sm text-muted-foreground">Loading attendance…</p>;
   }
 
-  if (error) {
-    return <p className="text-sm text-destructive">{error}</p>;
+  if (marksQuery.isError && marks.length === 0) {
+    return (
+      <p className="text-sm text-destructive">
+        {marksQuery.error instanceof Error
+          ? marksQuery.error.message
+          : "Failed to load attendance"}
+      </p>
+    );
   }
 
   return (

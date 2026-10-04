@@ -101,7 +101,8 @@ export function TeacherProfilePage({
   if (!portal.isTeacher || !user) {
     return <PageSkeleton rows={4} />;
   }
-  if (portal.isLoading || !portal.profile) return <PageSkeleton rows={4} />;
+  if (portal.isLoading && !portal.profile) return <PageSkeleton rows={4} />;
+  if (!portal.profile) return <PageSkeleton rows={4} />;
 
   const profile = portal.profile;
 

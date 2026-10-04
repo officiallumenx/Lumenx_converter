@@ -7,7 +7,7 @@
     "dev": "vite dev",
     "build": "vite build",
     "build:dev": "vite build --mode development",
-    "build:capacitor": "vite build --config vite.config.capacitor.ts && node ../../packages/capacitor/scripts/flatten-capacitor-dist.mjs",
+    "build:capacitor": "vite build --config vite.config.capacitor.ts --mode capacitor && node ../../packages/capacitor/scripts/flatten-capacitor-dist.mjs",
     "preview": "vite preview",
     "start": "node server.mjs",
     "cap:sync": "cap sync",

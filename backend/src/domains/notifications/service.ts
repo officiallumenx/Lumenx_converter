@@ -302,6 +302,23 @@ export async function deleteInboxItemForActor(
 
 // ── Emit ─────────────────────────────────────────────────────────
 
+function isSafeAppDeepLink(value: string | null | undefined): boolean {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return true;
+  if (trimmed.includes("\\") || trimmed.includes("\0")) return false;
+  const lower = trimmed.toLowerCase();
+  if (
+    lower.startsWith("http:") ||
+    lower.startsWith("https:") ||
+    lower.startsWith("//") ||
+    lower.startsWith("javascript:") ||
+    lower.startsWith("data:")
+  ) {
+    return false;
+  }
+  return /^\/(?!\/)/.test(trimmed);
+}
+
 async function emitNotificationInternal(
   admin: SupabaseClient,
   instituteId: string,
@@ -314,6 +331,12 @@ async function emitNotificationInternal(
     throw AppError.validation("title and body are required", {
       title: !title ? ["Required"] : undefined,
       body: !body ? ["Required"] : undefined,
+    });
+  }
+
+  if (!isSafeAppDeepLink(input.deepLink)) {
+    throw AppError.validation("deep_link must be an in-app path starting with /", {
+      deep_link: ["Must be a relative in-app path"],
     });
   }
 

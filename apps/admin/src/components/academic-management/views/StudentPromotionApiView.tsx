@@ -78,7 +78,8 @@ export function StudentPromotionApiView() {
   useEffect(() => {
     if (!isApiAuthMode() || !instituteCtx.activeInstituteId) return;
     let cancelled = false;
-    setLoading(true);
+    // Keep prior roster visible while soft-refresh / year change refetches.
+    if (enrollments.length === 0) setLoading(true);
     void loadProgressionCatalog(instituteCtx.activeInstituteId, sourceYearId || null).then(
       async (catalog) => {
         if (cancelled) return;
@@ -127,6 +128,7 @@ export function StudentPromotionApiView() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- enrollments length only gates skeleton
   }, [instituteCtx.activeInstituteId, sourceYearId, targetYearId, reloadKey]);
 
   const filtered = useMemo(() => {
@@ -197,7 +199,7 @@ export function StudentPromotionApiView() {
     }
   };
 
-  if (loading) {
+  if (loading && enrollments.length === 0) {
     return (
       <PageStack>
         <Card>

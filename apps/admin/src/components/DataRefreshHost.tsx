@@ -4,19 +4,22 @@ import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
 import { isOnline } from "@lumenx/utils";
 import {
-  requestDataRefresh,
   subscribeDataRefresh,
   getDataRefreshGeneration,
 } from "@/lib/data-refresh";
 import { invalidateAdminSoftRefresh } from "@/lib/admin-queries/invalidate";
 import { useInstituteContext } from "@/lib/institutes";
 
+/** Match typical stale windows — resume does not invalidate while data is still fresh. */
 const AUTO_MIN_INTERVAL_MS = 45_000;
 
 /**
  * Soft-refreshes page data when the app resumes or the tab becomes visible.
  * Invalidates Admin TanStack Query caches for the active institute only
  * (does not remount chrome). Skips work while offline.
+ *
+ * Manual pull-to-refresh bumps the soft-refresh generation (imperative loaders).
+ * Auto resume only invalidates React Query in the background — no generation bump.
  */
 export function DataRefreshHost() {
   const queryClient = useQueryClient();
@@ -45,7 +48,8 @@ export function DataRefreshHost() {
         return;
       }
       lastAutoAt.current = now;
-      void requestDataRefresh("auto");
+      // Background RQ refetch only — do not bump useReloadKey.
+      void invalidateAdminSoftRefresh(queryClient, instituteIdRef.current);
     };
 
     const onVisibility = () => {
@@ -78,7 +82,7 @@ export function DataRefreshHost() {
       window.removeEventListener("focus", onFocus);
       void resumeHandle?.remove();
     };
-  }, []);
+  }, [queryClient]);
 
   return null;
 }

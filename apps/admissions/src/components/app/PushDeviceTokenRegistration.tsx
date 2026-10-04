@@ -1,7 +1,11 @@
 import { useEffect } from "react";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { getSupabaseAccessToken } from "@/lib/supabase-browser";
-import { bootstrapPushDeviceToken, dispatchInAppAlert } from "@lumenx/notifications";
+import {
+  bootstrapPushDeviceToken,
+  dispatchInAppAlert,
+  openSafeAppDeepLink,
+} from "@lumenx/notifications";
 import { bootstrapWebFcm, logLumenXAnalyticsEventForContext } from "@lumenx/auth";
 
 function apiBaseUrl(): string {
@@ -49,6 +53,9 @@ export function PushDeviceTokenRegistration({ enabled }: { enabled: boolean }): 
           name: "push_token_registered",
           params: { platform },
         });
+      },
+      onNotificationOpened: (href) => {
+        openSafeAppDeepLink(href);
       },
       bootstrapWeb: async ({ register }) =>
         bootstrapWebFcm({

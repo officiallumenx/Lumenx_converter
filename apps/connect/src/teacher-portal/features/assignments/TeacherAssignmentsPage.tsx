@@ -78,7 +78,6 @@ function DemoTeacherAssignmentsPage() {
 
   const load = useCallback(() => {
     if (!portal.isTeacher) return;
-    setLoading(true);
     teacherRepository.getAssignments().then((list) => {
       setAssignments(list);
       setLoading(false);
@@ -323,7 +322,8 @@ function ByClassView({
       return;
     }
     let cancelled = false;
-    setLoading(true);
+    // Keep prior overview visible while class/category soft-refresh refetches.
+    if (rows.length === 0) setLoading(true);
     teacherRepository
       .getClassSubmissionOverview(selectedClass.id, categoryType)
       .then((data) => {
@@ -335,6 +335,7 @@ function ByClassView({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rows length only gates skeleton
   }, [selectedClass, categoryType]);
 
   const filtered = useMemo(() => {

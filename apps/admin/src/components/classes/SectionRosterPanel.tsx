@@ -42,7 +42,8 @@ export function SectionRosterPanel({
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
+    // Keep prior roster visible when revisiting the same section.
+    if (rows.length === 0) setLoading(true);
     void loadSectionRoster(section).then((next) => {
       if (cancelled) return;
       setRows(next);
@@ -51,6 +52,7 @@ export function SectionRosterPanel({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rows length only gates skeleton
   }, [section.id, section.instituteId]);
 
   useEffect(() => {
@@ -104,7 +106,7 @@ export function SectionRosterPanel({
         }
       />
       <div className="px-4 pb-5 sm:px-5">
-        {loading ? (
+        {loading && rows.length === 0 ? (
           <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
             <Loader2 className="size-4 animate-spin" /> Loading roster…
           </div>

@@ -67,7 +67,7 @@ export function TeacherStudentsPage() {
   }, [portal, classFilter, sectionFilter, q]);
 
   if (!portal.isTeacher) return null;
-  if (portal.isLoading) return <PageSkeleton rows={6} />;
+  if (portal.isLoading && portal.students.length === 0) return <PageSkeleton rows={6} />;
 
   return (
     <div className="min-w-0 space-y-5">

@@ -18,6 +18,7 @@ import {
   useTeacherPortalRosterQuery,
   useTeacherPortalQueryClient,
 } from "@/lib/teacher-classes/use-teacher-portal-query";
+import { prefetchTeacherModuleQueries } from "@/lib/connect-queries/prefetch-teacher";
 import { loadTeacherPortalBundle } from "@/lib/teachers/load";
 import type {
   DashboardSnapshot,
@@ -97,6 +98,13 @@ export function TeacherPortalRegistry({ children }: { children: ReactNode }) {
 
   const profile = bundleQuery.data?.profile ?? null;
   const dashboard = bundleQuery.data?.dashboard ?? null;
+
+  // Warm module caches once roster identity is known (background; no UI block).
+  useEffect(() => {
+    if (!isTeacher || !activeInstituteId || !teacherId || !instituteOk) return;
+    if (!roster) return;
+    prefetchTeacherModuleQueries(queryClient, activeInstituteId, teacherId);
+  }, [isTeacher, activeInstituteId, teacherId, instituteOk, roster, queryClient]);
 
   const refresh = useCallback(() => {
     if (!activeInstituteId) return;

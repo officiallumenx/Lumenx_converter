@@ -66,7 +66,15 @@ export function StudentAttendancePage() {
   }, [trend]);
 
   if (!portal.isStudent) return null;
-  if (portal.isLoading || !snap || !profile || !att) return <PageSkeleton rows={6} />;
+  if (portal.isLoading && !snap) return <PageSkeleton rows={6} />;
+  if (!snap || !profile) {
+    return (
+      <p className="text-sm text-muted-foreground">Attendance unavailable.</p>
+    );
+  }
+
+  const yearSafe = att?.year ?? year;
+  const monthSafe = att?.month ?? month;
 
   return (
     <>
@@ -75,8 +83,8 @@ export function StudentAttendancePage() {
         studentId={studentId}
         sectionKey={sectionKey}
         portalStudentId={profile.id}
-        initialYear={att.year}
-        initialMonth={att.month}
+        initialYear={yearSafe}
+        initialMonth={monthSafe}
       />
 
       <div className="mt-5 grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">

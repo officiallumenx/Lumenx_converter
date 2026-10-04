@@ -68,9 +68,14 @@ export function StudentProfilePage({ initialSection }: { initialSection?: Profil
   }, [portal.snapshot?.profile]);
 
   if (!user || !portal.isStudent) {
-    return <PageSkeleton rows={8} />;
+    return null;
   }
-  if (portal.isLoading || !portal.snapshot) return <PageSkeleton rows={8} />;
+  if (portal.isLoading && !portal.snapshot) return <PageSkeleton rows={8} />;
+  if (!portal.snapshot) {
+    return (
+      <p className="text-sm text-muted-foreground">Student profile unavailable.</p>
+    );
+  }
 
   const profile = portal.snapshot.profile;
   const initials = getInitials(user.name, 2);

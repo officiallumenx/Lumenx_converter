@@ -1,12 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Card, CardHeader, Kpi, PageStack, Pill } from "@lumenx/ui-admin";
 import { Link } from "@tanstack/react-router";
 import { Bus, MapPin, Route, Siren, Users } from "lucide-react";
-import { subscribeTransportRealtime } from "@lumenx/utils";
 import { ADMIN_MODULE_LABELS as M } from "@/lib/admin-module-labels";
-import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
-import { getTransportAnalytics } from "@/lib/transport/ops-api";
-import type { TransportAnalyticsDto } from "@/lib/transport/types";
+import { useTransportAnalyticsOpsQuery } from "@/lib/admin-queries";
+import { useTransportRealtimeInvalidate } from "@/lib/transport/use-transport-realtime-invalidate";
 
 type Props = {
   instituteId: string;
@@ -17,48 +15,24 @@ type Props = {
 export function TransportAnalyticsApiPanel({
   instituteId,
 }: Props) {
-  const [analytics, setAnalytics] = useState<TransportAnalyticsDto | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const analyticsQuery = useTransportAnalyticsOpsQuery(instituteId, today);
+  useTransportRealtimeInvalidate(instituteId);
 
-  const reload = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await getTransportAnalytics({ instituteId, tripDate: today });
-      setAnalytics(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load analytics");
-    } finally {
-      setLoading(false);
-    }
-  }, [instituteId, today]);
+  const analytics = analyticsQuery.data ?? null;
 
-  useEffect(() => {
-    void reload();
-  }, [reload]);
-
-  useEffect(() => {
-    try {
-      const supabase = getSupabaseBrowserClient();
-      return subscribeTransportRealtime(supabase, {
-        instituteId,
-        onChange: () => {
-          void reload();
-        },
-      });
-    } catch {
-      return undefined;
-    }
-  }, [instituteId, reload]);
-
-  if (loading) {
+  if (analyticsQuery.isLoading && !analytics) {
     return <p className="text-sm text-muted-foreground">Loading analytics…</p>;
   }
 
-  if (error) {
-    return <p className="text-sm text-destructive">{error}</p>;
+  if (analyticsQuery.isError && !analytics) {
+    return (
+      <p className="text-sm text-destructive">
+        {analyticsQuery.error instanceof Error
+          ? analyticsQuery.error.message
+          : "Failed to load analytics"}
+      </p>
+    );
   }
 
   if (!analytics) {

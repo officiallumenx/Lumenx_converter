@@ -72,13 +72,10 @@ export function TeacherExamsApiPanel() {
 
   const examsQuery = useTeacherExamsQuery(activeInstituteId, Boolean(activeInstituteId));
   const papers = examsQuery.data?.papers ?? [];
+  const isFirstLoad = examsQuery.isLoading && !examsQuery.data;
   const status =
     examsQuery.data?.status ??
-    (examsQuery.isLoading && !examsQuery.data
-      ? "loading"
-      : examsQuery.isError
-        ? "error"
-        : "loading");
+    (isFirstLoad ? "loading" : examsQuery.isError ? "error" : "empty");
   const error =
     examsQuery.data?.errorMessage ??
     (examsQuery.isError ? "Failed to load exams." : null);
@@ -97,7 +94,7 @@ export function TeacherExamsApiPanel() {
     });
   };
 
-  if (status === "loading" || (examsQuery.isLoading && !examsQuery.data)) {
+  if (isFirstLoad) {
     return <PageSkeleton rows={4} />;
   }
 

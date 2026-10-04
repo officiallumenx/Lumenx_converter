@@ -145,7 +145,7 @@ export function AchievementsView({ scope }: { scope?: AchievementsViewScope }) {
     });
   };
 
-  if (isLoading) {
+  if (isLoading && achievements.length === 0) {
     return <PageSkeleton rows={5} />;
   }
 

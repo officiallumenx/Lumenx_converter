@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Sparkles } from "lucide-react";
@@ -12,6 +12,7 @@ import { ActivitySectionHeader } from "@/activity-workspace/shared/ui/ActivitySe
 import { ActivityPageShell } from "@/activity-workspace/shared/ui/ActivityPageShell";
 import { HierarchyBackBar } from "@/activity-workspace/shared/components/HierarchyBackBar";
 import { StudentRosterEditor } from "@/activity-workspace/shared/components/StudentRosterEditor";
+import { useActivityCachedLoad } from "@/activity-workspace/shared/hooks/useActivityCachedLoad";
 import {
   activityHierarchyRepository,
   type HierarchyEcaActivity,
@@ -57,21 +58,14 @@ export function ActivityExtraCurricularPage() {
 }
 
 function EcaActivitiesView({ onOpen }: { onOpen: (id: string) => void }) {
-  const [activities, setActivities] = useState<HierarchyEcaActivity[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: activities, loading, refresh } = useActivityCachedLoad({
+    key: "eca:activities",
+    load: () => activityHierarchyRepository.listEcaActivities(),
+    initial: [] as HierarchyEcaActivity[],
+  });
   const [query, setQuery] = useState("");
   const [name, setName] = useState("");
   const [showAdd, setShowAdd] = useState(false);
-
-  const refresh = () => {
-    setLoading(true);
-    void activityHierarchyRepository.listEcaActivities().then((list) => {
-      setActivities(list);
-      setLoading(false);
-    });
-  };
-
-  useEffect(refresh, []);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -155,25 +149,23 @@ function EcaGroupsView({
   onBack: () => void;
   onOpenGroup: (id: string) => void;
 }) {
-  const [activity, setActivity] = useState<HierarchyEcaActivity | null>(null);
-  const [groups, setGroups] = useState<HierarchyGroup[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data, loading, refresh } = useActivityCachedLoad({
+    key: `eca:groups:${activityId}`,
+    load: async () => {
+      const [activity, groups] = await Promise.all([
+        activityHierarchyRepository.getEcaActivity(activityId),
+        activityHierarchyRepository.listGroupsByActivity(activityId),
+      ]);
+      return { activity, groups };
+    },
+    initial: {
+      activity: null as HierarchyEcaActivity | null,
+      groups: [] as HierarchyGroup[],
+    },
+  });
+  const { activity, groups } = data;
   const [query, setQuery] = useState("");
   const [name, setName] = useState("");
-
-  const refresh = () => {
-    setLoading(true);
-    void Promise.all([
-      activityHierarchyRepository.getEcaActivity(activityId),
-      activityHierarchyRepository.listGroupsByActivity(activityId),
-    ]).then(([a, g]) => {
-      setActivity(a);
-      setGroups(g);
-      setLoading(false);
-    });
-  };
-
-  useEffect(refresh, [activityId]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -261,26 +253,26 @@ function EcaGroupStudentsView({
   groupId: string;
   onBack: () => void;
 }) {
-  const [group, setGroup] = useState<HierarchyGroup | null>(null);
-  const [activity, setActivity] = useState<HierarchyEcaActivity | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    setLoading(true);
-    void Promise.all([
-      activityHierarchyRepository.getGroup(groupId),
-      activityHierarchyRepository.getEcaActivity(activityId),
-    ]).then(([g, a]) => {
-      setGroup(g);
-      setActivity(a);
-      setLoading(false);
-    });
-  }, [groupId, activityId]);
+  const { data, loading, setData } = useActivityCachedLoad({
+    key: `eca:group:${groupId}:${activityId}`,
+    load: async () => {
+      const [group, activity] = await Promise.all([
+        activityHierarchyRepository.getGroup(groupId),
+        activityHierarchyRepository.getEcaActivity(activityId),
+      ]);
+      return { group, activity };
+    },
+    initial: {
+      group: null as HierarchyGroup | null,
+      activity: null as HierarchyEcaActivity | null,
+    },
+  });
+  const { group, activity } = data;
 
   const saveStudents = async (students: HierarchyStudent[]) => {
     const updated = await activityHierarchyRepository.setGroupStudents(groupId, students);
     if (updated) {
-      setGroup(updated);
+      setData((prev) => ({ ...prev, group: updated }));
       toast.success("Roster updated");
     }
   };

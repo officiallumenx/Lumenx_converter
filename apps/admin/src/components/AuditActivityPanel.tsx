@@ -111,8 +111,11 @@ export function AuditActivityPanel({ id }: { id?: string }) {
 
     const requestInstituteId = instituteCtx.activeInstituteId;
     let cancelled = false;
-    setListStatus("loading");
-    setListError(null);
+    // Keep prior audit rows visible while soft-refresh refetches.
+    if (items.length === 0) {
+      setListStatus("loading");
+      setListError(null);
+    }
     void loadInstituteAuditList(requestInstituteId).then((next) => {
       if (
         !shouldCommitAuditLoad({
@@ -131,6 +134,7 @@ export function AuditActivityPanel({ id }: { id?: string }) {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- items length only gates skeleton
   }, [
     apiMode,
     instituteCtx.status,

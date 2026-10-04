@@ -53,11 +53,10 @@ import {
 } from "@/lib/teacher-fees-query";
 import { ParentFeesContent } from "@/parent-portal/features/fees/ParentFeesContent";
 import { isApiAuthMode } from "@/auth/auth-mode";
-import { loadStudentFeePortal, loadTeacherFeeRoster } from "@/lib/fees";
-import { getConnectApiClient } from "@/lib/connect-api";
-import type { MeResponse } from "@/lib/api/me-types";
+import { loadTeacherFeeRoster } from "@/lib/fees";
 import { useTeacherPortal } from "@/context/TeacherPortalContext";
-import { useTeacherFeesRosterQuery } from "@/lib/connect-queries/hooks";
+import { useStudentPortal } from "@/context/StudentPortalContext";
+import { useTeacherFeesRosterQuery, useStudentFeesQuery } from "@/lib/connect-queries/hooks";
 import type { StudentFeeAccount } from "@lumenx/module-fees";
 
 export const Route = createFileRoute("/_authenticated/fees")({
@@ -756,51 +755,14 @@ function accountLineStatus(
 
 function ApiStudentFeesContent() {
   const { activeInstituteId } = useApp();
-  const [account, setAccount] = useState<StudentFeeAccount | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [studentId, setStudentId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!activeInstituteId) {
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-    void getConnectApiClient()
-      .get<MeResponse>("/api/v1/me")
-      .then((me) => {
-        if (cancelled) return;
-        const id =
-          me.identities.students.find((s) => s.instituteId === activeInstituteId)?.studentId ??
-          null;
-        setStudentId(id);
-      })
-      .catch(() => {
-        if (!cancelled) setStudentId(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeInstituteId]);
-
-  useEffect(() => {
-    if (!activeInstituteId || !studentId) {
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    void loadStudentFeePortal({ instituteId: activeInstituteId, studentId }).then((result) => {
-      if (cancelled) return;
-      setAccount(result.account);
-      setLoadError(result.errorMessage);
-      setLoading(false);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeInstituteId, studentId]);
+  const portal = useStudentPortal();
+  const studentId = portal.isStudent ? portal.snapshot?.profile.id ?? null : null;
+  const feesQuery = useStudentFeesQuery(activeInstituteId, studentId);
+  const account = feesQuery.data?.account ?? null;
+  const loadError = feesQuery.data?.errorMessage ?? null;
+  const loading =
+    (portal.isLoading && !portal.snapshot) ||
+    (Boolean(studentId) && feesQuery.isLoading && !feesQuery.data);
 
   const lineStatus = account ? accountLineStatus(account) : "upcoming";
   const dueRows = useMemo(() => {
@@ -841,6 +803,14 @@ function ApiStudentFeesContent() {
 
   if (loading) {
     return <p className="text-sm text-muted-foreground p-4">Loading fees…</p>;
+  }
+
+  if (!studentId) {
+    return (
+      <p className="text-sm text-muted-foreground p-4">
+        No linked student found for this account. Fees are unavailable until a student is linked.
+      </p>
+    );
   }
 
   if (loadError) {

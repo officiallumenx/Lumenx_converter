@@ -17,12 +17,14 @@ export function LearnerTeachersApiPanel({ studentId, subtitle }: LearnerTeachers
     studentId,
   );
 
-  const status = data?.status ?? (isLoading ? "loading" : isError ? "error" : "loading");
+  const isFirstLoad = isLoading && !data;
+  const status =
+    data?.status ?? (isFirstLoad ? "loading" : isError ? "error" : "empty");
   const teachers = data?.teachers ?? [];
   const error = data?.errorMessage ?? (isError ? "Failed to load teachers." : null);
   const selected = teachers.find((teacher) => teacher.id === selectedId) ?? null;
 
-  if (status === "loading" || (isLoading && !data)) {
+  if (isFirstLoad) {
     return (
       <div className="min-w-0 max-w-full space-y-4">
         <PageHeader title="Teachers" subtitle={subtitle} />

@@ -90,7 +90,7 @@ describe("clearApiModeLocalIdentity", () => {
     expect(store.get(ACTIVE_INSTITUTE_STORAGE_KEY)).toBe(INSTITUTE);
 
     const { clearApiModeLocalIdentity } = await import("./api-local-cleanup");
-    clearApiModeLocalIdentity();
+    await clearApiModeLocalIdentity();
 
     expect(loadSession()).toBeNull();
     expect(store.get(ACTIVE_INSTITUTE_STORAGE_KEY)).toBeUndefined();
@@ -197,7 +197,7 @@ describe("API bootstrap institute cleanup contract", () => {
   it("clears active institute when bootstrap finds no valid session", async () => {
     writeStoredActiveInstituteId(INSTITUTE);
     const { clearApiModeLocalIdentity } = await import("./api-local-cleanup");
-    clearApiModeLocalIdentity();
+    await clearApiModeLocalIdentity();
     expect(store.get(ACTIVE_INSTITUTE_STORAGE_KEY)).toBeUndefined();
   });
 

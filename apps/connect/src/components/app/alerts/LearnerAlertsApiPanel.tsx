@@ -68,11 +68,11 @@ export function LearnerAlertsApiPanel({
     syncBadgeCounts();
   }, [data]);
 
-  const status =
-    data?.status ?? (isLoading && !data ? "loading" : "loading");
+  const isFirstLoad = isLoading && !data;
+  const status = data?.status ?? (isFirstLoad ? "loading" : "empty");
   const error = data?.errorMessage ?? null;
 
-  if (status === "loading" || (isLoading && !data)) {
+  if (isFirstLoad) {
     return (
       <div className="min-w-0 max-w-full space-y-4">
         <PageHeader title="Alerts" subtitle={subtitle} />

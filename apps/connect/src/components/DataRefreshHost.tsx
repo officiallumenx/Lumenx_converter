@@ -2,14 +2,18 @@ import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
-import { requestDataRefresh, subscribeDataRefresh, getDataRefreshGeneration } from "@/lib/data-refresh";
+import { subscribeDataRefresh, getDataRefreshGeneration } from "@/lib/data-refresh";
 import { invalidateConnectSoftRefresh } from "@/lib/connect-queries/invalidate";
 
-const AUTO_MIN_INTERVAL_MS = 45_000;
+/** Match QueryClient staleTime — resume does not invalidate while data is still fresh. */
+const AUTO_MIN_INTERVAL_MS = 3 * 60_000;
 
 /**
  * Soft-refreshes page data when the app resumes or the tab becomes visible.
  * Invalidates Connect TanStack Query caches (does not remount chrome).
+ *
+ * Manual pull-to-refresh bumps the soft-refresh generation (imperative loaders).
+ * Auto resume only invalidates React Query in the background — no generation bump.
  */
 export function DataRefreshHost() {
   const queryClient = useQueryClient();
@@ -33,7 +37,8 @@ export function DataRefreshHost() {
         return;
       }
       lastAutoAt.current = now;
-      void requestDataRefresh("auto");
+      // Background RQ refetch only — do not bump useReloadKey / useAsyncLoad.
+      void invalidateConnectSoftRefresh(queryClient);
     };
 
     const onVisibility = () => {
@@ -66,7 +71,7 @@ export function DataRefreshHost() {
       window.removeEventListener("focus", onFocus);
       void resumeHandle?.remove();
     };
-  }, []);
+  }, [queryClient]);
 
   return null;
 }

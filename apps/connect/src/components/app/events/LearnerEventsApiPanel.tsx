@@ -30,13 +30,10 @@ export function LearnerEventsApiPanel() {
     (eventsQuery.data.status === "ready" || eventsQuery.data.status === "empty")
       ? eventsQuery.data.items
       : [];
+  const isFirstLoad = eventsQuery.isLoading && !eventsQuery.data;
   const status =
     eventsQuery.data?.status ??
-    (eventsQuery.isLoading && !eventsQuery.data
-      ? "loading"
-      : eventsQuery.isError
-        ? "error"
-        : "loading");
+    (isFirstLoad ? "loading" : eventsQuery.isError ? "error" : "empty");
   const error =
     eventsQuery.data &&
     (eventsQuery.data.status === "forbidden" || eventsQuery.data.status === "error")
@@ -82,7 +79,7 @@ export function LearnerEventsApiPanel() {
         }
       />
 
-      {status === "loading" || (eventsQuery.isLoading && !eventsQuery.data) ? (
+      {isFirstLoad ? (
         <p className="text-sm text-muted-foreground px-1">Loading events…</p>
       ) : status === "needs_institute" ? (
         <p className="text-sm text-muted-foreground px-1">Select an institute to view events.</p>

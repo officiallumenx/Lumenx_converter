@@ -229,7 +229,7 @@ export interface AuthContextValue {
   /** API mode: clear institute presentation when context is error/forbidden/empty. */
   clearApiActiveInstitutePresentation(): void;
   signUp(data: SignUpFormData): Promise<void>;
-  signOut(): void;
+  signOut(): Promise<void>;
   forgotPassword(email: string): Promise<void>;
   forgotPin(data: ForgotPinFormData): Promise<void>;
   clearError(): void;

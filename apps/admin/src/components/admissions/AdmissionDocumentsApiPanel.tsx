@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, Modal, Pill } from "@lumenx/ui-admin";
 import {
   getAdmissionDocumentSignedUrl,
@@ -39,17 +39,29 @@ export function AdmissionDocumentsApiPanel({
   const [docs, setDocs] = useState<AdmissionDocumentDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const docsLenRef = useRef(0);
+  const lastAppIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
+    if (lastAppIdRef.current !== applicationId) {
+      lastAppIdRef.current = applicationId;
+      docsLenRef.current = 0;
+      setDocs([]);
+    }
     let cancelled = false;
-    setLoading(true);
+    // Keep prior docs visible when reopening the same application.
+    if (docsLenRef.current === 0) setLoading(true);
     void listAdmissionDocuments(applicationId)
       .then((rows) => {
-        if (!cancelled) setDocs(rows);
+        if (!cancelled) {
+          docsLenRef.current = rows.length;
+          setDocs(rows);
+        }
       })
       .catch((err) => {
         if (!cancelled) {
+          docsLenRef.current = 0;
           setDocs([]);
           notify(err instanceof Error ? err.message : "Failed to load documents");
         }
@@ -100,7 +112,7 @@ export function AdmissionDocumentsApiPanel({
       size="lg"
       footer={<Button onClick={onClose}>Close</Button>}
     >
-      {loading ? (
+      {loading && docs.length === 0 ? (
         <p className="text-sm text-muted-foreground">Loading documents…</p>
       ) : docs.length === 0 ? (
         <p className="text-sm text-muted-foreground">No documents uploaded yet.</p>

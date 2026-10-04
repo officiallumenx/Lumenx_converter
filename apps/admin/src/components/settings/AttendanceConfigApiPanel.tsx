@@ -108,8 +108,11 @@ export function AttendanceConfigApiPanel() {
 
     const requestInstituteId = instituteCtx.activeInstituteId;
     let cancelled = false;
-    setLoadStatus("loading");
-    setLoadError(null);
+    // Keep prior config visible while soft-refresh refetches.
+    if (items.length === 0) {
+      setLoadStatus("loading");
+      setLoadError(null);
+    }
     void loadAttendanceConfigList(requestInstituteId).then((next) => {
       if (
         !shouldCommitAttendanceConfigLoad({
@@ -128,6 +131,7 @@ export function AttendanceConfigApiPanel() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- items length only gates skeleton
   }, [
     instituteCtx.status,
     instituteCtx.activeInstituteId,

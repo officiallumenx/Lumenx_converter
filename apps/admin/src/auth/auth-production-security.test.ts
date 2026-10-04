@@ -142,7 +142,19 @@ describe("email verification policy", () => {
     vi.resetModules();
   });
 
-  it("documents that Supabase email verification is not yet enforced", async () => {
+  it("honors VITE_ENFORCE_EMAIL_VERIFICATION and auto-confirm overrides", async () => {
+    vi.resetModules();
+    vi.stubEnv("VITE_ENFORCE_EMAIL_VERIFICATION", "true");
+    vi.stubEnv("VITE_REGISTRATION_EMAIL_AUTO_CONFIRM", "false");
+    const policy = await import("./auth-email-verification-policy");
+    expect(policy.isSupabaseEmailVerificationEnforced()).toBe(true);
+    expect(policy.isRegistrationEmailAutoConfirmEnabled()).toBe(false);
+  });
+
+  it("honors explicit overrides that keep local auto-confirm on", async () => {
+    vi.resetModules();
+    vi.stubEnv("VITE_ENFORCE_EMAIL_VERIFICATION", "false");
+    vi.stubEnv("VITE_REGISTRATION_EMAIL_AUTO_CONFIRM", "true");
     const policy = await import("./auth-email-verification-policy");
     expect(policy.isSupabaseEmailVerificationEnforced()).toBe(false);
     expect(policy.isRegistrationEmailAutoConfirmEnabled()).toBe(true);

@@ -56,8 +56,11 @@ export function ModulesApiSubscriptionPanel() {
 
     const requestInstituteId = instituteCtx.activeInstituteId;
     let cancelled = false;
-    setLoadStatus("loading");
-    setLoadError(null);
+    // Keep prior subscription visible while soft-refresh refetches.
+    if (!subscription) {
+      setLoadStatus("loading");
+      setLoadError(null);
+    }
     void loadCurrentSubscription(requestInstituteId).then((next) => {
       if (
         !shouldCommitSubscriptionLoad({
@@ -76,6 +79,7 @@ export function ModulesApiSubscriptionPanel() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- subscription presence only gates skeleton
   }, [instituteCtx.status, instituteCtx.activeInstituteId, instituteCtx.errorMessage]);
 
   const view = resolveSubscriptionCurrentView({

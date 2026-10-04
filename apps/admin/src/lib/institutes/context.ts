@@ -334,6 +334,9 @@ export type InstituteContextValue = InstituteContextState & {
 
 const InstituteReactContext = createContext<InstituteContextValue | null>(null);
 
+/** Narrow context — consumers that only need the id avoid full institute-state rerenders. */
+const ActiveInstituteIdReactContext = createContext<string | null>(null);
+
 function useInstituteContextController(): InstituteContextValue {
   const isApiMode = isApiAuthMode();
   const skipNextStorageReload = useRef(false);
@@ -479,7 +482,11 @@ export function InstituteContextProvider({
   return createElement(
     InstituteReactContext.Provider,
     { value },
-    children,
+    createElement(
+      ActiveInstituteIdReactContext.Provider,
+      { value: value.activeInstituteId },
+      children,
+    ),
   );
 }
 
@@ -489,4 +496,9 @@ export function useInstituteContext(): InstituteContextValue {
     throw new Error("useInstituteContext must be used within InstituteContextProvider");
   }
   return ctx;
+}
+
+/** Prefer this when a screen only needs the active institute UUID for query keys. */
+export function useActiveInstituteId(): string | null {
+  return useContext(ActiveInstituteIdReactContext);
 }

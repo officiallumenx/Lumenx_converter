@@ -1,14 +1,12 @@
 import { Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { SectionCard } from "@/components/app/SectionCard";
 import { ReportCardView } from "@/components/app/ReportCardView";
 import { useStudentPortal } from "@/context/StudentPortalContext";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { useApp } from "@/lib/app-state";
-import { getConnectApiClient } from "@/lib/connect-api";
-import type { MeResponse } from "@/lib/api/me-types";
-import { loadStudentReportCards } from "@/lib/marks";
+import { useStudentMarksQuery } from "@/lib/connect-queries/hooks";
 import { countPassFail, isPassing, passFailLabel } from "@/lib/marks-utils";
 import {
   mergeReportCards,
@@ -26,53 +24,19 @@ export function StudentMarksPage() {
 
 function ApiStudentMarksPage() {
   const { activeInstituteId } = useApp();
-  const [reportCards, setReportCards] = useState<import("@lumenx/types").ReportCard[]>([]);
-  const [profileLabel, setProfileLabel] = useState("Student");
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const portal = useStudentPortal();
+  const studentId = portal.isStudent ? portal.snapshot?.profile.id ?? null : null;
+  const profileLabel = portal.isStudent
+    ? portal.snapshot?.profile.name ?? "Student"
+    : "Student";
   const [selectedExamId, setSelectedExamId] = useState<string | undefined>();
-  const [studentId, setStudentId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!activeInstituteId) {
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-    void getConnectApiClient()
-      .get<MeResponse>("/api/v1/me")
-      .then((me) => {
-        if (cancelled) return;
-        const identity =
-          me.identities.students.find((s) => s.instituteId === activeInstituteId) ?? null;
-        setStudentId(identity?.studentId ?? null);
-        setProfileLabel(me.profile.displayName?.trim() || "Student");
-      })
-      .catch(() => {
-        if (!cancelled) setStudentId(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeInstituteId]);
-
-  useEffect(() => {
-    if (!activeInstituteId || !studentId) {
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    void loadStudentReportCards({ instituteId: activeInstituteId, studentId }).then((result) => {
-      if (cancelled) return;
-      setReportCards(result.reportCards);
-      setLoadError(result.errorMessage);
-      setLoading(false);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeInstituteId, studentId]);
+  const marksQuery = useStudentMarksQuery(activeInstituteId, studentId);
+  const reportCards = marksQuery.data?.reportCards ?? [];
+  const loadError = marksQuery.data?.errorMessage ?? null;
+  const loading =
+    (portal.isLoading && !portal.snapshot) ||
+    (Boolean(studentId) && marksQuery.isLoading && !marksQuery.data);
 
   const published = useMemo(
     () => reportCards.filter((r) => r.status === "published"),
@@ -97,6 +61,14 @@ function ApiStudentMarksPage() {
   }, [marks, selected]);
 
   if (loading) return <PageSkeleton rows={6} />;
+
+  if (!studentId) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        No linked student found for this account. Marks are unavailable until a student is linked.
+      </p>
+    );
+  }
 
   if (loadError) {
     return (
@@ -202,7 +174,12 @@ function DemoStudentMarksPage() {
   }, [marks, selected]);
 
   if (!portal.isStudent) return null;
-  if (portal.isLoading || !snap) return <PageSkeleton rows={6} />;
+  if (portal.isLoading && !snap) return <PageSkeleton rows={6} />;
+  if (!snap) {
+    return (
+      <p className="text-sm text-muted-foreground">Student profile unavailable.</p>
+    );
+  }
 
   const profile = snap.profile;
 

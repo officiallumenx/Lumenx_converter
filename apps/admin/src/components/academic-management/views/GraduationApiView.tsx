@@ -54,7 +54,8 @@ export function GraduationApiView() {
   useEffect(() => {
     if (!isApiAuthMode() || !instituteCtx.activeInstituteId) return;
     let cancelled = false;
-    setLoading(true);
+    // Keep prior roster visible while soft-refresh / year change refetches.
+    if (enrollments.length === 0) setLoading(true);
     void loadProgressionCatalog(instituteCtx.activeInstituteId, yearId || null).then((catalog) => {
       if (cancelled) return;
       if (catalog.status !== "ready" && catalog.status !== "empty") {
@@ -74,6 +75,7 @@ export function GraduationApiView() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- enrollments length only gates skeleton
   }, [instituteCtx.activeInstituteId, yearId, reloadKey]);
 
   /** Prefer highest sort_order class as final year candidates when available. */
@@ -128,7 +130,7 @@ export function GraduationApiView() {
     }
   };
 
-  if (loading) {
+  if (loading && enrollments.length === 0) {
     return (
       <PageStack>
         <Card>

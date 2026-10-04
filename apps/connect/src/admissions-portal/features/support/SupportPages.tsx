@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useReloadKey } from "@/hooks/useReloadKey";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Button, TextSizeControl, LumenXFeedbackDialog } from "@lumenx/ui";
@@ -47,22 +47,39 @@ export function DocumentCenterPage() {
   const [selected, setSelected] = useState(apps[0]?.id ?? "");
   const [apiDocs, setApiDocs] = useState<ApplicationDocument[]>([]);
   const [docsLoading, setDocsLoading] = useState(false);
+  const docsLenRef = useRef(0);
+  const lastAppIdRef = useRef<string | null>(null);
 
   const app = apps.find((a) => a.id === selected);
 
   useEffect(() => {
     if (!apiMode || !app?.id || !/^[0-9a-f-]{36}$/i.test(app.id)) {
+      docsLenRef.current = 0;
+      lastAppIdRef.current = null;
       setApiDocs([]);
+      setDocsLoading(false);
       return;
     }
+    if (lastAppIdRef.current !== app.id) {
+      lastAppIdRef.current = app.id;
+      docsLenRef.current = 0;
+      setApiDocs([]);
+    }
     let cancelled = false;
-    setDocsLoading(true);
+    // Keep prior documents visible while soft-refresh refetches.
+    if (docsLenRef.current === 0) setDocsLoading(true);
     void loadApplicationDocuments(app.id)
       .then((rows) => {
-        if (!cancelled) setApiDocs(rows);
+        if (!cancelled) {
+          docsLenRef.current = rows.length;
+          setApiDocs(rows);
+        }
       })
       .catch(() => {
-        if (!cancelled) setApiDocs([]);
+        if (!cancelled) {
+          docsLenRef.current = 0;
+          setApiDocs([]);
+        }
       })
       .finally(() => {
         if (!cancelled) setDocsLoading(false);
@@ -110,7 +127,7 @@ export function DocumentCenterPage() {
       </div>
       {app && (
         <div className="space-y-3" key={app.id}>
-          {docsLoading ? (
+          {docsLoading && displayDocs.length === 0 ? (
             <p className="text-sm text-muted-foreground">Loading documents…</p>
           ) : displayDocs.length === 0 ? (
             <p className="text-sm text-muted-foreground">No documents uploaded yet.</p>

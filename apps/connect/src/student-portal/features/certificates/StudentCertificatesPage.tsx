@@ -56,7 +56,10 @@ export function StudentCertificatesPage({ readOnlyParent = false }: { readOnlyPa
   const parentPortal = useParentPortal();
   const parentSnap = readOnlyParent && parentPortal.isParent ? parentPortal.snapshot : null;
   const childId = readOnlyParent && parentSnap ? parentSnap.child.id : undefined;
-  const apiCerts = useLearnerCertificates({ studentId: childId });
+  const studentId =
+    childId ??
+    (!readOnlyParent && portal.isStudent ? portal.snapshot?.profile.id : undefined);
+  const apiCerts = useLearnerCertificates({ studentId });
 
   const [filter, setFilter] = useState<"all" | keyof typeof CATEGORY_LABEL>("all");
   const [query, setQuery] = useState("");
@@ -185,10 +188,23 @@ export function StudentCertificatesPage({ readOnlyParent = false }: { readOnlyPa
       />
     );
   }
-  if (!readOnlyParent && !apiMode && (portal.isLoading || !portal.snapshot || !studentProfile)) {
+  if (
+    !readOnlyParent &&
+    portal.isLoading &&
+    !portal.snapshot
+  ) {
     return <PageSkeleton rows={6} />;
   }
-  if (apiMode && apiCerts.loading) {
+  if (
+    !readOnlyParent &&
+    !apiMode &&
+    !portal.snapshot
+  ) {
+    return (
+      <p className="text-sm text-muted-foreground">Certificates unavailable.</p>
+    );
+  }
+  if (apiMode && apiCerts.loading && apiCerts.records.length === 0) {
     return <PageSkeleton rows={6} />;
   }
 

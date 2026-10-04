@@ -69,9 +69,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [error,   setError]   = useState<string | null>(null);
   const bootstrapped = useRef(false);
 
-  const clearApiLocalState = useCallback(() => {
-    // Explicit logout — wipe session + query IndexedDB cache.
-    clearApiModeLocalIdentity();
+  const clearApiLocalState = useCallback(async () => {
+    // Explicit logout — wipe session + await IndexedDB query cache clear.
+    await clearApiModeLocalIdentity();
     clearLoginFlowDraft();
     clearAppUnlock();
     setUser(null);
@@ -317,9 +317,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const signOut = useCallback(() => {
-    clearApiLocalState();
-    void apiSignOut().catch(() => undefined);
+  const signOut = useCallback(async () => {
+    await clearApiLocalState();
+    await apiSignOut().catch(() => undefined);
   }, [clearApiLocalState]);
 
   const forgotPassword = useCallback(async (email: string) => {

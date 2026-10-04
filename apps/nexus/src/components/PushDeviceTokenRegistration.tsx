@@ -1,7 +1,11 @@
 import { useEffect } from "react";
 import { isNexusApiMode } from "@/lib/auth-mode";
 import { getNexusApiClient } from "@/lib/nexus-api";
-import { bootstrapPushDeviceToken, dispatchInAppAlert } from "@lumenx/notifications";
+import {
+  bootstrapPushDeviceToken,
+  dispatchInAppAlert,
+  openSafeAppDeepLink,
+} from "@lumenx/notifications";
 import { bootstrapWebFcm, logLumenXAnalyticsEventForContext } from "@lumenx/auth";
 
 export function PushDeviceTokenRegistration({ enabled }: { enabled: boolean }): null {
@@ -27,6 +31,9 @@ export function PushDeviceTokenRegistration({ enabled }: { enabled: boolean }): 
           name: "push_token_registered",
           params: { platform },
         });
+      },
+      onNotificationOpened: (href) => {
+        openSafeAppDeepLink(href);
       },
       bootstrapWeb: async ({ register }) =>
         bootstrapWebFcm({

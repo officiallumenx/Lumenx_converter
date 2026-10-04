@@ -7,6 +7,7 @@ import {
   effectiveStoredPriority,
   presentationFromPriority,
 } from "@lumenx/notifications";
+import { normalizeSafeAppDeepLink } from "@/lib/notifications/safe-deep-link";
 
 export function relativeInboxTimeLabel(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime();
@@ -40,7 +41,7 @@ export function inboxItemDtoToListItem(
     dueAt,
   });
   const { type, priority } = presentationFromPriority(stored);
-  const href = dto.notification.deepLink?.trim() || undefined;
+  const href = normalizeSafeAppDeepLink(dto.notification.deepLink) ?? undefined;
   const templateId = dto.notification.templateId?.trim() || undefined;
 
   return {

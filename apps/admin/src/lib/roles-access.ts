@@ -144,7 +144,7 @@ function seedAttendanceCoordinatorAssignee(): AccessAssignee {
     name: "Mr. Aditya Sharma",
     email: "coordinator@lumenx.edu",
     phone: "9876543213",
-    password: "Admin@1234",
+    password: "",
     roleId: ATTENDANCE_COORDINATOR_ROLE_ID,
     linkedPersonId: "T-ATT-COORD",
     linkedPersonType: "teacher",

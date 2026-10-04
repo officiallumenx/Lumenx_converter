@@ -81,7 +81,8 @@ function TeacherTimetableDemoPage({
   const teacherSubjects = portal.profile?.subjects ?? ["Mathematics"];
 
   useEffect(() => {
-    setLoading(true);
+    // Keep prior slots visible while day/mode soft-refresh refetches.
+    if (daySlots.length === 0 && weekSlots.length === 0) setLoading(true);
     if (mode === "class" && classId) {
       Promise.all([
         teacherRepository.getClassTimetableForDay(classId, day),
@@ -101,6 +102,7 @@ function TeacherTimetableDemoPage({
         setLoading(false);
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- slot lengths only gate skeleton
   }, [day, mode, classId]);
 
   const today = getTodayDayName();

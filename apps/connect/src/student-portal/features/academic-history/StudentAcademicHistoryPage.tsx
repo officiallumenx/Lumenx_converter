@@ -180,10 +180,18 @@ export function StudentAcademicHistoryPage({ readOnlyParent = false }: { readOnl
       />
     );
   }
-  if (!readOnlyParent && (portal.isLoading || !snap || !studentProfile)) {
+  if (!readOnlyParent && portal.isLoading && !snap) {
     return <PageSkeleton rows={6} />;
   }
-  if (!studentProfile) return <PageSkeleton rows={6} />;
+  if (!studentProfile) {
+    return (
+      <EmptyState
+        icon={History}
+        title="Academic history unavailable"
+        description="Student profile is not available yet."
+      />
+    );
+  }
 
   return (
     <div className="min-w-0 space-y-5">

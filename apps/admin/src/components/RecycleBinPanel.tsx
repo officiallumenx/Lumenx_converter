@@ -107,8 +107,11 @@ export function RecycleBinPanel() {
 
     const requestInstituteId = instituteCtx.activeInstituteId;
     let cancelled = false;
-    setListStatus("loading");
-    setListError(null);
+    // Keep prior bin rows visible while soft-refresh refetches.
+    if (apiItems.length === 0) {
+      setListStatus("loading");
+      setListError(null);
+    }
     void loadRecycleItemsList(requestInstituteId).then((next) => {
       if (
         !shouldCommitRecycleLoad({
@@ -127,6 +130,7 @@ export function RecycleBinPanel() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- apiItems length only gates skeleton
   }, [
     apiMode,
     instituteCtx.status,

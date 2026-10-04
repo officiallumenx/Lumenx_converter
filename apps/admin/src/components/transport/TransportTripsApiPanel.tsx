@@ -1,10 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Card, CardHeader, EmptyState, PageToolbar, Pill } from "@lumenx/ui-admin";
 import { Navigation } from "lucide-react";
-import { subscribeTransportRealtime } from "@lumenx/utils";
-import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
-import { listTransportTrips } from "@/lib/transport/ops-api";
-import type { TransportTripDto } from "@/lib/transport/types";
+import { useTransportTripsQuery } from "@/lib/admin-queries";
+import { useTransportRealtimeInvalidate } from "@/lib/transport/use-transport-realtime-invalidate";
 
 type Props = {
   instituteId: string;
@@ -34,51 +32,26 @@ function formatWhen(iso: string | null): string {
 }
 
 export function TransportTripsApiPanel({ instituteId }: Props) {
-  const [trips, setTrips] = useState<TransportTripDto[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const tripsQuery = useTransportTripsQuery(instituteId, today);
+  useTransportRealtimeInvalidate(instituteId);
 
-  const reload = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await listTransportTrips({ instituteId, tripDate: today });
-      setTrips(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load trips");
-    } finally {
-      setLoading(false);
-    }
-  }, [instituteId, today]);
-
-  useEffect(() => {
-    void reload();
-  }, [reload]);
-
-  useEffect(() => {
-    try {
-      const supabase = getSupabaseBrowserClient();
-      return subscribeTransportRealtime(supabase, {
-        instituteId,
-        onChange: () => {
-          void reload();
-        },
-      });
-    } catch {
-      return undefined;
-    }
-  }, [instituteId, reload]);
-
+  const trips = tripsQuery.data ?? [];
   const active = trips.filter((t) => !t.finalized && t.phase !== "completed");
   const completed = trips.filter((t) => t.finalized || t.phase === "completed");
 
-  if (loading) {
+  if (tripsQuery.isLoading && trips.length === 0) {
     return <p className="text-sm text-muted-foreground">Loading trips…</p>;
   }
 
-  if (error) {
-    return <p className="text-sm text-destructive">{error}</p>;
+  if (tripsQuery.isError && trips.length === 0) {
+    return (
+      <p className="text-sm text-destructive">
+        {tripsQuery.error instanceof Error
+          ? tripsQuery.error.message
+          : "Failed to load trips"}
+      </p>
+    );
   }
 
   return (

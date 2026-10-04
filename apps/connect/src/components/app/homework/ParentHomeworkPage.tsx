@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { AssignmentDetailDialog } from "@/components/app/assignments/AssignmentDetailDialog";
 import { useParentPortal } from "@/context/ParentPortalContext";
@@ -11,14 +11,12 @@ import { assignmentsForClass } from "@/lib/parent-portal-data";
 import { useApp } from "@/lib/app-state";
 import { formatAssignmentDueLabel } from "@/lib/assignment-status";
 import { isApiAuthMode } from "@/auth/auth-mode";
-import { getConnectApiClient } from "@/lib/connect-api";
-import type { MeResponse } from "@/lib/api/me-types";
 import {
   learnerItemToDetail,
   learnerItemToStudentAssignment,
   loadParentHomeworkItems,
-  loadStudentHomeworkItems,
 } from "@/lib/homework";
+import { useStudentHomeworkQuery } from "@/lib/connect-queries/hooks";
 import type { StudentDto } from "@/lib/students/types";
 import { BookOpen, Calendar, ChevronRight, ClipboardList, User } from "lucide-react";
 import { cn, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@lumenx/ui";
@@ -163,13 +161,13 @@ function DemoParentHomeworkPage() {
 
 function ApiParentHomeworkPage() {
   const { role, activeInstituteId, activeChildId, setActiveChildId } = useApp();
+  const studentPortal = useStudentPortal();
   const [tab, setTab] = useState<WorkTab>("assignment");
   const [selected, setSelected] = useState<StudentAssignmentDetail | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [students, setStudents] = useState<StudentDto[]>([]);
   const [childId, setChildId] = useState(activeChildId);
-  const [studentId, setStudentId] = useState<string | null>(null);
   const [itemsByStudentId, setItemsByStudentId] = useState<
     Map<string, import("@/lib/homework").LearnerHomeworkItemDto[]>
   >(new Map());
@@ -177,76 +175,55 @@ function ApiParentHomeworkPage() {
   const [details, setDetails] = useState<StudentAssignmentDetail[]>([]);
   const [subtitle, setSubtitle] = useState("Loading homework…");
 
-  useEffect(() => {
-    if (role !== "student" || !activeInstituteId) return;
-    let cancelled = false;
-    void getConnectApiClient()
-      .get<MeResponse>("/api/v1/me")
-      .then((me) => {
-        if (cancelled) return;
-        const identity =
-          me.identities.students.find((s) => s.instituteId === activeInstituteId) ?? null;
-        setStudentId(identity?.studentId ?? null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [role, activeInstituteId]);
+  const portalStudentId =
+    role === "student" && studentPortal.isStudent
+      ? studentPortal.snapshot?.profile.id ?? null
+      : null;
+  const studentHomeworkQuery = useStudentHomeworkQuery(
+    activeInstituteId,
+    portalStudentId,
+    role === "student",
+  );
 
   useEffect(() => {
-    if (!activeInstituteId) {
-      setLoading(false);
+    if (role !== "student") return;
+    if (studentHomeworkQuery.data) {
+      setAssignments(studentHomeworkQuery.data.assignments);
+      setDetails(studentHomeworkQuery.data.details);
+      setSubtitle("View assigned work (hand in at school)");
+    }
+  }, [role, studentHomeworkQuery.data]);
+
+  useEffect(() => {
+    if (role !== "parent" || !activeInstituteId) {
+      if (role !== "parent") setLoading(false);
       return;
     }
 
     let cancelled = false;
-    setLoading(true);
+    const hasCached = students.length > 0 || itemsByStudentId.size > 0;
+    if (!hasCached) setLoading(true);
 
-    if (role === "parent") {
-      void loadParentHomeworkItems({ instituteId: activeInstituteId }).then((result) => {
-        if (cancelled) return;
-        setStudents(result.students);
-        setItemsByStudentId(result.itemsByStudentId);
-        if (result.students.length > 0) {
-          const valid = childId && result.students.some((s) => s.id === childId);
-          const next =
-            valid ? childId : result.students.find((s) => s.id === activeChildId)?.id ?? result.students[0]!.id;
-          if (next !== childId) {
-            setChildId(next);
-            setActiveChildId(next);
-          }
+    void loadParentHomeworkItems({ instituteId: activeInstituteId }).then((result) => {
+      if (cancelled) return;
+      setStudents(result.students);
+      setItemsByStudentId(result.itemsByStudentId);
+      if (result.students.length > 0) {
+        const valid = childId && result.students.some((s) => s.id === childId);
+        const next =
+          valid ? childId : result.students.find((s) => s.id === activeChildId)?.id ?? result.students[0]!.id;
+        if (next !== childId) {
+          setChildId(next);
+          setActiveChildId(next);
         }
-        setLoading(false);
-      });
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    if (role === "student" && studentId) {
-      void loadStudentHomeworkItems({
-        instituteId: activeInstituteId,
-        studentId,
-      }).then((result) => {
-        if (cancelled) return;
-        setAssignments(result.assignments);
-        setDetails(result.details);
-        setSubtitle("View assigned work (hand in at school)");
-        setLoading(false);
-      });
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    if (role === "student" && !studentId) {
+      }
       setLoading(false);
-    }
-
+    });
     return () => {
       cancelled = true;
     };
-  }, [activeInstituteId, role, activeChildId, setActiveChildId, studentId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- warm refresh keeps prior parent lists
+  }, [activeInstituteId, role, activeChildId, setActiveChildId]);
 
   useEffect(() => {
     if (role !== "parent") return;
@@ -283,7 +260,13 @@ function ApiParentHomeworkPage() {
   );
   const activeItems = tab === "assignment" ? assignmentItems : homework;
 
-  if (loading) return <PageSkeleton rows={5} />;
+  const studentLoading =
+    role === "student" &&
+    ((studentPortal.isLoading && !studentPortal.snapshot) ||
+      (Boolean(portalStudentId) && studentHomeworkQuery.isLoading && !studentHomeworkQuery.data));
+  const showSkeleton = role === "parent" ? loading : studentLoading;
+
+  if (showSkeleton) return <PageSkeleton rows={5} />;
 
   const childPicker =
     role === "parent" && students.length > 1 ? (

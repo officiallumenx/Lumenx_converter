@@ -149,8 +149,11 @@ function CertificatesPage() {
 
     const requestInstituteId = instituteCtx.activeInstituteId;
     let cancelled = false;
-    setCatalogListStatus("loading");
-    setCatalogListError(null);
+    // Keep prior catalog visible while soft-refresh refetches.
+    if (apiCatalogTemplates.length === 0) {
+      setCatalogListStatus("loading");
+      setCatalogListError(null);
+    }
     void loadDocumentsTemplatesList(requestInstituteId).then((next) => {
       if (
         !shouldCommitDocumentsTemplatesLoad({
@@ -171,6 +174,7 @@ function CertificatesPage() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- catalog length only gates skeleton
   }, [
     apiMode,
     instituteCtx.status,
@@ -217,8 +221,11 @@ function CertificatesPage() {
 
     const requestInstituteId = instituteCtx.activeInstituteId;
     let cancelled = false;
-    setIssuedListStatus("loading");
-    setIssuedListError(null);
+    // Keep prior issued list visible while soft-refresh refetches.
+    if (apiIssued.length === 0) {
+      setIssuedListStatus("loading");
+      setIssuedListError(null);
+    }
     void loadIssuedCertificatesList(requestInstituteId).then((next) => {
       if (
         !shouldCommitIssuedCertificatesLoad({
@@ -237,6 +244,7 @@ function CertificatesPage() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- issued length only gates skeleton
   }, [
     apiMode,
     instituteCtx.status,

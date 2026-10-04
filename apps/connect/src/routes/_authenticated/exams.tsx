@@ -133,7 +133,7 @@ function ParentStudentExamsPage() {
       return;
     }
     let cancelled = false;
-    setApiSchedulesLoading(true);
+    if (apiSchedules.length === 0) setApiSchedulesLoading(true);
     void loadApiLearnerExamSchedules({
       instituteId: activeInstituteId,
       classGrade: learnerClass || undefined,
@@ -145,6 +145,7 @@ function ParentStudentExamsPage() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- prior schedules keep UI warm
   }, [apiMode, activeInstituteId, learnerClass]);
 
   useEffect(() => {
@@ -159,14 +160,14 @@ function ParentStudentExamsPage() {
       return;
     }
     let cancelled = false;
-    setApiReportCardsLoading(true);
+    if (!apiReportCards || apiReportCards.length === 0) setApiReportCardsLoading(true);
     void loadStudentReportCards({
       instituteId: activeInstituteId,
       studentId,
     }).then((result) => {
       if (cancelled) return;
       if (result.status === "ready" || result.status === "empty") {
-        setApiReportCards(result.cards);
+        setApiReportCards(result.reportCards);
       } else {
         setApiReportCards([]);
       }
@@ -175,6 +176,7 @@ function ParentStudentExamsPage() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- prior cards keep UI warm
   }, [apiMode, activeInstituteId, studentId]);
 
   const classSchedules = useMemo(() => {
@@ -216,7 +218,13 @@ function ParentStudentExamsPage() {
       ? `${studentSnap.profile.name} · ${studentSnap.profile.class} ${studentSnap.profile.section}`
       : "Schedule, results and trends";
 
-  if (isLoading || (apiMode && (apiSchedulesLoading || apiReportCardsLoading))) {
+  const examsFirstLoad =
+    isLoading ||
+    (apiMode &&
+      ((apiSchedulesLoading && apiSchedules.length === 0) ||
+        (apiReportCardsLoading && (apiReportCards === null || apiReportCards.length === 0))));
+
+  if (examsFirstLoad) {
     return (
       <div className="min-w-0 max-w-full space-y-4">
         <PageHeader title="Exams & Marks" subtitle="Loading exam schedule and results…" />

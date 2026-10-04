@@ -1,19 +1,20 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { isInstituteUuid } from "@/lib/institute-id";
 import { connectQueryKeys } from "./keys";
-import { loadTeacherFeeRoster } from "@/lib/fees";
+import { loadTeacherFeeRoster, loadStudentFeePortal } from "@/lib/fees";
 import { loadLearnerTeachers } from "@/lib/teachers";
-import { loadTeacherTimetable } from "@/lib/timetable";
+import { loadLearnerTimetable, loadTeacherTimetable } from "@/lib/timetable";
 import { loadTeacherLeavePortal } from "@/lib/leave";
 import { loadMessagesThreadList } from "@/lib/messages/load";
 import { loadTeacherAttendancePortal } from "@/lib/attendance/load";
 import { loadLearnerAttendancePortal } from "@/lib/attendance/load";
 import { loadTeacherSelfAttendance } from "@/lib/staff-attendance";
 import { loadInstituteHolidays, loadConnectEvents } from "@/lib/events";
-import { loadTeacherHomeworkList } from "@/lib/homework";
+import { loadTeacherHomeworkList, loadStudentHomeworkItems } from "@/lib/homework";
 import { listSubjects, listTeacherAssignments } from "@/lib/teacher-classes/api";
 import { listExams, loadTeacherExamPapers } from "@/lib/exams";
-import { loadTeacherMarkSheet } from "@/lib/marks";
+import { loadTeacherMarkSheet, loadStudentReportCards } from "@/lib/marks";
+import { listDiaryDays } from "@/lib/diary/api";
 import { isApiAuthMode } from "@/auth/auth-mode";
 import { getAnnouncement, listAnnouncements } from "@/lib/announcements/api";
 import { loadLearnerComplaints, loadTeacherComplaints } from "@/lib/complaints";
@@ -47,6 +48,26 @@ export function useTeacherFeesRosterQuery(
       Boolean(instituteId) &&
       isInstituteUuid(instituteId ?? "") &&
       sectionIds.length > 0,
+  });
+}
+
+export function useStudentFeesQuery(
+  instituteId: string | null | undefined,
+  studentId: string | null | undefined,
+) {
+  return useQuery({
+    queryKey: connectQueryKeys.feesStudent(instituteId ?? "_", studentId ?? "_"),
+    queryFn: () =>
+      loadStudentFeePortal({
+        instituteId: instituteId ?? null,
+        studentId: studentId ?? null,
+      }),
+    enabled:
+      isApiAuthMode() &&
+      Boolean(instituteId) &&
+      Boolean(studentId) &&
+      isInstituteUuid(instituteId ?? "") &&
+      isInstituteUuid(studentId ?? ""),
   });
 }
 
@@ -88,6 +109,35 @@ export function useTeacherTimetableQuery(
       }),
     enabled: enabled && Boolean(instituteId) && isInstituteUuid(instituteId ?? ""),
   });
+}
+
+export function useLearnerTimetableQuery(
+  instituteId: string | null | undefined,
+  studentId: string | null | undefined,
+  enabled = true,
+) {
+  const qc = useQueryClient();
+  const query = useQuery({
+    queryKey: connectQueryKeys.timetableLearner(instituteId ?? "_", studentId ?? "_"),
+    queryFn: () =>
+      loadLearnerTimetable({
+        instituteId: instituteId ?? null,
+        studentId: studentId ?? null,
+      }),
+    enabled:
+      enabled &&
+      Boolean(instituteId) &&
+      Boolean(studentId) &&
+      isInstituteUuid(instituteId ?? "") &&
+      isInstituteUuid(studentId ?? ""),
+  });
+  const refresh = () => {
+    if (!instituteId || !studentId) return;
+    void qc.invalidateQueries({
+      queryKey: connectQueryKeys.timetableLearner(instituteId, studentId),
+    });
+  };
+  return { ...query, refresh };
 }
 
 export function useTeacherLeaveQuery(
@@ -648,6 +698,66 @@ export function useLearnerActivitiesQuery(
       Boolean(studentId) &&
       isInstituteUuid(instituteId ?? "") &&
       isInstituteUuid(studentId ?? ""),
+  });
+}
+
+export function useStudentMarksQuery(
+  instituteId: string | null | undefined,
+  studentId: string | null | undefined,
+) {
+  return useQuery({
+    queryKey: connectQueryKeys.marksStudent(instituteId ?? "_", studentId ?? "_"),
+    queryFn: () =>
+      loadStudentReportCards({
+        instituteId: instituteId!,
+        studentId: studentId!,
+      }),
+    enabled:
+      isApiAuthMode() &&
+      Boolean(instituteId) &&
+      Boolean(studentId) &&
+      isInstituteUuid(instituteId ?? "") &&
+      isInstituteUuid(studentId ?? ""),
+  });
+}
+
+export function useStudentHomeworkQuery(
+  instituteId: string | null | undefined,
+  studentId: string | null | undefined,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: connectQueryKeys.homeworkStudent(instituteId ?? "_", studentId ?? "_"),
+    queryFn: () =>
+      loadStudentHomeworkItems({
+        instituteId: instituteId!,
+        studentId: studentId!,
+      }),
+    enabled:
+      enabled &&
+      isApiAuthMode() &&
+      Boolean(instituteId) &&
+      Boolean(studentId) &&
+      isInstituteUuid(instituteId ?? "") &&
+      isInstituteUuid(studentId ?? ""),
+  });
+}
+
+export function useLearnerDiaryQuery(instituteId: string | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: connectQueryKeys.diaryLearner(instituteId ?? "_"),
+    queryFn: async () => {
+      const rows = await listDiaryDays({
+        instituteId: instituteId!,
+        submitted: true,
+      });
+      return rows.slice().sort((a, b) => b.diaryDate.localeCompare(a.diaryDate));
+    },
+    enabled:
+      enabled &&
+      isApiAuthMode() &&
+      Boolean(instituteId) &&
+      isInstituteUuid(instituteId ?? ""),
   });
 }
 

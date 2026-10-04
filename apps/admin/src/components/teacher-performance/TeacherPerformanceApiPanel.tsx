@@ -70,8 +70,11 @@ export function TeacherPerformanceApiPanel() {
 
     const requestInstituteId = instituteCtx.activeInstituteId;
     let cancelled = false;
-    setLoadStatus("loading");
-    setLoadError(null);
+    // Keep prior performance rows visible while soft-refresh refetches.
+    if (rows.length === 0) {
+      setLoadStatus("loading");
+      setLoadError(null);
+    }
     void loadTeacherPerformanceList(requestInstituteId).then((next) => {
       if (
         !shouldCommitTeacherPerformanceLoad({
@@ -91,6 +94,7 @@ export function TeacherPerformanceApiPanel() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rows length only gates skeleton
   }, [instituteCtx.status, instituteCtx.activeInstituteId, instituteCtx.errorMessage]);
 
   const view = resolveTeacherPerformanceListView({

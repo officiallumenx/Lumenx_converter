@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { SectionCard } from "@/components/app/SectionCard";
 import { useApp } from "@/lib/app-state";
@@ -241,29 +241,35 @@ function ApiParentMarks() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  const loadedInstituteRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!activeInstituteId) {
       setLoading(false);
       return;
     }
     let cancelled = false;
-    setLoading(true);
+    const sameInstitute = loadedInstituteRef.current === activeInstituteId;
+    if (!sameInstitute && students.length === 0) setLoading(true);
     void loadParentReportCards({ instituteId: activeInstituteId }).then((result) => {
       if (cancelled) return;
       setStudents(result.students);
       setCardsByStudentId(result.cardsByStudentId);
       setLoadError(result.errorMessage);
+      loadedInstituteRef.current = activeInstituteId;
       setLoading(false);
-      if (result.students.length > 0) {
-        const valid = activeChildId && result.students.some((s) => s.id === activeChildId);
-        const next = valid ? activeChildId : result.students[0]!.id;
-        if (next !== activeChildId) setActiveChildId(next);
-      }
     });
     return () => {
       cancelled = true;
     };
-  }, [activeInstituteId, activeChildId, setActiveChildId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- students length only gates skeleton
+  }, [activeInstituteId]);
+
+  useEffect(() => {
+    if (students.length === 0) return;
+    const valid = activeChildId && students.some((s) => s.id === activeChildId);
+    if (!valid) setActiveChildId(students[0]!.id);
+  }, [students, activeChildId, setActiveChildId]);
 
   const child = useMemo(
     () => students.find((s) => s.id === activeChildId) ?? students[0] ?? null,
@@ -338,7 +344,16 @@ function DemoParentMarks() {
   const publishedTick = useLocalStorageExternalStore(LEARNER_PUBLISHED_MARKS_KEY);
 
   if (!portal.isParent) return null;
-  if (portal.isLoading || !portal.snapshot) {
+  if (portal.isLoading && !portal.snapshot) {
+    return (
+      <div className="min-w-0 max-w-full space-y-4">
+        <PageHeader title="Academic Performance" subtitle="Loading this learner's records…" />
+        <Skeleton className="h-12 w-full max-w-md rounded-xl" />
+        <Skeleton className="h-72 w-full rounded-2xl" />
+      </div>
+    );
+  }
+  if (!portal.snapshot) {
     return (
       <div className="min-w-0 max-w-full space-y-4">
         <PageHeader title="Academic Performance" subtitle="Loading this learner's records…" />

@@ -162,7 +162,8 @@ function ApiParentLeavePage() {
       return;
     }
     let cancelled = false;
-    setLoading(true);
+    // Keep prior leave list visible while soft-refresh / child switch refetches.
+    if (students.length === 0) setLoading(true);
     void loadParentLeaveRequests({
       instituteId: activeInstituteId,
       studentId: leaveChildId || null,
@@ -187,6 +188,7 @@ function ApiParentLeavePage() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- students length only gates skeleton
   }, [activeInstituteId, leaveChildId, reloadKey, activeChildId, setActiveChildId]);
 
   const child = useMemo(

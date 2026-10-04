@@ -77,6 +77,7 @@ function TeacherAttendanceDemoPage() {
   const [selfAttendance, setSelfAttendance] = useState<TeacherSelfAttendanceRecord[]>([]);
   const [activeSlotId, setActiveSlotId] = useState("slot:day");
   const loadSeqRef = useRef(0);
+  const studentsLenRef = useRef(0);
 
   const markDate = editingDate ?? todayLocalIso();
   const selectedClass = portal.isTeacher
@@ -163,7 +164,8 @@ function TeacherAttendanceDemoPage() {
   const loadStudents = useCallback(async () => {
     if (!portal.isTeacher) return;
     const my = ++loadSeqRef.current;
-    setLoading(true);
+    // Keep prior roster visible while class/date soft-refresh refetches.
+    if (studentsLenRef.current === 0) setLoading(true);
     const slotId = activeSlotId;
     const [s, r, h, existing] = await Promise.all([
       teacherRepository.getStudents(classId),
@@ -173,6 +175,7 @@ function TeacherAttendanceDemoPage() {
     ]);
     // Drop stale responses when the class/date changed before this load resolved.
     if (loadSeqRef.current !== my) return;
+    studentsLenRef.current = s.length;
     setStudents(s);
     setReports(r);
     setHistory(h);

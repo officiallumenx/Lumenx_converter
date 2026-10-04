@@ -87,6 +87,16 @@ describe("notification inbox DTO mapping", () => {
         dto({ notification: { ...dto().notification, deepLink: null } }),
       ).href,
     ).toBeUndefined();
+    expect(
+      inboxItemDtoToListItem(
+        dto({
+          notification: {
+            ...dto().notification,
+            deepLink: "https://evil.example/phish",
+          },
+        }),
+      ).href,
+    ).toBeUndefined();
   });
 
   it("falls back title and body when blank", () => {

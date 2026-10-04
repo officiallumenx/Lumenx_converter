@@ -53,13 +53,10 @@ function TeacherEventsApiPanel() {
     (eventsQuery.data.status === "ready" || eventsQuery.data.status === "empty")
       ? eventsQuery.data.items
       : [];
+  const isFirstLoad = eventsQuery.isLoading && !eventsQuery.data;
   const status =
     eventsQuery.data?.status ??
-    (eventsQuery.isLoading && !eventsQuery.data
-      ? "loading"
-      : eventsQuery.isError
-        ? "error"
-        : "loading");
+    (isFirstLoad ? "loading" : eventsQuery.isError ? "error" : "empty");
   const error =
     eventsQuery.data &&
     (eventsQuery.data.status === "forbidden" || eventsQuery.data.status === "error")
@@ -103,7 +100,7 @@ function TeacherEventsApiPanel() {
         }
       />
 
-      {status === "loading" || (eventsQuery.isLoading && !eventsQuery.data) ? (
+      {isFirstLoad ? (
         <PageSkeleton rows={4} />
       ) : error ? (
         <p className="text-sm text-destructive">{error}</p>

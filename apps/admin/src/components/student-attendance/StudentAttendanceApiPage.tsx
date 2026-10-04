@@ -268,7 +268,8 @@ export function StudentAttendanceApiPage() {
     }
     const catalog = catalogQuery.data;
     if (!catalog) {
-      if (catalogQuery.isLoading || catalogQuery.isFetching) setCatalogReady(false);
+      // First load only — keep prior class/section options during soft refetch.
+      if (catalogQuery.isLoading) setCatalogReady(false);
       return;
     }
     setClassOptions(buildStudentAttendanceApiClassOptions(catalog.classes));
@@ -287,7 +288,6 @@ export function StudentAttendanceApiPage() {
     catalogQuery.data,
     catalogQuery.isError,
     catalogQuery.isLoading,
-    catalogQuery.isFetching,
     catalogQuery.error,
     state.classId,
   ]);

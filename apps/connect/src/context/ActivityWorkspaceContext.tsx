@@ -11,6 +11,7 @@ import { useApp } from "@/lib/app-state";
 import { useTeacherPortalAccess } from "@/lib/teacher-session";
 import { activityRepository } from "@/lib/activity/repositories";
 import { connectQueryKeys } from "@/lib/connect-queries";
+import { prefetchActivityModuleQueries } from "@/lib/connect-queries/prefetch-activity";
 import { isInstituteUuid } from "@/lib/institute-id";
 import type { ActivityDashboardSnapshot } from "@/lib/activity/types";
 
@@ -48,6 +49,11 @@ export function ActivityWorkspaceRegistry({ children }: { children: ReactNode })
     if (isActive) return;
     queryClient.removeQueries({ queryKey: ["activity-workspace"] });
   }, [isActive, queryClient]);
+
+  useEffect(() => {
+    if (!canRun || !activeInstituteId) return;
+    prefetchActivityModuleQueries(queryClient, activeInstituteId);
+  }, [canRun, activeInstituteId, queryClient]);
 
   const refresh = useCallback(() => {
     if (!activeInstituteId) return;

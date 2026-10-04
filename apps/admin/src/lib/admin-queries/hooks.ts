@@ -46,6 +46,15 @@ import {
   loadTransportSettings,
 } from "@/lib/transport";
 import { loadAnalyticsSummary } from "@/lib/analytics";
+import { loadAnalyticsSeries } from "@/lib/analytics/load-series";
+import type { AnalyticsRange } from "@/lib/analytics/types";
+import {
+  getTransportAnalytics,
+  listTransportBoardingMarks,
+  listTransportEmergencies,
+  listTransportTrips,
+} from "@/lib/transport/ops-api";
+import { listTransportReviewQueue } from "@/lib/transport/approval-api";
 import {
   loadDocumentsHubSummary,
   loadDocumentsTemplatesList,
@@ -442,6 +451,99 @@ export function useAnalyticsSummaryQuery(
     queryKey: adminQueryKeys.analytics(id),
     queryFn: () => loadAnalyticsSummary(instituteId!),
     enabled: instituteEnabled(instituteId, enabled),
+  });
+}
+
+export function useAnalyticsSeriesQuery(
+  instituteId: string | null | undefined,
+  range: AnalyticsRange,
+  enabled = true,
+) {
+  const id = instituteId ?? "_";
+  return useAdminQuery({
+    queryKey: [...adminQueryKeys.analytics(id), "series", range] as const,
+    queryFn: () => loadAnalyticsSeries(instituteId!, range),
+    enabled: instituteEnabled(instituteId, enabled),
+    staleTime: ADMIN_QUERY_CATALOG_STALE_TIME_MS,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** Live transport ops — short stale window; realtime invalidates. */
+const TRANSPORT_OPS_STALE_MS = 20_000;
+
+export function useTransportTripsQuery(
+  instituteId: string | null | undefined,
+  tripDate: string,
+  enabled = true,
+) {
+  const id = instituteId ?? "_";
+  return useAdminQuery({
+    queryKey: adminQueryKeys.transport(id, `trips:${tripDate}`),
+    queryFn: () => listTransportTrips({ instituteId: instituteId!, tripDate }),
+    enabled: instituteEnabled(instituteId, enabled),
+    staleTime: TRANSPORT_OPS_STALE_MS,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useTransportBoardingMarksQuery(
+  instituteId: string | null | undefined,
+  tripDate: string,
+  enabled = true,
+) {
+  const id = instituteId ?? "_";
+  return useAdminQuery({
+    queryKey: adminQueryKeys.transport(id, `boarding:${tripDate}`),
+    queryFn: () =>
+      listTransportBoardingMarks({ instituteId: instituteId!, tripDate }),
+    enabled: instituteEnabled(instituteId, enabled),
+    staleTime: TRANSPORT_OPS_STALE_MS,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useTransportEmergenciesQuery(
+  instituteId: string | null | undefined,
+  enabled = true,
+) {
+  const id = instituteId ?? "_";
+  return useAdminQuery({
+    queryKey: adminQueryKeys.transport(id, "emergencies"),
+    queryFn: () => listTransportEmergencies({ instituteId: instituteId! }),
+    enabled: instituteEnabled(instituteId, enabled),
+    staleTime: TRANSPORT_OPS_STALE_MS,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useTransportAnalyticsOpsQuery(
+  instituteId: string | null | undefined,
+  tripDate: string,
+  enabled = true,
+) {
+  const id = instituteId ?? "_";
+  return useAdminQuery({
+    queryKey: adminQueryKeys.transport(id, `analytics:${tripDate}`),
+    queryFn: () =>
+      getTransportAnalytics({ instituteId: instituteId!, tripDate }),
+    enabled: instituteEnabled(instituteId, enabled),
+    staleTime: TRANSPORT_OPS_STALE_MS,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useTransportReviewQueueQuery(
+  instituteId: string | null | undefined,
+  enabled = true,
+) {
+  const id = instituteId ?? "_";
+  return useAdminQuery({
+    queryKey: adminQueryKeys.transport(id, "review-queue"),
+    queryFn: () => listTransportReviewQueue({ instituteId: instituteId! }),
+    enabled: instituteEnabled(instituteId, enabled),
+    staleTime: TRANSPORT_OPS_STALE_MS,
+    placeholderData: keepPreviousData,
   });
 }
 
