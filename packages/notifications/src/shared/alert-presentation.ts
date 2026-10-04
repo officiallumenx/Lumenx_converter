@@ -31,11 +31,11 @@ export function isAlertPresentationPayload(
   return readAlertPayload(payload).presentation === ALERT_PRESENTATION;
 }
 
-/** True for school-alert payload or critical (high) notifications — not ordinary warnings. */
+/** True for school-alert payload or emergency category — not ordinary high-priority rows. */
 export function isAlertNotification(n: AppNotification): boolean {
   const payload = (n as AppNotification & { payload?: Record<string, unknown> }).payload;
   if (isAlertPresentationPayload(payload)) return true;
-  return n.priority === "high";
+  return n.category === "emergency";
 }
 
 export const ALERT_ROW_CLASS =

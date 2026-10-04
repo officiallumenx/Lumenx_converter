@@ -84,8 +84,15 @@ export function saveSession(
   remember = false,
   options?: { authSource?: "demo" | "api"; token?: string },
 ): AuthSession {
-  const ttl     = remember ? REMEMBER_TTL_MS : SESSION_TTL_MS;
   const authSource = options?.authSource ?? "api";
+  // API sessions follow Supabase refresh tokens — keep UI identity until logout.
+  // Demo-only path still honors remember / short TTL.
+  const ttl =
+    authSource === "api"
+      ? REMEMBER_TTL_MS
+      : remember
+        ? REMEMBER_TTL_MS
+        : SESSION_TTL_MS;
   const session: AuthSession = {
     userId:        user.id,
     email:         user.email,
@@ -106,7 +113,7 @@ export function saveSession(
   };
   try {
     localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
-    if (remember) localStorage.setItem(AUTH_REMEMBER_KEY, "1");
+    if (authSource === "api" || remember) localStorage.setItem(AUTH_REMEMBER_KEY, "1");
     else          localStorage.removeItem(AUTH_REMEMBER_KEY);
   } catch (_) {
     // storage unavailable (private mode, quota exceeded, etc.)
@@ -119,7 +126,8 @@ export function loadSession(): AuthSession | null {
     const raw = localStorage.getItem(AUTH_SESSION_KEY);
     if (!raw) return null;
     const session = JSON.parse(raw) as AuthSession;
-    if (Date.now() > session.expiresAt) {
+    // API identity is restored via Supabase; do not force-logout on client TTL.
+    if (session.authSource !== "api" && Date.now() > session.expiresAt) {
       clearSession();
       return null;
     }

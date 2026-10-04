@@ -69,8 +69,8 @@ async function emitDiaryReminder(input: {
     await emitNotificationForInstituteSystem(input.admin, input.actorUserId, {
       instituteId: input.instituteId,
       recipientUserIds: [input.recipientUserId],
-      category: "leave",
-      priority: input.overdue ? "important" : "normal",
+      category: "homework",
+      priority: "normal",
       title,
       body,
       deepLink: diaryDeepLink(input.scope),

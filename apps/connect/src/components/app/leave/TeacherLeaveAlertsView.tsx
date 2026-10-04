@@ -93,11 +93,7 @@ function ApiTeacherLeaveAlertsView() {
       if (cancelled) return;
       setLeaveLog(
         inbox
-          .filter(
-            (n) =>
-              n.category === "circulars" ||
-              (n as { category?: string }).category === "leave",
-          )
+          .filter((n) => n.category === "leave")
           .filter(
             (n) =>
               n.title.toLowerCase().includes("leave") ||

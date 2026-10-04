@@ -1,4 +1,4 @@
-import logo from "@/assets/lumenx-logo.png";
+import logo from "@/assets/lumenx-connect-logo.png";
 import { cn } from "@lumenx/ui";
 
 const HEIGHT = {
@@ -22,7 +22,11 @@ export function LumenXLogo({
     <img
       src={logo}
       alt={alt}
-      className={cn("w-auto max-w-full object-contain shrink-0", HEIGHT[size], className)}
+      className={cn(
+        "w-auto max-w-full object-contain object-center shrink-0 rounded-xl",
+        HEIGHT[size],
+        className,
+      )}
       decoding="async"
     />
   );

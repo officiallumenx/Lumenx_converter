@@ -19,6 +19,10 @@ const CATEGORY_LABELS: Record<NotificationCategory, string> = {
   holidays: "Holidays",
   circulars: "Circulars",
   emergency: "Emergency",
+  messages: "Messages",
+  transport: "Transport",
+  leave: "Leave",
+  system: "System",
 };
 
 const TYPE_STYLES = {

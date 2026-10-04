@@ -55,18 +55,33 @@ function persistSession(user: TransportSessionUser | null): void {
   storage.setItem(TRANSPORT_STORAGE_KEYS.session, JSON.stringify(user));
 }
 
+function readPersistedSession(): TransportSessionUser | null {
+  try {
+    const raw = storage.getItem(TRANSPORT_STORAGE_KEYS.session);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as TransportSessionUser;
+    if (!parsed?.id || !parsed?.driverId) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 export function TransportAuthProvider({ children }: { children: ReactNode }) {
   const apiMode = isApiAuthMode();
-  const [user, setUser] = useState<TransportSessionUser | null>(null);
+  const [user, setUser] = useState<TransportSessionUser | null>(() => readPersistedSession());
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     async function hydrate() {
+      const persisted = readPersistedSession();
+      if (!cancelled && persisted) setUser(persisted);
       try {
         const session = await hydrateApiTransportSession();
-        if (!cancelled && session) {
-          setUser({
+        if (cancelled) return;
+        if (session) {
+          const next = {
             id: session.userId,
             name: session.name,
             phone: session.phone,
@@ -74,11 +89,19 @@ export function TransportAuthProvider({ children }: { children: ReactNode }) {
             instituteId: session.instituteId,
             driverId: session.driverId,
             email: session.email,
-          });
+          };
+          setUser(next);
+          persistSession(next);
+          return;
+        }
+        // No API session — only clear UI if Supabase also has no token.
+        const token = await getSupabaseAccessToken();
+        if (!token) {
+          setUser(null);
+          persistSession(null);
         }
       } catch {
-        // Keep any persisted UI session only if hydrate failed transiently —
-        // do not clear storage here (api-auth already signs out on 401/403).
+        // Keep persisted UI session on transient hydrate failures.
       } finally {
         if (!cancelled) setHydrated(true);
       }

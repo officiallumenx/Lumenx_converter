@@ -454,7 +454,7 @@ export function evaluateComplaintEscalationAlerts(): number {
         notificationTitle: "Complaint escalation",
         rule,
         severity: "emergency",
-        category: "circulars",
+        category: "system",
         href: "/complaints",
         broadcastPriority: "critical",
         detail: [

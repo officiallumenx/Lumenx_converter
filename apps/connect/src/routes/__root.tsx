@@ -10,7 +10,7 @@ import {
 import { lazy, Suspense } from "react";
 
 import appCss from "../styles.css?url";
-import logoUrl from "../assets/lumenx-logo.png?url";
+import logoUrl from "../assets/lumenx-connect-logo.png?url";
 import { Toaster } from "@lumenx/ui/sonner";
 import { OfflineSyncHost, TypographyProvider } from "@lumenx/ui";
 import { LumenXNativeShell } from "@lumenx/capacitor/native-shell";

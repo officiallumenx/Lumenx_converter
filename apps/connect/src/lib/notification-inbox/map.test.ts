@@ -39,7 +39,7 @@ describe("connect inbox map", () => {
       ...dto,
       notification: { ...dto.notification, category: "system", priority: "normal" },
     });
-    expect(row.category).toBe("circulars");
+    expect(row.category).toBe("system");
     expect(row.priority).toBe("normal");
   });
 

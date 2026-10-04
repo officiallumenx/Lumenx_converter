@@ -1,5 +1,6 @@
 /**
- * Apply full-bleed square logos as Android launcher icons (+ favicons).
+ * Apply logos as Android launcher icons (+ favicons) with adaptive safe-zone
+ * padding so wordmarks are not clipped by squircle/circular masks.
  * Usage: node scripts/apply-app-icons.mjs
  */
 import sharp from "sharp";
@@ -95,6 +96,23 @@ async function toMasterPng(srcPath) {
     .toBuffer();
 }
 
+async function paddedSquare(masterBuf, size, { contentRatio = 0.55, bg = "#FFFFFF" } = {}) {
+  const content = Math.max(1, Math.round(size * contentRatio));
+  const logo = await sharp(masterBuf)
+    .resize(content, content, {
+      fit: "contain",
+      background: bg,
+    })
+    .png()
+    .toBuffer();
+  return sharp({
+    create: { width: size, height: size, channels: 4, background: bg },
+  })
+    .composite([{ input: logo, gravity: "centre" }])
+    .png()
+    .toBuffer();
+}
+
 async function fillSquare(masterBuf, size) {
   return sharp(masterBuf)
     .resize(size, size, { fit: "cover", position: "centre" })
@@ -102,8 +120,8 @@ async function fillSquare(masterBuf, size) {
     .toBuffer();
 }
 
-async function circular(masterBuf, size) {
-  const sq = await fillSquare(masterBuf, size);
+async function circular(masterBuf, size, bg) {
+  const sq = await paddedSquare(masterBuf, size, { contentRatio: 0.52, bg });
   const svg = Buffer.from(
     `<svg width="${size}" height="${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}" fill="white"/></svg>`,
   );
@@ -124,12 +142,15 @@ async function applyApp(app) {
 
   const master = await toMasterPng(app.src);
   const sourcePath = path.join(store, app.sourceName);
+  // Keep full-bleed master for in-app / store marketing; launcher uses padded copies.
   await sharp(master).png().toFile(sourcePath);
-  await sharp(master).png().toFile(path.join(store, "launcher-icon-master-1024.png"));
-  await sharp(await fillSquare(master, 512))
+  await sharp(await paddedSquare(master, 1024, { contentRatio: 0.7, bg: app.bg }))
+    .png()
+    .toFile(path.join(store, "launcher-icon-master-1024.png"));
+  await sharp(await paddedSquare(master, 512, { contentRatio: 0.68, bg: app.bg }))
     .png()
     .toFile(path.join(store, "play-icon-512.png"));
-  await sharp(await fillSquare(master, 192))
+  await sharp(await paddedSquare(master, 192, { contentRatio: 0.72, bg: app.bg }))
     .png()
     .toFile(path.join(publicDir, "favicon.png"));
 
@@ -152,8 +173,8 @@ async function applyApp(app) {
   for (const [dir, size] of Object.entries(foregroundSizes)) {
     const outDir = path.join(res, dir);
     fs.mkdirSync(outDir, { recursive: true });
-    // Full-bleed artwork fills adaptive foreground (mask applied by system).
-    await sharp(await fillSquare(master, size))
+    // Keep artwork inside adaptive safe zone (center ~55%) so masks don't clip text.
+    await sharp(await paddedSquare(master, size, { contentRatio: 0.55, bg: app.bg }))
       .png()
       .toFile(path.join(outDir, "ic_launcher_foreground.png"));
   }
@@ -161,10 +182,10 @@ async function applyApp(app) {
   for (const [dir, size] of Object.entries(legacySizes)) {
     const outDir = path.join(res, dir);
     fs.mkdirSync(outDir, { recursive: true });
-    await sharp(await fillSquare(master, size))
+    await sharp(await paddedSquare(master, size, { contentRatio: 0.72, bg: app.bg }))
       .png()
       .toFile(path.join(outDir, "ic_launcher.png"));
-    await sharp(await circular(master, size))
+    await sharp(await circular(master, size, app.bg))
       .png()
       .toFile(path.join(outDir, "ic_launcher_round.png"));
   }

@@ -127,17 +127,25 @@ export async function loadInstituteContext(): Promise<InstituteContextState> {
   }
 
   try {
-    const me = await fetchMe();
+    const mePromise = fetchMe();
+    const listPromise = Promise.resolve()
+      .then(() => listInstitutes())
+      .then(
+        (rows) => ({ ok: true as const, rows }),
+        (err: unknown) => ({ ok: false as const, err }),
+      );
+
+    const me = await mePromise;
     const isPlatformOperator = me.platformOperator.active === true;
     const memberships: InstituteMembershipRef[] = me.institutes.map((m) => ({
       instituteId: m.instituteId,
       status: m.status,
     }));
 
+    const listedResult = await listPromise;
     let listed: InstituteDto[];
-    try {
-      listed = await listInstitutes();
-    } catch (err) {
+    if (!listedResult.ok) {
+      const err = listedResult.err;
       const status =
         err instanceof ApiClientError
           ? err.status
@@ -165,6 +173,7 @@ export async function loadInstituteContext(): Promise<InstituteContextState> {
       }
       throw err;
     }
+    listed = listedResult.rows;
 
     const institutes = isPlatformOperator
       ? listed.filter((inst) => inst.status !== "archived")
@@ -256,7 +265,15 @@ export async function loadInstituteContext(): Promise<InstituteContextState> {
     };
   } catch (err) {
     if (err instanceof ApiClientError && err.status === 401) {
-      // Unauthorized handler clears session; surface error without demo fallback.
+      // Token can be missing for a moment on Capacitor boot. Keep the stored
+      // institute so Home/modules stay enabled and retry instead of emptying.
+      const optimistic = createOptimisticApiInstituteState();
+      if (optimistic.activeInstituteId) {
+        return {
+          ...optimistic,
+          errorMessage: null,
+        };
+      }
       return {
         mode: "api",
         status: "error",
@@ -367,8 +384,7 @@ function useInstituteContextController(): InstituteContextValue {
       if (
         next.status === "error" &&
         prev.status === "ready" &&
-        prev.activeInstituteId &&
-        next.errorMessage !== "Authentication required"
+        prev.activeInstituteId
       ) {
         return {
           ...prev,

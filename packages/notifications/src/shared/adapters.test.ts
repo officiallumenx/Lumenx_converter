@@ -68,6 +68,6 @@ describe("notification foundation", () => {
       priority: "success",
     });
     expect(app.type).toBe("positive");
-    expect(app.category).toBe("circulars");
+    expect(app.category).toBe("transport");
   });
 });

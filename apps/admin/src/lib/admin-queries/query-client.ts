@@ -51,10 +51,14 @@ export function createAdminQueryClient(): QueryClient {
         networkMode: "offlineFirst",
         retry: (failureCount, error) => {
           if (!isOnline()) return false;
-          if (isNonRetryableAuthError(error)) return false;
+          if (error instanceof ApiClientError && error.status === 403) return false;
+          if (isNonRetryableAuthError(error)) return failureCount < 1;
           return failureCount < 1;
         },
-        retryDelay: (attempt) => Math.min(800 * 2 ** attempt, 3000),
+        retryDelay: (attempt, error) => {
+          if (error instanceof ApiClientError && error.status === 401) return 350;
+          return Math.min(800 * 2 ** attempt, 3000);
+        },
       },
       mutations: {
         networkMode: "offlineFirst",

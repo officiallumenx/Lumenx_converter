@@ -44,7 +44,7 @@ function toAdminRow(n: TransportWorkflowNotification): AdminNotification {
     detail: `${n.message}${reason}`,
     time: "Just now",
     type: categoryToType(n.category),
-    category: "circulars",
+    category: "transport",
     unread: n.unread,
     priority: categoryToPriority(n.category, n.priority),
     createdAt: n.createdAt,

@@ -16,6 +16,18 @@ export const LUMENX_COMPANY = {
   grievanceEmail: "official.lumenx@gmail.com",
   supportEmail: "official.lumenx@gmail.com",
   websiteNote: "LumenX education technology platform",
+  /**
+   * Public privacy policy URLs for Play Console / store listings.
+   * Hosted as proper HTML pages on GitHub Pages (raw gist URLs are rejected by Play).
+   */
+  privacyPolicyUrl: "https://officiallumenx.github.io/lumenx-privacy/",
+  privacyPolicyUrls: {
+    platform: "https://officiallumenx.github.io/lumenx-privacy/",
+    transport: "https://officiallumenx.github.io/lumenx-privacy/transport.html",
+    admin: "https://officiallumenx.github.io/lumenx-privacy/admin.html",
+    connect: "https://officiallumenx.github.io/lumenx-privacy/connect.html",
+  },
+
   apps: [
     "LumenX Nexus (platform operations)",
     "LumenX Admin (institute administration)",

@@ -33,7 +33,8 @@ function mapPriority(
 ): LumenXNotificationPriority {
   if (priority) return priority;
   if (category === "sos" || category === "emergency") return "critical";
-  if (category === "boarding" || category === "approach" || category === "trip") return "important";
+  if (category === "approach" || category === "boarding") return "important";
+  if (category === "trip") return "success";
   return "normal";
 }
 

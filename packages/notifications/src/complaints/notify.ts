@@ -80,7 +80,7 @@ function renderComplaint(input: {
         href,
         templateId: foundation.templateId,
       },
-      { category: "circulars" },
+      { category: "system" },
     ),
   };
 }

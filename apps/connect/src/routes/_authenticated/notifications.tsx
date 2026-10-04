@@ -54,6 +54,10 @@ const PARENT_CATEGORIES: { id: "all" | "important" | NotificationCategory; label
   { id: "events", label: "Events" },
   { id: "holidays", label: "Holidays" },
   { id: "circulars", label: "Circulars" },
+  { id: "messages", label: "Messages" },
+  { id: "transport", label: "Transport" },
+  { id: "leave", label: "Leave" },
+  { id: "system", label: "System" },
   { id: "emergency", label: "Emergency" },
 ];
 

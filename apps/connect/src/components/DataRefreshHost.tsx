@@ -6,7 +6,7 @@ import { subscribeDataRefresh, getDataRefreshGeneration } from "@/lib/data-refre
 import { invalidateConnectSoftRefresh } from "@/lib/connect-queries/invalidate";
 
 /** Match QueryClient staleTime — resume does not invalidate while data is still fresh. */
-const AUTO_MIN_INTERVAL_MS = 3 * 60_000;
+const AUTO_MIN_INTERVAL_MS = 30 * 60_000;
 
 /**
  * Soft-refreshes page data when the app resumes or the tab becomes visible.

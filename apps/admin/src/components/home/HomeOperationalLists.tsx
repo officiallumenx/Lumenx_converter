@@ -1,10 +1,11 @@
 import type { CSSProperties } from "react";
 import { Link } from "@tanstack/react-router";
-import { ArrowUpRight, BookMarked, Bus, ClipboardList, FileCheck2 } from "lucide-react";
+import { ArrowUpRight, BookMarked, Bus, CalendarOff, ClipboardList, FileCheck2 } from "lucide-react";
 import { Button, Pill } from "@lumenx/ui-admin";
 import type {
   AttendanceDraftRow,
   DiaryWidgetRow,
+  LeaveWidgetRow,
   MarksPendingRow,
 } from "@/lib/dashboard";
 import type { TransportEmergencyDto } from "@/lib/transport/types";
@@ -26,44 +27,46 @@ function formatSubmittedAt(iso: string | null): string {
 export function HomeOperationalLists({
   diaryRows,
   diaryMissingYesterday,
+  leaveRows,
+  leavePendingCount,
   attendanceDrafts,
   marksPending,
   transportEmergencies,
 }: {
   diaryRows: DiaryWidgetRow[];
   diaryMissingYesterday: number;
+  leaveRows: LeaveWidgetRow[];
+  leavePendingCount: number;
   attendanceDrafts: AttendanceDraftRow[];
   marksPending: MarksPendingRow[];
   transportEmergencies: TransportEmergencyDto[];
 }) {
-  // Detail list only when there are submissions — missing-yesterday is covered by Needs Attention.
-  const showDiary = diaryRows.length > 0;
   const showAttendance = attendanceDrafts.length > 0;
   const showMarks = marksPending.length > 0;
   const showTransport = transportEmergencies.length > 0;
 
-  if (!showDiary && !showAttendance && !showMarks && !showTransport) {
-    return null;
-  }
-
   return (
     <div className="lx-home-ops-grid">
-      {showDiary ? (
-        <section className="lx-home-section lx-home-panel" style={{ "--lx-home-i": 7 } as CSSProperties}>
-          <div className="lx-home-panel__head">
-            <h2 className="lx-home-panel__title">Diary submissions</h2>
-            <div className="flex items-center gap-1.5">
-              {diaryMissingYesterday > 0 ? (
-                <Pill tone="warning">{diaryMissingYesterday} missing</Pill>
-              ) : null}
-              <Pill tone="info">{diaryRows.length}</Pill>
-              <Link to="/diary">
-                <Button size="sm" variant="outline" className="gap-1">
-                  Open <ArrowUpRight className="size-3.5" />
-                </Button>
-              </Link>
-            </div>
+      <section className="lx-home-section lx-home-panel" style={{ "--lx-home-i": 7 } as CSSProperties}>
+        <div className="lx-home-panel__head">
+          <h2 className="lx-home-panel__title">Diary submissions</h2>
+          <div className="flex items-center gap-1.5">
+            {diaryMissingYesterday > 0 ? (
+              <Pill tone="warning">{diaryMissingYesterday} missing</Pill>
+            ) : null}
+            <Pill tone="info">{diaryRows.length}</Pill>
+            <Link to="/diary">
+              <Button size="sm" variant="outline" className="gap-1">
+                Open <ArrowUpRight className="size-3.5" />
+              </Button>
+            </Link>
           </div>
+        </div>
+        {diaryRows.length === 0 ? (
+          <p className="text-sm text-muted-foreground px-1 pb-1">
+            No diary submissions yet. Teacher submissions appear here.
+          </p>
+        ) : (
           <ul className="lx-home-ops-list">
             {diaryRows.slice(0, 6).map((row) => (
               <li key={row.id} className="lx-home-ops-row">
@@ -78,8 +81,46 @@ export function HomeOperationalLists({
               </li>
             ))}
           </ul>
-        </section>
-      ) : null}
+        )}
+      </section>
+
+      <section className="lx-home-section lx-home-panel" style={{ "--lx-home-i": 7.5 } as CSSProperties}>
+        <div className="lx-home-panel__head">
+          <h2 className="lx-home-panel__title">Pending leave</h2>
+          <div className="flex items-center gap-1.5">
+            <Pill tone={leavePendingCount > 0 ? "warning" : "neutral"}>
+              {leavePendingCount} pending
+            </Pill>
+            <Link to="/leave">
+              <Button size="sm" variant="outline" className="gap-1">
+                Open <ArrowUpRight className="size-3.5" />
+              </Button>
+            </Link>
+          </div>
+        </div>
+        {leaveRows.length === 0 ? (
+          <p className="text-sm text-muted-foreground px-1 pb-1">
+            No pending leave requests. Teacher leave for approval appears here.
+          </p>
+        ) : (
+          <ul className="lx-home-ops-list">
+            {leaveRows.slice(0, 6).map((row) => (
+              <li key={row.id} className="lx-home-ops-row">
+                <CalendarOff className="size-3.5 text-muted-foreground shrink-0" aria-hidden />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium capitalize">
+                    {row.leaveType} · {row.subjectKind}
+                  </span>
+                  <span className="block text-[11px] text-muted-foreground">
+                    {row.startDate} → {row.endDate}
+                    {row.reason ? ` · ${row.reason}` : ""}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {showAttendance ? (
         <section className="lx-home-section lx-home-panel" style={{ "--lx-home-i": 8 } as CSSProperties}>

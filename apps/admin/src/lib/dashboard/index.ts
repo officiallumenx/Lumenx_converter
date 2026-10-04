@@ -33,6 +33,7 @@ export {
   type DashboardWidgetsState,
   type AttendanceDraftRow,
   type DiaryWidgetRow,
+  type LeaveWidgetRow,
   type MarksPendingRow,
   type WidgetSlice,
 } from "./load-widgets";

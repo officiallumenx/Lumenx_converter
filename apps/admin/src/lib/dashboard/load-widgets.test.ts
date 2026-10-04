@@ -71,6 +71,19 @@ describe("loadDashboardWidgets", () => {
         },
       ]),
     }));
+    vi.doMock("@/lib/leave/api", () => ({
+      listLeaveRequests: vi.fn().mockResolvedValue([
+        {
+          id: "lv-1",
+          subjectKind: "teacher",
+          leaveType: "casual",
+          startDate: "2026-08-30",
+          endDate: "2026-08-31",
+          status: "pending",
+          reason: "Personal",
+        },
+      ]),
+    }));
 
     const { loadDashboardWidgets } = await import("./load-widgets");
     const result = await loadDashboardWidgets(INST, onDate);
@@ -80,6 +93,7 @@ describe("loadDashboardWidgets", () => {
     expect(result.diary.todaySubmittedCount).toBe(1);
     expect(result.attendanceDrafts.rows).toHaveLength(1);
     expect(result.marksPending.rows).toHaveLength(1);
+    expect(result.leave.pendingCount).toBe(1);
   });
 
   it("keeps successful slices when one list API fails (no demo fallback)", async () => {
@@ -98,6 +112,9 @@ describe("loadDashboardWidgets", () => {
     }));
     vi.doMock("@/lib/marks/api", () => ({
       listMarkEntries: vi.fn().mockResolvedValue([]),
+    }));
+    vi.doMock("@/lib/leave/api", () => ({
+      listLeaveRequests: vi.fn().mockResolvedValue([]),
     }));
 
     const { loadDashboardWidgets } = await import("./load-widgets");

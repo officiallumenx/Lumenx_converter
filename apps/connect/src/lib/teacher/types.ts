@@ -177,7 +177,10 @@ export interface TeacherNotification {
     | "staff_notices"
     | "messages"
     | "system"
-    | "urgent";
+    | "urgent"
+    | "transport"
+    | "leave"
+    | "homework";
   time: string;
   unread: boolean;
   /** Defaults to subject workspace when omitted. Activity items live in workspace-communication store. */

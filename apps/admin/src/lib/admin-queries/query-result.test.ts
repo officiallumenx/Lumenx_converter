@@ -23,6 +23,19 @@ describe("asAdminQueryResult", () => {
     }
   });
 
+  it("throws UNAUTHENTICATED for authentication required errors", () => {
+    try {
+      asAdminQueryResult({
+        status: "error",
+        items: [],
+        errorMessage: "Authentication required",
+      });
+      expect.fail("expected throw");
+    } catch (err) {
+      expect(err).toMatchObject({ code: "UNAUTHENTICATED", status: 401 });
+    }
+  });
+
   it("throws FORBIDDEN for status forbidden", () => {
     try {
       asAdminQueryResult({ status: "forbidden", items: [], errorMessage: "no access" });

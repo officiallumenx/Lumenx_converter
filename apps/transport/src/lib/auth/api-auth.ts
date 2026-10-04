@@ -1,6 +1,10 @@
 import { clearAppAuthSession } from "@lumenx/auth";
 import { invalidatePushDeviceTokensBeforeSignOut } from "@lumenx/notifications";
-import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import {
+  getSupabaseAccessToken,
+  getSupabaseBrowserClient,
+  tryRefreshSupabaseSession,
+} from "@/lib/supabase-browser";
 
 type MeResponse = {
   user: { id: string };
@@ -252,18 +256,31 @@ export async function apiSignInWithPassword(
 
 export async function hydrateApiTransportSession(): Promise<ApiTransportSession | null> {
   const supabase = getSupabaseBrowserClient();
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
+  let token = await getSupabaseAccessToken();
   if (!token) return null;
 
   try {
     return await hydrateDriverFromToken(token);
   } catch (err) {
-    if (err instanceof SessionValidationError && err.unusable) {
-      await supabase.auth.signOut().catch(() => undefined);
-      return null;
+    if (!(err instanceof SessionValidationError && err.unusable)) throw err;
+
+    // Access token may have just expired — refresh once and retry before logout.
+    const refreshed = await tryRefreshSupabaseSession();
+    if (refreshed) {
+      token = await getSupabaseAccessToken();
+      if (token) {
+        try {
+          return await hydrateDriverFromToken(token);
+        } catch (retryErr) {
+          if (!(retryErr instanceof SessionValidationError && retryErr.unusable)) {
+            throw retryErr;
+          }
+        }
+      }
     }
-    throw err;
+
+    await supabase.auth.signOut().catch(() => undefined);
+    return null;
   }
 }
 

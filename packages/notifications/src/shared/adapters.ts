@@ -57,7 +57,15 @@ export function categoryFromAppNotificationCategory(
       return "system";
     case "circulars":
       return "announcements";
+    case "messages":
+      return "messages";
+    case "transport":
+      return "transport";
+    case "leave":
+      return "leave";
     case "academic":
+      return "timetable";
+    case "system":
       return "system";
     default:
       return "system";
@@ -80,19 +88,23 @@ export function toAppNotificationCategory(
     case "events":
       return "events";
     case "announcements":
-    case "messages":
       return "circulars";
+    case "messages":
+      return "messages";
     case "transport":
+      return "transport";
     case "leave":
+      return "leave";
     case "complaints":
+    case "system":
+    case "nexus":
+      return "system";
     case "admissions":
     case "careers":
     case "certificates":
     case "documents":
     case "timetable":
-    case "system":
-    case "nexus":
-      return "circulars";
+      return "academic";
     default:
       return "circulars";
   }

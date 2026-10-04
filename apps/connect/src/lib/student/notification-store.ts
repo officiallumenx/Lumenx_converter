@@ -94,6 +94,8 @@ export const STUDENT_NOTIFICATION_FILTERS = [
   { id: "announcements", label: "Announcements", categories: ["circulars", "holidays"] },
   { id: "events", label: "Events", categories: ["events"] },
   { id: "exams", label: "Exams", categories: ["exams"] },
+  { id: "transport", label: "Transport", categories: ["transport"] },
+  { id: "leave", label: "Leave", categories: ["leave"] },
   { id: "results", label: "Results", categories: ["academic"] },
   { id: "institute", label: "Institute Updates", categories: ["emergency", "circulars"] },
 ] as const;
@@ -107,7 +109,7 @@ export function filterStudentNotifications(
   if (filterId === "all") return list;
   if (filterId === "important") {
     return list.filter(
-      (n) => n.priority === "high" || n.category === "emergency" || n.type === "warning",
+      (n) => n.priority === "high" || n.category === "emergency",
     );
   }
   const def = STUDENT_NOTIFICATION_FILTERS.find((f) => f.id === filterId);

@@ -20,9 +20,9 @@ function HomePage() {
   }
 
   const instituteLabel =
-    instituteCtx.status === "ready" && instituteCtx.activeInstitute
-      ? instituteCtx.activeInstitute.name
-      : "Institute";
+    instituteCtx.activeInstitute?.name?.trim() ||
+    instituteCtx.displayLabel?.split(" · ")[0]?.trim() ||
+    "Institute";
 
   return (
     <AppShell title="Home" subtitle={instituteLabel}>

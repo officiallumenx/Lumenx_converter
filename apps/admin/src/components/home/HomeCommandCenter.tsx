@@ -57,6 +57,7 @@ function emptyWidgets(): DashboardWidgetsState {
       missingYesterdayCount: 0,
       errorMessage: null,
     },
+    leave: { status: "empty", rows: [], pendingCount: 0, errorMessage: null },
     attendanceDrafts: { status: "empty", rows: [], errorMessage: null },
     marksPending: { status: "empty", rows: [], errorMessage: null },
     errorMessage: null,
@@ -74,8 +75,10 @@ export function HomeCommandCenter() {
   const apiMode = isApiAuthMode();
   const queriesEnabled =
     apiMode &&
-    instituteCtx.status === "ready" &&
-    Boolean(instituteCtx.activeInstituteId);
+    Boolean(instituteCtx.activeInstituteId) &&
+    instituteCtx.status !== "forbidden" &&
+    instituteCtx.status !== "empty" &&
+    instituteCtx.status !== "needs_selection";
 
   const yearsQuery = useAcademicYearsListQuery(
     instituteCtx.activeInstituteId,
@@ -136,6 +139,12 @@ export function HomeCommandCenter() {
     summaryQuery.data && queriesEnabled ? instituteCtx.activeInstituteId : null;
 
   const widgets = widgetsQuery.data ?? emptyWidgets();
+  const leaveWidget = widgets.leave ?? {
+    status: "empty" as const,
+    rows: [],
+    pendingCount: 0,
+    errorMessage: null,
+  };
   const widgetsValid =
     Boolean(widgetsQuery.data) &&
     queriesEnabled &&
@@ -381,13 +390,18 @@ export function HomeCommandCenter() {
         />
       </div>
 
-      {widgetsValid ? (
-        <HomeOperationalLists
+      <HomeOperationalLists
           diaryRows={widgets.diary.status !== "error" ? widgets.diary.rows : []}
           diaryMissingYesterday={
             widgets.diary.status !== "error"
               ? widgets.diary.missingYesterdayCount
               : 0
+          }
+          leaveRows={leaveWidget.status !== "error" ? leaveWidget.rows : []}
+          leavePendingCount={
+            leaveWidget.status !== "error"
+              ? leaveWidget.pendingCount
+              : (view.summary?.pendingLeave ?? 0)
           }
           attendanceDrafts={
             widgets.attendanceDrafts.status !== "error"
@@ -401,7 +415,6 @@ export function HomeCommandCenter() {
           }
           transportEmergencies={transportEmergencies}
         />
-      ) : null}
     </div>
   );
 }

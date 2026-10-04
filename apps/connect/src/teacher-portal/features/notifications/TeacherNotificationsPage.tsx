@@ -19,6 +19,9 @@ const FILTERS = [
   { id: "announcements", label: "Announcements" },
   { id: "events", label: "Events" },
   { id: "exam_updates", label: "Exams" },
+  { id: "homework", label: "Diary" },
+  { id: "leave", label: "Leave" },
+  { id: "transport", label: "Transport" },
   { id: "messages", label: "Messages" },
   { id: "system", label: "System" },
   { id: "staff_notices", label: "Staff notices" },
@@ -61,7 +64,9 @@ export function TeacherNotificationsPage() {
   const filtered = useMemo(() => {
     if (filter === "all") return resolvedItems;
     if (filter === "important") {
-      return resolvedItems.filter((n) => n.category === "urgent" || n.category === "exam_updates");
+      return resolvedItems.filter(
+        (n) => n.category === "urgent" || n.category === "exam_updates",
+      );
     }
     return resolvedItems.filter((n) => n.category === filter);
   }, [resolvedItems, filter]);
@@ -90,7 +95,7 @@ export function TeacherNotificationsPage() {
     <div className="min-w-0 space-y-5">
       <PageHeader
         title="Notifications"
-        subtitle={`${unread} unread · Subject Teacher · class announcements, exams & staff notices`}
+        subtitle={`${unread} unread · Subject Teacher · leave, diary, transport, exams & staff notices`}
         action={
           unread ? (
             <Button variant="outline" className="teacher-primary-action rounded-xl gap-2" onClick={markAllRead}>

@@ -222,7 +222,6 @@ describe("loadInstituteContext mode branching", () => {
     expect(state.status).toBe("error");
     expect(state.displayLabel).toBeNull();
     expect(state.activeInstitute).toBeNull();
-    expect(listSpy).not.toHaveBeenCalled();
   });
 
   it("403 on list institutes surfaces forbidden without demo fallback", async () => {
@@ -260,7 +259,8 @@ describe("loadInstituteContext mode branching", () => {
     expect(state.displayLabel).toBeNull();
   });
 
-  it("401 surfaces error state (unauthorized cleanup remains on client)", async () => {
+  it("401 keeps stored institute so Home and modules can retry", async () => {
+    store.set(ACTIVE_INSTITUTE_STORAGE_KEY, A);
     vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
     vi.doMock("@/auth/me-bridge", () => ({
       fetchMe: vi.fn(async () => {
@@ -272,7 +272,30 @@ describe("loadInstituteContext mode branching", () => {
       }),
     }));
     vi.doMock("./api", () => ({
-      listInstitutes: vi.fn(),
+      listInstitutes: vi.fn(async () => []),
+      getInstitute: vi.fn(),
+    }));
+
+    const { loadInstituteContext } = await import("./context");
+    const state = await loadInstituteContext();
+    expect(state.status).toBe("ready");
+    expect(state.activeInstituteId).toBe(A);
+    expect(state.errorMessage).toBeNull();
+  });
+
+  it("401 surfaces error state when no stored institute", async () => {
+    vi.stubEnv("VITE_ADMIN_AUTH_MODE", "api");
+    vi.doMock("@/auth/me-bridge", () => ({
+      fetchMe: vi.fn(async () => {
+        throw new ApiClientError({
+          status: 401,
+          code: "UNAUTHENTICATED",
+          message: "Invalid or expired token",
+        });
+      }),
+    }));
+    vi.doMock("./api", () => ({
+      listInstitutes: vi.fn(async () => []),
       getInstitute: vi.fn(),
     }));
 

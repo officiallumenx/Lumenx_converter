@@ -77,7 +77,7 @@ describe("notification inbox DTO mapping", () => {
       inboxItemDtoToListItem(
         dto({ notification: { ...dto().notification, category: "system" } }),
       ).category,
-    ).toBe("circulars");
+    ).toBe("system");
   });
 
   it("maps deepLink to href", () => {

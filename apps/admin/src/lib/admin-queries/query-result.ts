@@ -24,9 +24,10 @@ export function asAdminQueryResult<T>(result: T): T {
         ? "Access denied"
         : "Request failed";
 
+  const authMiss = /authentication required|invalid or expired/i.test(message);
   throw new ApiClientError({
-    status: status === "forbidden" ? 403 : 0,
-    code: status === "forbidden" ? "FORBIDDEN" : "NETWORK_ERROR",
+    status: status === "forbidden" ? 403 : authMiss ? 401 : 0,
+    code: status === "forbidden" ? "FORBIDDEN" : authMiss ? "UNAUTHENTICATED" : "NETWORK_ERROR",
     message,
   });
 }

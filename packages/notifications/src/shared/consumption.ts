@@ -15,8 +15,12 @@ export const DEFAULT_NOTIFICATION_HREF: Partial<Record<NotificationCategory, str
   sports: "/events",
   events: "/events",
   holidays: "/events",
-  circulars: "/notifications",
+  circulars: "/announcements",
   emergency: "/notifications",
+  messages: "/messages",
+  transport: "/transport",
+  leave: "/leave",
+  system: "/notifications",
 };
 
 export function ensureNotificationHref(

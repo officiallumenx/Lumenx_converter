@@ -10,6 +10,7 @@ import {
   listTeachersCached,
 } from "@/lib/directory-lists-cache";
 import { listDiaryDays } from "@/lib/diary/api";
+import { listLeaveRequests } from "@/lib/leave/api";
 import { listAttendanceRegisters } from "@/lib/attendance/api";
 import { listMarkEntries } from "@/lib/marks/api";
 import {
@@ -26,6 +27,16 @@ export type DiaryWidgetRow = {
   scope: string;
   submittedAt: string | null;
   rowCount: number;
+};
+
+export type LeaveWidgetRow = {
+  id: string;
+  subjectKind: string;
+  leaveType: string;
+  startDate: string;
+  endDate: string;
+  status: string;
+  reason: string;
 };
 
 export type AttendanceDraftRow = {
@@ -57,6 +68,7 @@ export type DashboardWidgetsState = {
     todaySubmittedCount: number;
     missingYesterdayCount: number;
   };
+  leave: WidgetSlice<LeaveWidgetRow[]> & { pendingCount: number };
   attendanceDrafts: WidgetSlice<AttendanceDraftRow[]>;
   marksPending: WidgetSlice<MarksPendingRow[]>;
   errorMessage: string | null;
@@ -79,6 +91,13 @@ const emptyDiary = (): WidgetSlice<DiaryWidgetRow[]> & {
   errorMessage: null,
 });
 
+const emptyLeave = (): WidgetSlice<LeaveWidgetRow[]> & { pendingCount: number } => ({
+  status: "empty",
+  rows: [],
+  pendingCount: 0,
+  errorMessage: null,
+});
+
 const emptyAttendance = (): WidgetSlice<AttendanceDraftRow[]> => ({
   status: "empty",
   rows: [],
@@ -96,6 +115,7 @@ function emptyWidgets(status: DashboardLoadStatus, errorMessage: string | null =
     status,
     birthdays: emptyBirthdays(),
     diary: emptyDiary(),
+    leave: emptyLeave(),
     attendanceDrafts: emptyAttendance(),
     marksPending: emptyMarks(),
     errorMessage,
@@ -271,6 +291,43 @@ async function loadMarksPendingSlice(
   }
 }
 
+async function loadLeaveSlice(
+  instituteId: string,
+): Promise<
+  WidgetSlice<LeaveWidgetRow[]> & { pendingCount: number; forbidden?: boolean }
+> {
+  try {
+    const rowsRaw = await listLeaveRequests({
+      instituteId,
+      status: "pending",
+    });
+    const rows: LeaveWidgetRow[] = rowsRaw.slice(0, 8).map((row) => ({
+      id: row.id,
+      subjectKind: row.subjectKind,
+      leaveType: row.leaveType,
+      startDate: row.startDate,
+      endDate: row.endDate,
+      status: row.status,
+      reason: row.reason,
+    }));
+    return {
+      status: rows.length === 0 ? "empty" : "ready",
+      rows,
+      pendingCount: rowsRaw.length,
+      errorMessage: null,
+    };
+  } catch (err) {
+    const { message, forbidden } = apiErrorMessage(err, "Failed to load leave");
+    return {
+      status: "error",
+      rows: [],
+      pendingCount: 0,
+      errorMessage: message,
+      forbidden,
+    };
+  }
+}
+
 /**
  * Loads secondary home widgets from existing list APIs.
  * Does not invent missing-section matrices or WhatsApp wish state.
@@ -287,9 +344,10 @@ export async function loadDashboardWidgets(
   }
 
   const today = localYmd(onDate);
-  const [birthdays, diary, attendanceDrafts, marksPending] = await Promise.all([
+  const [birthdays, diary, leave, attendanceDrafts, marksPending] = await Promise.all([
     loadBirthdaysSlice(activeInstituteId, onDate),
     loadDiarySlice(activeInstituteId, today, onDate),
+    loadLeaveSlice(activeInstituteId),
     loadAttendanceDraftsSlice(activeInstituteId, today),
     loadMarksPendingSlice(activeInstituteId),
   ]);
@@ -297,6 +355,7 @@ export async function loadDashboardWidgets(
   const anyForbidden =
     Boolean(birthdays.forbidden) ||
     Boolean(diary.forbidden) ||
+    Boolean(leave.forbidden) ||
     Boolean(attendanceDrafts.forbidden) ||
     Boolean(marksPending.forbidden);
 
@@ -304,6 +363,7 @@ export async function loadDashboardWidgets(
   const allFailed =
     birthdays.status === "error" &&
     diary.status === "error" &&
+    leave.status === "error" &&
     attendanceDrafts.status === "error" &&
     marksPending.status === "error";
 
@@ -316,12 +376,14 @@ export async function loadDashboardWidgets(
     const first =
       birthdays.errorMessage ??
       diary.errorMessage ??
+      leave.errorMessage ??
       attendanceDrafts.errorMessage ??
       marksPending.errorMessage;
     return {
       status: anyForbidden ? "forbidden" : "error",
       birthdays: strip(birthdays),
       diary: strip(diary),
+      leave: strip(leave),
       attendanceDrafts: strip(attendanceDrafts),
       marksPending: strip(marksPending),
       errorMessage: first,
@@ -332,6 +394,7 @@ export async function loadDashboardWidgets(
     status: "ready",
     birthdays: strip(birthdays),
     diary: strip(diary),
+    leave: strip(leave),
     attendanceDrafts: strip(attendanceDrafts),
     marksPending: strip(marksPending),
     errorMessage: null,

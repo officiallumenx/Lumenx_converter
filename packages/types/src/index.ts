@@ -116,7 +116,11 @@ export type NotificationCategory =
   | "events"
   | "holidays"
   | "emergency"
-  | "circulars";
+  | "circulars"
+  | "messages"
+  | "transport"
+  | "leave"
+  | "system";
 
 export interface AppNotification {
   id: string;

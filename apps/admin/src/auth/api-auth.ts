@@ -1,6 +1,6 @@
 import { clearAppAuthSession } from "@lumenx/auth";
 import { invalidatePushDeviceTokensBeforeSignOut } from "@lumenx/notifications";
-import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { getSupabaseAccessToken, getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import {
   clearStoredActiveInstituteId,
   isInstituteUuid,
@@ -209,10 +209,9 @@ export async function apiSignInWithStaffPassword(input: {
 }
 
 export async function tryHydrateApiSession(): Promise<ApiAuthHydration | null> {
-  const supabase = getSupabaseBrowserClient();
-  const { data, error } = await supabase.auth.getSession();
-  if (error || !data.session?.access_token) return null;
-  return hydrateFromAccessToken(data.session.access_token);
+  const token = await getSupabaseAccessToken();
+  if (!token) return null;
+  return hydrateFromAccessToken(token);
 }
 
 export async function apiSignOut(): Promise<void> {

@@ -179,7 +179,7 @@ describe("admin alerts workflow", () => {
     expect(evaluateAllAlertRules()).toBe(0);
     const complaintNotif = getAdminNotifications().find((row) => row.id === "fire-cmp-CMP-201");
     expect(complaintNotif?.href).toBe("/complaints");
-    expect(complaintNotif?.category).toBe("circulars");
+    expect(complaintNotif?.category).toBe("system");
 
     // Mark handled uses existing resolution model.
     const activeComplaint = loadAlertRulesState().fired.find((row) => row.id === "fire-cmp-CMP-201");

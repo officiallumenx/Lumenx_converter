@@ -22,6 +22,10 @@ import { isApiAuthMode } from "@/auth/auth-mode";
 import { apiSignOut, tryHydrateApiSession } from "@/auth/api-auth";
 import { setConnectApiUnauthorizedHandler } from "@/lib/connect-api";
 import { ApiClientError } from "@/lib/api";
+import {
+  getSupabaseAccessToken,
+  tryRefreshSupabaseSession,
+} from "@/lib/supabase-browser";
 import { isInstituteUuid } from "@/lib/institute-id";
 import { useDataRefreshGeneration } from "@/hooks/useReloadKey";
 
@@ -95,10 +99,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setConnectApiUnauthorizedHandler(() => {
-      clearAuthStorage();
-      setUser(null);
-      setRoleState(null);
-      setActiveInstituteIdState(null);
+      void (async () => {
+        const refreshed = await tryRefreshSupabaseSession();
+        if (refreshed) return;
+        clearAuthStorage();
+        setUser(null);
+        setRoleState(null);
+        setActiveInstituteIdState(null);
+      })();
     });
     return () => setConnectApiUnauthorizedHandler(null);
   }, []);
@@ -114,18 +122,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         const roleOk = isRole(persistedRole);
 
-        if (roleOk) {
+        if (roleOk && persistedUser) {
+          // Restore immediately so a returning user never sits on the spinner.
+          setUser(persistedUser);
+          setRoleState(persistedRole);
+          if (ins) setActiveInstituteIdState(ins);
+          if (isThemeMode(persistedTheme)) setTheme(persistedTheme);
+          const childId = readPersistedChildId();
+          if (childId) setActiveChildIdState(childId);
+          if (sim === "1") setStudentIncludedModeState(true);
+          setHydrated(true);
+
           const session = await tryHydrateApiSession(persistedRole, ins);
           if (session) {
             setUser(session.user);
             setRoleState(persistedRole);
             setActiveInstituteIdState(session.instituteId);
             localStorage.setItem(CONNECT_STORAGE_KEYS.institute, session.instituteId);
-          } else if (persistedUser && roleOk) {
-            clearAuthStorage();
           }
-        } else if (persistedUser || persistedRole) {
-          clearAuthStorage();
+          return;
+        }
+
+        if (persistedUser || persistedRole) {
+          const token = await getSupabaseAccessToken();
+          if (!token) clearAuthStorage();
         }
 
         if (isThemeMode(persistedTheme)) setTheme(persistedTheme);
@@ -134,8 +154,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (sim === "1") setStudentIncludedModeState(true);
       } catch (err) {
         const transient =
-          err instanceof ApiClientError && (err.status === 0 || err.status >= 500);
-        if (!transient) clearAuthStorage();
+          err instanceof ApiClientError &&
+          (err.status === 0 || err.status >= 500 || err.status === 401);
+        if (!transient) {
+          const token = await getSupabaseAccessToken();
+          if (!token) clearAuthStorage();
+        }
       }
       setHydrated(true);
     };

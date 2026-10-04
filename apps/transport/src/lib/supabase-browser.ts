@@ -1,6 +1,9 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 let client: SupabaseClient | null = null;
+let refreshInFlight: Promise<boolean> | null = null;
+
+const REFRESH_SKEW_MS = 60_000;
 
 export function getSupabaseBrowserConfig(): {
   url: string;
@@ -26,14 +29,48 @@ export function getSupabaseBrowserClient(): SupabaseClient {
       autoRefreshToken: true,
       detectSessionInUrl: true,
       storageKey: "lumenx.transport.supabase.auth.v1",
+      storage: typeof window !== "undefined" ? window.localStorage : undefined,
     },
   });
   return client;
+}
+
+export function resetSupabaseBrowserClientForTests(): void {
+  client = null;
+  refreshInFlight = null;
+}
+
+export async function tryRefreshSupabaseSession(): Promise<boolean> {
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async () => {
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const { data, error } = await supabase.auth.refreshSession();
+      return !error && Boolean(data.session?.access_token);
+    } catch {
+      return false;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+  return refreshInFlight;
 }
 
 export async function getSupabaseAccessToken(): Promise<string | null> {
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase.auth.getSession();
   if (error) return null;
-  return data.session?.access_token ?? null;
+  let session = data.session;
+  if (!session?.access_token) return null;
+
+  const expiresAtMs = (session.expires_at ?? 0) * 1000;
+  if (expiresAtMs && Date.now() >= expiresAtMs - REFRESH_SKEW_MS) {
+    const ok = await tryRefreshSupabaseSession();
+    if (!ok) {
+      return expiresAtMs > Date.now() ? session.access_token : null;
+    }
+    const refreshed = await supabase.auth.getSession();
+    session = refreshed.data.session ?? session;
+  }
+  return session.access_token ?? null;
 }

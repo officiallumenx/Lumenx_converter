@@ -1,6 +1,11 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient, type Session } from "@supabase/supabase-js";
 
 let client: SupabaseClient | null = null;
+let refreshInFlight: Promise<boolean> | null = null;
+let cachedAccessToken: { token: string; expiresAtMs: number } | null = null;
+
+const REFRESH_SKEW_MS = 60_000;
+const SESSION_HYDRATE_WAITS_MS = [50, 150, 350] as const;
 
 export function getSupabaseBrowserConfig(): {
   url: string;
@@ -12,9 +17,29 @@ export function getSupabaseBrowserConfig(): {
   return { url, anonKey };
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function cacheToken(session: Session | null): string | null {
+  const token = session?.access_token ?? null;
+  if (!token) {
+    cachedAccessToken = null;
+    return null;
+  }
+  cachedAccessToken = {
+    token,
+    expiresAtMs: (session?.expires_at ?? 0) * 1000 || Date.now() + 55_000,
+  };
+  return token;
+}
+
 /**
  * Singleton browser Supabase client (anon key only).
  * Used for Auth session management — never service_role.
+ *
+ * Persist in localStorage so Capacitor / reopen keeps the session until
+ * explicit logout or app uninstall.
  */
 export function getSupabaseBrowserClient(): SupabaseClient {
   if (client) return client;
@@ -25,15 +50,14 @@ export function getSupabaseBrowserClient(): SupabaseClient {
     );
   }
   const storageKey = "lumenx.admin.supabase.auth.v1";
-  // Prefer sessionStorage so refresh tokens do not survive tab close on shared devices.
-  // Migrate any legacy localStorage session once, then drop it.
+  // Migrate any short-lived sessionStorage copy back to durable localStorage.
   if (typeof window !== "undefined") {
     try {
-      const legacy = window.localStorage.getItem(storageKey);
-      if (legacy && !window.sessionStorage.getItem(storageKey)) {
-        window.sessionStorage.setItem(storageKey, legacy);
+      const fromSession = window.sessionStorage.getItem(storageKey);
+      if (fromSession && !window.localStorage.getItem(storageKey)) {
+        window.localStorage.setItem(storageKey, fromSession);
       }
-      window.localStorage.removeItem(storageKey);
+      window.sessionStorage.removeItem(storageKey);
     } catch {
       // ignore storage access errors (private mode / blocked)
     }
@@ -44,7 +68,7 @@ export function getSupabaseBrowserClient(): SupabaseClient {
       autoRefreshToken: true,
       detectSessionInUrl: true,
       storageKey,
-      storage: typeof window !== "undefined" ? window.sessionStorage : undefined,
+      storage: typeof window !== "undefined" ? window.localStorage : undefined,
     },
   });
   return client;
@@ -53,11 +77,78 @@ export function getSupabaseBrowserClient(): SupabaseClient {
 /** Test helper — reset singleton between tests. */
 export function resetSupabaseBrowserClientForTests(): void {
   client = null;
+  refreshInFlight = null;
+  cachedAccessToken = null;
 }
 
-export async function getSupabaseAccessToken(): Promise<string | null> {
+/** Refresh once (deduped) when access token is missing/expired. */
+export async function tryRefreshSupabaseSession(): Promise<boolean> {
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async () => {
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const { data, error } = await supabase.auth.refreshSession();
+      if (!error && data.session?.access_token) {
+        cacheToken(data.session);
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+  return refreshInFlight;
+}
+
+async function readSupabaseSession(): Promise<Session | null> {
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase.auth.getSession();
   if (error) return null;
-  return data.session?.access_token ?? null;
+  return data.session ?? null;
+}
+
+/**
+ * Return a usable access JWT.
+ * Capacitor / WebView can report no session for a few hundred ms after boot
+ * even when localStorage already has a refresh token — wait and refresh
+ * instead of failing every module with "Authentication required".
+ */
+export async function getSupabaseAccessToken(): Promise<string | null> {
+  if (
+    cachedAccessToken &&
+    Date.now() < cachedAccessToken.expiresAtMs - REFRESH_SKEW_MS
+  ) {
+    return cachedAccessToken.token;
+  }
+
+  let session = await readSupabaseSession();
+  if (!session?.access_token) {
+    for (const waitMs of SESSION_HYDRATE_WAITS_MS) {
+      await sleep(waitMs);
+      session = await readSupabaseSession();
+      if (session?.access_token) break;
+    }
+  }
+  if (!session?.access_token) {
+    const ok = await tryRefreshSupabaseSession();
+    if (ok) session = await readSupabaseSession();
+  }
+  if (!session?.access_token) {
+    cachedAccessToken = null;
+    return null;
+  }
+
+  const expiresAtMs = (session.expires_at ?? 0) * 1000;
+  if (expiresAtMs && Date.now() >= expiresAtMs - REFRESH_SKEW_MS) {
+    const ok = await tryRefreshSupabaseSession();
+    if (ok) {
+      session = (await readSupabaseSession()) ?? session;
+    } else if (!expiresAtMs || expiresAtMs <= Date.now()) {
+      cachedAccessToken = null;
+      return null;
+    }
+  }
+  return cacheToken(session);
 }

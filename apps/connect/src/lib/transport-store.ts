@@ -257,9 +257,9 @@ function pushAlert(
         type === "delay" || type === "eta_5min" || type === "sos" || type === "stop_pending"
           ? "warning"
           : "positive",
-      category: "circulars",
+      category: "transport",
       unread: true,
-      priority: type === "delay" || type === "sos" ? "high" : "normal",
+      priority: type === "sos" ? "high" : "normal",
       detail: message,
       href,
     };

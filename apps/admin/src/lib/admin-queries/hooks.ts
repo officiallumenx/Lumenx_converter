@@ -116,6 +116,7 @@ function useAdminQuery<
 ) {
   const { queryFn, ...rest } = options;
   return useQuery({
+    placeholderData: keepPreviousData,
     ...rest,
     queryFn: queryFn
       ? async (ctx) => {

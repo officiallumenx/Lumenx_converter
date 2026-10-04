@@ -120,7 +120,37 @@ export function HomeOverview({
     );
   }
 
-  if (!summary) return null;
+  if (!summary) {
+    return (
+      <section className="lx-home-section lx-home-panel lx-home-overview" style={{ "--lx-home-i": 2 } as CSSProperties}>
+        <div className="lx-home-panel__head">
+          <h2 className="lx-home-panel__title">Institute Overview</h2>
+        </div>
+        <div className="lx-home-kpi-grid">
+          {CELLS.map((cell) => {
+            const Icon = cell.icon;
+            return (
+              <Link
+                key={cell.key}
+                to={cell.to}
+                className={`lx-home-kpi ${cell.accent}`}
+                aria-label={`Open ${cell.label}`}
+              >
+                <div className="lx-home-kpi__top">
+                  <span className="lx-home-kpi__icon" aria-hidden>
+                    <Icon className="size-3.5" />
+                  </span>
+                  <span className="lx-home-kpi__label">{cell.label}</span>
+                  <ChevronRight className="lx-home-kpi__chevron size-3.5 shrink-0" aria-hidden />
+                </div>
+                <p className="lx-home-kpi__value">0</p>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="lx-home-section lx-home-panel lx-home-overview" style={{ "--lx-home-i": 2 } as CSSProperties}>

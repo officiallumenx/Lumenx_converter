@@ -3,7 +3,10 @@ import type { LucideIcon } from "lucide-react";
 import {
   AlertTriangle,
   Bell,
+  BookOpen,
+  Bus,
   CalendarDays,
+  CalendarOff,
   FileText,
   Megaphone,
   MessageSquare,
@@ -48,6 +51,21 @@ const CATEGORY_META: Record<
     label: "System",
     icon: Settings,
     color: STUDENT_MODULE_COLORS.slate,
+  },
+  transport: {
+    label: "Transport",
+    icon: Bus,
+    color: STUDENT_MODULE_COLORS.teal,
+  },
+  leave: {
+    label: "Leave",
+    icon: CalendarOff,
+    color: STUDENT_MODULE_COLORS.amber,
+  },
+  homework: {
+    label: "Diary",
+    icon: BookOpen,
+    color: STUDENT_MODULE_COLORS.orange,
   },
   urgent: {
     label: "Urgent",

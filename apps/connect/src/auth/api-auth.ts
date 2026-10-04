@@ -3,7 +3,10 @@ import { clearAppAuthSession } from "@lumenx/auth";
 import { invalidatePushDeviceTokensBeforeSignOut } from "@lumenx/notifications";
 import { getConnectApiClient } from "@/lib/connect-api";
 import type { MeResponse } from "@/lib/api/me-types";
-import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import {
+  getSupabaseAccessToken,
+  getSupabaseBrowserClient,
+} from "@/lib/supabase-browser";
 import { isInstituteUuid } from "@/lib/institute-id";
 
 export type ConnectApiSession = {
@@ -321,14 +324,15 @@ export async function tryHydrateApiSession(
   role: Role | null,
   preferredInstituteId?: string | null,
 ): Promise<ConnectApiSession | null> {
-  const supabase = getSupabaseBrowserClient();
-  const { data, error } = await supabase.auth.getSession();
-  if (error || !data.session?.access_token || !role) return null;
+  if (!role) return null;
+  // Prefer refreshed access token so cold start after JWT expiry still hydrates.
+  const accessToken = await getSupabaseAccessToken();
+  if (!accessToken) return null;
 
-  const me = await fetchMe(data.session.access_token);
+  const me = await fetchMe(accessToken);
   const instituteId = resolveInstituteForRole(me, role, preferredInstituteId);
   if (!instituteId) {
-    await supabase.auth.signOut().catch(() => undefined);
+    // Do not sign out — role/institute mismatch can be temporary or UI-state only.
     return null;
   }
 

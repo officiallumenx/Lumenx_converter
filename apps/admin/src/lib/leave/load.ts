@@ -7,11 +7,13 @@ import { isApiAuthMode } from "@/auth/auth-mode";
 import { ApiClientError } from "@/lib/api";
 import { isInstituteUuid } from "@/lib/active-institute";
 import { listClassesCatalog } from "@/lib/classes/api";
-import { listStudents } from "@/lib/students/api";
+import {
+  listStudentsCached,
+  listTeachersCached,
+} from "@/lib/directory-lists-cache";
 import { studentDtosToListItems } from "@/lib/students/map";
-import { listTeachers } from "@/lib/teachers/api";
 import { teacherDtosToListItems } from "@/lib/teachers/map";
-import { getLeaveDecision, listLeaveRequests } from "./api";
+import { listLeaveRequests } from "./api";
 import {
   buildLeaveEnrichmentContext,
   enrichLeaveDtosToListItems,
@@ -34,23 +36,6 @@ export type LeaveListState = {
   errorMessage: string | null;
 };
 
-async function loadDecisionNotes(
-  dtos: Awaited<ReturnType<typeof listLeaveRequests>>,
-): Promise<Map<string, string | null>> {
-  const decided = dtos.filter((d) => d.status !== "pending" && d.status !== "cancelled");
-  const entries = await Promise.all(
-    decided.map(async (row) => {
-      try {
-        const decision = await getLeaveDecision(row.id);
-        return [row.id, decision.note] as const;
-      } catch {
-        return [row.id, null] as const;
-      }
-    }),
-  );
-  return new Map(entries);
-}
-
 export async function loadLeaveRequestsList(
   activeInstituteId: string | null,
 ): Promise<LeaveListState> {
@@ -72,18 +57,17 @@ export async function loadLeaveRequestsList(
       return { status: "empty", items: [], errorMessage: null };
     }
 
-    const [students, teachers, catalog, decisionNotes] = await Promise.all([
-      listStudents({ instituteId: activeInstituteId })
+    const [students, teachers, catalog] = await Promise.all([
+      listStudentsCached(activeInstituteId)
         .then(studentDtosToListItems)
         .catch(() => []),
-      listTeachers({ instituteId: activeInstituteId })
+      listTeachersCached(activeInstituteId)
         .then(teacherDtosToListItems)
         .catch(() => []),
       listClassesCatalog({ instituteId: activeInstituteId }).catch(() => ({
         classes: [],
         sections: [],
       })),
-      loadDecisionNotes(dtos),
     ]);
 
     const ctx = buildLeaveEnrichmentContext({
@@ -91,7 +75,7 @@ export async function loadLeaveRequestsList(
       teachers,
       classes: catalog.classes,
       sections: catalog.sections,
-      decisionNotes,
+      decisionNotes: new Map(),
     });
     const items = enrichLeaveDtosToListItems(dtos, ctx);
     return {

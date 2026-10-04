@@ -36,10 +36,10 @@ const FEATURE_CATEGORY: Record<NotificationFeature, NotificationCategory> = {
   admissions: "circulars",
   attendance: "attendance",
   fees: "fees",
-  transport: "circulars",
+  transport: "transport",
   events: "events",
-  messages: "circulars",
-  careers: "circulars",
+  messages: "messages",
+  careers: "academic",
 };
 
 function daysAgoIso(days: number, hour = 10): string {
@@ -382,6 +382,10 @@ export const ADMIN_NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, st
   holidays: "Holidays",
   circulars: "Circulars",
   emergency: "Emergency",
+  messages: "Messages",
+  transport: "Transport",
+  leave: "Leave",
+  system: "System",
 };
 
 /** Reset demo inbox (seed again). */

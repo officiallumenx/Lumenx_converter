@@ -1,6 +1,6 @@
 {
   "name": "@lumenx/app-connect",
-  "version": "1.0.5",
+  "version": "1.0.7",
   "private": true,
   "sideEffects": false,
   "type": "module",
@@ -17,6 +17,7 @@
     "cap:open:android": "cap open android",
     "android:aab": "cd android && gradlew.bat bundleRelease",
     "cap:aab": "npm run build:capacitor && npx cap sync android && npm run android:aab",
+    "icons:android": "node scripts/generate-launcher-icons.mjs",
     "lint": "eslint src --cache",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css,json}\"",
